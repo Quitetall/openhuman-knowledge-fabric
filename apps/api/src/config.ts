@@ -11,6 +11,9 @@ export interface ApiConfig {
   readonly logLevel: string;
   readonly databaseUrl: string | undefined;
   readonly environment: 'development' | 'test' | 'staging' | 'production';
+  /** Present only when an identity provider is configured. Absent means header identity. */
+  readonly identity:
+    { readonly issuer: string; readonly audience: string; readonly jwksUri: string } | undefined;
 }
 
 class ConfigError extends Error {
@@ -54,12 +57,39 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     throw new ConfigError(`DATABASE_URL is required when NODE_ENV=${environment}`);
   }
 
+  // All three or none. A half-configured provider is the shape that silently falls back to
+  // trusting headers, which is the failure this whole path exists to prevent.
+  const issuer = env['OIDC_ISSUER'];
+  const audience = env['OIDC_AUDIENCE'];
+  const jwksUri = env['OIDC_JWKS_URI'];
+  const identityParts = [issuer, audience, jwksUri].filter((v) => v !== undefined && v !== '');
+  if (identityParts.length > 0 && identityParts.length < 3) {
+    throw new ConfigError(
+      'OIDC_ISSUER, OIDC_AUDIENCE and OIDC_JWKS_URI must all be set, or none of them. ' +
+        'A partially configured identity provider falls back to trusting headers.',
+    );
+  }
+  const identity =
+    identityParts.length === 3
+      ? { issuer: issuer!, audience: audience!, jwksUri: jwksUri! }
+      : undefined;
+
+  // Outside development an identity provider is not optional. Without this the process would
+  // start, serve, and attribute every action to whoever set a header.
+  if (environment !== 'development' && environment !== 'test' && identity === undefined) {
+    throw new ConfigError(
+      `An identity provider is required when NODE_ENV=${environment}. Set OIDC_ISSUER, ` +
+        'OIDC_AUDIENCE and OIDC_JWKS_URI.',
+    );
+  }
+
   return {
     host: env['HOST'] ?? '0.0.0.0',
     port: readPort(env['PORT'], 4000),
     logLevel: env['LOG_LEVEL'] ?? (environment === 'production' ? 'info' : 'debug'),
     databaseUrl,
     environment,
+    identity,
   };
 }
 

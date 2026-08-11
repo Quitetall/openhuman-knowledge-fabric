@@ -20,6 +20,9 @@ importers:
       '@kf/artifacts':
         specifier: workspace:*
         version: link:packages/artifacts
+      '@kf/authorization':
+        specifier: workspace:*
+        version: link:packages/authorization
       '@kf/canonicalization':
         specifier: workspace:*
         version: link:packages/canonicalization
@@ -71,6 +74,9 @@ importers:
       fastify:
         specifier: ^5.11.3
         version: 5.11.3
+      jose:
+        specifier: ^6.2.8
+        version: 6.2.8
       prettier:
         specifier: ^3.9.6
         version: 3.9.6
@@ -231,9 +237,15 @@ importers:
 
   packages/authorization:
     dependencies:
+      '@kf/database':
+        specifier: workspace:*
+        version: link:../database
       '@kf/domain':
         specifier: workspace:*
         version: link:../domain
+      jose:
+        specifier: ^6.2.8
+        version: 6.2.8
 
   packages/canonicalization:
     devDependencies:
@@ -1842,6 +1854,9 @@ packages:
 
   jackspeak@3.4.3:
     resolution: {integrity: sha512-OGlZQpz2yfahA/Rd1Y8Cd9SIEsqvXkLVoSw/cgwhnhFMDbsQFeZYoJJ7bIZBS9BcamUW96asq/npPWugM+RQBw==}
+
+  jose@6.2.8:
+    resolution: {integrity: sha512-Bsdjwm3Qsd/P0jR+BHDe3LytDfY7WBq2HmCCLIwuVRHMuEC9ae7/R474GIUdF1NgCyZjzVo/A9DOiOBtXq8ZoQ==}
 
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
@@ -4094,6 +4109,8 @@ snapshots:
       '@isaacs/cliui': 8.0.2
     optionalDependencies:
       '@pkgjs/parseargs': 0.11.0
+
+  jose@6.2.8: {}
 
   js-tokens@4.0.0: {}
 

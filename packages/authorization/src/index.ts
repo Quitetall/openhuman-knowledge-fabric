@@ -12,3 +12,16 @@ export const PACKAGE: PackageManifest = {
   role: 'Role resolution and action permission',
   owns: [],
 };
+
+export {
+  IdentityRejected,
+  TokenVerifier,
+  linkIdentity,
+  resolveCaller,
+  resolveIn,
+  revokeIdentity,
+  type Caller,
+  type CallerRequest,
+  type IdentityConfig,
+  type IdentityFailure,
+} from './identity.js';

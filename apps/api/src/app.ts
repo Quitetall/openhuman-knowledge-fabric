@@ -8,6 +8,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import { createDispatcher } from '@kf/actions';
 import { createPool, withTransaction, type Pool } from '@kf/database';
+import { TokenVerifier } from '@kf/authorization';
 import { assessReadiness } from '@kf/operations';
 import {
   WORK_CONTROL_EFFECTS,
@@ -99,9 +100,11 @@ export async function buildApp(config: ApiConfig): Promise<FastifyInstance> {
     await registerActionRoutes(app, {
       pool,
       execute,
-      // Header-supplied identity is a development affordance and nothing else. Reaching
-      // production with it would be a total authentication bypass, so the decision is made
-      // here from configuration rather than left to a request-time flag someone can flip.
+      ...(config.identity !== undefined ? { verifier: new TokenVerifier(config.identity) } : {}),
+      // Header-supplied identity is a development affordance and nothing else, and it is
+      // reachable only when no identity provider is configured — `registerActionRoutes`
+      // ignores headers entirely once a verifier exists, rather than falling back to them,
+      // because a fallback activates exactly when the provider is unreachable.
       trustHeaders: config.environment === 'development' || config.environment === 'test',
     });
   }

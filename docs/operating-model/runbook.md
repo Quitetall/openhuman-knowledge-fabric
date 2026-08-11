@@ -142,11 +142,25 @@ valid.
 3. Point the signer at the new key; the next checkpoint uses it.
 4. Verification supplies both keys. `unknown_key` is a finding, never a pass.
 
+## Linking a person to an identity provider account
+
+Nothing is auto-provisioned. A valid token for somebody nobody has linked is refused, because
+the actor list is who can be held responsible and it should not grow because a provider
+accepted a login.
+
+Linking is a recorded decision — `linkIdentity` stores who made it. Revoking is immediate:
+`revokeIdentity` sets `revoked_at`, and the next request with an already-issued token is
+refused rather than waiting for it to expire. The row stays; who used to be able to sign in as
+whom is a fact an investigation needs.
+
+A person who holds several roles states which one they are acting under per request. This is
+not a default the system can pick — choosing decides an authority question on their behalf,
+and the audit trail would record a role they never selected.
+
 ## What is NOT covered here
 
-- **Identity.** There is no identity provider. Every action today is attributed to a
-  development identity and cannot be relied on as a record of who did anything. This is the
-  reason the system is not in service.
+- **MFA and session policy.** Both belong to the identity provider. Neither is configured, and
+  token lifetime and refresh are not yet written down.
 - **TLS.** Not terminated by this application.
 - **Off-site backups and PITR.** The mechanism is proven; the schedule is not built.
 

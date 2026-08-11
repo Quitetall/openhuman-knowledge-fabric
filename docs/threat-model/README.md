@@ -107,16 +107,31 @@ running it is not yet automated.
 
 ## T7 — Identity
 
-**The largest open gap, and the reason the system is not in service.**
+| Control                                                              | Where                    | Proven by                            |
+| -------------------------------------------------------------------- | ------------------------ | ------------------------------------ |
+| Bearer tokens verified against the issuer's published keys           | `packages/authorization` | `tests/permissions/identity.test.ts` |
+| Issuer AND audience checked — a token for another service is refused | same                     | same                                 |
+| Role claims in the token are never read                              | same                     | same                                 |
+| The subject maps to a person; a subject nobody linked is refused     | `org.external_identity`  | same                                 |
+| The acting role is checked live against `org.role_assignment`        | same                     | same                                 |
+| Revocation takes effect immediately, not at token expiry             | same                     | same                                 |
+| Headers are ignored entirely once a verifier exists — no fallback    | `apps/api`               | same                                 |
+| The API refuses to boot outside development without a provider       | `apps/api/src/config.ts` | `apps/api/src/app.test.ts`           |
 
-Header-supplied identity is a development affordance. The API refuses actions entirely outside
-development, and the web application refuses to start without a second explicit signal — but
-there is no identity provider, no MFA, and no session management. Every action recorded today
-is attributed to a development identity and **cannot be relied on as a record of who did
-anything**.
+**The design decision worth arguing about, made explicitly.** The identity provider answers one
+question — who is this — and the database answers everything else. Role claims are not
+consulted, and there is no code path that reads them. If they were, an administrator in
+Keycloak could grant themselves technical authority over a device design without touching this
+system, and the record of who could approve what would live somewhere with no audit chain and
+no separation of duty.
 
-Proven by `tests/permissions/api-actions.test.ts`, which builds the production shape and
-asserts it refuses.
+**Not mitigated: MFA and session management.** Both belong to the identity provider, which is
+where they should be, but neither is configured. Token lifetime, refresh and step-up
+authentication are provider policy and are not yet written down.
+
+**Residual risk.** A stolen unexpired token acts as its subject until it expires or the
+identity link is revoked. Revocation is immediate once somebody knows; nothing here shortens
+the window before they do.
 
 ## What is deliberately out of scope
 

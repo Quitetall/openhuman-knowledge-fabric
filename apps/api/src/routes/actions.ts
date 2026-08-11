@@ -17,16 +17,22 @@
 import type { FastifyInstance } from 'fastify';
 import { ActionRejected, DEFAULT_REASON_REQUIRED, type ActionRequest } from '@kf/actions';
 import { withTransaction, type Pool } from '@kf/database';
+import { IdentityRejected, resolveCaller, type TokenVerifier } from '@kf/authorization';
 import { projectProgress } from '@kf/work-control';
 
 /**
  * Who is calling and what they may see.
  *
- * Gate 8 replaces this with verified OIDC claims from Keycloak. Until then it comes from
- * headers, which is why `requireTrustedCaller` refuses to start unless the deployment has
- * explicitly said it is a development one — a header-trusting auth path that reached
- * production would be a total authentication bypass, and "we'll remember to change it" is
- * not a control.
+ * Two paths, and only one of them is real.
+ *
+ * With an identity provider configured, a bearer token is verified against the issuer's keys,
+ * its subject is mapped to a person, and the acting role is checked against a live role
+ * assignment. Role claims in the token are never read — the provider says WHO, the database
+ * says what they may do.
+ *
+ * Without one, identity comes from headers, and that path exists only where the deployment has
+ * said twice that it is a development one. A header-trusting auth path reaching production is
+ * a total authentication bypass, and "we'll remember to change it" is not a control.
  */
 export interface Caller {
   readonly actorId: string;
@@ -57,6 +63,21 @@ function callerFrom(headers: Record<string, unknown>): Caller {
         ? (headers['x-kf-classification'] as string)
         : 'internal',
   };
+}
+
+/**
+ * A 401 body that says which check refused, without saying which would have passed.
+ *
+ * The failure CODE is returned because a caller needs to know whether to re-authenticate, ask
+ * for a role, or give up. The token verifier's own reasons are deliberately collapsed into one
+ * — telling an attacker whether the signature or the audience was wrong tells them which part
+ * of a forged token to fix next.
+ */
+function unidentified(err: unknown): { error: string; message: string } {
+  if (err instanceof IdentityRejected) {
+    return { error: err.failure, message: err.message };
+  }
+  return { error: 'caller_unidentified', message: (err as Error).message };
 }
 
 /** How each refusal maps to a status code. */
@@ -90,6 +111,12 @@ function ruleViolation(err: unknown): { id: string; message: string } | undefine
 
 export interface ActionRoutesOptions {
   readonly pool: Pool;
+  /**
+   * Verifies bearer tokens. When present it is the ONLY way to become a caller; headers are
+   * ignored entirely rather than used as a fallback, because a fallback is a bypass that
+   * activates exactly when the provider is unreachable.
+   */
+  readonly verifier?: TokenVerifier;
   readonly execute: (request: ActionRequest) => Promise<{
     actionId: string;
     replayed: boolean;
@@ -104,9 +131,41 @@ export async function registerActionRoutes(
   app: FastifyInstance,
   options: ActionRoutesOptions,
 ): Promise<void> {
-  const { pool, execute } = options;
+  const { pool, execute, verifier } = options;
 
-  if (!options.trustHeaders) {
+  /**
+   * The caller, from a token or from headers — never from both.
+   *
+   * Which one is decided at startup, not per request. A route that accepted a token when it
+   * had one and headers otherwise would let anybody who could omit a header downgrade the
+   * whole authentication scheme.
+   */
+  async function identify(request: { headers: Record<string, unknown> }): Promise<Caller> {
+    if (verifier === undefined) return callerFrom(request.headers);
+
+    const authorization = request.headers['authorization'];
+    const token =
+      typeof authorization === 'string' && /^bearer /i.test(authorization)
+        ? authorization.slice(7).trim()
+        : '';
+
+    const header = (name: string): string => {
+      const v = request.headers[name];
+      return typeof v === 'string' ? v : '';
+    };
+    // The role, organization and clearance are still stated by the caller — and every one of
+    // them is checked against the database. Stating a role you do not hold is refused; a
+    // clearance you do not have narrows what row-level security shows you rather than
+    // widening it.
+    return resolveCaller(pool, verifier, {
+      token,
+      actingRoleId: header('x-kf-acting-role'),
+      organizationId: header('x-kf-organization'),
+      maxClassification: header('x-kf-classification') || 'internal',
+    });
+  }
+
+  if (verifier === undefined && !options.trustHeaders) {
     // Fail at startup, not at the first request. A deployment that would have trusted
     // client-supplied identity should never reach the point of serving traffic.
     app.log.warn('action routes are disabled: no verified identity provider is configured');
@@ -132,11 +191,9 @@ export async function registerActionRoutes(
   }>('/actions/:actionType', async (request, reply) => {
     let caller: Caller;
     try {
-      caller = callerFrom(request.headers as Record<string, unknown>);
+      caller = await identify({ headers: request.headers as Record<string, unknown> });
     } catch (err: unknown) {
-      return reply
-        .code(401)
-        .send({ error: 'caller_unidentified', message: (err as Error).message });
+      return reply.code(401).send(unidentified(err));
     }
 
     const body = request.body ?? {};
@@ -201,11 +258,9 @@ export async function registerActionRoutes(
   app.get<{ Params: { id: string } }>('/projects/:id', async (request, reply) => {
     let caller: Caller;
     try {
-      caller = callerFrom(request.headers as Record<string, unknown>);
+      caller = await identify({ headers: request.headers as Record<string, unknown> });
     } catch (err: unknown) {
-      return reply
-        .code(401)
-        .send({ error: 'caller_unidentified', message: (err as Error).message });
+      return reply.code(401).send(unidentified(err));
     }
 
     return withTransaction(pool, async (tx) => {
@@ -260,11 +315,9 @@ export async function registerActionRoutes(
   app.get<{ Params: { id: string } }>('/objects/:id/available-actions', async (request, reply) => {
     let caller: Caller;
     try {
-      caller = callerFrom(request.headers as Record<string, unknown>);
+      caller = await identify({ headers: request.headers as Record<string, unknown> });
     } catch (err: unknown) {
-      return reply
-        .code(401)
-        .send({ error: 'caller_unidentified', message: (err as Error).message });
+      return reply.code(401).send(unidentified(err));
     }
 
     return withTransaction(pool, async (tx) => {
@@ -314,11 +367,9 @@ export async function registerActionRoutes(
   app.get<{ Params: { id: string } }>('/objects/:id/history', async (request, reply) => {
     let caller: Caller;
     try {
-      caller = callerFrom(request.headers as Record<string, unknown>);
+      caller = await identify({ headers: request.headers as Record<string, unknown> });
     } catch (err: unknown) {
-      return reply
-        .code(401)
-        .send({ error: 'caller_unidentified', message: (err as Error).message });
+      return reply.code(401).send(unidentified(err));
     }
 
     return withTransaction(pool, async (tx) => {

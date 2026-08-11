@@ -25,8 +25,8 @@ const GATES: { id: number; title: string; status: Status; note?: string }[] = [
   {
     id: 8,
     title: 'Operational hardening',
-    status: 'not started',
-    note: 'Includes the identity provider. Until it lands, this application acts as a fixed development identity and refuses to run outside development.',
+    status: 'in progress',
+    note: 'The API verifies OIDC bearer tokens and refuses to boot outside development without a provider. This web application still acts as a fixed development identity and refuses to run outside development.',
   },
 ];
 
@@ -54,9 +54,10 @@ export default function Home() {
         }}
       >
         <strong>Not yet in service.</strong> The authority kernel, its audit chain and the
-        preservation export all hold, and work control runs end to end. What is missing is a
-        verified identity provider: every action recorded here today is attributed to a development
-        identity, so it cannot be relied on as a record of who did anything.
+        preservation export all hold, work control runs end to end, and the API verifies OIDC bearer
+        tokens against a provider. This web application does not yet — it still acts as a fixed
+        development identity, so anything recorded through THIS interface cannot be relied on as a
+        record of who did it.
       </p>
 
       <h2 style={{ fontSize: '1rem', marginTop: '2rem' }}>Commissioning gates</h2>
