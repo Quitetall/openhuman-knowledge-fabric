@@ -1,0 +1,116 @@
+# Local development stack.
+#
+# This is NOT a production topology. Credentials here are fixed and public on purpose so a
+# clean checkout runs without setup; every one of them is rejected outside development by
+# the checks in infrastructure/. Production deployment is Gate 8.
+
+name: openhuman-knowledge-fabric
+
+services:
+  postgres:
+    # PostgreSQL 18 is a hard requirement, not a preference: uuidv7() is used for object
+    # identity and was added in this major version.
+    image: postgres:18-alpine
+    container_name: kf-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: kf
+      POSTGRES_USER: kf_owner
+      POSTGRES_PASSWORD: dev-only-not-a-secret
+      # Deterministic collation. A libc collation change silently reorders text indexes and
+      # corrupts uniqueness assumptions across an OS upgrade.
+      POSTGRES_INITDB_ARGS: '--locale-provider=builtin --builtin-locale=C.UTF-8 --encoding=UTF8'
+    command:
+      - postgres
+      - -c
+      - wal_level=logical # required for PITR and logical replication (Gate 8)
+      - -c
+      - log_statement=ddl
+      - -c
+      - track_commit_timestamp=on
+    ports:
+      - '5432:5432'
+    volumes:
+      # Mount the PARENT, not .../data. From 18 the image stores the cluster in a
+      # major-version subdirectory so `pg_upgrade --link` does not have to cross a mount
+      # boundary. Records here are retained indefinitely, so this system will be carried
+      # across many major versions — the upgrade path is not a detail to get wrong later.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U kf_owner -d kf']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  minio:
+    image: minio/minio:latest
+    container_name: kf-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: kf-dev-access-key
+      MINIO_ROOT_PASSWORD: dev-only-not-a-secret
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  # Creates the buckets the evidence vault needs and turns on object versioning.
+  # Versioning must exist before the first object is written — enabling it later does not
+  # retroactively protect anything already stored.
+  minio-init:
+    image: minio/mc:latest
+    container_name: kf-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set kf http://minio:9000 kf-dev-access-key dev-only-not-a-secret &&
+      mc mb --ignore-existing kf/kf-artifacts &&
+      mc mb --ignore-existing kf/kf-snapshots &&
+      mc mb --ignore-existing kf/kf-checkpoints &&
+      mc mb --ignore-existing kf/kf-exports &&
+      mc version enable kf/kf-artifacts &&
+      mc version enable kf/kf-snapshots &&
+      mc version enable kf/kf-checkpoints &&
+      mc version enable kf/kf-exports &&
+      echo 'buckets ready with versioning enabled'
+      "
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4
+    container_name: kf-keycloak
+    restart: unless-stopped
+    command: ['start-dev', '--http-port=8080']
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: dev-only-not-a-secret
+      KC_HEALTH_ENABLED: 'true'
+    ports:
+      - '8080:8080'
+    volumes:
+      - keycloak-data:/opt/keycloak/data
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          "exec 3<>/dev/tcp/localhost/9000 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200 OK'",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+volumes:
+  postgres-data:
+  minio-data:
+  keycloak-data:

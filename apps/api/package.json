@@ -1,0 +1,21 @@
+{
+  "name": "@kf/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Knowledge Fabric HTTP API — typed reads and typed actions",
+  "main": "./dist/server.js",
+  "scripts": {
+    "dev": "node --watch --experimental-strip-types src/server.ts",
+    "start": "node dist/server.js",
+    "build": "tsc --build",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@kf/domain": "workspace:*",
+    "fastify": "^5.11.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3"
+  }
+}

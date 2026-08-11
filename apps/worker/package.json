@@ -1,0 +1,21 @@
+{
+  "name": "@kf/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Background job runner — outbox delivery, digest verification, projections",
+  "main": "./dist/main.js",
+  "scripts": {
+    "dev": "node --watch --experimental-strip-types src/main.ts",
+    "start": "node dist/main.js",
+    "build": "tsc --build",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@kf/domain": "workspace:*",
+    "graphile-worker": "^0.17.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "name": "openhuman-knowledge-fabric",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "OpenHuman Knowledge Fabric — institutional information platform (OH-DOC-000002-1-R01)",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=24.18.1 <25",
+    "pnpm": ">=11"
+  },
+  "packageManager": "pnpm@11.21.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter \"./apps/**\" dev",
+    "build": "pnpm -r build",
+    "typecheck": "tsc --build && pnpm --filter @kf/web run typecheck",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "ontology:check": "pnpm --filter @kf/ontology-compiler run check",
+    "ontology:build": "pnpm --filter @kf/ontology-compiler run build:artifacts",
+    "db:up": "docker compose up -d postgres minio keycloak",
+    "db:migrate": "dbmate --migrations-dir ./database/migrations up",
+    "db:status": "dbmate --migrations-dir ./database/migrations status",
+    "clean": "git clean -xdf node_modules dist .turbo && pnpm store prune"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.13.3",
+    "dbmate": "^2.35.0",
+    "eslint": "^10.8.1",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.9.6",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.67.0",
+    "vitest": "^4.1.10"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "@kf/checkpoint",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Audit checkpoint signer — builds and signs Merkle roots over the audit log",
+  "main": "./dist/main.js",
+  "scripts": {
+    "start": "node dist/main.js",
+    "build": "tsc --build",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@kf/canonicalization": "workspace:*",
+    "@kf/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3"
+  }
+}

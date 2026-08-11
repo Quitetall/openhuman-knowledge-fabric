@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '24.18.1'
+
+# Jobs are added as their subject matter lands. A job that passes because there is nothing
+# for it to check is worse than no job: it reports a guarantee that does not exist.
+#
+#   Gate 2 adds: ontology consistency + regenerate-and-diff over generated/
+#   Gate 3 adds: a PostgreSQL 18 service and the database invariant / permission suites
+#   Gate 4 adds: export round-trip and audit checkpoint verification
+#   Gate 5 adds: Playwright end-to-end
+#   Gate 8 adds: dependency scanning and the restore drill
+
+jobs:
+  verify:
+    name: format · lint · typecheck · test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Format
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+  build:
+    name: build from a clean checkout
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build

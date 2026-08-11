@@ -1,0 +1,22 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.next/
+coverage/
+.vitest/
+
+# Secrets and local environment. Never commit a populated .env.
+.env
+.env.*
+!.env.example
+
+# Operational data must never enter git (directive §2.4). These paths exist so an
+# accidental local dump cannot be staged.
+/data/
+/exports/
+*.dump
+*.sql.gz
+*.pgdata
+
+.DS_Store
+*.log
