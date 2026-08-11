@@ -149,6 +149,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@kf/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@kf/domain':
         specifier: workspace:*
         version: link:../../packages/domain

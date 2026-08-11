@@ -12,6 +12,7 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
+    "@kf/database": "workspace:*",
     "@kf/domain": "workspace:*",
     "graphile-worker": "^0.17.3"
   },

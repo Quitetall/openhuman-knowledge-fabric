@@ -542,6 +542,20 @@ async function stateSnapshot(tx: Tx, ids: readonly string[]): Promise<Map<string
 const REHEARSAL_SAVEPOINT = 'kf_rehearsal';
 
 /**
+ * Statements that decide whether work becomes durable.
+ *
+ * Matched by leading verb rather than exact string, and anything in this family that is not
+ * explicitly handled is REFUSED rather than passed through. The safety argument used to rest
+ * on this list being exhaustive, which is the kind of assumption that is true until somebody
+ * changes the dispatcher: `RELEASE SAVEPOINT kf_rehearsal` would have folded the rehearsal
+ * into the enclosing transaction, and the outer rollback would have had nothing to undo.
+ *
+ * Now the list only has to be exhaustive about what is SAFE. Everything else fails loudly.
+ */
+const TRANSACTION_CONTROL =
+  /^(begin|start\s+transaction|commit|end|rollback|savepoint|release|set\s+transaction|abort)\b/;
+
+/**
  * A Pool facade over one open transaction, translating the dispatcher's transaction control
  * into SAVEPOINTS.
  *
@@ -561,20 +575,33 @@ const REHEARSAL_SAVEPOINT = 'kf_rehearsal';
 function singleTransactionPool(tx: Tx): Pool {
   const control = async (sql: string): Promise<Record<string, unknown>[]> => {
     const verb = sql.trim().toLowerCase();
-    if (verb === 'begin') return tx.query(`savepoint ${REHEARSAL_SAVEPOINT}`);
+    if (/^begin\b/.test(verb) || /^start\s+transaction\b/.test(verb)) {
+      return tx.query(`savepoint ${REHEARSAL_SAVEPOINT}`);
+    }
     // Deliberately NOT `release savepoint`. See above.
-    if (verb === 'commit') return [];
-    if (verb === 'rollback') return tx.query(`rollback to savepoint ${REHEARSAL_SAVEPOINT}`);
+    if (/^(commit|end)\b/.test(verb)) return [];
+    if (/^(rollback|abort)\b/.test(verb)) {
+      return tx.query(`rollback to savepoint ${REHEARSAL_SAVEPOINT}`);
+    }
+    if (TRANSACTION_CONTROL.test(verb)) {
+      // Fail closed. A savepoint the rehearsal did not create, or a release, or an isolation
+      // change — none of these have a translation that is obviously safe, and guessing at one
+      // is how a rehearsal becomes a performance.
+      throw new Error(
+        `rehearsal refuses transaction control it cannot safely translate: ${sql.trim().slice(0, 60)}`,
+      );
+    }
     return tx.query(sql);
   };
 
   return {
     connect: async () => ({
       query: async (sql: string, params?: readonly unknown[]) => {
-        const rows =
-          params === undefined || params.length === 0
-            ? await control(sql)
-            : await tx.query(sql, params);
+        // The VERB decides, not the presence of parameters. Routing on parameters meant a
+        // hypothetical `query('commit', [x])` would have bypassed the facade entirely.
+        const rows = TRANSACTION_CONTROL.test(sql.trim().toLowerCase())
+          ? await control(sql)
+          : await tx.query(sql, params ?? []);
         return { rows };
       },
       release: () => {

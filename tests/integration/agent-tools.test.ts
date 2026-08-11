@@ -328,6 +328,36 @@ describe('rehearsal: says what would happen, and does not do it', () => {
     expect(after.n).toBe(before.n);
   });
 
+  it('refuses transaction control it cannot safely translate', async () => {
+    // The facade used to match BEGIN/COMMIT/ROLLBACK as exact strings and pass anything else
+    // through. `release savepoint kf_rehearsal` would have folded the rehearsal into the
+    // enclosing transaction, and the outer rollback would have had nothing left to undo.
+    //
+    // Driven through a dispatcher stub, because the real one never emits these — which is
+    // exactly why the old version looked safe.
+    const outcome = await rehearseAction(
+      h.pool,
+      scope(),
+      {
+        actionType: 'accept_decision',
+        targetIds: [successor],
+        idempotencyKey: 'rehearse-escape-0001',
+      },
+      {
+        preconditions: {
+          accept_decision: async (tx) => {
+            await tx.query('release savepoint kf_rehearsal');
+          },
+        },
+      },
+    );
+    expect(outcome.wouldSucceed).toBe(false);
+    expect(outcome.refusal?.message).toMatch(/cannot safely translate/);
+
+    // And the record it was rehearsing against is untouched.
+    expect(await stateOf(successor)).toBe('proposed');
+  });
+
   it('is refused by the same scope everything else is', async () => {
     const outcome = await rehearseAction(
       h.pool,
