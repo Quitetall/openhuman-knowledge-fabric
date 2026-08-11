@@ -314,6 +314,35 @@ describe('actions over HTTP', () => {
     }
   });
 
+  it('answers what can be done next FROM THE ONTOLOGY, not from a hard-coded list', async () => {
+    // The interface asks rather than knowing. A UI carrying its own copy of the state
+    // machine is a copy that goes stale — leaving buttons that always fail, or hiding a
+    // transition that is perfectly legal.
+    const r = await app.inject({
+      method: 'GET',
+      url: `/objects/${projectId}/available-actions`,
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+    });
+    expect(r.statusCode).toBe(200);
+    const body = r.json() as {
+      state: string;
+      objectType: string;
+      actions: { actionType: string; toStates: string[]; requiresChoice: boolean }[];
+    };
+    expect(body.objectType).toBe('initiative_project');
+    expect(body.state).toBe('captured');
+
+    const triage = body.actions.find((a) => a.actionType === 'triage_initiative');
+    expect(triage).toBeDefined();
+    // From `captured` the ontology offers both triage and parked, so the caller must pick —
+    // and the interface has to know that or it will submit something the dispatcher refuses.
+    expect(triage!.requiresChoice).toBe(true);
+    expect(triage!.toStates.sort()).toEqual(['parked', 'triage']);
+
+    // Not offered from here, and correctly absent rather than listed-and-failing.
+    expect(body.actions.map((a) => a.actionType)).not.toContain('activate_project');
+  });
+
   it('answers 404 — not 403 — for a record outside the caller scope', async () => {
     const r = await app.inject({
       method: 'GET',

@@ -245,6 +245,75 @@ export async function registerActionRoutes(
     });
   });
 
+  /**
+   * What can be done to this record next, according to the ontology.
+   *
+   * The interface asks rather than knowing. A UI that hard-coded which buttons to show for
+   * which state would be a second copy of the state machine, and the copy is the one that
+   * goes stale — leaving buttons that always fail, or worse, hiding a transition that is
+   * perfectly legal. This is the registry the dispatcher itself reads.
+   *
+   * It is a hint, never an authorization: an action listed here can still be refused for
+   * separation of duty, a precondition or a financial ceiling, because those depend on facts
+   * this endpoint does not evaluate.
+   */
+  app.get<{ Params: { id: string } }>('/objects/:id/available-actions', async (request, reply) => {
+    let caller: Caller;
+    try {
+      caller = callerFrom(request.headers as Record<string, unknown>);
+    } catch (err: unknown) {
+      return reply
+        .code(401)
+        .send({ error: 'caller_unidentified', message: (err as Error).message });
+    }
+
+    return withTransaction(pool, async (tx) => {
+      await tx.query('select core.set_access_context($1, $2)', [
+        caller.organizationId,
+        caller.maxClassification,
+      ]);
+      const object = await tx.maybeOne<{ object_type: string; lifecycle_state: string }>(
+        'select object_type, lifecycle_state from core.object where id = $1',
+        [request.params.id],
+      );
+      if (object === undefined) return reply.code(404).send({ error: 'not_found' });
+
+      const transitions = await tx.query<{
+        action_id: string;
+        to_state: string;
+        reason_required: boolean;
+      }>(
+        `select t.action_id, t.to_state,
+                -- Ambiguity is the caller's to resolve, so it has to be visible here: an
+                -- action with several destinations needs payload.to_state, and a UI that did
+                -- not know would submit something the dispatcher refuses.
+                (count(*) over (partition by t.action_id) > 1) as reason_required
+           from registry.state_transition t
+          where t.object_type = $1 and t.from_state = $2
+          order by t.action_id, t.to_state`,
+        [object.object_type, object.lifecycle_state],
+      );
+
+      const byAction = new Map<string, string[]>();
+      for (const t of transitions) {
+        byAction.set(t.action_id, [...(byAction.get(t.action_id) ?? []), t.to_state]);
+      }
+
+      return reply.send({
+        objectId: request.params.id,
+        objectType: object.object_type,
+        state: object.lifecycle_state,
+        actions: [...byAction.entries()].map(([actionType, toStates]) => ({
+          actionType,
+          toStates,
+          // More than one destination means the caller must choose; the dispatcher refuses
+          // to guess which branch of a lifecycle to take.
+          requiresChoice: toStates.length > 1,
+        })),
+      });
+    });
+  });
+
   /** The audit trail for one object — what an auditor asks for first. */
   app.get<{ Params: { id: string } }>('/objects/:id/history', async (request, reply) => {
     let caller: Caller;
