@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "OpenHuman Knowledge Fabric — institutional information platform (OH-DOC-000002-1-R01)",
+  "description": "OpenHuman Knowledge Fabric \u2014 institutional information platform (OH-DOC-000002-1-R01)",
   "license": "UNLICENSED",
   "engines": {
     "node": ">=24.18.1 <25",
@@ -25,7 +25,8 @@
     "db:up": "docker compose up -d postgres minio keycloak",
     "db:migrate": "dbmate --migrations-dir ./database/migrations up",
     "db:status": "dbmate --migrations-dir ./database/migrations status",
-    "clean": "git clean -xdf node_modules dist .turbo && pnpm store prune"
+    "clean": "git clean -xdf node_modules dist .turbo && pnpm store prune",
+    "ontology:pack": "tsc --build packages/ontology-compiler && node packages/ontology-compiler/dist/cli.js pack"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

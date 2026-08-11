@@ -31,3 +31,5 @@ export {
   emitVocabulary,
 } from './emit/interchange.js';
 export { emitDocumentation, emitOpenApi, emitSqlRegistry, emitTypeScript } from './emit/code.js';
+export { buildReleasePack, packGaps } from './pack.js';
+export type { PackFile } from './pack.js';

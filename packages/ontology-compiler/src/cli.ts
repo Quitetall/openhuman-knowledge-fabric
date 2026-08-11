@@ -1,15 +1,18 @@
 /**
  * Ontology compiler CLI.
  *
- *   check           validate the ontology, then report any drift in generated/
- *   build           regenerate generated/ from ontology/
+ *   check            validate the ontology, then report any drift in generated/
+ *   build            regenerate generated/ from ontology/
+ *   pack [version]   assemble a spec §5 release package under release/
  *
  * `check` never writes. It is what CI runs, and a check that repairs what it is inspecting
  * cannot report a failure.
  */
 
-import { resolve } from 'node:path';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { buildArtifacts, findDrift, writeArtifacts } from './build.js';
+import { buildReleasePack, packGaps } from './pack.js';
 import { checkOntology, formatFindings } from './check.js';
 import { loadOntology, OntologyError } from './model.js';
 
@@ -36,6 +39,20 @@ function run(command: string): number {
     return 0;
   }
 
+  if (command === 'pack') {
+    const r01 = resolve(process.cwd(), 'tests', 'conformance', 'r01-golden');
+    const version = process.argv[3] ?? '1.0.0-draft.2';
+    const out = resolve(process.cwd(), 'release', `knowledge-fabric-${version}`);
+    const files = buildReleasePack(o, r01, version);
+    mkdirSync(out, { recursive: true });
+    for (const f of files) writeFileSync(join(out, f.path), f.content);
+    console.error(`ontology: wrote ${files.length} file(s) to release/knowledge-fabric-${version}`);
+    console.error('\nThis package is NOT normative until its manifest is signed or approved.');
+    console.error('Known gaps travelling with it:');
+    for (const g of packGaps()) console.error(`  - ${g}`);
+    return 0;
+  }
+
   if (command === 'check') {
     const drift = findDrift(buildArtifacts(o), GENERATED_DIR);
     if (drift.length > 0) {
@@ -56,7 +73,7 @@ function run(command: string): number {
     return 0;
   }
 
-  console.error(`unknown command '${command}'. Expected: check | build`);
+  console.error(`unknown command '${command}'. Expected: check | build | pack`);
   return 2;
 }
 
