@@ -20,6 +20,9 @@
       "path": "./packages/ontology-compiler"
     },
     {
+      "path": "./packages/product-quality"
+    },
+    {
       "path": "./packages/validation"
     },
     {

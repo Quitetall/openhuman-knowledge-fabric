@@ -36,7 +36,15 @@ import {
   requireString,
 } from './objects.js';
 
-export { createControlledObject } from './objects.js';
+// Re-exported so the Gate 6 operations use the SAME payload readers rather than a second
+// set that drifts: the money and identifier rules live in one place or they live in two.
+export {
+  createControlledObject,
+  optionalString,
+  requireCurrency,
+  requireMinor,
+  requireString,
+} from './objects.js';
 
 /** A precondition failure, phrased so the caller learns which rule refused them. */
 function refuse(rule: string, message: string, detail: Record<string, unknown> = {}): never {

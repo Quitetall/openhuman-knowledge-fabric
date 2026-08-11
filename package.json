@@ -39,6 +39,7 @@
     "@kf/export": "workspace:*",
     "@kf/integration": "workspace:*",
     "@kf/ontology-compiler": "workspace:*",
+    "@kf/product-quality": "workspace:*",
     "@kf/work-control": "workspace:*",
     "@testcontainers/postgresql": "^12.1.0",
     "@types/node": "^24.13.3",
