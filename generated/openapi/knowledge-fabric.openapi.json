@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "OpenHuman Knowledge Fabric API",
-    "version": "1.0.0-draft.1",
-    "description": "Generated from ontology source digest d1511f4416e03cb06dde92ceeade82bc060aed793cd9fbc674ced30f332e83ad."
+    "version": "1.1.0-draft.1",
+    "description": "Generated from ontology source digest 40abb2e71925114dd799d1cb8434428b42615547ff4d9e28e4e43b44baa744c9."
   },
   "paths": {
     "/objects/organization/{id}": {
@@ -707,6 +707,414 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BaselineNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/configuration_item/{id}": {
+      "get": {
+        "summary": "Read a Configuration Item",
+        "operationId": "get_configuration_item",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Configuration Item",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigurationItemNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/interface_contract/{id}": {
+      "get": {
+        "summary": "Read a Interface Contract",
+        "operationId": "get_interface_contract",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Interface Contract",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterfaceContractNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/physical_binding/{id}": {
+      "get": {
+        "summary": "Read a Physical Binding",
+        "operationId": "get_physical_binding",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Physical Binding",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhysicalBindingNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/controlled_document/{id}": {
+      "get": {
+        "summary": "Read a Controlled Document",
+        "operationId": "get_controlled_document",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Controlled Document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlledDocumentNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/nonconformity/{id}": {
+      "get": {
+        "summary": "Read a Nonconformity",
+        "operationId": "get_nonconformity",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Nonconformity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NonconformityNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/capa/{id}": {
+      "get": {
+        "summary": "Read a Corrective and Preventive Action",
+        "operationId": "get_capa",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Corrective and Preventive Action",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapaNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/supplier/{id}": {
+      "get": {
+        "summary": "Read a Supplier",
+        "operationId": "get_supplier",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Supplier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplierNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/equipment/{id}": {
+      "get": {
+        "summary": "Read a Equipment",
+        "operationId": "get_equipment",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Equipment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EquipmentNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/complaint/{id}": {
+      "get": {
+        "summary": "Read a Complaint",
+        "operationId": "get_complaint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Complaint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplaintNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/risk_control/{id}": {
+      "get": {
+        "summary": "Read a Risk Control",
+        "operationId": "get_risk_control",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Risk Control",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiskControlNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/test_definition/{id}": {
+      "get": {
+        "summary": "Read a Test Definition",
+        "operationId": "get_test_definition",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Test Definition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestDefinitionNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/test_execution/{id}": {
+      "get": {
+        "summary": "Read a Test Execution",
+        "operationId": "get_test_execution",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Test Execution",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestExecutionNode"
                 }
               }
             }
@@ -1619,6 +2027,1416 @@
           }
         }
       }
+    },
+    "/actions/promote_configuration_item": {
+      "post": {
+        "summary": "Execute promote_configuration_item",
+        "operationId": "promote_configuration_item",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/supersede_configuration_item": {
+      "post": {
+        "summary": "Execute supersede_configuration_item",
+        "operationId": "supersede_configuration_item",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/retire_configuration_item": {
+      "post": {
+        "summary": "Execute retire_configuration_item",
+        "operationId": "retire_configuration_item",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/publish_interface_contract": {
+      "post": {
+        "summary": "Execute publish_interface_contract",
+        "operationId": "publish_interface_contract",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/deprecate_interface_contract": {
+      "post": {
+        "summary": "Execute deprecate_interface_contract",
+        "operationId": "deprecate_interface_contract",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/withdraw_interface_contract": {
+      "post": {
+        "summary": "Execute withdraw_interface_contract",
+        "operationId": "withdraw_interface_contract",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/record_physical_binding": {
+      "post": {
+        "summary": "Execute record_physical_binding",
+        "operationId": "record_physical_binding",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/remove_physical_binding": {
+      "post": {
+        "summary": "Execute remove_physical_binding",
+        "operationId": "remove_physical_binding",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/submit_document_for_review": {
+      "post": {
+        "summary": "Execute submit_document_for_review",
+        "operationId": "submit_document_for_review",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/approve_controlled_document": {
+      "post": {
+        "summary": "Execute approve_controlled_document",
+        "operationId": "approve_controlled_document",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/make_document_effective": {
+      "post": {
+        "summary": "Execute make_document_effective",
+        "operationId": "make_document_effective",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/supersede_controlled_document": {
+      "post": {
+        "summary": "Execute supersede_controlled_document",
+        "operationId": "supersede_controlled_document",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/withdraw_controlled_document": {
+      "post": {
+        "summary": "Execute withdraw_controlled_document",
+        "operationId": "withdraw_controlled_document",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/raise_nonconformity": {
+      "post": {
+        "summary": "Execute raise_nonconformity",
+        "operationId": "raise_nonconformity",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/contain_nonconformity": {
+      "post": {
+        "summary": "Execute contain_nonconformity",
+        "operationId": "contain_nonconformity",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/investigate_nonconformity": {
+      "post": {
+        "summary": "Execute investigate_nonconformity",
+        "operationId": "investigate_nonconformity",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/disposition_nonconformity": {
+      "post": {
+        "summary": "Execute disposition_nonconformity",
+        "operationId": "disposition_nonconformity",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/close_nonconformity": {
+      "post": {
+        "summary": "Execute close_nonconformity",
+        "operationId": "close_nonconformity",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/open_capa": {
+      "post": {
+        "summary": "Execute open_capa",
+        "operationId": "open_capa",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/approve_capa_plan": {
+      "post": {
+        "summary": "Execute approve_capa_plan",
+        "operationId": "approve_capa_plan",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/implement_capa": {
+      "post": {
+        "summary": "Execute implement_capa",
+        "operationId": "implement_capa",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/check_capa_effectiveness": {
+      "post": {
+        "summary": "Execute check_capa_effectiveness",
+        "operationId": "check_capa_effectiveness",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/close_capa": {
+      "post": {
+        "summary": "Execute close_capa",
+        "operationId": "close_capa",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/register_supplier": {
+      "post": {
+        "summary": "Execute register_supplier",
+        "operationId": "register_supplier",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/qualify_supplier": {
+      "post": {
+        "summary": "Execute qualify_supplier",
+        "operationId": "qualify_supplier",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/restrict_supplier": {
+      "post": {
+        "summary": "Execute restrict_supplier",
+        "operationId": "restrict_supplier",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/disqualify_supplier": {
+      "post": {
+        "summary": "Execute disqualify_supplier",
+        "operationId": "disqualify_supplier",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/register_equipment": {
+      "post": {
+        "summary": "Execute register_equipment",
+        "operationId": "register_equipment",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/place_equipment_in_service": {
+      "post": {
+        "summary": "Execute place_equipment_in_service",
+        "operationId": "place_equipment_in_service",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/remove_equipment_from_service": {
+      "post": {
+        "summary": "Execute remove_equipment_from_service",
+        "operationId": "remove_equipment_from_service",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/quarantine_equipment": {
+      "post": {
+        "summary": "Execute quarantine_equipment",
+        "operationId": "quarantine_equipment",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/retire_equipment": {
+      "post": {
+        "summary": "Execute retire_equipment",
+        "operationId": "retire_equipment",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/receive_complaint": {
+      "post": {
+        "summary": "Execute receive_complaint",
+        "operationId": "receive_complaint",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/triage_complaint": {
+      "post": {
+        "summary": "Execute triage_complaint",
+        "operationId": "triage_complaint",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/investigate_complaint": {
+      "post": {
+        "summary": "Execute investigate_complaint",
+        "operationId": "investigate_complaint",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/close_complaint": {
+      "post": {
+        "summary": "Execute close_complaint",
+        "operationId": "close_complaint",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/propose_risk_control": {
+      "post": {
+        "summary": "Execute propose_risk_control",
+        "operationId": "propose_risk_control",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/implement_risk_control": {
+      "post": {
+        "summary": "Execute implement_risk_control",
+        "operationId": "implement_risk_control",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/verify_risk_control": {
+      "post": {
+        "summary": "Execute verify_risk_control",
+        "operationId": "verify_risk_control",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/retire_risk_control": {
+      "post": {
+        "summary": "Execute retire_risk_control",
+        "operationId": "retire_risk_control",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/define_test": {
+      "post": {
+        "summary": "Execute define_test",
+        "operationId": "define_test",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/approve_test_definition": {
+      "post": {
+        "summary": "Execute approve_test_definition",
+        "operationId": "approve_test_definition",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/supersede_test_definition": {
+      "post": {
+        "summary": "Execute supersede_test_definition",
+        "operationId": "supersede_test_definition",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/plan_test_execution": {
+      "post": {
+        "summary": "Execute plan_test_execution",
+        "operationId": "plan_test_execution",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/execute_test": {
+      "post": {
+        "summary": "Execute execute_test",
+        "operationId": "execute_test",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/record_test_result": {
+      "post": {
+        "summary": "Execute record_test_result",
+        "operationId": "record_test_result",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/invalidate_test_execution": {
+      "post": {
+        "summary": "Execute invalidate_test_execution",
+        "operationId": "invalidate_test_execution",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1704,7 +3522,7 @@
         "properties": {
           "schema_version": {
             "type": "string",
-            "const": "1.0.0-draft.1"
+            "const": "1.1.0-draft.1"
           },
           "edge_id": {
             "type": "string",
@@ -1746,7 +3564,13 @@
               "amends",
               "generated_by",
               "used",
-              "was_associated_with"
+              "was_associated_with",
+              "conforms_to",
+              "bound_to",
+              "supplied_by",
+              "calibrated_with",
+              "raised_against",
+              "remediated_by"
             ]
           },
           "source": {
@@ -1840,7 +3664,7 @@
         "properties": {
           "schema_version": {
             "type": "string",
-            "const": "1.0.0-draft.1"
+            "const": "1.1.0-draft.1"
           },
           "action_id": {
             "type": "string",
@@ -1878,7 +3702,54 @@
               "complete_project_technical",
               "close_project_administrative",
               "attach_evidence",
-              "correct_record"
+              "correct_record",
+              "promote_configuration_item",
+              "supersede_configuration_item",
+              "retire_configuration_item",
+              "publish_interface_contract",
+              "deprecate_interface_contract",
+              "withdraw_interface_contract",
+              "record_physical_binding",
+              "remove_physical_binding",
+              "submit_document_for_review",
+              "approve_controlled_document",
+              "make_document_effective",
+              "supersede_controlled_document",
+              "withdraw_controlled_document",
+              "raise_nonconformity",
+              "contain_nonconformity",
+              "investigate_nonconformity",
+              "disposition_nonconformity",
+              "close_nonconformity",
+              "open_capa",
+              "approve_capa_plan",
+              "implement_capa",
+              "check_capa_effectiveness",
+              "close_capa",
+              "register_supplier",
+              "qualify_supplier",
+              "restrict_supplier",
+              "disqualify_supplier",
+              "register_equipment",
+              "place_equipment_in_service",
+              "remove_equipment_from_service",
+              "quarantine_equipment",
+              "retire_equipment",
+              "receive_complaint",
+              "triage_complaint",
+              "investigate_complaint",
+              "close_complaint",
+              "propose_risk_control",
+              "implement_risk_control",
+              "verify_risk_control",
+              "retire_risk_control",
+              "define_test",
+              "approve_test_definition",
+              "supersede_test_definition",
+              "plan_test_execution",
+              "execute_test",
+              "record_test_result",
+              "invalidate_test_execution"
             ]
           },
           "actor": {
@@ -1996,7 +3867,7 @@
         "properties": {
           "schema_version": {
             "type": "string",
-            "const": "1.0.0-draft.1"
+            "const": "1.1.0-draft.1"
           },
           "node_id": {
             "type": "string",
@@ -2155,7 +4026,7 @@
         "properties": {
           "schema_version": {
             "type": "string",
-            "const": "1.0.0-draft.1"
+            "const": "1.1.0-draft.1"
           },
           "node_id": {
             "type": "string",
@@ -2306,7 +4177,7 @@
         "properties": {
           "schema_version": {
             "type": "string",
-            "const": "1.0.0-draft.1"
+            "const": "1.1.0-draft.1"
           },
           "node_id": {
             "type": "string",
@@ -2484,7 +4355,7 @@
         "properties": {
           "schema_version": {
             "type": "string",
-            "const": "1.0.0-draft.1"
+            "const": "1.1.0-draft.1"
           },
           "node_id": {
             "type": "string",
@@ -2663,7 +4534,7 @@
         "properties": {
           "schema_version": {
             "type": "string",
-            "const": "1.0.0-draft.1"
+            "const": "1.1.0-draft.1"
           },
           "node_id": {
             "type": "string",
@@ -2824,7 +4695,7 @@
         "properties": {
           "schema_version": {
             "type": "string",
-            "const": "1.0.0-draft.1"
+            "const": "1.1.0-draft.1"
           },
           "node_id": {
             "type": "string",
@@ -3047,7 +4918,7 @@
         "properties": {
           "schema_version": {
             "type": "string",
-            "const": "1.0.0-draft.1"
+            "const": "1.1.0-draft.1"
           },
           "node_id": {
             "type": "string",
@@ -3240,7 +5111,7 @@
         "properties": {
           "schema_version": {
             "type": "string",
-            "const": "1.0.0-draft.1"
+            "const": "1.1.0-draft.1"
           },
           "node_id": {
             "type": "string",
@@ -3466,7 +5337,7 @@
         "properties": {
           "schema_version": {
             "type": "string",
-            "const": "1.0.0-draft.1"
+            "const": "1.1.0-draft.1"
           },
           "node_id": {
             "type": "string",
@@ -3695,7 +5566,7 @@
         "properties": {
           "schema_version": {
             "type": "string",
-            "const": "1.0.0-draft.1"
+            "const": "1.1.0-draft.1"
           },
           "node_id": {
             "type": "string",
@@ -3939,7 +5810,7 @@
         "properties": {
           "schema_version": {
             "type": "string",
-            "const": "1.0.0-draft.1"
+            "const": "1.1.0-draft.1"
           },
           "node_id": {
             "type": "string",
@@ -4145,7 +6016,7 @@
         "properties": {
           "schema_version": {
             "type": "string",
-            "const": "1.0.0-draft.1"
+            "const": "1.1.0-draft.1"
           },
           "node_id": {
             "type": "string",
@@ -4321,7 +6192,7 @@
         "properties": {
           "schema_version": {
             "type": "string",
-            "const": "1.0.0-draft.1"
+            "const": "1.1.0-draft.1"
           },
           "node_id": {
             "type": "string",
@@ -4512,7 +6383,7 @@
         "properties": {
           "schema_version": {
             "type": "string",
-            "const": "1.0.0-draft.1"
+            "const": "1.1.0-draft.1"
           },
           "node_id": {
             "type": "string",
@@ -4736,7 +6607,7 @@
         "properties": {
           "schema_version": {
             "type": "string",
-            "const": "1.0.0-draft.1"
+            "const": "1.1.0-draft.1"
           },
           "node_id": {
             "type": "string",
@@ -4945,7 +6816,7 @@
         "properties": {
           "schema_version": {
             "type": "string",
-            "const": "1.0.0-draft.1"
+            "const": "1.1.0-draft.1"
           },
           "node_id": {
             "type": "string",
@@ -5175,7 +7046,7 @@
         "properties": {
           "schema_version": {
             "type": "string",
-            "const": "1.0.0-draft.1"
+            "const": "1.1.0-draft.1"
           },
           "node_id": {
             "type": "string",
@@ -5336,7 +7207,7 @@
         "properties": {
           "schema_version": {
             "type": "string",
-            "const": "1.0.0-draft.1"
+            "const": "1.1.0-draft.1"
           },
           "node_id": {
             "type": "string",
@@ -5508,7 +7379,7 @@
         "properties": {
           "schema_version": {
             "type": "string",
-            "const": "1.0.0-draft.1"
+            "const": "1.1.0-draft.1"
           },
           "node_id": {
             "type": "string",
@@ -5673,7 +7544,7 @@
         "properties": {
           "schema_version": {
             "type": "string",
-            "const": "1.0.0-draft.1"
+            "const": "1.1.0-draft.1"
           },
           "node_id": {
             "type": "string",
@@ -5837,7 +7708,7 @@
         "properties": {
           "schema_version": {
             "type": "string",
-            "const": "1.0.0-draft.1"
+            "const": "1.1.0-draft.1"
           },
           "node_id": {
             "type": "string",
@@ -5976,6 +7847,1963 @@
             "required": [
               "baseline_kind",
               "contained_nodes"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "ConfigurationItemNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.1.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "configuration_item"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "proposed",
+              "active",
+              "superseded",
+              "retired"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "item_kind": {
+                "type": "string",
+                "enum": [
+                  "hardware",
+                  "software",
+                  "firmware",
+                  "mechanical",
+                  "document",
+                  "tooling",
+                  "data"
+                ]
+              },
+              "part_number": {
+                "type": "string",
+                "minLength": 1
+              },
+              "revision_label": {
+                "type": "string",
+                "minLength": 1
+              },
+              "parent_system": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              }
+            },
+            "required": [
+              "item_kind",
+              "part_number",
+              "revision_label",
+              "parent_system"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "InterfaceContractNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.1.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "interface_contract"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published",
+              "deprecated",
+              "withdrawn"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "interface_kind": {
+                "type": "string",
+                "enum": [
+                  "electrical",
+                  "mechanical",
+                  "thermal",
+                  "data",
+                  "protocol",
+                  "service",
+                  "regulatory"
+                ]
+              },
+              "generation": {
+                "type": "string",
+                "minLength": 1
+              },
+              "provider": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "consumer": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              }
+            },
+            "required": [
+              "interface_kind",
+              "generation",
+              "provider"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "PhysicalBindingNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.1.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "physical_binding"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "installed",
+              "removed"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "configuration_item": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "serial_number": {
+                "type": "string",
+                "minLength": 1
+              },
+              "installed_on": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "configuration_item",
+              "serial_number"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "ControlledDocumentNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.1.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "controlled_document"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "in_review",
+              "approved",
+              "effective",
+              "superseded",
+              "withdrawn"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "document_class": {
+                "type": "string",
+                "enum": [
+                  "policy",
+                  "procedure",
+                  "work_instruction",
+                  "form",
+                  "record",
+                  "specification",
+                  "plan",
+                  "report"
+                ]
+              },
+              "document_number": {
+                "type": "string",
+                "minLength": 1
+              },
+              "revision": {
+                "type": "string",
+                "minLength": 1
+              },
+              "owning_role": {
+                "type": "string",
+                "enum": [
+                  "project_owner",
+                  "technical_authority",
+                  "design_authority",
+                  "work_order_manager",
+                  "performer",
+                  "reviewer",
+                  "finance_approver",
+                  "quality_authority",
+                  "configuration_authority",
+                  "system_administrator"
+                ]
+              }
+            },
+            "required": [
+              "document_class",
+              "document_number",
+              "revision",
+              "owning_role"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "NonconformityNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.1.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "nonconformity"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "open",
+              "contained",
+              "investigated",
+              "dispositioned",
+              "closed"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "severity": {
+                "type": "string",
+                "enum": [
+                  "minor",
+                  "major",
+                  "critical"
+                ]
+              },
+              "detected_on": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1
+              },
+              "disposition": {
+                "type": "string",
+                "enum": [
+                  "use_as_is",
+                  "rework",
+                  "repair",
+                  "scrap",
+                  "return_to_supplier"
+                ]
+              }
+            },
+            "required": [
+              "severity",
+              "detected_on",
+              "description"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "CapaNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.1.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "capa"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "open",
+              "plan_approved",
+              "implementing",
+              "effectiveness_check",
+              "closed",
+              "cancelled"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "capa_kind": {
+                "type": "string",
+                "enum": [
+                  "corrective",
+                  "preventive",
+                  "both"
+                ]
+              },
+              "problem_statement": {
+                "type": "string",
+                "minLength": 1
+              },
+              "root_cause": {
+                "type": "string"
+              },
+              "effectiveness_criterion": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "capa_kind",
+              "problem_statement",
+              "effectiveness_criterion"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "SupplierNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.1.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "supplier"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "prospective",
+              "qualified",
+              "conditional",
+              "disqualified"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "organization": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "criticality": {
+                "type": "string",
+                "enum": [
+                  "critical",
+                  "significant",
+                  "standard"
+                ]
+              },
+              "qualified_until": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "organization",
+              "criticality"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "EquipmentNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.1.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "equipment"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "in_service",
+              "out_of_service",
+              "quarantined",
+              "retired"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "asset_number": {
+                "type": "string",
+                "minLength": 1
+              },
+              "equipment_kind": {
+                "type": "string",
+                "enum": [
+                  "measurement",
+                  "production",
+                  "test",
+                  "environmental",
+                  "computing"
+                ]
+              },
+              "calibration_due": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "asset_number",
+              "equipment_kind"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "ComplaintNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.1.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "complaint"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "received",
+              "triaged",
+              "investigated",
+              "closed"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "received_on": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "summary": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reportable": {
+                "type": "boolean"
+              },
+              "reportability_rationale": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "received_on",
+              "summary"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "RiskControlNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.1.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "risk_control"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "proposed",
+              "implemented",
+              "verified",
+              "retired"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "control_kind": {
+                "type": "string",
+                "enum": [
+                  "inherent_safety",
+                  "protective_measure",
+                  "information_for_safety"
+                ]
+              },
+              "mitigates": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "control_kind",
+              "mitigates",
+              "description"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "TestDefinitionNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.1.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "test_definition"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "approved",
+              "superseded"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "method_kind": {
+                "type": "string",
+                "enum": [
+                  "inspection",
+                  "analysis",
+                  "demonstration",
+                  "test"
+                ]
+              },
+              "acceptance_criterion": {
+                "type": "string",
+                "minLength": 1
+              },
+              "verifies": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              }
+            },
+            "required": [
+              "method_kind",
+              "acceptance_criterion",
+              "verifies"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "TestExecutionNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.1.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "test_execution"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "executed",
+              "passed",
+              "failed",
+              "invalidated"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "test_definition": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "executed_on": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "equipment_used": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "uniqueItems": true
+              },
+              "result_summary": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "test_definition"
             ],
             "additionalProperties": false
           }

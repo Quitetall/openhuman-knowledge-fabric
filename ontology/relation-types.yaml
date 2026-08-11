@@ -39,3 +39,10 @@ relation_types:
   - { id: generated_by, inverse: generated }
   - { id: used, inverse: was_used_by }
   - { id: was_associated_with, inverse: associated_with }
+  # ── Gate 6 ──────────────────────────────────────────────────────────────────────────────
+  - { id: conforms_to, inverse: conformed_to_by }
+  - { id: bound_to, inverse: binds }
+  - { id: supplied_by, inverse: supplies }
+  - { id: calibrated_with, inverse: calibrates }
+  - { id: raised_against, inverse: raised }
+  - { id: remediated_by, inverse: remediates }

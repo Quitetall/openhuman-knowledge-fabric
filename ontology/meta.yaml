@@ -3,7 +3,11 @@
 # CANONICAL. Everything under generated/ is compiled from this directory and must never be
 # hand-edited; CI regenerates and fails on drift.
 
-schema_version: 1.0.0-draft.1
+# GATE-6-EXTENSION. Bumped from 1.0.0-draft.1 when the Gate 6 configuration and quality
+# types were added. Every R01 definition is preserved byte-identically — the conformance
+# suite asserts it type by type — and every addition is declared there in a list asserted
+# exhaustive in both directions. An approved semantic is extended around, never redefined.
+schema_version: 1.1.0-draft.1
 
 # RFC 9562 UUIDv7 — time-ordered, so index locality follows creation order. The version and
 # variant nibbles are pinned so a v4 identifier cannot be accepted where a v7 is required.

@@ -1,9 +1,9 @@
 <!-- GENERATED from ontology/ — do not edit. -->
-<!-- ontology_version: 1.0.0-draft.1 · source_digest: d1511f4416e03cb06dde92ceeade82bc060aed793cd9fbc674ced30f332e83ad -->
+<!-- ontology_version: 1.1.0-draft.1 · source_digest: 40abb2e71925114dd799d1cb8434428b42615547ff4d9e28e4e43b44baa744c9 -->
 
 # Ontology reference
 
-Compiled from `ontology/`. 21 object types, 34 relation types, 30 action types, 8 state machines, 10 invariants.
+Compiled from `ontology/`. 33 object types, 40 relation types, 77 action types, 20 state machines, 10 invariants.
 
 ## Object types
 
@@ -30,6 +30,18 @@ Compiled from `ontology/`. 21 object types, 34 relation types, 30 action types, 
 | `test` | qms | TST | — | 6 |
 | `release` | configuration | RLS | — | 4 |
 | `baseline` | configuration | BSL | — | 4 |
+| `configuration_item` | configuration | CFG | configuration_item | 4 |
+| `interface_contract` | configuration | IFC | interface_contract | 4 |
+| `physical_binding` | configuration | BND | physical_binding | 3 |
+| `controlled_document` | qms | DOC | controlled_document | 6 |
+| `nonconformity` | qms | NCR | nonconformity | 5 |
+| `capa` | qms | CPA | capa | 6 |
+| `supplier` | qms | SUP | supplier | 4 |
+| `equipment` | qms | EQP | equipment | 4 |
+| `complaint` | qms | CMP | complaint | 4 |
+| `risk_control` | engineering | RCT | risk_control | 4 |
+| `test_definition` | engineering | TSD | test_definition | 3 |
+| `test_execution` | engineering | TSX | test_execution | 5 |
 
 ## Relation types
 
@@ -69,6 +81,12 @@ Compiled from `ontology/`. 21 object types, 34 relation types, 30 action types, 
 | `generated_by` | generated |  |
 | `used` | was_used_by |  |
 | `was_associated_with` | associated_with |  |
+| `conforms_to` | conformed_to_by |  |
+| `bound_to` | binds |  |
+| `supplied_by` | supplies |  |
+| `calibrated_with` | calibrates |  |
+| `raised_against` | raised |  |
+| `remediated_by` | remediates |  |
 
 ## Actions
 
@@ -103,7 +121,54 @@ Compiled from `ontology/`. 21 object types, 34 relation types, 30 action types, 
 | `complete_project_technical` | initiative_project |
 | `close_project_administrative` | initiative_project |
 | `attach_evidence` | — |
-| `correct_record` | change_record, decision_record, initiative_project, invoice, payment, work_execution, work_order, work_package |
+| `correct_record` | capa, change_record, decision_record, initiative_project, invoice, payment, work_execution, work_order, work_package |
+| `promote_configuration_item` | configuration_item |
+| `supersede_configuration_item` | configuration_item |
+| `retire_configuration_item` | configuration_item |
+| `publish_interface_contract` | interface_contract |
+| `deprecate_interface_contract` | interface_contract |
+| `withdraw_interface_contract` | interface_contract |
+| `record_physical_binding` | physical_binding |
+| `remove_physical_binding` | physical_binding |
+| `submit_document_for_review` | controlled_document |
+| `approve_controlled_document` | controlled_document |
+| `make_document_effective` | controlled_document |
+| `supersede_controlled_document` | controlled_document |
+| `withdraw_controlled_document` | controlled_document |
+| `raise_nonconformity` | — |
+| `contain_nonconformity` | nonconformity |
+| `investigate_nonconformity` | nonconformity |
+| `disposition_nonconformity` | nonconformity |
+| `close_nonconformity` | nonconformity |
+| `open_capa` | — |
+| `approve_capa_plan` | capa |
+| `implement_capa` | capa |
+| `check_capa_effectiveness` | capa |
+| `close_capa` | capa |
+| `register_supplier` | — |
+| `qualify_supplier` | supplier |
+| `restrict_supplier` | supplier |
+| `disqualify_supplier` | supplier |
+| `register_equipment` | — |
+| `place_equipment_in_service` | equipment |
+| `remove_equipment_from_service` | equipment |
+| `quarantine_equipment` | equipment |
+| `retire_equipment` | equipment |
+| `receive_complaint` | — |
+| `triage_complaint` | complaint |
+| `investigate_complaint` | complaint |
+| `close_complaint` | complaint |
+| `propose_risk_control` | — |
+| `implement_risk_control` | risk_control |
+| `verify_risk_control` | risk_control |
+| `retire_risk_control` | risk_control |
+| `define_test` | — |
+| `approve_test_definition` | test_definition |
+| `supersede_test_definition` | test_definition |
+| `plan_test_execution` | — |
+| `execute_test` | test_execution |
+| `record_test_result` | test_execution |
+| `invalidate_test_execution` | test_execution |
 
 ## Lifecycles
 
@@ -264,6 +329,187 @@ stateDiagram-v2
     reconciled --> reversed: correct_record
     reversed --> [*]
     failed --> [*]
+```
+
+### `configuration_item`
+
+Initial: `proposed` · Terminal: `retired`
+
+```mermaid
+stateDiagram-v2
+    [*] --> proposed
+    proposed --> active: promote_configuration_item
+    active --> superseded: supersede_configuration_item
+    superseded --> retired: retire_configuration_item
+    active --> retired: retire_configuration_item
+    proposed --> retired: retire_configuration_item
+    retired --> [*]
+```
+
+### `interface_contract`
+
+Initial: `draft` · Terminal: `withdrawn`
+
+```mermaid
+stateDiagram-v2
+    [*] --> draft
+    draft --> published: publish_interface_contract
+    published --> deprecated: deprecate_interface_contract
+    deprecated --> withdrawn: withdraw_interface_contract
+    draft --> withdrawn: withdraw_interface_contract
+    withdrawn --> [*]
+```
+
+### `physical_binding`
+
+Initial: `planned` · Terminal: `removed`
+
+```mermaid
+stateDiagram-v2
+    [*] --> planned
+    planned --> installed: record_physical_binding
+    installed --> removed: remove_physical_binding
+    planned --> removed: remove_physical_binding
+    removed --> [*]
+```
+
+### `controlled_document`
+
+Initial: `draft` · Terminal: `withdrawn`
+
+```mermaid
+stateDiagram-v2
+    [*] --> draft
+    draft --> in_review: submit_document_for_review
+    in_review --> approved: approve_controlled_document
+    in_review --> draft: approve_controlled_document
+    approved --> effective: make_document_effective
+    effective --> superseded: supersede_controlled_document
+    superseded --> withdrawn: withdraw_controlled_document
+    draft --> withdrawn: withdraw_controlled_document
+    withdrawn --> [*]
+```
+
+### `nonconformity`
+
+Initial: `open` · Terminal: `closed`
+
+```mermaid
+stateDiagram-v2
+    [*] --> open
+    open --> contained: contain_nonconformity
+    contained --> investigated: investigate_nonconformity
+    investigated --> dispositioned: disposition_nonconformity
+    dispositioned --> closed: close_nonconformity
+    closed --> [*]
+```
+
+### `capa`
+
+Initial: `open` · Terminal: `closed`, `cancelled`
+
+```mermaid
+stateDiagram-v2
+    [*] --> open
+    open --> plan_approved: approve_capa_plan
+    plan_approved --> implementing: implement_capa
+    implementing --> effectiveness_check: check_capa_effectiveness
+    effectiveness_check --> closed: close_capa
+    effectiveness_check --> implementing: check_capa_effectiveness
+    open --> cancelled: correct_record
+    closed --> [*]
+    cancelled --> [*]
+```
+
+### `supplier`
+
+Initial: `prospective` · Terminal: `disqualified`
+
+```mermaid
+stateDiagram-v2
+    [*] --> prospective
+    prospective --> qualified: qualify_supplier
+    prospective --> conditional: qualify_supplier
+    qualified --> conditional: restrict_supplier
+    conditional --> qualified: qualify_supplier
+    qualified --> disqualified: disqualify_supplier
+    conditional --> disqualified: disqualify_supplier
+    prospective --> disqualified: disqualify_supplier
+    disqualified --> [*]
+```
+
+### `equipment`
+
+Initial: `in_service` · Terminal: `retired`
+
+```mermaid
+stateDiagram-v2
+    [*] --> in_service
+    in_service --> out_of_service: remove_equipment_from_service
+    out_of_service --> in_service: place_equipment_in_service
+    in_service --> quarantined: quarantine_equipment
+    quarantined --> in_service: place_equipment_in_service
+    quarantined --> retired: retire_equipment
+    out_of_service --> retired: retire_equipment
+    retired --> [*]
+```
+
+### `complaint`
+
+Initial: `received` · Terminal: `closed`
+
+```mermaid
+stateDiagram-v2
+    [*] --> received
+    received --> triaged: triage_complaint
+    triaged --> investigated: investigate_complaint
+    investigated --> closed: close_complaint
+    triaged --> closed: close_complaint
+    closed --> [*]
+```
+
+### `risk_control`
+
+Initial: `proposed` · Terminal: `retired`
+
+```mermaid
+stateDiagram-v2
+    [*] --> proposed
+    proposed --> implemented: implement_risk_control
+    implemented --> verified: verify_risk_control
+    verified --> implemented: verify_risk_control
+    verified --> retired: retire_risk_control
+    proposed --> retired: retire_risk_control
+    retired --> [*]
+```
+
+### `test_definition`
+
+Initial: `draft` · Terminal: `superseded`
+
+```mermaid
+stateDiagram-v2
+    [*] --> draft
+    draft --> approved: approve_test_definition
+    approved --> superseded: supersede_test_definition
+    draft --> superseded: supersede_test_definition
+    superseded --> [*]
+```
+
+### `test_execution`
+
+Initial: `planned` · Terminal: `invalidated`
+
+```mermaid
+stateDiagram-v2
+    [*] --> planned
+    planned --> executed: execute_test
+    executed --> passed: record_test_result
+    executed --> failed: record_test_result
+    passed --> invalidated: invalidate_test_execution
+    failed --> invalidated: invalidate_test_execution
+    executed --> invalidated: invalidate_test_execution
+    invalidated --> [*]
 ```
 
 ## Invariants

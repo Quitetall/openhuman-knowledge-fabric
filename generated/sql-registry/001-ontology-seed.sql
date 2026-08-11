@@ -1,6 +1,6 @@
 -- GENERATED from ontology/ — do not edit.
--- ontology_version: 1.0.0-draft.1
--- source_digest: d1511f4416e03cb06dde92ceeade82bc060aed793cd9fbc674ced30f332e83ad
+-- ontology_version: 1.1.0-draft.1
+-- source_digest: 40abb2e71925114dd799d1cb8434428b42615547ff4d9e28e4e43b44baa744c9
 
 -- Seed data for the registry schema. Generated; applied by `pnpm db:seed`.
 --
@@ -16,12 +16,12 @@
 begin;
 
 insert into registry.schema_release (version, ontology_digest, is_current) values
-  ('1.0.0-draft.1', 'd1511f4416e03cb06dde92ceeade82bc060aed793cd9fbc674ced30f332e83ad', true)
+  ('1.1.0-draft.1', '40abb2e71925114dd799d1cb8434428b42615547ff4d9e28e4e43b44baa744c9', true)
 on conflict (version) do update set ontology_digest = excluded.ontology_digest,
   applied_at = now(), is_current = true;
 
 -- Exactly one release is current; schema_release_one_current enforces it.
-update registry.schema_release set is_current = false where version <> '1.0.0-draft.1';
+update registry.schema_release set is_current = false where version <> '1.1.0-draft.1';
 
 insert into registry.object_type (id, title, authority_domain, enterprise_namespace, first_class) values
   ('organization', 'Organization', 'organization', null, true),
@@ -44,7 +44,19 @@ insert into registry.object_type (id, title, authority_domain, enterprise_namesp
   ('risk', 'Risk', 'qms', 'RSK', true),
   ('test', 'Test', 'qms', 'TST', true),
   ('release', 'Release', 'configuration', 'RLS', true),
-  ('baseline', 'Baseline', 'configuration', 'BSL', true)
+  ('baseline', 'Baseline', 'configuration', 'BSL', true),
+  ('configuration_item', 'Configuration Item', 'configuration', 'CFG', true),
+  ('interface_contract', 'Interface Contract', 'configuration', 'IFC', true),
+  ('physical_binding', 'Physical Binding', 'configuration', 'BND', true),
+  ('controlled_document', 'Controlled Document', 'qms', 'DOC', true),
+  ('nonconformity', 'Nonconformity', 'qms', 'NCR', true),
+  ('capa', 'Corrective and Preventive Action', 'qms', 'CPA', true),
+  ('supplier', 'Supplier', 'qms', 'SUP', true),
+  ('equipment', 'Equipment', 'qms', 'EQP', true),
+  ('complaint', 'Complaint', 'qms', 'CMP', true),
+  ('risk_control', 'Risk Control', 'engineering', 'RCT', true),
+  ('test_definition', 'Test Definition', 'engineering', 'TSD', true),
+  ('test_execution', 'Test Execution', 'engineering', 'TSX', true)
 on conflict (id) do update set title = excluded.title,
   authority_domain = excluded.authority_domain,
   enterprise_namespace = excluded.enterprise_namespace,
@@ -84,7 +96,13 @@ insert into registry.relation_type (id, inverse_label, acyclic, is_symmetric) va
   ('amends', 'amended_by', true, false),
   ('generated_by', 'generated', false, false),
   ('used', 'was_used_by', false, false),
-  ('was_associated_with', 'associated_with', false, false)
+  ('was_associated_with', 'associated_with', false, false),
+  ('conforms_to', 'conformed_to_by', false, false),
+  ('bound_to', 'binds', false, false),
+  ('supplied_by', 'supplies', false, false),
+  ('calibrated_with', 'calibrates', false, false),
+  ('raised_against', 'raised', false, false),
+  ('remediated_by', 'remediates', false, false)
 on conflict (id) do update set inverse_label = excluded.inverse_label,
   acyclic = excluded.acyclic, is_symmetric = excluded.is_symmetric;
 
@@ -118,7 +136,54 @@ insert into registry.action_type (id, audited, transactional) values
   ('complete_project_technical', true, true),
   ('close_project_administrative', true, true),
   ('attach_evidence', true, true),
-  ('correct_record', true, true)
+  ('correct_record', true, true),
+  ('promote_configuration_item', true, true),
+  ('supersede_configuration_item', true, true),
+  ('retire_configuration_item', true, true),
+  ('publish_interface_contract', true, true),
+  ('deprecate_interface_contract', true, true),
+  ('withdraw_interface_contract', true, true),
+  ('record_physical_binding', true, true),
+  ('remove_physical_binding', true, true),
+  ('submit_document_for_review', true, true),
+  ('approve_controlled_document', true, true),
+  ('make_document_effective', true, true),
+  ('supersede_controlled_document', true, true),
+  ('withdraw_controlled_document', true, true),
+  ('raise_nonconformity', true, true),
+  ('contain_nonconformity', true, true),
+  ('investigate_nonconformity', true, true),
+  ('disposition_nonconformity', true, true),
+  ('close_nonconformity', true, true),
+  ('open_capa', true, true),
+  ('approve_capa_plan', true, true),
+  ('implement_capa', true, true),
+  ('check_capa_effectiveness', true, true),
+  ('close_capa', true, true),
+  ('register_supplier', true, true),
+  ('qualify_supplier', true, true),
+  ('restrict_supplier', true, true),
+  ('disqualify_supplier', true, true),
+  ('register_equipment', true, true),
+  ('place_equipment_in_service', true, true),
+  ('remove_equipment_from_service', true, true),
+  ('quarantine_equipment', true, true),
+  ('retire_equipment', true, true),
+  ('receive_complaint', true, true),
+  ('triage_complaint', true, true),
+  ('investigate_complaint', true, true),
+  ('close_complaint', true, true),
+  ('propose_risk_control', true, true),
+  ('implement_risk_control', true, true),
+  ('verify_risk_control', true, true),
+  ('retire_risk_control', true, true),
+  ('define_test', true, true),
+  ('approve_test_definition', true, true),
+  ('supersede_test_definition', true, true),
+  ('plan_test_execution', true, true),
+  ('execute_test', true, true),
+  ('record_test_result', true, true),
+  ('invalidate_test_execution', true, true)
 on conflict (id) do update set audited = excluded.audited,
   transactional = excluded.transactional;
 
@@ -240,7 +305,59 @@ insert into registry.object_state (object_type, state, is_terminal) values
   ('baseline', 'draft', false),
   ('baseline', 'approved', false),
   ('baseline', 'superseded', false),
-  ('baseline', 'retired', false)
+  ('baseline', 'retired', false),
+  ('configuration_item', 'proposed', false),
+  ('configuration_item', 'active', false),
+  ('configuration_item', 'superseded', false),
+  ('configuration_item', 'retired', true),
+  ('interface_contract', 'draft', false),
+  ('interface_contract', 'published', false),
+  ('interface_contract', 'deprecated', false),
+  ('interface_contract', 'withdrawn', true),
+  ('physical_binding', 'planned', false),
+  ('physical_binding', 'installed', false),
+  ('physical_binding', 'removed', true),
+  ('controlled_document', 'draft', false),
+  ('controlled_document', 'in_review', false),
+  ('controlled_document', 'approved', false),
+  ('controlled_document', 'effective', false),
+  ('controlled_document', 'superseded', false),
+  ('controlled_document', 'withdrawn', true),
+  ('nonconformity', 'open', false),
+  ('nonconformity', 'contained', false),
+  ('nonconformity', 'investigated', false),
+  ('nonconformity', 'dispositioned', false),
+  ('nonconformity', 'closed', true),
+  ('capa', 'open', false),
+  ('capa', 'plan_approved', false),
+  ('capa', 'implementing', false),
+  ('capa', 'effectiveness_check', false),
+  ('capa', 'closed', true),
+  ('capa', 'cancelled', true),
+  ('supplier', 'prospective', false),
+  ('supplier', 'qualified', false),
+  ('supplier', 'conditional', false),
+  ('supplier', 'disqualified', true),
+  ('equipment', 'in_service', false),
+  ('equipment', 'out_of_service', false),
+  ('equipment', 'quarantined', false),
+  ('equipment', 'retired', true),
+  ('complaint', 'received', false),
+  ('complaint', 'triaged', false),
+  ('complaint', 'investigated', false),
+  ('complaint', 'closed', true),
+  ('risk_control', 'proposed', false),
+  ('risk_control', 'implemented', false),
+  ('risk_control', 'verified', false),
+  ('risk_control', 'retired', true),
+  ('test_definition', 'draft', false),
+  ('test_definition', 'approved', false),
+  ('test_definition', 'superseded', true),
+  ('test_execution', 'planned', false),
+  ('test_execution', 'executed', false),
+  ('test_execution', 'passed', false),
+  ('test_execution', 'failed', false),
+  ('test_execution', 'invalidated', true)
 on conflict (object_type, state) do update set is_terminal = excluded.is_terminal;
 
 insert into registry.state_machine (id, initial_state) values
@@ -251,7 +368,19 @@ insert into registry.state_machine (id, initial_state) values
   ('decision_record', 'draft'),
   ('change_record', 'proposed'),
   ('invoice', 'draft'),
-  ('payment', 'planned')
+  ('payment', 'planned'),
+  ('configuration_item', 'proposed'),
+  ('interface_contract', 'draft'),
+  ('physical_binding', 'planned'),
+  ('controlled_document', 'draft'),
+  ('nonconformity', 'open'),
+  ('capa', 'open'),
+  ('supplier', 'prospective'),
+  ('equipment', 'in_service'),
+  ('complaint', 'received'),
+  ('risk_control', 'proposed'),
+  ('test_definition', 'draft'),
+  ('test_execution', 'planned')
 on conflict (id) do update set initial_state = excluded.initial_state;
 
 insert into registry.state_transition (object_type, from_state, to_state, action_id) values
@@ -319,7 +448,67 @@ insert into registry.state_transition (object_type, from_state, to_state, action
   ('payment', 'settled', 'reconciled', 'reconcile_payment'),
   ('payment', 'initiated', 'failed', 'record_payment_settlement'),
   ('payment', 'settled', 'reversed', 'correct_record'),
-  ('payment', 'reconciled', 'reversed', 'correct_record')
+  ('payment', 'reconciled', 'reversed', 'correct_record'),
+  ('configuration_item', 'proposed', 'active', 'promote_configuration_item'),
+  ('configuration_item', 'active', 'superseded', 'supersede_configuration_item'),
+  ('configuration_item', 'superseded', 'retired', 'retire_configuration_item'),
+  ('configuration_item', 'active', 'retired', 'retire_configuration_item'),
+  ('configuration_item', 'proposed', 'retired', 'retire_configuration_item'),
+  ('interface_contract', 'draft', 'published', 'publish_interface_contract'),
+  ('interface_contract', 'published', 'deprecated', 'deprecate_interface_contract'),
+  ('interface_contract', 'deprecated', 'withdrawn', 'withdraw_interface_contract'),
+  ('interface_contract', 'draft', 'withdrawn', 'withdraw_interface_contract'),
+  ('physical_binding', 'planned', 'installed', 'record_physical_binding'),
+  ('physical_binding', 'installed', 'removed', 'remove_physical_binding'),
+  ('physical_binding', 'planned', 'removed', 'remove_physical_binding'),
+  ('controlled_document', 'draft', 'in_review', 'submit_document_for_review'),
+  ('controlled_document', 'in_review', 'approved', 'approve_controlled_document'),
+  ('controlled_document', 'in_review', 'draft', 'approve_controlled_document'),
+  ('controlled_document', 'approved', 'effective', 'make_document_effective'),
+  ('controlled_document', 'effective', 'superseded', 'supersede_controlled_document'),
+  ('controlled_document', 'superseded', 'withdrawn', 'withdraw_controlled_document'),
+  ('controlled_document', 'draft', 'withdrawn', 'withdraw_controlled_document'),
+  ('nonconformity', 'open', 'contained', 'contain_nonconformity'),
+  ('nonconformity', 'contained', 'investigated', 'investigate_nonconformity'),
+  ('nonconformity', 'investigated', 'dispositioned', 'disposition_nonconformity'),
+  ('nonconformity', 'dispositioned', 'closed', 'close_nonconformity'),
+  ('capa', 'open', 'plan_approved', 'approve_capa_plan'),
+  ('capa', 'plan_approved', 'implementing', 'implement_capa'),
+  ('capa', 'implementing', 'effectiveness_check', 'check_capa_effectiveness'),
+  ('capa', 'effectiveness_check', 'closed', 'close_capa'),
+  ('capa', 'effectiveness_check', 'implementing', 'check_capa_effectiveness'),
+  ('capa', 'open', 'cancelled', 'correct_record'),
+  ('supplier', 'prospective', 'qualified', 'qualify_supplier'),
+  ('supplier', 'prospective', 'conditional', 'qualify_supplier'),
+  ('supplier', 'qualified', 'conditional', 'restrict_supplier'),
+  ('supplier', 'conditional', 'qualified', 'qualify_supplier'),
+  ('supplier', 'qualified', 'disqualified', 'disqualify_supplier'),
+  ('supplier', 'conditional', 'disqualified', 'disqualify_supplier'),
+  ('supplier', 'prospective', 'disqualified', 'disqualify_supplier'),
+  ('equipment', 'in_service', 'out_of_service', 'remove_equipment_from_service'),
+  ('equipment', 'out_of_service', 'in_service', 'place_equipment_in_service'),
+  ('equipment', 'in_service', 'quarantined', 'quarantine_equipment'),
+  ('equipment', 'quarantined', 'in_service', 'place_equipment_in_service'),
+  ('equipment', 'quarantined', 'retired', 'retire_equipment'),
+  ('equipment', 'out_of_service', 'retired', 'retire_equipment'),
+  ('complaint', 'received', 'triaged', 'triage_complaint'),
+  ('complaint', 'triaged', 'investigated', 'investigate_complaint'),
+  ('complaint', 'investigated', 'closed', 'close_complaint'),
+  ('complaint', 'triaged', 'closed', 'close_complaint'),
+  ('risk_control', 'proposed', 'implemented', 'implement_risk_control'),
+  ('risk_control', 'implemented', 'verified', 'verify_risk_control'),
+  ('risk_control', 'verified', 'implemented', 'verify_risk_control'),
+  ('risk_control', 'verified', 'retired', 'retire_risk_control'),
+  ('risk_control', 'proposed', 'retired', 'retire_risk_control'),
+  ('test_definition', 'draft', 'approved', 'approve_test_definition'),
+  ('test_definition', 'approved', 'superseded', 'supersede_test_definition'),
+  ('test_definition', 'draft', 'superseded', 'supersede_test_definition'),
+  ('test_execution', 'planned', 'executed', 'execute_test'),
+  ('test_execution', 'executed', 'passed', 'record_test_result'),
+  ('test_execution', 'executed', 'failed', 'record_test_result'),
+  ('test_execution', 'passed', 'invalidated', 'invalidate_test_execution'),
+  ('test_execution', 'failed', 'invalidated', 'invalidate_test_execution'),
+  ('test_execution', 'executed', 'invalidated', 'invalidate_test_execution')
 on conflict do nothing;
 
 insert into registry.rule_definition (id, severity, description, implementation) values
@@ -339,11 +528,11 @@ on conflict (id) do update set severity = excluded.severity,
 -- Retire what the ontology no longer declares. These deletes are SUPPOSED to fail when
 -- records still reference the row: a type still in use must not vanish from the registry.
 delete from registry.rule_definition where id <> all (array['KF-GRAPH-001', 'KF-WORK-001', 'KF-WORK-002', 'KF-DEC-001', 'KF-CHG-001', 'KF-FIN-001', 'KF-FIN-002', 'KF-FIN-003', 'KF-PROJ-001', 'KF-PROJ-002']::text[]);
-delete from registry.state_transition st where not exists (select 1 from (select 'initiative_project' as m, 'captured' as f, 'triage' as t, 'triage_initiative' as a union all select 'initiative_project' as m, 'triage' as f, 'evaluating' as t, 'triage_initiative' as a union all select 'initiative_project' as m, 'evaluating' as f, 'authorized' as t, 'authorize_project' as a union all select 'initiative_project' as m, 'authorized' as f, 'active' as t, 'activate_project' as a union all select 'initiative_project' as m, 'active' as f, 'technically_complete' as t, 'complete_project_technical' as a union all select 'initiative_project' as m, 'technically_complete' as f, 'administratively_closed' as t, 'close_project_administrative' as a union all select 'initiative_project' as m, 'captured' as f, 'parked' as t, 'triage_initiative' as a union all select 'initiative_project' as m, 'triage' as f, 'parked' as t, 'triage_initiative' as a union all select 'initiative_project' as m, 'parked' as f, 'triage' as t, 'triage_initiative' as a union all select 'initiative_project' as m, 'evaluating' as f, 'rejected' as t, 'triage_initiative' as a union all select 'initiative_project' as m, 'authorized' as f, 'cancelled' as t, 'correct_record' as a union all select 'initiative_project' as m, 'active' as f, 'cancelled' as t, 'correct_record' as a union all select 'work_package' as m, 'planned' as f, 'ready' as t, 'create_work_package' as a union all select 'work_package' as m, 'ready' as f, 'active' as t, 'start_work_package' as a union all select 'work_package' as m, 'active' as f, 'blocked' as t, 'correct_record' as a union all select 'work_package' as m, 'blocked' as f, 'active' as t, 'correct_record' as a union all select 'work_package' as m, 'active' as f, 'submitted' as t, 'submit_work_execution' as a union all select 'work_package' as m, 'submitted' as f, 'accepted' as t, 'accept_work_package' as a union all select 'work_package' as m, 'submitted' as f, 'active' as t, 'review_work_execution' as a union all select 'work_package' as m, 'planned' as f, 'cancelled' as t, 'correct_record' as a union all select 'work_package' as m, 'active' as f, 'waived' as t, 'correct_record' as a union all select 'work_order' as m, 'draft' as f, 'offered' as t, 'issue_work_order' as a union all select 'work_order' as m, 'offered' as f, 'accepted' as t, 'accept_work_order' as a union all select 'work_order' as m, 'accepted' as f, 'active' as t, 'accept_work_order' as a union all select 'work_order' as m, 'active' as f, 'suspended' as t, 'correct_record' as a union all select 'work_order' as m, 'suspended' as f, 'active' as t, 'correct_record' as a union all select 'work_order' as m, 'active' as f, 'completed' as t, 'issue_acceptance' as a union all select 'work_order' as m, 'completed' as f, 'closed' as t, 'correct_record' as a union all select 'work_order' as m, 'draft' as f, 'cancelled' as t, 'correct_record' as a union all select 'work_order' as m, 'offered' as f, 'cancelled' as t, 'correct_record' as a union all select 'work_order' as m, 'active' as f, 'terminated' as t, 'correct_record' as a union all select 'work_execution' as m, 'draft' as f, 'submitted' as t, 'submit_work_execution' as a union all select 'work_execution' as m, 'submitted' as f, 'under_review' as t, 'review_work_execution' as a union all select 'work_execution' as m, 'under_review' as f, 'accepted' as t, 'issue_acceptance' as a union all select 'work_execution' as m, 'under_review' as f, 'partially_accepted' as t, 'issue_acceptance' as a union all select 'work_execution' as m, 'under_review' as f, 'rejected' as t, 'issue_acceptance' as a union all select 'work_execution' as m, 'submitted' as f, 'superseded' as t, 'correct_record' as a union all select 'decision_record' as m, 'draft' as f, 'proposed' as t, 'propose_decision' as a union all select 'decision_record' as m, 'proposed' as f, 'accepted' as t, 'accept_decision' as a union all select 'decision_record' as m, 'proposed' as f, 'rejected' as t, 'reject_decision' as a union all select 'decision_record' as m, 'proposed' as f, 'withdrawn' as t, 'correct_record' as a union all select 'decision_record' as m, 'accepted' as f, 'superseded' as t, 'supersede_decision' as a union all select 'change_record' as m, 'proposed' as f, 'impact_assessment' as t, 'open_change' as a union all select 'change_record' as m, 'impact_assessment' as f, 'approved' as t, 'approve_change' as a union all select 'change_record' as m, 'impact_assessment' as f, 'rejected' as t, 'approve_change' as a union all select 'change_record' as m, 'approved' as f, 'implementing' as t, 'approve_change' as a union all select 'change_record' as m, 'implementing' as f, 'verified' as t, 'verify_change' as a union all select 'change_record' as m, 'verified' as f, 'effective' as t, 'make_change_effective' as a union all select 'change_record' as m, 'effective' as f, 'closed' as t, 'correct_record' as a union all select 'invoice' as m, 'draft' as f, 'submitted' as t, 'submit_invoice' as a union all select 'invoice' as m, 'submitted' as f, 'approved' as t, 'approve_invoice' as a union all select 'invoice' as m, 'submitted' as f, 'disputed' as t, 'approve_invoice' as a union all select 'invoice' as m, 'approved' as f, 'partially_paid' as t, 'record_payment_settlement' as a union all select 'invoice' as m, 'approved' as f, 'paid' as t, 'record_payment_settlement' as a union all select 'invoice' as m, 'partially_paid' as f, 'paid' as t, 'record_payment_settlement' as a union all select 'invoice' as m, 'draft' as f, 'void' as t, 'correct_record' as a union all select 'invoice' as m, 'disputed' as f, 'approved' as t, 'approve_invoice' as a union all select 'invoice' as m, 'disputed' as f, 'void' as t, 'correct_record' as a union all select 'payment' as m, 'planned' as f, 'authorized' as t, 'authorize_payment' as a union all select 'payment' as m, 'authorized' as f, 'initiated' as t, 'authorize_payment' as a union all select 'payment' as m, 'initiated' as f, 'settled' as t, 'record_payment_settlement' as a union all select 'payment' as m, 'settled' as f, 'reconciled' as t, 'reconcile_payment' as a union all select 'payment' as m, 'initiated' as f, 'failed' as t, 'record_payment_settlement' as a union all select 'payment' as m, 'settled' as f, 'reversed' as t, 'correct_record' as a union all select 'payment' as m, 'reconciled' as f, 'reversed' as t, 'correct_record' as a) x where x.m = st.object_type and x.f = st.from_state and x.t = st.to_state and x.a = st.action_id);
-delete from registry.object_state where object_type <> all (array['organization', 'person', 'role_assignment', 'engagement', 'product_system', 'initiative_project', 'work_package', 'work_order', 'work_execution', 'decision_record', 'change_record', 'deliverable', 'artifact', 'acceptance_record', 'invoice', 'payment', 'requirement', 'risk', 'test', 'release', 'baseline']::text[]);
-delete from registry.state_machine where id <> all (array['initiative_project', 'work_package', 'work_order', 'work_execution', 'decision_record', 'change_record', 'invoice', 'payment']::text[]);
-delete from registry.action_type where id <> all (array['create_initiative', 'triage_initiative', 'authorize_project', 'activate_project', 'create_work_package', 'start_work_package', 'accept_work_package', 'issue_work_order', 'accept_work_order', 'amend_work_order', 'submit_work_execution', 'review_work_execution', 'issue_acceptance', 'propose_decision', 'accept_decision', 'reject_decision', 'supersede_decision', 'open_change', 'approve_change', 'verify_change', 'make_change_effective', 'submit_invoice', 'approve_invoice', 'authorize_payment', 'record_payment_settlement', 'reconcile_payment', 'complete_project_technical', 'close_project_administrative', 'attach_evidence', 'correct_record']::text[]);
-delete from registry.relation_type where id <> all (array['contains', 'decomposes_into', 'affects', 'authorizes', 'executes', 'produces', 'consumes', 'proposes', 'governs', 'implements', 'satisfies', 'verifies', 'mitigates', 'accepts', 'bills', 'settles', 'allocates_to', 'originated_from', 'supersedes', 'derived_from', 'evidences', 'assigned_to', 'scoped_to', 'depends_on', 'blocks', 'released_by', 'baseline_contains', 'performed_by', 'owned_by', 'linked_to', 'amends', 'generated_by', 'used', 'was_associated_with']::text[]);
-delete from registry.object_type where id <> all (array['organization', 'person', 'role_assignment', 'engagement', 'product_system', 'initiative_project', 'work_package', 'work_order', 'work_execution', 'decision_record', 'change_record', 'deliverable', 'artifact', 'acceptance_record', 'invoice', 'payment', 'requirement', 'risk', 'test', 'release', 'baseline']::text[]);
+delete from registry.state_transition st where not exists (select 1 from (select 'initiative_project' as m, 'captured' as f, 'triage' as t, 'triage_initiative' as a union all select 'initiative_project' as m, 'triage' as f, 'evaluating' as t, 'triage_initiative' as a union all select 'initiative_project' as m, 'evaluating' as f, 'authorized' as t, 'authorize_project' as a union all select 'initiative_project' as m, 'authorized' as f, 'active' as t, 'activate_project' as a union all select 'initiative_project' as m, 'active' as f, 'technically_complete' as t, 'complete_project_technical' as a union all select 'initiative_project' as m, 'technically_complete' as f, 'administratively_closed' as t, 'close_project_administrative' as a union all select 'initiative_project' as m, 'captured' as f, 'parked' as t, 'triage_initiative' as a union all select 'initiative_project' as m, 'triage' as f, 'parked' as t, 'triage_initiative' as a union all select 'initiative_project' as m, 'parked' as f, 'triage' as t, 'triage_initiative' as a union all select 'initiative_project' as m, 'evaluating' as f, 'rejected' as t, 'triage_initiative' as a union all select 'initiative_project' as m, 'authorized' as f, 'cancelled' as t, 'correct_record' as a union all select 'initiative_project' as m, 'active' as f, 'cancelled' as t, 'correct_record' as a union all select 'work_package' as m, 'planned' as f, 'ready' as t, 'create_work_package' as a union all select 'work_package' as m, 'ready' as f, 'active' as t, 'start_work_package' as a union all select 'work_package' as m, 'active' as f, 'blocked' as t, 'correct_record' as a union all select 'work_package' as m, 'blocked' as f, 'active' as t, 'correct_record' as a union all select 'work_package' as m, 'active' as f, 'submitted' as t, 'submit_work_execution' as a union all select 'work_package' as m, 'submitted' as f, 'accepted' as t, 'accept_work_package' as a union all select 'work_package' as m, 'submitted' as f, 'active' as t, 'review_work_execution' as a union all select 'work_package' as m, 'planned' as f, 'cancelled' as t, 'correct_record' as a union all select 'work_package' as m, 'active' as f, 'waived' as t, 'correct_record' as a union all select 'work_order' as m, 'draft' as f, 'offered' as t, 'issue_work_order' as a union all select 'work_order' as m, 'offered' as f, 'accepted' as t, 'accept_work_order' as a union all select 'work_order' as m, 'accepted' as f, 'active' as t, 'accept_work_order' as a union all select 'work_order' as m, 'active' as f, 'suspended' as t, 'correct_record' as a union all select 'work_order' as m, 'suspended' as f, 'active' as t, 'correct_record' as a union all select 'work_order' as m, 'active' as f, 'completed' as t, 'issue_acceptance' as a union all select 'work_order' as m, 'completed' as f, 'closed' as t, 'correct_record' as a union all select 'work_order' as m, 'draft' as f, 'cancelled' as t, 'correct_record' as a union all select 'work_order' as m, 'offered' as f, 'cancelled' as t, 'correct_record' as a union all select 'work_order' as m, 'active' as f, 'terminated' as t, 'correct_record' as a union all select 'work_execution' as m, 'draft' as f, 'submitted' as t, 'submit_work_execution' as a union all select 'work_execution' as m, 'submitted' as f, 'under_review' as t, 'review_work_execution' as a union all select 'work_execution' as m, 'under_review' as f, 'accepted' as t, 'issue_acceptance' as a union all select 'work_execution' as m, 'under_review' as f, 'partially_accepted' as t, 'issue_acceptance' as a union all select 'work_execution' as m, 'under_review' as f, 'rejected' as t, 'issue_acceptance' as a union all select 'work_execution' as m, 'submitted' as f, 'superseded' as t, 'correct_record' as a union all select 'decision_record' as m, 'draft' as f, 'proposed' as t, 'propose_decision' as a union all select 'decision_record' as m, 'proposed' as f, 'accepted' as t, 'accept_decision' as a union all select 'decision_record' as m, 'proposed' as f, 'rejected' as t, 'reject_decision' as a union all select 'decision_record' as m, 'proposed' as f, 'withdrawn' as t, 'correct_record' as a union all select 'decision_record' as m, 'accepted' as f, 'superseded' as t, 'supersede_decision' as a union all select 'change_record' as m, 'proposed' as f, 'impact_assessment' as t, 'open_change' as a union all select 'change_record' as m, 'impact_assessment' as f, 'approved' as t, 'approve_change' as a union all select 'change_record' as m, 'impact_assessment' as f, 'rejected' as t, 'approve_change' as a union all select 'change_record' as m, 'approved' as f, 'implementing' as t, 'approve_change' as a union all select 'change_record' as m, 'implementing' as f, 'verified' as t, 'verify_change' as a union all select 'change_record' as m, 'verified' as f, 'effective' as t, 'make_change_effective' as a union all select 'change_record' as m, 'effective' as f, 'closed' as t, 'correct_record' as a union all select 'invoice' as m, 'draft' as f, 'submitted' as t, 'submit_invoice' as a union all select 'invoice' as m, 'submitted' as f, 'approved' as t, 'approve_invoice' as a union all select 'invoice' as m, 'submitted' as f, 'disputed' as t, 'approve_invoice' as a union all select 'invoice' as m, 'approved' as f, 'partially_paid' as t, 'record_payment_settlement' as a union all select 'invoice' as m, 'approved' as f, 'paid' as t, 'record_payment_settlement' as a union all select 'invoice' as m, 'partially_paid' as f, 'paid' as t, 'record_payment_settlement' as a union all select 'invoice' as m, 'draft' as f, 'void' as t, 'correct_record' as a union all select 'invoice' as m, 'disputed' as f, 'approved' as t, 'approve_invoice' as a union all select 'invoice' as m, 'disputed' as f, 'void' as t, 'correct_record' as a union all select 'payment' as m, 'planned' as f, 'authorized' as t, 'authorize_payment' as a union all select 'payment' as m, 'authorized' as f, 'initiated' as t, 'authorize_payment' as a union all select 'payment' as m, 'initiated' as f, 'settled' as t, 'record_payment_settlement' as a union all select 'payment' as m, 'settled' as f, 'reconciled' as t, 'reconcile_payment' as a union all select 'payment' as m, 'initiated' as f, 'failed' as t, 'record_payment_settlement' as a union all select 'payment' as m, 'settled' as f, 'reversed' as t, 'correct_record' as a union all select 'payment' as m, 'reconciled' as f, 'reversed' as t, 'correct_record' as a union all select 'configuration_item' as m, 'proposed' as f, 'active' as t, 'promote_configuration_item' as a union all select 'configuration_item' as m, 'active' as f, 'superseded' as t, 'supersede_configuration_item' as a union all select 'configuration_item' as m, 'superseded' as f, 'retired' as t, 'retire_configuration_item' as a union all select 'configuration_item' as m, 'active' as f, 'retired' as t, 'retire_configuration_item' as a union all select 'configuration_item' as m, 'proposed' as f, 'retired' as t, 'retire_configuration_item' as a union all select 'interface_contract' as m, 'draft' as f, 'published' as t, 'publish_interface_contract' as a union all select 'interface_contract' as m, 'published' as f, 'deprecated' as t, 'deprecate_interface_contract' as a union all select 'interface_contract' as m, 'deprecated' as f, 'withdrawn' as t, 'withdraw_interface_contract' as a union all select 'interface_contract' as m, 'draft' as f, 'withdrawn' as t, 'withdraw_interface_contract' as a union all select 'physical_binding' as m, 'planned' as f, 'installed' as t, 'record_physical_binding' as a union all select 'physical_binding' as m, 'installed' as f, 'removed' as t, 'remove_physical_binding' as a union all select 'physical_binding' as m, 'planned' as f, 'removed' as t, 'remove_physical_binding' as a union all select 'controlled_document' as m, 'draft' as f, 'in_review' as t, 'submit_document_for_review' as a union all select 'controlled_document' as m, 'in_review' as f, 'approved' as t, 'approve_controlled_document' as a union all select 'controlled_document' as m, 'in_review' as f, 'draft' as t, 'approve_controlled_document' as a union all select 'controlled_document' as m, 'approved' as f, 'effective' as t, 'make_document_effective' as a union all select 'controlled_document' as m, 'effective' as f, 'superseded' as t, 'supersede_controlled_document' as a union all select 'controlled_document' as m, 'superseded' as f, 'withdrawn' as t, 'withdraw_controlled_document' as a union all select 'controlled_document' as m, 'draft' as f, 'withdrawn' as t, 'withdraw_controlled_document' as a union all select 'nonconformity' as m, 'open' as f, 'contained' as t, 'contain_nonconformity' as a union all select 'nonconformity' as m, 'contained' as f, 'investigated' as t, 'investigate_nonconformity' as a union all select 'nonconformity' as m, 'investigated' as f, 'dispositioned' as t, 'disposition_nonconformity' as a union all select 'nonconformity' as m, 'dispositioned' as f, 'closed' as t, 'close_nonconformity' as a union all select 'capa' as m, 'open' as f, 'plan_approved' as t, 'approve_capa_plan' as a union all select 'capa' as m, 'plan_approved' as f, 'implementing' as t, 'implement_capa' as a union all select 'capa' as m, 'implementing' as f, 'effectiveness_check' as t, 'check_capa_effectiveness' as a union all select 'capa' as m, 'effectiveness_check' as f, 'closed' as t, 'close_capa' as a union all select 'capa' as m, 'effectiveness_check' as f, 'implementing' as t, 'check_capa_effectiveness' as a union all select 'capa' as m, 'open' as f, 'cancelled' as t, 'correct_record' as a union all select 'supplier' as m, 'prospective' as f, 'qualified' as t, 'qualify_supplier' as a union all select 'supplier' as m, 'prospective' as f, 'conditional' as t, 'qualify_supplier' as a union all select 'supplier' as m, 'qualified' as f, 'conditional' as t, 'restrict_supplier' as a union all select 'supplier' as m, 'conditional' as f, 'qualified' as t, 'qualify_supplier' as a union all select 'supplier' as m, 'qualified' as f, 'disqualified' as t, 'disqualify_supplier' as a union all select 'supplier' as m, 'conditional' as f, 'disqualified' as t, 'disqualify_supplier' as a union all select 'supplier' as m, 'prospective' as f, 'disqualified' as t, 'disqualify_supplier' as a union all select 'equipment' as m, 'in_service' as f, 'out_of_service' as t, 'remove_equipment_from_service' as a union all select 'equipment' as m, 'out_of_service' as f, 'in_service' as t, 'place_equipment_in_service' as a union all select 'equipment' as m, 'in_service' as f, 'quarantined' as t, 'quarantine_equipment' as a union all select 'equipment' as m, 'quarantined' as f, 'in_service' as t, 'place_equipment_in_service' as a union all select 'equipment' as m, 'quarantined' as f, 'retired' as t, 'retire_equipment' as a union all select 'equipment' as m, 'out_of_service' as f, 'retired' as t, 'retire_equipment' as a union all select 'complaint' as m, 'received' as f, 'triaged' as t, 'triage_complaint' as a union all select 'complaint' as m, 'triaged' as f, 'investigated' as t, 'investigate_complaint' as a union all select 'complaint' as m, 'investigated' as f, 'closed' as t, 'close_complaint' as a union all select 'complaint' as m, 'triaged' as f, 'closed' as t, 'close_complaint' as a union all select 'risk_control' as m, 'proposed' as f, 'implemented' as t, 'implement_risk_control' as a union all select 'risk_control' as m, 'implemented' as f, 'verified' as t, 'verify_risk_control' as a union all select 'risk_control' as m, 'verified' as f, 'implemented' as t, 'verify_risk_control' as a union all select 'risk_control' as m, 'verified' as f, 'retired' as t, 'retire_risk_control' as a union all select 'risk_control' as m, 'proposed' as f, 'retired' as t, 'retire_risk_control' as a union all select 'test_definition' as m, 'draft' as f, 'approved' as t, 'approve_test_definition' as a union all select 'test_definition' as m, 'approved' as f, 'superseded' as t, 'supersede_test_definition' as a union all select 'test_definition' as m, 'draft' as f, 'superseded' as t, 'supersede_test_definition' as a union all select 'test_execution' as m, 'planned' as f, 'executed' as t, 'execute_test' as a union all select 'test_execution' as m, 'executed' as f, 'passed' as t, 'record_test_result' as a union all select 'test_execution' as m, 'executed' as f, 'failed' as t, 'record_test_result' as a union all select 'test_execution' as m, 'passed' as f, 'invalidated' as t, 'invalidate_test_execution' as a union all select 'test_execution' as m, 'failed' as f, 'invalidated' as t, 'invalidate_test_execution' as a union all select 'test_execution' as m, 'executed' as f, 'invalidated' as t, 'invalidate_test_execution' as a) x where x.m = st.object_type and x.f = st.from_state and x.t = st.to_state and x.a = st.action_id);
+delete from registry.object_state where object_type <> all (array['organization', 'person', 'role_assignment', 'engagement', 'product_system', 'initiative_project', 'work_package', 'work_order', 'work_execution', 'decision_record', 'change_record', 'deliverable', 'artifact', 'acceptance_record', 'invoice', 'payment', 'requirement', 'risk', 'test', 'release', 'baseline', 'configuration_item', 'interface_contract', 'physical_binding', 'controlled_document', 'nonconformity', 'capa', 'supplier', 'equipment', 'complaint', 'risk_control', 'test_definition', 'test_execution']::text[]);
+delete from registry.state_machine where id <> all (array['initiative_project', 'work_package', 'work_order', 'work_execution', 'decision_record', 'change_record', 'invoice', 'payment', 'configuration_item', 'interface_contract', 'physical_binding', 'controlled_document', 'nonconformity', 'capa', 'supplier', 'equipment', 'complaint', 'risk_control', 'test_definition', 'test_execution']::text[]);
+delete from registry.action_type where id <> all (array['create_initiative', 'triage_initiative', 'authorize_project', 'activate_project', 'create_work_package', 'start_work_package', 'accept_work_package', 'issue_work_order', 'accept_work_order', 'amend_work_order', 'submit_work_execution', 'review_work_execution', 'issue_acceptance', 'propose_decision', 'accept_decision', 'reject_decision', 'supersede_decision', 'open_change', 'approve_change', 'verify_change', 'make_change_effective', 'submit_invoice', 'approve_invoice', 'authorize_payment', 'record_payment_settlement', 'reconcile_payment', 'complete_project_technical', 'close_project_administrative', 'attach_evidence', 'correct_record', 'promote_configuration_item', 'supersede_configuration_item', 'retire_configuration_item', 'publish_interface_contract', 'deprecate_interface_contract', 'withdraw_interface_contract', 'record_physical_binding', 'remove_physical_binding', 'submit_document_for_review', 'approve_controlled_document', 'make_document_effective', 'supersede_controlled_document', 'withdraw_controlled_document', 'raise_nonconformity', 'contain_nonconformity', 'investigate_nonconformity', 'disposition_nonconformity', 'close_nonconformity', 'open_capa', 'approve_capa_plan', 'implement_capa', 'check_capa_effectiveness', 'close_capa', 'register_supplier', 'qualify_supplier', 'restrict_supplier', 'disqualify_supplier', 'register_equipment', 'place_equipment_in_service', 'remove_equipment_from_service', 'quarantine_equipment', 'retire_equipment', 'receive_complaint', 'triage_complaint', 'investigate_complaint', 'close_complaint', 'propose_risk_control', 'implement_risk_control', 'verify_risk_control', 'retire_risk_control', 'define_test', 'approve_test_definition', 'supersede_test_definition', 'plan_test_execution', 'execute_test', 'record_test_result', 'invalidate_test_execution']::text[]);
+delete from registry.relation_type where id <> all (array['contains', 'decomposes_into', 'affects', 'authorizes', 'executes', 'produces', 'consumes', 'proposes', 'governs', 'implements', 'satisfies', 'verifies', 'mitigates', 'accepts', 'bills', 'settles', 'allocates_to', 'originated_from', 'supersedes', 'derived_from', 'evidences', 'assigned_to', 'scoped_to', 'depends_on', 'blocks', 'released_by', 'baseline_contains', 'performed_by', 'owned_by', 'linked_to', 'amends', 'generated_by', 'used', 'was_associated_with', 'conforms_to', 'bound_to', 'supplied_by', 'calibrated_with', 'raised_against', 'remediated_by']::text[]);
+delete from registry.object_type where id <> all (array['organization', 'person', 'role_assignment', 'engagement', 'product_system', 'initiative_project', 'work_package', 'work_order', 'work_execution', 'decision_record', 'change_record', 'deliverable', 'artifact', 'acceptance_record', 'invoice', 'payment', 'requirement', 'risk', 'test', 'release', 'baseline', 'configuration_item', 'interface_contract', 'physical_binding', 'controlled_document', 'nonconformity', 'capa', 'supplier', 'equipment', 'complaint', 'risk_control', 'test_definition', 'test_execution']::text[]);
 
 commit;

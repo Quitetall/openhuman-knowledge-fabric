@@ -813,3 +813,261 @@ object_types:
           unique: true,
         }
       - { name: approved_at, type: timestamp }
+
+  # ── Gate 6: product configuration and quality ──────────────────────────────────────────
+  #
+  # Twelve types added to schema_version 1.1.0-draft.1. Every R01 type above is untouched:
+  # the conformance suite asserts each survives byte-identically, and that every addition
+  # below is declared. An approved semantic must never be quietly redefined by an extension.
+
+  - id: configuration_item
+    title: Configuration Item
+    authority_domain: configuration
+    enterprise_namespace: CFG
+    first_class: true
+    state_machine: configuration_item
+    states: [proposed, active, superseded, retired]
+    fields:
+      - {
+          name: item_kind,
+          type: enum,
+          required: true,
+          values: [hardware, software, firmware, mechanical, document, tooling, data],
+        }
+      - { name: part_number, type: string, required: true, min_length: 1 }
+      - { name: revision_label, type: string, required: true, min_length: 1 }
+      - {
+          name: parent_system,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+
+  - id: interface_contract
+    title: Interface Contract
+    authority_domain: configuration
+    # R4 allocates OH-IFC- as a top-level category for interface contracts, with conformance
+    # scoped to a GENERATION rather than a revision: a revision changes without renegotiating
+    # the interface, and conformance that named one would expire on every rework.
+    enterprise_namespace: IFC
+    first_class: true
+    state_machine: interface_contract
+    states: [draft, published, deprecated, withdrawn]
+    fields:
+      - {
+          name: interface_kind,
+          type: enum,
+          required: true,
+          values: [electrical, mechanical, thermal, data, protocol, service, regulatory],
+        }
+      - { name: generation, type: string, required: true, min_length: 1 }
+      - {
+          name: provider,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - {
+          name: consumer,
+          type: uuid,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+
+  - id: physical_binding
+    title: Physical Binding
+    authority_domain: configuration
+    enterprise_namespace: BND
+    first_class: true
+    state_machine: physical_binding
+    states: [planned, installed, removed]
+    fields:
+      - {
+          name: configuration_item,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - { name: serial_number, type: string, required: true, min_length: 1 }
+      - { name: installed_on, type: timestamp }
+
+  - id: controlled_document
+    title: Controlled Document
+    authority_domain: qms
+    enterprise_namespace: DOC
+    first_class: true
+    state_machine: controlled_document
+    states: [draft, in_review, approved, effective, superseded, withdrawn]
+    fields:
+      - {
+          name: document_class,
+          type: enum,
+          required: true,
+          values: [policy, procedure, work_instruction, form, record, specification, plan, report],
+        }
+      - { name: document_number, type: string, required: true, min_length: 1 }
+      - { name: revision, type: string, required: true, min_length: 1 }
+      - {
+          name: owning_role,
+          type: enum,
+          required: true,
+          values:
+            [
+              project_owner,
+              technical_authority,
+              design_authority,
+              work_order_manager,
+              performer,
+              reviewer,
+              finance_approver,
+              quality_authority,
+              configuration_authority,
+              system_administrator,
+            ],
+        }
+
+  - id: nonconformity
+    title: Nonconformity
+    authority_domain: qms
+    enterprise_namespace: NCR
+    first_class: true
+    state_machine: nonconformity
+    states: [open, contained, investigated, dispositioned, closed]
+    fields:
+      - { name: severity, type: enum, required: true, values: [minor, major, critical] }
+      - { name: detected_on, type: timestamp, required: true }
+      - { name: description, type: string, required: true, min_length: 1 }
+      - {
+          name: disposition,
+          type: enum,
+          values: [use_as_is, rework, repair, scrap, return_to_supplier],
+        }
+
+  - id: capa
+    title: Corrective and Preventive Action
+    authority_domain: qms
+    enterprise_namespace: CPA
+    first_class: true
+    state_machine: capa
+    states: [open, plan_approved, implementing, effectiveness_check, closed, cancelled]
+    fields:
+      - { name: capa_kind, type: enum, required: true, values: [corrective, preventive, both] }
+      - { name: problem_statement, type: string, required: true, min_length: 1 }
+      - { name: root_cause, type: string }
+      - { name: effectiveness_criterion, type: string, required: true, min_length: 1 }
+
+  - id: supplier
+    title: Supplier
+    authority_domain: qms
+    enterprise_namespace: SUP
+    first_class: true
+    state_machine: supplier
+    states: [prospective, qualified, conditional, disqualified]
+    fields:
+      - {
+          name: organization,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - { name: criticality, type: enum, required: true, values: [critical, significant, standard] }
+      - { name: qualified_until, type: timestamp }
+
+  - id: equipment
+    title: Equipment
+    authority_domain: qms
+    enterprise_namespace: EQP
+    first_class: true
+    state_machine: equipment
+    states: [in_service, out_of_service, quarantined, retired]
+    fields:
+      - { name: asset_number, type: string, required: true, min_length: 1 }
+      - {
+          name: equipment_kind,
+          type: enum,
+          required: true,
+          values: [measurement, production, test, environmental, computing],
+        }
+      - { name: calibration_due, type: timestamp }
+
+  - id: complaint
+    title: Complaint
+    authority_domain: qms
+    enterprise_namespace: CMP
+    first_class: true
+    state_machine: complaint
+    states: [received, triaged, investigated, closed]
+    fields:
+      - { name: received_on, type: timestamp, required: true }
+      - { name: summary, type: string, required: true, min_length: 1 }
+      # Whether the event meets a regulatory reporting threshold. Recorded as a decision with
+      # its own rationale, because "we decided it was not reportable" is the answer a
+      # regulator asks for and an absent field cannot give it.
+      - { name: reportable, type: boolean }
+      - { name: reportability_rationale, type: string }
+
+  - id: risk_control
+    title: Risk Control
+    authority_domain: engineering
+    enterprise_namespace: RCT
+    first_class: true
+    state_machine: risk_control
+    states: [proposed, implemented, verified, retired]
+    fields:
+      - {
+          name: control_kind,
+          type: enum,
+          required: true,
+          values: [inherent_safety, protective_measure, information_for_safety],
+        }
+      - {
+          name: mitigates,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - { name: description, type: string, required: true, min_length: 1 }
+
+  - id: test_definition
+    title: Test Definition
+    authority_domain: engineering
+    enterprise_namespace: TSD
+    first_class: true
+    state_machine: test_definition
+    states: [draft, approved, superseded]
+    fields:
+      - {
+          name: method_kind,
+          type: enum,
+          required: true,
+          values: [inspection, analysis, demonstration, test],
+        }
+      - { name: acceptance_criterion, type: string, required: true, min_length: 1 }
+      - {
+          name: verifies,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+
+  - id: test_execution
+    title: Test Execution
+    authority_domain: engineering
+    enterprise_namespace: TSX
+    first_class: true
+    state_machine: test_execution
+    states: [planned, executed, passed, failed, invalidated]
+    fields:
+      - {
+          name: test_definition,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - { name: executed_on, type: timestamp }
+      - {
+          name: equipment_used,
+          type: array<uuid>,
+          item_pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+          unique: true,
+        }
+      - { name: result_summary, type: string }

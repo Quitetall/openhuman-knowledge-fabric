@@ -1,8 +1,8 @@
 {
-  "schema_version": "1.0.0-draft.1",
+  "schema_version": "1.1.0-draft.1",
   "x-generated-from": {
-    "ontology_version": "1.0.0-draft.1",
-    "source_digest": "d1511f4416e03cb06dde92ceeade82bc060aed793cd9fbc674ced30f332e83ad"
+    "ontology_version": "1.1.0-draft.1",
+    "source_digest": "40abb2e71925114dd799d1cb8434428b42615547ff4d9e28e4e43b44baa744c9"
   },
   "node_types": {
     "organization": {
@@ -89,6 +89,54 @@
     "baseline": {
       "authority_domain": "configuration",
       "enterprise_namespace": "BSL"
+    },
+    "configuration_item": {
+      "authority_domain": "configuration",
+      "enterprise_namespace": "CFG"
+    },
+    "interface_contract": {
+      "authority_domain": "configuration",
+      "enterprise_namespace": "IFC"
+    },
+    "physical_binding": {
+      "authority_domain": "configuration",
+      "enterprise_namespace": "BND"
+    },
+    "controlled_document": {
+      "authority_domain": "qms",
+      "enterprise_namespace": "DOC"
+    },
+    "nonconformity": {
+      "authority_domain": "qms",
+      "enterprise_namespace": "NCR"
+    },
+    "capa": {
+      "authority_domain": "qms",
+      "enterprise_namespace": "CPA"
+    },
+    "supplier": {
+      "authority_domain": "qms",
+      "enterprise_namespace": "SUP"
+    },
+    "equipment": {
+      "authority_domain": "qms",
+      "enterprise_namespace": "EQP"
+    },
+    "complaint": {
+      "authority_domain": "qms",
+      "enterprise_namespace": "CMP"
+    },
+    "risk_control": {
+      "authority_domain": "engineering",
+      "enterprise_namespace": "RCT"
+    },
+    "test_definition": {
+      "authority_domain": "engineering",
+      "enterprise_namespace": "TSD"
+    },
+    "test_execution": {
+      "authority_domain": "engineering",
+      "enterprise_namespace": "TSX"
     }
   },
   "edge_types": {
@@ -199,6 +247,24 @@
     },
     "was_associated_with": {
       "inverse": "associated_with"
+    },
+    "conforms_to": {
+      "inverse": "conformed_to_by"
+    },
+    "bound_to": {
+      "inverse": "binds"
+    },
+    "supplied_by": {
+      "inverse": "supplies"
+    },
+    "calibrated_with": {
+      "inverse": "calibrates"
+    },
+    "raised_against": {
+      "inverse": "raised"
+    },
+    "remediated_by": {
+      "inverse": "remediates"
     }
   },
   "action_types": {
@@ -319,6 +385,194 @@
       "transactional": true
     },
     "correct_record": {
+      "audited": true,
+      "transactional": true
+    },
+    "promote_configuration_item": {
+      "audited": true,
+      "transactional": true
+    },
+    "supersede_configuration_item": {
+      "audited": true,
+      "transactional": true
+    },
+    "retire_configuration_item": {
+      "audited": true,
+      "transactional": true
+    },
+    "publish_interface_contract": {
+      "audited": true,
+      "transactional": true
+    },
+    "deprecate_interface_contract": {
+      "audited": true,
+      "transactional": true
+    },
+    "withdraw_interface_contract": {
+      "audited": true,
+      "transactional": true
+    },
+    "record_physical_binding": {
+      "audited": true,
+      "transactional": true
+    },
+    "remove_physical_binding": {
+      "audited": true,
+      "transactional": true
+    },
+    "submit_document_for_review": {
+      "audited": true,
+      "transactional": true
+    },
+    "approve_controlled_document": {
+      "audited": true,
+      "transactional": true
+    },
+    "make_document_effective": {
+      "audited": true,
+      "transactional": true
+    },
+    "supersede_controlled_document": {
+      "audited": true,
+      "transactional": true
+    },
+    "withdraw_controlled_document": {
+      "audited": true,
+      "transactional": true
+    },
+    "raise_nonconformity": {
+      "audited": true,
+      "transactional": true
+    },
+    "contain_nonconformity": {
+      "audited": true,
+      "transactional": true
+    },
+    "investigate_nonconformity": {
+      "audited": true,
+      "transactional": true
+    },
+    "disposition_nonconformity": {
+      "audited": true,
+      "transactional": true
+    },
+    "close_nonconformity": {
+      "audited": true,
+      "transactional": true
+    },
+    "open_capa": {
+      "audited": true,
+      "transactional": true
+    },
+    "approve_capa_plan": {
+      "audited": true,
+      "transactional": true
+    },
+    "implement_capa": {
+      "audited": true,
+      "transactional": true
+    },
+    "check_capa_effectiveness": {
+      "audited": true,
+      "transactional": true
+    },
+    "close_capa": {
+      "audited": true,
+      "transactional": true
+    },
+    "register_supplier": {
+      "audited": true,
+      "transactional": true
+    },
+    "qualify_supplier": {
+      "audited": true,
+      "transactional": true
+    },
+    "restrict_supplier": {
+      "audited": true,
+      "transactional": true
+    },
+    "disqualify_supplier": {
+      "audited": true,
+      "transactional": true
+    },
+    "register_equipment": {
+      "audited": true,
+      "transactional": true
+    },
+    "place_equipment_in_service": {
+      "audited": true,
+      "transactional": true
+    },
+    "remove_equipment_from_service": {
+      "audited": true,
+      "transactional": true
+    },
+    "quarantine_equipment": {
+      "audited": true,
+      "transactional": true
+    },
+    "retire_equipment": {
+      "audited": true,
+      "transactional": true
+    },
+    "receive_complaint": {
+      "audited": true,
+      "transactional": true
+    },
+    "triage_complaint": {
+      "audited": true,
+      "transactional": true
+    },
+    "investigate_complaint": {
+      "audited": true,
+      "transactional": true
+    },
+    "close_complaint": {
+      "audited": true,
+      "transactional": true
+    },
+    "propose_risk_control": {
+      "audited": true,
+      "transactional": true
+    },
+    "implement_risk_control": {
+      "audited": true,
+      "transactional": true
+    },
+    "verify_risk_control": {
+      "audited": true,
+      "transactional": true
+    },
+    "retire_risk_control": {
+      "audited": true,
+      "transactional": true
+    },
+    "define_test": {
+      "audited": true,
+      "transactional": true
+    },
+    "approve_test_definition": {
+      "audited": true,
+      "transactional": true
+    },
+    "supersede_test_definition": {
+      "audited": true,
+      "transactional": true
+    },
+    "plan_test_execution": {
+      "audited": true,
+      "transactional": true
+    },
+    "execute_test": {
+      "audited": true,
+      "transactional": true
+    },
+    "record_test_result": {
+      "audited": true,
+      "transactional": true
+    },
+    "invalidate_test_execution": {
       "audited": true,
       "transactional": true
     }

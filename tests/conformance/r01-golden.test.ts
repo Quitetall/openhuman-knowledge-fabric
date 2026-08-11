@@ -2,15 +2,27 @@
  * R01 conformance.
  *
  * `tests/conformance/r01-golden/` is the released `1.0.0-draft.1` schema pack, pinned byte
- * for byte. These tests assert that the ontology compiler still produces that pack — and
- * that every place it does NOT is a deliberate, recorded correction rather than drift.
+ * for byte. These tests assert that every R01 semantic still holds in whatever the ontology
+ * has since become — and that every place it does not is a deliberate, recorded change.
  *
- * Without this, the ontology could quietly redefine approved semantics and nothing would
+ * The assertion USED to be equality: regenerate the ontology, get the pack back. That was
+ * right while the ontology was exactly R01, and wrong the moment it had to grow. An equality
+ * check makes extension impossible, and an impossible check gets weakened under pressure —
+ * which is how a conformance suite quietly stops meaning anything.
+ *
+ * So the guarantee is now two-sided and strictly stronger where it matters:
+ *
+ *   PRESERVATION  every R01 type, edge, action and definition still exists, byte-identical.
+ *                 An approved semantic cannot be redefined by an extension, ever.
+ *   DECLARATION   every addition is named in DECLARED_ADDITIONS below. A new type appearing
+ *                 without being declared fails, so growth is recorded rather than absorbed.
+ *
+ * Without both, the ontology could quietly redefine approved semantics and nothing would
  * notice until a record failed to validate years later.
  */
 
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
@@ -38,6 +50,26 @@ const GOLDEN = join(ROOT, 'tests', 'conformance', 'r01-golden');
  * window: it is asserted EXHAUSTIVE, and any new difference — in either direction — fails.
  */
 const RECORDED_DIVERGENCES = [
+  {
+    id: 'GATE-6-EXTENSION',
+    path: '.schema_version',
+    summary: 'extended to 1.1.0-draft.1 by the Gate 6 configuration and quality types',
+  },
+  {
+    id: 'GATE-6-EXTENSION',
+    // The schema's own identity URL carries its version, so it moves with it. Listed
+    // separately rather than folded in, because "$id changed" and "the version changed" are
+    // different claims and only one of them is harmless on its own.
+    path: '.$id',
+    summary: 'the schema $id embeds the pack version, which the extension moved',
+  },
+  {
+    id: 'GATE-6-EXTENSION',
+    // The same fact, at the path the JSON Schema expresses it: the state-machine artifact
+    // carries a bare `schema_version`, the schema carries a const the records must match.
+    path: '.properties.schema_version.const',
+    summary: 'the version every record must declare, moved by the extension',
+  },
   {
     id: 'R01-DEFECT-002',
     path: '.machines.initiative_project.transitions',
@@ -99,6 +131,31 @@ function diff(a: Json, b: Json, path = ''): string[] {
 
 const golden = (f: string): Json => JSON.parse(readFileSync(join(GOLDEN, f), 'utf8'));
 
+/** The current pack version, read from the ontology rather than repeated here. */
+const currentVersion = (): string =>
+  (
+    (built('json-schema/knowledge-fabric.schema.json') as Record<string, Json>)[
+      'properties'
+    ] as Record<string, { const: string }>
+  )['schema_version']!.const;
+
+/** Rewrite every `schema_version` in a graph instance, and nothing else. */
+function restamp(value: Json): Json {
+  const version = currentVersion();
+  const walk = (v: Json): Json => {
+    if (Array.isArray(v)) return v.map(walk);
+    if (typeof v === 'object' && v !== null) {
+      return Object.fromEntries(
+        Object.entries(v as Record<string, Json>).map(([k, x]) =>
+          k === 'schema_version' ? [k, version] : [k, walk(x)],
+        ),
+      );
+    }
+    return v;
+  };
+  return walk(structuredClone(value));
+}
+
 let ontology: Ontology;
 let artifacts: Map<string, Artifact>;
 const built = (p: string): Json => JSON.parse(artifacts.get(p)!.content);
@@ -122,35 +179,279 @@ describe('the pinned golden pack is intact', () => {
   });
 });
 
-describe('regeneration reproduces the R01 pack', () => {
-  it('vocabulary is identical', () => {
-    const d = diff(
-      stripProvenance(golden('knowledge-fabric.vocabulary.json')),
-      stripProvenance(built('vocabulary/knowledge-fabric.vocabulary.json')),
-    );
-    expect(d).toEqual([]);
+/**
+ * Everything schema_version 1.1.0-draft.1 adds to the R01 pack.
+ *
+ * Asserted EXHAUSTIVE in both directions. A type that appears without being listed here
+ * fails, and a type listed here that does not appear fails too — so the ontology cannot grow
+ * quietly and this list cannot rot into a description of something that stopped being true.
+ */
+const DECLARED_ADDITIONS = {
+  node_types: [
+    'capa',
+    'complaint',
+    'configuration_item',
+    'controlled_document',
+    'equipment',
+    'interface_contract',
+    'nonconformity',
+    'physical_binding',
+    'risk_control',
+    'supplier',
+    'test_definition',
+    'test_execution',
+  ],
+  edge_types: [
+    'bound_to',
+    'calibrated_with',
+    'conforms_to',
+    'raised_against',
+    'remediated_by',
+    'supplied_by',
+  ],
+  action_types: [
+    'approve_capa_plan',
+    'approve_controlled_document',
+    'approve_test_definition',
+    'check_capa_effectiveness',
+    'close_capa',
+    'close_complaint',
+    'close_nonconformity',
+    'contain_nonconformity',
+    'define_test',
+    'deprecate_interface_contract',
+    'disposition_nonconformity',
+    'disqualify_supplier',
+    'execute_test',
+    'implement_capa',
+    'implement_risk_control',
+    'invalidate_test_execution',
+    'investigate_complaint',
+    'investigate_nonconformity',
+    'make_document_effective',
+    'open_capa',
+    'place_equipment_in_service',
+    'plan_test_execution',
+    'promote_configuration_item',
+    'propose_risk_control',
+    'publish_interface_contract',
+    'qualify_supplier',
+    'quarantine_equipment',
+    'raise_nonconformity',
+    'receive_complaint',
+    'record_physical_binding',
+    'record_test_result',
+    'register_equipment',
+    'register_supplier',
+    'remove_equipment_from_service',
+    'remove_physical_binding',
+    'restrict_supplier',
+    'retire_configuration_item',
+    'retire_equipment',
+    'retire_risk_control',
+    'submit_document_for_review',
+    'supersede_configuration_item',
+    'supersede_controlled_document',
+    'supersede_test_definition',
+    'triage_complaint',
+    'verify_risk_control',
+    'withdraw_controlled_document',
+    'withdraw_interface_contract',
+  ],
+} as const;
+
+/**
+ * The only constraints an extension is allowed to WIDEN, named one by one.
+ *
+ * `Edge.edge_type` and `Action.action_type` are closed enumerations over the vocabulary, so
+ * adding an edge or action type necessarily grows them. That is a widening, not a
+ * redefinition — but it is still checked: the assertion below proves the new enum is a strict
+ * SUPERSET, so no R01 token can be dropped while a new one is added.
+ *
+ * Anything not on this list must be byte-identical.
+ */
+const WIDENABLE_ENUMS = [
+  { def: 'Edge', path: ['properties', 'edge_type', 'enum'] },
+  { def: 'Action', path: ['properties', 'action_type', 'enum'] },
+] as const;
+
+/** The version stamp moves with the pack; every definition carries a copy of it. */
+const VERSION_CONST = '.properties.schema_version.const';
+
+describe('the extended ontology preserves R01 exactly', () => {
+  it('every R01 node, edge and action survives byte-identically', () => {
+    // PRESERVATION. An approved semantic may be extended around but never redefined: if a
+    // field, pattern, bound or enum value changed under an R01 type, this is where a record
+    // written years ago stops validating, and this is where that shows up instead.
+    const g = stripProvenance(golden('knowledge-fabric.vocabulary.json')) as Record<
+      string,
+      Record<string, Json>
+    >;
+    const b = stripProvenance(built('vocabulary/knowledge-fabric.vocabulary.json')) as Record<
+      string,
+      Record<string, Json>
+    >;
+
+    for (const section of ['node_types', 'edge_types', 'action_types'] as const) {
+      for (const [id, definition] of Object.entries(g[section]!)) {
+        expect(b[section]!, `${section}.${id} was removed`).toHaveProperty(id);
+        expect(diff(definition, b[section]![id]), `${section}.${id} was redefined`).toEqual([]);
+      }
+    }
+    // The invariants are a list, not a map: all ten must still be there, in order.
+    expect(diff(g['invariants'], b['invariants'])).toEqual([]);
   });
 
-  it('JSON Schema is identical', () => {
+  it('every R01 JSON Schema definition survives byte-identically', () => {
     // The strongest single assertion in this suite: every type, field, pattern, bound,
     // default and required-list survives the round trip through ontology/.
-    const d = diff(
-      stripProvenance(golden('knowledge-fabric.schema.json')),
-      stripProvenance(built('json-schema/knowledge-fabric.schema.json')),
+    const g = stripProvenance(golden('knowledge-fabric.schema.json')) as Record<string, Json>;
+    const b = stripProvenance(built('json-schema/knowledge-fabric.schema.json')) as Record<
+      string,
+      Json
+    >;
+
+    const gd = g['$defs'] as Record<string, Json>;
+    const bd = b['$defs'] as Record<string, Json>;
+    for (const [name, definition] of Object.entries(gd)) {
+      expect(bd, `$defs.${name} was removed`).toHaveProperty(name);
+
+      const widenable = WIDENABLE_ENUMS.filter((w) => w.def === name).map(
+        (w) => `.${w.path.join('.')}`,
+      );
+      // Every definition carries the pack's version stamp, so that path moves with it.
+      const allowed = [...widenable, VERSION_CONST].sort();
+      const actual = diff(definition, bd[name]).sort();
+      expect(actual, `$defs.${name} was redefined`).toEqual(
+        allowed.filter((a) => actual.includes(a)),
+      );
+      // And nothing outside the allowed set moved.
+      expect(
+        actual.filter((x) => !allowed.includes(x)),
+        `$defs.${name} changed at`,
+      ).toEqual([]);
+    }
+
+    // A widening must be a strict SUPERSET. Swapping one token for another would otherwise
+    // pass as "the enum changed", which is precisely the redefinition this suite exists to
+    // catch.
+    for (const w of WIDENABLE_ENUMS) {
+      const read = (defs: Record<string, Json>): string[] =>
+        w.path.reduce<Json>(
+          (acc, k) => (acc as Record<string, Json>)[k]!,
+          defs[w.def]!,
+        ) as string[];
+      const before = read(gd);
+      const after = new Set(read(bd));
+      for (const token of before) {
+        expect(after, `${w.def}.${w.path.at(-1)} dropped '${token}'`).toContain(token);
+      }
+    }
+
+    // Every R01 node type is still admissible in a graph export.
+    const refs = (v: Json): string[] =>
+      (
+        ((v as Record<string, Json>)['nodes'] as Record<string, Json>)['items'] as Record<
+          string,
+          { $ref: string }[]
+        >
+      )['oneOf']!.map((r) => r.$ref);
+    const built_refs = new Set(refs(b['properties']!));
+    for (const ref of refs(g['properties']!)) {
+      expect(built_refs, `${ref} is no longer accepted as a node`).toContain(ref);
+    }
+
+    // Everything outside $defs and the node list is compared whole, so a changed envelope
+    // rule cannot hide behind the per-definition loop above.
+    const envelope = (v: Record<string, Json>): Json => {
+      const { $defs: _d, properties, ...rest } = v;
+      const { nodes: _n, ...otherProperties } = properties as Record<string, Json>;
+      return { ...rest, properties: otherProperties };
+    };
+    // The two paths the JSON Schema expresses the version bump at, and nothing else.
+    expect(diff(envelope(g), envelope(b)).sort()).toEqual(
+      ['.$id', '.properties.schema_version.const'].sort(),
     );
-    expect(d).toEqual([]);
   });
 
-  it('state machines differ ONLY at the recorded defect paths', () => {
-    const d = diff(
-      stripProvenance(golden('knowledge-fabric.state-machines.json')),
-      stripProvenance(built('state-machines/knowledge-fabric.state-machines.json')),
+  it('every addition is declared, and every declaration is real', () => {
+    // DECLARATION. Exhaustive in both directions: growth is recorded rather than absorbed,
+    // and this list cannot rot into a description of something that stopped being true.
+    const g = stripProvenance(golden('knowledge-fabric.vocabulary.json')) as Record<
+      string,
+      Record<string, Json>
+    >;
+    const b = stripProvenance(built('vocabulary/knowledge-fabric.vocabulary.json')) as Record<
+      string,
+      Record<string, Json>
+    >;
+
+    for (const section of ['node_types', 'edge_types', 'action_types'] as const) {
+      const added = Object.keys(b[section]!)
+        .filter((id) => !(id in g[section]!))
+        .sort();
+      expect(added, `undeclared additions to ${section}`).toEqual([...DECLARED_ADDITIONS[section]]);
+    }
+  });
+
+  it('R01 state machines differ ONLY at the recorded defect paths', () => {
+    const g = stripProvenance(golden('knowledge-fabric.state-machines.json')) as Record<
+      string,
+      Json
+    >;
+    const b = stripProvenance(
+      built('state-machines/knowledge-fabric.state-machines.json'),
+    ) as Record<string, Json>;
+
+    const gm = g['machines'] as Record<string, Json>;
+    const bm = b['machines'] as Record<string, Json>;
+
+    // Only the machines R01 defined. The new ones are checked separately, below.
+    const shared = Object.fromEntries(Object.keys(gm).map((id) => [id, bm[id]] as const)) as Record<
+      string,
+      Json
+    >;
+    const d = diff({ ...g, machines: gm }, { ...b, machines: shared });
+
+    // Every recorded divergence except the two the JSON Schema expresses and this artifact
+    // does not: it carries a bare `schema_version`, not an `$id` or a per-record const.
+    expect(d.sort()).toEqual(
+      [...RECORDED_DIVERGENCES.map((r) => r.path)]
+        .filter((p) => p !== '.$id' && p !== '.properties.schema_version.const')
+        .sort(),
     );
-    expect(d.sort()).toEqual([...RECORDED_DIVERGENCES.map((r) => r.path)].sort());
+  });
+
+  it('every new state machine belongs to a declared new type', () => {
+    const gm = (
+      stripProvenance(golden('knowledge-fabric.state-machines.json')) as Record<
+        string,
+        Record<string, Json>
+      >
+    )['machines']!;
+    const bm = (
+      stripProvenance(built('state-machines/knowledge-fabric.state-machines.json')) as Record<
+        string,
+        Record<string, Json>
+      >
+    )['machines']!;
+
+    const added = Object.keys(bm)
+      .filter((id) => !(id in gm))
+      .sort();
+    // A lifecycle for a type nobody declared is a lifecycle nobody reviewed.
+    for (const id of added) {
+      expect(DECLARED_ADDITIONS.node_types, `machine '${id}' has no declared type`).toContain(id);
+    }
   });
 
   it('records a rationale for every divergence', () => {
-    const yaml = readFileSync(join(ROOT, 'ontology', 'state-machines.yaml'), 'utf8');
+    // Across the whole ontology, not one file: the version bump is justified where the
+    // version lives, and the defect corrections where the machines live.
+    const yaml = readdirSync(join(ROOT, 'ontology'))
+      .filter((f) => f.endsWith('.yaml'))
+      .map((f) => readFileSync(join(ROOT, 'ontology', f), 'utf8'))
+      .join('\n');
     for (const d of RECORDED_DIVERGENCES) {
       // The defect id must appear at the point of change, so a reader hitting the odd-looking
       // line finds out why without leaving the file.
@@ -163,10 +464,16 @@ describe('the worked example still validates', () => {
   it('atlas enclosure project validates against the REGENERATED schema, zero errors', () => {
     // Spec §30.3 acceptance criterion. The example was authored against the original pack,
     // so if the compiler weakened or altered any constraint this is where it shows.
+    //
+    // The ONLY concession to the extension is the version stamp: every record carries a
+    // `schema_version` const, so an example written for 1.0.0-draft.1 cannot validate under
+    // 1.1.0-draft.1 without restamping. Asserting that this is the only change needed is a
+    // stronger statement than skipping the test — it says an R01-era graph is still a valid
+    // graph, field for field, under everything added since.
     const ajv = new Ajv2020.default({ strict: false, allErrors: true });
     addFormats.default(ajv);
     const validate = ajv.compile(built('json-schema/knowledge-fabric.schema.json') as object);
-    const instance = golden('example-atlas-enclosure-project.json');
+    const instance = restamp(golden('example-atlas-enclosure-project.json'));
 
     const ok = validate(instance);
     expect(
@@ -187,6 +494,14 @@ describe('the worked example still validates', () => {
     expect(inst.actions).toHaveLength(1);
   });
 
+  it('needs nothing but the version stamp — no field was added or removed', () => {
+    // Proves the restamp above is exactly that, and not a rewrite that quietly satisfies a
+    // constraint the example previously failed.
+    const original = golden('example-atlas-enclosure-project.json');
+    const stamped = restamp(original);
+    expect(diff(original, stamped).every((p) => p.endsWith('.schema_version'))).toBe(true);
+  });
+
   it('rejects an instance that violates a regenerated constraint', () => {
     // A schema that accepts everything would pass the test above too. Prove it discriminates.
     const ajv = new Ajv2020.default({ strict: false, allErrors: true });
@@ -197,7 +512,10 @@ describe('the worked example still validates', () => {
       unknown
     >;
 
-    const nodes = instance['nodes'] as Record<string, unknown>[];
+    const nodes = (restamp(instance) as Record<string, unknown>)['nodes'] as Record<
+      string,
+      unknown
+    >[];
     // A v4 UUID where the envelope demands v7 — the exact substitution the pinned pattern exists
     // to prevent, since a v4 id destroys the time ordering the index relies on.
     nodes[0]!['node_id'] = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';

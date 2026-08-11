@@ -1,8 +1,8 @@
 {
-  "schema_version": "1.0.0-draft.1",
+  "schema_version": "1.1.0-draft.1",
   "x-generated-from": {
-    "ontology_version": "1.0.0-draft.1",
-    "source_digest": "d1511f4416e03cb06dde92ceeade82bc060aed793cd9fbc674ced30f332e83ad"
+    "ontology_version": "1.1.0-draft.1",
+    "source_digest": "40abb2e71925114dd799d1cb8434428b42615547ff4d9e28e4e43b44baa744c9"
   },
   "machines": {
     "initiative_project": {
@@ -405,6 +405,403 @@
           "reconciled",
           "reversed",
           "correct_record"
+        ]
+      ]
+    },
+    "configuration_item": {
+      "initial": "proposed",
+      "terminal": [
+        "retired"
+      ],
+      "transitions": [
+        [
+          "proposed",
+          "active",
+          "promote_configuration_item"
+        ],
+        [
+          "active",
+          "superseded",
+          "supersede_configuration_item"
+        ],
+        [
+          "superseded",
+          "retired",
+          "retire_configuration_item"
+        ],
+        [
+          "active",
+          "retired",
+          "retire_configuration_item"
+        ],
+        [
+          "proposed",
+          "retired",
+          "retire_configuration_item"
+        ]
+      ]
+    },
+    "interface_contract": {
+      "initial": "draft",
+      "terminal": [
+        "withdrawn"
+      ],
+      "transitions": [
+        [
+          "draft",
+          "published",
+          "publish_interface_contract"
+        ],
+        [
+          "published",
+          "deprecated",
+          "deprecate_interface_contract"
+        ],
+        [
+          "deprecated",
+          "withdrawn",
+          "withdraw_interface_contract"
+        ],
+        [
+          "draft",
+          "withdrawn",
+          "withdraw_interface_contract"
+        ]
+      ]
+    },
+    "physical_binding": {
+      "initial": "planned",
+      "terminal": [
+        "removed"
+      ],
+      "transitions": [
+        [
+          "planned",
+          "installed",
+          "record_physical_binding"
+        ],
+        [
+          "installed",
+          "removed",
+          "remove_physical_binding"
+        ],
+        [
+          "planned",
+          "removed",
+          "remove_physical_binding"
+        ]
+      ]
+    },
+    "controlled_document": {
+      "initial": "draft",
+      "terminal": [
+        "withdrawn"
+      ],
+      "transitions": [
+        [
+          "draft",
+          "in_review",
+          "submit_document_for_review"
+        ],
+        [
+          "in_review",
+          "approved",
+          "approve_controlled_document"
+        ],
+        [
+          "in_review",
+          "draft",
+          "approve_controlled_document"
+        ],
+        [
+          "approved",
+          "effective",
+          "make_document_effective"
+        ],
+        [
+          "effective",
+          "superseded",
+          "supersede_controlled_document"
+        ],
+        [
+          "superseded",
+          "withdrawn",
+          "withdraw_controlled_document"
+        ],
+        [
+          "draft",
+          "withdrawn",
+          "withdraw_controlled_document"
+        ]
+      ]
+    },
+    "nonconformity": {
+      "initial": "open",
+      "terminal": [
+        "closed"
+      ],
+      "transitions": [
+        [
+          "open",
+          "contained",
+          "contain_nonconformity"
+        ],
+        [
+          "contained",
+          "investigated",
+          "investigate_nonconformity"
+        ],
+        [
+          "investigated",
+          "dispositioned",
+          "disposition_nonconformity"
+        ],
+        [
+          "dispositioned",
+          "closed",
+          "close_nonconformity"
+        ]
+      ]
+    },
+    "capa": {
+      "initial": "open",
+      "terminal": [
+        "closed",
+        "cancelled"
+      ],
+      "transitions": [
+        [
+          "open",
+          "plan_approved",
+          "approve_capa_plan"
+        ],
+        [
+          "plan_approved",
+          "implementing",
+          "implement_capa"
+        ],
+        [
+          "implementing",
+          "effectiveness_check",
+          "check_capa_effectiveness"
+        ],
+        [
+          "effectiveness_check",
+          "closed",
+          "close_capa"
+        ],
+        [
+          "effectiveness_check",
+          "implementing",
+          "check_capa_effectiveness"
+        ],
+        [
+          "open",
+          "cancelled",
+          "correct_record"
+        ]
+      ]
+    },
+    "supplier": {
+      "initial": "prospective",
+      "terminal": [
+        "disqualified"
+      ],
+      "transitions": [
+        [
+          "prospective",
+          "qualified",
+          "qualify_supplier"
+        ],
+        [
+          "prospective",
+          "conditional",
+          "qualify_supplier"
+        ],
+        [
+          "qualified",
+          "conditional",
+          "restrict_supplier"
+        ],
+        [
+          "conditional",
+          "qualified",
+          "qualify_supplier"
+        ],
+        [
+          "qualified",
+          "disqualified",
+          "disqualify_supplier"
+        ],
+        [
+          "conditional",
+          "disqualified",
+          "disqualify_supplier"
+        ],
+        [
+          "prospective",
+          "disqualified",
+          "disqualify_supplier"
+        ]
+      ]
+    },
+    "equipment": {
+      "initial": "in_service",
+      "terminal": [
+        "retired"
+      ],
+      "transitions": [
+        [
+          "in_service",
+          "out_of_service",
+          "remove_equipment_from_service"
+        ],
+        [
+          "out_of_service",
+          "in_service",
+          "place_equipment_in_service"
+        ],
+        [
+          "in_service",
+          "quarantined",
+          "quarantine_equipment"
+        ],
+        [
+          "quarantined",
+          "in_service",
+          "place_equipment_in_service"
+        ],
+        [
+          "quarantined",
+          "retired",
+          "retire_equipment"
+        ],
+        [
+          "out_of_service",
+          "retired",
+          "retire_equipment"
+        ]
+      ]
+    },
+    "complaint": {
+      "initial": "received",
+      "terminal": [
+        "closed"
+      ],
+      "transitions": [
+        [
+          "received",
+          "triaged",
+          "triage_complaint"
+        ],
+        [
+          "triaged",
+          "investigated",
+          "investigate_complaint"
+        ],
+        [
+          "investigated",
+          "closed",
+          "close_complaint"
+        ],
+        [
+          "triaged",
+          "closed",
+          "close_complaint"
+        ]
+      ]
+    },
+    "risk_control": {
+      "initial": "proposed",
+      "terminal": [
+        "retired"
+      ],
+      "transitions": [
+        [
+          "proposed",
+          "implemented",
+          "implement_risk_control"
+        ],
+        [
+          "implemented",
+          "verified",
+          "verify_risk_control"
+        ],
+        [
+          "verified",
+          "implemented",
+          "verify_risk_control"
+        ],
+        [
+          "verified",
+          "retired",
+          "retire_risk_control"
+        ],
+        [
+          "proposed",
+          "retired",
+          "retire_risk_control"
+        ]
+      ]
+    },
+    "test_definition": {
+      "initial": "draft",
+      "terminal": [
+        "superseded"
+      ],
+      "transitions": [
+        [
+          "draft",
+          "approved",
+          "approve_test_definition"
+        ],
+        [
+          "approved",
+          "superseded",
+          "supersede_test_definition"
+        ],
+        [
+          "draft",
+          "superseded",
+          "supersede_test_definition"
+        ]
+      ]
+    },
+    "test_execution": {
+      "initial": "planned",
+      "terminal": [
+        "invalidated"
+      ],
+      "transitions": [
+        [
+          "planned",
+          "executed",
+          "execute_test"
+        ],
+        [
+          "executed",
+          "passed",
+          "record_test_result"
+        ],
+        [
+          "executed",
+          "failed",
+          "record_test_result"
+        ],
+        [
+          "passed",
+          "invalidated",
+          "invalidate_test_execution"
+        ],
+        [
+          "failed",
+          "invalidated",
+          "invalidate_test_execution"
+        ],
+        [
+          "executed",
+          "invalidated",
+          "invalidate_test_execution"
         ]
       ]
     }

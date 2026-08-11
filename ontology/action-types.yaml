@@ -125,6 +125,7 @@ action_types:
     transactional: true
     drives:
       [
+        capa,
         change_record,
         decision_record,
         initiative_project,
@@ -134,3 +135,193 @@ action_types:
         work_order,
         work_package,
       ]
+
+  # ── Gate 6: product configuration and quality ──────────────────────────────────────────
+  - id: promote_configuration_item
+    audited: true
+    transactional: true
+    drives: [configuration_item]
+  - id: supersede_configuration_item
+    audited: true
+    transactional: true
+    drives: [configuration_item]
+  - id: retire_configuration_item
+    audited: true
+    transactional: true
+    drives: [configuration_item]
+  - id: publish_interface_contract
+    audited: true
+    transactional: true
+    drives: [interface_contract]
+  - id: deprecate_interface_contract
+    audited: true
+    transactional: true
+    drives: [interface_contract]
+  - id: withdraw_interface_contract
+    audited: true
+    transactional: true
+    drives: [interface_contract]
+  - id: record_physical_binding
+    audited: true
+    transactional: true
+    drives: [physical_binding]
+  - id: remove_physical_binding
+    audited: true
+    transactional: true
+    drives: [physical_binding]
+  - id: submit_document_for_review
+    audited: true
+    transactional: true
+    drives: [controlled_document]
+  - id: approve_controlled_document
+    audited: true
+    transactional: true
+    drives: [controlled_document]
+  - id: make_document_effective
+    audited: true
+    transactional: true
+    drives: [controlled_document]
+  - id: supersede_controlled_document
+    audited: true
+    transactional: true
+    drives: [controlled_document]
+  - id: withdraw_controlled_document
+    audited: true
+    transactional: true
+    drives: [controlled_document]
+  - id: raise_nonconformity
+    audited: true
+    transactional: true
+    drives: []
+  - id: contain_nonconformity
+    audited: true
+    transactional: true
+    drives: [nonconformity]
+  - id: investigate_nonconformity
+    audited: true
+    transactional: true
+    drives: [nonconformity]
+  - id: disposition_nonconformity
+    audited: true
+    transactional: true
+    drives: [nonconformity]
+  - id: close_nonconformity
+    audited: true
+    transactional: true
+    drives: [nonconformity]
+  - id: open_capa
+    audited: true
+    transactional: true
+    drives: []
+  - id: approve_capa_plan
+    audited: true
+    transactional: true
+    drives: [capa]
+  - id: implement_capa
+    audited: true
+    transactional: true
+    drives: [capa]
+  - id: check_capa_effectiveness
+    audited: true
+    transactional: true
+    drives: [capa]
+  - id: close_capa
+    audited: true
+    transactional: true
+    drives: [capa]
+  - id: register_supplier
+    audited: true
+    transactional: true
+    drives: []
+  - id: qualify_supplier
+    audited: true
+    transactional: true
+    drives: [supplier]
+  - id: restrict_supplier
+    audited: true
+    transactional: true
+    drives: [supplier]
+  - id: disqualify_supplier
+    audited: true
+    transactional: true
+    drives: [supplier]
+  - id: register_equipment
+    audited: true
+    transactional: true
+    drives: []
+  - id: place_equipment_in_service
+    audited: true
+    transactional: true
+    drives: [equipment]
+  - id: remove_equipment_from_service
+    audited: true
+    transactional: true
+    drives: [equipment]
+  - id: quarantine_equipment
+    audited: true
+    transactional: true
+    drives: [equipment]
+  - id: retire_equipment
+    audited: true
+    transactional: true
+    drives: [equipment]
+  - id: receive_complaint
+    audited: true
+    transactional: true
+    drives: []
+  - id: triage_complaint
+    audited: true
+    transactional: true
+    drives: [complaint]
+  - id: investigate_complaint
+    audited: true
+    transactional: true
+    drives: [complaint]
+  - id: close_complaint
+    audited: true
+    transactional: true
+    drives: [complaint]
+  - id: propose_risk_control
+    audited: true
+    transactional: true
+    drives: []
+  - id: implement_risk_control
+    audited: true
+    transactional: true
+    drives: [risk_control]
+  - id: verify_risk_control
+    audited: true
+    transactional: true
+    drives: [risk_control]
+  - id: retire_risk_control
+    audited: true
+    transactional: true
+    drives: [risk_control]
+  - id: define_test
+    audited: true
+    transactional: true
+    drives: []
+  - id: approve_test_definition
+    audited: true
+    transactional: true
+    drives: [test_definition]
+  - id: supersede_test_definition
+    audited: true
+    transactional: true
+    drives: [test_definition]
+  - id: plan_test_execution
+    audited: true
+    transactional: true
+    drives: []
+  - id: execute_test
+    audited: true
+    transactional: true
+    drives: [test_execution]
+  - id: record_test_result
+    audited: true
+    transactional: true
+    drives: [test_execution]
+  - id: invalidate_test_execution
+    audited: true
+    transactional: true
+    drives: [test_execution]

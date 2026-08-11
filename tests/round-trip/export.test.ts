@@ -273,14 +273,29 @@ describe('preservation export', () => {
     expect(pkg.manifest.counts['artifact-versions']).toBeGreaterThan(0);
   });
 
-  it('carries the ontology with the data', () => {
+  it('carries the ontology with the data — all of it', async () => {
     // Without it, a reader in twenty years has rows whose state and action tokens mean
     // nothing.
+    //
+    // Counted against the registry rather than against a literal. A number here would have
+    // to be edited every time the ontology grew, and an assertion edited to make it pass is
+    // not an assertion — this one fails if the export drops a single type.
     const ontology = pkg.files.find((x) => x.path === 'ontology/registry.json');
     expect(ontology).toBeDefined();
     const parsed = JSON.parse(ontology!.content) as Record<string, unknown[]>;
-    expect(parsed['object_types']).toHaveLength(21);
-    expect(parsed['state_transitions']!.length).toBeGreaterThan(60);
+
+    const registry = await withTransaction(h.adminPool, async (tx) =>
+      tx.one<{ types: string; transitions: string; actions: string }>(
+        `select (select count(*) from registry.object_type)::text as types,
+                (select count(*) from registry.state_transition)::text as transitions,
+                (select count(*) from registry.action_type)::text as actions`,
+      ),
+    );
+    expect(parsed['object_types']).toHaveLength(Number(registry.types));
+    expect(parsed['state_transitions']).toHaveLength(Number(registry.transitions));
+    expect(parsed['action_types']).toHaveLength(Number(registry.actions));
+    // And it is not vacuously empty.
+    expect(Number(registry.types)).toBeGreaterThan(20);
   });
 
   it('does not list its own manifest — a file cannot contain its own hash', () => {

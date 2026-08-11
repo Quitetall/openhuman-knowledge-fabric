@@ -1,11 +1,11 @@
 // GENERATED from ontology/ — do not edit.
-// ontology_version: 1.0.0-draft.1
-// source_digest: d1511f4416e03cb06dde92ceeade82bc060aed793cd9fbc674ced30f332e83ad
+// ontology_version: 1.1.0-draft.1
+// source_digest: 40abb2e71925114dd799d1cb8434428b42615547ff4d9e28e4e43b44baa744c9
 
 /* eslint-disable */
 
-export const SCHEMA_VERSION = '1.0.0-draft.1' as const;
-export const ONTOLOGY_SOURCE_DIGEST = 'd1511f4416e03cb06dde92ceeade82bc060aed793cd9fbc674ced30f332e83ad' as const;
+export const SCHEMA_VERSION = '1.1.0-draft.1' as const;
+export const ONTOLOGY_SOURCE_DIGEST = '40abb2e71925114dd799d1cb8434428b42615547ff4d9e28e4e43b44baa744c9' as const;
 
 export const CLASSIFICATIONS = ['public', 'internal', 'confidential', 'restricted'] as const;
 export type Classifications = (typeof CLASSIFICATIONS)[number];
@@ -16,13 +16,13 @@ export type SourceAuthorities = (typeof SOURCE_AUTHORITIES)[number];
 export const AUTHORITY_DOMAINS = ['artifact', 'commercial', 'configuration', 'engineering', 'finance', 'organization', 'project', 'qms'] as const;
 export type AuthorityDomains = (typeof AUTHORITY_DOMAINS)[number];
 
-export const OBJECT_TYPES = ['organization', 'person', 'role_assignment', 'engagement', 'product_system', 'initiative_project', 'work_package', 'work_order', 'work_execution', 'decision_record', 'change_record', 'deliverable', 'artifact', 'acceptance_record', 'invoice', 'payment', 'requirement', 'risk', 'test', 'release', 'baseline'] as const;
+export const OBJECT_TYPES = ['organization', 'person', 'role_assignment', 'engagement', 'product_system', 'initiative_project', 'work_package', 'work_order', 'work_execution', 'decision_record', 'change_record', 'deliverable', 'artifact', 'acceptance_record', 'invoice', 'payment', 'requirement', 'risk', 'test', 'release', 'baseline', 'configuration_item', 'interface_contract', 'physical_binding', 'controlled_document', 'nonconformity', 'capa', 'supplier', 'equipment', 'complaint', 'risk_control', 'test_definition', 'test_execution'] as const;
 export type ObjectTypes = (typeof OBJECT_TYPES)[number];
 
-export const RELATION_TYPES = ['contains', 'decomposes_into', 'affects', 'authorizes', 'executes', 'produces', 'consumes', 'proposes', 'governs', 'implements', 'satisfies', 'verifies', 'mitigates', 'accepts', 'bills', 'settles', 'allocates_to', 'originated_from', 'supersedes', 'derived_from', 'evidences', 'assigned_to', 'scoped_to', 'depends_on', 'blocks', 'released_by', 'baseline_contains', 'performed_by', 'owned_by', 'linked_to', 'amends', 'generated_by', 'used', 'was_associated_with'] as const;
+export const RELATION_TYPES = ['contains', 'decomposes_into', 'affects', 'authorizes', 'executes', 'produces', 'consumes', 'proposes', 'governs', 'implements', 'satisfies', 'verifies', 'mitigates', 'accepts', 'bills', 'settles', 'allocates_to', 'originated_from', 'supersedes', 'derived_from', 'evidences', 'assigned_to', 'scoped_to', 'depends_on', 'blocks', 'released_by', 'baseline_contains', 'performed_by', 'owned_by', 'linked_to', 'amends', 'generated_by', 'used', 'was_associated_with', 'conforms_to', 'bound_to', 'supplied_by', 'calibrated_with', 'raised_against', 'remediated_by'] as const;
 export type RelationTypes = (typeof RELATION_TYPES)[number];
 
-export const ACTION_TYPES = ['create_initiative', 'triage_initiative', 'authorize_project', 'activate_project', 'create_work_package', 'start_work_package', 'accept_work_package', 'issue_work_order', 'accept_work_order', 'amend_work_order', 'submit_work_execution', 'review_work_execution', 'issue_acceptance', 'propose_decision', 'accept_decision', 'reject_decision', 'supersede_decision', 'open_change', 'approve_change', 'verify_change', 'make_change_effective', 'submit_invoice', 'approve_invoice', 'authorize_payment', 'record_payment_settlement', 'reconcile_payment', 'complete_project_technical', 'close_project_administrative', 'attach_evidence', 'correct_record'] as const;
+export const ACTION_TYPES = ['create_initiative', 'triage_initiative', 'authorize_project', 'activate_project', 'create_work_package', 'start_work_package', 'accept_work_package', 'issue_work_order', 'accept_work_order', 'amend_work_order', 'submit_work_execution', 'review_work_execution', 'issue_acceptance', 'propose_decision', 'accept_decision', 'reject_decision', 'supersede_decision', 'open_change', 'approve_change', 'verify_change', 'make_change_effective', 'submit_invoice', 'approve_invoice', 'authorize_payment', 'record_payment_settlement', 'reconcile_payment', 'complete_project_technical', 'close_project_administrative', 'attach_evidence', 'correct_record', 'promote_configuration_item', 'supersede_configuration_item', 'retire_configuration_item', 'publish_interface_contract', 'deprecate_interface_contract', 'withdraw_interface_contract', 'record_physical_binding', 'remove_physical_binding', 'submit_document_for_review', 'approve_controlled_document', 'make_document_effective', 'supersede_controlled_document', 'withdraw_controlled_document', 'raise_nonconformity', 'contain_nonconformity', 'investigate_nonconformity', 'disposition_nonconformity', 'close_nonconformity', 'open_capa', 'approve_capa_plan', 'implement_capa', 'check_capa_effectiveness', 'close_capa', 'register_supplier', 'qualify_supplier', 'restrict_supplier', 'disqualify_supplier', 'register_equipment', 'place_equipment_in_service', 'remove_equipment_from_service', 'quarantine_equipment', 'retire_equipment', 'receive_complaint', 'triage_complaint', 'investigate_complaint', 'close_complaint', 'propose_risk_control', 'implement_risk_control', 'verify_risk_control', 'retire_risk_control', 'define_test', 'approve_test_definition', 'supersede_test_definition', 'plan_test_execution', 'execute_test', 'record_test_result', 'invalidate_test_execution'] as const;
 export type ActionTypes = (typeof ACTION_TYPES)[number];
 
 export interface Money {
@@ -301,6 +301,109 @@ export interface BaselineAttributes {
   readonly approved_at?: string;
 }
 
+/** Configuration Item — authority: configuration */
+export type ConfigurationItemState = 'proposed' | 'active' | 'superseded' | 'retired';
+export interface ConfigurationItemAttributes {
+  readonly item_kind: 'hardware' | 'software' | 'firmware' | 'mechanical' | 'document' | 'tooling' | 'data';
+  readonly part_number: string;
+  readonly revision_label: string;
+  readonly parent_system: string;
+}
+
+/** Interface Contract — authority: configuration */
+export type InterfaceContractState = 'draft' | 'published' | 'deprecated' | 'withdrawn';
+export interface InterfaceContractAttributes {
+  readonly interface_kind: 'electrical' | 'mechanical' | 'thermal' | 'data' | 'protocol' | 'service' | 'regulatory';
+  readonly generation: string;
+  readonly provider: string;
+  readonly consumer?: string;
+}
+
+/** Physical Binding — authority: configuration */
+export type PhysicalBindingState = 'planned' | 'installed' | 'removed';
+export interface PhysicalBindingAttributes {
+  readonly configuration_item: string;
+  readonly serial_number: string;
+  readonly installed_on?: string;
+}
+
+/** Controlled Document — authority: qms */
+export type ControlledDocumentState = 'draft' | 'in_review' | 'approved' | 'effective' | 'superseded' | 'withdrawn';
+export interface ControlledDocumentAttributes {
+  readonly document_class: 'policy' | 'procedure' | 'work_instruction' | 'form' | 'record' | 'specification' | 'plan' | 'report';
+  readonly document_number: string;
+  readonly revision: string;
+  readonly owning_role: 'project_owner' | 'technical_authority' | 'design_authority' | 'work_order_manager' | 'performer' | 'reviewer' | 'finance_approver' | 'quality_authority' | 'configuration_authority' | 'system_administrator';
+}
+
+/** Nonconformity — authority: qms */
+export type NonconformityState = 'open' | 'contained' | 'investigated' | 'dispositioned' | 'closed';
+export interface NonconformityAttributes {
+  readonly severity: 'minor' | 'major' | 'critical';
+  readonly detected_on: string;
+  readonly description: string;
+  readonly disposition?: 'use_as_is' | 'rework' | 'repair' | 'scrap' | 'return_to_supplier';
+}
+
+/** Corrective and Preventive Action — authority: qms */
+export type CapaState = 'open' | 'plan_approved' | 'implementing' | 'effectiveness_check' | 'closed' | 'cancelled';
+export interface CapaAttributes {
+  readonly capa_kind: 'corrective' | 'preventive' | 'both';
+  readonly problem_statement: string;
+  readonly root_cause?: string;
+  readonly effectiveness_criterion: string;
+}
+
+/** Supplier — authority: qms */
+export type SupplierState = 'prospective' | 'qualified' | 'conditional' | 'disqualified';
+export interface SupplierAttributes {
+  readonly organization: string;
+  readonly criticality: 'critical' | 'significant' | 'standard';
+  readonly qualified_until?: string;
+}
+
+/** Equipment — authority: qms */
+export type EquipmentState = 'in_service' | 'out_of_service' | 'quarantined' | 'retired';
+export interface EquipmentAttributes {
+  readonly asset_number: string;
+  readonly equipment_kind: 'measurement' | 'production' | 'test' | 'environmental' | 'computing';
+  readonly calibration_due?: string;
+}
+
+/** Complaint — authority: qms */
+export type ComplaintState = 'received' | 'triaged' | 'investigated' | 'closed';
+export interface ComplaintAttributes {
+  readonly received_on: string;
+  readonly summary: string;
+  readonly reportable?: boolean;
+  readonly reportability_rationale?: string;
+}
+
+/** Risk Control — authority: engineering */
+export type RiskControlState = 'proposed' | 'implemented' | 'verified' | 'retired';
+export interface RiskControlAttributes {
+  readonly control_kind: 'inherent_safety' | 'protective_measure' | 'information_for_safety';
+  readonly mitigates: string;
+  readonly description: string;
+}
+
+/** Test Definition — authority: engineering */
+export type TestDefinitionState = 'draft' | 'approved' | 'superseded';
+export interface TestDefinitionAttributes {
+  readonly method_kind: 'inspection' | 'analysis' | 'demonstration' | 'test';
+  readonly acceptance_criterion: string;
+  readonly verifies: string;
+}
+
+/** Test Execution — authority: engineering */
+export type TestExecutionState = 'planned' | 'executed' | 'passed' | 'failed' | 'invalidated';
+export interface TestExecutionAttributes {
+  readonly test_definition: string;
+  readonly executed_on?: string;
+  readonly equipment_used?: readonly string[];
+  readonly result_summary?: string;
+}
+
 /** State machines, keyed by object type. */
 export const STATE_MACHINES = {
   initiative_project: {
@@ -414,6 +517,138 @@ export const STATE_MACHINES = {
       { from: 'initiated', to: 'failed', action: 'record_payment_settlement' },
       { from: 'settled', to: 'reversed', action: 'correct_record' },
       { from: 'reconciled', to: 'reversed', action: 'correct_record' },
+    ],
+  },
+  configuration_item: {
+    initial: 'proposed',
+    terminal: ['retired'],
+    transitions: [
+      { from: 'proposed', to: 'active', action: 'promote_configuration_item' },
+      { from: 'active', to: 'superseded', action: 'supersede_configuration_item' },
+      { from: 'superseded', to: 'retired', action: 'retire_configuration_item' },
+      { from: 'active', to: 'retired', action: 'retire_configuration_item' },
+      { from: 'proposed', to: 'retired', action: 'retire_configuration_item' },
+    ],
+  },
+  interface_contract: {
+    initial: 'draft',
+    terminal: ['withdrawn'],
+    transitions: [
+      { from: 'draft', to: 'published', action: 'publish_interface_contract' },
+      { from: 'published', to: 'deprecated', action: 'deprecate_interface_contract' },
+      { from: 'deprecated', to: 'withdrawn', action: 'withdraw_interface_contract' },
+      { from: 'draft', to: 'withdrawn', action: 'withdraw_interface_contract' },
+    ],
+  },
+  physical_binding: {
+    initial: 'planned',
+    terminal: ['removed'],
+    transitions: [
+      { from: 'planned', to: 'installed', action: 'record_physical_binding' },
+      { from: 'installed', to: 'removed', action: 'remove_physical_binding' },
+      { from: 'planned', to: 'removed', action: 'remove_physical_binding' },
+    ],
+  },
+  controlled_document: {
+    initial: 'draft',
+    terminal: ['withdrawn'],
+    transitions: [
+      { from: 'draft', to: 'in_review', action: 'submit_document_for_review' },
+      { from: 'in_review', to: 'approved', action: 'approve_controlled_document' },
+      { from: 'in_review', to: 'draft', action: 'approve_controlled_document' },
+      { from: 'approved', to: 'effective', action: 'make_document_effective' },
+      { from: 'effective', to: 'superseded', action: 'supersede_controlled_document' },
+      { from: 'superseded', to: 'withdrawn', action: 'withdraw_controlled_document' },
+      { from: 'draft', to: 'withdrawn', action: 'withdraw_controlled_document' },
+    ],
+  },
+  nonconformity: {
+    initial: 'open',
+    terminal: ['closed'],
+    transitions: [
+      { from: 'open', to: 'contained', action: 'contain_nonconformity' },
+      { from: 'contained', to: 'investigated', action: 'investigate_nonconformity' },
+      { from: 'investigated', to: 'dispositioned', action: 'disposition_nonconformity' },
+      { from: 'dispositioned', to: 'closed', action: 'close_nonconformity' },
+    ],
+  },
+  capa: {
+    initial: 'open',
+    terminal: ['closed', 'cancelled'],
+    transitions: [
+      { from: 'open', to: 'plan_approved', action: 'approve_capa_plan' },
+      { from: 'plan_approved', to: 'implementing', action: 'implement_capa' },
+      { from: 'implementing', to: 'effectiveness_check', action: 'check_capa_effectiveness' },
+      { from: 'effectiveness_check', to: 'closed', action: 'close_capa' },
+      { from: 'effectiveness_check', to: 'implementing', action: 'check_capa_effectiveness' },
+      { from: 'open', to: 'cancelled', action: 'correct_record' },
+    ],
+  },
+  supplier: {
+    initial: 'prospective',
+    terminal: ['disqualified'],
+    transitions: [
+      { from: 'prospective', to: 'qualified', action: 'qualify_supplier' },
+      { from: 'prospective', to: 'conditional', action: 'qualify_supplier' },
+      { from: 'qualified', to: 'conditional', action: 'restrict_supplier' },
+      { from: 'conditional', to: 'qualified', action: 'qualify_supplier' },
+      { from: 'qualified', to: 'disqualified', action: 'disqualify_supplier' },
+      { from: 'conditional', to: 'disqualified', action: 'disqualify_supplier' },
+      { from: 'prospective', to: 'disqualified', action: 'disqualify_supplier' },
+    ],
+  },
+  equipment: {
+    initial: 'in_service',
+    terminal: ['retired'],
+    transitions: [
+      { from: 'in_service', to: 'out_of_service', action: 'remove_equipment_from_service' },
+      { from: 'out_of_service', to: 'in_service', action: 'place_equipment_in_service' },
+      { from: 'in_service', to: 'quarantined', action: 'quarantine_equipment' },
+      { from: 'quarantined', to: 'in_service', action: 'place_equipment_in_service' },
+      { from: 'quarantined', to: 'retired', action: 'retire_equipment' },
+      { from: 'out_of_service', to: 'retired', action: 'retire_equipment' },
+    ],
+  },
+  complaint: {
+    initial: 'received',
+    terminal: ['closed'],
+    transitions: [
+      { from: 'received', to: 'triaged', action: 'triage_complaint' },
+      { from: 'triaged', to: 'investigated', action: 'investigate_complaint' },
+      { from: 'investigated', to: 'closed', action: 'close_complaint' },
+      { from: 'triaged', to: 'closed', action: 'close_complaint' },
+    ],
+  },
+  risk_control: {
+    initial: 'proposed',
+    terminal: ['retired'],
+    transitions: [
+      { from: 'proposed', to: 'implemented', action: 'implement_risk_control' },
+      { from: 'implemented', to: 'verified', action: 'verify_risk_control' },
+      { from: 'verified', to: 'implemented', action: 'verify_risk_control' },
+      { from: 'verified', to: 'retired', action: 'retire_risk_control' },
+      { from: 'proposed', to: 'retired', action: 'retire_risk_control' },
+    ],
+  },
+  test_definition: {
+    initial: 'draft',
+    terminal: ['superseded'],
+    transitions: [
+      { from: 'draft', to: 'approved', action: 'approve_test_definition' },
+      { from: 'approved', to: 'superseded', action: 'supersede_test_definition' },
+      { from: 'draft', to: 'superseded', action: 'supersede_test_definition' },
+    ],
+  },
+  test_execution: {
+    initial: 'planned',
+    terminal: ['invalidated'],
+    transitions: [
+      { from: 'planned', to: 'executed', action: 'execute_test' },
+      { from: 'executed', to: 'passed', action: 'record_test_result' },
+      { from: 'executed', to: 'failed', action: 'record_test_result' },
+      { from: 'passed', to: 'invalidated', action: 'invalidate_test_execution' },
+      { from: 'failed', to: 'invalidated', action: 'invalidate_test_execution' },
+      { from: 'executed', to: 'invalidated', action: 'invalidate_test_execution' },
     ],
   },
 } as const;

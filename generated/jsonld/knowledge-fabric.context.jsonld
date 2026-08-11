@@ -1,7 +1,7 @@
 {
   "x-generated-from": {
-    "ontology_version": "1.0.0-draft.1",
-    "source_digest": "d1511f4416e03cb06dde92ceeade82bc060aed793cd9fbc674ced30f332e83ad"
+    "ontology_version": "1.1.0-draft.1",
+    "source_digest": "40abb2e71925114dd799d1cb8434428b42615547ff4d9e28e4e43b44baa744c9"
   },
   "@context": {
     "@version": 1.1,
@@ -166,6 +166,30 @@
     },
     "was_associated_with": {
       "@id": "prov:wasAssociatedWith",
+      "@type": "@id"
+    },
+    "conforms_to": {
+      "@id": "kf:conforms_to",
+      "@type": "@id"
+    },
+    "bound_to": {
+      "@id": "kf:bound_to",
+      "@type": "@id"
+    },
+    "supplied_by": {
+      "@id": "kf:supplied_by",
+      "@type": "@id"
+    },
+    "calibrated_with": {
+      "@id": "kf:calibrated_with",
+      "@type": "@id"
+    },
+    "raised_against": {
+      "@id": "kf:raised_against",
+      "@type": "@id"
+    },
+    "remediated_by": {
+      "@id": "kf:remediated_by",
       "@type": "@id"
     }
   }

@@ -129,3 +129,148 @@ state_machines:
       - { from: initiated, to: failed, action: record_payment_settlement }
       - { from: settled, to: reversed, action: correct_record }
       - { from: reconciled, to: reversed, action: correct_record }
+
+  # ── Gate 6 ──────────────────────────────────────────────────────────────────────────────
+  #
+  # Every machine below satisfies the same two rules the R01 defects violated: no state is
+  # reachable without an exit unless it is declared terminal, and no state is declared
+  # terminal while a transition leads out of it.
+
+  - id: configuration_item
+    initial: proposed
+    terminal: [retired]
+    transitions:
+      - { from: proposed, to: active, action: promote_configuration_item }
+      - { from: active, to: superseded, action: supersede_configuration_item }
+      - { from: superseded, to: retired, action: retire_configuration_item }
+      - { from: active, to: retired, action: retire_configuration_item }
+      - { from: proposed, to: retired, action: retire_configuration_item }
+
+  - id: interface_contract
+    initial: draft
+    terminal: [withdrawn]
+    transitions:
+      - { from: draft, to: published, action: publish_interface_contract }
+      - { from: published, to: deprecated, action: deprecate_interface_contract }
+      - { from: deprecated, to: withdrawn, action: withdraw_interface_contract }
+      # A contract can be withdrawn from draft — nobody has bound to it yet — but never
+      # straight from published: a consumer conforming to it deserves the deprecation notice.
+      - { from: draft, to: withdrawn, action: withdraw_interface_contract }
+
+  - id: physical_binding
+    initial: planned
+    terminal: [removed]
+    transitions:
+      - { from: planned, to: installed, action: record_physical_binding }
+      - { from: installed, to: removed, action: remove_physical_binding }
+      - { from: planned, to: removed, action: remove_physical_binding }
+
+  - id: controlled_document
+    initial: draft
+    terminal: [withdrawn]
+    transitions:
+      - { from: draft, to: in_review, action: submit_document_for_review }
+      - { from: in_review, to: approved, action: approve_controlled_document }
+      - { from: in_review, to: draft, action: approve_controlled_document }
+      - { from: approved, to: effective, action: make_document_effective }
+      - { from: effective, to: superseded, action: supersede_controlled_document }
+      # Superseded is not terminal: a superseded document is still retrievable and is
+      # eventually withdrawn from circulation, which is a further, recorded step.
+      - { from: superseded, to: withdrawn, action: withdraw_controlled_document }
+      - { from: draft, to: withdrawn, action: withdraw_controlled_document }
+
+  - id: nonconformity
+    initial: open
+    terminal: [closed]
+    transitions:
+      - { from: open, to: contained, action: contain_nonconformity }
+      - { from: contained, to: investigated, action: investigate_nonconformity }
+      - { from: investigated, to: dispositioned, action: disposition_nonconformity }
+      - { from: dispositioned, to: closed, action: close_nonconformity }
+
+  - id: capa
+    initial: open
+    terminal: [closed, cancelled]
+    transitions:
+      - { from: open, to: plan_approved, action: approve_capa_plan }
+      - { from: plan_approved, to: implementing, action: implement_capa }
+      - { from: implementing, to: effectiveness_check, action: check_capa_effectiveness }
+      - { from: effectiveness_check, to: closed, action: close_capa }
+      # Effectiveness not demonstrated sends it back to implementation. A CAPA that closed
+      # without that loop would record a fix nobody showed worked.
+      - { from: effectiveness_check, to: implementing, action: check_capa_effectiveness }
+      - { from: open, to: cancelled, action: correct_record }
+
+  - id: supplier
+    initial: prospective
+    terminal: [disqualified]
+    transitions:
+      - { from: prospective, to: qualified, action: qualify_supplier }
+      - { from: prospective, to: conditional, action: qualify_supplier }
+      - { from: qualified, to: conditional, action: restrict_supplier }
+      - { from: conditional, to: qualified, action: qualify_supplier }
+      - { from: qualified, to: disqualified, action: disqualify_supplier }
+      - { from: conditional, to: disqualified, action: disqualify_supplier }
+      - { from: prospective, to: disqualified, action: disqualify_supplier }
+
+  - id: equipment
+    initial: in_service
+    terminal: [retired]
+    transitions:
+      - { from: in_service, to: out_of_service, action: remove_equipment_from_service }
+      - { from: out_of_service, to: in_service, action: place_equipment_in_service }
+      - { from: in_service, to: quarantined, action: quarantine_equipment }
+      # Quarantine has two exits and both matter: equipment cleared after investigation
+      # returns to service, and equipment that fails is retired. Only one of them would make
+      # quarantine a disposal route.
+      - { from: quarantined, to: in_service, action: place_equipment_in_service }
+      - { from: quarantined, to: retired, action: retire_equipment }
+      - { from: out_of_service, to: retired, action: retire_equipment }
+
+  - id: complaint
+    initial: received
+    terminal: [closed]
+    transitions:
+      - { from: received, to: triaged, action: triage_complaint }
+      - { from: triaged, to: investigated, action: investigate_complaint }
+      - { from: investigated, to: closed, action: close_complaint }
+      # Triage may conclude no investigation is warranted, but that conclusion is still a
+      # recorded closure with a rationale, never a silent drop.
+      - { from: triaged, to: closed, action: close_complaint }
+
+  - id: risk_control
+    initial: proposed
+    terminal: [retired]
+    transitions:
+      - { from: proposed, to: implemented, action: implement_risk_control }
+      - { from: implemented, to: verified, action: verify_risk_control }
+      # Verification can fail. Without this the only way back would be a correction, which
+      # would misrecord a normal engineering outcome as an error in the record.
+      - { from: verified, to: implemented, action: verify_risk_control }
+      - { from: verified, to: retired, action: retire_risk_control }
+      - { from: proposed, to: retired, action: retire_risk_control }
+
+  - id: test_definition
+    initial: draft
+    terminal: [superseded]
+    transitions:
+      - { from: draft, to: approved, action: approve_test_definition }
+      - { from: approved, to: superseded, action: supersede_test_definition }
+      - { from: draft, to: superseded, action: supersede_test_definition }
+
+  - id: test_execution
+    initial: planned
+    # `passed` and `failed` are NOT terminal, and the checker was right to refuse them:
+    # invalidation follows a result rather than replacing it — an expired calibration or a
+    # wrong build discovered later invalidates a pass that was recorded in good faith. This
+    # is the same contradiction as R01-DEFECT-003, caught in our own work by the same rule.
+    terminal: [invalidated]
+    transitions:
+      - { from: planned, to: executed, action: execute_test }
+      - { from: executed, to: passed, action: record_test_result }
+      - { from: executed, to: failed, action: record_test_result }
+      # A result invalidated afterwards — wrong equipment, expired calibration, wrong build —
+      # is a new fact about the execution, not a deletion of it.
+      - { from: passed, to: invalidated, action: invalidate_test_execution }
+      - { from: failed, to: invalidated, action: invalidate_test_execution }
+      - { from: executed, to: invalidated, action: invalidate_test_execution }
