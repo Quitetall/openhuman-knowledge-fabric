@@ -76,8 +76,21 @@ create index allocation_by_invoice on finance.payment_allocation (invoice_id);
 -- Accepted value must not exceed the authorized work-order ceiling without an approved
 -- amendment.
 
+
+-- The three functions below are SECURITY DEFINER, with a pinned search_path.
+--
+-- Not for convenience. An invariant must hold across ALL rows, and a check that summed only
+-- the acceptances the CALLER can see would be bypassable by anyone whose row-level scope
+-- excluded the rows that would have breached the ceiling. Running as the owner also lets the
+-- trigger take `for update` on a work order the application role deliberately cannot update.
+--
+-- search_path is pinned because a SECURITY DEFINER function that resolves names through the
+-- caller's search_path can be pointed at a table the caller controls.
+
 create or replace function work.assert_accepted_within_ceiling() returns trigger
 language plpgsql
+security definer
+set search_path = work, finance, core, registry, org, pg_catalog
 as $$
 declare
   v_order        record;
@@ -142,6 +155,8 @@ create trigger acceptance_within_ceiling
 
 create or replace function finance.assert_line_within_accepted() returns trigger
 language plpgsql
+security definer
+set search_path = work, finance, core, registry, org, pg_catalog
 as $$
 declare
   v_order      record;
@@ -198,6 +213,8 @@ create trigger invoice_line_within_accepted
 
 create or replace function finance.assert_allocation_within_bounds() returns trigger
 language plpgsql
+security definer
+set search_path = work, finance, core, registry, org, pg_catalog
 as $$
 declare
   v_payment      record;
@@ -251,6 +268,17 @@ $$;
 create trigger allocation_within_bounds
   before insert on finance.payment_allocation
   for each row execute function finance.assert_allocation_within_bounds();
+
+-- ── privileges ──────────────────────────────────────────────────────────────────────────
+
+-- Finance is the narrowest read audience in the system. kf_readonly is deliberately absent:
+-- a general reader has no business seeing contractor rates or payment references, and the
+-- classification tier alone would not stop them — that governs core.object, not these rows.
+grant select on all tables in schema finance to kf_app, kf_auditor, kf_backup;
+grant insert on finance.invoice, finance.invoice_line, finance.payment,
+                finance.payment_allocation
+  to kf_app;
+grant usage, select on all sequences in schema finance to kf_app;
 
 -- migrate:down
 

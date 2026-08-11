@@ -113,6 +113,43 @@ export interface ObjectRow extends Record<string, unknown> {
   created_by: string;
 }
 
+/** What a materializer and an effect are told about the action running around them. */
+export interface EffectContext {
+  readonly actionId: string;
+  readonly effectiveAt: Date;
+}
+
+/**
+ * Create the record an action brings into existence, and return its id.
+ *
+ * Runs BEFORE the targets are locked, because a record that does not exist yet cannot be
+ * locked. The ids it returns are appended to the caller's targets, so `submit_work_execution`
+ * can create the execution and move the work package in one action.
+ *
+ * Restricted to what an INSERT can do: the transaction context is bound by this point, but
+ * `core.action` is not yet written, so nothing here may move a lifecycle state or reference
+ * the action row. Both of those belong in the effect.
+ */
+export type ActionMaterializer = (
+  tx: Tx,
+  request: ActionRequest,
+  ctx: EffectContext,
+) => Promise<readonly string[]>;
+
+/**
+ * The typed writes an action performs beyond moving state.
+ *
+ * Runs after `core.action` exists and after the transitions are applied, so it may reference
+ * the action row. Part of the same transaction: an effect that fails fails the action, which
+ * is the point — a work order whose typed row did not land is not a work order.
+ */
+export type ActionEffect = (
+  tx: Tx,
+  request: ActionRequest,
+  objects: readonly ObjectRow[],
+  ctx: EffectContext,
+) => Promise<void>;
+
 export interface DispatcherOptions {
   /**
    * Action-specific preconditions, keyed by action type.
@@ -121,26 +158,42 @@ export interface DispatcherOptions {
    * that throws until it is written, rather than letting the action through unverified.
    */
   readonly preconditions?: Readonly<Record<string, PreconditionCheck>>;
+  /** Actions that create the record they control, keyed by action type. */
+  readonly materializers?: Readonly<Record<string, ActionMaterializer>>;
+  /** Typed writes performed by an action, keyed by action type. */
+  readonly effects?: Readonly<Record<string, ActionEffect>>;
   /**
-   * Actions where the actor may not be the person whose work is being judged.
+   * Actions where the actor may not be the person whose work is being judged, and the object
+   * TYPES the restriction applies to.
    *
-   * Separation of duty is the control that stops a contractor accepting their own work,
-   * so it is enforced here rather than left to whoever writes the next endpoint.
+   * Scoped by type rather than blanket, because an action names more than the thing it
+   * judges. `issue_acceptance` targets the work execution AND the work order it belongs to:
+   * restricting on every target would mean whoever issued the order could never accept work
+   * against it, which is not separation of duty — it is separation of the wrong two things,
+   * and the workaround is for someone to issue orders they have no part in.
+   *
+   * An empty type list means every target, for actions where that is genuinely intended.
    */
-  readonly separationOfDuty?: readonly string[];
+  readonly separationOfDuty?: Readonly<Record<string, readonly string[]>>;
   /** Actions that must carry a reason. A silent correction is not a correction. */
   readonly reasonRequired?: readonly string[];
 }
 
-const DEFAULT_SEPARATION_OF_DUTY = ['issue_acceptance', 'accept_work_package', 'approve_invoice'];
+const DEFAULT_SEPARATION_OF_DUTY: Readonly<Record<string, readonly string[]>> = {
+  issue_acceptance: ['work_execution'],
+  accept_work_package: ['work_package'],
+  approve_invoice: ['invoice'],
+};
 const DEFAULT_REASON_REQUIRED = ['correct_record', 'reject_decision', 'amend_work_order'];
 
 // ── dispatcher ──────────────────────────────────────────────────────────────────────────
 
 export function createDispatcher(pool: Pool, options: DispatcherOptions = {}) {
-  const separationOfDuty = new Set(options.separationOfDuty ?? DEFAULT_SEPARATION_OF_DUTY);
+  const separationOfDuty = options.separationOfDuty ?? DEFAULT_SEPARATION_OF_DUTY;
   const reasonRequired = new Set(options.reasonRequired ?? DEFAULT_REASON_REQUIRED);
   const preconditions = options.preconditions ?? {};
+  const materializers = options.materializers ?? {};
+  const effects = options.effects ?? {};
 
   return async function executeAction(request: ActionRequest): Promise<ActionResult> {
     return withTransaction(pool, async (tx) => {
@@ -179,21 +232,49 @@ export function createDispatcher(pool: Pool, options: DispatcherOptions = {}) {
         });
       }
 
+      // Identity and context are established BEFORE anything is created, because the write
+      // guard refuses a controlled write with no actor — including the very first INSERT of
+      // a record this action is bringing into existence.
+      const actionId = (await tx.one<{ id: string }>('select uuidv7() as id')).id;
+      const effectiveAt = request.effectiveAt ?? new Date();
+      const ctx: EffectContext = { actionId, effectiveAt };
+
+      await setTransactionContext(tx, {
+        actorId: request.actorId,
+        actingRoleId: request.actingRoleId,
+        actionId,
+        ...(request.requestId !== undefined ? { requestId: request.requestId } : {}),
+      });
+
+      const materialize = materializers[request.actionType];
+      const created = materialize === undefined ? [] : await materialize(tx, request, ctx);
+      const targetIds = [...request.targetIds, ...created];
+
+      if (targetIds.length === 0) {
+        // An action with no target changed nothing, and an audit entry saying so is worse
+        // than useless: it records authority exercised over nothing.
+        throw new ActionRejected(
+          'precondition_failed',
+          `${request.actionType} names no target and creates none`,
+          { actionType: request.actionType },
+        );
+      }
+
       // 3-5. Read the targets under row-level security, locking them so a concurrent action
       // cannot move the state between our check and our write. FOR UPDATE is what makes the
       // version check meaningful rather than advisory.
       const objects = await tx.query<ObjectRow>(
         `select id, object_type, lifecycle_state, row_version, organization_id, created_by
            from core.object where id = any($1::uuid[]) for update`,
-        [[...request.targetIds]],
+        [targetIds],
       );
-      if (objects.length !== request.targetIds.length) {
+      if (objects.length !== targetIds.length) {
         // Not visible and not existing are deliberately the same answer: distinguishing
         // them tells an unauthorized caller that a record exists.
         throw new ActionRejected(
           'object_not_visible',
           'one or more targets do not exist or are not visible to this actor',
-          { requested: request.targetIds.length, found: objects.length },
+          { requested: targetIds.length, found: objects.length },
         );
       }
 
@@ -226,7 +307,7 @@ export function createDispatcher(pool: Pool, options: DispatcherOptions = {}) {
         // More than one candidate means the payload must choose. Guessing would silently
         // pick a lifecycle branch on the caller's behalf.
         if (permitted.length > 1) {
-          const chosen = request.payload?.['to_state'];
+          const chosen = chooseState(request.payload?.['to_state'], o);
           const target = permitted.find((t) => t.to === chosen);
           if (target === undefined) {
             throw new ActionRejected(
@@ -241,9 +322,11 @@ export function createDispatcher(pool: Pool, options: DispatcherOptions = {}) {
         }
       }
 
-      // 8. Separation of duty.
-      if (separationOfDuty.has(request.actionType)) {
+      // 8. Separation of duty, over the object types the restriction names.
+      const restrictedTypes = separationOfDuty[request.actionType];
+      if (restrictedTypes !== undefined) {
         for (const o of objects) {
+          if (restrictedTypes.length > 0 && !restrictedTypes.includes(o.object_type)) continue;
           if (o.created_by === request.actorId) {
             throw new ActionRejected(
               'separation_of_duty',
@@ -258,16 +341,6 @@ export function createDispatcher(pool: Pool, options: DispatcherOptions = {}) {
       // constraints both, so neither alone is the only thing standing in the way.
       const check = preconditions[request.actionType];
       if (check !== undefined) await check(tx, request, objects);
-
-      const actionId = (await tx.one<{ id: string }>('select uuidv7() as id')).id;
-      const effectiveAt = request.effectiveAt ?? new Date();
-
-      await setTransactionContext(tx, {
-        actorId: request.actorId,
-        actingRoleId: request.actingRoleId,
-        actionId,
-        ...(request.requestId !== undefined ? { requestId: request.requestId } : {}),
-      });
 
       const before = objects.map((o) => ({ id: o.id, state: o.lifecycle_state }));
 
@@ -286,7 +359,7 @@ export function createDispatcher(pool: Pool, options: DispatcherOptions = {}) {
         action_type: request.actionType,
         actor_id: request.actorId,
         acting_role_id: request.actingRoleId,
-        object_ids: [...request.targetIds].sort(),
+        object_ids: [...targetIds].sort(),
         effective_at: effectiveAt.toISOString(),
         before_digest: beforeDigest,
         after_digest: afterDigest,
@@ -303,7 +376,7 @@ export function createDispatcher(pool: Pool, options: DispatcherOptions = {}) {
           request.actionType,
           request.actorId,
           request.actingRoleId,
-          [...request.targetIds],
+          [...targetIds],
           JSON.stringify(request.payload ?? {}),
           JSON.stringify({ before, expected_version: request.expectedVersion ?? null }),
           request.idempotencyKey,
@@ -330,6 +403,12 @@ export function createDispatcher(pool: Pool, options: DispatcherOptions = {}) {
         );
       }
 
+      // 10. The action's typed writes, now that `core.action` exists and can be referenced.
+      // Same transaction: an effect that fails fails the action, because a work order whose
+      // typed row did not land is not a work order.
+      const effect = effects[request.actionType];
+      if (effect !== undefined) await effect(tx, request, objects, ctx);
+
       // Exactly ONE audit event per action, because the action is the unit of authority and
       // the chain commits to it. A row per target would need a digest per target, and then
       // "what was authorized" would have to be reassembled from several rows that could
@@ -344,7 +423,7 @@ export function createDispatcher(pool: Pool, options: DispatcherOptions = {}) {
           request.actorId,
           request.actingRoleId,
           request.actionType,
-          request.targetIds.length === 1 ? request.targetIds[0] : null,
+          targetIds.length === 1 ? targetIds[0] : null,
           effectiveAt.toISOString(),
           request.requestId ?? null,
           request.reason ?? null,
@@ -363,7 +442,7 @@ export function createDispatcher(pool: Pool, options: DispatcherOptions = {}) {
         [
           actionId,
           `kf.${request.actionType}`,
-          JSON.stringify({ action_id: actionId, targets: request.targetIds }),
+          JSON.stringify({ action_id: actionId, targets: targetIds }),
         ],
       );
 
@@ -372,11 +451,28 @@ export function createDispatcher(pool: Pool, options: DispatcherOptions = {}) {
         actionId,
         status: 'applied' as const,
         replayed: false,
-        objectIds: [...request.targetIds],
+        objectIds: [...targetIds],
         auditDigest,
       };
     });
   };
+}
+
+/**
+ * Resolve `payload.to_state` for one target.
+ *
+ * A bare string is the common case and applies to every ambiguous target. But one action can
+ * drive two machines that are BOTH ambiguous and want different destinations —
+ * `record_payment_settlement` moves a payment to `settled` and its invoice to `paid` in the
+ * same breath — and a single string cannot say that. So `to_state` may also be an object keyed
+ * by object type, or by object id where two targets share a type.
+ */
+function chooseState(toState: unknown, o: ObjectRow): unknown {
+  if (toState === null || typeof toState !== 'object') return toState;
+  const byKey = toState as Record<string, unknown>;
+  // Id first: it is the more specific of the two, and the only way to distinguish two
+  // targets of the same type.
+  return byKey[o.id] ?? byKey[o.object_type];
 }
 
 async function loadDefinition(tx: Tx, actionType: string): Promise<ActionDefinition> {

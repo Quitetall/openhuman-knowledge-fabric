@@ -1,21 +1,56 @@
 {
   "files": [],
   "references": [
-    { "path": "./packages/domain" },
-    { "path": "./packages/canonicalization" },
-    { "path": "./packages/database" },
-    { "path": "./packages/actions" },
-    { "path": "./packages/authorization" },
-    { "path": "./packages/ontology-compiler" },
-    { "path": "./packages/validation" },
-    { "path": "./packages/artifacts" },
-    { "path": "./packages/audit" },
-    { "path": "./packages/export" },
-    { "path": "./packages/search" },
-    { "path": "./packages/integration" },
-    { "path": "./packages/ui" },
-    { "path": "./apps/api" },
-    { "path": "./apps/worker" },
-    { "path": "./apps/checkpoint" }
+    {
+      "path": "./packages/domain"
+    },
+    {
+      "path": "./packages/canonicalization"
+    },
+    {
+      "path": "./packages/database"
+    },
+    {
+      "path": "./packages/actions"
+    },
+    {
+      "path": "./packages/authorization"
+    },
+    {
+      "path": "./packages/ontology-compiler"
+    },
+    {
+      "path": "./packages/validation"
+    },
+    {
+      "path": "./packages/artifacts"
+    },
+    {
+      "path": "./packages/audit"
+    },
+    {
+      "path": "./packages/work-control"
+    },
+    {
+      "path": "./packages/export"
+    },
+    {
+      "path": "./packages/search"
+    },
+    {
+      "path": "./packages/integration"
+    },
+    {
+      "path": "./packages/ui"
+    },
+    {
+      "path": "./apps/api"
+    },
+    {
+      "path": "./apps/worker"
+    },
+    {
+      "path": "./apps/checkpoint"
+    }
   ]
 }

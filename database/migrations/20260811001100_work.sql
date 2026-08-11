@@ -230,6 +230,25 @@ create table work.acceptance_item (
   unique (acceptance_id, deliverable_id)
 );
 
+-- ── privileges ──────────────────────────────────────────────────────────────────────────
+
+-- Read for everyone who reads; INSERT only, and no DELETE anywhere. Work-control records are
+-- corrected by superseding records, never by editing the original — so the privilege set says
+-- the same thing the audit trail does.
+grant select on all tables in schema work to kf_app, kf_worker, kf_readonly, kf_auditor, kf_backup;
+grant insert on work.initiative_project, work.milestone, work.project_event,
+                work.work_package, work.work_order, work.work_order_scope,
+                work.work_order_amendment, work.deliverable, work.work_execution,
+                work.deliverable_submission, work.acceptance_record, work.acceptance_item
+  to kf_app;
+
+-- Milestones and project dates are the two things that legitimately move without superseding
+-- the record they belong to.
+grant update (achieved_on) on work.milestone to kf_app;
+grant update (started_on, target_completion) on work.initiative_project to kf_app;
+
+grant usage, select on all sequences in schema work to kf_app, kf_worker;
+
 -- migrate:down
 
 drop table work.acceptance_item;

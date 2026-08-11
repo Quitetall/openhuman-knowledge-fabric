@@ -38,6 +38,7 @@
     "@kf/database": "workspace:*",
     "@kf/export": "workspace:*",
     "@kf/ontology-compiler": "workspace:*",
+    "@kf/work-control": "workspace:*",
     "@testcontainers/postgresql": "^12.1.0",
     "@types/node": "^24.13.3",
     "ajv": "^8.20.0",
