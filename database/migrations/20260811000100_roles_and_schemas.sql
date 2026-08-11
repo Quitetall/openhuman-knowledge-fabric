@@ -1,5 +1,20 @@
 -- migrate:up
 
+-- Extensions, roles and schemas.
+--
+-- The extensions come FIRST and belong here rather than in a runbook. Until now the test
+-- harness created btree_gist before applying migrations and the restore script created it
+-- too, so every path anybody exercised worked — while `dbmate up` against a genuinely fresh
+-- database failed at the org migration on `data type uuid has no default operator class for
+-- access method "gist"`. A dependency satisfied by every harness except the real one is the
+-- kind that is discovered during an install.
+--
+-- btree_gist: scalar types inside GiST exclusion constraints, which is how overlapping role
+-- assignments are refused. pg_trgm: partial-identifier search, where a full-text tokeniser
+-- splits part numbers in ways nobody expects.
+create extension if not exists btree_gist;
+create extension if not exists pg_trgm;
+
 -- Roles and schemas.
 --
 -- Separation of duty starts in the database, not in the application. An application that

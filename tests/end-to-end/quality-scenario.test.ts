@@ -416,7 +416,48 @@ describe('3. a nonconformity and its CAPA', () => {
   });
 });
 
-describe('4. the recall question', () => {
+describe('4. a complaint that cannot close undecided', () => {
+  it('refuses closure with no explicit reportability decision', async () => {
+    const received = await act({
+      actionType: 'receive_complaint',
+      ...authority(),
+      targetIds: [],
+      payload: {
+        title: 'Device stopped recording mid-session',
+        summary: 'Recording ended without warning after 40 minutes.',
+        reporter_reference: 'FIVERR-2291',
+      },
+    });
+    const complaint = received.objectIds[0]!;
+    await act({ actionType: 'triage_complaint', ...authority(), targetIds: [complaint] });
+
+    // A missing decision is not a "no". The old code coerced it to false, which was both the
+    // worst available default and the thing that made the database CHECK unreachable.
+    const err = await act({
+      actionType: 'close_complaint',
+      ...authority(),
+      targetIds: [complaint],
+      payload: { reportability_rationale: 'Not serious.', to_state: 'closed' },
+    }).catch((e: unknown) => e as ActionRejected);
+    expect(err).toBeInstanceOf(ActionRejected);
+    expect((err as ActionRejected).message).toMatch(/KF-QMS-004/);
+
+    await act({
+      actionType: 'close_complaint',
+      ...authority(),
+      targetIds: [complaint],
+      payload: {
+        reportable: false,
+        reportability_rationale:
+          'No injury, no malfunction meeting the reporting threshold; data recoverable.',
+        to_state: 'closed',
+      },
+    });
+    expect(await stateOf(complaint)).toBe('closed');
+  });
+});
+
+describe('5. the recall question', () => {
   it('names every result the bad equipment produced, not "some may be affected"', async () => {
     // The question that makes the execution-to-equipment join worth having. Without it the
     // answer is "some results may be affected", which nobody can act on.
@@ -427,6 +468,15 @@ describe('4. the recall question', () => {
     // And it names what that result was claimed to verify, so the consequence is traceable
     // rather than merely detected.
     expect(suspect.find((s) => s.executionId === execution)?.subjectId).toBe(control);
+
+    // And the verification link names the ACTION that made the claim, not just the person.
+    const linked = await withTransaction(h.adminPool, async (tx) =>
+      tx.one<{ authorizing_action: string | null }>(
+        'select authorizing_action from engineering.verification_link where execution_id = $1',
+        [execution],
+      ),
+    );
+    expect(linked.authorizing_action).not.toBeNull();
   });
 
   it('invalidating the result withdraws the verification it supported', async () => {

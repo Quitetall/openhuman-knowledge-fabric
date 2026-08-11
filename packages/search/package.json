@@ -17,6 +17,7 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
+    "@kf/database": "workspace:*",
     "@kf/domain": "workspace:*"
   }
 }

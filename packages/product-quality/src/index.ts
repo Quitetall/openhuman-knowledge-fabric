@@ -376,7 +376,7 @@ const executeTest: ActionEffect = async (tx, request, objects) => {
   }
 };
 
-const recordTestResult: ActionEffect = async (tx, request, objects) => {
+const recordTestResult: ActionEffect = async (tx, request, objects, ctx) => {
   const execution = objects.find((o) => o.object_type === 'test_execution');
   if (execution === undefined)
     refuse('KF-VER-001', 'record_test_result must name a test execution');
@@ -393,7 +393,10 @@ const recordTestResult: ActionEffect = async (tx, request, objects) => {
       `insert into engineering.verification_link (subject_id, execution_id, created_by, authorizing_action)
        values ($1,$2,$3,$4)
        on conflict (subject_id, execution_id) do nothing`,
-      [subject, execution.id, request.actorId, request.payload ? null : null],
+      // The action that made the claim. It was a ternary with null on both branches, which
+      // left a verification link traceable to a person but not to the authority they acted
+      // under — in a module whose whole argument is that records carry both.
+      [subject, execution.id, request.actorId, ctx.actionId],
     );
   }
 };
@@ -453,25 +456,37 @@ const qualifySupplier: ActionEffect = async (tx, request, objects) => {
   }
 };
 
-const closeCapa: ActionEffect = async (tx, request, objects) => {
+// No payload: everything a closure rests on — the root cause, the evidence, the criterion —
+// was recorded by the steps before it. Asking for it again here would invite a second,
+// different answer.
+const closeCapa: ActionEffect = async (tx, _request, objects) => {
   const capa = objects.find((o) => o.object_type === 'capa');
   if (capa === undefined) return;
   await tx.query('update quality.capa set closed_at = now() where id = $1', [capa.id]);
-  void request;
 };
 
 const closeComplaint: ActionEffect = async (tx, request, objects) => {
   const complaint = objects.find((o) => o.object_type === 'complaint');
   if (complaint === undefined) return;
+
+  // An EXPLICIT boolean. `=== true` quietly turned a missing decision into "not reportable",
+  // which is the single worst default available here — and it also made the database CHECK
+  // that requires a decision at closure unreachable, because the value was never null.
+  const reportable = request.payload?.['reportable'];
+  if (typeof reportable !== 'boolean') {
+    refuse(
+      'KF-QMS-004',
+      'closing a complaint requires an explicit reportable decision, true or false — ' +
+        'a missing one is not a "no"',
+      { objectId: complaint.id },
+    );
+  }
+
   await tx.query(
     `update quality.complaint
         set reportable = $2, reportability_rationale = $3, closed_at = now()
       where id = $1`,
-    [
-      complaint.id,
-      request.payload?.['reportable'] === true,
-      requireString(request.payload, 'reportability_rationale'),
-    ],
+    [complaint.id, reportable, requireString(request.payload, 'reportability_rationale')],
   );
 };
 
@@ -575,8 +590,10 @@ const assertEffectivenessShown: PreconditionCheck = async (tx, _request, objects
     if (row.effectiveness_evidence === null || row.effectiveness_evidence.trim() === '') {
       refuse(
         'KF-QMS-002',
-        `this CAPA has no effectiveness evidence against its criterion ('${row.effectiveness_criterion}')`,
-        { objectId: o.id },
+        'this CAPA has no effectiveness evidence against the criterion it was opened with',
+        // The criterion goes in the structured detail rather than the message: a caller can
+        // render it, and it cannot smuggle formatting into a log line.
+        { objectId: o.id, criterion: row.effectiveness_criterion },
       );
     }
   }
@@ -630,7 +647,8 @@ export const PRODUCT_QUALITY_PRECONDITIONS: Readonly<Record<string, Precondition
 export interface SuspectResult {
   readonly executionId: string;
   readonly title: string;
-  readonly executedOn: string;
+  /** Null when the execution never recorded one — still suspect, and visibly so. */
+  readonly executedOn: string | null;
   readonly subjectId: string | null;
 }
 
@@ -648,7 +666,7 @@ export async function resultsSuspectedOfBadCalibration(
   const rows = await tx.query<{
     execution_id: string;
     title: string;
-    executed_on: Date;
+    executed_on: Date | null;
     subject_id: string | null;
   }>(
     `with last_good as (
@@ -662,16 +680,26 @@ export async function resultsSuspectedOfBadCalibration(
        join core.object o on o.id = e.id
        left join engineering.verification_link v on v.execution_id = e.id
       where x.equipment_id = $1
-        and e.executed_on is not null
-        -- No good calibration on record means every result is suspect, not none of them.
-        and (e.executed_on > (select at from last_good) or (select at from last_good) is null)
-      order by e.executed_on`,
+        -- Every clause here leans the same way, because a recall answer that misses a unit is
+        -- worse than one that includes an extra.
+        --
+        -- No good calibration on record: every result is suspect, not none of them.
+        -- Executed exactly AT the calibration: suspect, because "since" at a boundary is not
+        -- worth guessing about.
+        -- No execution time at all: still suspect — a row here means the equipment WAS used,
+        -- and filtering on the missing timestamp would drop it from the answer entirely.
+        and (
+          (select at from last_good) is null
+          or e.executed_on is null
+          or e.executed_on >= (select at from last_good)
+        )
+      order by e.executed_on nulls first`,
     [equipmentId],
   );
   return rows.map((r) => ({
     executionId: r.execution_id,
     title: r.title,
-    executedOn: r.executed_on.toISOString(),
+    executedOn: r.executed_on === null ? null : r.executed_on.toISOString(),
     subjectId: r.subject_id,
   }));
 }

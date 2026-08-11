@@ -35,6 +35,9 @@ importers:
       '@kf/product-quality':
         specifier: workspace:*
         version: link:packages/product-quality
+      '@kf/search':
+        specifier: workspace:*
+        version: link:packages/search
       '@kf/work-control':
         specifier: workspace:*
         version: link:packages/work-control
@@ -287,6 +290,9 @@ importers:
 
   packages/search:
     dependencies:
+      '@kf/database':
+        specifier: workspace:*
+        version: link:../database
       '@kf/domain':
         specifier: workspace:*
         version: link:../domain
