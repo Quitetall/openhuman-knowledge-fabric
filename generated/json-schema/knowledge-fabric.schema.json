@@ -5,7 +5,7 @@
   "description": "Normative machine-readable graph envelope for the organizational graph and work-control specification.",
   "x-generated-from": {
     "ontology_version": "1.1.0-draft.1",
-    "source_digest": "40abb2e71925114dd799d1cb8434428b42615547ff4d9e28e4e43b44baa744c9"
+    "source_digest": "ad9b5a97534a92433726378d0d719c4e791e190599964182d287a35bfff2020f"
   },
   "type": "object",
   "properties": {
@@ -127,6 +127,12 @@
           },
           {
             "$ref": "#/$defs/TestExecutionNode"
+          },
+          {
+            "$ref": "#/$defs/MilestoneNode"
+          },
+          {
+            "$ref": "#/$defs/WorkOrderAmendmentNode"
           }
         ]
       }
@@ -6535,6 +6541,315 @@
           },
           "required": [
             "test_definition"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "node_id",
+        "node_type",
+        "title",
+        "state",
+        "classification",
+        "owner",
+        "created_at",
+        "created_by",
+        "updated_at",
+        "updated_by",
+        "source_authority",
+        "attributes"
+      ],
+      "additionalProperties": false
+    },
+    "MilestoneNode": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "const": "1.1.0-draft.1"
+        },
+        "node_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "node_type": {
+          "const": "milestone"
+        },
+        "enterprise_id": {
+          "type": "string",
+          "anyOf": [
+            {
+              "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+            },
+            {
+              "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+            }
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "planned",
+            "achieved",
+            "missed",
+            "cancelled"
+          ]
+        },
+        "classification": {
+          "type": "string",
+          "enum": [
+            "public",
+            "internal",
+            "confidential",
+            "restricted"
+          ]
+        },
+        "owner": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "created_by": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_by": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "source_authority": {
+          "type": "string",
+          "enum": [
+            "knowledge_fabric",
+            "plm",
+            "qms",
+            "finance",
+            "hr",
+            "git",
+            "external"
+          ]
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "uniqueItems": true,
+          "default": []
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+          },
+          "uniqueItems": true,
+          "default": []
+        },
+        "external_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ExternalReference"
+          },
+          "default": []
+        },
+        "extensions": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+          },
+          "additionalProperties": true,
+          "default": {}
+        },
+        "attributes": {
+          "type": "object",
+          "properties": {
+            "project": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "planned_on": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "criterion": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "project",
+            "planned_on",
+            "criterion"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "node_id",
+        "node_type",
+        "title",
+        "state",
+        "classification",
+        "owner",
+        "created_at",
+        "created_by",
+        "updated_at",
+        "updated_by",
+        "source_authority",
+        "attributes"
+      ],
+      "additionalProperties": false
+    },
+    "WorkOrderAmendmentNode": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "const": "1.1.0-draft.1"
+        },
+        "node_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "node_type": {
+          "const": "work_order_amendment"
+        },
+        "enterprise_id": {
+          "type": "string",
+          "anyOf": [
+            {
+              "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+            },
+            {
+              "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+            }
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "issued",
+            "superseded"
+          ]
+        },
+        "classification": {
+          "type": "string",
+          "enum": [
+            "public",
+            "internal",
+            "confidential",
+            "restricted"
+          ]
+        },
+        "owner": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "created_by": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_by": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "source_authority": {
+          "type": "string",
+          "enum": [
+            "knowledge_fabric",
+            "plm",
+            "qms",
+            "finance",
+            "hr",
+            "git",
+            "external"
+          ]
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "uniqueItems": true,
+          "default": []
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+          },
+          "uniqueItems": true,
+          "default": []
+        },
+        "external_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ExternalReference"
+          },
+          "default": []
+        },
+        "extensions": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+          },
+          "additionalProperties": true,
+          "default": {}
+        },
+        "attributes": {
+          "type": "object",
+          "properties": {
+            "work_order": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "amendment_no": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "rationale": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "work_order",
+            "amendment_no",
+            "rationale"
           ],
           "additionalProperties": false
         }

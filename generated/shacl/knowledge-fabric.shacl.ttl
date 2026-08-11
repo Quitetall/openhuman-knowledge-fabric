@@ -1,6 +1,6 @@
 # GENERATED from ontology/ — do not edit.
 # ontology_version: 1.1.0-draft.1
-# source_digest: 40abb2e71925114dd799d1cb8434428b42615547ff4d9e28e4e43b44baa744c9
+# source_digest: ad9b5a97534a92433726378d0d719c4e791e190599964182d287a35bfff2020f
 
 @prefix sh: <http://www.w3.org/ns/shacl#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
@@ -109,3 +109,11 @@ kf:TestDefinitionShape a sh:NodeShape ;
 kf:TestExecutionShape a sh:NodeShape ;
   sh:targetClass kf:test_execution ;
   sh:property [ sh:path kf:test_definition ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ] .
+
+kf:MilestoneShape a sh:NodeShape ;
+  sh:targetClass kf:milestone ;
+  sh:property [ sh:path kf:project ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ] .
+
+kf:WorkOrderAmendmentShape a sh:NodeShape ;
+  sh:targetClass kf:work_order_amendment ;
+  sh:property [ sh:path kf:work_order ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ] .

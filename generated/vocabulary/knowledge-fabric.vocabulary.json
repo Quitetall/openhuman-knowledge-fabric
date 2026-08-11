@@ -2,7 +2,7 @@
   "schema_version": "1.1.0-draft.1",
   "x-generated-from": {
     "ontology_version": "1.1.0-draft.1",
-    "source_digest": "40abb2e71925114dd799d1cb8434428b42615547ff4d9e28e4e43b44baa744c9"
+    "source_digest": "ad9b5a97534a92433726378d0d719c4e791e190599964182d287a35bfff2020f"
   },
   "node_types": {
     "organization": {
@@ -137,6 +137,14 @@
     "test_execution": {
       "authority_domain": "engineering",
       "enterprise_namespace": "TSX"
+    },
+    "milestone": {
+      "authority_domain": "project",
+      "enterprise_namespace": "MST"
+    },
+    "work_order_amendment": {
+      "authority_domain": "commercial",
+      "enterprise_namespace": "AMD"
     }
   },
   "edge_types": {

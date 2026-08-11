@@ -199,10 +199,13 @@ describe('the federation boundary is a control, not a convention', () => {
 
 describe('drift', () => {
   it('reports nothing while the pinned content still hashes the same', async () => {
-    const findings = await withTransaction(h.adminPool, async (tx) =>
+    const report = await withTransaction(h.adminPool, async (tx) =>
       checkDrift(tx, new Map([['openhuman-quality', qms]])),
     );
-    expect(findings).toEqual([]);
+    expect(report.findings).toEqual([]);
+    // Clean AND actually checked. The two are different claims.
+    expect(report.checked).toBeGreaterThan(0);
+    expect(report.skipped).toBe(0);
   });
 
   it('detects content that changed UNDER A PINNED COMMIT', async () => {
@@ -212,10 +215,10 @@ describe('drift', () => {
     // though the commit is pinned.
     qms.rewrite(COMMIT_A, 'controls/CTL-004.md', '# CTL-004\n\nQuietly altered.\n');
     try {
-      const findings = await withTransaction(h.adminPool, async (tx) =>
+      const report = await withTransaction(h.adminPool, async (tx) =>
         checkDrift(tx, new Map([['openhuman-quality', qms]])),
       );
-      expect(findings.map((x) => x.problem)).toContain('digest_mismatch');
+      expect(report.findings.map((x) => x.problem)).toContain('digest_mismatch');
     } finally {
       qms.rewrite(COMMIT_A, 'controls/CTL-004.md', CONTROL);
     }
@@ -224,31 +227,87 @@ describe('drift', () => {
   it('detects content that vanished', async () => {
     qms.forget(COMMIT_A, 'controls/CTL-004.md');
     try {
-      const findings = await withTransaction(h.adminPool, async (tx) =>
+      const report = await withTransaction(h.adminPool, async (tx) =>
         checkDrift(tx, new Map([['openhuman-quality', qms]])),
       );
-      expect(findings.map((x) => x.problem)).toContain('missing');
+      expect(report.findings.map((x) => x.problem)).toContain('missing');
     } finally {
       qms.rewrite(COMMIT_A, 'controls/CTL-004.md', CONTROL);
     }
   });
 
   it('does not silently pass a source it has no reader for', async () => {
-    // An empty reader map checks nothing, and must therefore report nothing — not "clean".
-    // The distinction matters when a scheduled job loses a credential: it would otherwise
-    // report a clean federation every night while checking none of it.
-    const findings = await withTransaction(h.adminPool, async (tx) => checkDrift(tx, new Map()));
-    expect(findings).toEqual([]);
+    // An empty reader map checks nothing, and must not read as clean. A scheduled job that
+    // lost a credential would otherwise report a healthy federation every night while
+    // checking none of it — which is the failure monitoring exists to catch.
+    const report = await withTransaction(h.adminPool, async (tx) => checkDrift(tx, new Map()));
+    expect(report.findings).toEqual([]);
+    expect(report.checked).toBe(0);
+    // The scope comes back with the result, so "nothing was checked" is visible in the
+    // report itself rather than inferred from timestamps aging.
+    expect(report.skipped).toBeGreaterThan(0);
+    expect(report.sourcesChecked).toEqual([]);
+  });
+});
 
-    const checked = await withTransaction(h.adminPool, async (tx) =>
-      tx.one<{ unverified: string }>(
-        `select count(*)::text as unverified from quality.federated_reference
-          where verified_at < now() - interval '1 second'`,
-      ),
-    );
-    // Nothing was re-verified, which is what an empty scope means. The caller learns this
-    // from verified_at going stale, not from a green result.
-    expect(Number(checked.unverified)).toBeGreaterThanOrEqual(0);
+describe('re-recording a reference', () => {
+  it('refuses a CHANGED digest at a pinned commit instead of quietly keeping the old one', async () => {
+    // The obvious upsert — on conflict, touch verified_at — keeps the stored digest and
+    // discards the one just computed. A source whose history was rewritten would then be
+    // re-recorded as fine, and drift detection would compare the stale digest forever. The
+    // upsert would have hidden the exact event this module exists to detect.
+    const spec = {
+      sourceId: 'openhuman-quality',
+      externalId: 'REREC-1',
+      commitSha: COMMIT_A,
+      path: 'controls/CTL-004.md',
+      title: 'Current-limiting resistor',
+      recordedBy: f.performerId,
+    };
+    const first = await withTransaction(h.adminPool, async (tx) => {
+      await bindContext(tx, f);
+      return recordReference(tx, qms, spec);
+    });
+
+    qms.rewrite(COMMIT_A, 'controls/CTL-004.md', '# CTL-004\n\nRewritten history.\n');
+    try {
+      const err = await withTransaction(h.adminPool, async (tx) => {
+        await bindContext(tx, f);
+        return recordReference(tx, qms, spec).catch((e: unknown) => e as FederationRejected);
+      });
+      expect((err as FederationRejected).reason).toBe('digest_mismatch');
+
+      // And the stored digest is untouched, so the drift is still detectable afterwards.
+      const stored = await withTransaction(h.adminPool, async (tx) =>
+        tx.one<{ content_sha256: string }>(
+          'select content_sha256 from quality.federated_reference where id = $1',
+          [first.id],
+        ),
+      );
+      expect(stored.content_sha256).toBe(digestOf(CONTROL));
+    } finally {
+      qms.rewrite(COMMIT_A, 'controls/CTL-004.md', CONTROL);
+    }
+  });
+
+  it('accepts an unchanged re-record and refreshes when it was last seen', async () => {
+    const spec = {
+      sourceId: 'openhuman-quality',
+      externalId: 'REREC-2',
+      commitSha: COMMIT_A,
+      path: 'controls/CTL-004.md',
+      title: 'Current-limiting resistor',
+      recordedBy: f.performerId,
+    };
+    const a = await withTransaction(h.adminPool, async (tx) => {
+      await bindContext(tx, f);
+      return recordReference(tx, qms, spec);
+    });
+    const b = await withTransaction(h.adminPool, async (tx) => {
+      await bindContext(tx, f);
+      return recordReference(tx, qms, spec);
+    });
+    expect(b.id).toBe(a.id);
   });
 });
 
@@ -274,7 +333,7 @@ describe('linking Fabric records to what the QMS owns', () => {
       createdBy: f.performerId,
     });
 
-    const linkId = await withTransaction(h.adminPool, async (tx) => {
+    const link = await withTransaction(h.adminPool, async (tx) => {
       await bindContext(tx, f);
       await tx.query(
         `insert into engineering.risk_control (id, control_kind, mitigates, description)
@@ -288,7 +347,11 @@ describe('linking Fabric records to what the QMS owns', () => {
         createdBy: f.performerId,
       });
     });
-    expect(linkId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(link.id).toMatch(/^[0-9a-f-]{36}$/);
+    // A first link is a first link, and says so. The old upsert wrote link_kind back to
+    // itself, so a caller could not tell whether they had just made the link or found one
+    // somebody else made years ago.
+    expect(link.alreadyLinked).toBe(false);
 
     // The link resolves to the QMS's own identifier, which is what a reader needs to go and
     // read the thing where it actually lives.

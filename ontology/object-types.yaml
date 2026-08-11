@@ -1071,3 +1071,45 @@ object_types:
           unique: true,
         }
       - { name: result_summary, type: string }
+
+  # Two types the Gate 5 schema already referenced without declaring.
+  #
+  # `work.milestone` and `work.work_order_amendment` both key on core.object, and the
+  # amend_work_order effect creates a work_order_amendment — which would have failed at
+  # runtime on the foreign key to registry.object_type. Nothing caught it because no test
+  # amends a work order. Declaring them is the fix; the composite (id, object_type) key added
+  # alongside is what stops the next one being silent.
+
+  - id: milestone
+    title: Milestone
+    authority_domain: project
+    enterprise_namespace: MST
+    first_class: true
+    state_machine: null
+    states: [planned, achieved, missed, cancelled]
+    fields:
+      - {
+          name: project,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - { name: planned_on, type: timestamp, required: true }
+      - { name: criterion, type: string, required: true, min_length: 1 }
+
+  - id: work_order_amendment
+    title: Work Order Amendment
+    authority_domain: commercial
+    enterprise_namespace: AMD
+    first_class: true
+    state_machine: null
+    states: [draft, issued, superseded]
+    fields:
+      - {
+          name: work_order,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - { name: amendment_no, type: integer, required: true, minimum: 1 }
+      - { name: rationale, type: string, required: true, min_length: 1 }

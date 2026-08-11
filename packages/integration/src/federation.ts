@@ -111,19 +111,55 @@ export async function recordReference(
     );
   }
 
+  const contentSha256 = digestOf(bytes);
+
+  // Re-recording an existing reference must NOT quietly accept a different digest.
+  //
+  // The obvious upsert — on conflict, touch verified_at — keeps the digest already stored
+  // and discards the one just computed. So a source whose history was rewritten would be
+  // re-recorded as fine, the old digest would stay, and checkDrift would compare that old
+  // digest against the new bytes forever without noticing. The upsert would have hidden
+  // exactly the event this whole module exists to detect.
+  const existing = await tx.maybeOne<{ id: string; content_sha256: string }>(
+    `select id, content_sha256 from quality.federated_reference
+      where source_id = $1 and external_id = $2 and commit_sha = $3`,
+    [spec.sourceId, spec.externalId, spec.commitSha],
+  );
+
+  if (existing !== undefined) {
+    if (existing.content_sha256 !== contentSha256) {
+      throw new FederationRejected(
+        'digest_mismatch',
+        `${spec.path} at ${spec.commitSha.slice(0, 12)} now hashes to ${contentSha256.slice(0, 12)}, ` +
+          `but was recorded as ${existing.content_sha256.slice(0, 12)}. Content cannot change at a ` +
+          `pinned commit: the history was rewritten, or this is not the source it claims to be.`,
+      );
+    }
+    await tx.query('update quality.federated_reference set verified_at = now() where id = $1', [
+      existing.id,
+    ]);
+    return {
+      id: existing.id,
+      sourceId: spec.sourceId,
+      externalId: spec.externalId,
+      commitSha: spec.commitSha,
+      path: spec.path,
+      contentSha256,
+      title: spec.title,
+    };
+  }
+
   const row = await tx.one<{ id: string }>(
     `insert into quality.federated_reference
        (source_id, external_id, commit_sha, path, content_sha256, title, recorded_by, verified_at)
      values ($1,$2,$3,$4,$5,$6,$7, now())
-     on conflict (source_id, external_id, commit_sha) do update
-       set verified_at = now()
      returning id`,
     [
       spec.sourceId,
       spec.externalId,
       spec.commitSha,
       spec.path,
-      digestOf(bytes),
+      contentSha256,
       spec.title,
       spec.recordedBy,
     ],
@@ -135,7 +171,7 @@ export async function recordReference(
     externalId: spec.externalId,
     commitSha: spec.commitSha,
     path: spec.path,
-    contentSha256: digestOf(bytes),
+    contentSha256,
     title: spec.title,
   };
 }
@@ -158,10 +194,20 @@ export type DriftFinding =
  * rewritten, or the object was garbage-collected, or the source is not what it claims to be.
  * That is exactly why the digest is worth recording even though the commit is pinned.
  */
+export interface DriftReport {
+  readonly findings: readonly DriftFinding[];
+  /** How many references were actually re-read. */
+  readonly checked: number;
+  /** References skipped because no reader was supplied for their source. */
+  readonly skipped: number;
+  /** Which sources this run could see at all. */
+  readonly sourcesChecked: readonly string[];
+}
+
 export async function checkDrift(
   tx: Tx,
   readers: ReadonlyMap<string, SourceReader>,
-): Promise<DriftFinding[]> {
+): Promise<DriftReport> {
   const references = await tx.query<{
     id: string;
     source_id: string;
@@ -174,11 +220,19 @@ export async function checkDrift(
   );
 
   const findings: DriftFinding[] = [];
+  let checked = 0;
+  let skipped = 0;
   for (const ref of references) {
     const reader = readers.get(ref.source_id);
-    // A source with no reader is not checked, and not silently passed either: it simply is
-    // not in this run's scope, and the caller chose that scope.
-    if (reader === undefined) continue;
+    // A source with no reader is not checked, and MUST NOT read as clean. A scheduled job
+    // that lost a credential would otherwise report a healthy federation every night while
+    // checking none of it, which is the failure mode monitoring exists to catch — so the
+    // count comes back with the findings rather than being inferred from stale timestamps.
+    if (reader === undefined) {
+      skipped += 1;
+      continue;
+    }
+    checked += 1;
 
     const bytes = await reader.read(ref.commit_sha, ref.path);
     if (bytes === undefined) {
@@ -204,7 +258,10 @@ export async function checkDrift(
       ref.id,
     ]);
   }
-  return findings;
+  // Deliberately: a drifting reference does NOT get its verified_at touched, so it keeps
+  // being reported every run. A finding that stops appearing because somebody saw it once is
+  // worse than a noisy one.
+  return { findings, checked, skipped, sourcesChecked: [...readers.keys()].sort() };
 }
 
 /** Link a Fabric object to something another system owns. */
@@ -218,12 +275,12 @@ export async function linkToReference(
     readonly createdBy: string;
     readonly authorizingAction?: string;
   },
-): Promise<string> {
-  const row = await tx.one<{ id: string }>(
+): Promise<{ id: string; alreadyLinked: boolean }> {
+  const created = await tx.maybeOne<{ id: string }>(
     `insert into quality.federated_link
        (object_id, reference_id, link_kind, created_by, authorizing_action)
      values ($1,$2,$3,$4,$5)
-     on conflict (object_id, reference_id, link_kind) do update set link_kind = excluded.link_kind
+     on conflict (object_id, reference_id, link_kind) do nothing
      returning id`,
     [
       link.objectId,
@@ -233,7 +290,17 @@ export async function linkToReference(
       link.authorizingAction ?? null,
     ],
   );
-  return row.id;
+  if (created !== undefined) return { id: created.id, alreadyLinked: false };
+
+  // DO NOTHING rather than a self-assigning DO UPDATE. The upsert form wrote `link_kind`
+  // back to itself — a no-op dressed as a write — so the caller could not tell whether the
+  // link was made just now or years ago by somebody else.
+  const existing = await tx.one<{ id: string }>(
+    `select id from quality.federated_link
+      where object_id = $1 and reference_id = $2 and link_kind = $3`,
+    [link.objectId, link.referenceId, link.linkKind],
+  );
+  return { id: existing.id, alreadyLinked: true };
 }
 
 /**

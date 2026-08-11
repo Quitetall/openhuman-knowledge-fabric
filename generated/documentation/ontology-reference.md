@@ -1,9 +1,9 @@
 <!-- GENERATED from ontology/ — do not edit. -->
-<!-- ontology_version: 1.1.0-draft.1 · source_digest: 40abb2e71925114dd799d1cb8434428b42615547ff4d9e28e4e43b44baa744c9 -->
+<!-- ontology_version: 1.1.0-draft.1 · source_digest: ad9b5a97534a92433726378d0d719c4e791e190599964182d287a35bfff2020f -->
 
 # Ontology reference
 
-Compiled from `ontology/`. 33 object types, 40 relation types, 77 action types, 20 state machines, 10 invariants.
+Compiled from `ontology/`. 35 object types, 40 relation types, 77 action types, 20 state machines, 10 invariants.
 
 ## Object types
 
@@ -42,6 +42,8 @@ Compiled from `ontology/`. 33 object types, 40 relation types, 77 action types, 
 | `risk_control` | engineering | RCT | risk_control | 4 |
 | `test_definition` | engineering | TSD | test_definition | 3 |
 | `test_execution` | engineering | TSX | test_execution | 5 |
+| `milestone` | project | MST | — | 4 |
+| `work_order_amendment` | commercial | AMD | — | 3 |
 
 ## Relation types
 

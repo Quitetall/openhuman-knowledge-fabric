@@ -1,11 +1,11 @@
 // GENERATED from ontology/ — do not edit.
 // ontology_version: 1.1.0-draft.1
-// source_digest: 40abb2e71925114dd799d1cb8434428b42615547ff4d9e28e4e43b44baa744c9
+// source_digest: ad9b5a97534a92433726378d0d719c4e791e190599964182d287a35bfff2020f
 
 /* eslint-disable */
 
 export const SCHEMA_VERSION = '1.1.0-draft.1' as const;
-export const ONTOLOGY_SOURCE_DIGEST = '40abb2e71925114dd799d1cb8434428b42615547ff4d9e28e4e43b44baa744c9' as const;
+export const ONTOLOGY_SOURCE_DIGEST = 'ad9b5a97534a92433726378d0d719c4e791e190599964182d287a35bfff2020f' as const;
 
 export const CLASSIFICATIONS = ['public', 'internal', 'confidential', 'restricted'] as const;
 export type Classifications = (typeof CLASSIFICATIONS)[number];
@@ -16,7 +16,7 @@ export type SourceAuthorities = (typeof SOURCE_AUTHORITIES)[number];
 export const AUTHORITY_DOMAINS = ['artifact', 'commercial', 'configuration', 'engineering', 'finance', 'organization', 'project', 'qms'] as const;
 export type AuthorityDomains = (typeof AUTHORITY_DOMAINS)[number];
 
-export const OBJECT_TYPES = ['organization', 'person', 'role_assignment', 'engagement', 'product_system', 'initiative_project', 'work_package', 'work_order', 'work_execution', 'decision_record', 'change_record', 'deliverable', 'artifact', 'acceptance_record', 'invoice', 'payment', 'requirement', 'risk', 'test', 'release', 'baseline', 'configuration_item', 'interface_contract', 'physical_binding', 'controlled_document', 'nonconformity', 'capa', 'supplier', 'equipment', 'complaint', 'risk_control', 'test_definition', 'test_execution'] as const;
+export const OBJECT_TYPES = ['organization', 'person', 'role_assignment', 'engagement', 'product_system', 'initiative_project', 'work_package', 'work_order', 'work_execution', 'decision_record', 'change_record', 'deliverable', 'artifact', 'acceptance_record', 'invoice', 'payment', 'requirement', 'risk', 'test', 'release', 'baseline', 'configuration_item', 'interface_contract', 'physical_binding', 'controlled_document', 'nonconformity', 'capa', 'supplier', 'equipment', 'complaint', 'risk_control', 'test_definition', 'test_execution', 'milestone', 'work_order_amendment'] as const;
 export type ObjectTypes = (typeof OBJECT_TYPES)[number];
 
 export const RELATION_TYPES = ['contains', 'decomposes_into', 'affects', 'authorizes', 'executes', 'produces', 'consumes', 'proposes', 'governs', 'implements', 'satisfies', 'verifies', 'mitigates', 'accepts', 'bills', 'settles', 'allocates_to', 'originated_from', 'supersedes', 'derived_from', 'evidences', 'assigned_to', 'scoped_to', 'depends_on', 'blocks', 'released_by', 'baseline_contains', 'performed_by', 'owned_by', 'linked_to', 'amends', 'generated_by', 'used', 'was_associated_with', 'conforms_to', 'bound_to', 'supplied_by', 'calibrated_with', 'raised_against', 'remediated_by'] as const;
@@ -402,6 +402,22 @@ export interface TestExecutionAttributes {
   readonly executed_on?: string;
   readonly equipment_used?: readonly string[];
   readonly result_summary?: string;
+}
+
+/** Milestone — authority: project */
+export type MilestoneState = 'planned' | 'achieved' | 'missed' | 'cancelled';
+export interface MilestoneAttributes {
+  readonly project: string;
+  readonly planned_on: string;
+  readonly criterion: string;
+}
+
+/** Work Order Amendment — authority: commercial */
+export type WorkOrderAmendmentState = 'draft' | 'issued' | 'superseded';
+export interface WorkOrderAmendmentAttributes {
+  readonly work_order: string;
+  readonly amendment_no: number;
+  readonly rationale: string;
 }
 
 /** State machines, keyed by object type. */
