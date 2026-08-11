@@ -10,6 +10,15 @@
   "references": [
     {
       "path": "../../packages/domain"
+    },
+    {
+      "path": "../../packages/canonicalization"
+    },
+    {
+      "path": "../../packages/database"
+    },
+    {
+      "path": "../../packages/artifacts"
     }
   ]
 }

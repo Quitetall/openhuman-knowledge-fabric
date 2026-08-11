@@ -33,7 +33,10 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@kf/actions": "workspace:*",
+    "@kf/artifacts": "workspace:*",
+    "@kf/canonicalization": "workspace:*",
     "@kf/database": "workspace:*",
+    "@kf/export": "workspace:*",
     "@kf/ontology-compiler": "workspace:*",
     "@testcontainers/postgresql": "^12.1.0",
     "@types/node": "^24.13.3",

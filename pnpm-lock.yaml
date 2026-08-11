@@ -14,9 +14,18 @@ importers:
       '@kf/actions':
         specifier: workspace:*
         version: link:packages/actions
+      '@kf/artifacts':
+        specifier: workspace:*
+        version: link:packages/artifacts
+      '@kf/canonicalization':
+        specifier: workspace:*
+        version: link:packages/canonicalization
       '@kf/database':
         specifier: workspace:*
         version: link:packages/database
+      '@kf/export':
+        specifier: workspace:*
+        version: link:packages/export
       '@kf/ontology-compiler':
         specifier: workspace:*
         version: link:packages/ontology-compiler
@@ -69,6 +78,15 @@ importers:
 
   apps/checkpoint:
     dependencies:
+      '@kf/artifacts':
+        specifier: workspace:*
+        version: link:../../packages/artifacts
+      '@kf/canonicalization':
+        specifier: workspace:*
+        version: link:../../packages/canonicalization
+      '@kf/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@kf/domain':
         specifier: workspace:*
         version: link:../../packages/domain
@@ -188,9 +206,19 @@ importers:
 
   packages/export:
     dependencies:
+      '@kf/canonicalization':
+        specifier: workspace:*
+        version: link:../canonicalization
+      '@kf/database':
+        specifier: workspace:*
+        version: link:../database
       '@kf/domain':
         specifier: workspace:*
         version: link:../domain
+    devDependencies:
+      '@types/node':
+        specifier: ^24.13.3
+        version: 24.13.3
 
   packages/integration:
     dependencies:

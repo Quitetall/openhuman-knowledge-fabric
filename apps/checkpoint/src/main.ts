@@ -1,38 +1,117 @@
 /**
  * Checkpoint process entrypoint.
  *
- * Gate 4 wires this to the audit table and object storage. It runs as a separate process
- * precisely so the Ed25519 signing key is not reachable from the API: a compromised API
- * can then forge records, but cannot forge a checkpoint attesting that those records were
- * always there.
+ * A separate process precisely so the Ed25519 signing key is not reachable from the API: a
+ * compromised API can then forge records, but cannot forge a checkpoint attesting that those
+ * records were always there. Nothing here should ever be merged into the API deployment.
+ *
+ *   checkpoint --run      sign everything since the last checkpoint
+ *   checkpoint --verify   recompute the whole ledger from genesis and report findings
  */
 
-import { merkleRoot } from './merkle.js';
+import { readFileSync } from 'node:fs';
+import { createPublicKey, type KeyObject } from 'node:crypto';
+import { createPool } from '@kf/database';
+import { S3ObjectStore, type ObjectStore } from '@kf/artifacts';
+import { loadSigningKey, type SigningKey } from './sign.js';
+import { runCheckpoint, verifyLedger } from './run.js';
 
-function main(): number {
-  const keyPath = process.env['CHECKPOINT_SIGNING_KEY_PATH'];
-  const databaseUrl = process.env['DATABASE_URL'];
+function required(name: string): string {
+  const v = process.env[name];
+  if (v === undefined || v === '') throw new Error(`${name} is not set`);
+  return v;
+}
 
-  const status = {
-    service: 'openhuman-knowledge-fabric-checkpoint',
-    signing_key: keyPath ? 'configured' : 'absent',
-    database: databaseUrl ? 'configured' : 'absent',
-    empty_tree_root: merkleRoot([]).toString('hex'),
-    implemented: false,
-    note: 'Checkpoint construction lands in Gate 4. This process signs nothing today.',
-  };
-  console.warn(JSON.stringify(status));
+function signingKey(): SigningKey {
+  return loadSigningKey(
+    process.env['CHECKPOINT_SIGNING_KEY_ID'] ?? 'checkpoint-1',
+    readFileSync(required('CHECKPOINT_SIGNING_KEY_PATH'), 'utf8'),
+  );
+}
 
-  // Exit non-zero when asked to actually run, so a scheduler cannot record a successful
-  // checkpoint that never happened.
-  if (process.argv.includes('--run')) {
-    console.error('checkpoint: refusing to report success for an unimplemented checkpoint');
-    return 1;
+/** The object store, if one is configured. Absent means the signature lives only in the database. */
+function objectStore(): ObjectStore | undefined {
+  const endpoint = process.env['CHECKPOINT_S3_ENDPOINT'];
+  if (endpoint === undefined || endpoint === '') return undefined;
+  return new S3ObjectStore({
+    endpoint,
+    region: process.env['CHECKPOINT_S3_REGION'] ?? 'us-east-1',
+    accessKeyId: required('CHECKPOINT_S3_ACCESS_KEY_ID'),
+    secretAccessKey: required('CHECKPOINT_S3_SECRET_ACCESS_KEY'),
+    bucket: process.env['CHECKPOINT_S3_BUCKET'] ?? 'kf-audit',
+  });
+}
+
+/**
+ * Verification keys.
+ *
+ * Prefers a PUBLIC key file: verifying should not need the private key, and an auditor should
+ * be able to run this without being handed the ability to sign.
+ */
+function verificationKeys(): Map<string, KeyObject> {
+  const id = process.env['CHECKPOINT_SIGNING_KEY_ID'] ?? 'checkpoint-1';
+  const publicPath = process.env['CHECKPOINT_PUBLIC_KEY_PATH'];
+  if (publicPath !== undefined && publicPath !== '') {
+    return new Map([[id, createPublicKey(readFileSync(publicPath, 'utf8'))]]);
   }
-  return 0;
+  return new Map([[id, signingKey().publicKey]]);
+}
+
+async function main(): Promise<number> {
+  const wantsRun = process.argv.includes('--run');
+  const wantsVerify = process.argv.includes('--verify');
+
+  if (!wantsRun && !wantsVerify) {
+    console.warn(
+      JSON.stringify({
+        service: 'openhuman-knowledge-fabric-checkpoint',
+        signing_key: process.env['CHECKPOINT_SIGNING_KEY_PATH'] ? 'configured' : 'absent',
+        database: process.env['DATABASE_URL'] ? 'configured' : 'absent',
+        object_store: process.env['CHECKPOINT_S3_ENDPOINT'] ? 'configured' : 'absent',
+        usage: 'checkpoint --run | checkpoint --verify',
+      }),
+    );
+    return 0;
+  }
+
+  const pool = createPool({ connectionString: required('DATABASE_URL'), maxConnections: 2 });
+  try {
+    if (wantsVerify) {
+      const findings = await verifyLedger(pool, verificationKeys());
+      console.warn(JSON.stringify({ action: 'verify', findings }, null, 2));
+      // Non-zero on any finding. A verification that reports problems and exits 0 would be
+      // recorded by a scheduler as a clean audit.
+      return findings.length === 0 ? 0 : 1;
+    }
+
+    const store = objectStore();
+    const result = await runCheckpoint(pool, signingKey(), store ? { store } : {});
+    console.warn(
+      JSON.stringify({
+        action: 'checkpoint',
+        status: result.status,
+        events: result.eventCount,
+        from_seq: result.checkpoint?.fromSeq ?? null,
+        to_seq: result.checkpoint?.toSeq ?? null,
+        merkle_root: result.checkpoint?.merkleRoot ?? null,
+        storage_uri: result.checkpoint?.storageUri ?? null,
+      }),
+    );
+    return 0;
+  } finally {
+    await pool.end();
+  }
 }
 
 // Set exitCode rather than calling process.exit(). process.exit() terminates immediately and
 // can truncate stderr when it is a pipe, losing the very message that explains the failure.
 // Letting the event loop drain flushes the output first, then exits with the same code.
-process.exitCode = main();
+main().then(
+  (code) => {
+    process.exitCode = code;
+  },
+  (err: unknown) => {
+    console.error(`checkpoint: ${err instanceof Error ? err.message : String(err)}`);
+    process.exitCode = 1;
+  },
+);

@@ -11,6 +11,9 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
+    "@kf/artifacts": "workspace:*",
+    "@kf/canonicalization": "workspace:*",
+    "@kf/database": "workspace:*",
     "@kf/domain": "workspace:*"
   },
   "devDependencies": {

@@ -17,6 +17,14 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
+    "@kf/canonicalization": "workspace:*",
+    "@kf/database": "workspace:*",
     "@kf/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3"
+  },
+  "bin": {
+    "kf-export": "./dist/cli.js"
   }
 }
