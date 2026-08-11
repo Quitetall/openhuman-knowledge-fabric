@@ -53,6 +53,9 @@ importers:
       eslint-config-prettier:
         specifier: ^10.1.8
         version: 10.1.8(eslint@10.8.1(supports-color@7.2.0))
+      fastify:
+        specifier: ^5.11.3
+        version: 5.11.3
       prettier:
         specifier: ^3.9.6
         version: 3.9.6
@@ -68,9 +71,18 @@ importers:
 
   apps/api:
     dependencies:
+      '@kf/actions':
+        specifier: workspace:*
+        version: link:../../packages/actions
+      '@kf/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@kf/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@kf/work-control':
+        specifier: workspace:*
+        version: link:../../packages/work-control
       fastify:
         specifier: ^5.11.3
         version: 5.11.3

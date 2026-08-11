@@ -279,7 +279,13 @@ export function createDispatcher(pool: Pool, options: DispatcherOptions = {}) {
       }
 
       if (request.expectedVersion !== undefined) {
+        const justCreated = new Set(created);
         for (const o of objects) {
+          // A version the caller could not have read. Optimistic concurrency asks "is this
+          // still what I saw"; for a row this action created a moment ago there is nothing
+          // the caller saw, and failing it would punish callers who set expectedVersion
+          // defensively on an action that both creates and moves.
+          if (justCreated.has(o.id)) continue;
           if (Number(o.row_version) !== request.expectedVersion) {
             throw new ActionRejected('version_conflict', 'the object changed since it was read', {
               objectId: o.id,

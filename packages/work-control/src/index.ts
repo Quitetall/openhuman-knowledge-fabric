@@ -329,6 +329,9 @@ const recordAcceptance: ActionEffect = async (tx, request, objects) => {
   }
 
   const disposition = requireString(request.payload, 'disposition');
+  // A rejection accepts nothing, so the field is not required on that path — and if a caller
+  // supplies one anyway it is ignored rather than honoured, because "rejected, and here is
+  // what we are paying" is a contradiction the CHECK constraint would refuse in any case.
   const acceptedValue =
     disposition === 'rejected' ? 0 : requireMinor(request.payload, 'accepted_value_minor');
 
@@ -457,6 +460,13 @@ const assertChangeCitesDecision: PreconditionCheck = async (tx, _request, object
  *
  * The financial half is the one that matters in practice: a project closed with an approved
  * invoice still unpaid looks finished and is not.
+ *
+ * "Settled money" means invoices with a line against one of THIS project's work orders —
+ * deliberately not every invoice on the engagement. An engagement usually spans several
+ * projects, and blocking project A's closure because project B is still being billed would
+ * make the rule unusable and teach people to route around it. An invoice that touches no
+ * work order cannot exist: `finance.invoice_line.work_order_id` is not null, and
+ * `submit_invoice` refuses an invoice with no lines.
  */
 const assertClosable: PreconditionCheck = async (tx, _request, objects) => {
   for (const o of objects) {

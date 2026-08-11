@@ -12,7 +12,10 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
+    "@kf/actions": "workspace:*",
+    "@kf/database": "workspace:*",
     "@kf/domain": "workspace:*",
+    "@kf/work-control": "workspace:*",
     "fastify": "^5.11.3"
   },
   "devDependencies": {

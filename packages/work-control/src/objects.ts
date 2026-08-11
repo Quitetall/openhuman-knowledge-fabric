@@ -65,6 +65,11 @@ export function requireString(
  * Rejects non-integers rather than rounding. A ceiling of 1000.5 pence is not a number anyone
  * meant to write, and silently rounding it decides on the caller's behalf which way the money
  * goes.
+ *
+ * `Number.isSafeInteger` is the entry gate for every amount in the system, which is what
+ * makes `Number(...)` safe on the way back out: the database columns are `bigint` and arrive
+ * as strings, but no value that got past this check can exceed 2^53 minor units — about
+ * ninety trillion pounds. Sums are compared in SQL, where they stay `bigint` throughout.
  */
 export function requireMinor(
   payload: Readonly<Record<string, unknown>> | undefined,

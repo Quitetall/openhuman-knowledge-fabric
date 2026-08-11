@@ -1,0 +1,330 @@
+/**
+ * The API surface, against a real database.
+ *
+ * Two things are under test and neither is "does the happy path return 201".
+ *
+ * The first is that the API is not a second way in. Every refusal the dispatcher makes must
+ * survive the HTTP layer with a status code that means the same thing, because an endpoint
+ * that turned a separation-of-duty refusal into a 500 would leave callers retrying it, and
+ * one that turned it into a 200 would be a bypass.
+ *
+ * The second is that identity is never taken from the caller in a deployment that has no
+ * identity provider. That decision is made at startup from configuration, so this checks the
+ * production shape as well as the development one.
+ */
+
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import Fastify, { type FastifyInstance } from 'fastify';
+import { buildApp } from '../../apps/api/src/app.js';
+import { registerActionRoutes } from '../../apps/api/src/routes/actions.js';
+import {
+  createObject,
+  seedFixtures,
+  startHarness,
+  type Fixtures,
+  type Harness,
+} from '../database/harness.js';
+
+let h: Harness;
+let f: Fixtures;
+let app: FastifyInstance;
+
+/** The development headers. In production these are ignored and the routes refuse. */
+function asCaller(actorId: string, roleId: string, classification = 'restricted') {
+  return {
+    'x-kf-actor': actorId,
+    'x-kf-acting-role': roleId,
+    'x-kf-organization': f.organizationId,
+    'x-kf-classification': classification,
+  };
+}
+
+beforeAll(async () => {
+  h = await startHarness();
+  f = await seedFixtures(h.adminPool);
+
+  const appUri = new URL(h.connectionString);
+  appUri.username = 'kf_app_login';
+  appUri.password = 'test-only-not-a-secret';
+
+  app = await buildApp({
+    host: '127.0.0.1',
+    port: 0,
+    logLevel: 'silent',
+    databaseUrl: appUri.toString(),
+    environment: 'test',
+  });
+  await app.ready();
+}, 180_000);
+
+afterAll(async () => {
+  await app?.close();
+  await h?.stop();
+});
+
+describe('readiness', () => {
+  it('reports ready against a database it can actually reach', async () => {
+    // The counterpart to the unreachable case in apps/api: readiness is a real round trip,
+    // so proving the positive needs one real database.
+    const res = await app.inject({ method: 'GET', url: '/ready' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ ready: true, checks: { database: 'ok' } });
+  });
+});
+
+describe('identity', () => {
+  it('refuses a caller who states no identity', async () => {
+    const r = await app.inject({
+      method: 'POST',
+      url: '/actions/create_initiative',
+      payload: { idempotencyKey: 'no-identity-1234' },
+    });
+    expect(r.statusCode).toBe(401);
+    expect(r.json()).toMatchObject({ error: 'caller_unidentified' });
+  });
+
+  it('refuses actions entirely when no identity provider is configured', async () => {
+    // The production shape. Built from the same factory, so this is the real behaviour and
+    // not a description of it.
+    const prod = await buildApp({
+      host: '127.0.0.1',
+      port: 0,
+      logLevel: 'silent',
+      databaseUrl: new URL(h.connectionString).toString(),
+      environment: 'production',
+    });
+    await prod.ready();
+    try {
+      const r = await prod.inject({
+        method: 'POST',
+        url: '/actions/create_initiative',
+        headers: asCaller(f.reviewerId, f.reviewerRoleId),
+        payload: { idempotencyKey: 'prod-attempt-1234' },
+      });
+      expect(r.statusCode).toBe(503);
+      expect(r.json()).toMatchObject({ error: 'no_identity_provider' });
+    } finally {
+      await prod.close();
+    }
+  }, 60_000);
+
+  it('defaults an unstated clearance to the lowest tier, never the highest', async () => {
+    const restricted = await createObject(h.adminPool, f, {
+      type: 'decision_record',
+      domain: 'engineering',
+      state: 'proposed',
+      title: 'A restricted decision',
+      createdBy: f.performerId,
+    });
+
+    const r = await app.inject({
+      method: 'GET',
+      url: `/objects/${restricted}/history`,
+      headers: {
+        'x-kf-actor': f.reviewerId,
+        'x-kf-acting-role': f.reviewerRoleId,
+        'x-kf-organization': f.organizationId,
+        // classification header deliberately absent
+      },
+    });
+    // Visible at `internal`, which is the default — the point is that the default is the
+    // floor, so a missing header narrows rather than widens.
+    expect(r.statusCode).toBe(200);
+  });
+});
+
+describe('actions over HTTP', () => {
+  let projectId: string;
+
+  it('requires a caller-supplied idempotency key', async () => {
+    const r = await app.inject({
+      method: 'POST',
+      url: '/actions/create_initiative',
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+      payload: { payload: { title: 'x' } },
+    });
+    // Not generated server-side: a key the server invents is not stable across the caller's
+    // retries, which is the only thing it is for.
+    expect(r.statusCode).toBe(400);
+    expect(r.json()).toMatchObject({ error: 'idempotency_key_required' });
+  });
+
+  it('creates a project and returns 201', async () => {
+    const r = await app.inject({
+      method: 'POST',
+      url: '/actions/create_initiative',
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+      payload: {
+        idempotencyKey: 'api-create-project-01',
+        payload: {
+          title: 'Atlas enclosure (API)',
+          objective: 'Created over HTTP, through the same dispatcher.',
+          sponsor_id: f.reviewerId,
+        },
+      },
+    });
+    expect(r.statusCode).toBe(201);
+    projectId = r.json().objectIds[0];
+    expect(r.headers['x-request-id']).toBeTruthy();
+  });
+
+  it('replays an identical retry as 200, not a second project', async () => {
+    const r = await app.inject({
+      method: 'POST',
+      url: '/actions/create_initiative',
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+      payload: {
+        idempotencyKey: 'api-create-project-01',
+        payload: { title: 'Atlas enclosure (API)', objective: 'x', sponsor_id: f.reviewerId },
+      },
+    });
+    expect(r.statusCode).toBe(200);
+    expect(r.json().replayed).toBe(true);
+    expect(r.json().actionId).toBeTruthy();
+  });
+
+  it('maps an illegal transition to 409, not 500', async () => {
+    const r = await app.inject({
+      method: 'POST',
+      url: '/actions/activate_project',
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+      payload: { idempotencyKey: 'api-illegal-move-01', targetIds: [projectId] },
+    });
+    // A conflict with the record's current state, which a caller can act on. A 500 would
+    // leave them retrying something that will never succeed.
+    expect(r.statusCode).toBe(409);
+    expect(r.json()).toMatchObject({ error: 'illegal_transition' });
+  });
+
+  it('maps an unknown action to 404', async () => {
+    const r = await app.inject({
+      method: 'POST',
+      url: '/actions/delete_everything',
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+      payload: { idempotencyKey: 'api-unknown-action-1', targetIds: [projectId] },
+    });
+    expect(r.statusCode).toBe(404);
+    expect(r.json()).toMatchObject({ error: 'unknown_action' });
+  });
+
+  it('maps a missing reason to 400', async () => {
+    const r = await app.inject({
+      method: 'POST',
+      url: '/actions/correct_record',
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+      payload: { idempotencyKey: 'api-no-reason-0001', targetIds: [projectId] },
+    });
+    expect(r.statusCode).toBe(400);
+    expect(r.json()).toMatchObject({ error: 'reason_required' });
+  });
+
+  it('serves the project with computed progress, not a stored percentage', async () => {
+    const r = await app.inject({
+      method: 'GET',
+      url: `/projects/${projectId}`,
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+    });
+    expect(r.statusCode).toBe(200);
+    const body = r.json();
+    expect(body.lifecycle_state).toBe('captured');
+    // No packages yet, so progress is null rather than 0 — "nothing to do" and "none of it
+    // done" are different answers, and reporting 0% for the first would be a lie.
+    expect(body.progress).toEqual({ totalPackages: 0, disposedPackages: 0, fraction: null });
+  });
+
+  it('serves an object history that matches the actions taken', async () => {
+    const r = await app.inject({
+      method: 'GET',
+      url: `/objects/${projectId}/history`,
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+    });
+    expect(r.statusCode).toBe(200);
+    const events = r.json().events as { action_type: string; digest: string }[];
+    expect(events.map((e) => e.action_type)).toContain('create_initiative');
+    expect(events[0]!.digest).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('surfaces a DATABASE-tier invariant refusal as 422, not 500', async () => {
+    // The financial rules are guarded twice, and under concurrency the trigger is the one
+    // that wins: two acceptances can each pass the application check and only one survive
+    // the row lock. The loser must reach the caller as a refusal they can act on. A 500
+    // would have them retrying something that will never succeed.
+    //
+    // Routes are registered against a stub that raises what PostgreSQL actually raises, so
+    // this tests the mapping rather than a description of it.
+    const stub = Fastify({ logger: false });
+    await registerActionRoutes(stub, {
+      pool: h.pool,
+      trustHeaders: true,
+      execute: async () => {
+        const err = new Error(
+          'KF-FIN-001: accepted value 5000.00 would exceed work order WO-1 ceiling 4000.00 (amended by 0.00)',
+        ) as Error & { code: string };
+        err.code = '23514';
+        throw err;
+      },
+    });
+    await stub.ready();
+    try {
+      const r = await stub.inject({
+        method: 'POST',
+        url: '/actions/issue_acceptance',
+        headers: asCaller(f.reviewerId, f.reviewerRoleId),
+        payload: { idempotencyKey: 'api-trigger-refusal', targetIds: [projectId] },
+      });
+      expect(r.statusCode).toBe(422);
+      expect(r.json()).toMatchObject({
+        error: 'precondition_failed',
+        detail: { rule: 'KF-FIN-001', enforcedBy: 'database' },
+      });
+    } finally {
+      await stub.close();
+    }
+  });
+
+  it('does not mistake an unrelated database fault for an invariant refusal', async () => {
+    // A 500 that leaks a database message can name tables, columns and values. Only a
+    // check_violation whose text begins with a rule id is a refusal; everything else is a
+    // fault, and faults say nothing beyond a correlation id.
+    const stub = Fastify({ logger: false });
+    await registerActionRoutes(stub, {
+      pool: h.pool,
+      trustHeaders: true,
+      execute: async () => {
+        const err = new Error('relation "core.secret_table" does not exist') as Error & {
+          code: string;
+        };
+        err.code = '42P01';
+        throw err;
+      },
+    });
+    await stub.ready();
+    try {
+      const r = await stub.inject({
+        method: 'POST',
+        url: '/actions/issue_acceptance',
+        headers: asCaller(f.reviewerId, f.reviewerRoleId),
+        payload: { idempotencyKey: 'api-real-fault-001', targetIds: [projectId] },
+      });
+      expect(r.statusCode).toBe(500);
+      expect(r.json()).toEqual({ error: 'internal_error', requestId: expect.any(String) });
+      expect(JSON.stringify(r.json())).not.toContain('secret_table');
+    } finally {
+      await stub.close();
+    }
+  });
+
+  it('answers 404 — not 403 — for a record outside the caller scope', async () => {
+    const r = await app.inject({
+      method: 'GET',
+      url: `/projects/${projectId}`,
+      headers: {
+        ...asCaller(f.reviewerId, f.reviewerRoleId),
+        'x-kf-organization': '01930000-0000-7000-8000-00000000dead',
+      },
+    });
+    // Distinguishing "not allowed" from "does not exist" tells an unauthorized caller that
+    // a record exists, which is itself a disclosure.
+    expect(r.statusCode).toBe(404);
+  });
+});

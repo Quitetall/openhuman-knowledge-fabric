@@ -52,17 +52,24 @@ describe('health endpoints', () => {
     await app.close();
   });
 
-  it('reports ready once a database is configured', async () => {
+  it('reports NOT ready when the configured database is unreachable', async () => {
+    // Readiness is a round trip, not a configuration check. This test previously asserted
+    // that a configured URL alone meant ready — which would hand traffic to a process that
+    // cannot reach its database, exactly the case the probe exists to catch.
+    //
+    // Readiness against a REACHABLE database is covered in tests/permissions, which has one.
     const app = await buildApp(
       loadConfig({
         ...baseEnv,
         LOG_LEVEL: 'silent',
-        DATABASE_URL: 'postgres://kf_app@localhost:5432/kf',
+        // Port 1 is privileged and never listening, so this fails fast and deterministically
+        // rather than depending on whatever happens to be on 5432.
+        DATABASE_URL: 'postgres://kf_app@127.0.0.1:1/kf',
       }),
     );
     const res = await app.inject({ method: 'GET', url: '/ready' });
-    expect(res.statusCode).toBe(200);
-    expect(res.json()).toMatchObject({ ready: true });
+    expect(res.statusCode).toBe(503);
+    expect(res.json()).toMatchObject({ ready: false, checks: { database: 'failing' } });
     await app.close();
   });
 
