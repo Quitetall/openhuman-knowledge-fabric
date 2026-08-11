@@ -13,12 +13,16 @@ Control Specification_, with its `1.0.0-draft.1` schema pack.
 > ## Status — read this first
 >
 > **Not operational. Nothing recorded here is authoritative yet.**
-> Gate 1 of 8 is complete: the repository, toolchain and local stack. The authority kernel,
-> its audit chain and the preservation export do not exist. Do not record real work here
-> until Gate 5.
+> Gates 1–3 of 8 are complete: the repository, the ontology compiler, and the PostgreSQL
+> authority kernel with its append-only audit chain. The preservation export does not exist,
+> and **one of the ten declared invariants is actually enforced** — the financial ones need
+> tables that arrive in Gate 5. See `tests/database/rule-ledger.test.ts`, which states that
+> plainly and fails if the gap grows. Do not record real work here until Gate 5.
 >
 > The specification is also **not yet approved**: the schema pack is `draft_for_approval`
-> and its manifest is unsigned, so under §1.2 it is not normative.
+> and its manifest is unsigned, so under §1.2 it is not normative. Five defects found in it
+> are recorded in `docs/decisions/0001-r01-schema-pack-defects.md`, with a corrected package
+> available from `pnpm ontology:pack`.
 
 ---
 
@@ -31,8 +35,8 @@ planted-violation tests pass.
 | Gate | Scope                               | State        |
 | ---- | ----------------------------------- | ------------ |
 | 1    | Repository, toolchain, local stack  | **complete** |
-| 2    | Ontology compiler                   | not started  |
-| 3    | PostgreSQL authority kernel         | not started  |
+| 2    | Ontology compiler                   | **complete** |
+| 3    | PostgreSQL authority kernel         | **complete** |
 | 4    | Evidence vault and preservation     | not started  |
 | 5    | Work-control vertical slice         | not started  |
 | 6    | Product configuration and quality   | not started  |
@@ -54,7 +58,8 @@ Verification, all of which must pass from a clean checkout:
 pnpm format:check
 pnpm lint
 pnpm typecheck
-pnpm test
+pnpm ontology:check   # ontology consistent, generated/ current
+pnpm test             # includes a real PostgreSQL 18 via Testcontainers
 pnpm build
 ```
 
