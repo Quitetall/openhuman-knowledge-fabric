@@ -184,7 +184,18 @@ const DEFAULT_SEPARATION_OF_DUTY: Readonly<Record<string, readonly string[]>> = 
   accept_work_package: ['work_package'],
   approve_invoice: ['invoice'],
 };
-const DEFAULT_REASON_REQUIRED = ['correct_record', 'reject_decision', 'amend_work_order'];
+/**
+ * Actions that must carry a reason, exported so the interface can ask instead of guessing.
+ *
+ * A UI holding its own copy of this list is a copy that goes stale — it would stop asking
+ * for a reason on an action that started requiring one, and the user would meet a 400 with
+ * no field to fill in.
+ */
+export const DEFAULT_REASON_REQUIRED: readonly string[] = [
+  'correct_record',
+  'reject_decision',
+  'amend_work_order',
+];
 
 // ── dispatcher ──────────────────────────────────────────────────────────────────────────
 

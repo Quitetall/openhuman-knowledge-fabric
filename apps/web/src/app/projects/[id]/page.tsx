@@ -40,16 +40,24 @@ function Badge({ state }: { state: string }) {
   );
 }
 
-export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ProjectPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ refused?: string }>;
+}) {
   const { id } = await params;
+  const { refused } = await searchParams;
   const caller = developmentCaller();
 
   let project: ProjectView;
   let history: HistoryView;
   try {
+    const encoded = encodeURIComponent(id);
     [project, history] = await Promise.all([
-      get<ProjectView>(`/projects/${id}`, caller),
-      get<HistoryView>(`/objects/${id}/history`, caller),
+      get<ProjectView>(`/projects/${encoded}`, caller),
+      get<HistoryView>(`/objects/${encoded}/history`, caller),
     ]);
   } catch (err: unknown) {
     // A refusal is a fact about the record and is shown as one. A fault is our problem and
@@ -117,7 +125,26 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       )}
 
       <h2 style={{ fontSize: '1rem', marginTop: '2rem' }}>Actions</h2>
-      <ActionPanel projectId={project.id} state={project.lifecycle_state} />
+      {refused === undefined ? null : (
+        <p
+          style={{
+            border: '1px solid #dc2626',
+            background: '#fef2f2',
+            color: '#7f1d1d',
+            padding: '0.6rem 0.85rem',
+            borderRadius: '0.375rem',
+          }}
+        >
+          {/* The last attempt was refused. Shown here rather than swallowed, because a form
+              that appears to do nothing is indistinguishable from one that worked. */}
+          <strong>Refused.</strong> {refused}
+        </p>
+      )}
+      <ActionPanel
+        projectId={project.id}
+        state={project.lifecycle_state}
+        rowVersion={project.row_version}
+      />
 
       <h2 style={{ fontSize: '1rem', marginTop: '2rem' }}>History</h2>
       <p style={{ color: '#666', fontSize: '0.85rem', marginTop: 0 }}>

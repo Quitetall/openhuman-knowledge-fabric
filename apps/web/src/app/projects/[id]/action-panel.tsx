@@ -11,6 +11,7 @@
  */
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { act, get, ApiError } from '../../../lib/api';
 import { developmentCaller } from '../../../lib/caller';
 import { formatState } from '@kf/ui';
@@ -20,18 +21,28 @@ interface Available {
     readonly actionType: string;
     readonly toStates: readonly string[];
     readonly requiresChoice: boolean;
+    /** From the dispatcher, not from a copy kept here. */
+    readonly reasonRequired: boolean;
   }[];
 }
 
-/** Actions the dispatcher requires a reason for. A silent correction is not a correction. */
-const REASON_REQUIRED = new Set(['correct_record', 'reject_decision', 'amend_work_order']);
-
-export async function ActionPanel({ projectId, state }: { projectId: string; state: string }) {
+export async function ActionPanel({
+  projectId,
+  state,
+  rowVersion,
+}: {
+  projectId: string;
+  state: string;
+  rowVersion: string;
+}) {
   const caller = developmentCaller();
 
   let available: Available;
   try {
-    available = await get<Available>(`/objects/${projectId}/available-actions`, caller);
+    available = await get<Available>(
+      `/objects/${encodeURIComponent(projectId)}/available-actions`,
+      caller,
+    );
   } catch {
     return <p style={{ color: '#666' }}>Available actions could not be loaded.</p>;
   }
@@ -68,11 +79,17 @@ export async function ActionPanel({ projectId, state }: { projectId: string; sta
         developmentCaller(),
       );
     } catch (err: unknown) {
-      // Refusals are expected outcomes and reach the page as such; a fault is rethrown so
-      // the error boundary handles it rather than the page pretending it worked.
+      // A refusal is an expected outcome and belongs on the page. Swallowing it left the
+      // user with a form that appeared to do nothing — the worst of the three possible
+      // behaviours, because it is indistinguishable from success.
+      //
+      // A fault is rethrown so the error boundary handles it rather than the page pretending
+      // the action worked.
       if (err instanceof ApiError && err.isRefusal) {
         revalidatePath(`/projects/${projectId}`);
-        return;
+        redirect(
+          `/projects/${encodeURIComponent(projectId)}?refused=${encodeURIComponent(err.message)}`,
+        );
       }
       throw err;
     }
@@ -99,10 +116,17 @@ export async function ActionPanel({ projectId, state }: { projectId: string; sta
           <input
             type="hidden"
             name="idempotencyKey"
-            // Bound to the action and the record's CURRENT version of history, so a retry of
-            // the same rendered form replays, and a genuinely new attempt after the record
-            // moved gets a new key.
-            value={`web-${projectId}-${a.actionType}-${state}`}
+            // Actor AND row_version, not lifecycle state.
+            //
+            // State alone was wrong twice over. A record that cycles — active, blocked,
+            // active — returns to a state it has been in before, and the second attempt
+            // would have carried the first attempt's key and replayed its result instead of
+            // acting. And two people looking at the same page would have produced the same
+            // key, so one of them would silently get the other's outcome.
+            //
+            // row_version advances on every change, so it names a moment rather than a
+            // condition; the actor makes it theirs.
+            value={`web-${caller.actorId}-${projectId}-${a.actionType}-v${rowVersion}`}
           />
           <strong style={{ fontWeight: 600 }}>{formatState(a.actionType)}</strong>
 
@@ -121,7 +145,7 @@ export async function ActionPanel({ projectId, state }: { projectId: string; sta
             </span>
           )}
 
-          {REASON_REQUIRED.has(a.actionType) ? (
+          {a.reasonRequired ? (
             <input
               type="text"
               name="reason"

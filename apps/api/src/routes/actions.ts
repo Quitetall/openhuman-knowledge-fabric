@@ -15,7 +15,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import { ActionRejected, type ActionRequest } from '@kf/actions';
+import { ActionRejected, DEFAULT_REASON_REQUIRED, type ActionRequest } from '@kf/actions';
 import { withTransaction, type Pool } from '@kf/database';
 import { projectProgress } from '@kf/work-control';
 
@@ -278,16 +278,8 @@ export async function registerActionRoutes(
       );
       if (object === undefined) return reply.code(404).send({ error: 'not_found' });
 
-      const transitions = await tx.query<{
-        action_id: string;
-        to_state: string;
-        reason_required: boolean;
-      }>(
-        `select t.action_id, t.to_state,
-                -- Ambiguity is the caller's to resolve, so it has to be visible here: an
-                -- action with several destinations needs payload.to_state, and a UI that did
-                -- not know would submit something the dispatcher refuses.
-                (count(*) over (partition by t.action_id) > 1) as reason_required
+      const transitions = await tx.query<{ action_id: string; to_state: string }>(
+        `select t.action_id, t.to_state
            from registry.state_transition t
           where t.object_type = $1 and t.from_state = $2
           order by t.action_id, t.to_state`,
@@ -309,6 +301,10 @@ export async function registerActionRoutes(
           // More than one destination means the caller must choose; the dispatcher refuses
           // to guess which branch of a lifecycle to take.
           requiresChoice: toStates.length > 1,
+          // From the dispatcher's own list, not a copy. An interface holding its own would
+          // stop asking for a reason on an action that started requiring one, and the user
+          // would meet a 400 with no field to fill in.
+          reasonRequired: DEFAULT_REASON_REQUIRED.includes(actionType),
         })),
       });
     });

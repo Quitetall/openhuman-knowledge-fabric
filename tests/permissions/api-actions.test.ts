@@ -327,7 +327,12 @@ describe('actions over HTTP', () => {
     const body = r.json() as {
       state: string;
       objectType: string;
-      actions: { actionType: string; toStates: string[]; requiresChoice: boolean }[];
+      actions: {
+        actionType: string;
+        toStates: string[];
+        requiresChoice: boolean;
+        reasonRequired: boolean;
+      }[];
     };
     expect(body.objectType).toBe('initiative_project');
     expect(body.state).toBe('captured');
@@ -341,6 +346,57 @@ describe('actions over HTTP', () => {
 
     // Not offered from here, and correctly absent rather than listed-and-failing.
     expect(body.actions.map((a) => a.actionType)).not.toContain('activate_project');
+
+    // Which actions need a reason comes from the DISPATCHER's own list. A UI holding its own
+    // copy would stop asking on an action that started requiring one, and the user would meet
+    // a 400 with no field to fill in.
+    expect(triage!.reasonRequired).toBe(false);
+  });
+
+  it('reports which actions need a reason, from the dispatcher rather than a copy', async () => {
+    // `correct_record` is not offered from `captured`, so proving the TRUE case needs a
+    // record somewhere it applies. An interface holding its own list would stop asking for
+    // a reason on an action that started requiring one, and the user would meet a 400 with
+    // no field to fill in.
+    const created = await app.inject({
+      method: 'POST',
+      url: '/actions/create_initiative',
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+      payload: {
+        idempotencyKey: 'api-reason-probe-001',
+        payload: { title: 'Reason probe', objective: 'x', sponsor_id: f.reviewerId },
+      },
+    });
+    const id = created.json().objectIds[0] as string;
+
+    for (const [key, payload] of [
+      ['api-reason-probe-002', { to_state: 'triage' }],
+      ['api-reason-probe-003', { to_state: 'evaluating' }],
+    ] as const) {
+      await app.inject({
+        method: 'POST',
+        url: '/actions/triage_initiative',
+        headers: asCaller(f.reviewerId, f.reviewerRoleId),
+        payload: { idempotencyKey: key, targetIds: [id], payload },
+      });
+    }
+    await app.inject({
+      method: 'POST',
+      url: '/actions/authorize_project',
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+      payload: { idempotencyKey: 'api-reason-probe-004', targetIds: [id] },
+    });
+
+    const r = await app.inject({
+      method: 'GET',
+      url: `/objects/${id}/available-actions`,
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+    });
+    const actions = (r.json() as { actions: { actionType: string; reasonRequired: boolean }[] })
+      .actions;
+    const correct = actions.find((a) => a.actionType === 'correct_record');
+    expect(correct, 'correct_record should be offered from authorized').toBeDefined();
+    expect(correct!.reasonRequired).toBe(true);
   });
 
   it('answers 404 — not 403 — for a record outside the caller scope', async () => {

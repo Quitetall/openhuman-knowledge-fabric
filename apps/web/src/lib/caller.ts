@@ -18,6 +18,16 @@ export function developmentCaller(): Caller {
         'wrong person.',
     );
   }
+  // A SECOND, explicit signal. NODE_ENV is set by whoever starts the process and then gets
+  // inherited, copied and defaulted in ways nobody tracks — on its own it records a habit,
+  // not a decision. Acting as a fixed identity should be something an operator turned on
+  // meaning to, and this is the variable that has no other purpose.
+  if (process.env['KF_ALLOW_FIXED_IDENTITY'] !== '1') {
+    throw new Error(
+      'Acting as a fixed development identity requires KF_ALLOW_FIXED_IDENTITY=1. Set it ' +
+        'deliberately, and never in a deployment whose records anyone relies on.',
+    );
+  }
   const required = (name: string): string => {
     const value = process.env[name];
     if (value === undefined || value === '') {
