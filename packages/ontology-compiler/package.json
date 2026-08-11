@@ -14,11 +14,14 @@
   },
   "scripts": {
     "build": "tsc --build",
-    "clean": "rm -rf dist *.tsbuildinfo",
-    "check": "node ./scripts/not-implemented.mjs check",
-    "build:artifacts": "node ./scripts/not-implemented.mjs build:artifacts"
+    "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
-    "@kf/domain": "workspace:*"
+    "@kf/canonicalization": "workspace:*",
+    "@kf/domain": "workspace:*",
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3"
   }
 }

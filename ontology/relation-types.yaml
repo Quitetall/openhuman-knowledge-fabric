@@ -1,0 +1,41 @@
+# Relation types — the typed edges between objects.
+#
+# Direction is canonical even where a view renders the inverse label. `acyclic: true`
+# is machine-checked: a cycle in decomposition or supersession is a corrupt graph, not
+# an unusual one.
+
+relation_types:
+  - { id: contains, inverse: contained_by, acyclic: true }
+  - { id: decomposes_into, inverse: part_of, acyclic: true }
+  - { id: affects, inverse: affected_by }
+  - { id: authorizes, inverse: authorized_by }
+  - { id: executes, inverse: executed_by }
+  - { id: produces, inverse: produced_by }
+  - { id: consumes, inverse: consumed_by }
+  - { id: proposes, inverse: proposed_by }
+  - { id: governs, inverse: governed_by }
+  - { id: implements, inverse: implemented_by }
+  - { id: satisfies, inverse: satisfied_by }
+  - { id: verifies, inverse: verified_by }
+  - { id: mitigates, inverse: mitigated_by }
+  - { id: accepts, inverse: accepted_by }
+  - { id: bills, inverse: billed_by }
+  - { id: settles, inverse: settled_by }
+  - { id: allocates_to, inverse: allocated_from }
+  - { id: originated_from, inverse: originated }
+  - { id: supersedes, inverse: superseded_by, acyclic: true }
+  - { id: derived_from, inverse: source_of }
+  - { id: evidences, inverse: evidenced_by }
+  - { id: assigned_to, inverse: assignee_of }
+  - { id: scoped_to, inverse: scope_of }
+  - { id: depends_on, inverse: dependency_of, acyclic: true }
+  - { id: blocks, inverse: blocked_by }
+  - { id: released_by, inverse: releases }
+  - { id: baseline_contains, inverse: included_in_baseline }
+  - { id: performed_by, inverse: performed }
+  - { id: owned_by, inverse: owns }
+  - { id: linked_to, inverse: linked_to, symmetric: true }
+  - { id: amends, inverse: amended_by, acyclic: true }
+  - { id: generated_by, inverse: generated }
+  - { id: used, inverse: was_used_by }
+  - { id: was_associated_with, inverse: associated_with }

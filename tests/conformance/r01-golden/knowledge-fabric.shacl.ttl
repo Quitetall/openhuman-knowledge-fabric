@@ -1,0 +1,24 @@
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix kf: <urn:oh:kf:v1:> .
+
+kf:WorkOrderShape a sh:NodeShape ;
+  sh:targetClass kf:work_order ;
+  sh:property [ sh:path kf:project ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ] ;
+  sh:property [ sh:path kf:engagement ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ] ;
+  sh:property [ sh:path kf:authorized_work_packages ; sh:minCount 1 ; sh:nodeKind sh:IRI ] .
+
+kf:WorkExecutionShape a sh:NodeShape ;
+  sh:targetClass kf:work_execution ;
+  sh:property [ sh:path kf:work_order ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ] ;
+  sh:property [ sh:path kf:performed_by ; sh:minCount 1 ; sh:nodeKind sh:IRI ] .
+
+kf:DecisionRecordShape a sh:NodeShape ;
+  sh:targetClass kf:decision_record ;
+  sh:property [ sh:path kf:decision_scope ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ] ;
+  sh:property [ sh:path kf:decision_authority ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ] .
+
+kf:AcceptanceRecordShape a sh:NodeShape ;
+  sh:targetClass kf:acceptance_record ;
+  sh:property [ sh:path kf:work_order ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ] ;
+  sh:property [ sh:path kf:reviewer ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ] .

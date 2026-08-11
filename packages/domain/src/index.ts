@@ -13,14 +13,19 @@
  * A fact is written in exactly one authority domain. Every other surface displays a
  * projection or a resolvable reference to it.
  */
+// These are the ontology's domains verbatim (ontology/meta.yaml). They are restated here
+// rather than imported so this package stays dependency-free, and a test asserts the two
+// lists are identical — a silent divergence would let a package claim authority over a
+// domain that does not exist.
 export const AUTHORITY_DOMAINS = [
-  'product',
-  'project',
+  'artifact',
   'commercial',
+  'configuration',
+  'engineering',
   'finance',
-  'quality',
-  'people',
-  'artifacts',
+  'organization',
+  'project',
+  'qms',
 ] as const;
 
 export type AuthorityDomain = (typeof AUTHORITY_DOMAINS)[number];

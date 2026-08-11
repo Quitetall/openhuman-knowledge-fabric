@@ -1,0 +1,815 @@
+# Object types — the things the organization controls.
+#
+# `first_class: true` means the object has independent identity, lifecycle, approval,
+# access policy, revision, audit history or retention (spec §8). Anything below that
+# threshold belongs as a field or a line item on its parent, not as its own object.
+
+object_types:
+  - id: organization
+    title: Organization
+    authority_domain: organization
+    enterprise_namespace: null
+    first_class: true
+    state_machine: null
+    states: [active, inactive, retired]
+    fields:
+      - { name: legal_name, type: string, required: true, min_length: 1 }
+      - {
+          name: organization_kind,
+          type: enum,
+          required: true,
+          values: [company, supplier, laboratory, university, regulator, other],
+        }
+      - { name: jurisdiction, type: string }
+
+  - id: person
+    title: Person
+    authority_domain: organization
+    enterprise_namespace: null
+    first_class: true
+    state_machine: null
+    states: [active, inactive]
+    fields:
+      - { name: display_name, type: string, required: true, min_length: 1 }
+      - {
+          name: organization,
+          type: uuid,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - { name: email, type: email }
+
+  - id: role_assignment
+    title: Role Assignment
+    authority_domain: organization
+    enterprise_namespace: null
+    first_class: true
+    state_machine: null
+    states: [active, inactive, expired]
+    fields:
+      - {
+          name: subject,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - {
+          name: role,
+          type: enum,
+          required: true,
+          values:
+            [
+              project_owner,
+              technical_authority,
+              design_authority,
+              work_order_manager,
+              performer,
+              reviewer,
+              finance_approver,
+              quality_authority,
+              configuration_authority,
+              system_administrator,
+            ],
+        }
+      - {
+          name: scope,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - { name: valid_from, type: timestamp, required: true }
+      - { name: valid_to, type: timestamp }
+      - {
+          name: delegated_by,
+          type: uuid,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+
+  - id: engagement
+    title: Engagement
+    authority_domain: commercial
+    enterprise_namespace: null
+    first_class: true
+    state_machine: null
+    states: [draft, active, suspended, closed, terminated]
+    fields:
+      - {
+          name: principal_organization,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - {
+          name: counterparty,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - {
+          name: engagement_kind,
+          type: enum,
+          required: true,
+          values: [contractor, supplier, employee, research_collaboration, laboratory_service],
+        }
+      - { name: starts_on, type: date, required: true }
+      - { name: ends_on, type: date }
+      - {
+          name: agreement_artifact,
+          type: uuid,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - {
+          name: commercial_terms_ref,
+          type: uuid,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+
+  - id: product_system
+    title: Product or System
+    authority_domain: configuration
+    enterprise_namespace: ITM
+    first_class: true
+    state_machine: null
+    states: [concept, development, active, sustaining, retired]
+    fields:
+      - {
+          name: product_kind,
+          type: enum,
+          required: true,
+          values: [product, platform, subsystem, service, infrastructure],
+        }
+      - {
+          name: responsible_owner,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - {
+          name: configuration_authority,
+          type: uuid,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+
+  - id: initiative_project
+    title: Initiative or Project
+    authority_domain: project
+    enterprise_namespace: PRJ
+    # Namespace not yet allocated by the Identifier Registry; see the R5 request.
+    enterprise_namespace_proposed: true
+    first_class: true
+    state_machine: initiative_project
+    states:
+      [
+        captured,
+        triage,
+        evaluating,
+        authorized,
+        active,
+        technically_complete,
+        administratively_closed,
+        parked,
+        rejected,
+        cancelled,
+      ]
+    fields:
+      - { name: idea_statement, type: string, required: true, min_length: 1 }
+      - { name: objective, type: string }
+      - {
+          name: project_owner,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - {
+          name: affected_products,
+          type: array<uuid>,
+          required: true,
+          item_pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+          unique: true,
+        }
+      - { name: scope_in, type: array<string>, default: [] }
+      - { name: scope_out, type: array<string>, default: [] }
+      - { name: success_criteria, type: array<string>, required: true, default: [] }
+      - { name: closure_criteria, type: array<string>, required: true, default: [] }
+      - { name: authorized_budget, type: Money }
+      - { name: target_date, type: date }
+      - { name: technical_status, type: enum, values: [not_started, active, complete, terminated] }
+      - { name: administrative_status, type: enum, values: [not_open, open, closing, closed] }
+
+  - id: work_package
+    title: Work Package
+    authority_domain: project
+    enterprise_namespace: null
+    first_class: true
+    state_machine: work_package
+    states: [planned, ready, active, blocked, submitted, accepted, waived, cancelled]
+    fields:
+      - {
+          name: project,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - { name: wbs_code, type: string, required: true, pattern: '^[0-9]+(?:\.[0-9]+)*$' }
+      - {
+          name: parent_work_package,
+          type: uuid,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - { name: outcome, type: string, required: true, min_length: 1 }
+      - { name: acceptance_criteria, type: array<string>, required: true, default: [] }
+      - {
+          name: accountable_owner,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - { name: planned_start, type: date }
+      - { name: planned_end, type: date }
+      - { name: progress_basis, type: string, required: true, const: accepted_outcomes }
+      - { name: weight, type: string, pattern: '^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$' }
+
+  - id: work_order
+    title: Work Order
+    authority_domain: commercial
+    enterprise_namespace: WRK
+    first_class: true
+    state_machine: work_order
+    states: [draft, offered, accepted, active, suspended, completed, closed, cancelled, terminated]
+    fields:
+      - {
+          name: project,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - {
+          name: engagement,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - {
+          name: authorized_work_packages,
+          type: array<uuid>,
+          required: true,
+          item_pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+          unique: true,
+        }
+      - { name: scope, type: string, required: true, min_length: 1 }
+      - { name: exclusions, type: array<string>, default: [] }
+      - {
+          name: deliverables,
+          type: array<uuid>,
+          item_pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+          unique: true,
+        }
+      - {
+          name: commercial_model,
+          type: enum,
+          required: true,
+          values: [fixed_price, milestone, hourly, time_and_materials, not_to_exceed, internal],
+        }
+      - { name: authorized_ceiling, type: Money, required: true }
+      - { name: starts_on, type: date }
+      - { name: ends_on, type: date }
+      - {
+          name: work_order_manager,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - {
+          name: acceptance_authority,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - {
+          name: agreement_ref,
+          type: uuid,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - {
+          name: amends_work_order,
+          type: uuid,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+
+  - id: work_execution
+    title: Work Execution Record
+    authority_domain: commercial
+    enterprise_namespace: RCD
+    first_class: true
+    state_machine: work_execution
+    states: [draft, submitted, under_review, accepted, partially_accepted, rejected, superseded]
+    fields:
+      - {
+          name: work_order,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - {
+          name: work_packages,
+          type: array<uuid>,
+          required: true,
+          item_pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+          unique: true,
+        }
+      - {
+          name: performed_by,
+          type: array<uuid>,
+          required: true,
+          item_pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+          unique: true,
+        }
+      - { name: period_start, type: date }
+      - { name: period_end, type: date }
+      - { name: summary, type: string, required: true, min_length: 1 }
+      - { name: changes_made, type: array<string>, default: [] }
+      - {
+          name: artifact_refs,
+          type: array<uuid>,
+          required: true,
+          item_pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+          unique: true,
+        }
+      - {
+          name: test_refs,
+          type: array<uuid>,
+          item_pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+          unique: true,
+        }
+      - { name: deviations, type: array<string>, default: [] }
+      - {
+          name: decision_requests,
+          type: array<uuid>,
+          item_pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+          unique: true,
+        }
+      - { name: out_of_scope_findings, type: array<string>, default: [] }
+      - { name: submitted_at, type: timestamp }
+
+  - id: decision_record
+    title: Decision Record
+    authority_domain: engineering
+    enterprise_namespace: ADR
+    first_class: true
+    state_machine: decision_record
+    states: [draft, proposed, accepted, rejected, superseded, withdrawn]
+    fields:
+      - {
+          name: decision_scope,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - {
+          name: decision_type,
+          type: enum,
+          required: true,
+          values: [architecture, engineering, process, commercial, policy, risk],
+        }
+      - { name: context, type: string, required: true, min_length: 1 }
+      - { name: question, type: string, required: true, min_length: 1 }
+      - name: options
+        type: array<object>
+        required: true
+        min_items: 1
+        item_fields:
+          - { name: option_id, type: string, required: true, pattern: '^[A-Z0-9][A-Z0-9_-]{0,31}$' }
+          - { name: title, type: string, required: true }
+          - { name: description, type: string, required: true }
+          - { name: advantages, type: array<string>, default: [] }
+          - { name: disadvantages, type: array<string>, default: [] }
+      - { name: decision, type: string }
+      - { name: rationale, type: string }
+      - { name: consequences, type: array<string>, default: [] }
+      - {
+          name: proposer,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - {
+          name: decision_authority,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - {
+          name: originating_work_execution,
+          type: uuid,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - { name: accepted_at, type: timestamp }
+      - {
+          name: supersedes,
+          type: uuid,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+
+  - id: change_record
+    title: Change Record
+    authority_domain: configuration
+    enterprise_namespace: CHG
+    first_class: true
+    state_machine: change_record
+    states:
+      [proposed, impact_assessment, approved, implementing, verified, effective, closed, rejected]
+    fields:
+      - {
+          name: affected_nodes,
+          type: array<uuid>,
+          required: true,
+          item_pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+          unique: true,
+        }
+      - {
+          name: rationale_decision,
+          type: uuid,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - { name: change_summary, type: string, required: true, min_length: 1 }
+      - {
+          name: impact_domains,
+          type: array<enum>,
+          required: true,
+          values:
+            [
+              requirements,
+              risk,
+              hardware,
+              software,
+              interface,
+              verification,
+              manufacturing,
+              supplier,
+              labeling,
+              regulatory,
+              training,
+              service,
+              inventory,
+              cybersecurity,
+              finance,
+            ],
+          unique: true,
+        }
+      - { name: implementation_plan, type: string }
+      - {
+          name: verification_refs,
+          type: array<uuid>,
+          item_pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+          unique: true,
+        }
+      - { name: effectivity, type: string }
+      - {
+          name: change_authority,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+
+  - id: deliverable
+    title: Deliverable
+    authority_domain: project
+    enterprise_namespace: null
+    first_class: true
+    state_machine: null
+    states: [planned, submitted, accepted, rejected, waived, superseded]
+    fields:
+      - {
+          name: work_package,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - {
+          name: work_order,
+          type: uuid,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - { name: description, type: string, required: true, min_length: 1 }
+      - { name: acceptance_criteria, type: array<string>, required: true, default: [] }
+      - { name: due_date, type: date }
+      - {
+          name: artifact_refs,
+          type: array<uuid>,
+          item_pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+          unique: true,
+        }
+
+  - id: artifact
+    title: Artifact
+    authority_domain: artifact
+    enterprise_namespace: null
+    first_class: true
+    state_machine: null
+    states: [draft, review, released, obsolete, retired]
+    fields:
+      - {
+          name: artifact_kind,
+          type: enum,
+          required: true,
+          values:
+            [
+              document,
+              cad,
+              drawing,
+              bom,
+              source_code,
+              binary,
+              dataset,
+              model,
+              test_evidence,
+              message_snapshot,
+              invoice_evidence,
+              payment_evidence,
+              other,
+            ],
+        }
+      - { name: uri, type: uri, required: true }
+      - { name: sha256, type: string, required: true, pattern: '^[0-9a-f]{64}$' }
+      - { name: media_type, type: string, required: true }
+      - { name: size_bytes, type: integer, minimum: 0 }
+      - { name: revision, type: string }
+      - { name: version, type: string }
+      - { name: source_commit, type: string }
+      - {
+          name: generated_by,
+          type: uuid,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+
+  - id: acceptance_record
+    title: Acceptance Record
+    authority_domain: commercial
+    enterprise_namespace: RCD
+    first_class: true
+    state_machine: null
+    states: [draft, issued, superseded]
+    fields:
+      - {
+          name: work_order,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - {
+          name: work_execution,
+          type: uuid,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - {
+          name: deliverables,
+          type: array<uuid>,
+          required: true,
+          item_pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+          unique: true,
+        }
+      - {
+          name: result,
+          type: enum,
+          required: true,
+          values: [accepted, partially_accepted, rejected, conditional],
+        }
+      - name: criteria_results
+        type: array<object>
+        required: true
+        item_fields:
+          - { name: criterion, type: string, required: true }
+          - {
+              name: result,
+              type: enum,
+              required: true,
+              values: [pass, fail, waived, not_applicable],
+            }
+          - {
+              name: evidence,
+              type: array<uuid>,
+              item_pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+              unique: true,
+            }
+          - { name: note, type: string }
+      - { name: accepted_amount, type: Money }
+      - {
+          name: reviewer,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - { name: issued_at, type: timestamp, required: true }
+      - { name: deficiencies, type: array<string>, default: [] }
+
+  - id: invoice
+    title: Invoice
+    authority_domain: finance
+    enterprise_namespace: RCD
+    first_class: true
+    state_machine: invoice
+    states: [draft, submitted, approved, disputed, partially_paid, paid, void]
+    fields:
+      - {
+          name: supplier,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - { name: invoice_number, type: string, required: true, min_length: 1 }
+      - { name: issue_date, type: date, required: true }
+      - { name: due_date, type: date }
+      - { name: currency, type: string, required: true, pattern: '^[A-Z]{3}$' }
+      - name: line_items
+        type: array<object>
+        required: true
+        min_items: 1
+        item_fields:
+          - { name: line_id, type: string, required: true }
+          - { name: description, type: string, required: true }
+          - {
+              name: work_order,
+              type: uuid,
+              required: true,
+              pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+            }
+          - {
+              name: acceptance_record,
+              type: uuid,
+              pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+            }
+          - {
+              name: amount,
+              type: string,
+              required: true,
+              pattern: '^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$',
+            }
+      - { name: total, type: Money, required: true }
+      - { name: external_authority, type: string }
+
+  - id: payment
+    title: Payment
+    authority_domain: finance
+    enterprise_namespace: RCD
+    first_class: true
+    state_machine: payment
+    states: [planned, authorized, initiated, settled, reconciled, reversed, failed]
+    fields:
+      - {
+          name: payee,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - { name: payment_date, type: date, required: true }
+      - { name: amount, type: Money, required: true }
+      - {
+          name: payment_method,
+          type: enum,
+          required: true,
+          values: [ach, wire, card, platform, check, cash, payroll, other],
+        }
+      - { name: external_transaction_id, type: string }
+      - name: allocations
+        type: array<object>
+        required: true
+        min_items: 1
+        item_fields:
+          - {
+              name: allocation_kind,
+              type: enum,
+              required: true,
+              values: [invoice_settlement, advance, refund, reversal, fee],
+            }
+          - {
+              name: invoice,
+              type: uuid,
+              pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+            }
+          - {
+              name: work_order,
+              type: uuid,
+              required: true,
+              pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+            }
+          - { name: amount, type: Money, required: true }
+          - {
+              name: original_payment,
+              type: uuid,
+              pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+            }
+      - { name: fee_amount, type: Money }
+      - { name: exchange_rate, type: string, pattern: '^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$' }
+      - {
+          name: settlement_evidence,
+          type: array<uuid>,
+          item_pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+          unique: true,
+        }
+
+  - id: requirement
+    title: Requirement
+    authority_domain: qms
+    enterprise_namespace: REQ
+    first_class: true
+    state_machine: null
+    states: [draft, approved, implemented, verified, retired]
+    fields:
+      - { name: statement, type: string, required: true, min_length: 1 }
+      - {
+          name: requirement_kind,
+          type: enum,
+          required: true,
+          values: [stakeholder, system, subsystem, software, process, regulatory],
+        }
+      - { name: verification_method, type: string }
+
+  - id: risk
+    title: Risk
+    authority_domain: qms
+    enterprise_namespace: RSK
+    first_class: true
+    state_machine: null
+    states: [identified, analyzed, controlled, accepted, closed]
+    fields:
+      - {
+          name: risk_kind,
+          type: enum,
+          required: true,
+          values: [hazard, project, technical, supplier, cybersecurity, business],
+        }
+      - { name: description, type: string, required: true, min_length: 1 }
+      - { name: severity, type: string }
+      - { name: probability, type: string }
+      - {
+          name: controls,
+          type: array<uuid>,
+          item_pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+          unique: true,
+        }
+
+  - id: test
+    title: Test
+    authority_domain: qms
+    enterprise_namespace: TST
+    first_class: true
+    state_machine: null
+    states: [draft, approved, executed, passed, failed, retired]
+    fields:
+      - { name: test_kind, type: enum, required: true, values: [method, case, protocol, execution] }
+      - { name: objective, type: string, required: true, min_length: 1 }
+      - {
+          name: procedure_artifact,
+          type: uuid,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - {
+          name: result_artifact,
+          type: uuid,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+
+  - id: release
+    title: Release
+    authority_domain: configuration
+    enterprise_namespace: RLS
+    first_class: true
+    state_machine: null
+    states: [draft, approved, effective, withdrawn]
+    fields:
+      - {
+          name: release_kind,
+          type: enum,
+          required: true,
+          values: [product, document, software, manufacturing, schema],
+        }
+      - {
+          name: contained_nodes,
+          type: array<uuid>,
+          required: true,
+          item_pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+          unique: true,
+        }
+      - { name: released_at, type: timestamp }
+
+  - id: baseline
+    title: Baseline
+    authority_domain: configuration
+    enterprise_namespace: BSL
+    first_class: true
+    state_machine: null
+    states: [draft, approved, superseded, retired]
+    fields:
+      - {
+          name: baseline_kind,
+          type: enum,
+          required: true,
+          values: [functional, allocated, product, project, manufacturing, verification],
+        }
+      - {
+          name: contained_nodes,
+          type: array<uuid>,
+          required: true,
+          item_pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+          unique: true,
+        }
+      - { name: approved_at, type: timestamp }

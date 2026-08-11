@@ -1,0 +1,57 @@
+# Machine-enforceable invariants.
+#
+# Spec §27.1: a rule that affects field validity, lifecycle, permission, calculation,
+# graph relation or release acceptance is NONCONFORMING unless it is represented in the
+# machine package. `implementation` names where each one is enforced, and the
+# consistency checker fails when a rule claims an implementation that does not exist.
+
+rules:
+  - id: KF-GRAPH-001
+    severity: error
+    description: Every edge source and target resolves to a node in the same graph view or a declared federated resource.
+    implementation: [validator]
+
+  - id: KF-WORK-001
+    severity: error
+    description: A work_execution references exactly one work_order.
+    implementation: [database_constraint, validator]
+
+  - id: KF-WORK-002
+    severity: error
+    description: A work_order references exactly one project and one engagement.
+    implementation: [database_constraint, validator]
+
+  - id: KF-DEC-001
+    severity: error
+    description: Accepted or rejected decision records are immutable; supersession creates a new decision record.
+    implementation: [action_precondition, validator]
+
+  - id: KF-CHG-001
+    severity: error
+    description: 'A change record implements, but never substitutes for, the decision rationale that authorized it.'
+    implementation: [action_precondition, validator]
+
+  - id: KF-FIN-001
+    severity: error
+    description: Accepted value must not exceed authorized work-order ceiling without an approved amendment.
+    implementation: [database_constraint, action_precondition, validator]
+
+  - id: KF-FIN-002
+    severity: error
+    description: Invoice line value must not exceed accepted value available for the referenced work order.
+    implementation: [database_constraint, action_precondition, validator]
+
+  - id: KF-FIN-003
+    severity: error
+    description: Payment allocations must sum to no more than the payment amount and must not exceed invoice balances.
+    implementation: [database_constraint, action_precondition, validator]
+
+  - id: KF-PROJ-001
+    severity: error
+    description: 'Project progress is computed from accepted or waived work packages, not spending or activity count.'
+    implementation: [validator]
+
+  - id: KF-PROJ-002
+    severity: error
+    description: Administrative project closure requires technical disposition plus closure of open work orders and financial obligations.
+    implementation: [action_precondition, validator]

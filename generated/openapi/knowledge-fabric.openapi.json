@@ -1,0 +1,6002 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "OpenHuman Knowledge Fabric API",
+    "version": "1.0.0-draft.1",
+    "description": "Generated from ontology source digest d1511f4416e03cb06dde92ceeade82bc060aed793cd9fbc674ced30f332e83ad."
+  },
+  "paths": {
+    "/objects/organization/{id}": {
+      "get": {
+        "summary": "Read a Organization",
+        "operationId": "get_organization",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/person/{id}": {
+      "get": {
+        "summary": "Read a Person",
+        "operationId": "get_person",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/role_assignment/{id}": {
+      "get": {
+        "summary": "Read a Role Assignment",
+        "operationId": "get_role_assignment",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Role Assignment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleAssignmentNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/engagement/{id}": {
+      "get": {
+        "summary": "Read a Engagement",
+        "operationId": "get_engagement",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Engagement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngagementNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/product_system/{id}": {
+      "get": {
+        "summary": "Read a Product or System",
+        "operationId": "get_product_system",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product or System",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductSystemNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/initiative_project/{id}": {
+      "get": {
+        "summary": "Read a Initiative or Project",
+        "operationId": "get_initiative_project",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Initiative or Project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InitiativeProjectNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/work_package/{id}": {
+      "get": {
+        "summary": "Read a Work Package",
+        "operationId": "get_work_package",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Work Package",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkPackageNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/work_order/{id}": {
+      "get": {
+        "summary": "Read a Work Order",
+        "operationId": "get_work_order",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Work Order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkOrderNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/work_execution/{id}": {
+      "get": {
+        "summary": "Read a Work Execution Record",
+        "operationId": "get_work_execution",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Work Execution Record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkExecutionNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/decision_record/{id}": {
+      "get": {
+        "summary": "Read a Decision Record",
+        "operationId": "get_decision_record",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Decision Record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionRecordNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/change_record/{id}": {
+      "get": {
+        "summary": "Read a Change Record",
+        "operationId": "get_change_record",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Change Record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeRecordNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/deliverable/{id}": {
+      "get": {
+        "summary": "Read a Deliverable",
+        "operationId": "get_deliverable",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deliverable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliverableNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/artifact/{id}": {
+      "get": {
+        "summary": "Read a Artifact",
+        "operationId": "get_artifact",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Artifact",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/acceptance_record/{id}": {
+      "get": {
+        "summary": "Read a Acceptance Record",
+        "operationId": "get_acceptance_record",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Acceptance Record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptanceRecordNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/invoice/{id}": {
+      "get": {
+        "summary": "Read a Invoice",
+        "operationId": "get_invoice",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invoice",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/payment/{id}": {
+      "get": {
+        "summary": "Read a Payment",
+        "operationId": "get_payment",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Payment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/requirement/{id}": {
+      "get": {
+        "summary": "Read a Requirement",
+        "operationId": "get_requirement",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Requirement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequirementNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/risk/{id}": {
+      "get": {
+        "summary": "Read a Risk",
+        "operationId": "get_risk",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Risk",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiskNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/test/{id}": {
+      "get": {
+        "summary": "Read a Test",
+        "operationId": "get_test",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Test",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/release/{id}": {
+      "get": {
+        "summary": "Read a Release",
+        "operationId": "get_release",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Release",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/baseline/{id}": {
+      "get": {
+        "summary": "Read a Baseline",
+        "operationId": "get_baseline",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Baseline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaselineNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/actions/create_initiative": {
+      "post": {
+        "summary": "Execute create_initiative",
+        "operationId": "create_initiative",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/triage_initiative": {
+      "post": {
+        "summary": "Execute triage_initiative",
+        "operationId": "triage_initiative",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/authorize_project": {
+      "post": {
+        "summary": "Execute authorize_project",
+        "operationId": "authorize_project",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/activate_project": {
+      "post": {
+        "summary": "Execute activate_project",
+        "operationId": "activate_project",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/create_work_package": {
+      "post": {
+        "summary": "Execute create_work_package",
+        "operationId": "create_work_package",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/start_work_package": {
+      "post": {
+        "summary": "Execute start_work_package",
+        "operationId": "start_work_package",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/accept_work_package": {
+      "post": {
+        "summary": "Execute accept_work_package",
+        "operationId": "accept_work_package",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/issue_work_order": {
+      "post": {
+        "summary": "Execute issue_work_order",
+        "operationId": "issue_work_order",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/accept_work_order": {
+      "post": {
+        "summary": "Execute accept_work_order",
+        "operationId": "accept_work_order",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/amend_work_order": {
+      "post": {
+        "summary": "Execute amend_work_order",
+        "operationId": "amend_work_order",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/submit_work_execution": {
+      "post": {
+        "summary": "Execute submit_work_execution",
+        "operationId": "submit_work_execution",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/review_work_execution": {
+      "post": {
+        "summary": "Execute review_work_execution",
+        "operationId": "review_work_execution",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/issue_acceptance": {
+      "post": {
+        "summary": "Execute issue_acceptance",
+        "operationId": "issue_acceptance",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/propose_decision": {
+      "post": {
+        "summary": "Execute propose_decision",
+        "operationId": "propose_decision",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/accept_decision": {
+      "post": {
+        "summary": "Execute accept_decision",
+        "operationId": "accept_decision",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/reject_decision": {
+      "post": {
+        "summary": "Execute reject_decision",
+        "operationId": "reject_decision",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/supersede_decision": {
+      "post": {
+        "summary": "Execute supersede_decision",
+        "operationId": "supersede_decision",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/open_change": {
+      "post": {
+        "summary": "Execute open_change",
+        "operationId": "open_change",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/approve_change": {
+      "post": {
+        "summary": "Execute approve_change",
+        "operationId": "approve_change",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/verify_change": {
+      "post": {
+        "summary": "Execute verify_change",
+        "operationId": "verify_change",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/make_change_effective": {
+      "post": {
+        "summary": "Execute make_change_effective",
+        "operationId": "make_change_effective",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/submit_invoice": {
+      "post": {
+        "summary": "Execute submit_invoice",
+        "operationId": "submit_invoice",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/approve_invoice": {
+      "post": {
+        "summary": "Execute approve_invoice",
+        "operationId": "approve_invoice",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/authorize_payment": {
+      "post": {
+        "summary": "Execute authorize_payment",
+        "operationId": "authorize_payment",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/record_payment_settlement": {
+      "post": {
+        "summary": "Execute record_payment_settlement",
+        "operationId": "record_payment_settlement",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/reconcile_payment": {
+      "post": {
+        "summary": "Execute reconcile_payment",
+        "operationId": "reconcile_payment",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/complete_project_technical": {
+      "post": {
+        "summary": "Execute complete_project_technical",
+        "operationId": "complete_project_technical",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/close_project_administrative": {
+      "post": {
+        "summary": "Execute close_project_administrative",
+        "operationId": "close_project_administrative",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/attach_evidence": {
+      "post": {
+        "summary": "Execute attach_evidence",
+        "operationId": "attach_evidence",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/correct_record": {
+      "post": {
+        "summary": "Execute correct_record",
+        "operationId": "correct_record",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Money": {
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"
+          }
+        },
+        "required": [
+          "currency",
+          "amount"
+        ],
+        "additionalProperties": false
+      },
+      "ExternalReference": {
+        "type": "object",
+        "properties": {
+          "system": {
+            "type": "string",
+            "minLength": 1
+          },
+          "external_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uri": {
+            "type": "string",
+            "format": "uri"
+          },
+          "authority": {
+            "type": "string",
+            "enum": [
+              "authoritative",
+              "evidence",
+              "mirror",
+              "lookup"
+            ]
+          },
+          "synced_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "system",
+          "external_id",
+          "authority"
+        ],
+        "additionalProperties": false
+      },
+      "EvidenceReference": {
+        "type": "object",
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "uri": {
+            "type": "string",
+            "format": "uri"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "media_type": {
+            "type": "string"
+          }
+        },
+        "minProperties": 1,
+        "additionalProperties": false
+      },
+      "Edge": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0-draft.1"
+          },
+          "edge_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "edge_type": {
+            "type": "string",
+            "enum": [
+              "contains",
+              "decomposes_into",
+              "affects",
+              "authorizes",
+              "executes",
+              "produces",
+              "consumes",
+              "proposes",
+              "governs",
+              "implements",
+              "satisfies",
+              "verifies",
+              "mitigates",
+              "accepts",
+              "bills",
+              "settles",
+              "allocates_to",
+              "originated_from",
+              "supersedes",
+              "derived_from",
+              "evidences",
+              "assigned_to",
+              "scoped_to",
+              "depends_on",
+              "blocks",
+              "released_by",
+              "baseline_contains",
+              "performed_by",
+              "owned_by",
+              "linked_to",
+              "amends",
+              "generated_by",
+              "used",
+              "was_associated_with"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "target": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive",
+              "superseded"
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "authorizing_action": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "qualifiers": {
+            "type": "object",
+            "properties": {
+              "quantity": {
+                "type": "string",
+                "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"
+              },
+              "unit": {
+                "type": "string"
+              },
+              "sequence": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "effective_from": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "effective_to": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "amount": {
+                "$ref": "#/components/schemas/Money"
+              },
+              "percent": {
+                "type": "string",
+                "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceReference"
+            }
+          }
+        },
+        "required": [
+          "schema_version",
+          "edge_id",
+          "edge_type",
+          "source",
+          "target",
+          "state",
+          "created_at",
+          "created_by"
+        ],
+        "additionalProperties": false
+      },
+      "Action": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0-draft.1"
+          },
+          "action_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "action_type": {
+            "type": "string",
+            "enum": [
+              "create_initiative",
+              "triage_initiative",
+              "authorize_project",
+              "activate_project",
+              "create_work_package",
+              "start_work_package",
+              "accept_work_package",
+              "issue_work_order",
+              "accept_work_order",
+              "amend_work_order",
+              "submit_work_execution",
+              "review_work_execution",
+              "issue_acceptance",
+              "propose_decision",
+              "accept_decision",
+              "reject_decision",
+              "supersede_decision",
+              "open_change",
+              "approve_change",
+              "verify_change",
+              "make_change_effective",
+              "submit_invoice",
+              "approve_invoice",
+              "authorize_payment",
+              "record_payment_settlement",
+              "reconcile_payment",
+              "complete_project_technical",
+              "close_project_administrative",
+              "attach_evidence",
+              "correct_record"
+            ]
+          },
+          "actor": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "acting_roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "transaction_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "idempotency_key": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128
+          },
+          "targets": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "input": {
+            "type": "object"
+          },
+          "preconditions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "applied",
+                  "rejected",
+                  "failed"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "created_nodes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                }
+              },
+              "created_edges": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                }
+              },
+              "before_digest": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "after_digest": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "required": [
+              "status"
+            ],
+            "additionalProperties": false
+          },
+          "reason": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceReference"
+            }
+          }
+        },
+        "required": [
+          "schema_version",
+          "action_id",
+          "action_type",
+          "actor",
+          "acting_roles",
+          "occurred_at",
+          "transaction_id",
+          "idempotency_key",
+          "targets",
+          "input",
+          "result"
+        ],
+        "additionalProperties": false
+      },
+      "OrganizationNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "organization"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive",
+              "retired"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "legal_name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "organization_kind": {
+                "type": "string",
+                "enum": [
+                  "company",
+                  "supplier",
+                  "laboratory",
+                  "university",
+                  "regulator",
+                  "other"
+                ]
+              },
+              "jurisdiction": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "legal_name",
+              "organization_kind"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "PersonNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "person"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "display_name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "organization": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "email": {
+                "type": "string",
+                "format": "email"
+              }
+            },
+            "required": [
+              "display_name"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "RoleAssignmentNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "role_assignment"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive",
+              "expired"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "subject": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "project_owner",
+                  "technical_authority",
+                  "design_authority",
+                  "work_order_manager",
+                  "performer",
+                  "reviewer",
+                  "finance_approver",
+                  "quality_authority",
+                  "configuration_authority",
+                  "system_administrator"
+                ]
+              },
+              "scope": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "valid_from": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "valid_to": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "delegated_by": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              }
+            },
+            "required": [
+              "subject",
+              "role",
+              "scope",
+              "valid_from"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "EngagementNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "engagement"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "active",
+              "suspended",
+              "closed",
+              "terminated"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "principal_organization": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "counterparty": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "engagement_kind": {
+                "type": "string",
+                "enum": [
+                  "contractor",
+                  "supplier",
+                  "employee",
+                  "research_collaboration",
+                  "laboratory_service"
+                ]
+              },
+              "starts_on": {
+                "type": "string",
+                "format": "date"
+              },
+              "ends_on": {
+                "type": "string",
+                "format": "date"
+              },
+              "agreement_artifact": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "commercial_terms_ref": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              }
+            },
+            "required": [
+              "principal_organization",
+              "counterparty",
+              "engagement_kind",
+              "starts_on"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "ProductSystemNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "product_system"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "concept",
+              "development",
+              "active",
+              "sustaining",
+              "retired"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "product_kind": {
+                "type": "string",
+                "enum": [
+                  "product",
+                  "platform",
+                  "subsystem",
+                  "service",
+                  "infrastructure"
+                ]
+              },
+              "responsible_owner": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "configuration_authority": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              }
+            },
+            "required": [
+              "product_kind",
+              "responsible_owner"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "InitiativeProjectNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "initiative_project"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "captured",
+              "triage",
+              "evaluating",
+              "authorized",
+              "active",
+              "technically_complete",
+              "administratively_closed",
+              "parked",
+              "rejected",
+              "cancelled"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "idea_statement": {
+                "type": "string",
+                "minLength": 1
+              },
+              "objective": {
+                "type": "string"
+              },
+              "project_owner": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "affected_products": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "uniqueItems": true
+              },
+              "scope_in": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "scope_out": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "success_criteria": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "closure_criteria": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "authorized_budget": {
+                "$ref": "#/components/schemas/Money"
+              },
+              "target_date": {
+                "type": "string",
+                "format": "date"
+              },
+              "technical_status": {
+                "type": "string",
+                "enum": [
+                  "not_started",
+                  "active",
+                  "complete",
+                  "terminated"
+                ]
+              },
+              "administrative_status": {
+                "type": "string",
+                "enum": [
+                  "not_open",
+                  "open",
+                  "closing",
+                  "closed"
+                ]
+              }
+            },
+            "required": [
+              "idea_statement",
+              "project_owner",
+              "affected_products",
+              "success_criteria",
+              "closure_criteria"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "WorkPackageNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "work_package"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "ready",
+              "active",
+              "blocked",
+              "submitted",
+              "accepted",
+              "waived",
+              "cancelled"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "project": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "wbs_code": {
+                "type": "string",
+                "pattern": "^[0-9]+(?:\\.[0-9]+)*$"
+              },
+              "parent_work_package": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "outcome": {
+                "type": "string",
+                "minLength": 1
+              },
+              "acceptance_criteria": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "accountable_owner": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "planned_start": {
+                "type": "string",
+                "format": "date"
+              },
+              "planned_end": {
+                "type": "string",
+                "format": "date"
+              },
+              "progress_basis": {
+                "type": "string",
+                "const": "accepted_outcomes"
+              },
+              "weight": {
+                "type": "string",
+                "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"
+              }
+            },
+            "required": [
+              "project",
+              "wbs_code",
+              "outcome",
+              "acceptance_criteria",
+              "accountable_owner",
+              "progress_basis"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "WorkOrderNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "work_order"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "offered",
+              "accepted",
+              "active",
+              "suspended",
+              "completed",
+              "closed",
+              "cancelled",
+              "terminated"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "project": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "engagement": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "authorized_work_packages": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "uniqueItems": true
+              },
+              "scope": {
+                "type": "string",
+                "minLength": 1
+              },
+              "exclusions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "deliverables": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "uniqueItems": true
+              },
+              "commercial_model": {
+                "type": "string",
+                "enum": [
+                  "fixed_price",
+                  "milestone",
+                  "hourly",
+                  "time_and_materials",
+                  "not_to_exceed",
+                  "internal"
+                ]
+              },
+              "authorized_ceiling": {
+                "$ref": "#/components/schemas/Money"
+              },
+              "starts_on": {
+                "type": "string",
+                "format": "date"
+              },
+              "ends_on": {
+                "type": "string",
+                "format": "date"
+              },
+              "work_order_manager": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "acceptance_authority": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "agreement_ref": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "amends_work_order": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              }
+            },
+            "required": [
+              "project",
+              "engagement",
+              "authorized_work_packages",
+              "scope",
+              "commercial_model",
+              "authorized_ceiling",
+              "work_order_manager",
+              "acceptance_authority"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "WorkExecutionNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "work_execution"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "submitted",
+              "under_review",
+              "accepted",
+              "partially_accepted",
+              "rejected",
+              "superseded"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "work_order": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "work_packages": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "uniqueItems": true
+              },
+              "performed_by": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "uniqueItems": true
+              },
+              "period_start": {
+                "type": "string",
+                "format": "date"
+              },
+              "period_end": {
+                "type": "string",
+                "format": "date"
+              },
+              "summary": {
+                "type": "string",
+                "minLength": 1
+              },
+              "changes_made": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "artifact_refs": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "uniqueItems": true
+              },
+              "test_refs": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "uniqueItems": true
+              },
+              "deviations": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "decision_requests": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "uniqueItems": true
+              },
+              "out_of_scope_findings": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "submitted_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "work_order",
+              "work_packages",
+              "performed_by",
+              "summary",
+              "artifact_refs"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "DecisionRecordNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "decision_record"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "proposed",
+              "accepted",
+              "rejected",
+              "superseded",
+              "withdrawn"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "decision_scope": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "decision_type": {
+                "type": "string",
+                "enum": [
+                  "architecture",
+                  "engineering",
+                  "process",
+                  "commercial",
+                  "policy",
+                  "risk"
+                ]
+              },
+              "context": {
+                "type": "string",
+                "minLength": 1
+              },
+              "question": {
+                "type": "string",
+                "minLength": 1
+              },
+              "options": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "option_id": {
+                      "type": "string",
+                      "pattern": "^[A-Z0-9][A-Z0-9_-]{0,31}$"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "advantages": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "default": []
+                    },
+                    "disadvantages": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "default": []
+                    }
+                  },
+                  "required": [
+                    "option_id",
+                    "title",
+                    "description"
+                  ],
+                  "additionalProperties": false
+                },
+                "minItems": 1
+              },
+              "decision": {
+                "type": "string"
+              },
+              "rationale": {
+                "type": "string"
+              },
+              "consequences": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "proposer": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "decision_authority": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "originating_work_execution": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "accepted_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "supersedes": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              }
+            },
+            "required": [
+              "decision_scope",
+              "decision_type",
+              "context",
+              "question",
+              "options",
+              "proposer",
+              "decision_authority"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "ChangeRecordNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "change_record"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "proposed",
+              "impact_assessment",
+              "approved",
+              "implementing",
+              "verified",
+              "effective",
+              "closed",
+              "rejected"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "affected_nodes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "uniqueItems": true
+              },
+              "rationale_decision": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "change_summary": {
+                "type": "string",
+                "minLength": 1
+              },
+              "impact_domains": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "requirements",
+                    "risk",
+                    "hardware",
+                    "software",
+                    "interface",
+                    "verification",
+                    "manufacturing",
+                    "supplier",
+                    "labeling",
+                    "regulatory",
+                    "training",
+                    "service",
+                    "inventory",
+                    "cybersecurity",
+                    "finance"
+                  ]
+                },
+                "uniqueItems": true
+              },
+              "implementation_plan": {
+                "type": "string"
+              },
+              "verification_refs": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "uniqueItems": true
+              },
+              "effectivity": {
+                "type": "string"
+              },
+              "change_authority": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              }
+            },
+            "required": [
+              "affected_nodes",
+              "change_summary",
+              "impact_domains",
+              "change_authority"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "DeliverableNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "deliverable"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "submitted",
+              "accepted",
+              "rejected",
+              "waived",
+              "superseded"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "work_package": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "work_order": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1
+              },
+              "acceptance_criteria": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "due_date": {
+                "type": "string",
+                "format": "date"
+              },
+              "artifact_refs": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "work_package",
+              "description",
+              "acceptance_criteria"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "ArtifactNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "artifact"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "review",
+              "released",
+              "obsolete",
+              "retired"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "artifact_kind": {
+                "type": "string",
+                "enum": [
+                  "document",
+                  "cad",
+                  "drawing",
+                  "bom",
+                  "source_code",
+                  "binary",
+                  "dataset",
+                  "model",
+                  "test_evidence",
+                  "message_snapshot",
+                  "invoice_evidence",
+                  "payment_evidence",
+                  "other"
+                ]
+              },
+              "uri": {
+                "type": "string",
+                "format": "uri"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "media_type": {
+                "type": "string"
+              },
+              "size_bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "revision": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "source_commit": {
+                "type": "string"
+              },
+              "generated_by": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              }
+            },
+            "required": [
+              "artifact_kind",
+              "uri",
+              "sha256",
+              "media_type"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "AcceptanceRecordNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "acceptance_record"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "issued",
+              "superseded"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "work_order": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "work_execution": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "deliverables": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "uniqueItems": true
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "accepted",
+                  "partially_accepted",
+                  "rejected",
+                  "conditional"
+                ]
+              },
+              "criteria_results": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "criterion": {
+                      "type": "string"
+                    },
+                    "result": {
+                      "type": "string",
+                      "enum": [
+                        "pass",
+                        "fail",
+                        "waived",
+                        "not_applicable"
+                      ]
+                    },
+                    "evidence": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                      },
+                      "uniqueItems": true
+                    },
+                    "note": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "criterion",
+                    "result"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "accepted_amount": {
+                "$ref": "#/components/schemas/Money"
+              },
+              "reviewer": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "issued_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "deficiencies": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              }
+            },
+            "required": [
+              "work_order",
+              "deliverables",
+              "result",
+              "criteria_results",
+              "reviewer",
+              "issued_at"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "InvoiceNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "invoice"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "submitted",
+              "approved",
+              "disputed",
+              "partially_paid",
+              "paid",
+              "void"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "supplier": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "invoice_number": {
+                "type": "string",
+                "minLength": 1
+              },
+              "issue_date": {
+                "type": "string",
+                "format": "date"
+              },
+              "due_date": {
+                "type": "string",
+                "format": "date"
+              },
+              "currency": {
+                "type": "string",
+                "pattern": "^[A-Z]{3}$"
+              },
+              "line_items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "line_id": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "work_order": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                    },
+                    "acceptance_record": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                    },
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"
+                    }
+                  },
+                  "required": [
+                    "line_id",
+                    "description",
+                    "work_order",
+                    "amount"
+                  ],
+                  "additionalProperties": false
+                },
+                "minItems": 1
+              },
+              "total": {
+                "$ref": "#/components/schemas/Money"
+              },
+              "external_authority": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "supplier",
+              "invoice_number",
+              "issue_date",
+              "currency",
+              "line_items",
+              "total"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "PaymentNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "payment"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "authorized",
+              "initiated",
+              "settled",
+              "reconciled",
+              "reversed",
+              "failed"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "payee": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "payment_date": {
+                "type": "string",
+                "format": "date"
+              },
+              "amount": {
+                "$ref": "#/components/schemas/Money"
+              },
+              "payment_method": {
+                "type": "string",
+                "enum": [
+                  "ach",
+                  "wire",
+                  "card",
+                  "platform",
+                  "check",
+                  "cash",
+                  "payroll",
+                  "other"
+                ]
+              },
+              "external_transaction_id": {
+                "type": "string"
+              },
+              "allocations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "allocation_kind": {
+                      "type": "string",
+                      "enum": [
+                        "invoice_settlement",
+                        "advance",
+                        "refund",
+                        "reversal",
+                        "fee"
+                      ]
+                    },
+                    "invoice": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                    },
+                    "work_order": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                    },
+                    "amount": {
+                      "$ref": "#/components/schemas/Money"
+                    },
+                    "original_payment": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                    }
+                  },
+                  "required": [
+                    "allocation_kind",
+                    "work_order",
+                    "amount"
+                  ],
+                  "additionalProperties": false
+                },
+                "minItems": 1
+              },
+              "fee_amount": {
+                "$ref": "#/components/schemas/Money"
+              },
+              "exchange_rate": {
+                "type": "string",
+                "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"
+              },
+              "settlement_evidence": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "payee",
+              "payment_date",
+              "amount",
+              "payment_method",
+              "allocations"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "RequirementNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "requirement"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "approved",
+              "implemented",
+              "verified",
+              "retired"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "statement": {
+                "type": "string",
+                "minLength": 1
+              },
+              "requirement_kind": {
+                "type": "string",
+                "enum": [
+                  "stakeholder",
+                  "system",
+                  "subsystem",
+                  "software",
+                  "process",
+                  "regulatory"
+                ]
+              },
+              "verification_method": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "statement",
+              "requirement_kind"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "RiskNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "risk"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "identified",
+              "analyzed",
+              "controlled",
+              "accepted",
+              "closed"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "risk_kind": {
+                "type": "string",
+                "enum": [
+                  "hazard",
+                  "project",
+                  "technical",
+                  "supplier",
+                  "cybersecurity",
+                  "business"
+                ]
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1
+              },
+              "severity": {
+                "type": "string"
+              },
+              "probability": {
+                "type": "string"
+              },
+              "controls": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "risk_kind",
+              "description"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "TestNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "test"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "approved",
+              "executed",
+              "passed",
+              "failed",
+              "retired"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "test_kind": {
+                "type": "string",
+                "enum": [
+                  "method",
+                  "case",
+                  "protocol",
+                  "execution"
+                ]
+              },
+              "objective": {
+                "type": "string",
+                "minLength": 1
+              },
+              "procedure_artifact": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "result_artifact": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              }
+            },
+            "required": [
+              "test_kind",
+              "objective"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "ReleaseNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "release"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "approved",
+              "effective",
+              "withdrawn"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "release_kind": {
+                "type": "string",
+                "enum": [
+                  "product",
+                  "document",
+                  "software",
+                  "manufacturing",
+                  "schema"
+                ]
+              },
+              "contained_nodes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "uniqueItems": true
+              },
+              "released_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "release_kind",
+              "contained_nodes"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "BaselineNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "baseline"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "approved",
+              "superseded",
+              "retired"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "baseline_kind": {
+                "type": "string",
+                "enum": [
+                  "functional",
+                  "allocated",
+                  "product",
+                  "project",
+                  "manufacturing",
+                  "verification"
+                ]
+              },
+              "contained_nodes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "uniqueItems": true
+              },
+              "approved_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "baseline_kind",
+              "contained_nodes"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

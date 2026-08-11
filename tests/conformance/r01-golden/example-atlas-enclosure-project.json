@@ -1,0 +1,967 @@
+{
+  "schema_version": "1.0.0-draft.1",
+  "export_id": "019fe041-615e-7c24-a6bb-cabbd9afa953",
+  "generated_at": "2026-08-08T07:23:28.989895Z",
+  "generated_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+  "nodes": [
+    {
+      "schema_version": "1.0.0-draft.1",
+      "node_id": "019fe041-615d-745e-8674-590fca4e3afd",
+      "node_type": "organization",
+      "title": "OpenHuman Technologies LLC",
+      "state": "active",
+      "classification": "confidential",
+      "owner": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "updated_at": "2026-08-08T07:23:28.989895Z",
+      "updated_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "source_authority": "knowledge_fabric",
+      "aliases": [],
+      "tags": [
+        "example",
+        "atlas-enclosure"
+      ],
+      "external_refs": [],
+      "extensions": {},
+      "attributes": {
+        "legal_name": "OpenHuman Technologies LLC",
+        "organization_kind": "company",
+        "jurisdiction": "Florida, United States"
+      }
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "node_id": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "node_type": "person",
+      "title": "Brian Khang Lam",
+      "state": "active",
+      "classification": "confidential",
+      "owner": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "updated_at": "2026-08-08T07:23:28.989895Z",
+      "updated_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "source_authority": "knowledge_fabric",
+      "aliases": [],
+      "tags": [
+        "example",
+        "atlas-enclosure"
+      ],
+      "external_refs": [],
+      "extensions": {},
+      "attributes": {
+        "display_name": "Brian Khang Lam",
+        "organization": "019fe041-615d-745e-8674-590fca4e3afd"
+      }
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "node_id": "019fe041-615d-73a4-9a77-11ff95d7d681",
+      "node_type": "organization",
+      "title": "Mechanical Engineering Contractor",
+      "state": "active",
+      "classification": "confidential",
+      "owner": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "updated_at": "2026-08-08T07:23:28.989895Z",
+      "updated_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "source_authority": "knowledge_fabric",
+      "aliases": [],
+      "tags": [
+        "example",
+        "atlas-enclosure"
+      ],
+      "external_refs": [],
+      "extensions": {},
+      "attributes": {
+        "legal_name": "Mechanical Engineering Contractor",
+        "organization_kind": "supplier"
+      }
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "node_id": "019fe041-615d-7aa7-b33f-8ffbd2fce6b2",
+      "node_type": "person",
+      "title": "Mechanical Engineer A",
+      "state": "active",
+      "classification": "confidential",
+      "owner": "019fe041-615d-7aa7-b33f-8ffbd2fce6b2",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "updated_at": "2026-08-08T07:23:28.989895Z",
+      "updated_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "source_authority": "knowledge_fabric",
+      "aliases": [],
+      "tags": [
+        "example",
+        "atlas-enclosure"
+      ],
+      "external_refs": [],
+      "extensions": {},
+      "attributes": {
+        "display_name": "Mechanical Engineer A",
+        "organization": "019fe041-615d-73a4-9a77-11ff95d7d681"
+      }
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "node_id": "019fe041-615d-7d2c-8861-57df9019f5b0",
+      "node_type": "engagement",
+      "title": "Mechanical Engineering Services Engagement",
+      "state": "active",
+      "classification": "confidential",
+      "owner": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "updated_at": "2026-08-08T07:23:28.989895Z",
+      "updated_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "source_authority": "knowledge_fabric",
+      "aliases": [],
+      "tags": [
+        "example",
+        "atlas-enclosure"
+      ],
+      "external_refs": [],
+      "extensions": {},
+      "attributes": {
+        "principal_organization": "019fe041-615d-745e-8674-590fca4e3afd",
+        "counterparty": "019fe041-615d-73a4-9a77-11ff95d7d681",
+        "engagement_kind": "contractor",
+        "starts_on": "2026-08-08"
+      }
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "node_id": "019fe041-615d-7a4c-86f3-0ed91e0cf127",
+      "node_type": "product_system",
+      "title": "OH-EEG-1 Platform",
+      "state": "development",
+      "classification": "confidential",
+      "owner": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "updated_at": "2026-08-08T07:23:28.989895Z",
+      "updated_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "source_authority": "knowledge_fabric",
+      "aliases": [],
+      "tags": [
+        "example",
+        "atlas-enclosure"
+      ],
+      "external_refs": [],
+      "extensions": {},
+      "attributes": {
+        "product_kind": "platform",
+        "responsible_owner": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+        "configuration_authority": "019fe041-615d-75a1-8100-a80ec5f0a3be"
+      }
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "node_id": "019fe041-615d-7f07-9542-4c7e766b1ab4",
+      "node_type": "initiative_project",
+      "title": "Atlas Enclosure Production-Intent Design",
+      "state": "active",
+      "classification": "confidential",
+      "owner": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "updated_at": "2026-08-08T07:23:28.989895Z",
+      "updated_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "source_authority": "knowledge_fabric",
+      "aliases": [],
+      "tags": [
+        "example",
+        "atlas-enclosure"
+      ],
+      "external_refs": [],
+      "extensions": {},
+      "attributes": {
+        "idea_statement": "Create a manufacturable and serviceable production-intent enclosure architecture for Atlas.",
+        "objective": "Define, prototype and verify the mechanical system without coupling project structure to a single contractor.",
+        "project_owner": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+        "affected_products": [
+          "019fe041-615d-7a4c-86f3-0ed91e0cf127"
+        ],
+        "scope_in": [
+          "Mechanical interfaces",
+          "Enclosure architecture",
+          "Preliminary CAD",
+          "Prototype verification"
+        ],
+        "scope_out": [
+          "Injection tooling",
+          "Clinical validation"
+        ],
+        "success_criteria": [
+          "Approved mechanical architecture",
+          "Accepted CAD package",
+          "Verification evidence"
+        ],
+        "closure_criteria": [
+          "All required work packages accepted or waived",
+          "Open work orders closed",
+          "Payments reconciled"
+        ],
+        "authorized_budget": {
+          "currency": "USD",
+          "amount": "5000.00"
+        },
+        "target_date": "2026-10-31",
+        "technical_status": "active",
+        "administrative_status": "open"
+      }
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "node_id": "019fe041-615d-7141-8598-2a4268e7a28a",
+      "node_type": "work_package",
+      "title": "Mechanical Interface Definition",
+      "state": "accepted",
+      "classification": "confidential",
+      "owner": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "updated_at": "2026-08-08T07:23:28.989895Z",
+      "updated_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "source_authority": "knowledge_fabric",
+      "aliases": [],
+      "tags": [
+        "example",
+        "atlas-enclosure"
+      ],
+      "external_refs": [],
+      "extensions": {},
+      "attributes": {
+        "project": "019fe041-615d-7f07-9542-4c7e766b1ab4",
+        "wbs_code": "4.1",
+        "outcome": "Approved mechanical interface inventory and coordinate system.",
+        "acceptance_criteria": [
+          "PCB and connector envelopes captured",
+          "Datums defined",
+          "Unknowns explicitly listed"
+        ],
+        "accountable_owner": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+        "progress_basis": "accepted_outcomes",
+        "weight": "0.35"
+      }
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "node_id": "019fe041-615d-779a-80f8-8c93a2045989",
+      "node_type": "work_package",
+      "title": "Enclosure Architecture",
+      "state": "active",
+      "classification": "confidential",
+      "owner": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "updated_at": "2026-08-08T07:23:28.989895Z",
+      "updated_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "source_authority": "knowledge_fabric",
+      "aliases": [],
+      "tags": [
+        "example",
+        "atlas-enclosure"
+      ],
+      "external_refs": [],
+      "extensions": {},
+      "attributes": {
+        "project": "019fe041-615d-7f07-9542-4c7e766b1ab4",
+        "wbs_code": "4.2",
+        "outcome": "Selected enclosure architecture with rationale and preliminary CAD.",
+        "acceptance_criteria": [
+          "Three viable concepts compared",
+          "Selected concept approved",
+          "Preliminary CAD submitted"
+        ],
+        "accountable_owner": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+        "progress_basis": "accepted_outcomes",
+        "weight": "0.65"
+      }
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "node_id": "019fe041-615d-739b-8c4d-94c5a7435d33",
+      "node_type": "deliverable",
+      "title": "Preliminary Enclosure CAD Package",
+      "state": "accepted",
+      "classification": "confidential",
+      "owner": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "updated_at": "2026-08-08T07:23:28.989895Z",
+      "updated_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "source_authority": "knowledge_fabric",
+      "aliases": [],
+      "tags": [
+        "example",
+        "atlas-enclosure"
+      ],
+      "external_refs": [],
+      "extensions": {},
+      "attributes": {
+        "work_package": "019fe041-615d-779a-80f8-8c93a2045989",
+        "description": "Native CAD, STEP export, concept matrix and preliminary mechanical interface report.",
+        "acceptance_criteria": [
+          "Native CAD opens without error",
+          "STEP export matches native geometry",
+          "Concept matrix includes alternatives"
+        ],
+        "artifact_refs": [
+          "019fe041-615d-70d0-9fe5-7cb62e53520a"
+        ]
+      }
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "node_id": "019fe041-615d-70cc-acf7-d4b2e1d5d570",
+      "node_type": "work_order",
+      "title": "Mechanical Concept and Preliminary CAD Work Order",
+      "state": "completed",
+      "classification": "confidential",
+      "owner": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "updated_at": "2026-08-08T07:23:28.989895Z",
+      "updated_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "source_authority": "knowledge_fabric",
+      "aliases": [],
+      "tags": [
+        "example",
+        "atlas-enclosure"
+      ],
+      "external_refs": [],
+      "extensions": {},
+      "attributes": {
+        "project": "019fe041-615d-7f07-9542-4c7e766b1ab4",
+        "engagement": "019fe041-615d-7d2c-8861-57df9019f5b0",
+        "authorized_work_packages": [
+          "019fe041-615d-7141-8598-2a4268e7a28a",
+          "019fe041-615d-779a-80f8-8c93a2045989"
+        ],
+        "scope": "Complete mechanical interface definition, compare three enclosure concepts, and deliver preliminary CAD for the selected concept.",
+        "exclusions": [
+          "Production tooling",
+          "Final environmental verification"
+        ],
+        "deliverables": [
+          "019fe041-615d-739b-8c4d-94c5a7435d33"
+        ],
+        "commercial_model": "milestone",
+        "authorized_ceiling": {
+          "currency": "USD",
+          "amount": "3500.00"
+        },
+        "starts_on": "2026-08-08",
+        "ends_on": "2026-09-15",
+        "work_order_manager": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+        "acceptance_authority": "019fe041-615d-75a1-8100-a80ec5f0a3be"
+      }
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "node_id": "019fe041-615d-70d0-9fe5-7cb62e53520a",
+      "node_type": "artifact",
+      "title": "Atlas Preliminary Enclosure CAD Archive",
+      "state": "released",
+      "classification": "confidential",
+      "owner": "019fe041-615d-7aa7-b33f-8ffbd2fce6b2",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "updated_at": "2026-08-08T07:23:28.989895Z",
+      "updated_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "source_authority": "knowledge_fabric",
+      "aliases": [],
+      "tags": [
+        "example",
+        "atlas-enclosure"
+      ],
+      "external_refs": [],
+      "extensions": {},
+      "attributes": {
+        "artifact_kind": "cad",
+        "uri": "urn:oh:example:artifact:atlas-cad-r01",
+        "sha256": "56cca3b326ab748097b192b1f56cef4ee6dbaa2348129da1078be6e70ee04de3",
+        "media_type": "application/zip",
+        "size_bytes": 46,
+        "revision": "R01"
+      }
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "node_id": "019fe041-615d-7880-a88b-35e41679e08e",
+      "node_type": "work_execution",
+      "title": "Mechanical Work Execution 01",
+      "state": "accepted",
+      "classification": "confidential",
+      "owner": "019fe041-615d-7aa7-b33f-8ffbd2fce6b2",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "updated_at": "2026-08-08T07:23:28.989895Z",
+      "updated_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "source_authority": "knowledge_fabric",
+      "aliases": [],
+      "tags": [
+        "example",
+        "atlas-enclosure"
+      ],
+      "external_refs": [],
+      "extensions": {},
+      "attributes": {
+        "work_order": "019fe041-615d-70cc-acf7-d4b2e1d5d570",
+        "work_packages": [
+          "019fe041-615d-7141-8598-2a4268e7a28a",
+          "019fe041-615d-779a-80f8-8c93a2045989"
+        ],
+        "performed_by": [
+          "019fe041-615d-7aa7-b33f-8ffbd2fce6b2"
+        ],
+        "period_start": "2026-08-08",
+        "period_end": "2026-08-22",
+        "summary": "Completed the interface inventory, compared three architectures and submitted preliminary CAD.",
+        "changes_made": [
+          "Defined enclosure datums",
+          "Created three concept assemblies",
+          "Selected internal-frame concept"
+        ],
+        "artifact_refs": [
+          "019fe041-615d-70d0-9fe5-7cb62e53520a"
+        ],
+        "test_refs": [],
+        "deviations": [
+          "Battery envelope remains provisional"
+        ],
+        "decision_requests": [
+          "019fe041-615d-7bb1-a179-c7848413dc9d"
+        ],
+        "out_of_scope_findings": [
+          "Current USB-C placement constrains wall thickness"
+        ],
+        "submitted_at": "2026-08-08T07:23:28.989895Z"
+      }
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "node_id": "019fe041-615d-7bb1-a179-c7848413dc9d",
+      "node_type": "decision_record",
+      "title": "Use Independent Internal Structural Frame",
+      "state": "accepted",
+      "classification": "confidential",
+      "owner": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "updated_at": "2026-08-08T07:23:28.989895Z",
+      "updated_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "source_authority": "knowledge_fabric",
+      "aliases": [],
+      "tags": [
+        "example",
+        "atlas-enclosure"
+      ],
+      "external_refs": [],
+      "extensions": {},
+      "attributes": {
+        "decision_scope": "019fe041-615d-7a4c-86f3-0ed91e0cf127",
+        "decision_type": "architecture",
+        "context": "Connector insertion and drop loads should not be carried solely by the external shell.",
+        "question": "Should PCB retention loads be carried by the shell or by an independent internal frame?",
+        "options": [
+          {
+            "option_id": "SHELL",
+            "title": "Load-bearing shell",
+            "description": "Mount PCBs directly to the exterior shell.",
+            "advantages": [
+              "Fewer parts"
+            ],
+            "disadvantages": [
+              "Couples cosmetic shell to structural loads"
+            ]
+          },
+          {
+            "option_id": "FRAME",
+            "title": "Independent internal frame",
+            "description": "Use a dedicated internal structure for PCB and connector loads.",
+            "advantages": [
+              "Serviceable",
+              "Controls load path"
+            ],
+            "disadvantages": [
+              "Additional part"
+            ]
+          }
+        ],
+        "decision": "Select the independent internal frame architecture.",
+        "rationale": "It separates structural retention from cosmetic enclosure changes and reduces load transfer into PCB connectors.",
+        "consequences": [
+          "Additional internal part",
+          "Separate frame drawing and verification"
+        ],
+        "proposer": "019fe041-615d-7aa7-b33f-8ffbd2fce6b2",
+        "decision_authority": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+        "originating_work_execution": "019fe041-615d-7880-a88b-35e41679e08e",
+        "accepted_at": "2026-08-08T07:23:28.989895Z"
+      },
+      "enterprise_id": "OH-ADR-000001-3"
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "node_id": "019fe041-615d-7c97-a2dd-3f57410b0259",
+      "node_type": "change_record",
+      "title": "Implement Internal Structural Frame",
+      "state": "approved",
+      "classification": "confidential",
+      "owner": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "updated_at": "2026-08-08T07:23:28.989895Z",
+      "updated_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "source_authority": "knowledge_fabric",
+      "aliases": [],
+      "tags": [
+        "example",
+        "atlas-enclosure"
+      ],
+      "external_refs": [],
+      "extensions": {},
+      "attributes": {
+        "affected_nodes": [
+          "019fe041-615d-7a4c-86f3-0ed91e0cf127",
+          "019fe041-615d-70d0-9fe5-7cb62e53520a"
+        ],
+        "rationale_decision": "019fe041-615d-7bb1-a179-c7848413dc9d",
+        "change_summary": "Introduce a dedicated internal frame and revise PCB mounting geometry.",
+        "impact_domains": [
+          "hardware",
+          "interface",
+          "verification",
+          "manufacturing"
+        ],
+        "implementation_plan": "Revise CAD and drawings; perform connector-load and drop verification.",
+        "verification_refs": [],
+        "change_authority": "019fe041-615d-75a1-8100-a80ec5f0a3be"
+      },
+      "enterprise_id": "OH-CHG-000001-3"
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "node_id": "019fe041-615d-79e4-ba4b-54cc98e33428",
+      "node_type": "acceptance_record",
+      "title": "Mechanical Milestone 01 Acceptance",
+      "state": "issued",
+      "classification": "confidential",
+      "owner": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "updated_at": "2026-08-08T07:23:28.989895Z",
+      "updated_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "source_authority": "knowledge_fabric",
+      "aliases": [],
+      "tags": [
+        "example",
+        "atlas-enclosure"
+      ],
+      "external_refs": [],
+      "extensions": {},
+      "attributes": {
+        "work_order": "019fe041-615d-70cc-acf7-d4b2e1d5d570",
+        "work_execution": "019fe041-615d-7880-a88b-35e41679e08e",
+        "deliverables": [
+          "019fe041-615d-739b-8c4d-94c5a7435d33"
+        ],
+        "result": "accepted",
+        "criteria_results": [
+          {
+            "criterion": "Interface inventory complete",
+            "result": "pass",
+            "evidence": [
+              "019fe041-615d-70d0-9fe5-7cb62e53520a"
+            ]
+          },
+          {
+            "criterion": "Three concepts compared",
+            "result": "pass",
+            "evidence": [
+              "019fe041-615d-70d0-9fe5-7cb62e53520a"
+            ]
+          },
+          {
+            "criterion": "Preliminary CAD submitted",
+            "result": "pass",
+            "evidence": [
+              "019fe041-615d-70d0-9fe5-7cb62e53520a"
+            ]
+          }
+        ],
+        "accepted_amount": {
+          "currency": "USD",
+          "amount": "2500.00"
+        },
+        "reviewer": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+        "issued_at": "2026-08-08T07:23:28.989895Z",
+        "deficiencies": []
+      }
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "node_id": "019fe041-615d-7872-ba55-adc30f30cfe8",
+      "node_type": "invoice",
+      "title": "Contractor Invoice INV-2026-008",
+      "state": "paid",
+      "classification": "confidential",
+      "owner": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "updated_at": "2026-08-08T07:23:28.989895Z",
+      "updated_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "source_authority": "finance",
+      "aliases": [],
+      "tags": [
+        "example",
+        "atlas-enclosure"
+      ],
+      "external_refs": [],
+      "extensions": {},
+      "attributes": {
+        "supplier": "019fe041-615d-73a4-9a77-11ff95d7d681",
+        "invoice_number": "INV-2026-008",
+        "issue_date": "2026-08-23",
+        "due_date": "2026-09-06",
+        "currency": "USD",
+        "line_items": [
+          {
+            "line_id": "1",
+            "description": "Accepted mechanical milestone 01",
+            "work_order": "019fe041-615d-70cc-acf7-d4b2e1d5d570",
+            "acceptance_record": "019fe041-615d-79e4-ba4b-54cc98e33428",
+            "amount": "2500.00"
+          }
+        ],
+        "total": {
+          "currency": "USD",
+          "amount": "2500.00"
+        },
+        "external_authority": "OpenHuman accounts payable"
+      }
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "node_id": "019fe041-615d-7c78-b636-868836cd0281",
+      "node_type": "payment",
+      "title": "Payment for INV-2026-008",
+      "state": "reconciled",
+      "classification": "confidential",
+      "owner": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "updated_at": "2026-08-08T07:23:28.989895Z",
+      "updated_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "source_authority": "finance",
+      "aliases": [],
+      "tags": [
+        "example",
+        "atlas-enclosure"
+      ],
+      "external_refs": [],
+      "extensions": {},
+      "attributes": {
+        "payee": "019fe041-615d-73a4-9a77-11ff95d7d681",
+        "payment_date": "2026-08-25",
+        "amount": {
+          "currency": "USD",
+          "amount": "2500.00"
+        },
+        "payment_method": "ach",
+        "external_transaction_id": "EXAMPLE-ACH-0001",
+        "allocations": [
+          {
+            "allocation_kind": "invoice_settlement",
+            "invoice": "019fe041-615d-7872-ba55-adc30f30cfe8",
+            "work_order": "019fe041-615d-70cc-acf7-d4b2e1d5d570",
+            "amount": {
+              "currency": "USD",
+              "amount": "2500.00"
+            }
+          }
+        ],
+        "settlement_evidence": []
+      }
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "node_id": "019fe041-615d-7418-8f16-4df2d3ea7530",
+      "node_type": "release",
+      "title": "Knowledge Fabric Example Release",
+      "state": "approved",
+      "classification": "confidential",
+      "owner": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "updated_at": "2026-08-08T07:23:28.989895Z",
+      "updated_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "source_authority": "knowledge_fabric",
+      "aliases": [],
+      "tags": [
+        "example",
+        "atlas-enclosure"
+      ],
+      "external_refs": [],
+      "extensions": {},
+      "attributes": {
+        "release_kind": "schema",
+        "contained_nodes": [
+          "019fe041-615d-7f07-9542-4c7e766b1ab4",
+          "019fe041-615d-70cc-acf7-d4b2e1d5d570",
+          "019fe041-615d-7880-a88b-35e41679e08e",
+          "019fe041-615d-7bb1-a179-c7848413dc9d",
+          "019fe041-615d-7c97-a2dd-3f57410b0259",
+          "019fe041-615d-79e4-ba4b-54cc98e33428",
+          "019fe041-615d-7872-ba55-adc30f30cfe8",
+          "019fe041-615d-7c78-b636-868836cd0281"
+        ],
+        "released_at": "2026-08-08T07:23:28.989895Z"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "schema_version": "1.0.0-draft.1",
+      "edge_id": "019fe041-615e-7dd6-b85c-bb9ca994c22f",
+      "edge_type": "affects",
+      "source": "019fe041-615d-7f07-9542-4c7e766b1ab4",
+      "target": "019fe041-615d-7a4c-86f3-0ed91e0cf127",
+      "state": "active",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be"
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "edge_id": "019fe041-615e-75dd-b680-573ada43ea5f",
+      "edge_type": "decomposes_into",
+      "source": "019fe041-615d-7f07-9542-4c7e766b1ab4",
+      "target": "019fe041-615d-7141-8598-2a4268e7a28a",
+      "state": "active",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "qualifiers": {
+        "sequence": 1
+      }
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "edge_id": "019fe041-615e-7f33-828a-3d44dd8de9fb",
+      "edge_type": "decomposes_into",
+      "source": "019fe041-615d-7f07-9542-4c7e766b1ab4",
+      "target": "019fe041-615d-779a-80f8-8c93a2045989",
+      "state": "active",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "qualifiers": {
+        "sequence": 2
+      }
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "edge_id": "019fe041-615e-72ce-bffb-ff0b97c55c09",
+      "edge_type": "authorizes",
+      "source": "019fe041-615d-70cc-acf7-d4b2e1d5d570",
+      "target": "019fe041-615d-7141-8598-2a4268e7a28a",
+      "state": "active",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be"
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "edge_id": "019fe041-615e-79b8-af18-e5bcb7bd2424",
+      "edge_type": "authorizes",
+      "source": "019fe041-615d-70cc-acf7-d4b2e1d5d570",
+      "target": "019fe041-615d-779a-80f8-8c93a2045989",
+      "state": "active",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be"
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "edge_id": "019fe041-615e-7dab-bcd7-51bd511b3dc2",
+      "edge_type": "executes",
+      "source": "019fe041-615d-7880-a88b-35e41679e08e",
+      "target": "019fe041-615d-70cc-acf7-d4b2e1d5d570",
+      "state": "active",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be"
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "edge_id": "019fe041-615e-73a2-b20e-1bb3b269b91d",
+      "edge_type": "performed_by",
+      "source": "019fe041-615d-7880-a88b-35e41679e08e",
+      "target": "019fe041-615d-7aa7-b33f-8ffbd2fce6b2",
+      "state": "active",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be"
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "edge_id": "019fe041-615e-7991-8cf7-46134726d021",
+      "edge_type": "produces",
+      "source": "019fe041-615d-7880-a88b-35e41679e08e",
+      "target": "019fe041-615d-70d0-9fe5-7cb62e53520a",
+      "state": "active",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be"
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "edge_id": "019fe041-615e-7df9-826c-a2023a0d0ff5",
+      "edge_type": "proposes",
+      "source": "019fe041-615d-7880-a88b-35e41679e08e",
+      "target": "019fe041-615d-7bb1-a179-c7848413dc9d",
+      "state": "active",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be"
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "edge_id": "019fe041-615e-78a7-bf4d-17f8d11e1909",
+      "edge_type": "governs",
+      "source": "019fe041-615d-7bb1-a179-c7848413dc9d",
+      "target": "019fe041-615d-7a4c-86f3-0ed91e0cf127",
+      "state": "active",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be"
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "edge_id": "019fe041-615e-70be-9a19-35e402ba81db",
+      "edge_type": "implements",
+      "source": "019fe041-615d-7c97-a2dd-3f57410b0259",
+      "target": "019fe041-615d-7bb1-a179-c7848413dc9d",
+      "state": "active",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be"
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "edge_id": "019fe041-615e-7748-a4ee-8eefe3a62e1a",
+      "edge_type": "accepts",
+      "source": "019fe041-615d-79e4-ba4b-54cc98e33428",
+      "target": "019fe041-615d-7880-a88b-35e41679e08e",
+      "state": "active",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be"
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "edge_id": "019fe041-615e-7d6c-9a45-7224932dd0c0",
+      "edge_type": "evidences",
+      "source": "019fe041-615d-70d0-9fe5-7cb62e53520a",
+      "target": "019fe041-615d-79e4-ba4b-54cc98e33428",
+      "state": "active",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be"
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "edge_id": "019fe041-615e-78d0-86c5-8d534f019ae3",
+      "edge_type": "bills",
+      "source": "019fe041-615d-7872-ba55-adc30f30cfe8",
+      "target": "019fe041-615d-70cc-acf7-d4b2e1d5d570",
+      "state": "active",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "qualifiers": {
+        "amount": {
+          "currency": "USD",
+          "amount": "2500.00"
+        }
+      }
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "edge_id": "019fe041-615e-759d-a635-5566696a843c",
+      "edge_type": "settles",
+      "source": "019fe041-615d-7c78-b636-868836cd0281",
+      "target": "019fe041-615d-7872-ba55-adc30f30cfe8",
+      "state": "active",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "qualifiers": {
+        "amount": {
+          "currency": "USD",
+          "amount": "2500.00"
+        }
+      }
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "edge_id": "019fe041-615e-79a8-b0bd-df3448aa2058",
+      "edge_type": "allocates_to",
+      "source": "019fe041-615d-7c78-b636-868836cd0281",
+      "target": "019fe041-615d-70cc-acf7-d4b2e1d5d570",
+      "state": "active",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "qualifiers": {
+        "amount": {
+          "currency": "USD",
+          "amount": "2500.00"
+        }
+      }
+    },
+    {
+      "schema_version": "1.0.0-draft.1",
+      "edge_id": "019fe041-615e-72fa-b7a2-261f90cea050",
+      "edge_type": "baseline_contains",
+      "source": "019fe041-615d-7418-8f16-4df2d3ea7530",
+      "target": "019fe041-615d-7f07-9542-4c7e766b1ab4",
+      "state": "active",
+      "created_at": "2026-08-08T07:23:28.989895Z",
+      "created_by": "019fe041-615d-75a1-8100-a80ec5f0a3be"
+    }
+  ],
+  "actions": [
+    {
+      "schema_version": "1.0.0-draft.1",
+      "action_id": "019fe041-615e-7328-b6f2-e624f0517b94",
+      "action_type": "issue_acceptance",
+      "actor": "019fe041-615d-75a1-8100-a80ec5f0a3be",
+      "acting_roles": [
+        "technical_authority",
+        "work_order_manager"
+      ],
+      "occurred_at": "2026-08-08T07:23:28.989895Z",
+      "transaction_id": "019fe041-615e-788b-aed3-b6ed47c4b1dd",
+      "idempotency_key": "example-acceptance-0001",
+      "targets": [
+        "019fe041-615d-7880-a88b-35e41679e08e",
+        "019fe041-615d-79e4-ba4b-54cc98e33428",
+        "019fe041-615d-70cc-acf7-d4b2e1d5d570"
+      ],
+      "input": {
+        "result": "accepted",
+        "accepted_amount": {
+          "currency": "USD",
+          "amount": "2500.00"
+        }
+      },
+      "preconditions": [
+        "work_execution.state == under_review or submitted",
+        "accepted_amount <= work_order.available_authorization"
+      ],
+      "result": {
+        "status": "applied",
+        "created_nodes": [
+          "019fe041-615d-79e4-ba4b-54cc98e33428"
+        ]
+      },
+      "reason": "Milestone acceptance criteria satisfied.",
+      "evidence": []
+    }
+  ],
+  "metadata": {
+    "source_system": "knowledge-fabric-example",
+    "as_of": "2026-08-08T07:23:28.989895Z"
+  }
+}

@@ -1,0 +1,131 @@
+# Lifecycle state machines.
+#
+# A transition is legal only when a permitted action drives it, the actor holds the
+# authority, preconditions pass and required evidence exists. Free-text status is never
+# authoritative.
+
+state_machines:
+  - id: initiative_project
+    initial: captured
+    terminal: [administratively_closed, rejected, cancelled]
+    transitions:
+      - { from: captured, to: triage, action: triage_initiative }
+      - { from: triage, to: evaluating, action: triage_initiative }
+      - { from: evaluating, to: authorized, action: authorize_project }
+      - { from: authorized, to: active, action: activate_project }
+      - { from: active, to: technically_complete, action: complete_project_technical }
+      - {
+          from: technically_complete,
+          to: administratively_closed,
+          action: close_project_administrative,
+        }
+      - { from: captured, to: parked, action: triage_initiative }
+      - { from: triage, to: parked, action: triage_initiative }
+      # R01-DEFECT-002. The draft pack reaches `parked` but defines no way out and does not
+      # list it as terminal, so a parked initiative could never resume. Spec §11 calls
+      # parked a non-active disposition that "preserves history" with "follow-up
+      # conditions" — a disposition you can never leave is a cancellation, not a park.
+      - { from: parked, to: triage, action: triage_initiative }
+      - { from: evaluating, to: rejected, action: triage_initiative }
+      - { from: authorized, to: cancelled, action: correct_record }
+      - { from: active, to: cancelled, action: correct_record }
+
+  - id: work_package
+    initial: planned
+    terminal: [accepted, waived, cancelled]
+    transitions:
+      - { from: planned, to: ready, action: create_work_package }
+      - { from: ready, to: active, action: start_work_package }
+      - { from: active, to: blocked, action: correct_record }
+      - { from: blocked, to: active, action: correct_record }
+      - { from: active, to: submitted, action: submit_work_execution }
+      - { from: submitted, to: accepted, action: accept_work_package }
+      - { from: submitted, to: active, action: review_work_execution }
+      - { from: planned, to: cancelled, action: correct_record }
+      - { from: active, to: waived, action: correct_record }
+
+  - id: work_order
+    initial: draft
+    terminal: [closed, cancelled, terminated]
+    transitions:
+      - { from: draft, to: offered, action: issue_work_order }
+      - { from: offered, to: accepted, action: accept_work_order }
+      - { from: accepted, to: active, action: accept_work_order }
+      - { from: active, to: suspended, action: correct_record }
+      - { from: suspended, to: active, action: correct_record }
+      - { from: active, to: completed, action: issue_acceptance }
+      - { from: completed, to: closed, action: correct_record }
+      - { from: draft, to: cancelled, action: correct_record }
+      - { from: offered, to: cancelled, action: correct_record }
+      - { from: active, to: terminated, action: correct_record }
+
+  - id: work_execution
+    initial: draft
+    terminal: [accepted, partially_accepted, rejected, superseded]
+    transitions:
+      - { from: draft, to: submitted, action: submit_work_execution }
+      - { from: submitted, to: under_review, action: review_work_execution }
+      - { from: under_review, to: accepted, action: issue_acceptance }
+      - { from: under_review, to: partially_accepted, action: issue_acceptance }
+      - { from: under_review, to: rejected, action: issue_acceptance }
+      - { from: submitted, to: superseded, action: correct_record }
+
+  - id: decision_record
+    initial: draft
+    # R01-DEFECT-003. The draft pack lists `accepted` as terminal while also defining
+    # accepted -> superseded; both cannot hold. Spec §14.3 and §19 are explicit that an
+    # accepted decision is immutable but IS superseded by a later one, so supersession is
+    # the intended exit and `accepted` is not terminal.
+    terminal: [rejected, superseded, withdrawn]
+    transitions:
+      - { from: draft, to: proposed, action: propose_decision }
+      - { from: proposed, to: accepted, action: accept_decision }
+      - { from: proposed, to: rejected, action: reject_decision }
+      - { from: proposed, to: withdrawn, action: correct_record }
+      - { from: accepted, to: superseded, action: supersede_decision }
+
+  - id: change_record
+    initial: proposed
+    terminal: [closed, rejected]
+    transitions:
+      - { from: proposed, to: impact_assessment, action: open_change }
+      - { from: impact_assessment, to: approved, action: approve_change }
+      - { from: impact_assessment, to: rejected, action: approve_change }
+      - { from: approved, to: implementing, action: approve_change }
+      - { from: implementing, to: verified, action: verify_change }
+      - { from: verified, to: effective, action: make_change_effective }
+      - { from: effective, to: closed, action: correct_record }
+
+  - id: invoice
+    initial: draft
+    terminal: [paid, void]
+    transitions:
+      - { from: draft, to: submitted, action: submit_invoice }
+      - { from: submitted, to: approved, action: approve_invoice }
+      - { from: submitted, to: disputed, action: approve_invoice }
+      - { from: approved, to: partially_paid, action: record_payment_settlement }
+      - { from: approved, to: paid, action: record_payment_settlement }
+      - { from: partially_paid, to: paid, action: record_payment_settlement }
+      - { from: draft, to: void, action: correct_record }
+      # R01-DEFECT-004. The draft pack reaches `disputed` but defines no way out and does
+      # not list it as terminal, so a disputed invoice could never be resolved. §19 gives
+      # invoice only `paid` and `void` as terminals, so a dispute must land on one path or
+      # the other: upheld and approved for payment, or withdrawn.
+      - { from: disputed, to: approved, action: approve_invoice }
+      - { from: disputed, to: void, action: correct_record }
+
+  - id: payment
+    initial: planned
+    # R01-DEFECT-005. The draft pack lists `reconciled` as terminal while also defining
+    # reconciled -> reversed. §16.3 requires that a reversal be a new attributable record
+    # rather than a silent edit, which is exactly what that transition models — so the
+    # transition is right and the terminal designation was wrong.
+    terminal: [reversed, failed]
+    transitions:
+      - { from: planned, to: authorized, action: authorize_payment }
+      - { from: authorized, to: initiated, action: authorize_payment }
+      - { from: initiated, to: settled, action: record_payment_settlement }
+      - { from: settled, to: reconciled, action: reconcile_payment }
+      - { from: initiated, to: failed, action: record_payment_settlement }
+      - { from: settled, to: reversed, action: correct_record }
+      - { from: reconciled, to: reversed, action: correct_record }

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+ xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+ xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+ xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+ id="Definitions_KF_Work_Control"
+ targetNamespace="urn:oh:kf:bpmn:work-control:v1">
+  <bpmn:process id="Process_KF_Work_Control" name="Knowledge Fabric Work Control" isExecutable="false">
+    <bpmn:startEvent id="Start_Idea" name="Idea captured"/>
+    <bpmn:userTask id="Task_Evaluate" name="Evaluate initiative"/>
+    <bpmn:exclusiveGateway id="Gateway_Authorize" name="Authorize project?"/>
+    <bpmn:userTask id="Task_Define_WBS" name="Define work packages"/>
+    <bpmn:userTask id="Task_Issue_WO" name="Issue work order"/>
+    <bpmn:userTask id="Task_Perform" name="Perform engineering work"/>
+    <bpmn:userTask id="Task_Submit_WER" name="Submit work execution record"/>
+    <bpmn:userTask id="Task_Review" name="Review and adjudicate"/>
+    <bpmn:exclusiveGateway id="Gateway_Decision" name="Decision or change required?"/>
+    <bpmn:userTask id="Task_ADR_CHG" name="Resolve ADR and change control"/>
+    <bpmn:userTask id="Task_Accept" name="Issue technical acceptance"/>
+    <bpmn:userTask id="Task_Invoice" name="Approve invoice"/>
+    <bpmn:userTask id="Task_Payment" name="Record and reconcile payment"/>
+    <bpmn:exclusiveGateway id="Gateway_Close" name="Closure criteria met?"/>
+    <bpmn:userTask id="Task_Close" name="Close project"/>
+    <bpmn:endEvent id="End_Rejected" name="Rejected or parked"/>
+    <bpmn:endEvent id="End_Closed" name="Administratively closed"/>
+    <bpmn:sequenceFlow id="F1" sourceRef="Start_Idea" targetRef="Task_Evaluate"/>
+    <bpmn:sequenceFlow id="F2" sourceRef="Task_Evaluate" targetRef="Gateway_Authorize"/>
+    <bpmn:sequenceFlow id="F3" name="No" sourceRef="Gateway_Authorize" targetRef="End_Rejected"/>
+    <bpmn:sequenceFlow id="F4" name="Yes" sourceRef="Gateway_Authorize" targetRef="Task_Define_WBS"/>
+    <bpmn:sequenceFlow id="F5" sourceRef="Task_Define_WBS" targetRef="Task_Issue_WO"/>
+    <bpmn:sequenceFlow id="F6" sourceRef="Task_Issue_WO" targetRef="Task_Perform"/>
+    <bpmn:sequenceFlow id="F7" sourceRef="Task_Perform" targetRef="Task_Submit_WER"/>
+    <bpmn:sequenceFlow id="F8" sourceRef="Task_Submit_WER" targetRef="Task_Review"/>
+    <bpmn:sequenceFlow id="F9" sourceRef="Task_Review" targetRef="Gateway_Decision"/>
+    <bpmn:sequenceFlow id="F10" name="Yes" sourceRef="Gateway_Decision" targetRef="Task_ADR_CHG"/>
+    <bpmn:sequenceFlow id="F11" sourceRef="Task_ADR_CHG" targetRef="Task_Accept"/>
+    <bpmn:sequenceFlow id="F12" name="No" sourceRef="Gateway_Decision" targetRef="Task_Accept"/>
+    <bpmn:sequenceFlow id="F13" sourceRef="Task_Accept" targetRef="Task_Invoice"/>
+    <bpmn:sequenceFlow id="F14" sourceRef="Task_Invoice" targetRef="Task_Payment"/>
+    <bpmn:sequenceFlow id="F15" sourceRef="Task_Payment" targetRef="Gateway_Close"/>
+    <bpmn:sequenceFlow id="F16" name="No" sourceRef="Gateway_Close" targetRef="Task_Issue_WO"/>
+    <bpmn:sequenceFlow id="F17" name="Yes" sourceRef="Gateway_Close" targetRef="Task_Close"/>
+    <bpmn:sequenceFlow id="F18" sourceRef="Task_Close" targetRef="End_Closed"/>
+  </bpmn:process>
+</bpmn:definitions>

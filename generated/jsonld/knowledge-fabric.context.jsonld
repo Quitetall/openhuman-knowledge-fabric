@@ -1,0 +1,172 @@
+{
+  "x-generated-from": {
+    "ontology_version": "1.0.0-draft.1",
+    "source_digest": "d1511f4416e03cb06dde92ceeade82bc060aed793cd9fbc674ced30f332e83ad"
+  },
+  "@context": {
+    "@version": 1.1,
+    "kf": "urn:oh:kf:v1:",
+    "prov": "http://www.w3.org/ns/prov#",
+    "oslc": "http://open-services.net/ns/core#",
+    "schema": "https://schema.org/",
+    "node_id": "@id",
+    "node_type": "@type",
+    "title": "schema:name",
+    "created_at": {
+      "@id": "prov:generatedAtTime",
+      "@type": "http://www.w3.org/2001/XMLSchema#dateTime"
+    },
+    "created_by": {
+      "@id": "prov:wasAttributedTo",
+      "@type": "@id"
+    },
+    "owner": {
+      "@id": "kf:ownedBy",
+      "@type": "@id"
+    },
+    "source": {
+      "@id": "kf:source",
+      "@type": "@id"
+    },
+    "target": {
+      "@id": "kf:target",
+      "@type": "@id"
+    },
+    "contains": {
+      "@id": "kf:contains",
+      "@type": "@id"
+    },
+    "decomposes_into": {
+      "@id": "kf:decomposes_into",
+      "@type": "@id"
+    },
+    "affects": {
+      "@id": "kf:affects",
+      "@type": "@id"
+    },
+    "authorizes": {
+      "@id": "kf:authorizes",
+      "@type": "@id"
+    },
+    "executes": {
+      "@id": "kf:executes",
+      "@type": "@id"
+    },
+    "produces": {
+      "@id": "prov:generated",
+      "@type": "@id"
+    },
+    "consumes": {
+      "@id": "kf:consumes",
+      "@type": "@id"
+    },
+    "proposes": {
+      "@id": "kf:proposes",
+      "@type": "@id"
+    },
+    "governs": {
+      "@id": "kf:governs",
+      "@type": "@id"
+    },
+    "implements": {
+      "@id": "kf:implements",
+      "@type": "@id"
+    },
+    "satisfies": {
+      "@id": "kf:satisfies",
+      "@type": "@id"
+    },
+    "verifies": {
+      "@id": "kf:verifies",
+      "@type": "@id"
+    },
+    "mitigates": {
+      "@id": "kf:mitigates",
+      "@type": "@id"
+    },
+    "accepts": {
+      "@id": "kf:accepts",
+      "@type": "@id"
+    },
+    "bills": {
+      "@id": "kf:bills",
+      "@type": "@id"
+    },
+    "settles": {
+      "@id": "kf:settles",
+      "@type": "@id"
+    },
+    "allocates_to": {
+      "@id": "kf:allocates_to",
+      "@type": "@id"
+    },
+    "originated_from": {
+      "@id": "kf:originated_from",
+      "@type": "@id"
+    },
+    "supersedes": {
+      "@id": "kf:supersedes",
+      "@type": "@id"
+    },
+    "derived_from": {
+      "@id": "prov:wasDerivedFrom",
+      "@type": "@id"
+    },
+    "evidences": {
+      "@id": "kf:evidences",
+      "@type": "@id"
+    },
+    "assigned_to": {
+      "@id": "kf:assigned_to",
+      "@type": "@id"
+    },
+    "scoped_to": {
+      "@id": "kf:scoped_to",
+      "@type": "@id"
+    },
+    "depends_on": {
+      "@id": "kf:depends_on",
+      "@type": "@id"
+    },
+    "blocks": {
+      "@id": "kf:blocks",
+      "@type": "@id"
+    },
+    "released_by": {
+      "@id": "kf:released_by",
+      "@type": "@id"
+    },
+    "baseline_contains": {
+      "@id": "kf:baseline_contains",
+      "@type": "@id"
+    },
+    "performed_by": {
+      "@id": "prov:wasAssociatedWith",
+      "@type": "@id"
+    },
+    "owned_by": {
+      "@id": "kf:owned_by",
+      "@type": "@id"
+    },
+    "linked_to": {
+      "@id": "kf:linked_to",
+      "@type": "@id"
+    },
+    "amends": {
+      "@id": "kf:amends",
+      "@type": "@id"
+    },
+    "generated_by": {
+      "@id": "prov:wasGeneratedBy",
+      "@type": "@id"
+    },
+    "used": {
+      "@id": "prov:used",
+      "@type": "@id"
+    },
+    "was_associated_with": {
+      "@id": "prov:wasAssociatedWith",
+      "@type": "@id"
+    }
+  }
+}

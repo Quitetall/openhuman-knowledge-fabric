@@ -1,0 +1,338 @@
+{
+  "schema_version": "1.0.0-draft.1",
+  "x-generated-from": {
+    "ontology_version": "1.0.0-draft.1",
+    "source_digest": "d1511f4416e03cb06dde92ceeade82bc060aed793cd9fbc674ced30f332e83ad"
+  },
+  "node_types": {
+    "organization": {
+      "authority_domain": "organization",
+      "enterprise_namespace": null
+    },
+    "person": {
+      "authority_domain": "organization",
+      "enterprise_namespace": null
+    },
+    "role_assignment": {
+      "authority_domain": "organization",
+      "enterprise_namespace": null
+    },
+    "engagement": {
+      "authority_domain": "commercial",
+      "enterprise_namespace": null
+    },
+    "product_system": {
+      "authority_domain": "configuration",
+      "enterprise_namespace": "ITM"
+    },
+    "initiative_project": {
+      "authority_domain": "project",
+      "enterprise_namespace": "PRJ",
+      "proposed_namespace": true
+    },
+    "work_package": {
+      "authority_domain": "project",
+      "enterprise_namespace": null
+    },
+    "work_order": {
+      "authority_domain": "commercial",
+      "enterprise_namespace": "WRK"
+    },
+    "work_execution": {
+      "authority_domain": "commercial",
+      "enterprise_namespace": "RCD"
+    },
+    "decision_record": {
+      "authority_domain": "engineering",
+      "enterprise_namespace": "ADR"
+    },
+    "change_record": {
+      "authority_domain": "configuration",
+      "enterprise_namespace": "CHG"
+    },
+    "deliverable": {
+      "authority_domain": "project",
+      "enterprise_namespace": null
+    },
+    "artifact": {
+      "authority_domain": "artifact",
+      "enterprise_namespace": null
+    },
+    "acceptance_record": {
+      "authority_domain": "commercial",
+      "enterprise_namespace": "RCD"
+    },
+    "invoice": {
+      "authority_domain": "finance",
+      "enterprise_namespace": "RCD"
+    },
+    "payment": {
+      "authority_domain": "finance",
+      "enterprise_namespace": "RCD"
+    },
+    "requirement": {
+      "authority_domain": "qms",
+      "enterprise_namespace": "REQ"
+    },
+    "risk": {
+      "authority_domain": "qms",
+      "enterprise_namespace": "RSK"
+    },
+    "test": {
+      "authority_domain": "qms",
+      "enterprise_namespace": "TST"
+    },
+    "release": {
+      "authority_domain": "configuration",
+      "enterprise_namespace": "RLS"
+    },
+    "baseline": {
+      "authority_domain": "configuration",
+      "enterprise_namespace": "BSL"
+    }
+  },
+  "edge_types": {
+    "contains": {
+      "inverse": "contained_by",
+      "acyclic": true
+    },
+    "decomposes_into": {
+      "inverse": "part_of",
+      "acyclic": true
+    },
+    "affects": {
+      "inverse": "affected_by"
+    },
+    "authorizes": {
+      "inverse": "authorized_by"
+    },
+    "executes": {
+      "inverse": "executed_by"
+    },
+    "produces": {
+      "inverse": "produced_by"
+    },
+    "consumes": {
+      "inverse": "consumed_by"
+    },
+    "proposes": {
+      "inverse": "proposed_by"
+    },
+    "governs": {
+      "inverse": "governed_by"
+    },
+    "implements": {
+      "inverse": "implemented_by"
+    },
+    "satisfies": {
+      "inverse": "satisfied_by"
+    },
+    "verifies": {
+      "inverse": "verified_by"
+    },
+    "mitigates": {
+      "inverse": "mitigated_by"
+    },
+    "accepts": {
+      "inverse": "accepted_by"
+    },
+    "bills": {
+      "inverse": "billed_by"
+    },
+    "settles": {
+      "inverse": "settled_by"
+    },
+    "allocates_to": {
+      "inverse": "allocated_from"
+    },
+    "originated_from": {
+      "inverse": "originated"
+    },
+    "supersedes": {
+      "inverse": "superseded_by",
+      "acyclic": true
+    },
+    "derived_from": {
+      "inverse": "source_of"
+    },
+    "evidences": {
+      "inverse": "evidenced_by"
+    },
+    "assigned_to": {
+      "inverse": "assignee_of"
+    },
+    "scoped_to": {
+      "inverse": "scope_of"
+    },
+    "depends_on": {
+      "inverse": "dependency_of",
+      "acyclic": true
+    },
+    "blocks": {
+      "inverse": "blocked_by"
+    },
+    "released_by": {
+      "inverse": "releases"
+    },
+    "baseline_contains": {
+      "inverse": "included_in_baseline"
+    },
+    "performed_by": {
+      "inverse": "performed"
+    },
+    "owned_by": {
+      "inverse": "owns"
+    },
+    "linked_to": {
+      "inverse": "linked_to",
+      "symmetric": true
+    },
+    "amends": {
+      "inverse": "amended_by",
+      "acyclic": true
+    },
+    "generated_by": {
+      "inverse": "generated"
+    },
+    "used": {
+      "inverse": "was_used_by"
+    },
+    "was_associated_with": {
+      "inverse": "associated_with"
+    }
+  },
+  "action_types": {
+    "create_initiative": {
+      "audited": true,
+      "transactional": true
+    },
+    "triage_initiative": {
+      "audited": true,
+      "transactional": true
+    },
+    "authorize_project": {
+      "audited": true,
+      "transactional": true
+    },
+    "activate_project": {
+      "audited": true,
+      "transactional": true
+    },
+    "create_work_package": {
+      "audited": true,
+      "transactional": true
+    },
+    "start_work_package": {
+      "audited": true,
+      "transactional": true
+    },
+    "accept_work_package": {
+      "audited": true,
+      "transactional": true
+    },
+    "issue_work_order": {
+      "audited": true,
+      "transactional": true
+    },
+    "accept_work_order": {
+      "audited": true,
+      "transactional": true
+    },
+    "amend_work_order": {
+      "audited": true,
+      "transactional": true
+    },
+    "submit_work_execution": {
+      "audited": true,
+      "transactional": true
+    },
+    "review_work_execution": {
+      "audited": true,
+      "transactional": true
+    },
+    "issue_acceptance": {
+      "audited": true,
+      "transactional": true
+    },
+    "propose_decision": {
+      "audited": true,
+      "transactional": true
+    },
+    "accept_decision": {
+      "audited": true,
+      "transactional": true
+    },
+    "reject_decision": {
+      "audited": true,
+      "transactional": true
+    },
+    "supersede_decision": {
+      "audited": true,
+      "transactional": true
+    },
+    "open_change": {
+      "audited": true,
+      "transactional": true
+    },
+    "approve_change": {
+      "audited": true,
+      "transactional": true
+    },
+    "verify_change": {
+      "audited": true,
+      "transactional": true
+    },
+    "make_change_effective": {
+      "audited": true,
+      "transactional": true
+    },
+    "submit_invoice": {
+      "audited": true,
+      "transactional": true
+    },
+    "approve_invoice": {
+      "audited": true,
+      "transactional": true
+    },
+    "authorize_payment": {
+      "audited": true,
+      "transactional": true
+    },
+    "record_payment_settlement": {
+      "audited": true,
+      "transactional": true
+    },
+    "reconcile_payment": {
+      "audited": true,
+      "transactional": true
+    },
+    "complete_project_technical": {
+      "audited": true,
+      "transactional": true
+    },
+    "close_project_administrative": {
+      "audited": true,
+      "transactional": true
+    },
+    "attach_evidence": {
+      "audited": true,
+      "transactional": true
+    },
+    "correct_record": {
+      "audited": true,
+      "transactional": true
+    }
+  },
+  "invariants": [
+    "Every edge source and target resolves to a node in the same graph view or a declared federated resource.",
+    "A work_execution references exactly one work_order.",
+    "A work_order references exactly one project and one engagement.",
+    "Accepted or rejected decision records are immutable; supersession creates a new decision record.",
+    "A change record implements, but never substitutes for, the decision rationale that authorized it.",
+    "Accepted value must not exceed authorized work-order ceiling without an approved amendment.",
+    "Invoice line value must not exceed accepted value available for the referenced work order.",
+    "Payment allocations must sum to no more than the payment amount and must not exceed invoice balances.",
+    "Project progress is computed from accepted or waived work packages, not spending or activity count.",
+    "Administrative project closure requires technical disposition plus closure of open work orders and financial obligations."
+  ]
+}

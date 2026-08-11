@@ -1,0 +1,136 @@
+# Action types — the only way a controlled fact changes.
+#
+# Every action runs in one transaction and emits one audit event. There is no generic
+# status mutation: an object moves state because a named, permissioned action moved it.
+
+action_types:
+  - id: create_initiative
+    audited: true
+    transactional: true
+    drives: []
+  - id: triage_initiative
+    audited: true
+    transactional: true
+    drives: [initiative_project]
+  - id: authorize_project
+    audited: true
+    transactional: true
+    drives: [initiative_project]
+  - id: activate_project
+    audited: true
+    transactional: true
+    drives: [initiative_project]
+  - id: create_work_package
+    audited: true
+    transactional: true
+    drives: [work_package]
+  - id: start_work_package
+    audited: true
+    transactional: true
+    drives: [work_package]
+  - id: accept_work_package
+    audited: true
+    transactional: true
+    drives: [work_package]
+  - id: issue_work_order
+    audited: true
+    transactional: true
+    drives: [work_order]
+  - id: accept_work_order
+    audited: true
+    transactional: true
+    drives: [work_order]
+  - id: amend_work_order
+    audited: true
+    transactional: true
+    drives: []
+  - id: submit_work_execution
+    audited: true
+    transactional: true
+    drives: [work_execution, work_package]
+  - id: review_work_execution
+    audited: true
+    transactional: true
+    drives: [work_execution, work_package]
+  - id: issue_acceptance
+    audited: true
+    transactional: true
+    drives: [work_execution, work_order]
+  - id: propose_decision
+    audited: true
+    transactional: true
+    drives: [decision_record]
+  - id: accept_decision
+    audited: true
+    transactional: true
+    drives: [decision_record]
+  - id: reject_decision
+    audited: true
+    transactional: true
+    drives: [decision_record]
+  - id: supersede_decision
+    audited: true
+    transactional: true
+    drives: [decision_record]
+  - id: open_change
+    audited: true
+    transactional: true
+    drives: [change_record]
+  - id: approve_change
+    audited: true
+    transactional: true
+    drives: [change_record]
+  - id: verify_change
+    audited: true
+    transactional: true
+    drives: [change_record]
+  - id: make_change_effective
+    audited: true
+    transactional: true
+    drives: [change_record]
+  - id: submit_invoice
+    audited: true
+    transactional: true
+    drives: [invoice]
+  - id: approve_invoice
+    audited: true
+    transactional: true
+    drives: [invoice]
+  - id: authorize_payment
+    audited: true
+    transactional: true
+    drives: [payment]
+  - id: record_payment_settlement
+    audited: true
+    transactional: true
+    drives: [invoice, payment]
+  - id: reconcile_payment
+    audited: true
+    transactional: true
+    drives: [payment]
+  - id: complete_project_technical
+    audited: true
+    transactional: true
+    drives: [initiative_project]
+  - id: close_project_administrative
+    audited: true
+    transactional: true
+    drives: [initiative_project]
+  - id: attach_evidence
+    audited: true
+    transactional: true
+    drives: []
+  - id: correct_record
+    audited: true
+    transactional: true
+    drives:
+      [
+        change_record,
+        decision_record,
+        initiative_project,
+        invoice,
+        payment,
+        work_execution,
+        work_order,
+        work_package,
+      ]

@@ -1,0 +1,117 @@
+# Envelope, shared types and controlled value sets.
+#
+# CANONICAL. Everything under generated/ is compiled from this directory and must never be
+# hand-edited; CI regenerates and fails on drift.
+
+schema_version: 1.0.0-draft.1
+
+# RFC 9562 UUIDv7 — time-ordered, so index locality follows creation order. The version and
+# variant nibbles are pinned so a v4 identifier cannot be accepted where a v7 is required.
+uuid_pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+
+# Access and handling classification (spec §24).
+classifications:
+  - public
+  - internal
+  - confidential
+  - restricted
+
+# Which system is authoritative for a record (spec §4.1). `knowledge_fabric` means this
+# system owns it; anything else means we hold a reference or a projection.
+source_authorities:
+  - knowledge_fabric
+  - plm
+  - qms
+  - finance
+  - hr
+  - git
+  - external
+
+# Canonical owner of a class of facts. One fact, one domain.
+authority_domains:
+  - artifact
+  - commercial
+  - configuration
+  - engineering
+  - finance
+  - organization
+  - project
+  - qms
+
+# Every object type carries these fields. Only `state` varies by type, and `node_type` is a
+# per-type constant, so neither appears in the shared field map below.
+envelope:
+  required:
+    - schema_version
+    - node_id
+    - node_type
+    - title
+    - state
+    - classification
+    - owner
+    - created_at
+    - created_by
+    - updated_at
+    - updated_by
+    - source_authority
+  fields:
+    schema_version: { type: string, const_schema_version: true }
+    node_id: { type: uuid }
+    # Human-facing business identity, allocated by the Identifier Registry. Absent until
+    # allocated — spec §7.1 makes node_id sufficient on its own until then.
+    enterprise_id:
+      type: string
+      any_of_patterns:
+        - '^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$'
+        - '^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$'
+    # A label, not identity. Mutable, and never a foreign key.
+    title: { type: string, min_length: 1, max_length: 240 }
+    classification: { type: enum, values_from: classifications }
+    owner: { type: uuid }
+    created_at: { type: timestamp }
+    created_by: { type: uuid }
+    updated_at: { type: timestamp }
+    updated_by: { type: uuid }
+    source_authority: { type: enum, values_from: source_authorities }
+    aliases:
+      type: array<string>
+      unique: true
+      default: []
+      item_min_length: 1
+      item_max_length: 160
+    tags:
+      type: array<string>
+      unique: true
+      default: []
+      item_pattern: '^[a-z0-9][a-z0-9_.-]{0,63}$'
+    external_refs: { type: array<ExternalReference>, default: [] }
+    # Bounded extension point. Keys are namespaced so a local addition can never collide
+    # with a future controlled field — spec §28's guard against an EAV swamp.
+    extensions:
+      type: json
+      property_name_pattern: '^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$'
+      default: {}
+
+# Structures reused across object types.
+shared_types:
+  # Money is a decimal STRING, never a float. Binary floating point cannot represent 0.10
+  # exactly, and a cent lost to rounding in a payment allocation is a real defect.
+  Money:
+    fields:
+      currency: { type: string, pattern: '^[A-Z]{3}$', required: true }
+      amount: { type: string, pattern: '^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$', required: true }
+  # A reference to a record another system owns. `authority` records WHY we hold it, so a
+  # mirror can never be mistaken for the authoritative copy.
+  ExternalReference:
+    fields:
+      system: { type: string, required: true, min_length: 1 }
+      external_id: { type: string, required: true, min_length: 1 }
+      uri: { type: uri }
+      authority: { type: enum, values: [authoritative, evidence, mirror, lookup], required: true }
+      synced_at: { type: timestamp }
+  EvidenceReference:
+    fields:
+      node_id: { type: uuid }
+      uri: { type: uri }
+      sha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+      media_type: { type: string }

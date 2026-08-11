@@ -1,0 +1,3 @@
+# A definition nobody compiles is not in force. The loader must refuse it.
+retention_classes:
+  - id: commercial_record

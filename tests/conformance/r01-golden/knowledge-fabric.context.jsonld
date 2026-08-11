@@ -1,0 +1,48 @@
+{
+  "@context": {
+    "@version": 1.1,
+    "kf": "urn:oh:kf:v1:",
+    "prov": "http://www.w3.org/ns/prov#",
+    "oslc": "http://open-services.net/ns/core#",
+    "schema": "https://schema.org/",
+    "node_id": "@id",
+    "node_type": "@type",
+    "title": "schema:name",
+    "created_at": {
+      "@id": "prov:generatedAtTime",
+      "@type": "http://www.w3.org/2001/XMLSchema#dateTime"
+    },
+    "created_by": {
+      "@id": "prov:wasAttributedTo",
+      "@type": "@id"
+    },
+    "owner": {
+      "@id": "kf:ownedBy",
+      "@type": "@id"
+    },
+    "source": {
+      "@id": "kf:source",
+      "@type": "@id"
+    },
+    "target": {
+      "@id": "kf:target",
+      "@type": "@id"
+    },
+    "produces": {
+      "@id": "prov:generated",
+      "@type": "@id"
+    },
+    "uses": {
+      "@id": "prov:used",
+      "@type": "@id"
+    },
+    "performed_by": {
+      "@id": "prov:wasAssociatedWith",
+      "@type": "@id"
+    },
+    "derived_from": {
+      "@id": "prov:wasDerivedFrom",
+      "@type": "@id"
+    }
+  }
+}

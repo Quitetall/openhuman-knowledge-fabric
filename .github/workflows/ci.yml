@@ -15,7 +15,6 @@ env:
 # Jobs are added as their subject matter lands. A job that passes because there is nothing
 # for it to check is worse than no job: it reports a guarantee that does not exist.
 #
-#   Gate 2 adds: ontology consistency + regenerate-and-diff over generated/
 #   Gate 3 adds: a PostgreSQL 18 service and the database invariant / permission suites
 #   Gate 4 adds: export round-trip and audit checkpoint verification
 #   Gate 5 adds: Playwright end-to-end
@@ -48,6 +47,33 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+  ontology:
+    name: ontology consistent · generated/ current
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Validates the ontology AND reports drift. It never writes: a check that repairs
+      # what it inspects cannot report a failure.
+      - name: Ontology check
+        run: pnpm ontology:check
+
+      # Belt and braces. `ontology:check` compares in memory; this proves a real write
+      # produces byte-identical files, catching any non-determinism in the emitters.
+      - name: Regenerate and diff
+        run: |
+          pnpm ontology:build
+          if ! git diff --exit-code -- generated/; then
+            echo "::error::generated/ is out of date — run 'pnpm ontology:build' and commit the result"
+            exit 1
+          fi
 
   build:
     name: build from a clean checkout
