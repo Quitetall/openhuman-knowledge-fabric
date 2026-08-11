@@ -238,7 +238,7 @@ export function emitSqlRegistry(o: Ontology): string {
   );
   out.push('');
 
-  out.push('insert into registry.relation_type (id, inverse_label, acyclic, symmetric) values');
+  out.push('insert into registry.relation_type (id, inverse_label, acyclic, is_symmetric) values');
   out.push(
     o.relationTypes
       .map((r) => `  (${q(r.id)}, ${q(r.inverse)}, ${r.acyclic}, ${r.symmetric})`)

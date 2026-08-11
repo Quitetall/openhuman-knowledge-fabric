@@ -40,7 +40,7 @@ insert into registry.object_type (id, title, authority_domain, enterprise_namesp
   ('release', 'Release', 'configuration', 'RLS', true),
   ('baseline', 'Baseline', 'configuration', 'BSL', true);
 
-insert into registry.relation_type (id, inverse_label, acyclic, symmetric) values
+insert into registry.relation_type (id, inverse_label, acyclic, is_symmetric) values
   ('contains', 'contained_by', true, false),
   ('decomposes_into', 'part_of', true, false),
   ('affects', 'affected_by', false, false),
