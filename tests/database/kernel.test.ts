@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDispatcher, ActionRejected } from '@kf/actions';
 import { withTransaction } from '@kf/database';
 import {
+  bindContext,
   createObject,
   seedFixtures,
   startHarness,
@@ -72,7 +73,7 @@ describe('the kernel applies a legitimate action', () => {
     expect(result.auditDigest).toMatch(/^[0-9a-f]{64}$/);
 
     await withTransaction(h.pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+      await bindContext(tx, f);
       const o = await tx.one<{ lifecycle_state: string; row_version: string }>(
         'select lifecycle_state, row_version from core.object where id = $1',
         [id],
@@ -297,7 +298,7 @@ describe('idempotency', () => {
     expect(second.auditDigest).toBe(first.auditDigest);
 
     await withTransaction(h.pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+      await bindContext(tx, f);
       // Applied ONCE: two audit events would mean the retry did the work again.
       const n = await tx.one<{ n: string }>(
         'select count(*) as n from core.audit_event where action_id = $1',
@@ -331,7 +332,7 @@ describe('the audit chain', () => {
     }
 
     await withTransaction(h.pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+      await bindContext(tx, f);
       const rows = await tx.query<{ seq: string; prev_digest: string; digest: string }>(
         'select seq, prev_digest, digest from core.audit_event order by seq',
       );
@@ -400,7 +401,7 @@ describe('row-level security', () => {
 
   it('hides objects above the reader classification ceiling', async () => {
     const id = await withTransaction(h.pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+      await bindContext(tx, f);
       const row = await tx.one<{ id: string }>(
         `insert into core.object
            (object_type, authority_domain, lifecycle_state, classification, retention_class,
@@ -418,7 +419,7 @@ describe('row-level security', () => {
       expect(await tx.query('select id from core.object where id = $1', [id])).toEqual([]);
     });
     await withTransaction(h.pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+      await bindContext(tx, f);
       expect(await tx.query('select id from core.object where id = $1', [id])).toHaveLength(1);
     });
   });
@@ -428,7 +429,7 @@ describe('the registry constrains the domain', () => {
   it('refuses an object in a state its lifecycle does not define', async () => {
     await expect(
       withTransaction(h.pool, async (tx) => {
-        await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+        await bindContext(tx, f);
         await tx.query(
           `insert into core.object
              (object_type, authority_domain, lifecycle_state, classification, retention_class,
@@ -445,7 +446,7 @@ describe('the registry constrains the domain', () => {
     // "Was this person authorized on that date" must have one answer.
     await expect(
       withTransaction(h.pool, async (tx) => {
-        await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+        await bindContext(tx, f);
         const row = await tx.one<{ id: string }>(
           `insert into core.object
              (object_type, authority_domain, lifecycle_state, classification, retention_class,
@@ -461,5 +462,134 @@ describe('the registry constrains the domain', () => {
         );
       }),
     ).rejects.toThrow(/role_assignment_no_overlap|exclusion constraint/);
+  });
+});
+
+describe('the dispatcher cannot be bypassed', () => {
+  // Before these guards existed, kf_app held UPDATE on core.object and no trigger consulted
+  // the transaction context. A direct `update core.object set lifecycle_state = ...` would
+  // have moved a record with no action, no audit event and no actor. The guarantee was a
+  // convention; these are the tests that make it a control.
+
+  it('refuses a direct write with no transaction context', async () => {
+    const id = await proposedDecision();
+    await expect(
+      withTransaction(h.pool, async (tx) => {
+        await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+        await tx.query(
+          'update core.object set lifecycle_state = $2, row_version = row_version + 1 where id = $1',
+          [id, 'accepted'],
+        );
+      }),
+    ).rejects.toThrow(/no transaction context/);
+  });
+
+  it('refuses a lifecycle change with a context but no action', async () => {
+    const id = await proposedDecision();
+    await expect(
+      withTransaction(h.pool, async (tx) => {
+        await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+        // Context set, action id deliberately null: an actor is named, but nothing
+        // authorized the move.
+        await tx.query('select core.set_transaction_context($1, $1, null, $2)', [
+          f.reviewerId,
+          'bypass-attempt',
+        ]);
+        await tx.query(
+          'update core.object set lifecycle_state = $2, row_version = row_version + 1 where id = $1',
+          [id, 'accepted'],
+        );
+      }),
+    ).rejects.toThrow(/requires an action/);
+  });
+
+  it('refuses a lifecycle move the acting action does not permit', async () => {
+    // A real action, applied to a transition it does not drive. The trigger checks the move
+    // against THIS action, not against "some action somewhere permits it".
+    const id = await proposedDecision();
+    const applied = await execute({
+      actionType: 'accept_decision',
+      actorId: f.reviewerId,
+      actingRoleId: f.reviewerRoleId,
+      targetIds: [id],
+      idempotencyKey: key(),
+      organizationId: f.organizationId,
+      maxClassification: 'restricted',
+    });
+
+    const other = await proposedDecision();
+    await expect(
+      withTransaction(h.pool, async (tx) => {
+        await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+        await tx.query('select core.set_transaction_context($1, $1, $2, $3)', [
+          f.reviewerId,
+          applied.actionId,
+          'wrong-transition',
+        ]);
+        // accept_decision drives proposed -> accepted, never proposed -> withdrawn.
+        await tx.query(
+          'update core.object set lifecycle_state = $2, row_version = row_version + 1 where id = $1',
+          [other, 'withdrawn'],
+        );
+      }),
+    ).rejects.toThrow(/cannot move decision_record from proposed to withdrawn/);
+  });
+
+  it('refuses a silent update that does not advance row_version', async () => {
+    const id = await proposedDecision();
+    await expect(
+      withTransaction(h.pool, async (tx) => {
+        await bindContext(tx, f);
+        await tx.query('update core.object set title = $2 where id = $1', [id, 'Renamed']);
+      }),
+    ).rejects.toThrow(/row_version must advance/);
+  });
+
+  it('refuses two different actors in one transaction', async () => {
+    // Otherwise one transaction could commit two actions attributed to two people, and the
+    // audit trail would be true row by row and false as a whole.
+    await expect(
+      withTransaction(h.pool, async (tx) => {
+        await tx.query('select core.set_transaction_context($1, $1, null, $2)', [
+          f.reviewerId,
+          'first',
+        ]);
+        await tx.query('select core.set_transaction_context($1, $1, null, $2)', [
+          f.performerId,
+          'second',
+        ]);
+      }),
+    ).rejects.toThrow(/already set to a different actor/);
+  });
+});
+
+describe('function privileges', () => {
+  it('does not let a reader declare itself an actor', async () => {
+    // PostgreSQL grants EXECUTE to PUBLIC by default, so without an explicit revoke a
+    // read-only connection could name any actor it liked.
+    const rows = await withTransaction(h.adminPool, async (tx) =>
+      tx.query<{ readonly_can_set_actor: boolean; auditor_can_set_actor: boolean }>(
+        `select
+           has_function_privilege('kf_readonly',
+             'core.set_transaction_context(uuid,uuid,uuid,text)', 'execute') as readonly_can_set_actor,
+           has_function_privilege('kf_auditor',
+             'core.set_transaction_context(uuid,uuid,uuid,text)', 'execute') as auditor_can_set_actor`,
+      ),
+    );
+    expect(rows[0]!.readonly_can_set_actor).toBe(false);
+    expect(rows[0]!.auditor_can_set_actor).toBe(false);
+  });
+
+  it('lets kf_backup read what pg_dump needs', async () => {
+    // Its whole job is pg_dump. It had schema USAGE and no SELECT, so a backup would have
+    // failed on the first table — a fault that stays invisible until the day it is needed.
+    const rows = await withTransaction(h.adminPool, async (tx) =>
+      tx.query<{ core: boolean; registry: boolean; org: boolean }>(
+        `select has_table_privilege('kf_backup','core.object','select') as core,
+                has_table_privilege('kf_backup','registry.object_type','select') as registry,
+                has_table_privilege('kf_backup','org.person','select') as org`,
+      ),
+    );
+    expect(rows[0]).toEqual({ core: true, registry: true, org: true });
   });
 });

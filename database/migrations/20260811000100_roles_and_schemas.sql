@@ -7,8 +7,16 @@
 -- delete audit rows leaves no evidence that it did. So the roles are split by what they are
 -- allowed to do, and the application connects as the most limited one that can do its job.
 --
--- Passwords are set out of band: `alter role kf_app with password ...` from the secret
--- manager. A password in a migration is a password in git forever.
+-- These are NOLOGIN GROUP roles. Nothing connects as them, and `alter role kf_app with
+-- password ...` would NOT make one connectable — a password does not confer LOGIN. To give
+-- something access, create a login role that inherits the group:
+--
+--   create role kf_api login password '<from the secret manager>' inherit;
+--   grant kf_app to kf_api;
+--
+-- Privileges attach to the group, so adding a person or a service never means re-granting a
+-- hundred table privileges. Passwords stay out of band: a password in a migration is a
+-- password in git forever.
 
 do $$
 begin

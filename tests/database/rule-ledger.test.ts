@@ -17,6 +17,7 @@ import { withTransaction } from '@kf/database';
 import {
   seedFixtures,
   startHarness,
+  bindContext,
   createObject,
   type Fixtures,
   type Harness,
@@ -165,7 +166,7 @@ describe('KF-GRAPH-001 is genuinely enforced', () => {
     });
     await expect(
       withTransaction(h.adminPool, async (tx) => {
-        await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+        await bindContext(tx, f);
         await tx.query(
           `insert into core.relation (relation_type, source_id, target_id, created_by)
            values ('governs', $1, '01930000-0000-7000-8000-0000deadbeef', $2)`,
@@ -185,7 +186,7 @@ describe('KF-GRAPH-001 is genuinely enforced', () => {
     });
     await expect(
       withTransaction(h.adminPool, async (tx) => {
-        await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+        await bindContext(tx, f);
         await tx.query(
           `insert into core.relation (relation_type, source_id, target_id, created_by)
            values ('governs', $1, $1, $2)`,
@@ -214,7 +215,7 @@ describe('KF-GRAPH-001 is genuinely enforced', () => {
     ]);
     const insert = async (): Promise<void> =>
       withTransaction(h.adminPool, async (tx) => {
-        await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+        await bindContext(tx, f);
         await tx.query(
           `insert into core.relation (relation_type, source_id, target_id, created_by)
            values ('governs', $1, $2, $3)`,

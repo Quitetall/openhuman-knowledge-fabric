@@ -19,6 +19,14 @@ const ROOT = join(import.meta.dirname, '..', '..');
 const MIGRATIONS = join(ROOT, 'database', 'migrations');
 const SEED = join(ROOT, 'generated', 'sql-registry', '001-ontology-seed.sql');
 
+/**
+ * The identity that creates the first records, before any person exists to attribute them
+ * to. Fixed and recognisable rather than random, so a row attributed to it is obviously a
+ * bootstrap artefact and not a real person's work.
+ */
+const BOOTSTRAP_IDENTITY = '01930000-0000-7000-8000-00000000b007';
+const BOOTSTRAP_ACTION = '01930000-0000-7000-8000-00000000ac10';
+
 export interface Harness {
   /**
    * Connected as an unprivileged application role, NOT the owner.
@@ -160,9 +168,16 @@ export async function seedFixtures(pool: Pool): Promise<Fixtures> {
     const { version } = await tx.one<{ version: string }>(
       'select version from registry.schema_release where is_current',
     );
-    const bootstrap = '01930000-0000-7000-8000-00000000b007';
+    const bootstrap = BOOTSTRAP_IDENTITY;
 
     await tx.query('select core.set_access_context($1, $2)', [bootstrap, 'restricted']);
+    // Bootstrap writes are controlled writes. The trigger refuses one with no transaction
+    // context, and rightly: "who created the first record" has an answer even here.
+    await tx.query('select core.set_transaction_context($1, $1, $2, $3)', [
+      bootstrap,
+      BOOTSTRAP_ACTION,
+      'harness-bootstrap',
+    ]);
 
     const orgObj = await newObject(tx, {
       type: 'organization',
@@ -175,7 +190,13 @@ export async function seedFixtures(pool: Pool): Promise<Fixtures> {
     });
     // Objects belong to the organization once it exists; the bootstrap row is re-homed so
     // no record is permanently owned by a placeholder.
-    await tx.query('update core.object set organization_id = $1 where id = $2', [orgObj, orgObj]);
+    // Any change to a controlled record advances its version — including this one. The
+    // trigger enforces it, which is what makes another reader's stale version stop
+    // validating rather than silently keep working.
+    await tx.query(
+      'update core.object set organization_id = $1, row_version = row_version + 1 where id = $2',
+      [orgObj, orgObj],
+    );
     await tx.query('select core.set_access_context($1, $2)', [orgObj, 'restricted']);
     await tx.query(
       `insert into org.organization (id, legal_name, organization_kind)
@@ -238,10 +259,35 @@ export async function createObject(
 ): Promise<string> {
   return withTransaction(pool, async (tx) => {
     await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+    await tx.query('select core.set_transaction_context($1, $1, $2, $3)', [
+      spec.createdBy,
+      BOOTSTRAP_ACTION,
+      'harness-fixture',
+    ]);
     return newObject(tx, {
       ...spec,
       org: f.organizationId,
       schemaVersion: f.schemaVersion,
     });
   });
+}
+
+/**
+ * Bind both contexts on a raw transaction.
+ *
+ * Tests that write directly — to prove a specific constraint fires — still have to satisfy
+ * the write guard first, exactly as any other caller would. Without this they fail with
+ * "no transaction context", which is the guard working but hides the constraint under test.
+ */
+export async function bindContext(
+  tx: Tx,
+  f: Fixtures,
+  actorId: string = f.performerId,
+): Promise<void> {
+  await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+  await tx.query('select core.set_transaction_context($1, $1, $2, $3)', [
+    actorId,
+    BOOTSTRAP_ACTION,
+    'harness-direct-write',
+  ]);
 }

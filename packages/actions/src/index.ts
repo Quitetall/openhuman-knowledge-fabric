@@ -271,21 +271,6 @@ export function createDispatcher(pool: Pool, options: DispatcherOptions = {}) {
 
       const before = objects.map((o) => ({ id: o.id, state: o.lifecycle_state }));
 
-      // 9. Apply. row_version increments so a concurrent reader's expectedVersion fails.
-      for (const [objectId, toState] of transitions) {
-        await tx.query(
-          `update core.object
-              set lifecycle_state = $2,
-                  row_version = row_version + 1,
-                  updated_at = now(),
-                  updated_by = $3
-            where id = $1`,
-          [objectId, toState, request.actorId],
-        );
-      }
-
-      // 10-11. Audit, chained to its predecessor. Written INSIDE the transaction, so a
-      // committed change with no audit row is not reachable.
       const head = await tx.maybeOne<{ digest: string }>(
         'select digest from core.audit_event order by seq desc limit 1',
       );
@@ -328,6 +313,22 @@ export function createDispatcher(pool: Pool, options: DispatcherOptions = {}) {
           JSON.stringify({ audit_digest: auditDigest }),
         ],
       );
+
+      // 9. Apply, AFTER the action exists. The database trigger reads core.action to learn
+      // which transition it is being asked to authorize; applying first would leave it able
+      // to check only that SOME action permits the move, not that THIS one does.
+      // row_version advances so a concurrent reader's expectedVersion stops validating.
+      for (const [objectId, toState] of transitions) {
+        await tx.query(
+          `update core.object
+              set lifecycle_state = $2,
+                  row_version = row_version + 1,
+                  updated_at = now(),
+                  updated_by = $3
+            where id = $1`,
+          [objectId, toState, request.actorId],
+        );
+      }
 
       // Exactly ONE audit event per action, because the action is the unit of authority and
       // the chain commits to it. A row per target would need a digest per target, and then
