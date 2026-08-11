@@ -28,7 +28,14 @@ const GOLDEN = join(ROOT, 'tests', 'conformance', 'r01-golden');
  * between prose and machine artifacts release-blocking; §5.1's consistency gate exists to
  * surface exactly these before approval.
  *
- * This list is asserted to be EXHAUSTIVE. A new difference fails the test.
+ * READ THIS BEFORE CONCLUDING THE BASELINE WAS EDITED. The golden files under
+ * `r01-golden/` are NEVER patched — they are the pack as released, and the first test below
+ * proves it by checking them against the SHA-256 manifest shipped inside the zip. The
+ * divergence lives entirely in the compiler's OUTPUT. So the golden state machines still
+ * contain the four contradictions; the compiled ones do not.
+ *
+ * Consequently this list is a fixed, enumerated set of known corrections, not a tolerance
+ * window: it is asserted EXHAUSTIVE, and any new difference — in either direction — fails.
  */
 const RECORDED_DIVERGENCES = [
   {

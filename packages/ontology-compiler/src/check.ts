@@ -433,14 +433,46 @@ export function checkOntology(o: Ontology): Finding[] {
   return findings;
 }
 
+/** Above this many findings of one warning rule, print a count instead of every instance. */
+const SUMMARISE_WARNINGS_ABOVE = 3;
+
+/**
+ * Render findings for a human.
+ *
+ * Errors always print in full — you cannot fix one without its exact path. Warnings that
+ * repeat across the whole ontology collapse to a single counted line: a rule that fires 34
+ * times says one thing, not 34 things, and printing it 34 times buries every other finding
+ * and teaches the reader to skip the output entirely. The returned `Finding[]` is always
+ * complete; only this presentation summarises.
+ */
 export function formatFindings(findings: readonly Finding[]): string {
   if (findings.length === 0) return 'ontology: OK';
-  const lines = findings.map(
-    (f) =>
-      `${f.severity.toUpperCase()} ${f.rule} ${f.path}\n    ${f.message}\n    → ${f.remediation}`,
-  );
-  const errors = findings.filter((f) => f.severity === 'error').length;
-  const warnings = findings.length - errors;
-  lines.push(`\n${errors} error(s), ${warnings} warning(s)`);
+
+  const detail = (f: Finding): string =>
+    `${f.severity.toUpperCase()} ${f.rule} ${f.path}\n    ${f.message}\n    → ${f.remediation}`;
+
+  const warnings = findings.filter((f) => f.severity === 'warning');
+  const lines = findings.filter((f) => f.severity === 'error').map(detail);
+
+  const byRule = new Map<string, Finding[]>();
+  for (const w of warnings) byRule.set(w.rule, [...(byRule.get(w.rule) ?? []), w]);
+
+  for (const [rule, group] of [...byRule].sort(([a], [b]) => a.localeCompare(b))) {
+    if (group.length <= SUMMARISE_WARNINGS_ABOVE) {
+      lines.push(...group.map(detail));
+      continue;
+    }
+    const first = group[0]!;
+    const sample = group
+      .slice(0, 3)
+      .map((f) => f.path)
+      .join(', ');
+    lines.push(
+      `WARNING ${rule} ×${group.length}\n    ${first.message}\n    → ${first.remediation}\n` +
+        `    (e.g. ${sample}, +${group.length - 3} more)`,
+    );
+  }
+
+  lines.push(`\n${findings.length - warnings.length} error(s), ${warnings.length} warning(s)`);
   return lines.join('\n');
 }
