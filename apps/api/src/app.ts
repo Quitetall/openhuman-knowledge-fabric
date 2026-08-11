@@ -8,6 +8,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import { createDispatcher } from '@kf/actions';
 import { createPool, withTransaction, type Pool } from '@kf/database';
+import { assessReadiness } from '@kf/operations';
 import {
   WORK_CONTROL_EFFECTS,
   WORK_CONTROL_MATERIALIZERS,
@@ -77,6 +78,19 @@ export async function buildApp(config: ApiConfig): Promise<FastifyInstance> {
   });
 
   if (pool !== undefined) {
+    /**
+     * Deep readiness, for an operator rather than an orchestrator.
+     *
+     * Separate from `/ready` on purpose: a load balancer asks "can this process serve a
+     * request", and answering that with a full chain verification would take a database
+     * outage and turn it into a restart loop. This one answers "is the system in the state
+     * it is supposed to be in", which is a slower and much more interesting question.
+     */
+    app.get('/readiness', async (_request, reply) => {
+      const report = await assessReadiness(pool);
+      return reply.code(report.ready ? 200 : 503).send(report);
+    });
+
     const execute = createDispatcher(pool, {
       materializers: WORK_CONTROL_MATERIALIZERS,
       effects: WORK_CONTROL_EFFECTS,

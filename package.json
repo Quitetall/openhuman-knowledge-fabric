@@ -40,6 +40,7 @@
     "@kf/export": "workspace:*",
     "@kf/integration": "workspace:*",
     "@kf/ontology-compiler": "workspace:*",
+    "@kf/operations": "workspace:*",
     "@kf/product-quality": "workspace:*",
     "@kf/search": "workspace:*",
     "@kf/work-control": "workspace:*",

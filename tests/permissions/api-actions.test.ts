@@ -72,6 +72,22 @@ describe('readiness', () => {
   });
 });
 
+describe('deep readiness', () => {
+  it('is a separate question from liveness, and answers 503 when the system is not in order', async () => {
+    // /ready asks "can this process serve a request" — answering that with a full chain
+    // verification would turn a database blip into a restart loop. /readiness asks "is the
+    // system in the state it is supposed to be in", which is slower and much more
+    // interesting. A fresh harness has never signed a checkpoint, so it is NOT ready.
+    const res = await app.inject({ method: 'GET', url: '/readiness' });
+    expect(res.statusCode).toBe(503);
+    const body = res.json() as { ready: boolean; checks: { id: string; detail: string }[] };
+    expect(body.ready).toBe(false);
+    // And it says what each finding means, rather than only that it is red.
+    for (const c of body.checks) expect(c.detail.length).toBeGreaterThanOrEqual(20);
+    expect(body.checks.map((c) => c.id)).toContain('audit_chain');
+  });
+});
+
 describe('identity', () => {
   it('refuses a caller who states no identity', async () => {
     const r = await app.inject({

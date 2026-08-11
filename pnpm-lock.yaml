@@ -35,6 +35,9 @@ importers:
       '@kf/ontology-compiler':
         specifier: workspace:*
         version: link:packages/ontology-compiler
+      '@kf/operations':
+        specifier: workspace:*
+        version: link:packages/operations
       '@kf/product-quality':
         specifier: workspace:*
         version: link:packages/product-quality
@@ -92,6 +95,9 @@ importers:
       '@kf/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@kf/operations':
+        specifier: workspace:*
+        version: link:../../packages/operations
       '@kf/work-control':
         specifier: workspace:*
         version: link:../../packages/work-control
@@ -289,6 +295,19 @@ importers:
       yaml:
         specifier: ^2.9.0
         version: 2.9.0
+    devDependencies:
+      '@types/node':
+        specifier: ^24.13.3
+        version: 24.13.3
+
+  packages/operations:
+    dependencies:
+      '@kf/database':
+        specifier: workspace:*
+        version: link:../database
+      '@kf/domain':
+        specifier: workspace:*
+        version: link:../domain
     devDependencies:
       '@types/node':
         specifier: ^24.13.3

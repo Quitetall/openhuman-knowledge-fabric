@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Knowledge Fabric HTTP API — typed reads and typed actions",
+  "description": "Knowledge Fabric HTTP API \u2014 typed reads and typed actions",
   "main": "./dist/server.js",
   "scripts": {
     "dev": "node --watch --experimental-strip-types src/server.ts",
@@ -15,6 +15,7 @@
     "@kf/actions": "workspace:*",
     "@kf/database": "workspace:*",
     "@kf/domain": "workspace:*",
+    "@kf/operations": "workspace:*",
     "@kf/work-control": "workspace:*",
     "fastify": "^5.11.3"
   },
