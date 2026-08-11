@@ -12,3 +12,16 @@ export const PACKAGE: PackageManifest = {
   role: 'Read-only federation adapters',
   owns: [],
 };
+
+export {
+  FederationRejected,
+  StaticSourceReader,
+  checkDrift,
+  digestOf,
+  linkToReference,
+  recordReference,
+  type DriftFinding,
+  type FederatedReference,
+  type ReferenceSpec,
+  type SourceReader,
+} from './federation.js';

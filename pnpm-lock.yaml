@@ -26,6 +26,9 @@ importers:
       '@kf/export':
         specifier: workspace:*
         version: link:packages/export
+      '@kf/integration':
+        specifier: workspace:*
+        version: link:packages/integration
       '@kf/ontology-compiler':
         specifier: workspace:*
         version: link:packages/ontology-compiler
@@ -237,6 +240,9 @@ importers:
 
   packages/integration:
     dependencies:
+      '@kf/database':
+        specifier: workspace:*
+        version: link:../database
       '@kf/domain':
         specifier: workspace:*
         version: link:../domain

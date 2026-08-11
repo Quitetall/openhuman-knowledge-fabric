@@ -37,6 +37,7 @@
     "@kf/canonicalization": "workspace:*",
     "@kf/database": "workspace:*",
     "@kf/export": "workspace:*",
+    "@kf/integration": "workspace:*",
     "@kf/ontology-compiler": "workspace:*",
     "@kf/work-control": "workspace:*",
     "@testcontainers/postgresql": "^12.1.0",
