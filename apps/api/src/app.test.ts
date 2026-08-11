@@ -36,7 +36,10 @@ describe('health endpoints', () => {
     const app = await buildApp(loadConfig({ ...baseEnv, LOG_LEVEL: 'silent' }));
     const res = await app.inject({ method: 'GET', url: '/health' });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toMatchObject({ service: SERVICE_NAME, status: 'ok' });
+    // toEqual, not toMatchObject: this endpoint is unauthenticated, so the assertion has to
+    // forbid EXTRA keys. Adding an environment name, version or build id here would be
+    // free reconnaissance, and toMatchObject would let it through silently.
+    expect(res.json()).toEqual({ service: SERVICE_NAME, status: 'ok' });
     await app.close();
   });
 

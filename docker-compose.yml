@@ -44,7 +44,9 @@ services:
       start_period: 10s
 
   minio:
-    image: minio/minio:latest
+    # Pinned, like postgres and keycloak. A floating tag means a clean checkout can stop
+    # working because an upstream release changed, with nothing in this repo to explain it.
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: kf-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -67,7 +69,7 @@ services:
   # Versioning must exist before the first object is written — enabling it later does not
   # retroactively protect anything already stored.
   minio-init:
-    image: minio/mc:latest
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
     container_name: kf-minio-init
     depends_on:
       minio:
@@ -94,11 +96,17 @@ services:
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: dev-only-not-a-secret
+      # Exposes /health/* on the management interface — see the healthcheck below.
       KC_HEALTH_ENABLED: 'true'
     ports:
       - '8080:8080'
     volumes:
       - keycloak-data:/opt/keycloak/data
+    # Port 9000 is deliberate and is NOT MinIO's. Since Keycloak 25 the health and metrics
+    # endpoints live on a separate MANAGEMENT interface listening on 9000; localhost:8080
+    # /health/ready returns 404. This runs inside the Keycloak container, so localhost:9000
+    # is Keycloak's own management port — MinIO would be reachable at minio:9000, and is
+    # not consulted here.
     healthcheck:
       test:
         [

@@ -38,7 +38,9 @@ export async function buildApp(config: ApiConfig): Promise<FastifyInstance> {
   app.get('/health', async () => ({
     service: SERVICE_NAME,
     status: 'ok',
-    environment: config.environment,
+    // Deliberately no environment name, version or build id. This endpoint is
+    // unauthenticated, and naming the deployment is free reconnaissance for no operational
+    // benefit — the caller already knows which host it dialled.
   }));
 
   app.get('/ready', async (_request, reply) => {

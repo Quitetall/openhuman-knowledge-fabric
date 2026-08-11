@@ -51,9 +51,6 @@ importers:
 
   apps/checkpoint:
     dependencies:
-      '@kf/canonicalization':
-        specifier: workspace:*
-        version: link:../../packages/canonicalization
       '@kf/domain':
         specifier: workspace:*
         version: link:../../packages/domain

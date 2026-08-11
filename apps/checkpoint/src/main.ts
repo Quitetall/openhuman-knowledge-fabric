@@ -32,4 +32,7 @@ function main(): number {
   return 0;
 }
 
-process.exit(main());
+// Set exitCode rather than calling process.exit(). process.exit() terminates immediately and
+// can truncate stderr when it is a pipe, losing the very message that explains the failure.
+// Letting the event loop drain flushes the output first, then exits with the same code.
+process.exitCode = main();
