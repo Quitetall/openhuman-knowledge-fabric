@@ -33,6 +33,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@kf/actions": "workspace:*",
+    "@kf/agent-tools": "workspace:*",
     "@kf/artifacts": "workspace:*",
     "@kf/canonicalization": "workspace:*",
     "@kf/database": "workspace:*",

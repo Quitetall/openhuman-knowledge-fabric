@@ -1,0 +1,28 @@
+{
+  "name": "@kf/agent-tools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Typed, read-mostly tools an agent may use — and the rehearsal that never commits",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@kf/actions": "workspace:*",
+    "@kf/database": "workspace:*",
+    "@kf/domain": "workspace:*",
+    "@kf/search": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3"
+  }
+}

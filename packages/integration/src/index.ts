@@ -25,3 +25,5 @@ export {
   type ReferenceSpec,
   type SourceReader,
 } from './federation.js';
+
+export { GitReadFailed, GitSourceReader, type GitSourceOptions } from './git.js';

@@ -14,6 +14,9 @@ importers:
       '@kf/actions':
         specifier: workspace:*
         version: link:packages/actions
+      '@kf/agent-tools':
+        specifier: workspace:*
+        version: link:packages/agent-tools
       '@kf/artifacts':
         specifier: workspace:*
         version: link:packages/artifacts
@@ -168,6 +171,25 @@ importers:
       '@kf/domain':
         specifier: workspace:*
         version: link:../domain
+    devDependencies:
+      '@types/node':
+        specifier: ^24.13.3
+        version: 24.13.3
+
+  packages/agent-tools:
+    dependencies:
+      '@kf/actions':
+        specifier: workspace:*
+        version: link:../actions
+      '@kf/database':
+        specifier: workspace:*
+        version: link:../database
+      '@kf/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@kf/search':
+        specifier: workspace:*
+        version: link:../search
     devDependencies:
       '@types/node':
         specifier: ^24.13.3
