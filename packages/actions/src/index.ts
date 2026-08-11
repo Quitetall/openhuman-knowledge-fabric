@@ -1,14 +1,424 @@
 /**
- * Typed action dispatcher
+ * The typed action dispatcher.
  *
- * Owns the transition, never the fact. Every controlled state change passes through
- * executeAction in one transaction, with authority, preconditions, audit and outbox.
+ * Every controlled state change in the system passes through `executeAction`, in one
+ * transaction, with authority resolved, preconditions checked, an audit event written and
+ * an outbox row emitted. There is no other way to change a controlled fact — no
+ * `PATCH /work-orders/123 {status}` anywhere in the API — because a record that can be
+ * moved by field assignment cannot answer "who moved it, under what authority, and why".
+ *
+ * The fourteen steps run in the order the directive gives them. Order matters: authority is
+ * resolved before anything is read, the row is locked before its version is checked, and
+ * the audit event is written before the transaction commits, so a committed change without
+ * a matching audit row is not a state the database can reach.
  */
 
-import type { PackageManifest } from '@kf/domain';
+import { chainDigest, digest, GENESIS_DIGEST, type JsonValue } from '@kf/canonicalization';
+import { setTransactionContext, withTransaction, type Pool, type Tx } from '@kf/database';
 
-export const PACKAGE: PackageManifest = {
+// ── failures ────────────────────────────────────────────────────────────────────────────
+
+/** Why an action was refused. Distinct codes so a caller can respond, not just log. */
+export type ActionFailure =
+  | 'unknown_action'
+  | 'actor_not_authorized'
+  | 'role_not_held'
+  | 'object_not_visible'
+  | 'version_conflict'
+  | 'illegal_transition'
+  | 'precondition_failed'
+  | 'separation_of_duty'
+  | 'reason_required';
+
+export class ActionRejected extends Error {
+  readonly failure: ActionFailure;
+  readonly detail: Readonly<Record<string, unknown>>;
+
+  constructor(failure: ActionFailure, message: string, detail: Record<string, unknown> = {}) {
+    super(message);
+    this.name = 'ActionRejected';
+    this.failure = failure;
+    this.detail = detail;
+  }
+}
+
+// ── request and result ──────────────────────────────────────────────────────────────────
+
+export interface ActionRequest {
+  readonly actionType: string;
+  readonly actorId: string;
+  readonly actingRoleId: string;
+  readonly targetIds: readonly string[];
+  readonly payload?: Readonly<Record<string, JsonValue>>;
+  readonly reason?: string;
+  /**
+   * Stable across retries of the SAME logical attempt. This is what makes a network
+   * timeout safe: the retry replays the first result instead of applying twice.
+   */
+  readonly idempotencyKey: string;
+  readonly requestId?: string;
+  /** When the event actually occurred, which is not always when we heard about it (§29.4). */
+  readonly effectiveAt?: Date;
+  /** The row_version the caller read. Omit only for actions that create. */
+  readonly expectedVersion?: number;
+}
+
+export interface ActionResult {
+  readonly actionId: string;
+  readonly status: 'applied';
+  /** True when this call replayed a previously-recorded result rather than applying. */
+  readonly replayed: boolean;
+  readonly objectIds: readonly string[];
+  readonly auditDigest: string;
+}
+
+/**
+ * What an action is permitted to do. Loaded from the registry, which the ontology compiler
+ * seeds — so an action's authority comes from the reviewed ontology and not from a constant
+ * someone edited in application code.
+ */
+interface ActionDefinition {
+  readonly id: string;
+  readonly transactional: boolean;
+  /** Machine ids this action can drive, with the transitions it permits. */
+  readonly transitions: readonly { machine: string; from: string; to: string }[];
+}
+
+/** Extra checks a specific action needs, beyond state and authority. */
+export type PreconditionCheck = (
+  tx: Tx,
+  request: ActionRequest,
+  objects: readonly ObjectRow[],
+) => Promise<void>;
+
+export interface ObjectRow extends Record<string, unknown> {
+  id: string;
+  object_type: string;
+  lifecycle_state: string;
+  row_version: string;
+  organization_id: string;
+  created_by: string;
+}
+
+export interface DispatcherOptions {
+  /**
+   * Action-specific preconditions, keyed by action type.
+   *
+   * An action listed here without a check is a gap, not a default-allow: register a check
+   * that throws until it is written, rather than letting the action through unverified.
+   */
+  readonly preconditions?: Readonly<Record<string, PreconditionCheck>>;
+  /**
+   * Actions where the actor may not be the person whose work is being judged.
+   *
+   * Separation of duty is the control that stops a contractor accepting their own work,
+   * so it is enforced here rather than left to whoever writes the next endpoint.
+   */
+  readonly separationOfDuty?: readonly string[];
+  /** Actions that must carry a reason. A silent correction is not a correction. */
+  readonly reasonRequired?: readonly string[];
+}
+
+const DEFAULT_SEPARATION_OF_DUTY = ['issue_acceptance', 'accept_work_package', 'approve_invoice'];
+const DEFAULT_REASON_REQUIRED = ['correct_record', 'reject_decision', 'amend_work_order'];
+
+// ── dispatcher ──────────────────────────────────────────────────────────────────────────
+
+export function createDispatcher(pool: Pool, options: DispatcherOptions = {}) {
+  const separationOfDuty = new Set(options.separationOfDuty ?? DEFAULT_SEPARATION_OF_DUTY);
+  const reasonRequired = new Set(options.reasonRequired ?? DEFAULT_REASON_REQUIRED);
+  const preconditions = options.preconditions ?? {};
+
+  return async function executeAction(request: ActionRequest): Promise<ActionResult> {
+    return withTransaction(pool, async (tx) => {
+      // 13 (early). An idempotent replay must not re-run the work, so this is checked
+      // before anything is locked or written, not after.
+      const prior = await tx.maybeOne<{ id: string; result: { audit_digest?: string } }>(
+        `select id, result from core.action
+          where action_type = $1 and idempotency_key = $2`,
+        [request.actionType, request.idempotencyKey],
+      );
+      if (prior !== undefined) {
+        return {
+          actionId: prior.id,
+          status: 'applied' as const,
+          replayed: true,
+          objectIds: [...request.targetIds],
+          auditDigest: prior.result.audit_digest ?? '',
+        };
+      }
+
+      // 1-2. Authority. The action must exist in the registry, and the role must be one the
+      // actor actually holds — checked against the database, not the caller's claim.
+      const definition = await loadDefinition(tx, request.actionType);
+      await assertRoleHeld(tx, request.actorId, request.actingRoleId);
+
+      if (reasonRequired.has(request.actionType) && !request.reason?.trim()) {
+        throw new ActionRejected('reason_required', `${request.actionType} requires a reason`, {
+          actionType: request.actionType,
+        });
+      }
+
+      // 3-5. Read the targets under row-level security, locking them so a concurrent action
+      // cannot move the state between our check and our write. FOR UPDATE is what makes the
+      // version check meaningful rather than advisory.
+      const objects = await tx.query<ObjectRow>(
+        `select id, object_type, lifecycle_state, row_version, organization_id, created_by
+           from core.object where id = any($1::uuid[]) for update`,
+        [[...request.targetIds]],
+      );
+      if (objects.length !== request.targetIds.length) {
+        // Not visible and not existing are deliberately the same answer: distinguishing
+        // them tells an unauthorized caller that a record exists.
+        throw new ActionRejected(
+          'object_not_visible',
+          'one or more targets do not exist or are not visible to this actor',
+          { requested: request.targetIds.length, found: objects.length },
+        );
+      }
+
+      if (request.expectedVersion !== undefined) {
+        for (const o of objects) {
+          if (Number(o.row_version) !== request.expectedVersion) {
+            throw new ActionRejected('version_conflict', 'the object changed since it was read', {
+              objectId: o.id,
+              expected: request.expectedVersion,
+              actual: Number(o.row_version),
+            });
+          }
+        }
+      }
+
+      // 6. The transition must be one the ontology permits for this object's lifecycle.
+      const transitions = new Map<string, string>();
+      for (const o of objects) {
+        const permitted = definition.transitions.filter(
+          (t) => t.machine === o.object_type && t.from === o.lifecycle_state,
+        );
+        if (definition.transitions.length > 0 && permitted.length === 0) {
+          throw new ActionRejected(
+            'illegal_transition',
+            `${request.actionType} cannot move ${o.object_type} out of '${o.lifecycle_state}'`,
+            { objectId: o.id, from: o.lifecycle_state },
+          );
+        }
+        if (permitted.length === 1) transitions.set(o.id, permitted[0]!.to);
+        // More than one candidate means the payload must choose. Guessing would silently
+        // pick a lifecycle branch on the caller's behalf.
+        if (permitted.length > 1) {
+          const chosen = request.payload?.['to_state'];
+          const target = permitted.find((t) => t.to === chosen);
+          if (target === undefined) {
+            throw new ActionRejected(
+              'precondition_failed',
+              `${request.actionType} from '${o.lifecycle_state}' is ambiguous; payload.to_state must be one of ${permitted
+                .map((t) => t.to)
+                .join(', ')}`,
+              { objectId: o.id, candidates: permitted.map((t) => t.to) },
+            );
+          }
+          transitions.set(o.id, target.to);
+        }
+      }
+
+      // 8. Separation of duty.
+      if (separationOfDuty.has(request.actionType)) {
+        for (const o of objects) {
+          if (o.created_by === request.actorId) {
+            throw new ActionRejected(
+              'separation_of_duty',
+              `${request.actionType} may not be performed by the actor who created the record`,
+              { objectId: o.id, actorId: request.actorId },
+            );
+          }
+        }
+      }
+
+      // 7. Action-specific preconditions. Financial invariants live here and in database
+      // constraints both, so neither alone is the only thing standing in the way.
+      const check = preconditions[request.actionType];
+      if (check !== undefined) await check(tx, request, objects);
+
+      const actionId = (await tx.one<{ id: string }>('select uuidv7() as id')).id;
+      const effectiveAt = request.effectiveAt ?? new Date();
+
+      await setTransactionContext(tx, {
+        actorId: request.actorId,
+        actingRoleId: request.actingRoleId,
+        actionId,
+        ...(request.requestId !== undefined ? { requestId: request.requestId } : {}),
+      });
+
+      const before = objects.map((o) => ({ id: o.id, state: o.lifecycle_state }));
+
+      // 9. Apply. row_version increments so a concurrent reader's expectedVersion fails.
+      for (const [objectId, toState] of transitions) {
+        await tx.query(
+          `update core.object
+              set lifecycle_state = $2,
+                  row_version = row_version + 1,
+                  updated_at = now(),
+                  updated_by = $3
+            where id = $1`,
+          [objectId, toState, request.actorId],
+        );
+      }
+
+      // 10-11. Audit, chained to its predecessor. Written INSIDE the transaction, so a
+      // committed change with no audit row is not reachable.
+      const head = await tx.maybeOne<{ digest: string }>(
+        'select digest from core.audit_event order by seq desc limit 1',
+      );
+      const prevDigest = head?.digest ?? GENESIS_DIGEST;
+
+      const beforeDigest = digest(before);
+      const afterDigest = digest(
+        objects.map((o) => ({ id: o.id, state: transitions.get(o.id) ?? o.lifecycle_state })),
+      );
+
+      const entry = {
+        action_id: actionId,
+        action_type: request.actionType,
+        actor_id: request.actorId,
+        acting_role_id: request.actingRoleId,
+        object_ids: [...request.targetIds].sort(),
+        effective_at: effectiveAt.toISOString(),
+        before_digest: beforeDigest,
+        after_digest: afterDigest,
+      };
+      const auditDigest = chainDigest(prevDigest, entry);
+
+      await tx.query(
+        `insert into core.action
+           (id, action_type, actor_id, acting_role_id, target_ids, parameters, preconditions,
+            idempotency_key, effective_at, request_id, reason, result_status, result)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'applied',$12)`,
+        [
+          actionId,
+          request.actionType,
+          request.actorId,
+          request.actingRoleId,
+          [...request.targetIds],
+          JSON.stringify(request.payload ?? {}),
+          JSON.stringify({ before, expected_version: request.expectedVersion ?? null }),
+          request.idempotencyKey,
+          effectiveAt.toISOString(),
+          request.requestId ?? null,
+          request.reason ?? null,
+          JSON.stringify({ audit_digest: auditDigest }),
+        ],
+      );
+
+      // Exactly ONE audit event per action, because the action is the unit of authority and
+      // the chain commits to it. A row per target would need a digest per target, and then
+      // "what was authorized" would have to be reassembled from several rows that could
+      // disagree. Multi-target actions record null and carry the full list on core.action.
+      await tx.query(
+        `insert into core.audit_event
+           (action_id, actor_id, acting_role_id, action_type, object_id, effective_at,
+            request_id, reason, before_digest, after_digest, prev_digest, digest)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+        [
+          actionId,
+          request.actorId,
+          request.actingRoleId,
+          request.actionType,
+          request.targetIds.length === 1 ? request.targetIds[0] : null,
+          effectiveAt.toISOString(),
+          request.requestId ?? null,
+          request.reason ?? null,
+          beforeDigest,
+          afterDigest,
+          prevDigest,
+          auditDigest,
+        ],
+      );
+
+      // 12. Outbox, in the same transaction as the change. Delivery is the worker's problem;
+      // "the change committed but the notification did not" is not.
+      await tx.query(
+        `insert into core.outbox (action_id, topic, payload)
+         values ($1, $2, $3)`,
+        [
+          actionId,
+          `kf.${request.actionType}`,
+          JSON.stringify({ action_id: actionId, targets: request.targetIds }),
+        ],
+      );
+
+      // 14. Commit is withTransaction's, on return.
+      return {
+        actionId,
+        status: 'applied' as const,
+        replayed: false,
+        objectIds: [...request.targetIds],
+        auditDigest,
+      };
+    });
+  };
+}
+
+async function loadDefinition(tx: Tx, actionType: string): Promise<ActionDefinition> {
+  const row = await tx.maybeOne<{ id: string; transactional: boolean }>(
+    'select id, transactional from registry.action_type where id = $1',
+    [actionType],
+  );
+  if (row === undefined) {
+    throw new ActionRejected('unknown_action', `no such action type '${actionType}'`, {
+      actionType,
+    });
+  }
+  // Transitions come from the registry, which the ontology compiler seeds. An action's
+  // authority is therefore whatever the reviewed ontology says, never a constant in code.
+  const transitions = await tx.query<{ machine: string; from_state: string; to_state: string }>(
+    `select machine_id as machine, from_state, to_state
+       from registry.state_transition where action_id = $1`,
+    [actionType],
+  );
+  return {
+    id: row.id,
+    transactional: row.transactional,
+    transitions: transitions.map((t) => ({
+      machine: t.machine,
+      from: t.from_state,
+      to: t.to_state,
+    })),
+  };
+}
+
+async function assertRoleHeld(tx: Tx, actorId: string, roleId: string): Promise<void> {
+  // org.role_assignment arrives with the work-control slice. Until it exists there is no
+  // way to verify the claim, so the dispatcher REFUSES rather than trusting it: an
+  // authority check that silently passes is worse than one that is absent, because it
+  // reports a guarantee nobody is providing.
+  const hasTable = await tx.maybeOne<{ exists: boolean }>(
+    `select true as exists from information_schema.tables
+      where table_schema = 'org' and table_name = 'role_assignment'`,
+  );
+  if (hasTable === undefined) {
+    throw new ActionRejected(
+      'role_not_held',
+      'role assignments are not yet modelled, so no acting role can be verified. ' +
+        'This refusal is deliberate: an unverifiable authority claim must not be accepted.',
+      { actorId, roleId },
+    );
+  }
+  const held = await tx.maybeOne(
+    `select 1 from org.role_assignment
+      where id = $1 and subject_id = $2
+        and valid_from <= now() and (valid_to is null or valid_to > now())`,
+    [roleId, actorId],
+  );
+  if (held === undefined) {
+    throw new ActionRejected('role_not_held', 'the actor does not hold that role', {
+      actorId,
+      roleId,
+    });
+  }
+}
+
+export const PACKAGE = {
   name: '@kf/actions',
   role: 'Typed action dispatcher',
   owns: [],
-};
+} as const;

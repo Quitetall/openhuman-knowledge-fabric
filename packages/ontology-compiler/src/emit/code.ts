@@ -205,28 +205,37 @@ export function emitSqlRegistry(o: Ontology): string {
   const q = (s: string): string => `'${s.replaceAll("'", "''")}'`;
   const out: string[] = [BANNER(o, '--')];
   out.push(
-    '-- Seed data for the registry schema. Applied by migration, never by hand.',
+    '-- Seed data for the registry schema. Generated; applied by `pnpm db:seed`.',
     '--',
     '-- These tables are the database-side copy of the ontology. Domain tables reference them,',
-    '-- so a state or action token that the ontology does not define fails a foreign key',
-    '-- instead of being caught only by an application check that someone might bypass.',
+    '-- so a state or action token the ontology does not define fails a foreign key instead of',
+    '-- being caught only by an application check that someone might bypass.',
+    '--',
+    '-- UPSERT, not delete-and-insert. Re-seeding after an ontology change must not fail merely',
+    '-- because a type is in use. Rows the ontology NO LONGER declares are deleted at the end,',
+    '-- and that delete is meant to fail if records still reference them: a type you cannot',
+    '-- remove is a type you should not be silently removing.',
     '',
     'begin;',
     '',
   );
 
-  out.push('delete from registry.state_definition;');
-  out.push('delete from registry.state_machine;');
-  out.push('delete from registry.rule_definition;');
-  out.push('delete from registry.action_type;');
-  out.push('delete from registry.relation_type;');
-  out.push('delete from registry.object_type;');
-  out.push('');
+  const ids = (xs: readonly { id: string }[]): string =>
+    `array[${xs.map((x) => q(x.id)).join(', ')}]::text[]`;
+
+  out.push(
+    `insert into registry.schema_release (version, ontology_digest, is_current) values`,
+    `  (${q(o.schemaVersion)}, ${q(o.sourceDigest)}, true)`,
+    'on conflict (version) do update set ontology_digest = excluded.ontology_digest,',
+    '  applied_at = now(), is_current = true;',
+    '',
+    '-- Exactly one release is current; schema_release_one_current enforces it.',
+    `update registry.schema_release set is_current = false where version <> ${q(o.schemaVersion)};`,
+    '',
+  );
 
   out.push(
     'insert into registry.object_type (id, title, authority_domain, enterprise_namespace, first_class) values',
-  );
-  out.push(
     o.objectTypes
       .map(
         (t) =>
@@ -234,27 +243,38 @@ export function emitSqlRegistry(o: Ontology): string {
             t.enterprise_namespace === null ? 'null' : q(t.enterprise_namespace)
           }, ${t.first_class})`,
       )
-      .join(',\n') + ';',
+      .join(',\n') +
+      '\non conflict (id) do update set title = excluded.title,\n' +
+      '  authority_domain = excluded.authority_domain,\n' +
+      '  enterprise_namespace = excluded.enterprise_namespace,\n' +
+      '  first_class = excluded.first_class;',
+    '',
   );
-  out.push('');
 
-  out.push('insert into registry.relation_type (id, inverse_label, acyclic, is_symmetric) values');
   out.push(
+    'insert into registry.relation_type (id, inverse_label, acyclic, is_symmetric) values',
     o.relationTypes
       .map((r) => `  (${q(r.id)}, ${q(r.inverse)}, ${r.acyclic}, ${r.symmetric})`)
-      .join(',\n') + ';',
+      .join(',\n') +
+      '\non conflict (id) do update set inverse_label = excluded.inverse_label,\n' +
+      '  acyclic = excluded.acyclic, is_symmetric = excluded.is_symmetric;',
+    '',
   );
-  out.push('');
 
-  out.push('insert into registry.action_type (id, audited, transactional) values');
   out.push(
-    o.actionTypes.map((a) => `  (${q(a.id)}, ${a.audited}, ${a.transactional})`).join(',\n') + ';',
+    'insert into registry.action_type (id, audited, transactional) values',
+    o.actionTypes.map((a) => `  (${q(a.id)}, ${a.audited}, ${a.transactional})`).join(',\n') +
+      '\non conflict (id) do update set audited = excluded.audited,\n' +
+      '  transactional = excluded.transactional;',
+    '',
   );
-  out.push('');
 
-  out.push('insert into registry.state_machine (id, initial_state) values');
-  out.push(o.stateMachines.map((m) => `  (${q(m.id)}, ${q(m.initial)})`).join(',\n') + ';');
-  out.push('');
+  out.push(
+    'insert into registry.state_machine (id, initial_state) values',
+    o.stateMachines.map((m) => `  (${q(m.id)}, ${q(m.initial)})`).join(',\n') +
+      '\non conflict (id) do update set initial_state = excluded.initial_state;',
+    '',
+  );
 
   out.push(
     'insert into registry.state_definition (machine_id, state, is_terminal) values',
@@ -267,14 +287,23 @@ export function emitSqlRegistry(o: Ontology): string {
         }
         return [...states].sort().map((s) => `  (${q(m.id)}, ${q(s)}, ${m.terminal.includes(s)})`);
       })
-      .join(',\n') + ';',
+      .join(',\n') +
+      '\non conflict (machine_id, state) do update set is_terminal = excluded.is_terminal;',
+    '',
   );
-  out.push('');
+
+  out.push(
+    'insert into registry.state_transition (machine_id, from_state, to_state, action_id) values',
+    o.stateMachines
+      .flatMap((m) =>
+        m.transitions.map((t) => `  (${q(m.id)}, ${q(t.from)}, ${q(t.to)}, ${q(t.action)})`),
+      )
+      .join(',\n') + '\non conflict do nothing;',
+    '',
+  );
 
   out.push(
     'insert into registry.rule_definition (id, severity, description, implementation) values',
-  );
-  out.push(
     o.rules
       .map(
         (r) =>
@@ -282,9 +311,35 @@ export function emitSqlRegistry(o: Ontology): string {
             .map(q)
             .join(', ')}])`,
       )
-      .join(',\n') + ';',
+      .join(',\n') +
+      '\non conflict (id) do update set severity = excluded.severity,\n' +
+      '  description = excluded.description, implementation = excluded.implementation;',
+    '',
   );
-  out.push('', 'commit;', '');
+
+  out.push(
+    '-- Retire what the ontology no longer declares. These deletes are SUPPOSED to fail when',
+    '-- records still reference the row: a type still in use must not vanish from the registry.',
+    `delete from registry.rule_definition where id <> all (${ids(o.rules)});`,
+    'delete from registry.state_transition st where not exists (select 1 from (' +
+      o.stateMachines
+        .flatMap((m) =>
+          m.transitions.map(
+            (t) =>
+              `select ${q(m.id)} as m, ${q(t.from)} as f, ${q(t.to)} as t, ${q(t.action)} as a`,
+          ),
+        )
+        .join(' union all ') +
+      ') x where x.m = st.machine_id and x.f = st.from_state and x.t = st.to_state and x.a = st.action_id);',
+    `delete from registry.state_definition where machine_id <> all (${ids(o.stateMachines)});`,
+    `delete from registry.state_machine where id <> all (${ids(o.stateMachines)});`,
+    `delete from registry.action_type where id <> all (${ids(o.actionTypes)});`,
+    `delete from registry.relation_type where id <> all (${ids(o.relationTypes)});`,
+    `delete from registry.object_type where id <> all (${ids(o.objectTypes)});`,
+    '',
+    'commit;',
+    '',
+  );
   return out.join('\n');
 }
 

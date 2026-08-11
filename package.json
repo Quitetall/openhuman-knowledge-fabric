@@ -23,11 +23,12 @@
     "ontology:check": "tsc --build packages/ontology-compiler && node packages/ontology-compiler/dist/cli.js check",
     "ontology:build": "tsc --build packages/ontology-compiler && node packages/ontology-compiler/dist/cli.js build",
     "db:up": "docker compose up -d postgres minio keycloak",
-    "db:migrate": "dbmate --migrations-dir ./database/migrations --no-dump-schema up",
+    "db:migrate": "dbmate --migrations-dir ./database/migrations --no-dump-schema up && pnpm db:seed",
     "db:status": "dbmate --migrations-dir ./database/migrations status",
     "clean": "git clean -xdf node_modules dist .turbo && pnpm store prune",
     "ontology:pack": "tsc --build packages/ontology-compiler && node packages/ontology-compiler/dist/cli.js pack",
-    "db:reset": "dbmate --migrations-dir ./database/migrations --no-dump-schema drop && pnpm db:migrate"
+    "db:reset": "dbmate --migrations-dir ./database/migrations --no-dump-schema drop && pnpm db:migrate",
+    "db:seed": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -q -f generated/sql-registry/001-ontology-seed.sql"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

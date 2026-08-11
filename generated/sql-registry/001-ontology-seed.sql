@@ -2,20 +2,26 @@
 -- ontology_version: 1.0.0-draft.1
 -- source_digest: d1511f4416e03cb06dde92ceeade82bc060aed793cd9fbc674ced30f332e83ad
 
--- Seed data for the registry schema. Applied by migration, never by hand.
+-- Seed data for the registry schema. Generated; applied by `pnpm db:seed`.
 --
 -- These tables are the database-side copy of the ontology. Domain tables reference them,
--- so a state or action token that the ontology does not define fails a foreign key
--- instead of being caught only by an application check that someone might bypass.
+-- so a state or action token the ontology does not define fails a foreign key instead of
+-- being caught only by an application check that someone might bypass.
+--
+-- UPSERT, not delete-and-insert. Re-seeding after an ontology change must not fail merely
+-- because a type is in use. Rows the ontology NO LONGER declares are deleted at the end,
+-- and that delete is meant to fail if records still reference them: a type you cannot
+-- remove is a type you should not be silently removing.
 
 begin;
 
-delete from registry.state_definition;
-delete from registry.state_machine;
-delete from registry.rule_definition;
-delete from registry.action_type;
-delete from registry.relation_type;
-delete from registry.object_type;
+insert into registry.schema_release (version, ontology_digest, is_current) values
+  ('1.0.0-draft.1', 'd1511f4416e03cb06dde92ceeade82bc060aed793cd9fbc674ced30f332e83ad', true)
+on conflict (version) do update set ontology_digest = excluded.ontology_digest,
+  applied_at = now(), is_current = true;
+
+-- Exactly one release is current; schema_release_one_current enforces it.
+update registry.schema_release set is_current = false where version <> '1.0.0-draft.1';
 
 insert into registry.object_type (id, title, authority_domain, enterprise_namespace, first_class) values
   ('organization', 'Organization', 'organization', null, true),
@@ -38,7 +44,11 @@ insert into registry.object_type (id, title, authority_domain, enterprise_namesp
   ('risk', 'Risk', 'qms', 'RSK', true),
   ('test', 'Test', 'qms', 'TST', true),
   ('release', 'Release', 'configuration', 'RLS', true),
-  ('baseline', 'Baseline', 'configuration', 'BSL', true);
+  ('baseline', 'Baseline', 'configuration', 'BSL', true)
+on conflict (id) do update set title = excluded.title,
+  authority_domain = excluded.authority_domain,
+  enterprise_namespace = excluded.enterprise_namespace,
+  first_class = excluded.first_class;
 
 insert into registry.relation_type (id, inverse_label, acyclic, is_symmetric) values
   ('contains', 'contained_by', true, false),
@@ -74,7 +84,9 @@ insert into registry.relation_type (id, inverse_label, acyclic, is_symmetric) va
   ('amends', 'amended_by', true, false),
   ('generated_by', 'generated', false, false),
   ('used', 'was_used_by', false, false),
-  ('was_associated_with', 'associated_with', false, false);
+  ('was_associated_with', 'associated_with', false, false)
+on conflict (id) do update set inverse_label = excluded.inverse_label,
+  acyclic = excluded.acyclic, is_symmetric = excluded.is_symmetric;
 
 insert into registry.action_type (id, audited, transactional) values
   ('create_initiative', true, true),
@@ -106,7 +118,9 @@ insert into registry.action_type (id, audited, transactional) values
   ('complete_project_technical', true, true),
   ('close_project_administrative', true, true),
   ('attach_evidence', true, true),
-  ('correct_record', true, true);
+  ('correct_record', true, true)
+on conflict (id) do update set audited = excluded.audited,
+  transactional = excluded.transactional;
 
 insert into registry.state_machine (id, initial_state) values
   ('initiative_project', 'captured'),
@@ -116,7 +130,8 @@ insert into registry.state_machine (id, initial_state) values
   ('decision_record', 'draft'),
   ('change_record', 'proposed'),
   ('invoice', 'draft'),
-  ('payment', 'planned');
+  ('payment', 'planned')
+on conflict (id) do update set initial_state = excluded.initial_state;
 
 insert into registry.state_definition (machine_id, state, is_terminal) values
   ('initiative_project', 'active', false),
@@ -180,7 +195,76 @@ insert into registry.state_definition (machine_id, state, is_terminal) values
   ('payment', 'planned', false),
   ('payment', 'reconciled', false),
   ('payment', 'reversed', true),
-  ('payment', 'settled', false);
+  ('payment', 'settled', false)
+on conflict (machine_id, state) do update set is_terminal = excluded.is_terminal;
+
+insert into registry.state_transition (machine_id, from_state, to_state, action_id) values
+  ('initiative_project', 'captured', 'triage', 'triage_initiative'),
+  ('initiative_project', 'triage', 'evaluating', 'triage_initiative'),
+  ('initiative_project', 'evaluating', 'authorized', 'authorize_project'),
+  ('initiative_project', 'authorized', 'active', 'activate_project'),
+  ('initiative_project', 'active', 'technically_complete', 'complete_project_technical'),
+  ('initiative_project', 'technically_complete', 'administratively_closed', 'close_project_administrative'),
+  ('initiative_project', 'captured', 'parked', 'triage_initiative'),
+  ('initiative_project', 'triage', 'parked', 'triage_initiative'),
+  ('initiative_project', 'parked', 'triage', 'triage_initiative'),
+  ('initiative_project', 'evaluating', 'rejected', 'triage_initiative'),
+  ('initiative_project', 'authorized', 'cancelled', 'correct_record'),
+  ('initiative_project', 'active', 'cancelled', 'correct_record'),
+  ('work_package', 'planned', 'ready', 'create_work_package'),
+  ('work_package', 'ready', 'active', 'start_work_package'),
+  ('work_package', 'active', 'blocked', 'correct_record'),
+  ('work_package', 'blocked', 'active', 'correct_record'),
+  ('work_package', 'active', 'submitted', 'submit_work_execution'),
+  ('work_package', 'submitted', 'accepted', 'accept_work_package'),
+  ('work_package', 'submitted', 'active', 'review_work_execution'),
+  ('work_package', 'planned', 'cancelled', 'correct_record'),
+  ('work_package', 'active', 'waived', 'correct_record'),
+  ('work_order', 'draft', 'offered', 'issue_work_order'),
+  ('work_order', 'offered', 'accepted', 'accept_work_order'),
+  ('work_order', 'accepted', 'active', 'accept_work_order'),
+  ('work_order', 'active', 'suspended', 'correct_record'),
+  ('work_order', 'suspended', 'active', 'correct_record'),
+  ('work_order', 'active', 'completed', 'issue_acceptance'),
+  ('work_order', 'completed', 'closed', 'correct_record'),
+  ('work_order', 'draft', 'cancelled', 'correct_record'),
+  ('work_order', 'offered', 'cancelled', 'correct_record'),
+  ('work_order', 'active', 'terminated', 'correct_record'),
+  ('work_execution', 'draft', 'submitted', 'submit_work_execution'),
+  ('work_execution', 'submitted', 'under_review', 'review_work_execution'),
+  ('work_execution', 'under_review', 'accepted', 'issue_acceptance'),
+  ('work_execution', 'under_review', 'partially_accepted', 'issue_acceptance'),
+  ('work_execution', 'under_review', 'rejected', 'issue_acceptance'),
+  ('work_execution', 'submitted', 'superseded', 'correct_record'),
+  ('decision_record', 'draft', 'proposed', 'propose_decision'),
+  ('decision_record', 'proposed', 'accepted', 'accept_decision'),
+  ('decision_record', 'proposed', 'rejected', 'reject_decision'),
+  ('decision_record', 'proposed', 'withdrawn', 'correct_record'),
+  ('decision_record', 'accepted', 'superseded', 'supersede_decision'),
+  ('change_record', 'proposed', 'impact_assessment', 'open_change'),
+  ('change_record', 'impact_assessment', 'approved', 'approve_change'),
+  ('change_record', 'impact_assessment', 'rejected', 'approve_change'),
+  ('change_record', 'approved', 'implementing', 'approve_change'),
+  ('change_record', 'implementing', 'verified', 'verify_change'),
+  ('change_record', 'verified', 'effective', 'make_change_effective'),
+  ('change_record', 'effective', 'closed', 'correct_record'),
+  ('invoice', 'draft', 'submitted', 'submit_invoice'),
+  ('invoice', 'submitted', 'approved', 'approve_invoice'),
+  ('invoice', 'submitted', 'disputed', 'approve_invoice'),
+  ('invoice', 'approved', 'partially_paid', 'record_payment_settlement'),
+  ('invoice', 'approved', 'paid', 'record_payment_settlement'),
+  ('invoice', 'partially_paid', 'paid', 'record_payment_settlement'),
+  ('invoice', 'draft', 'void', 'correct_record'),
+  ('invoice', 'disputed', 'approved', 'approve_invoice'),
+  ('invoice', 'disputed', 'void', 'correct_record'),
+  ('payment', 'planned', 'authorized', 'authorize_payment'),
+  ('payment', 'authorized', 'initiated', 'authorize_payment'),
+  ('payment', 'initiated', 'settled', 'record_payment_settlement'),
+  ('payment', 'settled', 'reconciled', 'reconcile_payment'),
+  ('payment', 'initiated', 'failed', 'record_payment_settlement'),
+  ('payment', 'settled', 'reversed', 'correct_record'),
+  ('payment', 'reconciled', 'reversed', 'correct_record')
+on conflict do nothing;
 
 insert into registry.rule_definition (id, severity, description, implementation) values
   ('KF-GRAPH-001', 'error', 'Every edge source and target resolves to a node in the same graph view or a declared federated resource.', array['validator']),
@@ -192,6 +276,18 @@ insert into registry.rule_definition (id, severity, description, implementation)
   ('KF-FIN-002', 'error', 'Invoice line value must not exceed accepted value available for the referenced work order.', array['database_constraint', 'action_precondition', 'validator']),
   ('KF-FIN-003', 'error', 'Payment allocations must sum to no more than the payment amount and must not exceed invoice balances.', array['database_constraint', 'action_precondition', 'validator']),
   ('KF-PROJ-001', 'error', 'Project progress is computed from accepted or waived work packages, not spending or activity count.', array['validator']),
-  ('KF-PROJ-002', 'error', 'Administrative project closure requires technical disposition plus closure of open work orders and financial obligations.', array['action_precondition', 'validator']);
+  ('KF-PROJ-002', 'error', 'Administrative project closure requires technical disposition plus closure of open work orders and financial obligations.', array['action_precondition', 'validator'])
+on conflict (id) do update set severity = excluded.severity,
+  description = excluded.description, implementation = excluded.implementation;
+
+-- Retire what the ontology no longer declares. These deletes are SUPPOSED to fail when
+-- records still reference the row: a type still in use must not vanish from the registry.
+delete from registry.rule_definition where id <> all (array['KF-GRAPH-001', 'KF-WORK-001', 'KF-WORK-002', 'KF-DEC-001', 'KF-CHG-001', 'KF-FIN-001', 'KF-FIN-002', 'KF-FIN-003', 'KF-PROJ-001', 'KF-PROJ-002']::text[]);
+delete from registry.state_transition st where not exists (select 1 from (select 'initiative_project' as m, 'captured' as f, 'triage' as t, 'triage_initiative' as a union all select 'initiative_project' as m, 'triage' as f, 'evaluating' as t, 'triage_initiative' as a union all select 'initiative_project' as m, 'evaluating' as f, 'authorized' as t, 'authorize_project' as a union all select 'initiative_project' as m, 'authorized' as f, 'active' as t, 'activate_project' as a union all select 'initiative_project' as m, 'active' as f, 'technically_complete' as t, 'complete_project_technical' as a union all select 'initiative_project' as m, 'technically_complete' as f, 'administratively_closed' as t, 'close_project_administrative' as a union all select 'initiative_project' as m, 'captured' as f, 'parked' as t, 'triage_initiative' as a union all select 'initiative_project' as m, 'triage' as f, 'parked' as t, 'triage_initiative' as a union all select 'initiative_project' as m, 'parked' as f, 'triage' as t, 'triage_initiative' as a union all select 'initiative_project' as m, 'evaluating' as f, 'rejected' as t, 'triage_initiative' as a union all select 'initiative_project' as m, 'authorized' as f, 'cancelled' as t, 'correct_record' as a union all select 'initiative_project' as m, 'active' as f, 'cancelled' as t, 'correct_record' as a union all select 'work_package' as m, 'planned' as f, 'ready' as t, 'create_work_package' as a union all select 'work_package' as m, 'ready' as f, 'active' as t, 'start_work_package' as a union all select 'work_package' as m, 'active' as f, 'blocked' as t, 'correct_record' as a union all select 'work_package' as m, 'blocked' as f, 'active' as t, 'correct_record' as a union all select 'work_package' as m, 'active' as f, 'submitted' as t, 'submit_work_execution' as a union all select 'work_package' as m, 'submitted' as f, 'accepted' as t, 'accept_work_package' as a union all select 'work_package' as m, 'submitted' as f, 'active' as t, 'review_work_execution' as a union all select 'work_package' as m, 'planned' as f, 'cancelled' as t, 'correct_record' as a union all select 'work_package' as m, 'active' as f, 'waived' as t, 'correct_record' as a union all select 'work_order' as m, 'draft' as f, 'offered' as t, 'issue_work_order' as a union all select 'work_order' as m, 'offered' as f, 'accepted' as t, 'accept_work_order' as a union all select 'work_order' as m, 'accepted' as f, 'active' as t, 'accept_work_order' as a union all select 'work_order' as m, 'active' as f, 'suspended' as t, 'correct_record' as a union all select 'work_order' as m, 'suspended' as f, 'active' as t, 'correct_record' as a union all select 'work_order' as m, 'active' as f, 'completed' as t, 'issue_acceptance' as a union all select 'work_order' as m, 'completed' as f, 'closed' as t, 'correct_record' as a union all select 'work_order' as m, 'draft' as f, 'cancelled' as t, 'correct_record' as a union all select 'work_order' as m, 'offered' as f, 'cancelled' as t, 'correct_record' as a union all select 'work_order' as m, 'active' as f, 'terminated' as t, 'correct_record' as a union all select 'work_execution' as m, 'draft' as f, 'submitted' as t, 'submit_work_execution' as a union all select 'work_execution' as m, 'submitted' as f, 'under_review' as t, 'review_work_execution' as a union all select 'work_execution' as m, 'under_review' as f, 'accepted' as t, 'issue_acceptance' as a union all select 'work_execution' as m, 'under_review' as f, 'partially_accepted' as t, 'issue_acceptance' as a union all select 'work_execution' as m, 'under_review' as f, 'rejected' as t, 'issue_acceptance' as a union all select 'work_execution' as m, 'submitted' as f, 'superseded' as t, 'correct_record' as a union all select 'decision_record' as m, 'draft' as f, 'proposed' as t, 'propose_decision' as a union all select 'decision_record' as m, 'proposed' as f, 'accepted' as t, 'accept_decision' as a union all select 'decision_record' as m, 'proposed' as f, 'rejected' as t, 'reject_decision' as a union all select 'decision_record' as m, 'proposed' as f, 'withdrawn' as t, 'correct_record' as a union all select 'decision_record' as m, 'accepted' as f, 'superseded' as t, 'supersede_decision' as a union all select 'change_record' as m, 'proposed' as f, 'impact_assessment' as t, 'open_change' as a union all select 'change_record' as m, 'impact_assessment' as f, 'approved' as t, 'approve_change' as a union all select 'change_record' as m, 'impact_assessment' as f, 'rejected' as t, 'approve_change' as a union all select 'change_record' as m, 'approved' as f, 'implementing' as t, 'approve_change' as a union all select 'change_record' as m, 'implementing' as f, 'verified' as t, 'verify_change' as a union all select 'change_record' as m, 'verified' as f, 'effective' as t, 'make_change_effective' as a union all select 'change_record' as m, 'effective' as f, 'closed' as t, 'correct_record' as a union all select 'invoice' as m, 'draft' as f, 'submitted' as t, 'submit_invoice' as a union all select 'invoice' as m, 'submitted' as f, 'approved' as t, 'approve_invoice' as a union all select 'invoice' as m, 'submitted' as f, 'disputed' as t, 'approve_invoice' as a union all select 'invoice' as m, 'approved' as f, 'partially_paid' as t, 'record_payment_settlement' as a union all select 'invoice' as m, 'approved' as f, 'paid' as t, 'record_payment_settlement' as a union all select 'invoice' as m, 'partially_paid' as f, 'paid' as t, 'record_payment_settlement' as a union all select 'invoice' as m, 'draft' as f, 'void' as t, 'correct_record' as a union all select 'invoice' as m, 'disputed' as f, 'approved' as t, 'approve_invoice' as a union all select 'invoice' as m, 'disputed' as f, 'void' as t, 'correct_record' as a union all select 'payment' as m, 'planned' as f, 'authorized' as t, 'authorize_payment' as a union all select 'payment' as m, 'authorized' as f, 'initiated' as t, 'authorize_payment' as a union all select 'payment' as m, 'initiated' as f, 'settled' as t, 'record_payment_settlement' as a union all select 'payment' as m, 'settled' as f, 'reconciled' as t, 'reconcile_payment' as a union all select 'payment' as m, 'initiated' as f, 'failed' as t, 'record_payment_settlement' as a union all select 'payment' as m, 'settled' as f, 'reversed' as t, 'correct_record' as a union all select 'payment' as m, 'reconciled' as f, 'reversed' as t, 'correct_record' as a) x where x.m = st.machine_id and x.f = st.from_state and x.t = st.to_state and x.a = st.action_id);
+delete from registry.state_definition where machine_id <> all (array['initiative_project', 'work_package', 'work_order', 'work_execution', 'decision_record', 'change_record', 'invoice', 'payment']::text[]);
+delete from registry.state_machine where id <> all (array['initiative_project', 'work_package', 'work_order', 'work_execution', 'decision_record', 'change_record', 'invoice', 'payment']::text[]);
+delete from registry.action_type where id <> all (array['create_initiative', 'triage_initiative', 'authorize_project', 'activate_project', 'create_work_package', 'start_work_package', 'accept_work_package', 'issue_work_order', 'accept_work_order', 'amend_work_order', 'submit_work_execution', 'review_work_execution', 'issue_acceptance', 'propose_decision', 'accept_decision', 'reject_decision', 'supersede_decision', 'open_change', 'approve_change', 'verify_change', 'make_change_effective', 'submit_invoice', 'approve_invoice', 'authorize_payment', 'record_payment_settlement', 'reconcile_payment', 'complete_project_technical', 'close_project_administrative', 'attach_evidence', 'correct_record']::text[]);
+delete from registry.relation_type where id <> all (array['contains', 'decomposes_into', 'affects', 'authorizes', 'executes', 'produces', 'consumes', 'proposes', 'governs', 'implements', 'satisfies', 'verifies', 'mitigates', 'accepts', 'bills', 'settles', 'allocates_to', 'originated_from', 'supersedes', 'derived_from', 'evidences', 'assigned_to', 'scoped_to', 'depends_on', 'blocks', 'released_by', 'baseline_contains', 'performed_by', 'owned_by', 'linked_to', 'amends', 'generated_by', 'used', 'was_associated_with']::text[]);
+delete from registry.object_type where id <> all (array['organization', 'person', 'role_assignment', 'engagement', 'product_system', 'initiative_project', 'work_package', 'work_order', 'work_execution', 'decision_record', 'change_record', 'deliverable', 'artifact', 'acceptance_record', 'invoice', 'payment', 'requirement', 'risk', 'test', 'release', 'baseline']::text[]);
 
 commit;
