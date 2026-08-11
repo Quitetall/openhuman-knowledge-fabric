@@ -72,9 +72,18 @@ export interface IdentityConfig {
 export class TokenVerifier {
   readonly #config: IdentityConfig;
   readonly #keys: JWTVerifyGetKey;
+  readonly #onFailure: ((reason: string) => void) | undefined;
 
-  constructor(config: IdentityConfig, keys?: JWTVerifyGetKey) {
+  constructor(
+    config: IdentityConfig,
+    keys?: JWTVerifyGetKey,
+    onFailure?: (reason: string) => void,
+  ) {
     this.#config = config;
+    // Callers collapse every token failure into one code, which is right for the caller and
+    // unhelpful for an operator: a provider outage and a forged token look identical in the
+    // logs. This hook lets the server record the real reason without returning it.
+    this.#onFailure = onFailure;
     // Injectable so tests can verify against a local key without standing up a provider —
     // and so nothing in the test path can accidentally reach the network.
     this.#keys = keys ?? createRemoteJWKSet(new URL(config.jwksUri));
@@ -92,12 +101,11 @@ export class TokenVerifier {
       });
       return payload;
     } catch (err: unknown) {
+      const reason = err instanceof Error ? err.message : 'not verifiable';
+      this.#onFailure?.(reason);
       // One failure for every reason. Distinguishing "expired" from "bad signature" from
       // "wrong audience" tells an attacker which part of a forged token to fix next.
-      throw new IdentityRejected(
-        'invalid_token',
-        `token rejected: ${err instanceof Error ? err.message : 'not verifiable'}`,
-      );
+      throw new IdentityRejected('invalid_token', 'token rejected');
     }
   }
 }
@@ -165,7 +173,14 @@ export async function resolveIn(
   const link = await tx.maybeOne<{ person_id: string; revoked_at: Date | null }>(
     `select person_id, revoked_at from org.external_identity
       where issuer = $1 and subject = $2
-      order by linked_at desc limit 1`,
+      -- A live link wins over a revoked one whatever the insertion order. Ordering on
+      -- linked_at alone would let a revoked row inserted later mask a live one, refusing
+      -- somebody who is perfectly entitled to sign in.
+      --
+      -- Revoked rows are still SELECTED rather than filtered out, so a revoked identity is
+      -- told it was revoked instead of being told it never existed.
+      order by (revoked_at is null) desc, linked_at desc
+      limit 1`,
     [request.issuer, request.subject],
   );
 
@@ -189,11 +204,22 @@ export async function resolveIn(
       where ra.id = $1
         and ra.subject_id = $2
         and o.lifecycle_state = 'active'
+        -- The role must belong to the ORGANIZATION the caller claims to be acting within.
+        --
+        -- This clause is the organization boundary, and it is written here rather than left
+        -- to row-level security on purpose. Without it the check still passed on the
+        -- application role — RLS hides another organization's role assignment — and FAILED on
+        -- a superuser connection, which bypasses RLS even with FORCE ROW LEVEL SECURITY. So
+        -- the boundary held only for callers connecting as exactly the right role, and any
+        -- worker, migration tool or admin script resolving a caller would silently have lost
+        -- it. An authorization property that depends on which database role happens to be
+        -- connected is not a property.
+        and o.organization_id = $3
         -- Checked at the moment of use, not at sign-in. A role that expired mid-session is
         -- expired; a token minted an hour ago cannot outlive the authority behind it.
         and ra.valid_from <= now()
         and (ra.valid_to is null or ra.valid_to > now())`,
-    [request.actingRoleId, link.person_id],
+    [request.actingRoleId, link.person_id, request.organizationId],
   );
   if (holds === undefined) {
     throw new IdentityRejected(

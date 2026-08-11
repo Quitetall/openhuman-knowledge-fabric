@@ -224,6 +224,52 @@ describe('what the token cannot do', () => {
   });
 });
 
+describe('organization scope', () => {
+  it('refuses a valid token that claims an organization the person is not in', async () => {
+    // The review asked whether an authenticated person could read another organization's data
+    // by stating its id. Checked here rather than reasoned about.
+    // Both pools. h.pool is the UNPRIVILEGED role the API actually uses; h.adminPool is the
+    // container superuser, which bypasses row-level security even with FORCE RLS — so a
+    // property that held only on adminPool would be a property that does not hold at all,
+    // and one that held only on h.pool would be relying on RLS for something RLS is not.
+    for (const [name, pool] of [
+      ['unprivileged', h.pool],
+      ['superuser', h.adminPool],
+    ] as const) {
+      const err = await resolveCaller(
+        pool,
+        verifier,
+        request({
+          token: await token(),
+          organizationId: '01930000-0000-7000-8000-0000000f0000',
+        }),
+      ).catch((e: unknown) => e);
+      expect(err, `as ${name}`).toBeInstanceOf(IdentityRejected);
+      expect((err as IdentityRejected).failure, `as ${name}`).toBe('role_not_held');
+    }
+  });
+});
+
+describe('classification narrows rather than widens', () => {
+  it('a lower clearance returns a subset, not a superset', async () => {
+    // The comment in the route claims an unstated clearance narrows what is visible. That
+    // relies on the database comparing ranks in the direction everyone assumes, and an
+    // inverted comparison would turn the safe default into an escalation. Checked, not
+    // assumed.
+    const counts = await Promise.all(
+      ['internal', 'restricted'].map(async (clearance) =>
+        withTransaction(h.pool, async (tx) => {
+          await tx.query('select core.set_access_context($1, $2)', [f.organizationId, clearance]);
+          const row = await tx.one<{ n: string }>('select count(*)::text as n from core.object');
+          return Number(row.n);
+        }),
+      ),
+    );
+    const [atInternal, atRestricted] = counts as [number, number];
+    expect(atInternal).toBeLessThanOrEqual(atRestricted);
+  });
+});
+
 describe('revocation', () => {
   it('takes effect immediately, not at the next token expiry', async () => {
     const good = await token();
