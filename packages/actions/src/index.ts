@@ -14,7 +14,13 @@
  */
 
 import { chainDigest, digest, GENESIS_DIGEST, type JsonValue } from '@kf/canonicalization';
-import { setTransactionContext, withTransaction, type Pool, type Tx } from '@kf/database';
+import {
+  setAccessContext,
+  setTransactionContext,
+  withTransaction,
+  type Pool,
+  type Tx,
+} from '@kf/database';
 
 // ── failures ────────────────────────────────────────────────────────────────────────────
 
@@ -57,6 +63,13 @@ export interface ActionRequest {
    */
   readonly idempotencyKey: string;
   readonly requestId?: string;
+  /**
+   * The organization the actor is acting within, and how far up the classification ladder
+   * they may see. Required: row-level security scopes every read to these, so without them
+   * the dispatcher cannot see even the objects it is being asked to act on.
+   */
+  readonly organizationId: string;
+  readonly maxClassification: string;
   /** When the event actually occurred, which is not always when we heard about it (§29.4). */
   readonly effectiveAt?: Date;
   /** The row_version the caller read. Omit only for actions that create. */
@@ -131,6 +144,13 @@ export function createDispatcher(pool: Pool, options: DispatcherOptions = {}) {
 
   return async function executeAction(request: ActionRequest): Promise<ActionResult> {
     return withTransaction(pool, async (tx) => {
+      // Bind the reader's scope FIRST. Every subsequent read passes through row-level
+      // security, so an action that skipped this would find none of its own targets.
+      await setAccessContext(tx, {
+        organizationId: request.organizationId,
+        maxClassification: request.maxClassification,
+      });
+
       // 13 (early). An idempotent replay must not re-run the work, so this is checked
       // before anything is locked or written, not after.
       const prior = await tx.maybeOne<{ id: string; result: { audit_digest?: string } }>(
@@ -371,7 +391,7 @@ async function loadDefinition(tx: Tx, actionType: string): Promise<ActionDefinit
   // Transitions come from the registry, which the ontology compiler seeds. An action's
   // authority is therefore whatever the reviewed ontology says, never a constant in code.
   const transitions = await tx.query<{ machine: string; from_state: string; to_state: string }>(
-    `select machine_id as machine, from_state, to_state
+    `select object_type as machine, from_state, to_state
        from registry.state_transition where action_id = $1`,
     [actionType],
   );
@@ -387,29 +407,14 @@ async function loadDefinition(tx: Tx, actionType: string): Promise<ActionDefinit
 }
 
 async function assertRoleHeld(tx: Tx, actorId: string, roleId: string): Promise<void> {
-  // org.role_assignment arrives with the work-control slice. Until it exists there is no
-  // way to verify the claim, so the dispatcher REFUSES rather than trusting it: an
-  // authority check that silently passes is worse than one that is absent, because it
-  // reports a guarantee nobody is providing.
-  const hasTable = await tx.maybeOne<{ exists: boolean }>(
-    `select true as exists from information_schema.tables
-      where table_schema = 'org' and table_name = 'role_assignment'`,
-  );
-  if (hasTable === undefined) {
-    throw new ActionRejected(
-      'role_not_held',
-      'role assignments are not yet modelled, so no acting role can be verified. ' +
-        'This refusal is deliberate: an unverifiable authority claim must not be accepted.',
-      { actorId, roleId },
-    );
-  }
-  const held = await tx.maybeOne(
-    `select 1 from org.role_assignment
-      where id = $1 and subject_id = $2
-        and valid_from <= now() and (valid_to is null or valid_to > now())`,
-    [roleId, actorId],
-  );
-  if (held === undefined) {
+  // org.holds_role checks BOTH that the assignment belongs to this person and that it is
+  // within its effective window. Checking only ownership would let an expired authority
+  // keep working — how a departed contractor carries on approving things.
+  const held = await tx.maybeOne<{ ok: boolean }>('select org.holds_role($1, $2) as ok', [
+    actorId,
+    roleId,
+  ]);
+  if (held?.ok !== true) {
     throw new ActionRejected('role_not_held', 'the actor does not hold that role', {
       actorId,
       roleId,

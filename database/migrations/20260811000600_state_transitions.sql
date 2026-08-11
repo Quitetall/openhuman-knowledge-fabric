@@ -8,24 +8,24 @@
 -- action's authority is whatever the reviewed ontology says and never a constant in code.
 
 create table registry.state_transition (
-  machine_id  text not null references registry.state_machine (id) on delete cascade,
+  object_type text not null references registry.state_machine (id) on delete cascade,
   from_state  text not null,
   to_state    text not null,
   action_id   text not null references registry.action_type (id),
-  primary key (machine_id, from_state, to_state, action_id),
+  primary key (object_type, from_state, to_state, action_id),
 
   -- Both endpoints must be states the machine actually declares.
   constraint state_transition_from_defined
-    foreign key (machine_id, from_state) references registry.state_definition (machine_id, state),
+    foreign key (object_type, from_state) references registry.object_state (object_type, state),
   constraint state_transition_to_defined
-    foreign key (machine_id, to_state) references registry.state_definition (machine_id, state),
+    foreign key (object_type, to_state) references registry.object_state (object_type, state),
 
   -- A transition to itself is not a lifecycle move; it is an update pretending to be one.
   constraint state_transition_not_self check (from_state <> to_state)
 );
 
 create index state_transition_by_action on registry.state_transition (action_id);
-create index state_transition_by_source on registry.state_transition (machine_id, from_state);
+create index state_transition_by_source on registry.state_transition (object_type, from_state);
 
 grant select on registry.state_transition
   to kf_app, kf_worker, kf_checkpoint, kf_readonly, kf_auditor;
@@ -38,11 +38,11 @@ language plpgsql
 as $$
 begin
   if exists (
-    select 1 from registry.state_definition
-     where machine_id = new.machine_id and state = new.from_state and is_terminal
+    select 1 from registry.object_state
+     where object_type = new.object_type and state = new.from_state and is_terminal
   ) then
     raise exception
-      'transition %.% -> % leaves a terminal state', new.machine_id, new.from_state, new.to_state
+      'transition %.% -> % leaves a terminal state', new.object_type, new.from_state, new.to_state
       using errcode = 'check_violation',
             hint = 'Either the state is not terminal, or the transition should not exist.';
   end if;

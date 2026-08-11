@@ -269,6 +269,22 @@ export function emitSqlRegistry(o: Ontology): string {
     '',
   );
 
+  // Every object type's states — including the 13 with no transitions, which still have a
+  // status and still need core.object's foreign key to resolve.
+  out.push(
+    'insert into registry.object_state (object_type, state, is_terminal) values',
+    o.objectTypes
+      .flatMap((t) => {
+        const machine = o.stateMachines.find((m) => m.id === t.state_machine);
+        return t.states.map(
+          (st) => `  (${q(t.id)}, ${q(st)}, ${machine ? machine.terminal.includes(st) : false})`,
+        );
+      })
+      .join(',\n') +
+      '\non conflict (object_type, state) do update set is_terminal = excluded.is_terminal;',
+    '',
+  );
+
   out.push(
     'insert into registry.state_machine (id, initial_state) values',
     o.stateMachines.map((m) => `  (${q(m.id)}, ${q(m.initial)})`).join(',\n') +
@@ -277,23 +293,7 @@ export function emitSqlRegistry(o: Ontology): string {
   );
 
   out.push(
-    'insert into registry.state_definition (machine_id, state, is_terminal) values',
-    o.stateMachines
-      .flatMap((m) => {
-        const states = new Set<string>([m.initial]);
-        for (const t of m.transitions) {
-          states.add(t.from);
-          states.add(t.to);
-        }
-        return [...states].sort().map((s) => `  (${q(m.id)}, ${q(s)}, ${m.terminal.includes(s)})`);
-      })
-      .join(',\n') +
-      '\non conflict (machine_id, state) do update set is_terminal = excluded.is_terminal;',
-    '',
-  );
-
-  out.push(
-    'insert into registry.state_transition (machine_id, from_state, to_state, action_id) values',
+    'insert into registry.state_transition (object_type, from_state, to_state, action_id) values',
     o.stateMachines
       .flatMap((m) =>
         m.transitions.map((t) => `  (${q(m.id)}, ${q(t.from)}, ${q(t.to)}, ${q(t.action)})`),
@@ -330,8 +330,8 @@ export function emitSqlRegistry(o: Ontology): string {
           ),
         )
         .join(' union all ') +
-      ') x where x.m = st.machine_id and x.f = st.from_state and x.t = st.to_state and x.a = st.action_id);',
-    `delete from registry.state_definition where machine_id <> all (${ids(o.stateMachines)});`,
+      ') x where x.m = st.object_type and x.f = st.from_state and x.t = st.to_state and x.a = st.action_id);',
+    `delete from registry.object_state where object_type <> all (${ids(o.objectTypes)});`,
     `delete from registry.state_machine where id <> all (${ids(o.stateMachines)});`,
     `delete from registry.action_type where id <> all (${ids(o.actionTypes)});`,
     `delete from registry.relation_type where id <> all (${ids(o.relationTypes)});`,

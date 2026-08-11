@@ -75,12 +75,12 @@ create table core.object (
   updated_at        timestamptz not null default now(),
   updated_by        uuid not null,
 
-  -- The state must exist in the machine this type uses. Enforced against the registry, so a
+  -- The state must be one this object type declares. Enforced against the registry, so a
   -- typo becomes a foreign-key failure and not a record parked in a state nothing handles.
-  constraint object_state_defined
+  -- This binds every type, including the 13 with states but no transitions.
+  constraint object_state_declared
     foreign key (object_type, lifecycle_state)
-    references registry.state_definition (machine_id, state)
-    deferrable initially immediate
+    references registry.object_state (object_type, state)
 );
 
 create index object_by_type_state on core.object (object_type, lifecycle_state);
@@ -296,6 +296,12 @@ grant select on core.audit_event to kf_checkpoint;
 grant select, insert on core.audit_checkpoint to kf_checkpoint;
 
 grant select on all tables in schema core to kf_readonly, kf_auditor;
+
+-- audit_event.seq is a bigserial, and inserting needs USAGE on its sequence. The
+-- `alter default privileges` in the roles migration only covers sequences created LATER by
+-- kf_migrator, so an explicit grant is required here — otherwise every action fails at the
+-- audit write, which is the last place you want a permission surprise.
+grant usage, select on all sequences in schema core to kf_app, kf_worker;
 
 -- Explicit, even though no grant was issued: the application must never be able to rewrite
 -- history, and a future blanket GRANT should not silently hand it that power.

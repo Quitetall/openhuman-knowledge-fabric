@@ -51,16 +51,23 @@ create table registry.action_type (
   constraint action_type_must_be_audited check (audited)
 );
 
-create table registry.state_machine (
-  id             text primary key,
-  initial_state  text not null
-);
-
-create table registry.state_definition (
-  machine_id   text not null references registry.state_machine (id) on delete cascade,
+-- Every object type declares states. Only some declare TRANSITIONS between them: 13 of the
+-- 21 types are things like Person and Organization, which have a status but no lifecycle
+-- anyone drives. Keying states to the object type rather than to a machine is what lets
+-- both exist without inventing an empty machine for the ones that have none.
+create table registry.object_state (
+  object_type  text not null references registry.object_type (id) on delete cascade,
   state        text not null,
   is_terminal  boolean not null,
-  primary key (machine_id, state)
+  primary key (object_type, state)
+);
+
+-- A lifecycle: an object type whose states are connected by actions.
+create table registry.state_machine (
+  id             text primary key references registry.object_type (id) on delete cascade,
+  initial_state  text not null,
+  constraint state_machine_initial_declared
+    foreign key (id, initial_state) references registry.object_state (object_type, state)
 );
 
 create table registry.rule_definition (
@@ -106,7 +113,7 @@ comment on index registry.schema_release_one_current is
 drop table if exists registry.retention_class;
 drop table if exists registry.classification;
 drop table if exists registry.rule_definition;
-drop table if exists registry.state_definition;
+drop table if exists registry.object_state;
 drop table if exists registry.state_machine;
 drop table if exists registry.action_type;
 drop table if exists registry.relation_type;

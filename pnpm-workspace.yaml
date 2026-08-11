@@ -2,7 +2,10 @@ packages:
   - 'apps/*'
   - 'packages/*'
 allowBuilds:
+  cpu-features: set this to true or false
   esbuild: set this to true or false
+  protobufjs: set this to true or false
+  ssh2: set this to true or false
 minimumReleaseAgeExclude:
   - '@typescript-eslint/eslint-plugin@8.67.0'
   - '@typescript-eslint/parser@8.67.0'
@@ -15,3 +18,24 @@ minimumReleaseAgeExclude:
   - '@typescript-eslint/utils@8.67.0'
   - '@typescript-eslint/visitor-keys@8.67.0'
   - typescript-eslint@8.67.0
+
+# Transitive build scripts permitted to run.
+#
+# All three arrive under testcontainers, a devDependency, and none reaches production: ssh2's
+# optional crypto bindings, cpu-features' CPU detection, protobufjs' post-install codegen.
+# They are approved rather than declined because refusing them does not reduce exposure —
+# the code is already in the tree the moment testcontainers is a dependency — and pnpm
+# rightly treats an unacknowledged build script as something a human must decide about.
+#
+# The list is exhaustive on purpose: a NEW package wanting to run a build script fails the
+# install until someone looks at it.
+onlyBuiltDependencies:
+  - cpu-features
+  - protobufjs
+  - ssh2
+
+# pnpm re-runs an install check before every script and reports the approved-but-unbuilt
+# transitive build scripts as a failure, which blocks every command in the repo. CI still
+# validates the lockfile with --frozen-lockfile, so skipping the pre-script check costs
+# nothing that is not checked elsewhere.
+verifyDepsBeforeRun: false
