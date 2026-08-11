@@ -27,6 +27,12 @@ import {
 } from './sign.js';
 import { leafHash, merkleRoot } from './merkle.js';
 
+/**
+ * Advisory lock key for the checkpoint run. An arbitrary constant — advisory locks carry no
+ * meaning beyond agreement between the processes that take them.
+ */
+const CHECKPOINT_LOCK = 0x6b665f6370;
+
 /** Rows the checkpoint reads. Deliberately the same shape the export writes. */
 const EVENT_COLUMNS = `seq, id, action_id, actor_id, action_type, recorded_at,
                        prev_digest, digest`;
@@ -101,6 +107,14 @@ export async function runCheckpoint(
   options: { readonly store?: ObjectStore; readonly minEvents?: number } = {},
 ): Promise<RunResult> {
   return withTransaction(pool, async (tx) => {
+    // Only one checkpoint run at a time. Two concurrent runs would each read the same last
+    // checkpoint and the same pending range, and both would sign it: duplicate attestations
+    // over identical history. Harmless to verification, but it makes the ledger read as
+    // though something were wrong, and an auditor should never have to work out which of two
+    // signatures for seq 1–100 was the real one. Transaction-scoped, so it releases on commit
+    // or rollback without a cleanup path.
+    await tx.query('select pg_advisory_xact_lock($1)', [CHECKPOINT_LOCK]);
+
     const last = await latestCheckpoint(tx);
     const afterSeq = last?.toSeq ?? 0;
     const expectedFirstPrev = last?.endDigest ?? GENESIS_DIGEST;
@@ -171,7 +185,13 @@ export async function runCheckpoint(
 
 export interface LedgerFinding {
   readonly kind:
-    'chain_broken' | 'root_mismatch' | 'bad_signature' | 'unknown_key' | 'gap' | 'missing_events';
+    | 'chain_broken'
+    | 'root_mismatch'
+    | 'bad_signature'
+    | 'unknown_key'
+    | 'gap'
+    | 'overlap'
+    | 'missing_events';
   readonly detail: string;
   readonly atSeq?: number;
 }
@@ -230,6 +250,18 @@ export async function verifyLedger(
           kind: 'gap',
           detail: `${uncovered.length} audit event(s) between seq ${coveredUpTo + 1} and ${fromSeq - 1} are covered by no checkpoint`,
           atSeq: uncovered[0]!.seq,
+        });
+      }
+
+      // Overlap is the opposite failure and just as important: the same events attested twice
+      // means two signatures describe one span of history, and if one was produced before a
+      // tamper and one after, they disagree while both verify. A gap check alone misses this
+      // entirely — the uncovered range above is empty when ranges overlap.
+      if (fromSeq <= coveredUpTo) {
+        findings.push({
+          kind: 'overlap',
+          detail: `checkpoint ${cp.id} covers seq ${fromSeq}–${toSeq}, which re-attests history already covered up to ${coveredUpTo}`,
+          atSeq: fromSeq,
         });
       }
       coveredUpTo = Math.max(coveredUpTo, toSeq);

@@ -19,11 +19,13 @@ import {
   verifyRecordedVersion,
   verifyUpload,
 } from '@kf/artifacts';
+import { canonicalize, digestBytes } from '@kf/canonicalization';
 import {
   createExport,
   exportIdentity,
   importExport,
   verifyExport,
+  type ExportManifest,
   type ExportPackage,
 } from '@kf/export';
 import {
@@ -229,6 +231,34 @@ describe('evidence vault', () => {
   });
 });
 
+/**
+ * Rebuild a package around altered content, re-signing the manifest.
+ *
+ * Deliberately produces a package that PASSES `verifyExport`. The manifest proves internal
+ * consistency, not good intent — anyone who can hand you a package can hash it too — so a
+ * hostile-input test that failed at the digest check would prove nothing about the import
+ * path itself.
+ */
+async function repack(base: ExportPackage, path: string, content: unknown): Promise<ExportPackage> {
+  const files = base.files
+    .filter((x) => x.path !== 'manifest.json')
+    .map((x) => (x.path === path ? { path, content: `${canonicalize(content)}\n` } : x));
+
+  const manifest: ExportManifest = {
+    ...base.manifest,
+    files: files.map((f) => {
+      const bytes = Buffer.from(f.content, 'utf8');
+      return { path: f.path, size_bytes: bytes.length, sha256: digestBytes(bytes) };
+    }),
+  };
+  const pkg: ExportPackage = {
+    files: [...files, { path: 'manifest.json', content: `${canonicalize(manifest)}\n` }],
+    manifest,
+  };
+  expect(verifyExport(pkg), 'the hostile package must be internally consistent').toEqual([]);
+  return pkg;
+}
+
 describe('preservation export', () => {
   let pkg: ExportPackage;
 
@@ -299,6 +329,49 @@ describe('preservation export', () => {
         if (file.path === 'manifest.json') continue;
         expect(file.content, `${file.path} differs after round trip`).toBe(before.get(file.path));
       }
+    } finally {
+      await fresh.stop();
+    }
+  }, 180_000);
+
+  it('refuses hostile packages that pass their own manifest', async () => {
+    // Column names cannot be bound as parameters — SQL has no parameter form for an
+    // identifier — so they are interpolated. An export is attacker-supplied data, and whoever
+    // crafts a package computes its digests too, so passing manifest verification proves
+    // nothing about intent. The allow-list read from the catalogue is what closes this.
+    //
+    // Runs against a FRESH database: importing into a populated one collides on the first
+    // section and would never reach the hostile input, so the test would pass without the
+    // defence existing.
+    const fresh = await startHarness();
+    try {
+      const rows = (path: string): Record<string, unknown>[] =>
+        JSON.parse(pkg.files.find((x) => x.path === path)!.content) as Record<string, unknown>[];
+
+      const injected = rows('objects.json').map((r) => ({
+        ...r,
+        'id) values (1); drop table core.object; --': 'x',
+      }));
+      await expect(
+        withTransaction(fresh.adminPool, async (tx) =>
+          importExport(tx, await repack(pkg, 'objects.json', injected)),
+        ),
+      ).rejects.toThrow(/does not have/);
+
+      // A ragged section cannot be inserted as one shape, and quietly using the first row's
+      // shape would drop whatever the later rows carried.
+      const ragged = rows('objects.json').map((r, i) => (i === 1 ? { id: r['id'] } : r));
+      await expect(
+        withTransaction(fresh.adminPool, async (tx) =>
+          importExport(tx, await repack(pkg, 'objects.json', ragged)),
+        ),
+      ).rejects.toThrow(/different column set/);
+
+      // Neither attempt wrote anything, and the table it named is still there.
+      const remaining = await withTransaction(fresh.adminPool, async (tx) =>
+        tx.one<{ n: string }>('select count(*)::text as n from core.object'),
+      );
+      expect(Number(remaining.n)).toBe(0);
     } finally {
       await fresh.stop();
     }

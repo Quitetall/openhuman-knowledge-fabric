@@ -95,6 +95,21 @@ describe('checkpoint runs', () => {
     expect(result.checkpoint).toBeUndefined();
   });
 
+  it('serialises concurrent runs instead of double-signing the same range', async () => {
+    // Without the advisory lock both runs read the same last checkpoint and the same pending
+    // range, and both sign it — two signatures over one span of history, which an auditor
+    // then has to adjudicate between.
+    await doWork(2, 'concurrent');
+    const [a, b] = await Promise.all([
+      runCheckpoint(h.adminPool, key),
+      runCheckpoint(h.adminPool, key),
+    ]);
+    const signed = [a, b].filter((r) => r.status === 'signed');
+    expect(signed).toHaveLength(1);
+    expect(signed[0]!.eventCount).toBe(2);
+    expect(await verifyLedger(h.adminPool, keys)).toEqual([]);
+  });
+
   it('refuses to overwrite a checkpoint object already in the store', async () => {
     // Replacing one would destroy the only copy of an earlier attestation.
     const store = new InMemoryObjectStore();
@@ -260,6 +275,35 @@ describe('tamper detection — as the database owner', () => {
     // Removing it leaves those events uncovered, which is a finding of its own — so
     // re-checkpoint them properly to return the ledger to clean.
     await runCheckpoint(h.adminPool, key);
+    expect(await verifyLedger(h.adminPool, keys)).toEqual([]);
+  });
+
+  it('catches OVERLAPPING checkpoints, which a gap check alone cannot see', async () => {
+    // Two signatures covering one span of history. If one was produced before a tamper and
+    // one after, they disagree while both verify — and the uncovered-range test between them
+    // is empty, so a gap check reports nothing at all.
+    const existing = await withTransaction(h.adminPool, async (tx) =>
+      tx.one<{ from_seq: string; to_seq: string; leaf_count: string }>(
+        'select from_seq, to_seq, leaf_count from core.audit_checkpoint order by to_seq desc limit 1',
+      ),
+    );
+    const duplicate = await withTransaction(h.adminPool, async (tx) => {
+      const row = await tx.one<{ id: string }>(
+        `insert into core.audit_checkpoint
+           (from_seq, to_seq, leaf_count, merkle_root, signature, signing_key_id)
+         values ($1, $2, $3, $4, 'not-a-real-signature', $5) returning id`,
+        [existing.from_seq, existing.to_seq, existing.leaf_count, 'a'.repeat(64), key.id],
+      );
+      return row.id;
+    });
+
+    const kinds = (await verifyLedger(h.adminPool, keys)).map((x) => x.kind);
+    expect(kinds).toContain('overlap');
+
+    await withTransaction(h.adminPool, async (tx) => {
+      await tx.query("set local session_replication_role = 'replica'");
+      await tx.query('delete from core.audit_checkpoint where id = $1', [duplicate]);
+    });
     expect(await verifyLedger(h.adminPool, keys)).toEqual([]);
   });
 

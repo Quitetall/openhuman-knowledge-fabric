@@ -45,6 +45,13 @@ export interface ExportManifest {
 export const EXPORT_FORMAT_VERSION = '1';
 
 /**
+ * PostgreSQL's wire protocol caps bind parameters at 65535 per statement. Batched inserts on
+ * import are sized to stay under it — exceeding it fails at the protocol layer with an error
+ * that says nothing about which restore step overran.
+ */
+const MAX_BIND_PARAMETERS = 60000;
+
+/**
  * Every table the export carries, with the deterministic order rows appear in.
  *
  * Order is part of the format. Without a total order, two exports of identical data would
@@ -325,15 +332,38 @@ export function exportIdentity(manifest: ExportManifest): string {
   return digestOf(rest);
 }
 
-/** The json/jsonb columns of a table, read from the catalogue rather than hard-coded. */
-async function jsonColumnsOf(tx: Tx, qualified: string): Promise<Set<string>> {
+interface TableColumns {
+  /** Every column the table has. An import may write no others. */
+  readonly all: ReadonlySet<string>;
+  /** The json/jsonb subset, which must be passed as text rather than as a JS value. */
+  readonly json: ReadonlySet<string>;
+}
+
+/**
+ * A table's columns, read from the catalogue rather than hard-coded.
+ *
+ * This is the ALLOW-LIST for import, not merely a type hint. Column names in an export file
+ * are attacker-controllable — a package's manifest verifies the digests of its files as they
+ * are, so whoever crafts the package computes those digests too — and they are interpolated
+ * into the INSERT text because SQL has no parameter form for an identifier. Checking each one
+ * against the real table is what closes that.
+ */
+async function tableColumns(tx: Tx, qualified: string): Promise<TableColumns> {
   const [schema, table] = qualified.split('.');
-  const rows = await tx.query<{ column_name: string }>(
-    `select column_name from information_schema.columns
-      where table_schema = $1 and table_name = $2 and data_type in ('json', 'jsonb')`,
+  const rows = await tx.query<{ column_name: string; data_type: string }>(
+    `select column_name, data_type from information_schema.columns
+      where table_schema = $1 and table_name = $2`,
     [schema, table],
   );
-  return new Set(rows.map((r) => r.column_name));
+  if (rows.length === 0) throw new Error(`no such table: ${qualified}`);
+  return {
+    all: new Set(rows.map((r) => r.column_name)),
+    json: new Set(
+      rows
+        .filter((r) => r.data_type === 'json' || r.data_type === 'jsonb')
+        .map((r) => r.column_name),
+    ),
+  };
 }
 
 function sectionRows(pkg: ExportPackage, name: string): Row[] {
@@ -374,28 +404,60 @@ export async function importExport(tx: Tx, pkg: ExportPackage): Promise<{ import
     if (table === undefined) continue;
     const rows = sectionRows(pkg, name);
     if (rows.length === 0) continue;
-    const jsonColumns = await jsonColumnsOf(tx, table);
-    for (const row of rows) {
-      const columns = Object.keys(row);
-      const placeholders = columns.map((_, i) => `$${i + 1}`).join(', ');
+
+    const columnsOf = await tableColumns(tx, table);
+
+    // One shape per section: rows within a section come from a single SELECT, so they all
+    // carry the same keys. A row that does not is a malformed package, not a variation.
+    const columns = Object.keys(rows[0]!);
+    for (const c of columns) {
+      if (!columnsOf.all.has(c)) {
+        throw new Error(
+          `refusing to import: ${name}.json names a column '${c}' that ${table} does not have`,
+        );
+      }
+    }
+    for (const [i, row] of rows.entries()) {
+      const keys = Object.keys(row);
+      if (keys.length !== columns.length || keys.some((k, j) => k !== columns[j])) {
+        throw new Error(`refusing to import: ${name}.json row ${i} has a different column set`);
+      }
+    }
+
+    const prepare = (row: Row): unknown[] =>
+      columns.map((c) => {
+        const v = row[c];
+        // json/jsonb values must arrive as text. The driver renders a JavaScript ARRAY as a
+        // PostgreSQL array literal — correct for `uuid[]`, invalid JSON for `jsonb` — so a
+        // jsonb column holding a list would fail on restore, and only on restore.
+        return columnsOf.json.has(c) && v !== null ? JSON.stringify(v) : v;
+      });
+
+    // Batched, because a restore runs as ONE transaction and a row-at-a-time loop over a
+    // large audit log is that many round trips holding locks — long enough to trip
+    // idle_in_transaction_session_timeout on the database you are trying to rescue.
+    const perStatement = Math.max(1, Math.floor(MAX_BIND_PARAMETERS / columns.length));
+    for (let start = 0; start < rows.length; start += perStatement) {
+      const batch = rows.slice(start, start + perStatement);
+      const values: unknown[] = [];
+      const tuples = batch.map((row) => {
+        const placeholders = columns.map((_, i) => `$${values.length + i + 1}`).join(', ');
+        values.push(...prepare(row));
+        return `(${placeholders})`;
+      });
       await tx.query(
-        `insert into ${table} (${columns.join(', ')}) values (${placeholders})`,
-        columns.map((c) => {
-          const v = row[c];
-          // json/jsonb values must arrive as text. The driver renders a JavaScript ARRAY as
-          // a PostgreSQL array literal — correct for `uuid[]`, invalid JSON for `jsonb` — so
-          // a jsonb column holding a list would fail on restore, and only on restore.
-          return jsonColumns.has(c) && v !== null ? JSON.stringify(v) : v;
-        }),
+        `insert into ${table} (${columns.join(', ')}) values ${tuples.join(', ')}`,
+        values,
       );
-      imported += 1;
+      imported += batch.length;
     }
   }
 
-  // Re-align sequences the export carried explicit values for; otherwise the next insert
-  // collides with a restored row.
+  // Re-align the one sequence in the schema. Resolved from the catalogue rather than spelled
+  // out, so renaming the column or the table cannot leave this silently pointing at nothing.
+  // Every other identifier is a `uuid default uuidv7()` and needs no realignment.
   await tx.query(
-    `select setval('core.audit_event_seq_seq',
+    `select setval(pg_get_serial_sequence('core.audit_event', 'seq'),
                    coalesce((select max(seq) from core.audit_event), 1), true)`,
   );
 
