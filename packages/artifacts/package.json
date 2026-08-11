@@ -17,6 +17,12 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
-    "@kf/domain": "workspace:*"
+    "@kf/database": "workspace:*",
+    "@kf/domain": "workspace:*",
+    "@aws-sdk/client-s3": "^3.1107.0",
+    "@aws-sdk/s3-request-presigner": "^3.1107.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3"
   }
 }
