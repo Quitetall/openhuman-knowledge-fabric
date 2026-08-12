@@ -1,0 +1,26 @@
+[
+  {
+    "file": "OH-DOC-000002-1-R01_Knowledge_Fabric_Organizational_Graph_and_Work_Control_Specification.docx",
+    "title": "Knowledge Fabric Organizational Graph and Work Control Specification",
+    "documentNumber": "OH-DOC-000002-1",
+    "revision": "R01",
+    "documentClass": "specification",
+    "owningRole": "technical_authority"
+  },
+  {
+    "file": "OH-DOC-LST-SYS-001-R4_Identifier_Registry.docx",
+    "title": "Identifier Registry",
+    "documentNumber": "OH-DOC-LST-SYS-001",
+    "revision": "R4",
+    "documentClass": "record",
+    "owningRole": "system_administrator"
+  },
+  {
+    "file": "OH-DOC-SPC-QMS-001-R1_QMS_Architecture_and_Operating_Model.docx",
+    "title": "QMS Architecture and Operating Model",
+    "documentNumber": "OH-DOC-SPC-QMS-001",
+    "revision": "R1",
+    "documentClass": "specification",
+    "owningRole": "quality_authority"
+  }
+]

@@ -217,8 +217,12 @@ export function createDispatcher(pool: Pool, options: DispatcherOptions = {}) {
 
       // 13 (early). An idempotent replay must not re-run the work, so this is checked
       // before anything is locked or written, not after.
-      const prior = await tx.maybeOne<{ id: string; result: { audit_digest?: string } }>(
-        `select id, result from core.action
+      const prior = await tx.maybeOne<{
+        id: string;
+        target_ids: string[];
+        result: { audit_digest?: string };
+      }>(
+        `select id, target_ids, result from core.action
           where action_type = $1 and idempotency_key = $2`,
         [request.actionType, request.idempotencyKey],
       );
@@ -227,7 +231,10 @@ export function createDispatcher(pool: Pool, options: DispatcherOptions = {}) {
           actionId: prior.id,
           status: 'applied' as const,
           replayed: true,
-          objectIds: [...request.targetIds],
+          // Creation actions had no caller-supplied target. Returning the retry's empty
+          // array lost the object the first attempt created, so an orchestrator could not
+          // continue from an idempotent replay. The committed action owns this answer.
+          objectIds: [...prior.target_ids],
           auditDigest: prior.result.audit_digest ?? '',
         };
       }

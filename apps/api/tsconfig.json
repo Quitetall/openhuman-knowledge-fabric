@@ -21,6 +21,18 @@
       "path": "../../packages/actions"
     },
     {
+      "path": "../../packages/artifacts"
+    },
+    {
+      "path": "../../packages/authorization"
+    },
+    {
+      "path": "../../packages/documents"
+    },
+    {
+      "path": "../../packages/orchestrator"
+    },
+    {
       "path": "../../packages/work-control"
     },
     {

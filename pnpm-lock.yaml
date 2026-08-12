@@ -29,6 +29,9 @@ importers:
       '@kf/database':
         specifier: workspace:*
         version: link:packages/database
+      '@kf/documents':
+        specifier: workspace:*
+        version: link:packages/documents
       '@kf/export':
         specifier: workspace:*
         version: link:packages/export
@@ -41,9 +44,15 @@ importers:
       '@kf/operations':
         specifier: workspace:*
         version: link:packages/operations
+      '@kf/orchestrator':
+        specifier: workspace:*
+        version: link:packages/orchestrator
       '@kf/product-quality':
         specifier: workspace:*
         version: link:packages/product-quality
+      '@kf/record-atoms':
+        specifier: workspace:*
+        version: link:packages/record-atoms
       '@kf/search':
         specifier: workspace:*
         version: link:packages/search
@@ -95,15 +104,27 @@ importers:
       '@kf/actions':
         specifier: workspace:*
         version: link:../../packages/actions
+      '@kf/artifacts':
+        specifier: workspace:*
+        version: link:../../packages/artifacts
+      '@kf/authorization':
+        specifier: workspace:*
+        version: link:../../packages/authorization
       '@kf/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@kf/documents':
+        specifier: workspace:*
+        version: link:../../packages/documents
       '@kf/domain':
         specifier: workspace:*
         version: link:../../packages/domain
       '@kf/operations':
         specifier: workspace:*
         version: link:../../packages/operations
+      '@kf/orchestrator':
+        specifier: workspace:*
+        version: link:../../packages/orchestrator
       '@kf/work-control':
         specifier: workspace:*
         version: link:../../packages/work-control
@@ -114,6 +135,9 @@ importers:
       '@types/node':
         specifier: ^24.13.3
         version: 24.13.3
+      tsx:
+        specifier: ^4.23.12
+        version: 4.23.12
 
   apps/checkpoint:
     dependencies:
@@ -180,6 +204,9 @@ importers:
       '@types/node':
         specifier: ^24.13.3
         version: 24.13.3
+      tsx:
+        specifier: ^4.23.12
+        version: 4.23.12
 
   packages/actions:
     dependencies:
@@ -275,6 +302,28 @@ importers:
         specifier: ^8.15.7
         version: 8.21.0
 
+  packages/documents:
+    dependencies:
+      '@kf/actions':
+        specifier: workspace:*
+        version: link:../actions
+      '@kf/artifacts':
+        specifier: workspace:*
+        version: link:../artifacts
+      '@kf/canonicalization':
+        specifier: workspace:*
+        version: link:../canonicalization
+      '@kf/database':
+        specifier: workspace:*
+        version: link:../database
+      '@kf/record-atoms':
+        specifier: workspace:*
+        version: link:../record-atoms
+    devDependencies:
+      '@types/node':
+        specifier: ^24.13.3
+        version: 24.13.3
+
   packages/domain: {}
 
   packages/export:
@@ -334,6 +383,28 @@ importers:
         specifier: ^24.13.3
         version: 24.13.3
 
+  packages/orchestrator:
+    dependencies:
+      '@kf/actions':
+        specifier: workspace:*
+        version: link:../actions
+      '@kf/database':
+        specifier: workspace:*
+        version: link:../database
+      '@kf/documents':
+        specifier: workspace:*
+        version: link:../documents
+      '@kf/product-quality':
+        specifier: workspace:*
+        version: link:../product-quality
+      '@kf/work-control':
+        specifier: workspace:*
+        version: link:../work-control
+    devDependencies:
+      '@types/node':
+        specifier: ^24.13.3
+        version: 24.13.3
+
   packages/product-quality:
     dependencies:
       '@kf/actions':
@@ -345,9 +416,19 @@ importers:
       '@kf/domain':
         specifier: workspace:*
         version: link:../domain
-      '@kf/work-control':
+      '@kf/record-atoms':
         specifier: workspace:*
-        version: link:../work-control
+        version: link:../record-atoms
+    devDependencies:
+      '@types/node':
+        specifier: ^24.13.3
+        version: 24.13.3
+
+  packages/record-atoms:
+    dependencies:
+      '@kf/database':
+        specifier: workspace:*
+        version: link:../database
     devDependencies:
       '@types/node':
         specifier: ^24.13.3
@@ -395,6 +476,9 @@ importers:
       '@kf/domain':
         specifier: workspace:*
         version: link:../domain
+      '@kf/record-atoms':
+        specifier: workspace:*
+        version: link:../record-atoms
     devDependencies:
       '@types/node':
         specifier: ^24.13.3
@@ -3852,7 +3936,6 @@ snapshots:
       '@esbuild/win32-arm64': 0.28.2
       '@esbuild/win32-ia32': 0.28.2
       '@esbuild/win32-x64': 0.28.2
-    optional: true
 
   escalade@3.2.0: {}
 
@@ -4779,7 +4862,6 @@ snapshots:
       esbuild: 0.28.2
     optionalDependencies:
       fsevents: 2.3.3
-    optional: true
 
   tweetnacl@0.14.5: {}
 

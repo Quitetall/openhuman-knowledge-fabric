@@ -17,7 +17,7 @@ import {
   type PreconditionCheck,
 } from '@kf/actions';
 import type { Tx } from '@kf/database';
-import { createControlledObject, optionalString, requireString } from '@kf/work-control';
+import { createControlledObject, optionalString, requireString } from '@kf/record-atoms';
 
 function refuse(rule: string, message: string, detail: Record<string, unknown> = {}): never {
   throw new ActionRejected('precondition_failed', `${rule}: ${message}`, { rule, ...detail });

@@ -6,6 +6,7 @@
  */
 
 import { loadSecret } from '@kf/operations';
+import type { S3Config } from '@kf/artifacts';
 
 export interface ApiConfig {
   readonly host: string;
@@ -24,6 +25,8 @@ export interface ApiConfig {
   /** Present only when an identity provider is configured. Absent means header identity. */
   readonly identity:
     { readonly issuer: string; readonly audience: string; readonly jwksUri: string } | undefined;
+  /** Evidence vault. Absent only in tests or intentionally metadata-only development. */
+  readonly artifactStore?: S3Config;
 }
 
 class ConfigError extends Error {
@@ -123,6 +126,40 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     );
   }
 
+  const s3Endpoint = env['S3_ENDPOINT'];
+  const s3Region = env['S3_REGION'];
+  const s3AccessKeyId = env['S3_ACCESS_KEY_ID'];
+  const s3Bucket = env['S3_BUCKET_ARTIFACTS'];
+  const s3Parts = [s3Endpoint, s3Region, s3AccessKeyId, s3Bucket].filter(
+    (value) => value !== undefined && value !== '',
+  );
+  const secretConfigured =
+    (env['S3_SECRET_ACCESS_KEY'] !== undefined && env['S3_SECRET_ACCESS_KEY'] !== '') ||
+    (env['S3_SECRET_ACCESS_KEY_FILE'] !== undefined && env['S3_SECRET_ACCESS_KEY_FILE'] !== '');
+  if ((s3Parts.length > 0 || secretConfigured) && (s3Parts.length !== 4 || !secretConfigured)) {
+    throw new ConfigError(
+      'S3_ENDPOINT, S3_REGION, S3_ACCESS_KEY_ID, S3_BUCKET_ARTIFACTS and ' +
+        'S3_SECRET_ACCESS_KEY[_FILE] must all be set, or none of them.',
+    );
+  }
+  let artifactStore: S3Config | undefined;
+  if (s3Parts.length === 4 && secretConfigured) {
+    try {
+      artifactStore = {
+        endpoint: s3Endpoint!,
+        region: s3Region!,
+        accessKeyId: s3AccessKeyId!,
+        secretAccessKey: loadSecret('S3_SECRET_ACCESS_KEY', env, { allowInline: inlineAllowed }),
+        bucket: s3Bucket!,
+        forcePathStyle: env['S3_FORCE_PATH_STYLE'] !== 'false',
+      };
+    } catch (error: unknown) {
+      throw new ConfigError(error instanceof Error ? error.message : String(error), {
+        cause: error,
+      });
+    }
+  }
+
   return {
     host: env['HOST'] ?? '0.0.0.0',
     port: readPort(env['PORT'], 4000),
@@ -131,6 +168,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     environment,
     tlsTerminatedUpstream,
     identity,
+    ...(artifactStore === undefined ? {} : { artifactStore }),
   };
 }
 

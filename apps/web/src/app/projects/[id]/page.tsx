@@ -12,33 +12,10 @@
  */
 
 import { get, ApiError, type HistoryView, type ProjectView } from '../../../lib/api';
-import { formatInstant, formatProgress, formatState, shortDigest, stateTone } from '@kf/ui';
+import { formatInstant, formatProgress, formatState, shortDigest } from '@kf/ui';
 import { ActionPanel } from './action-panel';
 import { developmentCaller } from '../../../lib/caller';
-
-const TONE: Record<string, string> = {
-  draft: '#6b7280',
-  active: '#0a7',
-  awaiting: '#b45309',
-  terminal: '#4338ca',
-};
-
-function Badge({ state }: { state: string }) {
-  return (
-    <span
-      style={{
-        display: 'inline-block',
-        padding: '0.1rem 0.5rem',
-        borderRadius: '999px',
-        fontSize: '0.8rem',
-        border: `1px solid ${TONE[stateTone(state)]}`,
-        color: TONE[stateTone(state)],
-      }}
-    >
-      {formatState(state)}
-    </span>
-  );
-}
+import { Badge } from '../../components/badge';
 
 export default async function ProjectPage({
   params,
@@ -141,7 +118,8 @@ export default async function ProjectPage({
         </p>
       )}
       <ActionPanel
-        projectId={project.id}
+        objectId={project.id}
+        path={`/projects/${project.id}`}
         state={project.lifecycle_state}
         rowVersion={project.row_version}
       />

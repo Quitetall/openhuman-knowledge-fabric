@@ -212,6 +212,7 @@ const DECLARED_ADDITIONS = {
     'supplied_by',
   ],
   action_types: [
+    'add_controlled_document',
     'approve_capa_plan',
     'approve_controlled_document',
     'approve_test_definition',

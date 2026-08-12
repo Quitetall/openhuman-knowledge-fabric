@@ -6,17 +6,19 @@
  */
 
 import Fastify, { type FastifyInstance } from 'fastify';
-import { createDispatcher } from '@kf/actions';
+import { S3ObjectStore, type ObjectStore } from '@kf/artifacts';
 import { createPool, withTransaction, type Pool } from '@kf/database';
 import { TokenVerifier } from '@kf/authorization';
-import { assessReadiness } from '@kf/operations';
 import {
-  WORK_CONTROL_EFFECTS,
-  WORK_CONTROL_MATERIALIZERS,
-  WORK_CONTROL_PRECONDITIONS,
-} from '@kf/work-control';
+  createDocumentActionAtoms,
+  PandocDocumentParser,
+  type DocumentParser,
+} from '@kf/documents';
+import { createFabricDispatcher } from '@kf/orchestrator';
+import { assessReadiness } from '@kf/operations';
 import type { ApiConfig } from './config.js';
-import { registerActionRoutes } from './routes/actions.js';
+import { createCallerIdentifier, registerActionRoutes } from './routes/actions.js';
+import { registerDocumentRoutes } from './routes/documents.js';
 
 export const SERVICE_NAME = 'openhuman-knowledge-fabric-api';
 
@@ -27,7 +29,15 @@ export const SERVICE_NAME = 'openhuman-knowledge-fabric-api';
  * database blip would cause an orchestrator to kill an otherwise healthy process.
  * `/ready` answers "can this process serve traffic" and is where dependency checks belong.
  */
-export async function buildApp(config: ApiConfig): Promise<FastifyInstance> {
+export interface AppDependencies {
+  readonly objectStore?: ObjectStore;
+  readonly documentParser?: DocumentParser;
+}
+
+export async function buildApp(
+  config: ApiConfig,
+  dependencies: AppDependencies = {},
+): Promise<FastifyInstance> {
   const app = Fastify({
     logger: {
       level: config.logLevel,
@@ -114,20 +124,32 @@ export async function buildApp(config: ApiConfig): Promise<FastifyInstance> {
       return reply.code(report.ready ? 200 : 503).send(report);
     });
 
-    const execute = createDispatcher(pool, {
-      materializers: WORK_CONTROL_MATERIALIZERS,
-      effects: WORK_CONTROL_EFFECTS,
-      preconditions: WORK_CONTROL_PRECONDITIONS,
-    });
+    const objectStore =
+      dependencies.objectStore ??
+      (config.artifactStore === undefined ? undefined : new S3ObjectStore(config.artifactStore));
+    const parser = dependencies.documentParser ?? new PandocDocumentParser();
+    const documentAtoms =
+      objectStore === undefined
+        ? undefined
+        : createDocumentActionAtoms({ store: objectStore, parser });
+    const execute = createFabricDispatcher(pool, documentAtoms);
+    const verifier = config.identity === undefined ? undefined : new TokenVerifier(config.identity);
+    const identify = createCallerIdentifier(pool, verifier);
     await registerActionRoutes(app, {
       pool,
       execute,
-      ...(config.identity !== undefined ? { verifier: new TokenVerifier(config.identity) } : {}),
+      ...(verifier === undefined ? {} : { verifier }),
       // Header-supplied identity is a development affordance and nothing else, and it is
       // reachable only when no identity provider is configured — `registerActionRoutes`
       // ignores headers entirely once a verifier exists, rather than falling back to them,
       // because a fallback activates exactly when the provider is unreachable.
       trustHeaders: config.environment === 'development' || config.environment === 'test',
+    });
+    await registerDocumentRoutes(app, {
+      pool,
+      execute,
+      identify,
+      store: objectStore,
     });
   }
 

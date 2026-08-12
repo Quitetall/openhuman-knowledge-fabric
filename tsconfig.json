@@ -11,6 +11,9 @@
       "path": "./packages/database"
     },
     {
+      "path": "./packages/record-atoms"
+    },
+    {
       "path": "./packages/actions"
     },
     {
@@ -27,6 +30,9 @@
     },
     {
       "path": "./packages/artifacts"
+    },
+    {
+      "path": "./packages/documents"
     },
     {
       "path": "./packages/audit"
@@ -60,6 +66,9 @@
     },
     {
       "path": "./packages/operations"
+    },
+    {
+      "path": "./packages/orchestrator"
     }
   ]
 }

@@ -11,6 +11,6 @@
     { "path": "../domain" },
     { "path": "../database" },
     { "path": "../actions" },
-    { "path": "../work-control" }
+    { "path": "../record-atoms" }
   ]
 }

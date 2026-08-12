@@ -19,7 +19,8 @@
   "dependencies": {
     "@kf/actions": "workspace:*",
     "@kf/database": "workspace:*",
-    "@kf/domain": "workspace:*"
+    "@kf/domain": "workspace:*",
+    "@kf/record-atoms": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.13.3"

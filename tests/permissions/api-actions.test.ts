@@ -15,6 +15,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
+import { InMemoryObjectStore } from '@kf/artifacts';
 import { buildApp } from '../../apps/api/src/app.js';
 import { registerActionRoutes } from '../../apps/api/src/routes/actions.js';
 import {
@@ -28,6 +29,7 @@ import {
 let h: Harness;
 let f: Fixtures;
 let app: FastifyInstance;
+const objectStore = new InMemoryObjectStore();
 
 /** The development headers. In production these are ignored and the routes refuse. */
 function asCaller(actorId: string, roleId: string, classification = 'restricted') {
@@ -47,13 +49,18 @@ beforeAll(async () => {
   appUri.username = 'kf_app_login';
   appUri.password = 'test-only-not-a-secret';
 
-  app = await buildApp({
-    host: '127.0.0.1',
-    port: 0,
-    logLevel: 'silent',
-    databaseUrl: appUri.toString(),
-    environment: 'test',
-  });
+  app = await buildApp(
+    {
+      host: '127.0.0.1',
+      port: 0,
+      logLevel: 'silent',
+      databaseUrl: appUri.toString(),
+      environment: 'test',
+      tlsTerminatedUpstream: false,
+      identity: undefined,
+    },
+    { objectStore },
+  );
   await app.ready();
 }, 180_000);
 
@@ -85,6 +92,53 @@ describe('deep readiness', () => {
     // And it says what each finding means, rather than only that it is red.
     for (const c of body.checks) expect(c.detail.length).toBeGreaterThanOrEqual(20);
     expect(body.checks.map((c) => c.id)).toContain('audit_chain');
+  });
+});
+
+describe('document dogfood surface', () => {
+  it('adds a draft through HTTP, parses it, and returns the same id on retry', async () => {
+    const payload = {
+      title: 'Dogfood Constitution',
+      documentNumber: 'OH-DOC-TEST-HTTP-001',
+      revision: 'R01',
+      documentClass: 'specification',
+      owningRole: 'technical_authority',
+      fileName: 'constitution.txt',
+      mediaType: 'text/plain',
+      contentBase64: Buffer.from('# Constitution\n\nOne fact, one owner.').toString('base64'),
+      idempotencyKey: 'api-document-dogfood-0001',
+    };
+    const first = await app.inject({
+      method: 'POST',
+      url: '/documents',
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+      payload,
+    });
+    expect(first.statusCode).toBe(201);
+    const firstBody = first.json() as { id: string; replayed: boolean };
+    expect(firstBody.replayed).toBe(false);
+
+    const retry = await app.inject({
+      method: 'POST',
+      url: '/documents',
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+      payload,
+    });
+    expect(retry.statusCode).toBe(200);
+    expect(retry.json()).toMatchObject({ id: firstBody.id, replayed: true });
+
+    const detail = await app.inject({
+      method: 'GET',
+      url: `/documents/${firstBody.id}`,
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+    });
+    expect(detail.statusCode).toBe(200);
+    expect(detail.json()).toMatchObject({
+      documentNumber: 'OH-DOC-TEST-HTTP-001',
+      lifecycleState: 'draft',
+      parser: 'pandoc',
+      atomCount: 2,
+    });
   });
 });
 

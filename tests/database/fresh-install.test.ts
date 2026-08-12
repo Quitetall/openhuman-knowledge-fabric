@@ -19,6 +19,7 @@ import { createPool, withTransaction, type Pool } from '@kf/database';
 
 const ROOT = join(import.meta.dirname, '..', '..');
 const MIGRATIONS = join(ROOT, 'database', 'migrations');
+const SEED = join(ROOT, 'generated', 'sql-registry', '001-ontology-seed.sql');
 
 function upSection(sql: string): string {
   const start = sql.indexOf('-- migrate:up');
@@ -78,5 +79,27 @@ describe('a completely fresh database', () => {
       ),
     );
     expect(Number(row.n)).toBeGreaterThan(0);
+  });
+
+  it('re-seeds a new ontology release without violating one-current-release', async () => {
+    const first = readFileSync(SEED, 'utf8');
+    const next = first
+      .replaceAll('1.1.0-draft.1', '1.1.0-draft.2')
+      .replaceAll(
+        'e2e0283906bed576d89acee4e409cb14e475f04d4aad94bd80178f3f26b5afb9',
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      );
+    await withTransaction(pool!, async (tx) => {
+      await tx.query(first.replace(/^begin;$|^commit;$/gm, ''));
+    });
+    await withTransaction(pool!, async (tx) => {
+      await tx.query(next.replace(/^begin;$|^commit;$/gm, ''));
+    });
+    const current = await withTransaction(pool!, async (tx) =>
+      tx.one<{ version: string }>(
+        'select version from registry.schema_release where is_current = true',
+      ),
+    );
+    expect(current.version).toBe('1.1.0-draft.2');
   });
 });

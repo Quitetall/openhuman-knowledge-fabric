@@ -1,9 +1,9 @@
 <!-- GENERATED from ontology/ — do not edit. -->
-<!-- ontology_version: 1.1.0-draft.1 · source_digest: ad9b5a97534a92433726378d0d719c4e791e190599964182d287a35bfff2020f -->
+<!-- ontology_version: 1.1.0-draft.1 · source_digest: e2e0283906bed576d89acee4e409cb14e475f04d4aad94bd80178f3f26b5afb9 -->
 
 # Ontology reference
 
-Compiled from `ontology/`. 35 object types, 40 relation types, 77 action types, 20 state machines, 10 invariants.
+Compiled from `ontology/`. 35 object types, 40 relation types, 78 action types, 20 state machines, 10 invariants.
 
 ## Object types
 
@@ -132,6 +132,7 @@ Compiled from `ontology/`. 35 object types, 40 relation types, 77 action types, 
 | `withdraw_interface_contract` | interface_contract |
 | `record_physical_binding` | physical_binding |
 | `remove_physical_binding` | physical_binding |
+| `add_controlled_document` | — |
 | `submit_document_for_review` | controlled_document |
 | `approve_controlled_document` | controlled_document |
 | `make_document_effective` | controlled_document |

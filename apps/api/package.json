@@ -6,20 +6,26 @@
   "description": "Knowledge Fabric HTTP API \u2014 typed reads and typed actions",
   "main": "./dist/server.js",
   "scripts": {
-    "dev": "node --watch --experimental-strip-types src/server.ts",
+    "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
+    "dogfood": "node dist/dogfood.js",
     "build": "tsc --build",
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
     "@kf/actions": "workspace:*",
+    "@kf/artifacts": "workspace:*",
+    "@kf/authorization": "workspace:*",
     "@kf/database": "workspace:*",
+    "@kf/documents": "workspace:*",
     "@kf/domain": "workspace:*",
+    "@kf/orchestrator": "workspace:*",
     "@kf/operations": "workspace:*",
     "@kf/work-control": "workspace:*",
     "fastify": "^5.11.3"
   },
   "devDependencies": {
-    "@types/node": "^24.13.3"
+    "@types/node": "^24.13.3",
+    "tsx": "^4.23.12"
   }
 }

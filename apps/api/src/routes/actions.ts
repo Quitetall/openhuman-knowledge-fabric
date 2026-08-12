@@ -56,7 +56,7 @@ export interface Caller {
 
 export class CallerRejected extends Error {}
 
-function callerFrom(headers: Record<string, unknown>): Caller {
+export function callerFrom(headers: Record<string, unknown>): Caller {
   const get = (name: string): string => {
     const v = headers[name];
     if (typeof v !== 'string' || v.trim() === '') {
@@ -89,7 +89,7 @@ function callerFrom(headers: Record<string, unknown>): Caller {
  * — telling an attacker whether the signature or the audience was wrong tells them which part
  * of a forged token to fix next.
  */
-function unidentified(err: unknown): { error: string; message: string } {
+export function unidentified(err: unknown): { error: string; message: string } {
   if (err instanceof IdentityRejected) {
     return { error: err.failure, message: err.message };
   }
@@ -151,6 +151,34 @@ export interface ActionRoutesOptions {
   readonly stepUp?: Readonly<Record<string, StepUpPolicy>>;
 }
 
+export type IdentifyCaller = (request: { headers: Record<string, unknown> }) => Promise<Caller>;
+
+export function createCallerIdentifier(
+  pool: Pool,
+  verifier: TokenVerifier | undefined,
+): IdentifyCaller {
+  return async (request): Promise<Caller> => {
+    if (verifier === undefined) return callerFrom(request.headers);
+
+    const authorization = request.headers['authorization'];
+    const token =
+      typeof authorization === 'string' && /^bearer /i.test(authorization)
+        ? authorization.slice(7).trim()
+        : '';
+
+    const header = (name: string): string => {
+      const value = request.headers[name];
+      return typeof value === 'string' ? value : '';
+    };
+    return resolveCaller(pool, verifier, {
+      token,
+      actingRoleId: header('x-kf-acting-role'),
+      organizationId: header('x-kf-organization'),
+      maxClassification: header('x-kf-classification') || 'internal',
+    });
+  };
+}
+
 export async function registerActionRoutes(
   app: FastifyInstance,
   options: ActionRoutesOptions,
@@ -165,30 +193,7 @@ export async function registerActionRoutes(
    * had one and headers otherwise would let anybody who could omit a header downgrade the
    * whole authentication scheme.
    */
-  async function identify(request: { headers: Record<string, unknown> }): Promise<Caller> {
-    if (verifier === undefined) return callerFrom(request.headers);
-
-    const authorization = request.headers['authorization'];
-    const token =
-      typeof authorization === 'string' && /^bearer /i.test(authorization)
-        ? authorization.slice(7).trim()
-        : '';
-
-    const header = (name: string): string => {
-      const v = request.headers[name];
-      return typeof v === 'string' ? v : '';
-    };
-    // The role, organization and clearance are still stated by the caller — and every one of
-    // them is checked against the database. Stating a role you do not hold is refused; a
-    // clearance you do not have narrows what row-level security shows you rather than
-    // widening it.
-    return resolveCaller(pool, verifier, {
-      token,
-      actingRoleId: header('x-kf-acting-role'),
-      organizationId: header('x-kf-organization'),
-      maxClassification: header('x-kf-classification') || 'internal',
-    });
-  }
+  const identify = createCallerIdentifier(pool, verifier);
 
   if (verifier === undefined && !options.trustHeaders) {
     // Fail at startup, not at the first request. A deployment that would have trusted

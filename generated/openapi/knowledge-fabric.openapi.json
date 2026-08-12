@@ -3,7 +3,7 @@
   "info": {
     "title": "OpenHuman Knowledge Fabric API",
     "version": "1.1.0-draft.1",
-    "description": "Generated from ontology source digest ad9b5a97534a92433726378d0d719c4e791e190599964182d287a35bfff2020f."
+    "description": "Generated from ontology source digest e2e0283906bed576d89acee4e409cb14e475f04d4aad94bd80178f3f26b5afb9."
   },
   "paths": {
     "/objects/organization/{id}": {
@@ -2336,6 +2336,36 @@
         }
       }
     },
+    "/actions/add_controlled_document": {
+      "post": {
+        "summary": "Execute add_controlled_document",
+        "operationId": "add_controlled_document",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
     "/actions/submit_document_for_review": {
       "post": {
         "summary": "Execute submit_document_for_review",
@@ -3779,6 +3809,7 @@
               "withdraw_interface_contract",
               "record_physical_binding",
               "remove_physical_binding",
+              "add_controlled_document",
               "submit_document_for_review",
               "approve_controlled_document",
               "make_document_effective",

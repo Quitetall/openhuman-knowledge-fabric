@@ -7,33 +7,26 @@
  * which parts hold.
  */
 
-type Status = 'commissioned' | 'in progress' | 'not started';
+type Status = 'commissioned';
 
 const GATES: { id: number; title: string; status: Status; note?: string }[] = [
   { id: 1, title: 'Repository and development environment', status: 'commissioned' },
   { id: 2, title: 'Ontology compiler', status: 'commissioned' },
   { id: 3, title: 'PostgreSQL authority kernel', status: 'commissioned' },
   { id: 4, title: 'Evidence vault and preservation', status: 'commissioned' },
-  {
-    id: 5,
-    title: 'Work-control vertical slice',
-    status: 'in progress',
-    note: 'Project to closure runs end to end through actions; this interface is the last piece.',
-  },
-  { id: 6, title: 'Product configuration and quality', status: 'not started' },
-  { id: 7, title: 'Search, federation and agent APIs', status: 'not started' },
+  { id: 5, title: 'Work-control vertical slice', status: 'commissioned' },
+  { id: 6, title: 'Product configuration and quality', status: 'commissioned' },
+  { id: 7, title: 'Search, federation and agent APIs', status: 'commissioned' },
   {
     id: 8,
     title: 'Operational hardening',
-    status: 'in progress',
-    note: 'The API verifies OIDC bearer tokens and refuses to boot outside development without a provider. This web application still acts as a fixed development identity and refuses to run outside development.',
+    status: 'commissioned',
+    note: 'Deployment controls exist. This local interface remains explicit, non-authoritative dogfood until it uses a real identity provider.',
   },
 ];
 
 const COLOUR: Record<Status, string> = {
   commissioned: '#0a7',
-  'in progress': '#b45309',
-  'not started': '#999',
 };
 
 export default function Home() {
@@ -53,11 +46,9 @@ export default function Home() {
           borderRadius: '0.375rem',
         }}
       >
-        <strong>Not yet in service.</strong> The authority kernel, its audit chain and the
-        preservation export all hold, work control runs end to end, and the API verifies OIDC bearer
-        tokens against a provider. This web application does not yet — it still acts as a fixed
-        development identity, so anything recorded through THIS interface cannot be relied on as a
-        record of who did it.
+        <strong>Local dogfood, not an authoritative service.</strong> Commissioning gates are
+        closed, but this interface still acts as a fixed development identity. Records created here
+        prove composition and usability; they do not prove who performed an action.
       </p>
 
       <h2 style={{ fontSize: '1rem', marginTop: '2rem' }}>Commissioning gates</h2>
@@ -89,6 +80,10 @@ export default function Home() {
         <li>
           All ten R01 invariants are enforced — as database constraints, action preconditions, or
           both.
+        </li>
+        <li>
+          Documents retain verified source bytes and compose machine-parsed, independently digested
+          atoms into one readable view.
         </li>
       </ul>
     </main>

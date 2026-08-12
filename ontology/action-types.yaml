@@ -169,6 +169,12 @@ action_types:
     audited: true
     transactional: true
     drives: [physical_binding]
+  # Creates a draft document around one immutable artifact version. Import is not approval:
+  # lifecycle actions below remain separate, permissioned decisions.
+  - id: add_controlled_document
+    audited: true
+    transactional: true
+    drives: []
   - id: submit_document_for_review
     audited: true
     transactional: true

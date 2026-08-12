@@ -7,5 +7,10 @@
   },
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts", "dist", "node_modules"],
-  "references": [{ "path": "../domain" }, { "path": "../database" }, { "path": "../actions" }]
+  "references": [
+    { "path": "../domain" },
+    { "path": "../database" },
+    { "path": "../actions" },
+    { "path": "../record-atoms" }
+  ]
 }

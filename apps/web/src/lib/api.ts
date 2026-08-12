@@ -108,6 +108,35 @@ export async function act(
   return (await parse(response)) as ActionOutcome;
 }
 
+export interface AddDocumentInput {
+  readonly title: string;
+  readonly documentNumber: string;
+  readonly revision: string;
+  readonly documentClass: string;
+  readonly owningRole: string;
+  readonly fileName: string;
+  readonly mediaType: string;
+  readonly contentBase64: string;
+  readonly idempotencyKey: string;
+}
+
+export async function addDocument(
+  input: AddDocumentInput,
+  caller: Caller,
+): Promise<{ id: string; artifactId: string; sha256: string; replayed: boolean }> {
+  const response = await fetch(`${baseUrl()}/documents`, {
+    method: 'POST',
+    headers: headers(caller),
+    body: JSON.stringify(input),
+  });
+  return (await parse(response)) as {
+    id: string;
+    artifactId: string;
+    sha256: string;
+    replayed: boolean;
+  };
+}
+
 // ── read shapes ─────────────────────────────────────────────────────────────────────────
 
 export interface ProjectView {
@@ -145,6 +174,36 @@ export interface HistoryView {
     readonly recorded_at: string;
     readonly effective_at: string;
     readonly reason: string | null;
+    readonly digest: string;
+  }[];
+}
+
+export interface DocumentSummary {
+  readonly id: string;
+  readonly title: string;
+  readonly documentNumber: string;
+  readonly revision: string;
+  readonly documentClass: string;
+  readonly lifecycleState: string;
+  readonly rowVersion: string;
+  readonly mediaType: string | null;
+  readonly sha256: string | null;
+  readonly atomCount: number;
+}
+
+export interface DocumentDetail extends DocumentSummary {
+  readonly owningRole: string;
+  readonly sizeBytes: number | null;
+  readonly parser: string | null;
+  readonly parserVersion: string | null;
+  readonly contentDigest: string | null;
+  readonly atoms: readonly {
+    readonly ordinal: number;
+    readonly kind:
+      'heading' | 'paragraph' | 'list_item' | 'quote' | 'code' | 'table' | 'horizontal_rule';
+    readonly level: number | null;
+    readonly text: string;
+    readonly attributes: Readonly<Record<string, unknown>>;
     readonly digest: string;
   }[];
 }

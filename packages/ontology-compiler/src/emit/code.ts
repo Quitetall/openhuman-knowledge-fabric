@@ -224,13 +224,14 @@ export function emitSqlRegistry(o: Ontology): string {
     `array[${xs.map((x) => q(x.id)).join(', ')}]::text[]`;
 
   out.push(
+    '-- Retire the previous current release BEFORE inserting the new current row. The unique',
+    '-- partial index rejects two current rows even within one transaction.',
+    `update registry.schema_release set is_current = false where version <> ${q(o.schemaVersion)};`,
+    '',
     `insert into registry.schema_release (version, ontology_digest, is_current) values`,
     `  (${q(o.schemaVersion)}, ${q(o.sourceDigest)}, true)`,
     'on conflict (version) do update set ontology_digest = excluded.ontology_digest,',
     '  applied_at = now(), is_current = true;',
-    '',
-    '-- Exactly one release is current; schema_release_one_current enforces it.',
-    `update registry.schema_release set is_current = false where version <> ${q(o.schemaVersion)};`,
     '',
   );
 

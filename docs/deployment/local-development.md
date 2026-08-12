@@ -19,14 +19,22 @@ Everything below runs from a clean checkout with no manual configuration beyond 
 ```sh
 pnpm install
 cp .env.example .env
+set -a; . ./.env; set +a
 docker compose up -d
+DATABASE_URL="$DATABASE_OWNER_URL" pnpm db:migrate
+pnpm dogfood:load -- --source-dir /home/brianklam/Desktop/OpenHuman_Technologies
 pnpm dev
 ```
 
 - API — <http://localhost:4000/health> and `/ready`
 - Web — <http://localhost:3000>
+- Document library — <http://localhost:3000/documents>
 - MinIO console — <http://localhost:9001>
 - Keycloak — <http://localhost:8080>
+
+The dogfood loader creates the constrained `kf_api_dev` login and a visibly synthetic local
+operator, then imports the manifest sources as drafts. It never approves them, makes them
+effective or allocates an enterprise identifier. Reruns are idempotent.
 
 `pnpm dev` works with or without the database up. The worker logs that it is idle rather
 than crash-looping, and `/ready` reports `503` with `database: unconfigured` rather than
