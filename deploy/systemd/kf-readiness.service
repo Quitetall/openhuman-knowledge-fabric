@@ -1,0 +1,19 @@
+[Unit]
+Description=Check that this system is in the state it is supposed to be in
+Documentation=file:///opt/kf/docs/operating-model/runbook.md
+OnFailure=kf-alert@%n.service
+
+[Service]
+Type=oneshot
+User=kf
+WorkingDirectory=/opt/kf
+Environment=DATABASE_URL_FILE=/etc/kf/database-url
+# Exits non-zero on degraded as well as failed, and on `unknown` — a check that could not run
+# counts as not ready. The alternative is a green light that means monitoring broke.
+ExecStart=/usr/bin/node /opt/kf/packages/operations/dist/cli.js
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+UMask=0077

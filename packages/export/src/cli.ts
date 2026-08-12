@@ -22,11 +22,12 @@ import {
   type ExportManifest,
   type ExportPackage,
 } from './index.js';
+import { loadSecret } from '@kf/operations';
 
 function requireDatabaseUrl(): string {
-  const url = process.env['DATABASE_URL'];
-  if (url === undefined || url === '') throw new Error('DATABASE_URL is not set');
-  return url;
+  return loadSecret('DATABASE_URL', process.env, {
+    allowInline: process.env['NODE_ENV'] !== 'production',
+  });
 }
 
 function writePackage(dir: string, pkg: ExportPackage): void {

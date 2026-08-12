@@ -91,9 +91,22 @@ database is an operational requirement — see [backup and restore](../backup-an
 | Restore drill runs the shipped scripts against real containers       | `scripts/`          | `tests/backup-restore/drill.test.ts` |
 | Restore refuses a target that already holds records                  | `restore-verify.sh` | same                                 |
 | Every derived index is rebuildable from the records                  | `search.rebuild()`  | `tests/integration/search.test.ts`   |
+| A declared recovery objective, or readiness FAILS                    | `ops.recovery_objective` | `tests/database/readiness.test.ts` |
+| Backups, off-site copies and drills are recorded and checked         | `ops.backup_run`, `ops.backup_copy`, `ops.restore_drill` | same |
+| The objective cannot be edited into compliance — only superseded     | append-only trigger | same                                 |
+| Continuous archiving is checked against the declared objective       | `pitr_readiness`    | same                                 |
+| Everything above runs on a timer, and a timer that stops is noticed  | `deploy/systemd/`   | —                                    |
 
-**Not mitigated: off-site copies, PITR, and a schedule.** The mechanism exists and is proven;
-running it is not yet automated.
+**The load-bearing part is the objective, not the schedule.** "Back up nightly" is an activity;
+an objective says how much work the organization has decided it can afford to lose. Until one
+is declared, no schedule can be called sufficient — so an undeclared objective is a readiness
+FAILURE rather than a default, and the check reads the declared numbers rather than constants
+of its own.
+
+**Not mitigated: the timers themselves are not proven by a test.** `deploy/systemd/` is
+configuration for a host this repository does not own. What IS proven is that a system whose
+backups have stopped, never left the host, or have never been restored reports so — which is
+the property that makes an unnoticed failure of those units survivable rather than silent.
 
 ## T6 — An agent does something nobody asked for
 
@@ -117,6 +130,9 @@ running it is not yet automated.
 | Revocation takes effect immediately, not at token expiry             | same                     | same                                 |
 | Headers are ignored entirely once a verifier exists — no fallback    | `apps/api`               | same                                 |
 | The API refuses to boot outside development without a provider       | `apps/api/src/config.ts` | `apps/api/src/app.test.ts`           |
+| Money, release and control-withdrawal actions require a fresh, strong authentication | `packages/authorization/src/step-up.ts` | `tests/permissions/step-up.test.ts`, `tests/permissions/identity.test.ts` |
+| Step-up fails closed on every unknown the provider does not report   | same                     | same                                 |
+| Step-up is checked before the action, and a refusal does not consume the idempotency key | `apps/api/src/routes/actions.ts` | `tests/permissions/identity.test.ts` |
 
 **The design decision worth arguing about, made explicitly.** The identity provider answers one
 question — who is this — and the database answers everything else. Role claims are not
@@ -125,13 +141,26 @@ Keycloak could grant themselves technical authority over a device design without
 system, and the record of who could approve what would live somewhere with no audit chain and
 no separation of duty.
 
-**Not mitigated: MFA and session management.** Both belong to the identity provider, which is
-where they should be, but neither is configured. Token lifetime, refresh and step-up
-authentication are provider policy and are not yet written down.
+**MFA and session lifetime remain provider policy — but no longer only that.** Which factors
+exist, and how long a session lasts, are configured at the provider, and this system does not
+try to own them. What it owns is which actions refuse to proceed without them: twelve, chosen
+by consequence rather than by feeling, each one that moves money, releases a product, or
+withdraws a control. `auth_time`, `acr` and `amr` are read from the token because the
+authentication event happened at the provider and nowhere else — that is not the same mistake
+as reading role claims, it is the one place the answer exists.
+
+Every unknown fails closed. A provider that does not report `auth_time` cannot prove a session
+is recent, and "cannot prove" has to mean no, or the control evaporates for exactly the
+providers least able to enforce it.
+
+**Not mitigated: token lifetime and refresh policy are still not written down.** They belong
+in the provider's own configuration, which this repository does not hold.
 
 **Residual risk.** A stolen unexpired token acts as its subject until it expires or the
 identity link is revoked. Revocation is immediate once somebody knows; nothing here shortens
-the window before they do.
+the window before they do. Step-up narrows what such a token can do — it cannot authorize a
+payment or close a CAPA without a fresh authentication it does not have — but it does not stop
+it reading, and everything in T6's read surface is available to it.
 
 ## What is deliberately out of scope
 
@@ -141,12 +170,38 @@ the window before they do.
 - **Complainant identity.** `quality.complaint` holds a reference, never a name — putting
   personal data there would need a lawful basis this system does not have.
 
+## T8 — Transport and credentials
+
+| Control                                                                | Where                    | Proven by                          |
+| ---------------------------------------------------------------------- | ------------------------ | ---------------------------------- |
+| The process refuses to boot outside development unless the deployment asserts TLS is terminated upstream | `apps/api/src/config.ts` | `apps/api/src/app.test.ts` |
+| HSTS in staging and production; nosniff, DENY, no-referrer, no-store always | `apps/api/src/app.ts` | same                           |
+| Secrets are read from files, not the environment                       | `packages/operations/src/secrets.ts` | `tests/permissions/secrets.test.ts` |
+| A secret file readable beyond its owner is REFUSED, not warned about   | same                     | same                               |
+| An inline credential outside development is refused                    | same                     | same                               |
+| The same rule applies to the checkpoint signing key                    | `readSecretFile`         | same                               |
+| Failure messages never contain the secret                              | same                     | same                               |
+| The shell scripts resolve credentials the same way                     | `scripts/lib/secret.sh`  | —                                  |
+
+**TLS is not terminated by this application, and that is the intended design.** What changed is
+that it is no longer assumed: a deployment must state the posture, and a process that would
+otherwise serve bearer tokens over clear HTTP refuses to start instead. Certificate issuance
+and renewal belong to the proxy.
+
+**Not mitigated: the proxy's own configuration.** Nothing here can verify that the thing in
+front of it actually terminates TLS — `KF_TLS_TERMINATED_UPSTREAM=1` is an assertion by
+whoever deploys, and a false one produces exactly the exposure it claims to prevent.
+
 ## Open items
 
 | #   | Item                                                          | Blocks      |
 | --- | ------------------------------------------------------------- | ----------- |
-| 1   | Identity provider, MFA, session management                    | Service     |
-| 2   | Off-site backup copies and a schedule                         | T5          |
-| 3   | Checkpoint key custody separated from database administration | T1 residual |
-| 4   | Object store backup on the database's schedule                | T4 residual |
-| 5   | TLS termination and certificate management                    | Service     |
+| 1   | Identity provider selection; token lifetime and refresh policy | Service    |
+| 2   | Checkpoint key custody separated from database administration | T1 residual |
+| 3   | Object store backup on the database's schedule                | T4 residual |
+| 4   | Certificate issuance and renewal at the proxy                 | Service     |
+| 5   | An alert unit (`kf-alert@`) that actually reaches a person    | T5, T8      |
+
+Items 1–4 are decisions for whoever operates this, not code that is missing. Item 5 is a
+genuine gap: every scheduled unit declares `OnFailure=kf-alert@%n.service` and no such unit
+exists, because a default that goes nowhere is worse than an absent one that fails to start.

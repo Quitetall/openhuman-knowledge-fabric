@@ -43,6 +43,28 @@ export async function buildApp(config: ApiConfig): Promise<FastifyInstance> {
   // be quoted in a support request or matched against the audit event it produced.
   app.addHook('onSend', async (request, reply) => {
     void reply.header('x-request-id', request.id);
+
+    // Transport and content security.
+    //
+    // TLS is terminated upstream — this process speaks HTTP to a proxy on a private network,
+    // which is the normal arrangement and the one `config.tlsTerminatedUpstream` makes the
+    // deployment state out loud. What this process CAN do is refuse to be useful over plain
+    // HTTP anyway:
+    //
+    //   HSTS tells a browser never to try http:// for this host again, which closes the
+    //   downgrade window that exists on the very first request.
+    //   nosniff stops a JSON error body being executed as script if it is ever fetched
+    //   cross-origin.
+    //   DENY on framing: nothing here should ever be embedded, and a UI that approves
+    //   payments is exactly what clickjacking is for.
+    //   no-store, because responses carry records the browser cache has no business keeping.
+    if (config.environment === 'production' || config.environment === 'staging') {
+      void reply.header('strict-transport-security', 'max-age=63072000; includeSubDomains');
+    }
+    void reply.header('x-content-type-options', 'nosniff');
+    void reply.header('x-frame-options', 'DENY');
+    void reply.header('referrer-policy', 'no-referrer');
+    void reply.header('cache-control', 'no-store');
   });
 
   app.get('/health', async () => ({

@@ -22,12 +22,68 @@ describe('config', () => {
   it('refuses to boot in production without DATABASE_URL', () => {
     // A process that boots and passes liveness but fails every request is worse than one
     // that refuses to start.
-    expect(() => loadConfig({ NODE_ENV: 'production' })).toThrow(/DATABASE_URL is required/);
+    // The TLS posture is asserted so that THIS test fails for the reason it names. Without
+    // it the config refuses earlier, and the test would pass while proving something else.
+    expect(() =>
+      loadConfig({ NODE_ENV: 'production', KF_TLS_TERMINATED_UPSTREAM: '1' }),
+    ).toThrow(/DATABASE_URL is required/);
   });
 
   it('allows a missing DATABASE_URL in development and test', () => {
     expect(() => loadConfig({ NODE_ENV: 'development' })).not.toThrow();
     expect(() => loadConfig({ NODE_ENV: 'test' })).not.toThrow();
+  });
+
+  it('refuses an inline DATABASE_URL in production', () => {
+    // A connection string in the environment is readable from /proc/<pid>/environ by anything
+    // running as the same user, inherited by every child process, and printed in full by most
+    // crash reporters. Outside development it has to arrive as a file.
+    expect(() =>
+      loadConfig({
+        NODE_ENV: 'production',
+        KF_TLS_TERMINATED_UPSTREAM: '1',
+        DATABASE_URL: 'postgres://kf_app:secret@db/kf',
+      }),
+    ).toThrow(/DATABASE_URL_FILE/);
+  });
+
+  it('refuses to boot in production unless the deployment states its TLS posture', () => {
+    // This process serves plain HTTP. Whether that is safe depends entirely on what is in
+    // front of it, and that is a fact about the deployment which the deployment has to
+    // assert — not one this code can assume in either direction.
+    expect(() => loadConfig({ NODE_ENV: 'production', DATABASE_URL_FILE: '/dev/null' })).toThrow(
+      /KF_TLS_TERMINATED_UPSTREAM/,
+    );
+  });
+
+  it('does not require the TLS assertion in development', () => {
+    // Refusing here would make `pnpm dev` need a flag that means nothing locally, and a flag
+    // people set to make the error go away is a flag that means nothing anywhere.
+    expect(loadConfig({ NODE_ENV: 'development' }).tlsTerminatedUpstream).toBe(false);
+  });
+});
+
+describe('transport and content security headers', () => {
+  it('sends the headers that matter over a plain-HTTP hop', async () => {
+    const app = await buildApp(loadConfig({ ...baseEnv, LOG_LEVEL: 'silent' }));
+    const res = await app.inject({ method: 'GET', url: '/health' });
+    // nosniff: a JSON error body must never be executed as script if it is ever fetched
+    // cross-origin. DENY: a UI that approves payments is what clickjacking is for. no-store:
+    // responses carry records the browser cache has no business keeping.
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+    expect(res.headers['x-frame-options']).toBe('DENY');
+    expect(res.headers['referrer-policy']).toBe('no-referrer');
+    expect(res.headers['cache-control']).toBe('no-store');
+    await app.close();
+  });
+
+  it('does not claim HSTS in development, where there is no TLS to pin', async () => {
+    // Sending it from a local http:// origin teaches the browser to refuse the developer's
+    // own machine, which is a genuinely unpleasant afternoon.
+    const app = await buildApp(loadConfig({ ...baseEnv, LOG_LEVEL: 'silent' }));
+    const res = await app.inject({ method: 'GET', url: '/health' });
+    expect(res.headers['strict-transport-security']).toBeUndefined();
+    await app.close();
   });
 });
 

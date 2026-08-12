@@ -20,9 +20,14 @@
 
 set -euo pipefail
 
-: "${DATABASE_URL:?DATABASE_URL is not set}"
+# DATABASE_URL_FILE where set, DATABASE_URL otherwise. A connection string is a credential;
+# see scripts/lib/secret.sh for why the file is preferred and why its mode is checked.
+# shellcheck source=lib/secret.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/secret.sh"
+kf_resolve_database_url
 
 DEST="${1:-backups/$(date -u +%Y%m%dT%H%M%SZ)}"
+STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 mkdir -p "$DEST"
@@ -79,5 +84,39 @@ echo "==> digests"
 ( cd "$DEST" && find . -type f ! -name SHA256SUMS -print0 | sort -z \
     | xargs -0 sha256sum > SHA256SUMS )
 
+echo "==> recording the backup"
+# Written to the database this is a backup OF, which necessarily means the dump does not
+# contain its own record — a backup cannot contain the fact that it finished.
+#
+# Not optional, and not tolerant of failure: a backup nothing recorded is one the readiness
+# check will keep reporting as absent, and an operator who saw "done" will believe otherwise.
+# `set -e` is doing the work here on purpose.
+MANIFEST_DIGEST="$(sha256sum "$DEST/SHA256SUMS" | cut -d' ' -f1)"
+BYTE_SIZE="$(du -sb "$DEST" | cut -f1)"
+LOCATION="$(cd "$DEST" && pwd)"
+
+# `-v` plus `:'name'` rather than string interpolation: psql quotes and escapes the value, so
+# a destination path containing a quote is a path and not a SQL fragment.
+# Fed on stdin rather than with -c: psql does NOT interpolate :'var' in a -c string, and the
+# failure is a syntax error at the colon rather than anything that reads like the cause.
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q \
+  -v started="$STARTED_AT" -v location="$LOCATION" \
+  -v digest="$MANIFEST_DIGEST" -v bytes="$BYTE_SIZE" <<'SQL'
+insert into ops.backup_run
+  (started_at, finished_at, kind, location, manifest_digest, byte_size, database_name)
+values
+  (:'started'::timestamptz, now(), 'logical', :'location',
+   :'digest', :'bytes'::bigint, current_database());
+SQL
+
 echo "==> done: $DEST"
 du -sh "$DEST"
+
+cat <<'EOF'
+
+This backup is on the same host as the database. Until a copy reaches somewhere else,
+readiness reports it degraded — a backup beside the thing it backs up survives a dropped
+table and not a lost host.
+
+    scripts/backup-offsite.sh <this directory> <destination> <label>
+EOF

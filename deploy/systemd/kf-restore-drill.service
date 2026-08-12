@@ -1,0 +1,24 @@
+[Unit]
+Description=Restore the newest off-site backup into a scratch database and prove it restored
+Documentation=file:///opt/kf/docs/operating-model/runbook.md
+OnFailure=kf-alert@%n.service
+
+[Service]
+Type=oneshot
+User=kf
+WorkingDirectory=/opt/kf
+Environment=DATABASE_URL_FILE=/etc/kf/database-url
+Environment=CHECKPOINT_PUBLIC_KEY_PATH=/etc/kf/checkpoint-key.pub
+# Creates the scratch database, restores, compares, records the drill against the PRODUCTION
+# ledger, and drops the scratch database on the way out. The logic is in a script rather than
+# inline here so that it can be read, and so `bash -n` covers it.
+ExecStart=/opt/kf/scripts/restore-drill.sh /srv/kf-backups
+# Three hours. A restore that has not finished by then is itself the finding.
+TimeoutStartSec=3h
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/srv/kf-backups
+ProtectHome=true
+UMask=0077

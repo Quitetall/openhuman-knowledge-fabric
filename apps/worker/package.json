@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Background job runner — outbox delivery, digest verification, projections",
+  "description": "Background job runner \u2014 outbox delivery, digest verification, projections",
   "main": "./dist/main.js",
   "scripts": {
     "dev": "node --watch --experimental-strip-types src/main.ts",
@@ -14,6 +14,7 @@
   "dependencies": {
     "@kf/database": "workspace:*",
     "@kf/domain": "workspace:*",
+    "@kf/operations": "workspace:*",
     "graphile-worker": "^0.17.3"
   },
   "devDependencies": {

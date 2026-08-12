@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Audit checkpoint signer — builds and signs Merkle roots over the audit log",
+  "description": "Audit checkpoint signer \u2014 builds and signs Merkle roots over the audit log",
   "main": "./dist/main.js",
   "scripts": {
     "start": "node dist/main.js",
@@ -14,7 +14,8 @@
     "@kf/artifacts": "workspace:*",
     "@kf/canonicalization": "workspace:*",
     "@kf/database": "workspace:*",
-    "@kf/domain": "workspace:*"
+    "@kf/domain": "workspace:*",
+    "@kf/operations": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.13.3"

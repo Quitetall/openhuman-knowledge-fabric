@@ -1,0 +1,11 @@
+[Unit]
+Description=Readiness check every fifteen minutes
+
+[Timer]
+OnCalendar=*:0/15
+# Deliberately NOT Persistent: catching up on missed readiness checks tells you about a
+# machine that was off, which is not news.
+Persistent=false
+
+[Install]
+WantedBy=timers.target

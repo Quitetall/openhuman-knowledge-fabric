@@ -1,0 +1,29 @@
+[Unit]
+Description=Take and record a backup
+Documentation=file:///opt/kf/docs/operating-model/runbook.md
+After=network-online.target
+OnFailure=kf-alert@%n.service
+# Pulled in rather than required: a failed copy must not make the backup itself look failed,
+# because the backup did happen and is worth keeping.
+Wants=kf-backup-offsite.service
+Before=kf-backup-offsite.service
+
+[Service]
+Type=oneshot
+User=kf
+WorkingDirectory=/opt/kf
+Environment=DATABASE_URL_FILE=/etc/kf/database-url
+# `%%` is systemd's escape for a literal percent, so the shell receives `date -u +%Y...`.
+# strftime is NOT expanded by systemd — `%Y` on its own is not a systemd specifier and the
+# unit would fail to parse.
+ExecStart=/bin/sh -c 'exec /opt/kf/scripts/backup.sh "/srv/kf-backups/$(date -u +%%Y%%m%%dT%%H%%M%%SZ)"'
+# 45 minutes, then killed. A backup that runs into the next one holds locks and produces two
+# partial directories instead of one good one.
+TimeoutStartSec=45min
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/srv/kf-backups
+ProtectHome=true
+UMask=0077

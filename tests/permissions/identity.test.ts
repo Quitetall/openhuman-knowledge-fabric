@@ -51,10 +51,18 @@ async function token(
     expiresIn?: string;
     /** Role claims, included ONLY to prove they are ignored. */
     roles?: string[];
+    /** Seconds since the person actually authenticated. Absent means the token has no auth_time. */
+    authenticatedSecondsAgo?: number;
+    /** Authentication methods, as `amr`. */
+    methods?: string[];
   } = {},
 ): Promise<string> {
   const jwt = new SignJWT({
     ...(claims.roles === undefined ? {} : { realm_access: { roles: claims.roles } }),
+    ...(claims.authenticatedSecondsAgo === undefined
+      ? {}
+      : { auth_time: Math.floor(Date.now() / 1000) - claims.authenticatedSecondsAgo }),
+    ...(claims.methods === undefined ? {} : { amr: claims.methods }),
   })
     .setProtectedHeader({ alg: 'RS256', kid: 'test-key' })
     .setSubject(claims.subject ?? 'auth0|reviewer')
@@ -358,6 +366,119 @@ describe('over HTTP', () => {
     });
     expect(r.statusCode).toBe(401);
     expect(r.json()).toMatchObject({ error: 'no_token' });
+  });
+
+  /** Headers for a caller who is entitled to act; only the token varies. */
+  const asReviewer = (bearer: string) => ({
+    authorization: `Bearer ${bearer}`,
+    'x-kf-acting-role': f.reviewerRoleId,
+    'x-kf-organization': f.organizationId,
+    'x-kf-classification': 'restricted',
+  });
+
+  describe('step-up on the actions that are hardest to undo', () => {
+    it('refuses to authorize a payment on a session nobody re-proved', async () => {
+      // A valid token, a real person, a role they genuinely hold — and eight hours since they
+      // last typed anything. Everything about this request is legitimate except the one thing
+      // that matters for moving money.
+      const r = await app.inject({
+        method: 'POST',
+        url: '/actions/authorize_payment',
+        headers: asReviewer(await token({ authenticatedSecondsAgo: 8 * 3600, methods: ['mfa'] })),
+        payload: { idempotencyKey: 'step-up-0001', targetIds: [] },
+      });
+      expect(r.statusCode).toBe(401);
+      expect(r.json()).toMatchObject({
+        error: 'step_up_required',
+        detail: { failure: 'authentication_too_old' },
+      });
+      // The standard challenge, so the caller's client knows to send them back to the
+      // provider with max_age rather than simply giving up.
+      expect(r.headers['www-authenticate']).toMatch(/insufficient_user_authentication/);
+      expect(r.headers['www-authenticate']).toMatch(/max_age=900/);
+    });
+
+    it('refuses when the provider never said when they authenticated', async () => {
+      // Fails closed. A provider that does not report auth_time cannot prove the session is
+      // recent, and "cannot prove" has to mean no — otherwise the control evaporates for
+      // exactly the providers least able to enforce it.
+      const r = await app.inject({
+        method: 'POST',
+        url: '/actions/authorize_payment',
+        headers: asReviewer(await token({ methods: ['mfa'] })),
+        payload: { idempotencyKey: 'step-up-0002', targetIds: [] },
+      });
+      expect(r.statusCode).toBe(401);
+      expect(r.json()).toMatchObject({ detail: { failure: 'authentication_age_unknown' } });
+    });
+
+    it('refuses a recent password-only authentication for a payment', async () => {
+      const r = await app.inject({
+        method: 'POST',
+        url: '/actions/authorize_payment',
+        headers: asReviewer(await token({ authenticatedSecondsAgo: 30, methods: ['pwd'] })),
+        payload: { idempotencyKey: 'step-up-0003', targetIds: [] },
+      });
+      expect(r.statusCode).toBe(401);
+      expect(r.json()).toMatchObject({ detail: { failure: 'method_insufficient' } });
+    });
+
+    it('allows it once they have re-authenticated properly', async () => {
+      const r = await app.inject({
+        method: 'POST',
+        url: '/actions/authorize_payment',
+        headers: asReviewer(await token({ authenticatedSecondsAgo: 30, methods: ['mfa', 'pwd'] })),
+        payload: { idempotencyKey: 'step-up-0004', targetIds: [] },
+      });
+      expect(r.statusCode).toBe(201);
+    });
+
+    it('asks only for recency where recency is what is at stake', async () => {
+      // Closing a CAPA withdraws a control. It does not need a hardware token; it needs the
+      // person to still be at the keyboard.
+      const r = await app.inject({
+        method: 'POST',
+        url: '/actions/close_capa',
+        headers: asReviewer(await token({ authenticatedSecondsAgo: 60, methods: ['pwd'] })),
+        payload: { idempotencyKey: 'step-up-0005', targetIds: [] },
+      });
+      expect(r.statusCode).toBe(201);
+    });
+
+    it('leaves everyday work alone', async () => {
+      // A policy that covers everything gets switched off. Accepting a decision is something
+      // people do dozens of times a day, and it carries no step-up requirement — proven here
+      // with a token that would fail every policy in DEFAULT_STEP_UP.
+      const r = await app.inject({
+        method: 'POST',
+        url: '/actions/accept_decision',
+        headers: asReviewer(await token()),
+        payload: { idempotencyKey: 'step-up-0006', targetIds: [] },
+      });
+      expect(r.statusCode).toBe(201);
+    });
+
+    it('checks step-up BEFORE attempting the action', async () => {
+      // Order matters twice over: a refused request must not have started a transaction, and
+      // it must not have consumed the idempotency key — otherwise re-sending after a
+      // successful re-authentication would replay the refusal.
+      const key = 'step-up-0007';
+      const stale = await app.inject({
+        method: 'POST',
+        url: '/actions/approve_invoice',
+        headers: asReviewer(await token({ authenticatedSecondsAgo: 7200 })),
+        payload: { idempotencyKey: key, targetIds: [] },
+      });
+      expect(stale.statusCode).toBe(401);
+
+      const fresh = await app.inject({
+        method: 'POST',
+        url: '/actions/approve_invoice',
+        headers: asReviewer(await token({ authenticatedSecondsAgo: 10 })),
+        payload: { idempotencyKey: key, targetIds: [] },
+      });
+      expect(fresh.statusCode).toBe(201);
+    });
   });
 
   it('returns a code the caller can act on, without saying what would have worked', async () => {

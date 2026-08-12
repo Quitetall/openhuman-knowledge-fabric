@@ -17,7 +17,15 @@
 import type { FastifyInstance } from 'fastify';
 import { ActionRejected, DEFAULT_REASON_REQUIRED, type ActionRequest } from '@kf/actions';
 import { withTransaction, type Pool } from '@kf/database';
-import { IdentityRejected, resolveCaller, type TokenVerifier } from '@kf/authorization';
+import {
+  DEFAULT_STEP_UP,
+  IdentityRejected,
+  type AuthenticationEvent,
+  resolveCaller,
+  satisfiesStepUp,
+  type StepUpPolicy,
+  type TokenVerifier,
+} from '@kf/authorization';
 import { projectProgress } from '@kf/work-control';
 
 /**
@@ -39,6 +47,11 @@ export interface Caller {
   readonly actingRoleId: string;
   readonly organizationId: string;
   readonly maxClassification: string;
+  /**
+   * How and when this caller authenticated. Empty on the header path, which is why step-up is
+   * not applied there: every policy would fail, and the development path would be unusable.
+   */
+  readonly authentication: AuthenticationEvent;
 }
 
 export class CallerRejected extends Error {}
@@ -52,6 +65,9 @@ function callerFrom(headers: Record<string, unknown>): Caller {
     return v;
   };
   return {
+    // Nothing proved an authentication event here — a header is an assertion, not a login.
+    // Stated explicitly so no step-up policy can be satisfied by this path by accident.
+    authentication: { authenticatedAt: undefined, assuranceLevel: undefined, methods: [] },
     actorId: get('x-kf-actor'),
     actingRoleId: get('x-kf-acting-role'),
     organizationId: get('x-kf-organization'),
@@ -125,6 +141,14 @@ export interface ActionRoutesOptions {
   }>;
   /** True only in development. Header-based identity is refused otherwise. */
   readonly trustHeaders: boolean;
+  /**
+   * Actions that require a recent or strong authentication, keyed by action type.
+   *
+   * Only meaningful with a verifier: header identity carries no authentication event, so
+   * every policy would fail. That is the correct direction — but it would also make the
+   * development path unusable, so step-up is not applied when there is no verifier at all.
+   */
+  readonly stepUp?: Readonly<Record<string, StepUpPolicy>>;
 }
 
 export async function registerActionRoutes(
@@ -132,6 +156,7 @@ export async function registerActionRoutes(
   options: ActionRoutesOptions,
 ): Promise<void> {
   const { pool, execute, verifier } = options;
+  const stepUp = options.stepUp ?? DEFAULT_STEP_UP;
 
   /**
    * The caller, from a token or from headers — never from both.
@@ -204,6 +229,29 @@ export async function registerActionRoutes(
         error: 'idempotency_key_required',
         message: 'idempotencyKey must be supplied by the caller and be at least 8 characters',
       });
+    }
+
+    // Step-up, after identity and before anything is attempted. An action that moves money
+    // or withdraws a control should not rest on a session somebody walked away from.
+    const policy = verifier === undefined ? undefined : stepUp[request.params.actionType];
+    if (policy !== undefined) {
+      const outcome = satisfiesStepUp(caller.authentication, policy);
+      if (!outcome.satisfied) {
+        // 401 with the standard challenge, not 403: the caller can fix this by
+        // re-authenticating, and `insufficient_user_authentication` is what tells their
+        // client to send them back to the provider with max_age set.
+        return reply
+          .code(401)
+          .header(
+            'www-authenticate',
+            `Bearer error="insufficient_user_authentication", max_age=${policy.maxAgeSeconds ?? 0}`,
+          )
+          .send({
+            error: 'step_up_required',
+            message: outcome.detail ?? 'this action requires a stronger authentication',
+            detail: { failure: outcome.failure, actionType: request.params.actionType },
+          });
+      }
     }
 
     try {

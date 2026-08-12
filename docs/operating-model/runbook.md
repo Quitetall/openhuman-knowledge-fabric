@@ -87,6 +87,74 @@ select search.rebuild();
 Expected after: a restore, a bulk import, or bootstrap records created before any action
 existed to create them.
 
+## `backup_freshness` FAILED — no recovery objective
+
+Nobody has declared how much work this organization can afford to lose, so no backup schedule
+can be called sufficient or insufficient. This is a decision, not a setting — see
+[`deploy/systemd/README.md`](../../deploy/systemd/README.md) for the insert and what the
+numbers mean.
+
+## `backup_freshness` FAILED — the newest backup is older than the objective
+
+Either the schedule is not running, or the objective is one nobody intends to meet. **Both are
+worth knowing, and they have different fixes.**
+
+1. `systemctl list-timers kf-backup.timer` — when did it last run, when does it run next?
+2. `journalctl -u kf-backup.service -n 50` — did it fail, or did it never start?
+3. If the schedule is fine and the objective is wrong, declare a NEW objective. Do not edit
+   the existing row; the append-only trigger will refuse, and it is right to. Widening a target
+   to match what you are achieving is a decision, and it should look like one.
+
+## `backup_freshness` degraded — not off-site
+
+The backup is current and sits beside the database it came from. That survives a dropped table
+and not a lost host.
+
+```
+scripts/backup-offsite.sh /srv/kf-backups/<newest> <destination> <label>
+```
+
+If `kf-backup-offsite.service` is configured and this keeps recurring, the destination is
+probably unreachable — `journalctl -u kf-backup-offsite.service`.
+
+## `backup_freshness` degraded — never restored, or the drill has lapsed
+
+**A backup is not valid until it has been restored.** Until then it is a hope with a digest.
+
+```
+systemctl start kf-restore-drill.service      # or: scripts/restore-drill.sh
+```
+
+The drill restores into a scratch database, compares a fresh export against the one taken at
+backup time, records the result against the production ledger, and drops the scratch database.
+Recording it anywhere else discards the evidence along with the database.
+
+## `backup_freshness` FAILED — the most recent drill FAILED
+
+An earlier drill succeeded and this one did not, so **something changed between them**. The row
+stays; do not re-run and hope.
+
+1. `journalctl -u kf-restore-drill.service` — where did `restore-verify.sh` stop? A digest
+   mismatch, a `pg_restore` error and an export diff mean three different things.
+2. An export diff means the backup does not contain what it claims to. That is a T5 event, not
+   a maintenance task.
+3. Check what changed: a schema migration, a PostgreSQL version, a tool chain.
+
+## `pitr_readiness` FAILED
+
+The declared objective requires continuous archiving and the server is not doing it — or is
+failing at it, which is worse, because it looks configured.
+
+- `archive_mode is off`: see [`deploy/postgres/pitr.conf`](../../deploy/postgres/pitr.conf).
+  `archive_mode` needs a **restart**, not a reload.
+- `most recent attempt FAILED`: WAL is accumulating in `pg_wal` and will fill the volume. When
+  it does, PostgreSQL stops accepting writes. `select * from pg_stat_archiver` and check the
+  archive destination has space and permissions.
+
+Either fix the server or declare an objective that says PITR is not required. The second is a
+legitimate decision — it means the recovery point is the backup interval — and it has to be
+made deliberately rather than by leaving a check red.
+
 ## `federation_freshness` degraded
 
 Citations of `openhuman-quality` or `LamQuant` have not been re-verified recently. Drift in
@@ -157,11 +225,41 @@ A person who holds several roles states which one they are acting under per requ
 not a default the system can pick — choosing decides an authority question on their behalf,
 and the audit trail would record a role they never selected.
 
+## Step-up: somebody cannot approve a payment
+
+They will have had a 401 with `step_up_required` and a `www-authenticate` header. This is not
+an authorization problem and adding a role will not fix it: twelve actions — the ones that move
+money, release a product, or withdraw a control — require an authentication no older than
+fifteen minutes, and two of them require a real second factor.
+
+The fix is to sign in again. Their client should be sending them back to the provider with
+`max_age`; if it is not, that is a client bug and the header says so.
+
+`authentication_age_unknown` means the provider is not issuing `auth_time` at all. That is a
+provider configuration item, and until it is fixed **nobody can perform those twelve actions** —
+which is the intended direction, because a session whose age cannot be established is not one
+to authorize a payment on.
+
+## The API will not start
+
+- `KF_TLS_TERMINATED_UPSTREAM` — this process serves plain HTTP and refuses to run in staging
+  or production unless the deployment asserts that something in front of it terminates TLS. If
+  that assertion would be false, do not set it; fix the proxy.
+- `DATABASE_URL was supplied inline` — outside development the credential must arrive as
+  `DATABASE_URL_FILE`. An environment variable is readable from `/proc/<pid>/environ` by
+  anything running as the same user.
+- `is mode 644 — a secret readable beyond its owner` — `chmod 600`. Refused rather than warned,
+  because a warning at startup is read once, on the day it is added.
+
 ## What is NOT covered here
 
-- **MFA and session policy.** Both belong to the identity provider. Neither is configured, and
-  token lifetime and refresh are not yet written down.
-- **TLS.** Not terminated by this application.
-- **Off-site backups and PITR.** The mechanism is proven; the schedule is not built.
+- **Token lifetime and refresh policy.** Provider configuration, not held in this repository.
+- **TLS certificates.** Issued and renewed at the proxy. This application refuses to run
+  without the deployment asserting that a proxy is there, and can do nothing to verify it.
+- **`kf-alert@`.** Every scheduled unit declares `OnFailure=kf-alert@%n.service`; writing it
+  for whatever reaches a person here is an open item. There is no default, deliberately — a
+  default that goes nowhere is worse than an absent one that fails to start.
+- **Object store backups.** The database holds digests, not bytes. Back up the bucket on the
+  same schedule, or a restore returns a catalogue of things you no longer have.
 
 See the [threat model](../threat-model/) for the full list of open items.

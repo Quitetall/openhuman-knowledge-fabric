@@ -6,12 +6,21 @@
  * jobs: the idle state is logged explicitly.
  */
 
+import { loadSecret } from '@kf/operations';
 import { taskList, TASKS } from './tasks.js';
 
 const CONCURRENCY = Number(process.env['WORKER_CONCURRENCY'] ?? '4');
 
 async function main(): Promise<void> {
-  const connectionString = process.env['DATABASE_URL'];
+  // Absent stays absent — the idle path below is deliberate. What this adds is that a
+  // DATABASE_URL_FILE is preferred where one is set, and that an inline credential in
+  // production is refused rather than used.
+  const connectionString =
+    process.env['DATABASE_URL_FILE'] !== undefined || process.env['DATABASE_URL'] !== undefined
+      ? loadSecret('DATABASE_URL', process.env, {
+          allowInline: process.env['NODE_ENV'] !== 'production',
+        })
+      : undefined;
   const tasks = taskList();
 
   if (!connectionString) {

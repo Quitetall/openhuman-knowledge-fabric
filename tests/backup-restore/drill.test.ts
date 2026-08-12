@@ -16,6 +16,7 @@ import { join } from 'node:path';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDispatcher } from '@kf/actions';
+import { withTransaction } from '@kf/database';
 import { generateSigningKey } from '../../apps/checkpoint/src/sign.js';
 import { runCheckpoint } from '../../apps/checkpoint/src/run.js';
 import {
@@ -125,6 +126,27 @@ describe('backup', () => {
     expect(sums).toContain('./dump.pgcustom');
   }, 180_000);
 
+  it('records itself in the ledger readiness reads', async () => {
+    // The scripts and the readiness check have to agree, and the only way to know they do is
+    // to run the real script and then read what the real check reads. A test that inserted
+    // the row itself would pass while backup.sh recorded nothing — and the visible symptom of
+    // that bug is a readiness check reporting no backup has ever been taken, forever.
+    const rows = await withTransaction(h.adminPool, async (tx) =>
+      tx.query<{ location: string; kind: string; byte_size: string; manifest_digest: string }>(
+        'select location, kind, byte_size::text, manifest_digest from ops.backup_run',
+      ),
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.location).toBe(backupDir);
+    expect(rows[0]?.kind).toBe('logical');
+    expect(Number(rows[0]?.byte_size)).toBeGreaterThan(0);
+    // The recorded digest is the one `sha256sum -c SHA256SUMS` checks, so it covers every
+    // file in the backup rather than only the dump.
+    const actual = execFileSync('sha256sum', [join(backupDir, 'SHA256SUMS')], { encoding: 'utf8' })
+      .split(' ')[0];
+    expect(rows[0]?.manifest_digest).toBe(actual);
+  }, 30_000);
+
   it('the digest file actually verifies', () => {
     const check = execFileSync('sha256sum', ['-c', 'SHA256SUMS', '--quiet'], {
       cwd: backupDir,
@@ -142,6 +164,38 @@ describe('restore drill', () => {
     expect(r.output).toContain('restore verified');
     // Said out loud when it happens, rather than passing quietly.
     expect(r.output).toContain('checkpoint signatures were NOT verified');
+  }, 300_000);
+
+  it('records the drill against the ledger it was told to record against', async () => {
+    // The third argument is the PRODUCTION database, not the restore target. A drill recorded
+    // in the scratch database is discarded with it, and readiness would go on reporting that
+    // no backup has ever been restored — true of the record and false of the world, which is
+    // the worst of the four combinations.
+    const target = await emptyDatabase();
+    const r = run(RESTORE, [backupDir, target, h.connectionString]);
+    expect(r.code, r.output).toBe(0);
+
+    const drills = await withTransaction(h.adminPool, async (tx) =>
+      tx.query<{ outcome: string; target_label: string }>(
+        'select outcome, target_label from ops.restore_drill',
+      ),
+    );
+    expect(drills).toHaveLength(1);
+    expect(drills[0]?.outcome).toBe('verified');
+    // The label, not the URL: a connection string carries a password and this table is
+    // readable by every read role in the system.
+    expect(drills[0]?.target_label).not.toContain('@');
+  }, 300_000);
+
+  it('says so, loudly, when nothing recorded the drill', async () => {
+    // Omitting the ledger is allowed — restoring somebody else's archive is a legitimate
+    // thing to do. What it must not do is look like evidence about this system's backups.
+    const target = await emptyDatabase();
+    const r = run(RESTORE, [backupDir, target]);
+    expect(r.code, r.output).toBe(0);
+    expect(r.output).toContain('NOT RECORDED');
+    // The consequence, not just the fact: the reader has to know what stays wrong.
+    expect(r.output).toMatch(/no backup has ever been restored/);
   }, 300_000);
 
   it('refuses to restore over a database that already holds records', async () => {
@@ -174,7 +228,10 @@ describe('restore drill', () => {
     writeFileSync(
       keyPath,
       key.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
-      'utf8',
+      // 0600, because the checkpoint process refuses a signing key readable beyond its owner
+      // — and a test fixture written at the default 0644 would be testing a configuration no
+      // deployment is allowed to have.
+      { encoding: 'utf8', mode: 0o600 },
     );
 
     const r = run(RESTORE, [backupDir, target], {

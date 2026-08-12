@@ -5,12 +5,22 @@
  * at boot with a precise message rather than at the first request that happens to need it.
  */
 
+import { loadSecret } from '@kf/operations';
+
 export interface ApiConfig {
   readonly host: string;
   readonly port: number;
   readonly logLevel: string;
   readonly databaseUrl: string | undefined;
   readonly environment: 'development' | 'test' | 'staging' | 'production';
+  /**
+   * Whether a proxy in front of this process terminates TLS.
+   *
+   * Stated rather than assumed. This process serves HTTP; whether that is safe depends
+   * entirely on what is in front of it, and that is a fact about the deployment which the
+   * deployment has to assert.
+   */
+  readonly tlsTerminatedUpstream: boolean;
   /** Present only when an identity provider is configured. Absent means header identity. */
   readonly identity:
     { readonly issuer: string; readonly audience: string; readonly jwksUri: string } | undefined;
@@ -49,7 +59,27 @@ function readEnvironment(raw: string | undefined): ApiConfig['environment'] {
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   const environment = readEnvironment(env['NODE_ENV']);
-  const databaseUrl = env['DATABASE_URL'];
+
+  // Serving plain HTTP with nothing terminating TLS means bearer tokens cross the network in
+  // clear. Refused rather than warned: the warning would be read once.
+  const tlsTerminatedUpstream = env['KF_TLS_TERMINATED_UPSTREAM'] === '1';
+  if (environment !== 'development' && environment !== 'test' && !tlsTerminatedUpstream) {
+    throw new ConfigError(
+      `This process serves HTTP. When NODE_ENV=${environment} it must sit behind a proxy that ` +
+        'terminates TLS, and the deployment must say so by setting ' +
+        'KF_TLS_TERMINATED_UPSTREAM=1. Without TLS every bearer token crosses the network in ' +
+        'clear.',
+    );
+  }
+
+  // A connection string is a credential. Outside development it must arrive as a file:
+  // DATABASE_URL in the environment is readable from /proc/<pid>/environ by anything running
+  // as the same user, is inherited by every child process, and is printed by crash reporters.
+  const inlineAllowed = environment === 'development' || environment === 'test';
+  const databaseUrl =
+    env['DATABASE_URL_FILE'] !== undefined || env['DATABASE_URL'] !== undefined
+      ? loadSecret('DATABASE_URL', env, { allowInline: inlineAllowed })
+      : undefined;
 
   // Outside development a missing database URL means the process would start, pass its
   // liveness probe, and fail every real request. Refuse to boot instead.
@@ -89,6 +119,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     logLevel: env['LOG_LEVEL'] ?? (environment === 'production' ? 'info' : 'debug'),
     databaseUrl,
     environment,
+    tlsTerminatedUpstream,
     identity,
   };
 }

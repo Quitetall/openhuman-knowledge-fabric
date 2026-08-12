@@ -10,11 +10,19 @@
 
 import { createPool } from '@kf/database';
 import { assessReadiness, formatReadiness } from './index.js';
+import { loadSecret, SecretRejected } from './secrets.js';
 
 async function main(): Promise<number> {
-  const url = process.env['DATABASE_URL'];
-  if (url === undefined || url === '') {
-    console.error('DATABASE_URL is not set');
+  let url: string;
+  try {
+    // DATABASE_URL_FILE where it is set, and a plain DATABASE_URL only outside production —
+    // a connection string is a credential, and an environment variable is readable from
+    // /proc by anything running as the same user.
+    url = loadSecret('DATABASE_URL', process.env, {
+      allowInline: process.env['NODE_ENV'] !== 'production',
+    });
+  } catch (err: unknown) {
+    console.error(err instanceof SecretRejected ? err.message : String(err));
     return 2;
   }
 

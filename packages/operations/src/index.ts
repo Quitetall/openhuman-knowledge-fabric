@@ -12,6 +12,14 @@
 
 import { withTransaction, type Pool, type Tx } from '@kf/database';
 
+export {
+  loadSecret,
+  readSecretFile,
+  redact,
+  SecretRejected,
+  type SecretOptions,
+} from './secrets.js';
+
 export type CheckStatus = 'ok' | 'degraded' | 'failed' | 'unknown';
 
 export interface Check {
@@ -243,6 +251,255 @@ const writeGuardsPresent: CheckFn = async (tx) => {
   };
 };
 
+/**
+ * The declared recovery objective, or nothing.
+ *
+ * Shared by the two preservation checks. Both fail when it is absent, and both say why in
+ * their own terms — the alternative is one check that reports a backup problem when the real
+ * problem is that nobody has decided what a backup problem would be.
+ */
+async function recoveryObjective(tx: Tx): Promise<RecoveryObjective | undefined> {
+  return tx.maybeOne<RecoveryObjective>(
+    `select rpo_seconds, restore_drill_days, requires_pitr, declared_at
+       from ops.recovery_objective
+      order by declared_at desc, id desc
+      limit 1`,
+  );
+}
+
+interface RecoveryObjective {
+  readonly [key: string]: unknown;
+  readonly rpo_seconds: number;
+  readonly restore_drill_days: number;
+  readonly requires_pitr: boolean;
+  readonly declared_at: Date;
+}
+
+/**
+ * A backup exists, is recent enough to meet the stated objective, and has been restored.
+ *
+ * The last clause is the one that makes this worth having. Backup software reports success
+ * for a backup nothing can read; the only evidence to the contrary is a restore, and the only
+ * evidence a restore happened is a record of it.
+ *
+ * Age is measured from `finished_at`, not `recorded_at`: a backup that took six hours
+ * protects the state it started from, and dating it by when the ledger row was written would
+ * make a slow backup look fresher than it is.
+ */
+const backupFreshness: CheckFn = async (tx) => {
+  const objective = await recoveryObjective(tx);
+  if (objective === undefined) {
+    return {
+      id: 'backup_freshness',
+      status: 'failed',
+      detail:
+        'No recovery objective has been declared, so no backup schedule can be called ' +
+        'sufficient or insufficient. Declare one in ops.recovery_objective — how much work ' +
+        'this organization has decided it can afford to lose, and why.',
+    };
+  }
+
+  const row = await tx.maybeOne<{
+    location: string;
+    age_seconds: string;
+    offsite: boolean;
+    id: string;
+    drill_age_days: string | null;
+    last_outcome: string | null;
+  }>(
+    `select b.id,
+            b.location,
+            extract(epoch from now() - b.finished_at)::bigint::text as age_seconds,
+            exists (select 1 from ops.backup_copy c
+                     where c.backup_run_id = b.id and c.offsite) as offsite,
+            (select extract(days from now() - max(d.verified_at))::bigint::text
+               from ops.restore_drill d
+              where d.outcome = 'verified') as drill_age_days,
+            (select d.outcome from ops.restore_drill d
+              order by d.verified_at desc, d.id desc limit 1) as last_outcome
+       from ops.backup_run b
+      order by b.finished_at desc, b.id desc
+      limit 1`,
+  );
+
+  if (row === undefined) {
+    return {
+      id: 'backup_freshness',
+      status: 'failed',
+      detail:
+        'No backup has ever been recorded. Everything in this database exists in exactly one ' +
+        'place. Run scripts/backup.sh.',
+      measured: { rpo_seconds: objective.rpo_seconds },
+    };
+  }
+
+  const ageSeconds = Number(row.age_seconds);
+  const drillAgeDays = row.drill_age_days === null ? null : Number(row.drill_age_days);
+  const measured = {
+    age_seconds: ageSeconds,
+    rpo_seconds: objective.rpo_seconds,
+    restore_drill_days: objective.restore_drill_days,
+    last_backup: row.location,
+    last_drill_age_days: drillAgeDays,
+  };
+
+  if (ageSeconds > objective.rpo_seconds) {
+    return {
+      id: 'backup_freshness',
+      status: 'failed',
+      detail:
+        `The most recent backup finished ${Math.floor(ageSeconds / 60)} minutes ago, against a ` +
+        `declared objective of ${Math.floor(objective.rpo_seconds / 60)}. Work done since then ` +
+        'would be lost. Either the schedule is not running or the objective is one nobody ' +
+        'intends to meet — both are worth knowing.',
+      measured,
+    };
+  }
+
+  if (!row.offsite) {
+    return {
+      id: 'backup_freshness',
+      status: 'degraded',
+      detail:
+        'The most recent backup is not recorded as off-site. A backup on the same host as the ' +
+        'database survives a dropped table and not a lost host, and the second one is the ' +
+        'reason backups exist.',
+      measured,
+    };
+  }
+
+  if (drillAgeDays === null) {
+    return {
+      id: 'backup_freshness',
+      status: 'degraded',
+      detail:
+        'Backups are current, but none has ever been restored. A backup is not valid until it ' +
+        'has been restored — run scripts/restore-verify.sh against a scratch database.',
+      measured,
+    };
+  }
+
+  if (drillAgeDays > objective.restore_drill_days) {
+    return {
+      id: 'backup_freshness',
+      status: 'degraded',
+      detail:
+        `The last successful restore drill was ${drillAgeDays} days ago, against a declared ` +
+        `interval of ${objective.restore_drill_days}. It proved a schema and a tool chain that ` +
+        'may no longer be the ones in use.',
+      measured,
+    };
+  }
+
+  if (row.last_outcome === 'failed') {
+    return {
+      id: 'backup_freshness',
+      status: 'failed',
+      detail:
+        'The most recent restore drill FAILED. An earlier one succeeded, which is why this is ' +
+        'reported rather than hidden: something changed between them.',
+      measured,
+    };
+  }
+
+  return {
+    id: 'backup_freshness',
+    status: 'ok',
+    detail: 'Backups are current, off-site, and a recent one has been restored and verified.',
+    measured,
+  };
+};
+
+/**
+ * Continuous archiving matches what was decided.
+ *
+ * Read from the server rather than from a configuration file, because the file that is on
+ * disk and the settings the running server started with are different things, and only one of
+ * them is protecting anything.
+ *
+ * `archive_mode` alone is not enough: it can be `on` with a command that fails, in which case
+ * WAL accumulates until the volume fills and PostgreSQL stops. `archived_count` and
+ * `failed_count` from pg_stat_archiver are what say whether it is working.
+ */
+const pitrReadiness: CheckFn = async (tx) => {
+  const objective = await recoveryObjective(tx);
+  if (objective === undefined) {
+    return {
+      id: 'pitr_readiness',
+      status: 'failed',
+      detail:
+        'No recovery objective has been declared, so whether this deployment needs continuous ' +
+        'archiving has not been decided.',
+    };
+  }
+
+  const row = await tx.one<{
+    archive_mode: string;
+    archived: string;
+    failed: string;
+    last_failed: Date | null;
+    last_archived: Date | null;
+  }>(
+    `select current_setting('archive_mode') as archive_mode,
+            coalesce(archived_count, 0)::text as archived,
+            coalesce(failed_count, 0)::text as failed,
+            last_failed_time as last_failed,
+            last_archived_time as last_archived
+       from pg_stat_archiver`,
+  );
+  const on = row.archive_mode === 'on' || row.archive_mode === 'always';
+  const measured = {
+    archive_mode: row.archive_mode,
+    archived: Number(row.archived),
+    failed: Number(row.failed),
+    required: objective.requires_pitr ? 'yes' : 'no',
+  };
+
+  if (!objective.requires_pitr) {
+    return {
+      id: 'pitr_readiness',
+      status: 'ok',
+      detail:
+        `Continuous archiving is not required by the declared objective (recovery point ` +
+        `${objective.rpo_seconds}s is met by the backup schedule alone). archive_mode is ` +
+        `${row.archive_mode}.`,
+      measured,
+    };
+  }
+
+  if (!on) {
+    return {
+      id: 'pitr_readiness',
+      status: 'failed',
+      detail:
+        'The declared objective requires point-in-time recovery, and archive_mode is ' +
+        `${row.archive_mode}. Recovery is limited to the last full backup, so the real ` +
+        'recovery point is the backup interval, not the declared one.',
+      measured,
+    };
+  }
+
+  // Archiving that is failing is worse than archiving that is off, because it looks on.
+  if (row.last_failed !== null && (row.last_archived === null || row.last_failed > row.last_archived)) {
+    return {
+      id: 'pitr_readiness',
+      status: 'failed',
+      detail:
+        `Continuous archiving is enabled and its most recent attempt FAILED ` +
+        `(${Number(row.failed)} failures). WAL is accumulating in pg_wal and will fill the ` +
+        'volume; when it does, PostgreSQL stops accepting writes.',
+      measured,
+    };
+  }
+
+  return {
+    id: 'pitr_readiness',
+    status: 'ok',
+    detail: `Continuous archiving is ${row.archive_mode} and its last attempt succeeded.`,
+    measured,
+  };
+};
+
 const CHECKS: readonly CheckFn[] = [
   schemaRelease,
   writeGuardsPresent,
@@ -251,6 +508,8 @@ const CHECKS: readonly CheckFn[] = [
   outboxHealth,
   searchComplete,
   federationFreshness,
+  backupFreshness,
+  pitrReadiness,
 ];
 
 /**
@@ -305,6 +564,6 @@ export function formatReadiness(report: ReadinessReport): string {
 
 export const PACKAGE = {
   name: '@kf/operations',
-  role: 'Operational readiness, fail-closed',
+  role: 'Operational readiness and deployment secrets, fail-closed',
   owns: [],
 } as const;

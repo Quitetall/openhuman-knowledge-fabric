@@ -12,6 +12,7 @@
 import { readFileSync } from 'node:fs';
 import { createPublicKey, type KeyObject } from 'node:crypto';
 import { createPool } from '@kf/database';
+import { loadSecret, readSecretFile } from '@kf/operations';
 import { S3ObjectStore, type ObjectStore } from '@kf/artifacts';
 import { loadSigningKey, type SigningKey } from './sign.js';
 import { runCheckpoint, verifyLedger } from './run.js';
@@ -25,7 +26,9 @@ function required(name: string): string {
 function signingKey(): SigningKey {
   return loadSigningKey(
     process.env['CHECKPOINT_SIGNING_KEY_ID'] ?? 'checkpoint-1',
-    readFileSync(required('CHECKPOINT_SIGNING_KEY_PATH'), 'utf8'),
+    // Permission-checked, not merely read. A signing key readable by another account on this
+    // host is one that account can sign with, and a forged checkpoint is worse than none.
+    readSecretFile(required('CHECKPOINT_SIGNING_KEY_PATH'), 'CHECKPOINT_SIGNING_KEY_PATH'),
   );
 }
 
@@ -52,6 +55,8 @@ function verificationKeys(): Map<string, KeyObject> {
   const id = process.env['CHECKPOINT_SIGNING_KEY_ID'] ?? 'checkpoint-1';
   const publicPath = process.env['CHECKPOINT_PUBLIC_KEY_PATH'];
   if (publicPath !== undefined && publicPath !== '') {
+    // Read plainly, not as a secret: a public key is meant to be readable, and refusing a
+    // world-readable one would stop an auditor verifying with the key they were given.
     return new Map([[id, createPublicKey(readFileSync(publicPath, 'utf8'))]]);
   }
   return new Map([[id, signingKey().publicKey]]);
@@ -74,7 +79,12 @@ async function main(): Promise<number> {
     return 0;
   }
 
-  const pool = createPool({ connectionString: required('DATABASE_URL'), maxConnections: 2 });
+  const pool = createPool({
+    connectionString: loadSecret('DATABASE_URL', process.env, {
+      allowInline: process.env['NODE_ENV'] !== 'production',
+    }),
+    maxConnections: 2,
+  });
   try {
     if (wantsVerify) {
       const findings = await verifyLedger(pool, verificationKeys());

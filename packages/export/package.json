@@ -19,7 +19,8 @@
   "dependencies": {
     "@kf/canonicalization": "workspace:*",
     "@kf/database": "workspace:*",
-    "@kf/domain": "workspace:*"
+    "@kf/domain": "workspace:*",
+    "@kf/operations": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.13.3"

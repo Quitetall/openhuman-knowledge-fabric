@@ -1,0 +1,14 @@
+[Unit]
+Description=Sign a checkpoint hourly
+
+[Timer]
+OnCalendar=hourly
+# Spread across the hour so a fleet does not sign simultaneously, and so the interval between
+# checkpoints stays roughly constant rather than drifting toward the top of the hour.
+RandomizedDelaySec=300
+# A missed run — a reboot, a maintenance window — signs on the next start rather than waiting
+# for the next hour. The unsigned window is the thing being minimised.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -24,6 +24,7 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload, type JWTVerifyGetKey } from 'jose';
 import type { Pool, Tx } from '@kf/database';
 import { withTransaction } from '@kf/database';
+import { authenticationEvent, type AuthenticationEvent } from './step-up.js';
 
 export interface Caller {
   readonly actorId: string;
@@ -32,6 +33,14 @@ export interface Caller {
   readonly maxClassification: string;
   /** Who the provider said this was, for logging. Never used to decide anything. */
   readonly subject: string;
+  /**
+   * How and when they authenticated.
+   *
+   * The one thing the provider IS authoritative about: the authentication event happened
+   * there and nowhere else. Roles are refused because authority belongs to this database;
+   * this is not the same mistake in the other direction.
+   */
+  readonly authentication: AuthenticationEvent;
 }
 
 export type IdentityFailure =
@@ -149,13 +158,15 @@ export async function resolveCaller(
   }
   const issuer = typeof payload.iss === 'string' ? payload.iss : '';
 
+  const authentication = authenticationEvent(payload);
+
   return withTransaction(pool, async (tx) => {
     // Scope first, as every read in this system does.
     await tx.query('select core.set_access_context($1, $2)', [
       request.organizationId,
       request.maxClassification,
     ]);
-    return resolveIn(tx, { issuer, subject, ...request });
+    return resolveIn(tx, { issuer, subject, authentication, ...request });
   });
 }
 
@@ -168,6 +179,7 @@ export async function resolveIn(
     readonly actingRoleId: string;
     readonly organizationId: string;
     readonly maxClassification: string;
+    readonly authentication?: AuthenticationEvent;
   },
 ): Promise<Caller> {
   const link = await tx.maybeOne<{ person_id: string; revoked_at: Date | null }>(
@@ -234,6 +246,13 @@ export async function resolveIn(
     organizationId: request.organizationId,
     maxClassification: request.maxClassification,
     subject: request.subject,
+    // Absent when resolveIn is called directly without a token. Every field inside is
+    // undefined, which every step-up policy treats as a failure — the fail-closed direction.
+    authentication: request.authentication ?? {
+      authenticatedAt: undefined,
+      assuranceLevel: undefined,
+      methods: [],
+    },
   };
 }
 

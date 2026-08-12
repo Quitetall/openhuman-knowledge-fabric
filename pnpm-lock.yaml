@@ -129,6 +129,9 @@ importers:
       '@kf/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@kf/operations':
+        specifier: workspace:*
+        version: link:../../packages/operations
     devDependencies:
       '@types/node':
         specifier: ^24.13.3
@@ -167,6 +170,9 @@ importers:
       '@kf/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@kf/operations':
+        specifier: workspace:*
+        version: link:../../packages/operations
       graphile-worker:
         specifier: ^0.17.3
         version: 0.17.3(supports-color@7.2.0)(typescript@6.0.3)
@@ -282,6 +288,9 @@ importers:
       '@kf/domain':
         specifier: workspace:*
         version: link:../domain
+      '@kf/operations':
+        specifier: workspace:*
+        version: link:../operations
     devDependencies:
       '@types/node':
         specifier: ^24.13.3

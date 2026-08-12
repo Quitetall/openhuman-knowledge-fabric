@@ -25,3 +25,13 @@ export {
   type IdentityConfig,
   type IdentityFailure,
 } from './identity.js';
+
+export {
+  DEFAULT_STEP_UP,
+  authenticationEvent,
+  satisfiesStepUp,
+  type AuthenticationEvent,
+  type StepUpFailure,
+  type StepUpPolicy,
+  type StepUpResult,
+} from './step-up.js';

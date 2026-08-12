@@ -1,0 +1,27 @@
+[Unit]
+Description=Copy the newest backup off this host and verify it there
+Documentation=file:///opt/kf/deploy/systemd/README.md
+After=kf-backup.service
+Requires=kf-backup.service
+OnFailure=kf-alert@%n.service
+
+[Service]
+Type=oneshot
+User=kf
+WorkingDirectory=/opt/kf
+Environment=DATABASE_URL_FILE=/etc/kf/database-url
+# The newest directory, because it is the one the backup that just ran produced. Resolved at
+# run time rather than passed in, so a manual `systemctl start` copies the right thing.
+ExecStart=/bin/sh -c 'exec /opt/kf/scripts/backup-offsite.sh \
+  "$(ls -1d /srv/kf-backups/*/ | sort | tail -1)" \
+  "$KF_OFFSITE_DESTINATION" "$KF_OFFSITE_LABEL"'
+# Set these in a drop-in: systemctl edit kf-backup-offsite.service
+Environment=KF_OFFSITE_DESTINATION=
+Environment=KF_OFFSITE_LABEL=
+TimeoutStartSec=2h
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/srv/kf-backups
+UMask=0077

@@ -3,10 +3,18 @@
   "compilerOptions": {
     "rootDir": "./src",
     "outDir": "./dist",
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.test.ts", "dist", "node_modules"],
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "src/**/*.test.ts",
+    "dist",
+    "node_modules"
+  ],
   "references": [
     {
       "path": "../../packages/domain"
@@ -19,6 +27,9 @@
     },
     {
       "path": "../../packages/artifacts"
+    },
+    {
+      "path": "../../packages/operations"
     }
   ]
 }

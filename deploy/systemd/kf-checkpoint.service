@@ -1,0 +1,35 @@
+[Unit]
+Description=Sign a Merkle checkpoint over the audit log
+Documentation=file:///opt/kf/docs/operating-model/runbook.md
+After=network-online.target
+OnFailure=kf-alert@%n.service
+
+[Service]
+Type=oneshot
+User=kf
+WorkingDirectory=/opt/kf
+# Files, not inline values. An environment variable is readable from /proc/<pid>/environ by
+# anything running as the same user and is printed in full by most crash reporters.
+Environment=DATABASE_URL_FILE=/etc/kf/database-url
+Environment=CHECKPOINT_SIGNING_KEY_PATH=/etc/kf/checkpoint-key
+ExecStart=/usr/bin/node /opt/kf/apps/checkpoint/dist/main.js --run
+
+# The signing key is the one secret in this system that the API must never be able to read:
+# an attacker who has the API has the database, and a signature they can forge proves nothing.
+# This unit is where it lives, and these directives are why "the API cannot reach it" is a
+# property of the host rather than a promise about the code.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+UMask=0077
