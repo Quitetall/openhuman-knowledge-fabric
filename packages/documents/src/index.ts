@@ -143,7 +143,9 @@ function walkBlocks(blocks: unknown, atoms: DocumentAtom[], listDepth = 0): void
     } else if (block.t === 'Div' && Array.isArray(block.c)) {
       walkBlocks(block.c[1], atoms, listDepth);
     } else if (block.t === 'Figure' && Array.isArray(block.c)) {
-      walkBlocks(block.c[1], atoms, listDepth);
+      // Pandoc Figure is [Attr, Caption, Blocks]. Body is explicit index 2; caption is
+      // metadata around it and should not replace the document content being composed.
+      walkBlocks(block.c[2], atoms, listDepth);
     } else if (block.t === 'RawBlock') {
       const text = blockText(block);
       if (text !== '') createAtom(atoms, 'paragraph', text, null, { source: 'raw-block' });

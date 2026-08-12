@@ -20,6 +20,22 @@ describe('document atoms', () => {
     expect(mediaTypeForDocumentFile('scan.pdf', 'application/pdf')).toBeUndefined();
   });
 
+  it('walks Pandoc Figure body rather than its caption tuple', () => {
+    const atoms = atomsFromPandoc({
+      blocks: [
+        {
+          t: 'Figure',
+          c: [
+            ['figure-id', [], []],
+            [null, [{ t: 'Plain', c: [{ t: 'Str', c: 'Caption' }] }]],
+            [{ t: 'Para', c: [{ t: 'Str', c: 'Body' }] }],
+          ],
+        },
+      ],
+    });
+    expect(atoms.map((atom) => atom.text)).toEqual(['Body']);
+  });
+
   it('turns one document into ordered, independently hashed atoms', () => {
     const atoms = atomsFromPandoc({
       'pandoc-api-version': [1, 23, 1],
