@@ -1,11 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { artifactKindForDocumentClass, atomsFromPandoc } from './index.js';
+import {
+  artifactKindForDocumentClass,
+  atomsFromPandoc,
+  mediaTypeForDocumentFile,
+} from './index.js';
 
 describe('document atoms', () => {
   it('maps document classes onto valid evidence-vault kinds', () => {
     expect(artifactKindForDocumentClass('specification')).toBe('specification');
     expect(artifactKindForDocumentClass('report')).toBe('report');
     expect(artifactKindForDocumentClass('record')).toBe('other');
+  });
+
+  it('infers browser-omitted text MIME types from supported file extensions', () => {
+    expect(mediaTypeForDocumentFile('constitution.md', 'application/octet-stream')).toBe(
+      'text/markdown',
+    );
+    expect(mediaTypeForDocumentFile('notes.txt', '')).toBe('text/plain');
+    expect(mediaTypeForDocumentFile('scan.pdf', 'application/pdf')).toBeUndefined();
   });
 
   it('turns one document into ordered, independently hashed atoms', () => {

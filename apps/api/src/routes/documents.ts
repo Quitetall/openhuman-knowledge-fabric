@@ -4,17 +4,15 @@ import type { FastifyInstance } from 'fastify';
 import { ActionRejected, type ActionRequest, type ActionResult } from '@kf/actions';
 import { digestOf, type ObjectStore } from '@kf/artifacts';
 import { setAccessContext, withTransaction, type Pool } from '@kf/database';
-import { artifactKindForDocumentClass, getDocument, listDocuments } from '@kf/documents';
+import {
+  artifactKindForDocumentClass,
+  getDocument,
+  listDocuments,
+  mediaTypeForDocumentFile,
+} from '@kf/documents';
 import { unidentified, type IdentifyCaller } from './actions.js';
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
-const SUPPORTED_MEDIA_TYPES = new Set([
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.oasis.opendocument.text',
-  'text/markdown',
-  'text/plain',
-]);
-
 interface DocumentImportBody {
   readonly title?: unknown;
   readonly documentNumber?: unknown;
@@ -120,18 +118,21 @@ export async function registerDocumentRoutes(
       const documentClass = required(body, 'documentClass');
       const owningRole = required(body, 'owningRole');
       const fileName = required(body, 'fileName');
-      const mediaType = required(body, 'mediaType');
+      const declaredMediaType = required(body, 'mediaType');
+      const mediaType = mediaTypeForDocumentFile(fileName, declaredMediaType);
       const idempotencyKey = required(body, 'idempotencyKey');
       if (idempotencyKey.length < 8 || idempotencyKey.length > 96) {
         throw new TypeError('idempotencyKey must contain 8 to 96 characters');
       }
-      if (!SUPPORTED_MEDIA_TYPES.has(mediaType)) {
-        throw new TypeError(`mediaType ${JSON.stringify(mediaType)} is not parseable`);
+      if (mediaType === undefined) {
+        throw new TypeError(
+          `file ${JSON.stringify(fileName)} with media type ${JSON.stringify(declaredMediaType)} is not parseable`,
+        );
       }
       const bytes = decodeBase64(required(body, 'contentBase64'));
       const sha256 = digestOf(bytes);
       const key = `document-imports/${sha256}`;
-      const stored = await options.store.put(key, bytes, mediaType);
+      await options.store.put(key, bytes, mediaType);
 
       const common = {
         actorId: identity.actorId,
@@ -152,7 +153,6 @@ export async function registerDocumentRoutes(
           size_bytes: bytes.length,
           media_type: mediaType,
           storage_uri: key,
-          storage_version: stored.versionId ?? '',
           revision_label: revision,
         },
       });
@@ -204,7 +204,9 @@ export async function registerDocumentRoutes(
       if (
         typeof error === 'object' &&
         error !== null &&
-        (error as { code?: unknown }).code === '23505'
+        (error as { code?: unknown; constraint?: unknown }).code === '23505' &&
+        (error as { constraint?: unknown }).constraint ===
+          'controlled_document_document_number_revision_key'
       ) {
         return reply.code(409).send({
           error: 'duplicate_document',

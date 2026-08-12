@@ -1,7 +1,7 @@
 /** Load OpenHuman's founding documents as draft, parsed, auditable dogfood records. */
 
 import { readFile } from 'node:fs/promises';
-import { basename, extname, join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { digestOf, S3ObjectStore } from '@kf/artifacts';
 import {
   createPool,
@@ -14,6 +14,7 @@ import {
 import {
   artifactKindForDocumentClass,
   createDocumentActionAtoms,
+  mediaTypeForDocumentFile,
   PandocDocumentParser,
 } from '@kf/documents';
 import { createFabricDispatcher } from '@kf/orchestrator';
@@ -66,17 +67,6 @@ function requiredOwnerUrl(): string {
   return value;
 }
 
-function mediaType(file: string): string {
-  const extension = extname(file).toLowerCase();
-  if (extension === '.docx') {
-    return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-  }
-  if (extension === '.odt') return 'application/vnd.oasis.opendocument.text';
-  if (extension === '.md') return 'text/markdown';
-  if (extension === '.txt') return 'text/plain';
-  throw new Error(`Unsupported document extension: ${extension || '(none)'}`);
-}
-
 function manifestEntry(value: unknown, index: number): ManifestEntry {
   if (typeof value !== 'object' || value === null) {
     throw new Error(`Manifest entry ${index + 1} must be an object.`);
@@ -107,18 +97,22 @@ async function readManifest(): Promise<ManifestEntry[]> {
 
 async function createAppLogin(owner: Pool): Promise<string> {
   return withTransaction(owner, async (tx) => {
-    await tx.query(
-      `do $$ begin
-         if not exists (select from pg_roles where rolname = '${APP_LOGIN}') then
-           create role ${APP_LOGIN} login password '${APP_PASSWORD}' inherit;
-         else
-           alter role ${APP_LOGIN} login password '${APP_PASSWORD}' inherit;
-         end if;
-       end $$`,
+    const role = await tx.one<{ sql: string }>(
+      `select case when exists (select from pg_roles where rolname = $1)
+              then format('alter role %I login password %L inherit', $1::text, $2::text)
+              else format('create role %I login password %L inherit', $1::text, $2::text)
+              end as sql`,
+      [APP_LOGIN, APP_PASSWORD],
     );
-    await tx.query(`grant kf_app to ${APP_LOGIN}`);
+    await tx.query(role.sql);
+    const membership = await tx.one<{ sql: string }>(
+      `select format('grant kf_app to %I', $1::text) as sql`,
+      [APP_LOGIN],
+    );
+    await tx.query(membership.sql);
     const grant = await tx.one<{ sql: string }>(
-      `select format('grant connect on database %I to ${APP_LOGIN}', current_database()) as sql`,
+      `select format('grant connect on database %I to %I', current_database(), $1::text) as sql`,
+      [APP_LOGIN],
     );
     await tx.query(grant.sql);
     const database = await tx.one<{ name: string }>('select current_database() as name');
@@ -271,9 +265,11 @@ async function main(): Promise<void> {
     const loaded: Array<Record<string, unknown>> = [];
     for (const entry of await readManifest()) {
       const bytes = await readFile(join(directory, entry.file));
+      const mediaType = mediaTypeForDocumentFile(entry.file);
+      if (mediaType === undefined) throw new Error(`Unsupported document file: ${entry.file}`);
       const sha256 = digestOf(bytes);
       const key = `document-imports/${sha256}`;
-      await store.put(key, bytes, mediaType(entry.file));
+      await store.put(key, bytes, mediaType);
       const common = {
         ...identity,
         maxClassification: 'restricted',
@@ -289,7 +285,7 @@ async function main(): Promise<void> {
           artifact_kind: artifactKindForDocumentClass(entry.documentClass),
           sha256,
           size_bytes: bytes.length,
-          media_type: mediaType(entry.file),
+          media_type: mediaType,
           storage_uri: key,
           revision_label: entry.revision,
         },

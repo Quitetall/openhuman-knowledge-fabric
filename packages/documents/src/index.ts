@@ -143,7 +143,7 @@ function walkBlocks(blocks: unknown, atoms: DocumentAtom[], listDepth = 0): void
     } else if (block.t === 'Div' && Array.isArray(block.c)) {
       walkBlocks(block.c[1], atoms, listDepth);
     } else if (block.t === 'Figure' && Array.isArray(block.c)) {
-      walkBlocks(block.c.at(-1), atoms, listDepth);
+      walkBlocks(block.c[1], atoms, listDepth);
     } else if (block.t === 'RawBlock') {
       const text = blockText(block);
       if (text !== '') createAtom(atoms, 'paragraph', text, null, { source: 'raw-block' });
@@ -163,6 +163,27 @@ const PANDOC_FORMATS: Readonly<Record<string, string>> = {
   'text/markdown': 'gfm',
   'text/plain': 'markdown',
 };
+
+const EXTENSION_MEDIA_TYPES: Readonly<Record<string, string>> = {
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  odt: 'application/vnd.oasis.opendocument.text',
+  md: 'text/markdown',
+  markdown: 'text/markdown',
+  txt: 'text/plain',
+};
+
+/** Browser MIME detection is inconsistent for Markdown/text; extension provides safe fallback. */
+export function mediaTypeForDocumentFile(
+  fileName: string,
+  declaredMediaType?: string,
+): string | undefined {
+  const extension = /\.([^.]+)$/.exec(fileName)?.[1]?.toLowerCase();
+  const fromExtension = extension === undefined ? undefined : EXTENSION_MEDIA_TYPES[extension];
+  if (fromExtension !== undefined) return fromExtension;
+  return declaredMediaType !== undefined && PANDOC_FORMATS[declaredMediaType] !== undefined
+    ? declaredMediaType
+    : undefined;
+}
 
 /** Map controlled-document semantics onto evidence-vault artifact vocabulary. */
 export function artifactKindForDocumentClass(documentClass: string): string {
