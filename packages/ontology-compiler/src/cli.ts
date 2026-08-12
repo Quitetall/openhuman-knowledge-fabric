@@ -11,7 +11,7 @@
  * is inspecting cannot report a failure.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createPublicKey, createPrivateKey, type KeyObject } from 'node:crypto';
 import { join, resolve } from 'node:path';
 import { buildArtifacts, findDrift, writeArtifacts } from './build.js';
@@ -23,7 +23,23 @@ import { loadOntology, OntologyError } from './model.js';
 /** `--name value` from argv, or undefined. */
 function flag(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
-  return i < 0 ? undefined : process.argv[i + 1];
+  if (i < 0) return undefined;
+  const value = process.argv[i + 1];
+  // A trailing `--key-id` with nothing after it is a typo, not a request for the default.
+  // Falling through would sign with a key id the operator did not choose.
+  if (value === undefined || value.startsWith('--')) {
+    throw new Error(`--${name} was given with no value`);
+  }
+  return value;
+}
+
+/** The package directory a command operates on. Required — never the working directory. */
+function packageDir(): string {
+  const dir = process.argv[3];
+  if (dir === undefined || dir === '' || dir.startsWith('--')) {
+    throw new Error('a release package directory is required');
+  }
+  return resolve(process.cwd(), dir);
 }
 
 function required(name: string): string {
@@ -63,7 +79,13 @@ function fileReader(dir: string): (path: string) => Buffer | undefined {
     // corrupted or hostile manifest, and reading outside the package is never intended.
     if (path.includes('..') || path.startsWith('/')) return undefined;
     const full = join(dir, path);
-    return existsSync(full) ? readFileSync(full) : undefined;
+    if (!existsSync(full)) return undefined;
+    // A symlink in a hand-assembled package could resolve outside the directory. The manifest
+    // would still have to carry the right digest for that to matter, so this is defence in
+    // depth rather than a hole being closed — but reading outside the package is never what
+    // was meant.
+    if (lstatSync(full).isSymbolicLink()) return undefined;
+    return readFileSync(full);
   };
 }
 
@@ -105,7 +127,7 @@ function run(command: string): number {
   }
 
   if (command === 'approve') {
-    const dir = resolve(process.cwd(), process.argv[3] ?? '');
+    const dir = packageDir();
     const pkg = loadPackage(dir);
 
     // Verified BEFORE signing. An approval over a package whose files no longer match its
@@ -146,7 +168,7 @@ function run(command: string): number {
   }
 
   if (command === 'verify') {
-    const dir = resolve(process.cwd(), process.argv[3] ?? '');
+    const dir = packageDir();
     const pkg = loadPackage(dir);
     const keys = new Map<string, KeyObject>();
     const pub = flag('key');
@@ -204,7 +226,12 @@ try {
     // Both are refusals with a message written for the person who typed the command. A stack
     // trace here would bury the sentence that says what to do.
     console.error(`ontology: ${err.message}`);
-  } else if (err instanceof Error && /^--\w+ is required$/.test(err.message)) {
+  } else if (
+    err instanceof Error &&
+    /^(--[\w-]+ (is required|was given with no value)|a release package directory is required)$/.test(
+      err.message,
+    )
+  ) {
     console.error(`ontology: ${err.message}`);
   } else {
     console.error('ontology: unexpected failure');

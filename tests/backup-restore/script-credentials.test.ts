@@ -149,9 +149,10 @@ describe('no script may install a bare EXIT trap', () => {
     for (const name of readdirSync(dir).filter((f) => f.endsWith('.sh'))) {
       const body = readFileSync(join(dir, name), 'utf8');
       for (const [i, line] of body.split('\n').entries()) {
-        // A bare `trap` naming EXIT. kf_at_exit's own installation is the one exception, and
-        // it lives in lib/, which this loop does not read.
-        if (/^\s*trap\s+.*\bEXIT\b/.test(line)) {
+        // A `trap` naming EXIT anywhere in the line, not only at its start: `cmd && trap ...
+        // EXIT` installs exactly the same replacing handler. kf_at_exit's own installation is
+        // the one legitimate use and lives in lib/, which this loop does not read.
+        if (/(^|[;&|]|\bthen\b|\bdo\b)\s*trap\s+.*\bEXIT\b/.test(line)) {
           offenders.push(`${name}:${i + 1}: ${line.trim()}`);
         }
       }
