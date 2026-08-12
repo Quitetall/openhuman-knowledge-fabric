@@ -114,8 +114,14 @@ export function redact(text: string): string {
     text
       // postgres://user:password@host — the password, and nothing else
       .replace(/(:\/\/[^:@/\s]+:)[^@\s]+@/g, '$1<redacted>@')
-      // Bearer tokens and anything else long and base64-ish following a keyword
-      .replace(/\b(bearer|token|secret|password|apikey|api_key)([=:\s]+)\S+/gi, '$1$2<redacted>')
+      // Bearer tokens and anything else following one of these keywords.
+      //
+      // The value stops at a separator rather than running to the next space: with `\S+` the
+      // string `password=x&host=db&port=5432` redacted to `password=<redacted>`, taking the
+      // host and port with it. Over-redaction is the safe direction and it is still the wrong
+      // one — a redactor that removes the context around the secret gets removed.
+      .replace(/\b(bearer|token|secret|password|apikey|api_key)([=:\s]+)[^\s&;"']+/gi,
+        '$1$2<redacted>')
       // PEM blocks
       .replace(
         /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,

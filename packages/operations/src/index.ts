@@ -285,6 +285,10 @@ interface RecoveryObjective {
  * Age is measured from `finished_at`, not `recorded_at`: a backup that took six hours
  * protects the state it started from, and dating it by when the ledger row was written would
  * make a slow backup look fresher than it is.
+ *
+ * The conditions are checked worst-first and `detail` reports the FIRST one that trips, not
+ * every one. A backup that is both stale and unproven reads as stale, which is the one to fix
+ * first; `measured` carries all the numbers either way, and the next run reports what is left.
  */
 const backupFreshness: CheckFn = async (tx) => {
   const objective = await recoveryObjective(tx);

@@ -33,7 +33,11 @@ BACKUP="${1:?usage: backup-offsite.sh <backup-directory> <destination> <label> [
 DESTINATION="${2:?usage: backup-offsite.sh <backup-directory> <destination> <label> [--same-host]}"
 LABEL="${3:?usage: backup-offsite.sh <backup-directory> <destination> <label> [--same-host]}"
 OFFSITE=true
-[ "${4:-}" = "--same-host" ] && OFFSITE=false
+# An `if`, not `[ ... ] && ...`: under `set -e` a false test at the end of an && list is a
+# failing statement, and the script would exit whenever --same-host was NOT passed.
+if [ "${4:-}" = "--same-host" ]; then
+  OFFSITE=false
+fi
 
 LOCATION="$(cd "$BACKUP" && pwd)"
 NAME="$(basename "$LOCATION")"
@@ -60,6 +64,11 @@ fi
 echo "==> copying to $DESTINATION"
 # --partial off by omission: a half-transferred directory should not be left looking like a
 # backup. Either it lands complete or the next run starts again.
+#
+# --delete is scoped to "$DESTINATION/$NAME/" — this one backup's own directory, named after a
+# source that was digest-verified two lines up. It cannot reach other backups at the
+# destination. What it does do is make a retry after a partial transfer converge on the source
+# rather than accumulate.
 rsync --archive --checksum --delete "$LOCATION/" "$DESTINATION/$NAME/"
 
 echo "==> verifying at the destination"

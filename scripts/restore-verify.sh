@@ -31,6 +31,13 @@ LEDGER="${3:-}"
 if [ -z "$LEDGER" ] && [ -n "${DATABASE_URL_FILE:-}" ]; then
   LEDGER="$(kf_read_secret_file "$DATABASE_URL_FILE" DATABASE_URL_FILE)"
 fi
+
+# Both connection strings, so neither password reaches argv where every account on this host
+# could read it out of /proc/<pid>/cmdline.
+TARGET="$(kf_pgpass_url "$TARGET")"
+if [ -n "$LEDGER" ]; then
+  LEDGER="$(kf_pgpass_url "$LEDGER")"
+fi
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT

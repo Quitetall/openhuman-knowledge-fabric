@@ -136,6 +136,16 @@ describe('redaction', () => {
     expect(out).toContain('db.internal:5432/kf');
   });
 
+  it('stops the redaction at the separator, not at the next space', () => {
+    // `\S+` took the rest of the query string with it: `password=x&host=db&port=5432`
+    // redacted to `password=<redacted>`, losing exactly the context somebody debugging a
+    // connection failure needs. Over-redaction is the safe direction and still the wrong one.
+    expect(redact('password=hunter2&host=db.internal&port=5432')).toBe(
+      'password=<redacted>&host=db.internal&port=5432',
+    );
+    expect(redact('{"token":"abc","user":"kf"}')).toContain('"user":"kf"');
+  });
+
   it('removes bearer tokens and private keys', () => {
     expect(redact('authorization: Bearer eyJhbGciOi.abc.def')).not.toContain('eyJhbGciOi');
     const pem = '-----BEGIN PRIVATE KEY-----\nMIIEv\n-----END PRIVATE KEY-----';

@@ -69,7 +69,9 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -c "create database \"$SCRATCH\""
 cleanup() {
   psql "$DATABASE_URL" -q -c "drop database if exists \"$SCRATCH\" with (force)" || true
 }
-trap cleanup EXIT
+# Registered through the shared dispatcher rather than with a bare `trap`, which would replace
+# the hook that removes the temporary password file.
+kf_at_exit cleanup
 
 echo "==> restoring and verifying"
 "$ROOT/scripts/restore-verify.sh" "$LOCATION" "$SERVER/$SCRATCH" "$DATABASE_URL"

@@ -76,10 +76,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   // DATABASE_URL in the environment is readable from /proc/<pid>/environ by anything running
   // as the same user, is inherited by every child process, and is printed by crash reporters.
   const inlineAllowed = environment === 'development' || environment === 'test';
-  const databaseUrl =
-    env['DATABASE_URL_FILE'] !== undefined || env['DATABASE_URL'] !== undefined
-      ? loadSecret('DATABASE_URL', env, { allowInline: inlineAllowed })
-      : undefined;
+  let databaseUrl: string | undefined;
+  try {
+    databaseUrl =
+      env['DATABASE_URL_FILE'] !== undefined || env['DATABASE_URL'] !== undefined
+        ? loadSecret('DATABASE_URL', env, { allowInline: inlineAllowed })
+        : undefined;
+  } catch (err: unknown) {
+    // Re-thrown as ConfigError so that "loadConfig throws ConfigError" stays true. The message
+    // is kept verbatim — it is the one that says which file and why.
+    throw new ConfigError(err instanceof Error ? err.message : String(err));
+  }
 
   // Outside development a missing database URL means the process would start, pass its
   // liveness probe, and fail every real request. Refuse to boot instead.
