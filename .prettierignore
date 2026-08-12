@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .next/
+apps/web/next-env.d.ts
 coverage/
 generated/
 pnpm-lock.yaml

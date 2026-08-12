@@ -16,7 +16,12 @@ import { createPublicKey, createPrivateKey, type KeyObject } from 'node:crypto';
 import { join, resolve } from 'node:path';
 import { buildArtifacts, findDrift, writeArtifacts } from './build.js';
 import { buildReleasePack, packGaps } from './pack.js';
-import { approveRelease, verifyRelease, ApprovalRejected, type ReleaseApproval } from './approval.js';
+import {
+  approveRelease,
+  verifyRelease,
+  ApprovalRejected,
+  type ReleaseApproval,
+} from './approval.js';
 import { checkOntology, formatFindings } from './check.js';
 import { loadOntology, OntologyError } from './model.js';
 
@@ -133,7 +138,13 @@ function run(command: string): number {
     // Verified BEFORE signing. An approval over a package whose files no longer match its
     // manifest would be a signature attesting to something that was already wrong, and it
     // would verify forever.
-    const before = verifyRelease(pkg.manifestBytes, pkg.manifest, fileReader(dir), undefined, new Map());
+    const before = verifyRelease(
+      pkg.manifestBytes,
+      pkg.manifest,
+      fileReader(dir),
+      undefined,
+      new Map(),
+    );
     if (before.status === 'invalid') {
       console.error('refusing to approve: this package does not match its own manifest');
       for (const f of before.findings) console.error(`  ${f.finding.padEnd(22)} ${f.detail}`);
@@ -173,20 +184,32 @@ function run(command: string): number {
     const keys = new Map<string, KeyObject>();
     const pub = flag('key');
     if (pub !== undefined) {
-      keys.set(flag('key-id') ?? pkg.approval?.signing_key_id ?? 'release-1',
-        createPublicKey(readFileSync(pub, 'utf8')));
+      keys.set(
+        flag('key-id') ?? pkg.approval?.signing_key_id ?? 'release-1',
+        createPublicKey(readFileSync(pub, 'utf8')),
+      );
     }
 
-    const verdict = verifyRelease(pkg.manifestBytes, pkg.manifest, fileReader(dir), pkg.approval, keys);
-    console.error(`ontology: ${verdict.filesChecked} file(s) checked — ${verdict.status.toUpperCase()}`);
+    const verdict = verifyRelease(
+      pkg.manifestBytes,
+      pkg.manifest,
+      fileReader(dir),
+      pkg.approval,
+      keys,
+    );
+    console.error(
+      `ontology: ${verdict.filesChecked} file(s) checked — ${verdict.status.toUpperCase()}`,
+    );
     for (const f of verdict.findings) console.error(`  ${f.finding.padEnd(22)} ${f.detail}`);
     if (verdict.status === 'draft') {
       console.error('\nEvery file matches its manifest, and nothing has approved it.');
       console.error('Not normative under spec §5 until it is.');
     }
     if (verdict.status === 'approved' && verdict.approval !== undefined) {
-      console.error(`\nApproved by ${verdict.approval.approver.name} ` +
-        `(${verdict.approval.approver.role}) at ${verdict.approval.approved_at}`);
+      console.error(
+        `\nApproved by ${verdict.approval.approver.name} ` +
+          `(${verdict.approval.approver.role}) at ${verdict.approval.approved_at}`,
+      );
       console.error(`  "${verdict.approval.approver.statement}"`);
     }
     // Draft exits non-zero: a pipeline asking "is this normative" must not read silence as

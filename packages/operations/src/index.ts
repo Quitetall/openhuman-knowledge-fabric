@@ -484,7 +484,10 @@ const pitrReadiness: CheckFn = async (tx) => {
   }
 
   // Archiving that is failing is worse than archiving that is off, because it looks on.
-  if (row.last_failed !== null && (row.last_archived === null || row.last_failed > row.last_archived)) {
+  if (
+    row.last_failed !== null &&
+    (row.last_archived === null || row.last_failed > row.last_archived)
+  ) {
     return {
       id: 'pitr_readiness',
       status: 'failed',

@@ -157,29 +157,38 @@ describe('no script may install a bare EXIT trap', () => {
         }
       }
     }
-    expect(offenders, 'use kf_at_exit instead — a bare trap replaces the cleanup that removes the password file').toEqual([]);
+    expect(
+      offenders,
+      'use kf_at_exit instead — a bare trap replaces the cleanup that removes the password file',
+    ).toEqual([]);
   });
 });
 
 describe('reading the connection string from a file', () => {
   it('refuses one readable beyond its owner', () => {
-    const r = sh(`
+    const r = sh(
+      `
       printf 'postgres://u:p@h/d\\n' > "$DATABASE_URL_FILE"
       chmod 644 "$DATABASE_URL_FILE"
       kf_resolve_database_url || true
-    `, { DATABASE_URL_FILE: join(work, 'loose') });
+    `,
+      { DATABASE_URL_FILE: join(work, 'loose') },
+    );
     // Matches loadSecret() in packages/operations, so the two halves of the deployment agree
     // about what an acceptable secret file looks like.
     expect(r.out).toMatch(/readable beyond its owner/);
   });
 
   it('keeps internal spaces, which a libpq keyword string needs', () => {
-    const r = sh(`
+    const r = sh(
+      `
       printf 'host=db user=kf dbname=kf\\n' > "$DATABASE_URL_FILE"
       chmod 600 "$DATABASE_URL_FILE"
       kf_resolve_database_url
       printf '[%s]\\n' "$DATABASE_URL"
-    `, { DATABASE_URL_FILE: keywordFile });
+    `,
+      { DATABASE_URL_FILE: keywordFile },
+    );
     expect(r.out).toContain('[host=db user=kf dbname=kf]');
   });
 });

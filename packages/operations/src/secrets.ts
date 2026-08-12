@@ -120,8 +120,10 @@ export function redact(text: string): string {
       // string `password=x&host=db&port=5432` redacted to `password=<redacted>`, taking the
       // host and port with it. Over-redaction is the safe direction and it is still the wrong
       // one — a redactor that removes the context around the secret gets removed.
-      .replace(/\b(bearer|token|secret|password|apikey|api_key)([=:\s]+)[^\s&;"']+/gi,
-        '$1$2<redacted>')
+      .replace(
+        /\b(bearer|token|secret|password|apikey|api_key)([=:\s]+)[^\s&;"']+/gi,
+        '$1$2<redacted>',
+      )
       // PEM blocks
       .replace(
         /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,

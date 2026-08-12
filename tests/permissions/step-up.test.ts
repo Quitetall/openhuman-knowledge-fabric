@@ -68,7 +68,11 @@ describe('failing closed on every unknown', () => {
   });
 
   it('refuses when the assurance level is unknown', () => {
-    const r = satisfiesStepUp(event({ assuranceLevel: undefined }), { assuranceLevels: ['high'] }, now);
+    const r = satisfiesStepUp(
+      event({ assuranceLevel: undefined }),
+      { assuranceLevels: ['high'] },
+      now,
+    );
     expect(r.satisfied).toBe(false);
     expect(r.failure).toBe('assurance_unknown');
   });
@@ -80,7 +84,11 @@ describe('failing closed on every unknown', () => {
   });
 
   it('refuses an authentication older than the policy allows', () => {
-    const r = satisfiesStepUp(event({ authenticatedAt: minutesAgo(20) }), { maxAgeSeconds: 900 }, now);
+    const r = satisfiesStepUp(
+      event({ authenticatedAt: minutesAgo(20) }),
+      { maxAgeSeconds: 900 },
+      now,
+    );
     expect(r.satisfied).toBe(false);
     expect(r.failure).toBe('authentication_too_old');
     expect(r.detail).toMatch(/1200s ago/);
@@ -98,24 +106,29 @@ describe('failing closed on every unknown', () => {
 
 describe('accepting what genuinely satisfies the policy', () => {
   it('accepts a recent, strong authentication', () => {
-    expect(
-      satisfiesStepUp(event(), { maxAgeSeconds: 900, methods: ['mfa'] }, now).satisfied,
-    ).toBe(true);
+    expect(satisfiesStepUp(event(), { maxAgeSeconds: 900, methods: ['mfa'] }, now).satisfied).toBe(
+      true,
+    );
   });
 
   it('accepts exactly at the boundary', () => {
     // 900s ago against maxAgeSeconds 900. The comparison is `>`, so the boundary passes —
     // asserted rather than left to chance, because a policy that rejects at exactly its own
     // limit re-prompts a user who did what was asked.
-    const r = satisfiesStepUp(event({ authenticatedAt: minutesAgo(15) }), { maxAgeSeconds: 900 }, now);
+    const r = satisfiesStepUp(
+      event({ authenticatedAt: minutesAgo(15) }),
+      { maxAgeSeconds: 900 },
+      now,
+    );
     expect(r.satisfied).toBe(true);
   });
 
   it('applies no constraint that was not stated', () => {
     // An empty policy is not a trap door — it is what most actions have, and it must not
     // start refusing people because a field was left off.
-    expect(satisfiesStepUp(event({ authenticatedAt: undefined, methods: [] }), {}, now).satisfied)
-      .toBe(true);
+    expect(
+      satisfiesStepUp(event({ authenticatedAt: undefined, methods: [] }), {}, now).satisfied,
+    ).toBe(true);
   });
 
   it('treats an empty list of methods as no requirement, not an impossible one', () => {

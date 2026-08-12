@@ -2,13 +2,13 @@
 
 Four things have to happen on a schedule, and until they are scheduled they are habits:
 
-| Unit | Interval | What stops being true without it |
-|---|---|---|
-| `kf-checkpoint.timer` | hourly | The audit log is unsigned past the last run. A rewrite inside that window is undetectable. |
-| `kf-backup.timer` | daily 02:00 | Everything exists in one place. |
-| `kf-backup-offsite.service` | after each backup | The copy is beside the original; a lost host loses both. |
-| `kf-restore-drill.timer` | monthly | Nothing has proven the backups can be read. |
-| `kf-readiness.timer` | every 15 min | Nothing notices when any of the above stops running. |
+| Unit                        | Interval          | What stops being true without it                                                           |
+| --------------------------- | ----------------- | ------------------------------------------------------------------------------------------ |
+| `kf-checkpoint.timer`       | hourly            | The audit log is unsigned past the last run. A rewrite inside that window is undetectable. |
+| `kf-backup.timer`           | daily 02:00       | Everything exists in one place.                                                            |
+| `kf-backup-offsite.service` | after each backup | The copy is beside the original; a lost host loses both.                                   |
+| `kf-restore-drill.timer`    | monthly           | Nothing has proven the backups can be read.                                                |
+| `kf-readiness.timer`        | every 15 min      | Nothing notices when any of the above stops running.                                       |
 
 The last one is the one that makes the others real. A backup timer that silently stops is
 indistinguishable from a backup timer that is working, right up until the restore — unless
@@ -33,7 +33,7 @@ every account on the host.
 ## Declare the recovery objective first
 
 Every preservation check FAILS until this row exists, on purpose. A schedule cannot be called
-sufficient before somebody decides what it has to be sufficient *for*.
+sufficient before somebody decides what it has to be sufficient _for_.
 
 ```sql
 insert into ops.recovery_objective

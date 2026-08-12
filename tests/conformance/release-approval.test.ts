@@ -119,7 +119,13 @@ describe('an approval that does not', () => {
     const a = manifestFor(FILES);
     const b = manifestFor({ ...FILES, extra: Buffer.from('x') });
     const approval = approveRelease(a.bytes, APPROVER, KEY, GAPS);
-    const v = verifyRelease(b.bytes, b.manifest, reader({ ...FILES, extra: Buffer.from('x') }), approval, KEYS);
+    const v = verifyRelease(
+      b.bytes,
+      b.manifest,
+      reader({ ...FILES, extra: Buffer.from('x') }),
+      approval,
+      KEYS,
+    );
     expect(v.findings.map((f) => f.finding)).toContain('manifest_digest_mismatch');
   });
 
@@ -129,7 +135,10 @@ describe('an approval that does not', () => {
     for (const forged of [
       { ...approval, approver: { ...approval.approver, name: 'Someone Else' } },
       { ...approval, approver: { ...approval.approver, role: 'Administrator' } },
-      { ...approval, approver: { ...approval.approver, statement: 'Approved without conditions.' } },
+      {
+        ...approval,
+        approver: { ...approval.approver, statement: 'Approved without conditions.' },
+      },
     ] satisfies ReleaseApproval[]) {
       const v = verifyRelease(bytes, manifest, reader(FILES), forged, KEYS);
       expect(v.findings.map((f) => f.finding)).toContain('bad_signature');
@@ -159,7 +168,12 @@ describe('an approval that does not', () => {
   it('refuses a signature from the wrong key', () => {
     const other = generateKeyPairSync('ed25519');
     const { manifest, bytes } = manifestFor(FILES);
-    const approval = approveRelease(bytes, APPROVER, { id: 'release-1', privateKey: other.privateKey }, GAPS);
+    const approval = approveRelease(
+      bytes,
+      APPROVER,
+      { id: 'release-1', privateKey: other.privateKey },
+      GAPS,
+    );
     const v = verifyRelease(bytes, manifest, reader(FILES), approval, KEYS);
     expect(v.findings.map((f) => f.finding)).toEqual(['bad_signature']);
   });
@@ -169,7 +183,14 @@ describe('an approval that does not', () => {
     // is what a hand-edited or clock-skewed approval looks like.
     const { manifest, bytes } = manifestFor(FILES);
     const approval = approveRelease(bytes, APPROVER, KEY, GAPS, new Date('2027-01-01T00:00:00Z'));
-    const v = verifyRelease(bytes, manifest, reader(FILES), approval, KEYS, new Date('2026-08-11T00:00:00Z'));
+    const v = verifyRelease(
+      bytes,
+      manifest,
+      reader(FILES),
+      approval,
+      KEYS,
+      new Date('2026-08-11T00:00:00Z'),
+    );
     expect(v.findings.map((f) => f.finding)).toContain('approval_in_future');
   });
 });

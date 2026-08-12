@@ -106,7 +106,10 @@ export function approveRelease(
     signing_key_id: key.id,
     accepted_gaps: acceptedGaps,
   };
-  return { ...unsigned, signature: edSign(null, payload(unsigned), key.privateKey).toString('base64') };
+  return {
+    ...unsigned,
+    signature: edSign(null, payload(unsigned), key.privateKey).toString('base64'),
+  };
 }
 
 export type ReleaseFinding =

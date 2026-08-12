@@ -24,9 +24,9 @@ describe('config', () => {
     // that refuses to start.
     // The TLS posture is asserted so that THIS test fails for the reason it names. Without
     // it the config refuses earlier, and the test would pass while proving something else.
-    expect(() =>
-      loadConfig({ NODE_ENV: 'production', KF_TLS_TERMINATED_UPSTREAM: '1' }),
-    ).toThrow(/DATABASE_URL is required/);
+    expect(() => loadConfig({ NODE_ENV: 'production', KF_TLS_TERMINATED_UPSTREAM: '1' })).toThrow(
+      /DATABASE_URL is required/,
+    );
   });
 
   it('allows a missing DATABASE_URL in development and test', () => {

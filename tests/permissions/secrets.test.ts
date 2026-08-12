@@ -32,9 +32,13 @@ describe('files over environment variables', () => {
   it('prefers <NAME>_FILE', () => {
     const path = secretFile('prefer', VALUE);
     expect(
-      loadSecret('DATABASE_URL', { DATABASE_URL_FILE: path, DATABASE_URL: 'wrong' }, {
-        allowInline: true,
-      }),
+      loadSecret(
+        'DATABASE_URL',
+        { DATABASE_URL_FILE: path, DATABASE_URL: 'wrong' },
+        {
+          allowInline: true,
+        },
+      ),
     ).toBe(VALUE);
   });
 
@@ -104,7 +108,11 @@ describe('permissions', () => {
     // The checkpoint signing key is named by CHECKPOINT_SIGNING_KEY_PATH rather than by the
     // _FILE convention, and it is the one secret in the system whose disclosure lets somebody
     // forge the evidence that the records were never altered.
-    const path = secretFile('key.pem', '-----BEGIN PRIVATE KEY-----\nx\n-----END PRIVATE KEY-----', 0o644);
+    const path = secretFile(
+      'key.pem',
+      '-----BEGIN PRIVATE KEY-----\nx\n-----END PRIVATE KEY-----',
+      0o644,
+    );
     expect(() => readSecretFile(path, 'CHECKPOINT_SIGNING_KEY_PATH')).toThrow(SecretRejected);
   });
 });

@@ -142,8 +142,9 @@ describe('backup', () => {
     expect(Number(rows[0]?.byte_size)).toBeGreaterThan(0);
     // The recorded digest is the one `sha256sum -c SHA256SUMS` checks, so it covers every
     // file in the backup rather than only the dump.
-    const actual = execFileSync('sha256sum', [join(backupDir, 'SHA256SUMS')], { encoding: 'utf8' })
-      .split(' ')[0];
+    const actual = execFileSync('sha256sum', [join(backupDir, 'SHA256SUMS')], {
+      encoding: 'utf8',
+    }).split(' ')[0];
     expect(rows[0]?.manifest_digest).toBe(actual);
   }, 30_000);
 
