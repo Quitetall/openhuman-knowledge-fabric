@@ -12,7 +12,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -133,6 +133,30 @@ describe('refusing what it cannot do safely', () => {
     // Refused, not appended to. Editing a file this script did not create is the thing being
     // avoided, so the file must not have been created either.
     expect(existsSync(theirs)).toBe(false);
+  });
+});
+
+describe('no script may install a bare EXIT trap', () => {
+  it('is enforced by reading the scripts, because this bug has happened twice', () => {
+    // `trap ... EXIT` REPLACES the handler rather than adding to it, so a script that sets
+    // its own after sourcing secret.sh silently discards the one that removes the temporary
+    // password file — leaving a 0600 file containing a production credential in /tmp.
+    //
+    // It was written that way in restore-drill.sh, fixed, and then found again in
+    // restore-verify.sh. A rule that has to be remembered twice is one to check instead.
+    const dir = join(import.meta.dirname, '..', '..', 'scripts');
+    const offenders: string[] = [];
+    for (const name of readdirSync(dir).filter((f) => f.endsWith('.sh'))) {
+      const body = readFileSync(join(dir, name), 'utf8');
+      for (const [i, line] of body.split('\n').entries()) {
+        // A bare `trap` naming EXIT. kf_at_exit's own installation is the one exception, and
+        // it lives in lib/, which this loop does not read.
+        if (/^\s*trap\s+.*\bEXIT\b/.test(line)) {
+          offenders.push(`${name}:${i + 1}: ${line.trim()}`);
+        }
+      }
+    }
+    expect(offenders, 'use kf_at_exit instead — a bare trap replaces the cleanup that removes the password file').toEqual([]);
   });
 });
 

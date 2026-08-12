@@ -4,17 +4,68 @@
  *   check            validate the ontology, then report any drift in generated/
  *   build            regenerate generated/ from ontology/
  *   pack [version]   assemble a spec §5 release package under release/
+ *   approve <dir>    sign the package's manifest, making it normative under §5
+ *   verify <dir>     check every digest, and report whether the package is approved
  *
- * `check` never writes. It is what CI runs, and a check that repairs what it is inspecting
- * cannot report a failure.
+ * `check` and `verify` never write. They are what CI runs, and a check that repairs what it
+ * is inspecting cannot report a failure.
  */
 
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createPublicKey, createPrivateKey, type KeyObject } from 'node:crypto';
 import { join, resolve } from 'node:path';
 import { buildArtifacts, findDrift, writeArtifacts } from './build.js';
 import { buildReleasePack, packGaps } from './pack.js';
+import { approveRelease, verifyRelease, ApprovalRejected, type ReleaseApproval } from './approval.js';
 import { checkOntology, formatFindings } from './check.js';
 import { loadOntology, OntologyError } from './model.js';
+
+/** `--name value` from argv, or undefined. */
+function flag(name: string): string | undefined {
+  const i = process.argv.indexOf(`--${name}`);
+  return i < 0 ? undefined : process.argv[i + 1];
+}
+
+function required(name: string): string {
+  const v = flag(name);
+  if (v === undefined || v === '') throw new Error(`--${name} is required`);
+  return v;
+}
+
+interface LoadedPackage {
+  readonly dir: string;
+  readonly manifestBytes: Buffer;
+  readonly manifest: { known_gaps?: string[]; files: { path: string; sha256: string }[] };
+  readonly approval: ReleaseApproval | undefined;
+}
+
+function loadPackage(dir: string): LoadedPackage {
+  const manifestPath = join(dir, 'manifest.json');
+  if (!existsSync(manifestPath)) throw new Error(`${dir} has no manifest.json`);
+  // Read as BYTES and hashed as bytes. Parsing and re-serialising would compute a digest for
+  // a file nobody has, and the whole point is to attest to the one on disk.
+  const manifestBytes = readFileSync(manifestPath);
+  const approvalPath = join(dir, 'approval.json');
+  return {
+    dir,
+    manifestBytes,
+    manifest: JSON.parse(manifestBytes.toString('utf8')) as LoadedPackage['manifest'],
+    approval: existsSync(approvalPath)
+      ? (JSON.parse(readFileSync(approvalPath, 'utf8')) as ReleaseApproval)
+      : undefined,
+  };
+}
+
+/** Reads a package file, or undefined if it is not there. Injected so verify stays portable. */
+function fileReader(dir: string): (path: string) => Buffer | undefined {
+  return (path) => {
+    // Manifest paths are package-relative names the compiler wrote; a `..` in one would be a
+    // corrupted or hostile manifest, and reading outside the package is never intended.
+    if (path.includes('..') || path.startsWith('/')) return undefined;
+    const full = join(dir, path);
+    return existsSync(full) ? readFileSync(full) : undefined;
+  };
+}
 
 const ONTOLOGY_DIR = resolve(process.cwd(), 'ontology');
 const GENERATED_DIR = resolve(process.cwd(), 'generated');
@@ -53,6 +104,74 @@ function run(command: string): number {
     return 0;
   }
 
+  if (command === 'approve') {
+    const dir = resolve(process.cwd(), process.argv[3] ?? '');
+    const pkg = loadPackage(dir);
+
+    // Verified BEFORE signing. An approval over a package whose files no longer match its
+    // manifest would be a signature attesting to something that was already wrong, and it
+    // would verify forever.
+    const before = verifyRelease(pkg.manifestBytes, pkg.manifest, fileReader(dir), undefined, new Map());
+    if (before.status === 'invalid') {
+      console.error('refusing to approve: this package does not match its own manifest');
+      for (const f of before.findings) console.error(`  ${f.finding.padEnd(22)} ${f.detail}`);
+      return 1;
+    }
+    if (pkg.approval !== undefined) {
+      // Re-approving would overwrite the record of who approved it and when. A new decision
+      // is a new package version, which is what `pack` is for.
+      console.error(`refusing to approve: ${dir} already carries an approval`);
+      console.error('A second decision is a new release, not an overwrite of the first.');
+      return 1;
+    }
+
+    const approval = approveRelease(
+      pkg.manifestBytes,
+      { name: required('approver'), role: required('role'), statement: required('statement') },
+      {
+        id: flag('key-id') ?? 'release-1',
+        privateKey: createPrivateKey(readFileSync(required('key'), 'utf8')),
+      },
+      pkg.manifest.known_gaps ?? [],
+    );
+    writeFileSync(join(dir, 'approval.json'), `${JSON.stringify(approval, null, 2)}\n`);
+    console.error(`ontology: approved ${dir}`);
+    console.error(`  by       ${approval.approver.name} (${approval.approver.role})`);
+    console.error(`  at       ${approval.approved_at}`);
+    console.error(`  key      ${approval.signing_key_id}`);
+    console.error(`  accepted ${approval.accepted_gaps.length} known gap(s)`);
+    console.error('\nThe manifest is NOT rewritten: its digest is what was signed. A package');
+    console.error("is approved because a signature verifies, not because a file says 'approved'.");
+    return 0;
+  }
+
+  if (command === 'verify') {
+    const dir = resolve(process.cwd(), process.argv[3] ?? '');
+    const pkg = loadPackage(dir);
+    const keys = new Map<string, KeyObject>();
+    const pub = flag('key');
+    if (pub !== undefined) {
+      keys.set(flag('key-id') ?? pkg.approval?.signing_key_id ?? 'release-1',
+        createPublicKey(readFileSync(pub, 'utf8')));
+    }
+
+    const verdict = verifyRelease(pkg.manifestBytes, pkg.manifest, fileReader(dir), pkg.approval, keys);
+    console.error(`ontology: ${verdict.filesChecked} file(s) checked — ${verdict.status.toUpperCase()}`);
+    for (const f of verdict.findings) console.error(`  ${f.finding.padEnd(22)} ${f.detail}`);
+    if (verdict.status === 'draft') {
+      console.error('\nEvery file matches its manifest, and nothing has approved it.');
+      console.error('Not normative under spec §5 until it is.');
+    }
+    if (verdict.status === 'approved' && verdict.approval !== undefined) {
+      console.error(`\nApproved by ${verdict.approval.approver.name} ` +
+        `(${verdict.approval.approver.role}) at ${verdict.approval.approved_at}`);
+      console.error(`  "${verdict.approval.approver.statement}"`);
+    }
+    // Draft exits non-zero: a pipeline asking "is this normative" must not read silence as
+    // yes. It is not an error, and the message above says so.
+    return verdict.status === 'approved' ? 0 : 1;
+  }
+
   if (command === 'check') {
     const drift = findDrift(buildArtifacts(o), GENERATED_DIR);
     if (drift.length > 0) {
@@ -73,7 +192,7 @@ function run(command: string): number {
     return 0;
   }
 
-  console.error(`unknown command '${command}'. Expected: check | build | pack`);
+  console.error(`unknown command '${command}'. Expected: check | build | pack | approve | verify`);
   return 2;
 }
 
@@ -81,7 +200,11 @@ const command = process.argv[2] ?? 'check';
 try {
   process.exitCode = run(command);
 } catch (err: unknown) {
-  if (err instanceof OntologyError) {
+  if (err instanceof OntologyError || err instanceof ApprovalRejected) {
+    // Both are refusals with a message written for the person who typed the command. A stack
+    // trace here would bury the sentence that says what to do.
+    console.error(`ontology: ${err.message}`);
+  } else if (err instanceof Error && /^--\w+ is required$/.test(err.message)) {
     console.error(`ontology: ${err.message}`);
   } else {
     console.error('ontology: unexpected failure');

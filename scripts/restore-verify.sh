@@ -40,7 +40,11 @@ if [ -n "$LEDGER" ]; then
 fi
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+# Through the dispatcher, not a bare `trap`: sourcing secret.sh already registered the removal
+# of the temporary password file on EXIT, and `trap ... EXIT` REPLACES rather than adds. A bare
+# trap here left a 0600 file containing a production password in /tmp whenever this script was
+# run standalone.
+kf_at_exit 'rm -rf "$WORK"'
 
 echo "==> checking the backup before trusting it"
 ( cd "$BACKUP" && sha256sum -c SHA256SUMS --quiet )

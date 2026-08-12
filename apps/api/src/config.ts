@@ -27,8 +27,11 @@ export interface ApiConfig {
 }
 
 class ConfigError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions) {
+    // `cause` is carried so that an error re-thrown from another layer keeps the stack that
+    // says where it actually came from. Without it the trace points at the catch block, which
+    // is the least useful line in the file.
+    super(message, options);
     this.name = 'ConfigError';
   }
 }
@@ -85,7 +88,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   } catch (err: unknown) {
     // Re-thrown as ConfigError so that "loadConfig throws ConfigError" stays true. The message
     // is kept verbatim — it is the one that says which file and why.
-    throw new ConfigError(err instanceof Error ? err.message : String(err));
+    throw new ConfigError(err instanceof Error ? err.message : String(err), { cause: err });
   }
 
   // Outside development a missing database URL means the process would start, pass its
