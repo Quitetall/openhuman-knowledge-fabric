@@ -7,12 +7,21 @@
  * caller, and gets refused by the same rules.
  */
 
-export interface Caller {
+interface CallerContext {
   readonly actorId: string;
   readonly actingRoleId: string;
   readonly organizationId: string;
   readonly maxClassification: string;
 }
+
+export type Caller =
+  | (CallerContext & {
+      readonly authentication: 'development';
+    })
+  | (CallerContext & {
+      readonly authentication: 'oidc';
+      readonly bearerToken: string;
+    });
 
 export class ApiError extends Error {
   readonly status: number;
@@ -48,13 +57,15 @@ function baseUrl(): string {
 }
 
 function headers(caller: Caller): Record<string, string> {
-  return {
+  const context = {
     'content-type': 'application/json',
-    'x-kf-actor': caller.actorId,
     'x-kf-acting-role': caller.actingRoleId,
     'x-kf-organization': caller.organizationId,
     'x-kf-classification': caller.maxClassification,
   };
+  return caller.authentication === 'oidc'
+    ? { ...context, authorization: `Bearer ${caller.bearerToken}` }
+    : { ...context, 'x-kf-actor': caller.actorId };
 }
 
 async function parse(response: Response): Promise<unknown> {
@@ -207,3 +218,20 @@ export interface DocumentDetail extends DocumentSummary {
     readonly digest: string;
   }[];
 }
+
+export interface MetricView {
+  readonly id: string;
+  readonly name: string;
+  readonly value: string | number;
+  readonly unit: string | null;
+  readonly recordedAt: string;
+  readonly classification: string;
+  readonly provenance: string;
+}
+
+export type MetricPanel =
+  | { readonly status: 'available'; readonly metrics: readonly MetricView[] }
+  | {
+      readonly status: 'withheld' | 'unavailable' | 'unbound' | 'failed';
+      readonly metrics: readonly [];
+    };

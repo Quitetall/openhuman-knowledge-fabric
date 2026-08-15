@@ -1,4 +1,4 @@
-/** First dogfood seam: immutable bytes -> parsed atoms -> draft controlled document -> read. */
+/** Constitution dogfood: immutable bytes -> fragments -> composition -> draft document view. */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { InMemoryObjectStore, digestOf } from '@kf/artifacts';
@@ -100,6 +100,78 @@ describe('document constitution dogfood', () => {
         )
       ).id;
     });
+    const fragmentHolderId = '01950000-0000-7000-8000-00000000d001';
+    const fragmentRevisionId = '01950000-0000-7000-8000-00000000d002';
+    const fragment = await execute({
+      ...caller,
+      actionType: 'add_authored_fragment',
+      idempotencyKey: 'dogfood-fragment-0001',
+      payload: {
+        title: 'OpenHuman Document Constitution',
+        stable_key: 'openhuman.constitution.OH-DOC-TEST-001',
+        holder_id: fragmentHolderId,
+        holder: {
+          kind: 'fabric_native',
+          artifact_version_id: versionId,
+          content_digest: sha256,
+        },
+        revision_id: fragmentRevisionId,
+        media_type: 'text/markdown',
+        classification: 'internal',
+        document_policy: 'ordinary',
+      },
+    });
+
+    const manifestBytes = Buffer.from(
+      JSON.stringify([{ documentNumber: 'OH-DOC-TEST-001', revision: 'R01' }]),
+    );
+    const manifestSha256 = digestOf(manifestBytes);
+    const manifestKey = `document-imports/${manifestSha256}`;
+    await store.put(manifestKey, manifestBytes, 'application/json');
+    const manifestArtifact = await execute({
+      ...caller,
+      actionType: 'attach_evidence',
+      idempotencyKey: 'dogfood-manifest-0001',
+      payload: {
+        title: 'document-constitution.json',
+        artifact_kind: 'specification',
+        sha256: manifestSha256,
+        size_bytes: manifestBytes.length,
+        media_type: 'application/json',
+        storage_uri: manifestKey,
+      },
+    });
+    const manifestVersionId = await withTransaction(harness.pool, async (tx) => {
+      await setAccessContext(tx, {
+        organizationId: fixtures.organizationId,
+        maxClassification: 'restricted',
+      });
+      return (
+        await tx.one<{ id: string }>(
+          'select id from content.artifact_version where artifact_id = $1',
+          [manifestArtifact.objectIds[0]],
+        )
+      ).id;
+    });
+    const composition = await execute({
+      ...caller,
+      actionType: 'add_document_composition',
+      idempotencyKey: 'dogfood-composition-0001',
+      payload: {
+        title: 'OpenHuman Document Constitution',
+        stable_key: 'openhuman.document-constitution',
+        holder_id: '01950000-0000-7000-8000-00000000d003',
+        holder: {
+          kind: 'fabric_native',
+          artifact_version_id: manifestVersionId,
+          content_digest: manifestSha256,
+        },
+        revision_id: '01950000-0000-7000-8000-00000000d004',
+        classification: 'internal',
+        document_policy: 'ordinary',
+        inputs: [{ ordinal: 1, role: 'fragment', fragment_revision_id: fragmentRevisionId }],
+      },
+    });
     const added = await execute({
       ...caller,
       actionType: 'add_controlled_document',
@@ -114,19 +186,40 @@ describe('document constitution dogfood', () => {
       },
     });
 
-    const { detail, summaries, approvals } = await withTransaction(harness.pool, async (tx) => {
-      await setAccessContext(tx, {
-        organizationId: fixtures.organizationId,
-        maxClassification: 'restricted',
-      });
-      return {
-        detail: await getDocument(tx, added.objectIds[0]!),
-        summaries: await listDocuments(tx),
-        approvals: await tx.one<{ count: string }>(
-          'select count(*)::text as count from core.approval',
-        ),
-      };
-    });
+    const { detail, summaries, source, approvals, authorityActions } = await withTransaction(
+      harness.pool,
+      async (tx) => {
+        await setAccessContext(tx, {
+          organizationId: fixtures.organizationId,
+          maxClassification: 'restricted',
+        });
+        return {
+          detail: await getDocument(tx, added.objectIds[0]!),
+          summaries: await listDocuments(tx),
+          approvals: await tx.one<{ count: string }>(
+            'select count(*)::text as count from core.approval',
+          ),
+          authorityActions: await tx.one<{ count: string }>(
+            `select count(*)::text as count
+             from core.action
+            where action_type in ('approve_controlled_document', 'accept_decision')`,
+          ),
+          source: await tx.one<{
+            fragments: string;
+            compositions: string;
+            inputs: string;
+            holder_kinds: string[];
+          }>(
+            `select
+             (select count(*)::text from content.authored_fragment) as fragments,
+             (select count(*)::text from content.document_composition) as compositions,
+             (select count(*)::text from content.composition_input) as inputs,
+             (select array_agg(holder_kind order by holder_kind)
+                from content.document_source_holder) as holder_kinds`,
+          ),
+        };
+      },
+    );
 
     expect(summaries).toHaveLength(1);
     expect(detail).toMatchObject({
@@ -142,6 +235,15 @@ describe('document constitution dogfood', () => {
     ]);
     expect(detail?.atoms.every((atom) => /^[0-9a-f]{64}$/.test(atom.digest))).toBe(true);
     expect(Number(approvals.count)).toBe(0);
+    expect(Number(authorityActions.count)).toBe(0);
+    expect(source).toEqual({
+      fragments: '1',
+      compositions: '1',
+      inputs: '1',
+      holder_kinds: ['fabric_native', 'fabric_native'],
+    });
+    expect(fragment.objectIds).toHaveLength(1);
+    expect(composition.objectIds).toHaveLength(1);
 
     const unscoped = await withTransaction(harness.pool, async (tx) => ({
       parses: await tx.one<{ count: string }>(
