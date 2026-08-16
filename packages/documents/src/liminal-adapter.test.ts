@@ -6,7 +6,12 @@ import { join } from 'node:path';
 import { canonicalize, digestBytes } from '@kf/canonicalization';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CompilationRequest, CompilerResponse, LiminalCompilerIdentity } from './compiler.js';
-import { digestLiminalRuntimeClosure, PinnedLiminalProcessAdapter } from './liminal-adapter.js';
+import {
+  DEFAULT_PREFLIGHT_TIMEOUT_MS,
+  DEFAULT_TIMEOUT_MS,
+  digestLiminalRuntimeClosure,
+  PinnedLiminalProcessAdapter,
+} from './liminal-adapter.js';
 
 const roots: string[] = [];
 const TEST_BWRAP = process.env['KF_TEST_BWRAP_PATH'] ?? '/usr/bin/bwrap';
@@ -215,6 +220,25 @@ describe.skipIf(process.platform !== 'linux' || !existsSync(TEST_BWRAP))(
         allowScriptExecutableForTests: true,
       });
       await expect(changedLock.preflight()).rejects.toThrow(/Cargo.lock digest mismatch/);
+    });
+
+    it('bounds the host probe by the configured deadline and names it when it fires', async () => {
+      const files = await fixture(`process.exit(0)`);
+      const adapter = new PinnedLiminalProcessAdapter({
+        ...files,
+        allowScriptExecutableForTests: true,
+        // 1ms cannot survive a bubblewrap spawn, so the deadline is what fires — and it is
+        // the CONFIGURED deadline, which is the property under test. The old code had this
+        // bound welded at 5s with no way for a deployment to say otherwise.
+        preflightTimeoutMs: 1,
+      });
+      await expect(adapter.preflight()).rejects.toThrow(/preflight timed out after 1 ms/);
+
+      // The default is not the old 5s: it is high enough that a busy host does not fail a
+      // compile, and still below the compilation timeout so a stuck probe fails sooner than a
+      // stuck compile.
+      expect(DEFAULT_PREFLIGHT_TIMEOUT_MS).toBeGreaterThan(5_000);
+      expect(DEFAULT_PREFLIGHT_TIMEOUT_MS).toBeLessThan(DEFAULT_TIMEOUT_MS);
     });
 
     it('does not cache a failed preflight, so a transient host failure is not permanent', async () => {

@@ -19,6 +19,15 @@ export interface PinnedLiminalProcessOptions {
   readonly runtimeFilePaths: readonly string[];
   /** Hard upper bound after SIGKILL before the invocation rejects independently of pipe close. */
   readonly cleanupTimeoutMs?: number;
+  /**
+   * Deadline for the host sandbox probe: bubblewrap spawn, one line of protocol, exit.
+   *
+   * Separate from `timeoutMs`, which bounds an actual compilation. This one bounds a
+   * capability check that takes milliseconds on an idle host and was measured at 3.5-5.3s on
+   * a busy one — so the value is a statement about how loaded a host may be before the fabric
+   * refuses to compile, not about how long a document takes.
+   */
+  readonly preflightTimeoutMs?: number;
   /** Test fixtures only. Production execution requires a native Linux ELF binary. */
   readonly allowScriptExecutableForTests?: boolean;
   /** Test synchronization only; production callers have no reason to set this. */
@@ -33,6 +42,7 @@ export type LiminalHostPreflightOptions = Pick<
   | 'runtimeFilePaths'
   | 'pathEnvironment'
   | 'cleanupTimeoutMs'
+  | 'preflightTimeoutMs'
 > & {
   readonly executableDigest: string;
   readonly cargoLockDigest: string;

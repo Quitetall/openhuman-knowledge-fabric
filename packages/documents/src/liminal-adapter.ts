@@ -14,6 +14,9 @@ import type {
 } from './liminal-adapter/contracts.js';
 import { closeRuntimeFiles, openRuntimeFiles } from './liminal-adapter/runtime-files.js';
 export { digestLiminalRuntimeClosure } from './liminal-adapter/identity.js';
+// Exported so a deployment choosing `preflightTimeoutMs` or `timeoutMs` can see what it is
+// departing from, and so the relationship between the two is assertable rather than assumed.
+export { DEFAULT_PREFLIGHT_TIMEOUT_MS, DEFAULT_TIMEOUT_MS } from './liminal-adapter/limits.js';
 export type { LiminalHostPreflightOptions, PinnedLiminalProcessOptions };
 
 /**
@@ -38,7 +41,7 @@ export class PinnedLiminalProcessAdapter implements DocumentCompilerAdapter {
    *
    * A SUCCESSFUL probe is cached; a failed one is not. Caching the rejected promise made one
    * transient failure permanent for the life of the process: `performLiminalPreflight` spawns
-   * a real bubblewrap sandbox under a 5s deadline, and that deadline has been measured at
+   * a real bubblewrap sandbox under `preflightTimeoutMs`, and that probe has been measured at
    * 3.5–5.3s on a loaded host, so a single busy moment would leave this adapter refusing every
    * later compile with a stale error until something restarted it.
    *

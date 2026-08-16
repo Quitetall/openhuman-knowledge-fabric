@@ -6,6 +6,7 @@ import {
   DEFAULT_MAX_DIAGNOSTIC_BYTES,
   DEFAULT_MAX_INPUT_BYTES,
   DEFAULT_MAX_OUTPUT_BYTES,
+  DEFAULT_PREFLIGHT_TIMEOUT_MS,
   DEFAULT_TIMEOUT_MS,
   positiveLimit,
 } from './limits.js';
@@ -19,6 +20,7 @@ export interface LiminalProcessConfig {
   readonly maxOutputBytes: number;
   readonly maxDiagnosticBytes: number;
   readonly cleanupTimeoutMs: number;
+  readonly preflightTimeoutMs: number;
   readonly pathEnvironment: string;
   readonly bubblewrapPath: string;
   readonly runtimeFilePaths: readonly string[];
@@ -66,6 +68,11 @@ export function resolveLiminalProcessConfig(
       options.cleanupTimeoutMs,
       DEFAULT_CLEANUP_TIMEOUT_MS,
       'cleanupTimeoutMs',
+    ),
+    preflightTimeoutMs: positiveLimit(
+      options.preflightTimeoutMs,
+      DEFAULT_PREFLIGHT_TIMEOUT_MS,
+      'preflightTimeoutMs',
     ),
     pathEnvironment: options.pathEnvironment ?? '/usr/local/bin:/usr/bin:/bin',
     bubblewrapPath: options.bubblewrapPath,

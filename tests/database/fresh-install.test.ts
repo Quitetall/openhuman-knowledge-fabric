@@ -940,7 +940,10 @@ describe('a completely fresh database', () => {
     expect(offenders.map((row) => row.fn)).toEqual([]);
 
     // And the replacement still discriminates, rather than being a cast that always matches:
-    // true for a row written in this transaction, false for one that was not.
+    // true for a row written in this transaction, false for one that was not. The two probes
+    // are deliberately in SEPARATE transactions — that is the whole point. A catalogue row
+    // created by an earlier migration must not look like it was written by whichever
+    // transaction happens to be asking.
     const bornHere = await withTransaction(pool!, async (tx) => {
       await tx.query('create temporary table kf_xid_probe (id integer) on commit drop');
       await tx.query('insert into kf_xid_probe (id) values (1)');

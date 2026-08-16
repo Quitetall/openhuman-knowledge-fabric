@@ -3,12 +3,7 @@ import { constants as fsConstants } from 'node:fs';
 import { access, stat } from 'node:fs/promises';
 import type { Writable } from 'node:stream';
 import type { VerifiedExecutable, VerifiedRuntimeFile } from './contracts.js';
-import {
-  boundedMessage,
-  MAX_PREFLIGHT_RESPONSE_BYTES,
-  PREFLIGHT_RESPONSE,
-  PREFLIGHT_TIMEOUT_MS,
-} from './limits.js';
+import { boundedMessage, MAX_PREFLIGHT_RESPONSE_BYTES, PREFLIGHT_RESPONSE } from './limits.js';
 import { killProcessTree } from './process-control.js';
 import { sandboxArguments } from './sandbox.js';
 import { closeVerifiedExecutable, verifyLiminalExecutable } from './executable.js';
@@ -82,8 +77,14 @@ async function runPreflightProbe(
     };
     const timer = setTimeout(() => {
       killProcessTree(child);
-      finish(new Error('Liminal sandbox preflight timed out'));
-    }, PREFLIGHT_TIMEOUT_MS);
+      // Name the deadline. "Timed out" alone sent an operator looking for a broken sandbox
+      // when the real answer was that the host was busy and the bound was 5s.
+      finish(
+        new Error(
+          `Liminal sandbox preflight timed out after ${String(config.preflightTimeoutMs)} ms`,
+        ),
+      );
+    }, config.preflightTimeoutMs);
     if (compilerInput === null) {
       killProcessTree(child);
       finish(new Error('Liminal sandbox preflight did not expose verified-byte input'));
