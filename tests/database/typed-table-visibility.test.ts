@@ -149,6 +149,36 @@ describe('typed rows are visible exactly when their record is', () => {
     expect(Number(atFullClearance.n), 'the same row at the clearance it needs').toBe(1);
   });
 
+  it('resolves every view through the caller, not through the view owner', async () => {
+    // A PostgreSQL view without `security_invoker` reads its underlying tables with the
+    // OWNER's row-level security. Eleven of the twelve views here declare it; the twelfth,
+    // `engineering.verification_status`, did not — and it aggregates three tables that
+    // 20260816000300 had just placed under row-level security, and it is the view the
+    // application queries to decide whether a risk control is verified.
+    //
+    // Asserted as a property of every view rather than of that one, because the next view
+    // added is the one that will forget.
+    const views = await withTransaction(h.adminPool, async (tx) =>
+      tx.query<{ view: string }>(
+        `select namespace.nspname || '.' || class.relname as view
+           from pg_class class
+           join pg_namespace namespace on namespace.oid = class.relnamespace
+          where class.relkind = 'v'
+            and namespace.nspname not in ('pg_catalog', 'information_schema')
+            and not exists (
+              select 1 from unnest(coalesce(class.reloptions, '{}')) option
+               where option = 'security_invoker=true'
+            )
+          order by 1`,
+      ),
+    );
+    expect(
+      views.map((row) => row.view),
+      'these views resolve their tables as the view owner, so what they show depends on how ' +
+        'the database was provisioned rather than on who is asking',
+    ).toEqual([]);
+  });
+
   it('leaves the preservation role able to copy what it is granted', async () => {
     // kf_backup holds SELECT on every one of these tables and preservation is deliberately
     // cross-organization. Without its own policy the grant would survive while returning
