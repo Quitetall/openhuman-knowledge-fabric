@@ -1779,7 +1779,11 @@ describe('extended preservation coverage', () => {
             ],
           )
         ).map((row) => row.qualified_name);
-        const exportedTables = new Set(Object.values(PRESERVATION_IMPORT_TARGETS));
+        // `Set<string>`, not the literal union `PRESERVATION_IMPORT_TARGETS` infers. Both
+        // assertions below compare the declared inventory against names read out of
+        // `pg_class` at runtime, and a set narrowed to the union can only be asked about
+        // names that are already in it — which is the opposite of the question.
+        const exportedTables = new Set<string>(Object.values(PRESERVATION_IMPORT_TARGETS));
         const exclusions = Object.keys(PRESERVATION_TABLE_EXCLUSIONS);
         const isExcluded = (qualifiedName: string): boolean =>
           exclusions.some((excluded) =>

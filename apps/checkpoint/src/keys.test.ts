@@ -6,10 +6,15 @@ import { describe, expect, it } from 'vitest';
 import { loadVerificationKeyDirectory } from './keys.js';
 
 function publicPem(kind: 'ed25519' | 'rsa' = 'ed25519'): string {
-  return generateKeyPairSync(kind, kind === 'rsa' ? { modulusLength: 2048 } : {}).publicKey.export({
-    format: 'pem',
-    type: 'spki',
-  }) as string;
+  // Branched rather than parameterised. `generateKeyPairSync` is overloaded per algorithm,
+  // each with its own options type, so a union-typed first argument matches no overload —
+  // and the `{}` fallback was being offered to every non-RSA algorithm as though options
+  // were interchangeable between them.
+  const { publicKey } =
+    kind === 'rsa'
+      ? generateKeyPairSync('rsa', { modulusLength: 2048 })
+      : generateKeyPairSync('ed25519');
+  return publicKey.export({ format: 'pem', type: 'spki' }) as string;
 }
 
 describe('checkpoint public-key history', () => {

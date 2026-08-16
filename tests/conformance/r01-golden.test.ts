@@ -335,25 +335,43 @@ describe('the extended ontology preserves R01 exactly', () => {
     // PRESERVATION. An approved semantic may be extended around but never redefined: if a
     // field, pattern, bound or enum value changed under an R01 type, this is where a record
     // written years ago stops validating, and this is where that shows up instead.
-    const g = stripProvenance(golden('knowledge-fabric.vocabulary.json')) as Record<
-      string,
-      Record<string, Json>
-    >;
-    const b = stripProvenance(built('vocabulary/knowledge-fabric.vocabulary.json')) as Record<
-      string,
-      Record<string, Json>
-    >;
+    // Typed `Record<string, Json>` — one level, not two. The document is NOT uniformly a map
+    // of maps: `invariants` is a list, so the two-level annotation was false for that key,
+    // and it is the key the assertions at the bottom of this test read.
+    const g = stripProvenance(golden('knowledge-fabric.vocabulary.json')) as Record<string, Json>;
+    const b = stripProvenance(
+      built('vocabulary/knowledge-fabric.vocabulary.json'),
+    ) as Record<string, Json>;
+
+    // Each section is checked to BE a map before it is walked as one. A section that came
+    // back missing or the wrong shape would otherwise walk zero entries and pass — a
+    // preservation test that silently verifies nothing is the failure this file exists to
+    // prevent.
+    const sectionOf = (document: Record<string, Json>, name: string): Record<string, Json> => {
+      const value = document[name];
+      if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+        throw new Error(`vocabulary section ${name} is not an object`);
+      }
+      return value as Record<string, Json>;
+    };
 
     for (const section of ['node_types', 'edge_types', 'action_types'] as const) {
-      for (const [id, definition] of Object.entries(g[section]!)) {
-        expect(b[section]!, `${section}.${id} was removed`).toHaveProperty(id);
-        expect(diff(definition, b[section]![id]), `${section}.${id} was redefined`).toEqual([]);
+      const goldenSection = sectionOf(g, section);
+      const builtSection = sectionOf(b, section);
+      expect(Object.keys(goldenSection).length, `${section} is empty in the golden pack`)
+        .toBeGreaterThan(0);
+      for (const [id, definition] of Object.entries(goldenSection)) {
+        expect(builtSection, `${section}.${id} was removed`).toHaveProperty(id);
+        expect(diff(definition, builtSection[id]), `${section}.${id} was redefined`).toEqual([]);
       }
     }
     // The invariants are a list, not a map: all ten pinned entries remain byte-identical and
     // in order, while every extension invariant is named exhaustively above.
     const additions = new Set<string>(DECLARED_INVARIANT_ADDITIONS);
-    const currentInvariants = b['invariants'] as Json[];
+    const currentInvariants = b['invariants'];
+    if (!Array.isArray(currentInvariants)) {
+      throw new Error('the built vocabulary carries no invariants list');
+    }
     expect(
       diff(
         g['invariants'],

@@ -31,7 +31,7 @@
     "ontology:verify": "node packages/ontology-compiler/dist/cli.js verify",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --build && pnpm --filter @kf/web run typecheck"
+    "typecheck": "tsc --build && tsc -p tsconfig.test.json && pnpm --filter @kf/web run typecheck"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

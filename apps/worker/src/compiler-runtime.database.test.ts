@@ -569,7 +569,10 @@ describe('compiler runtime database boundary', () => {
           {
             ...validRun,
             id: randomUUID(),
-            basisId: unrecordedRequest.basisId,
+            // No `basisId` on the run: a `CompilationRun` does not carry one. `persist`
+            // reads `request.basisId` (postgres-repository.ts:76), so this property never
+            // reached the payload — it read as though the test were binding the run to a
+            // basis when the request argument was already doing exactly that.
             basisDigest: unrecordedRequest.basis.basisDigest,
             hirProvenance: [claim],
             runDigest: digest({ invalidBasisClaim: claim }),

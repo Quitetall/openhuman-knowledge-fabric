@@ -1078,11 +1078,20 @@ describe('proposal overlays', () => {
         operations: [],
       }),
     ).toThrow(/exactly one operation/);
+
+    // Narrowed, not spread blind. `ProposalAuthor` is a union, and only its `model` arm has
+    // a `provider` — overriding `provider` on a human author would add an inert key that
+    // never reaches the provenance comparison, so the assertion below would be asserting
+    // against a guard the input cannot trip. State the precondition and fail on it instead.
+    const author = proposal.proposedBy;
+    if (author.kind !== 'model') {
+      throw new Error('fixture must be a model proposal for the provider-mismatch assertion');
+    }
     expect(() =>
       createProposalOverlay({
         ...proposal,
         id: 'proposal-provider-mismatch',
-        proposedBy: { ...proposal.proposedBy, provider: 'another-provider' },
+        proposedBy: { ...author, provider: 'another-provider' },
       }),
     ).toThrow(/provider provenance/);
   });

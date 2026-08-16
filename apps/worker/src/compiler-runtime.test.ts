@@ -8,6 +8,7 @@ import {
   type LiminalCompilerIdentity,
 } from '@kf/documents';
 import { digestOf, InMemoryObjectStore } from '@kf/artifacts';
+import type { Tx } from '@kf/database';
 import { describe, expect, it, vi } from 'vitest';
 import {
   compilationOutboxHandler,
@@ -604,13 +605,21 @@ describe('document compiler runtime', () => {
         calls.push({ sql, params });
         return [];
       },
+      // Every method the real `Tx` declares is present, and the ones this handler must not
+      // reach throw rather than returning a plausible empty result. A fake that simply omits
+      // a method makes the handler's actual dependency surface unobservable: it would have
+      // to grow a call to a method the fake lacks before anything noticed, and by then the
+      // fake is silently a different contract from the one production code is given.
+      queryWithTextParsers: async () => {
+        throw new Error('not used');
+      },
       one: async () => {
         throw new Error('not used');
       },
       maybeOne: async () => {
         throw new Error('not used');
       },
-    };
+    } satisfies Tx;
 
     await compilationOutboxHandler(tx, { action_id: ACTION_ID, targets: [BASIS_ID] });
 

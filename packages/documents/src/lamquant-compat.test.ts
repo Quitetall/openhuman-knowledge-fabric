@@ -10,6 +10,7 @@ import {
   runLamQuantCompatibilityOracle,
   lamQuantExpectedManifestIdentity,
   type LamQuantCommandRequest,
+  type LamQuantCompatibilityFileSystem,
   type LamQuantCompatibilityOptions,
   type LamQuantManifestEntry,
 } from './lamquant-compat.js';
@@ -331,6 +332,36 @@ async function docsManifest(root: string) {
   );
 }
 
+/**
+ * A complete file system whose every method refuses, minus whatever the caller supplies.
+ *
+ * These precondition tests assert that the oracle rejects *before* it touches the file
+ * system, so the fake's job is to make any unexpected call loud. A partial object cast
+ * through `as never` did the opposite: it satisfied the compiler while leaving the methods
+ * genuinely absent, so a regression that started calling `listFiles` would fail on
+ * "not a function" — a message that says nothing about the precondition under test — and a
+ * method added to `LamQuantCompatibilityFileSystem` would never be noticed here at all.
+ */
+function refusingFileSystem(
+  overrides: Partial<LamQuantCompatibilityFileSystem> = {},
+): LamQuantCompatibilityFileSystem {
+  const refuse = (method: string) => (): never => {
+    throw new Error(`fileSystem.${method} must not be reached before the precondition fails`);
+  };
+  return {
+    kind: refuse('kind'),
+    makeScratchDirectory: refuse('makeScratchDirectory'),
+    makeDirectory: refuse('makeDirectory'),
+    copyDirectory: refuse('copyDirectory'),
+    copyFile: refuse('copyFile'),
+    listFiles: refuse('listFiles'),
+    readFile: refuse('readFile'),
+    readLink: refuse('readLink'),
+    removeTree: refuse('removeTree'),
+    ...overrides,
+  };
+}
+
 describe('LamQuant compatibility oracle preconditions', () => {
   it('rejects a moving git ref before touching the checkout', async () => {
     const run = vi.fn();
@@ -339,8 +370,8 @@ describe('LamQuant compatibility oracle preconditions', () => {
       runLamQuantCompatibilityOracle(
         pinnedOptions('/source/lamquant', 'main', [{ path: 'docs/MASTER.md', sha256: '0'.repeat(64) }]),
         {
-          commandRunner: { run } as never,
-          fileSystem: {} as never,
+          commandRunner: { run },
+          fileSystem: refusingFileSystem(),
         },
       ),
     ).rejects.toMatchObject({ reason: 'unpinned' });
@@ -355,8 +386,8 @@ describe('LamQuant compatibility oracle preconditions', () => {
       runLamQuantCompatibilityOracle(
         pinnedOptions('/source/lamquant', 'a'.repeat(40), [{ path: 'docs/MASTER.md', sha256: '0'.repeat(64) }]),
         {
-          commandRunner: { run } as never,
-          fileSystem: { kind } as never,
+          commandRunner: { run },
+          fileSystem: refusingFileSystem({ kind }),
         },
       ),
     ).rejects.toMatchObject({ reason: 'missing_input' });
@@ -377,7 +408,7 @@ describe('LamQuant compatibility oracle preconditions', () => {
         pinnedOptions('/source/lamquant', 'a'.repeat(40), [{ path: 'docs/MASTER.md', sha256: '0'.repeat(64) }]),
         {
           commandRunner: { run },
-          fileSystem: { kind: async () => 'directory' },
+          fileSystem: refusingFileSystem({ kind: async () => 'directory' }),
         },
       ),
     ).rejects.toMatchObject({ reason: 'unpinned' });
@@ -411,10 +442,10 @@ describe('LamQuant compatibility oracle preconditions', () => {
         pinnedOptions('/source/lamquant', 'a'.repeat(40), [{ path: 'docs/MASTER.md', sha256: '0'.repeat(64) }]),
         {
           commandRunner: { run },
-          fileSystem: {
+          fileSystem: refusingFileSystem({
             kind: async () => 'directory',
             makeScratchDirectory,
-          } as never,
+          }),
         },
       ),
     ).rejects.toMatchObject({ reason: 'dirty' });

@@ -89,9 +89,14 @@ function candidate(
     sourceDigest: extras.sourceDigest ?? SOURCE_DIGEST,
     updatedAt: extras.updatedAt ?? '2026-08-15T00:00:00.000Z',
     verified: extras.verified ?? true,
-    lexicalScore: extras.lexicalScore,
-    vectorScore: extras.vectorScore,
-    relationDepth: extras.relationDepth,
+    // The three optional scores are omitted when the caller omits them, rather than written
+    // as an explicit `undefined`. `AiContextCandidate` declares them `?: number`, and under
+    // `exactOptionalPropertyTypes` "absent" and "present and undefined" are different shapes;
+    // the fixture was producing the second while claiming to produce the first, which is not
+    // the shape a repository returns for a candidate that carries no lexical score.
+    ...(extras.lexicalScore === undefined ? {} : { lexicalScore: extras.lexicalScore }),
+    ...(extras.vectorScore === undefined ? {} : { vectorScore: extras.vectorScore }),
+    ...(extras.relationDepth === undefined ? {} : { relationDepth: extras.relationDepth }),
   };
 }
 
