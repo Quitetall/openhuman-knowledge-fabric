@@ -237,6 +237,14 @@ describe('document dogfood surface', () => {
       ),
     );
 
+    // `keys` has two entries, so Promise.all returns two — but `noUncheckedIndexedAccess`
+    // is right that destructuring cannot know it. Asserted rather than asserted-away with a
+    // `!`: if the map ever stops returning one response per key, this says so here instead of
+    // reading a property of undefined further down.
+    expect(left).toBeDefined();
+    expect(right).toBeDefined();
+    if (left === undefined || right === undefined) throw new Error('unreachable');
+
     expect([left.statusCode, right.statusCode].sort((a, b) => a - b)).toEqual([201, 409]);
     const conflict = left.statusCode === 409 ? left : right;
     expect(conflict.json()).toMatchObject({ error: 'duplicate_document' });

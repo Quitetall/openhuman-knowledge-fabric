@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SECURE_OBJECT_ACTION_TYPES, SecureObjectRejected } from '@kf/integration';
+import { SECURE_OBJECT_ACTION_TYPES, type SecureObjectRejected } from '@kf/integration';
 import { createSecureObjectRuntimeAtoms } from './runtime.js';
 
 describe('secure-object API runtime composition', () => {

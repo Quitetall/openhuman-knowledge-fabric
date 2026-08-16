@@ -1088,7 +1088,11 @@ describe('organization-scoped ML registry database', () => {
                select wait_event_type = 'Lock' and wait_event = 'advisory'
                  from pg_stat_activity where pid = $1
              ), false) as waiting`,
-            [promoter.processID],
+            // `processID` is the backend PID pg attaches to a client at connect time. It is
+            // real and load-bearing here — the promoter is BLOCKED on the advisory lock, so
+            // its PID cannot be asked for from inside that connection — but it is absent from
+            // pg's published types, so the read is narrowed here rather than left implicit.
+            [(promoter as unknown as { readonly processID: number }).processID],
           ),
         );
         waitingOnAuthorityLock = waitState.waiting;

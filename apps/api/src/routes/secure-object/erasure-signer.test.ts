@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  SecureObjectRejected,
   externalAuthorityRef,
+  type SecureObjectRejected,
   type SignedErasureTombstonePayload,
 } from '@kf/integration';
 import { HttpErasureAuthoritySigner } from './erasure-signer.js';

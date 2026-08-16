@@ -6,8 +6,9 @@ import {
   createTransactionalPreflight,
   type ActionRequest,
   type ActionResult,
+  type ObjectRow,
 } from '@kf/actions';
-import type { Pool } from '@kf/database';
+import type { Pool, Tx } from '@kf/database';
 import { createDocumentActionAtoms } from '@kf/documents';
 import type { IdentifyCaller } from './actions.js';
 import { registerDocumentRoutes } from './documents.js';
@@ -273,7 +274,10 @@ describe('POST /documents fabric-native source', () => {
     });
     const store = new InMemoryObjectStore();
     const putIfAbsent = vi.spyOn(store, 'putIfAbsent');
-    const preflightInTransaction = vi.fn(async () => undefined);
+    const preflightInTransaction = vi.fn(
+      async (_tx: Tx, _request: ActionRequest, _objects: readonly ObjectRow[] = []) =>
+        undefined,
+    );
     const app = Fastify({ logger: false });
     await registerDocumentRoutes(app, {
       pool: db.pool,
@@ -398,7 +402,10 @@ describe('POST /documents fabric-native source', () => {
       }
       return actionResult('33333333-3333-7333-8333-333333333333', [DOCUMENT_ID], true);
     });
-    const preflightInTransaction = vi.fn(async () => undefined);
+    const preflightInTransaction = vi.fn(
+      async (_tx: Tx, _request: ActionRequest, _objects: readonly ObjectRow[] = []) =>
+        undefined,
+    );
     const app = Fastify({ logger: false });
     await registerDocumentRoutes(app, {
       pool: db.pool,
@@ -477,7 +484,10 @@ describe('POST /documents fabric-native source', () => {
         ? actionResult('11111111-1111-7111-8111-111111111111', [ARTIFACT_ID], true)
         : actionResult('33333333-3333-7333-8333-333333333333', [DOCUMENT_ID], true);
     });
-    const preflightInTransaction = vi.fn(async () => undefined);
+    const preflightInTransaction = vi.fn(
+      async (_tx: Tx, _request: ActionRequest, _objects: readonly ObjectRow[] = []) =>
+        undefined,
+    );
     const app = Fastify({ logger: false });
     await registerDocumentRoutes(app, {
       pool: db.pool,
