@@ -100,7 +100,11 @@ afterAll(async () => {
 
 async function withAction<T>(
   fixtures: Fixtures,
-  intent: SecureObjectActionIntent,
+  // Deliberately wider than SecureObjectActionIntent: several tests below commit a REAL but
+  // wrong action type (`attach_evidence`) to prove the database refuses a secure-object write
+  // that is not carried by its own action. The production type is correctly narrow and cannot
+  // express that, so the widening lives here rather than as a cast at each call site.
+  intent: Omit<SecureObjectActionIntent, 'actionType'> & { readonly actionType: string },
   operation: (tx: Tx) => Promise<T>,
   options: {
     readonly actorId?: string;

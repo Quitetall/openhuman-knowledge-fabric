@@ -92,6 +92,7 @@ export {
   type SecureObjectFailure,
   type SecureObjectActionAtoms,
   type SecureObjectActionIntent,
+  type SecureObjectActionType,
   type SecureObjectAuthoritySigner,
   type SecureObjectSigningRequest,
   type SignedErasureTombstonePayload,

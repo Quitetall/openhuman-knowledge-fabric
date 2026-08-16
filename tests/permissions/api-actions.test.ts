@@ -57,6 +57,10 @@ beforeAll(async () => {
       logLevel: 'silent',
       databaseUrl: appUri.toString(),
       environment: 'test',
+      // The profile decides whether a fixed non-authoritative identity is permitted at all.
+      // It became a required field and these call sites were never updated, so the harness
+      // was building a config with that decision simply absent.
+      deploymentProfile: 'development',
       tlsTerminatedUpstream: false,
       identity: undefined,
     },
@@ -417,13 +421,18 @@ describe('identity', () => {
 
   it('refuses actions entirely when no identity provider is configured', async () => {
     // The production shape. Built from the same factory, so this is the real behaviour and
-    // not a description of it.
+    // not a description of it — which is why the three fields it was missing matter. It
+    // claimed to be production while omitting the deployment profile, the TLS assertion and
+    // the identity slot, so it was testing a shape no deployment can have.
     const prod = await buildApp({
       host: '127.0.0.1',
       port: 0,
       logLevel: 'silent',
       databaseUrl: new URL(h.connectionString).toString(),
       environment: 'production',
+      deploymentProfile: 'dogfood',
+      tlsTerminatedUpstream: true,
+      identity: undefined,
     });
     await prod.ready();
     try {
