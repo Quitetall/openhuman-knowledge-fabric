@@ -419,6 +419,43 @@ describe('identity', () => {
     expect(r.json()).toMatchObject({ error: 'caller_unidentified' });
   });
 
+  it('never trusts a header caller under the dogfood profile', async () => {
+    // The regression this locks: `trustHeaders` was derived from NODE_ENV rather than from
+    // the deployment profile, so a dogfood app built with environment 'test' ACCEPTED a
+    // header-supplied caller and let it reach the dispatcher. config.ts states the rule —
+    // "the development profile is the only place header-supplied identity can exist" — and
+    // app.ts is the point of use that has to implement it.
+    //
+    // loadConfig would not have produced this combination (dogfood requires an identity
+    // provider), but buildApp accepts any ApiConfig, which made the guarantee depend on which
+    // constructor a caller happened to use rather than on the profile.
+    const dogfood = await buildApp({
+      host: '127.0.0.1',
+      port: 0,
+      logLevel: 'silent',
+      databaseUrl: new URL(h.connectionString).toString(),
+      environment: 'test',
+      deploymentProfile: 'dogfood',
+      tlsTerminatedUpstream: false,
+      identity: undefined,
+    });
+    await dogfood.ready();
+    try {
+      const r = await dogfood.inject({
+        method: 'POST',
+        url: '/actions/create_initiative',
+        headers: asCaller(f.reviewerId, f.reviewerRoleId),
+        payload: { idempotencyKey: 'dogfood-header-refusal', targetIds: [] },
+      });
+      // 503, not 401: the deployment is misconfigured, not the caller unauthenticated. A 401
+      // would invite the caller to retry with credentials that could never work here.
+      expect(r.statusCode).toBe(503);
+      expect(r.json()).toMatchObject({ error: 'no_identity_provider' });
+    } finally {
+      await dogfood.close();
+    }
+  });
+
   it('refuses actions entirely when no identity provider is configured', async () => {
     // The production shape. Built from the same factory, so this is the real behaviour and
     // not a description of it — which is why the three fields it was missing matter. It
