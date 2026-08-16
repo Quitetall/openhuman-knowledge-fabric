@@ -1,13 +1,15 @@
 # Row-level security stops at `core.object`; 77 typed tables carry none
 
-**Status:** raised — requires technical-authority decision
-**Date:** 2026-08-16
+**Status:** accepted — option 1, staged. Stage one landed 2026-08-16 in
+`20260816000300_typed_table_row_security.sql`
+**Date raised:** 2026-08-16
+**Date decided:** 2026-08-16
 **Decision owner:** technical authority
 **Scope:** read visibility of typed domain tables for roles that connect to PostgreSQL
 directly (`kf_readonly`, `kf_auditor`) and for any application query that reads a typed table
 without joining `core.object`
-**Does not:** change any behaviour. This record raises a measured gap and states the options;
-it decides nothing.
+**Decision:** option 1, staged by domain. Stage one is `quality`, `engineering`, `org` and
+`finance` — 29 tables, 95 policies. See "Decision and stage one" at the foot of this record.
 
 ---
 
@@ -108,3 +110,58 @@ sweep. Option 3 is defensible only with the test, and the test is most of the wo
 
 Whichever is chosen, the choice belongs to the technical authority: this is the fabric's access
 architecture, not a local defect, and it predates the document-compiler and secure-object work.
+
+## Decision and stage one
+
+Option 1, staged. Stage one landed in `20260816000300_typed_table_row_security.sql`: 29 tables
+across `quality`, `engineering`, `org` and `finance`, 95 policies, taking the count of readable
+tables with no row-level security from **77 to 47**.
+
+The predicate is `exists (select 1 from core.object …)` rather than a copy of the two axes, so
+the organization and classification rules are inherited from the envelope rather than restated
+in 29 places that could drift. Child tables (invoice lines, payment allocations, training
+records, join tables) are visible when EVERY parent is — the rule `core.relation` already
+applies to its two endpoints, because otherwise a join table leaks the existence of records the
+reader may not see.
+
+Enabled, **not forced**, unlike `core.object`. The owner is a maintenance path here:
+`search.index_object` and `search.text_for` are SECURITY DEFINER and read every one of these
+tables to assemble a record's searchable text, and an indexer restricted to rows it can itself
+see would build the subset index that `text_for`'s own comment rejects. Each table also carries
+the `to kf_backup using (true)` select policy the secure-object ledger uses, because every one
+of them already grants kf_backup SELECT and a policy-less grant would return nothing — a backup
+that looks complete and is not.
+
+### Read-path cost
+
+The planner turns the envelope-keyed policy into a **hashed subplan**: one scan of `core.object`,
+hashed, then a hash probe per row — not a correlated subquery per row. Child policies keep one
+hashed side and one correlated `EXISTS` against a primary key. Full-suite wall clock moved from
+49.9s to 51.4s, which is inside the run-to-run spread.
+
+That is a plan-shape observation, not a throughput measurement: these tables hold single-digit
+row counts in every environment available here. **Before stage two, the cost question deserves a
+populated database.** The plan shape is the part that predicts whether it scales, and it is the
+right one.
+
+### Two things stage one deliberately did not do
+
+**`org.external_identity` is excluded.** It maps issuer+subject to a person and is read by
+`resolveIn` BEFORE the caller's organization claim has been verified — `resolveCaller` binds the
+access context FROM the claim and then proves it. Scoping the table by that context answers an
+authentication question with a scope answer: a valid token naming the wrong organization stopped
+reporting `role_not_held` and started reporting `unknown_subject`, and a person whose own record
+sits above the classification ceiling they requested could not sign in at all. Both were observed
+when it was included, and both are worse than the exposure they close. It needs a scope that does
+not come from the caller's own claim, or a narrower grant. Open.
+
+**`org.role`, `quality.federated_source` and `registry.*` are excluded on purpose.** They carry no
+organization anchor — they are vocabulary. `registry.*` additionally cannot take a policy at all:
+`core.object`'s own policies read `registry.classification` to rank a row, and a policy that
+depends on a table whose policy depends on it is not a boundary.
+
+### Stage two
+
+`core.action`, `core.approval`, `core.snapshot`, `core.outbox`, `ops.*`, `product.*`, `work.*`,
+`content.*` — 47 tables. `core.action` is the interesting one: it carries every action's
+parameters, which is where substance ends up for anything that has not reached a typed row yet.
