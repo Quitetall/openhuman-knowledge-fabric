@@ -10,9 +10,16 @@
 -- It mattered less when the tables it reads had no policies of their own. It matters now:
 -- `20260816000300_typed_table_row_security.sql` put `engineering.test_execution`,
 -- `engineering.verification_link` and `engineering.test_definition` under row-level security,
--- and this view aggregates all three. It is also the view the application actually queries —
--- `packages/product-quality/src/internal/readers.ts` reads it to decide whether a risk control
--- is verified.
+-- and this view aggregates all three.
+--
+-- Its one production consumer is `verificationOf` in
+-- `packages/agent-tools/src/internal/deep-read-tools.ts` — the AI-facing read surface. That
+-- caller does two things right: it wraps the read in `scoped()`, binding the access context,
+-- and it refuses outright if the subject itself is not visible in `core.object`. So the
+-- exposure was bounded to subjects the caller could already see. What leaked through it was
+-- the AGGREGATE: passed, failed, invalidated and unexecuted counts computed over every
+-- execution the view OWNER could see, for a subject the caller could see. An agent asking a
+-- legitimate question could be told a number that counts evidence it is not cleared for.
 --
 -- The view does join `core.object`, which FORCES row-level security, so in a deployment whose
 -- owner is not a superuser the result is scoped anyway. That is the problem rather than the
