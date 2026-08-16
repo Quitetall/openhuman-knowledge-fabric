@@ -343,11 +343,74 @@ Before any shared user is admitted:
 9. Reboot host and re-run checks. Service that works only in install shell is not
    deployed.
 
+## Commissioning: run it, do not read it
+
+Everything below used to be a prose list of things nobody had done — a checklist a reader can
+agree with and move past. It is now a program.
+
+```sh
+KF_SYSTEMD_DIR=/etc/systemd/system \
+KF_SHIPPED_UNIT_DIR=/opt/kf/deploy/systemd \
+KF_PUBLIC_HOSTNAME=fabric.example.org \
+KF_TLS_CERTIFICATE=/etc/ssl/kf/fullchain.pem \
+KF_TLS_PRIVATE_KEY=/etc/ssl/kf/privkey.pem \
+KF_IDENTITY_ISSUER=https://sso.example.org/realms/kf \
+KF_IDENTITY_CLIENT_ID=knowledge-fabric \
+KF_IDENTITY_POLICY=/etc/kf/realm-policy.json \
+KF_IDENTITY_POLICY_SHA256=<digest recorded at review> \
+KF_EVIDENCE_DIR=/var/lib/kf/commissioning \
+KF_RELEASE_ID=<release this host is running> \
+KF_EXPECTED_NODE_VERSION=24.18.1 \
+  kf-commissioning            # add --json for an evidence record
+```
+
+Exit status is 0 only when every check is **satisfied**. There are three states, and the third
+is the point:
+
+| state | meaning |
+|---|---|
+| `satisfied` | the check looked at real host state and it was as required |
+| `unsatisfied` | the check looked at real host state and it was not |
+| `unverifiable` | the check could not see what it needs — an absent path, an unsupplied value |
+
+`unverifiable` fails exactly as `unsatisfied` does. It is a separate word only so that "we
+looked and it was wrong" is never confused with "we could not look". A verifier that reported a
+missing certificate as compliant would be worse than no verifier, because somebody would cite
+it.
+
+What each check reads, and the blocker it closes:
+
+| check | reads | blocker |
+|---|---|---|
+| `unit_provenance` | installed units against the ones this release ships, byte for byte; `User=` on the API and checkpoint units; `OnFailure=` on each | units installed, identities separated, alerting wired |
+| `secret_posture` | every path a shipped unit names as `EnvironmentFile=` or `*_FILE=`/`*_KEY_PATH=`: exists, regular file, no group or other bits | checkpoint key isolation from the API |
+| `tls_termination` | the certificate for the public hostname — SAN coverage, validity window, renewal margin — and the private key's mode | site hostname, certificate, TLS termination |
+| `identity_provider_policy` | issuer is https, client is named, and the reviewed realm policy on disk still digests to what was reviewed | reviewed reproducible Keycloak realm/client policy |
+| `runtime_version` | the Node version this process runs, against the tested one | host uses the exact tested runtime |
+| `evidence_receipts` | release verification, rollback rehearsal and compiler qualification receipts: present, naming this release, ratified, recent enough | rollback receipt, migration result, ratified compiler qualification |
+
+`unit_provenance` and `secret_posture` consider only the unit names this release ships.
+Everything else installed on the host is somebody else's contract, and an earlier version that
+read the whole of `/etc/systemd/system` reported that `display-manager.service` declares no
+`OnFailure=` — true, irrelevant, and enough to fail a correctly commissioned host.
+
+### What it deliberately cannot tell you
+
+Three things stay human evidence, and the verifier reports `unverifiable` rather than guessing:
+
+- **real-provider browser evidence.** `identity_provider_policy` proves the deployment points
+  at the reviewed policy; it cannot prove a person can sign in or that the flow behaves.
+- **firewall rules and installed nginx validation.** The certificate check proves the name is
+  covered; it does not prove what can reach the port.
+- **service start, restart and reboot behaviour.** `unit_provenance` proves the right units are
+  installed; whether the host survives a reboot is observed, not inferred.
+
 ## Known blockers; no readiness claim
 
-Repository now supplies application/migrator units, environment templates, TLS proxy template,
-release verifier, migration runner and rollback-rehearsal contract. None has been commissioned.
-Remaining blockers:
+Repository supplies application/migrator units, environment templates, TLS proxy template,
+release verifier, migration runner, rollback-rehearsal contract, and the commissioning verifier
+above. None has been commissioned on a host. Remaining blockers — each now with a check that
+reports on it rather than a paragraph describing it:
 
 - no reviewed reproducible Keycloak realm/client policy or real-provider browser evidence;
 - no site hostnames, certificates, firewall rules or installed nginx validation;

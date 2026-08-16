@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Operational readiness checks, fail-closed",
+  "description": "Operational readiness and host commissioning checks, fail-closed",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -24,6 +24,7 @@
     "@types/node": "^24.13.3"
   },
   "bin": {
-    "kf-readiness": "./dist/cli.js"
+    "kf-readiness": "./dist/cli.js",
+    "kf-commissioning": "./dist/commissioning-cli.js"
   }
 }
