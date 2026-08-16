@@ -109,8 +109,6 @@ describe('planted violations — the kernel must refuse', () => {
         idempotencyKey: key(),
         organizationId: f.organizationId,
         maxClassification: 'restricted',
-        organizationId: f.organizationId,
-        maxClassification: 'restricted',
       }),
     );
     expect(err.failure).toBe('unknown_action');
@@ -128,8 +126,6 @@ describe('planted violations — the kernel must refuse', () => {
         idempotencyKey: key(),
         organizationId: f.organizationId,
         maxClassification: 'restricted',
-        organizationId: f.organizationId,
-        maxClassification: 'restricted',
       }),
     );
     expect(err.failure).toBe('role_not_held');
@@ -143,8 +139,6 @@ describe('planted violations — the kernel must refuse', () => {
         actingRoleId: f.reviewerRoleId,
         targetIds: ['01930000-0000-7000-8000-0000deadbeef'],
         idempotencyKey: key(),
-        organizationId: f.organizationId,
-        maxClassification: 'restricted',
         organizationId: f.organizationId,
         maxClassification: 'restricted',
       }),
@@ -170,8 +164,6 @@ describe('planted violations — the kernel must refuse', () => {
         idempotencyKey: key(),
         organizationId: f.organizationId,
         maxClassification: 'restricted',
-        organizationId: f.organizationId,
-        maxClassification: 'restricted',
       }),
     );
     expect(err.failure).toBe('illegal_transition');
@@ -187,8 +179,6 @@ describe('planted violations — the kernel must refuse', () => {
         actingRoleId: f.reviewerRoleId,
         targetIds: [id],
         idempotencyKey: key(),
-        organizationId: f.organizationId,
-        maxClassification: 'restricted',
         organizationId: f.organizationId,
         maxClassification: 'restricted',
         expectedVersion: 99,
@@ -214,8 +204,6 @@ describe('planted violations — the kernel must refuse', () => {
         idempotencyKey: key(),
         organizationId: f.organizationId,
         maxClassification: 'restricted',
-        organizationId: f.organizationId,
-        maxClassification: 'restricted',
       }),
     );
     expect(err.failure).toBe('separation_of_duty');
@@ -236,8 +224,6 @@ describe('planted violations — the kernel must refuse', () => {
         actingRoleId: f.reviewerRoleId,
         targetIds: [id],
         idempotencyKey: key(),
-        organizationId: f.organizationId,
-        maxClassification: 'restricted',
         organizationId: f.organizationId,
         maxClassification: 'restricted',
         payload: { to_state: 'blocked' },
@@ -263,8 +249,6 @@ describe('planted violations — the kernel must refuse', () => {
         actingRoleId: f.reviewerRoleId,
         targetIds: [id],
         idempotencyKey: key(),
-        organizationId: f.organizationId,
-        maxClassification: 'restricted',
         organizationId: f.organizationId,
         maxClassification: 'restricted',
         reason: 'blocked on a supplier',
@@ -426,8 +410,6 @@ describe('the audit chain', () => {
         actingRoleId: f.reviewerRoleId,
         targetIds: [id],
         idempotencyKey: key(),
-        organizationId: f.organizationId,
-        maxClassification: 'restricted',
         organizationId: f.organizationId,
         maxClassification: 'restricted',
       });

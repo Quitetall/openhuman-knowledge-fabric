@@ -88,11 +88,26 @@ describe('deep readiness', () => {
     // interesting. A fresh harness has never signed a checkpoint, so it is NOT ready.
     const res = await app.inject({ method: 'GET', url: '/readiness' });
     expect(res.statusCode).toBe(503);
-    const body = res.json() as { ready: boolean; checks: { id: string; detail: string }[] };
-    expect(body.ready).toBe(false);
+
+    type Partition = { ready: boolean; checks: { id: string; detail: string }[] };
+    const body = res.json() as Partition & { service: Partition; institutional: Partition };
+
+    // Readiness reports two partitions. The distinction is real — software that cannot do its
+    // job is a different problem from software that works and lacks an approval, and
+    // conflating them left every un-commissioned deployment permanently red.
+    //
+    // This endpoint still answers on the UNION, because that is the question in its name. A
+    // fresh harness has never signed a checkpoint, so the institutional partition is not
+    // ready. Asserting the compatibility `body.ready` instead would pass against a build that
+    // had stopped reporting institutional blockers altogether: it aliases service readiness.
+    expect(body.institutional.ready).toBe(false);
+    expect(body.institutional.checks.map((c) => c.id)).toContain('checkpoint_coverage');
+    expect(body.service.checks.map((c) => c.id)).toContain('audit_chain');
+
     // And it says what each finding means, rather than only that it is red.
-    for (const c of body.checks) expect(c.detail.length).toBeGreaterThanOrEqual(20);
-    expect(body.checks.map((c) => c.id)).toContain('audit_chain');
+    for (const c of [...body.service.checks, ...body.institutional.checks]) {
+      expect(c.detail.length).toBeGreaterThanOrEqual(20);
+    }
   });
 });
 
@@ -138,7 +153,10 @@ describe('document dogfood surface', () => {
       documentNumber: 'OH-DOC-TEST-HTTP-001',
       lifecycleState: 'draft',
       parser: 'pandoc',
-      atomCount: 2,
+      // Renamed from atomCount: these are parsed blocks, a disposable projection, not the
+      // authoring atoms of ADR 0002. packages/documents/src/readers.test.ts asserts the old
+      // names are gone.
+      parsedBlockCount: 2,
     });
   });
 

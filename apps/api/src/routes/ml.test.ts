@@ -254,6 +254,21 @@ function caller(): IdentifyCaller {
   }));
 }
 
+/**
+ * The write path a read-route test must never take.
+ *
+ * `registerMlRoutes` requires an `executeInTransaction`, and every GET-route test below was
+ * constructed without one — invisible for as long as test files were outside `tsc`, because
+ * nothing on a read path ever calls it.
+ *
+ * It THROWS rather than returning a plausible result. If a route that only reads ever starts
+ * dispatching an action, that is a change to the authority surface and it should fail loudly
+ * here, not be absorbed by a stub that quietly answered.
+ */
+const refuseWrites = async (_tx: Tx, _request: ActionRequest): Promise<ActionResult> => {
+  throw new Error('a read-only ML route dispatched an action');
+};
+
 function actionExecutor(options: { replayed?: boolean; error?: unknown } = {}) {
   return vi.fn(async (_tx: Tx, _request: ActionRequest): Promise<ActionResult> => {
     if (options.error !== undefined) throw options.error;
@@ -292,7 +307,11 @@ describe('GET /ml/governed-aliases/:aliasId', () => {
   it('returns complete canonical receipt and current trusted verification key under RLS', async () => {
     const db = databaseBoundary(governedAliasRows);
     const app = Fastify({ logger: false });
-    await registerMlRoutes(app, { pool: db.pool, identify: caller() });
+    await registerMlRoutes(app, {
+      pool: db.pool,
+      identify: caller(),
+      executeInTransaction: refuseWrites,
+    });
 
     const response = await app.inject({ method: 'GET', url: governedAliasUrl() });
 
@@ -414,7 +433,11 @@ describe('GET /ml/governed-aliases/:aliasId', () => {
       sql.includes('/* ml.governed-alias */') ? [] : governedAliasRows(sql),
     );
     const app = Fastify({ logger: false });
-    await registerMlRoutes(app, { pool: db.pool, identify: caller() });
+    await registerMlRoutes(app, {
+      pool: db.pool,
+      identify: caller(),
+      executeInTransaction: refuseWrites,
+    });
 
     const response = await app.inject({ method: 'GET', url: governedAliasUrl() });
 
@@ -479,7 +502,11 @@ describe('GET /ml/governed-aliases/:aliasId', () => {
       sql.includes('/* ml.governed-alias-key */') ? keyRows(sql) : governedAliasRows(sql),
     );
     const app = Fastify({ logger: false });
-    await registerMlRoutes(app, { pool: db.pool, identify: caller() });
+    await registerMlRoutes(app, {
+      pool: db.pool,
+      identify: caller(),
+      executeInTransaction: refuseWrites,
+    });
 
     const response = await app.inject({ method: 'GET', url: governedAliasUrl() });
 
@@ -505,7 +532,11 @@ describe('GET /ml/governed-aliases/:aliasId', () => {
           : governedAliasRows(sql),
       );
       const app = Fastify({ logger: false });
-      await registerMlRoutes(app, { pool: db.pool, identify: caller() });
+      await registerMlRoutes(app, {
+      pool: db.pool,
+      identify: caller(),
+      executeInTransaction: refuseWrites,
+    });
 
       const response = await app.inject({ method: 'GET', url: governedAliasUrl() });
 
@@ -522,7 +553,11 @@ describe('GET /ml/governed-aliases/:aliasId', () => {
   it('decodes and rejects aliases outside governed registry grammar before database access', async () => {
     const db = databaseBoundary(governedAliasRows);
     const app = Fastify({ logger: false });
-    await registerMlRoutes(app, { pool: db.pool, identify: caller() });
+    await registerMlRoutes(app, {
+      pool: db.pool,
+      identify: caller(),
+      executeInTransaction: refuseWrites,
+    });
 
     const response = await app.inject({
       method: 'GET',
@@ -549,7 +584,7 @@ describe('GET /ml/governed-aliases/:aliasId', () => {
       sql.includes('/* ml.governed-alias */') ? [] : governedAliasRows(sql),
     );
     const app = Fastify({ logger: false });
-    await registerMlRoutes(app, { pool: db.pool, identify });
+    await registerMlRoutes(app, { pool: db.pool, identify, executeInTransaction: refuseWrites });
 
     const response = await app.inject({ method: 'GET', url: governedAliasUrl() });
 
@@ -571,7 +606,11 @@ describe('GET /ml/runs/:authorityId/revisions/:revisionId', () => {
   it('returns a privacy-minimal, typed and paginated run projection under RLS context', async () => {
     const db = databaseBoundary();
     const app = Fastify({ logger: false });
-    await registerMlRoutes(app, { pool: db.pool, identify: caller() });
+    await registerMlRoutes(app, {
+      pool: db.pool,
+      identify: caller(),
+      executeInTransaction: refuseWrites,
+    });
 
     const response = await app.inject({
       method: 'GET',
@@ -794,7 +833,7 @@ describe('GET /ml/runs/:authorityId/revisions/:revisionId', () => {
       throw new Error('subject row at /private/patient-42 failed');
     });
     const app = Fastify({ logger: false });
-    await registerMlRoutes(app, { pool: db.pool, identify });
+    await registerMlRoutes(app, { pool: db.pool, identify, executeInTransaction: refuseWrites });
 
     const response = await app.inject({ method: 'GET', url: runUrl() });
 
@@ -811,7 +850,7 @@ describe('GET /ml/runs/:authorityId/revisions/:revisionId', () => {
       throw new CallerRejected('x-kf-actor is required');
     });
     const app = Fastify({ logger: false });
-    await registerMlRoutes(app, { pool: db.pool, identify });
+    await registerMlRoutes(app, { pool: db.pool, identify, executeInTransaction: refuseWrites });
 
     const response = await app.inject({ method: 'GET', url: runUrl() });
 
@@ -827,7 +866,11 @@ describe('GET /ml/runs/:authorityId/revisions/:revisionId', () => {
   it('rejects ambiguous or out-of-range pagination before opening a transaction', async () => {
     const db = databaseBoundary();
     const app = Fastify({ logger: false });
-    await registerMlRoutes(app, { pool: db.pool, identify: caller() });
+    await registerMlRoutes(app, {
+      pool: db.pool,
+      identify: caller(),
+      executeInTransaction: refuseWrites,
+    });
 
     const [
       ambiguous,
@@ -861,7 +904,11 @@ describe('GET /ml/runs/:authorityId/revisions/:revisionId', () => {
   it('rejects run references outside the registry opaque-token grammar', async () => {
     const db = databaseBoundary();
     const app = Fastify({ logger: false });
-    await registerMlRoutes(app, { pool: db.pool, identify: caller() });
+    await registerMlRoutes(app, {
+      pool: db.pool,
+      identify: caller(),
+      executeInTransaction: refuseWrites,
+    });
 
     const response = await app.inject({
       method: 'GET',
@@ -882,7 +929,11 @@ describe('GET /ml/runs/:authorityId/revisions/:revisionId', () => {
       sql.includes('/* ml.run-lineage */') ? [] : fixtureRows(sql),
     );
     const app = Fastify({ logger: false });
-    await registerMlRoutes(app, { pool: db.pool, identify: caller() });
+    await registerMlRoutes(app, {
+      pool: db.pool,
+      identify: caller(),
+      executeInTransaction: refuseWrites,
+    });
 
     const response = await app.inject({ method: 'GET', url: runUrl() });
 
@@ -902,7 +953,11 @@ describe('GET /ml/runs/:authorityId/revisions/:revisionId', () => {
   it('refuses projection when required ML schema contract is unavailable', async () => {
     const db = databaseBoundary(fixtureRows, false);
     const app = Fastify({ logger: false });
-    await registerMlRoutes(app, { pool: db.pool, identify: caller() });
+    await registerMlRoutes(app, {
+      pool: db.pool,
+      identify: caller(),
+      executeInTransaction: refuseWrites,
+    });
 
     const response = await app.inject({ method: 'GET', url: runUrl() });
 
@@ -925,7 +980,11 @@ describe('GET /ml/runs/:authorityId/revisions/:revisionId', () => {
       return fixtureRows(sql);
     });
     const app = Fastify({ logger: false });
-    await registerMlRoutes(app, { pool: db.pool, identify: caller() });
+    await registerMlRoutes(app, {
+      pool: db.pool,
+      identify: caller(),
+      executeInTransaction: refuseWrites,
+    });
 
     const response = await app.inject({ method: 'GET', url: runUrl() });
     const body = response.json();
@@ -961,7 +1020,11 @@ describe('GET /ml/runs/:authorityId/revisions/:revisionId', () => {
       return fixtureRows(sql);
     });
     const app = Fastify({ logger: false });
-    await registerMlRoutes(app, { pool: db.pool, identify: caller() });
+    await registerMlRoutes(app, {
+      pool: db.pool,
+      identify: caller(),
+      executeInTransaction: refuseWrites,
+    });
 
     const response = await app.inject({ method: 'GET', url: runUrl() });
 
@@ -1040,7 +1103,11 @@ describe('GET /ml/runs/:authorityId/revisions/:revisionId', () => {
   ])('fails closed when database returns %s', async (_caseName, mutate) => {
     const db = databaseBoundary((sql) => fixtureRows(sql).map((row) => mutate(sql, row)));
     const app = Fastify({ logger: false });
-    await registerMlRoutes(app, { pool: db.pool, identify: caller() });
+    await registerMlRoutes(app, {
+      pool: db.pool,
+      identify: caller(),
+      executeInTransaction: refuseWrites,
+    });
 
     const response = await app.inject({ method: 'GET', url: runUrl() });
 
@@ -1073,7 +1140,11 @@ describe('GET /ml/runs/:authorityId/revisions/:revisionId', () => {
       ];
     });
     const app = Fastify({ logger: false });
-    await registerMlRoutes(app, { pool: db.pool, identify: caller() });
+    await registerMlRoutes(app, {
+      pool: db.pool,
+      identify: caller(),
+      executeInTransaction: refuseWrites,
+    });
 
     const response = await app.inject({ method: 'GET', url: runUrl() });
     const promotions = response.json().promotions.receipts;

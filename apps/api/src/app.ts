@@ -134,7 +134,19 @@ export async function buildApp(
      */
     app.get('/readiness', async (_request, reply) => {
       const report = await assessReadiness(pool);
-      return reply.code(report.ready ? 200 : 503).send(report);
+      // BOTH partitions, not `report.ready`.
+      //
+      // `report.ready` is a compatibility alias for `service.ready` — it narrowed when
+      // readiness was split into service and institutional partitions, and this endpoint
+      // narrowed silently with it. That made a fabric whose audit log has never been signed
+      // answer 200 here, which is precisely the state this endpoint exists to surface.
+      //
+      // The split itself is right, and `/ready` above still follows service readiness alone
+      // so a load balancer is not told to stop routing because an approval is missing. What
+      // this endpoint asks is the question in its docstring — is the system in the state it
+      // is supposed to be in — and that is the union.
+      const inOrder = report.service.ready && report.institutional.ready;
+      return reply.code(inOrder ? 200 : 503).send(report);
     });
 
     const objectStore =

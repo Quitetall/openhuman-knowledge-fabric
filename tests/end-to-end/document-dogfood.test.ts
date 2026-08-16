@@ -241,13 +241,17 @@ describe('document constitution dogfood', () => {
       documentNumber: 'OH-DOC-TEST-001',
       revision: 'R01',
       parser: 'test-parser',
-      atomCount: 2,
+      // `parsedBlockCount`, not `atomCount`. The reader was renamed deliberately: an atom is
+      // LamQuant's authoring unit, while these are disposable projections of parsed source
+      // that any reparse may replace (ADR 0002). Calling both "atoms" conflated a thing
+      // somebody wrote with a thing a parser produced.
+      parsedBlockCount: 2,
     });
-    expect(detail?.atoms.map((atom) => atom.text)).toEqual([
+    expect(detail?.parsedBlocks.map((block) => block.text)).toEqual([
       'Constitution',
       'One fact, one owner.',
     ]);
-    expect(detail?.atoms.every((atom) => /^[0-9a-f]{64}$/.test(atom.digest))).toBe(true);
+    expect(detail?.parsedBlocks.every((block) => /^[0-9a-f]{64}$/.test(block.digest))).toBe(true);
     expect(Number(approvals.count)).toBe(0);
     expect(Number(authorityActions.count)).toBe(0);
     expect(source).toEqual({

@@ -11,6 +11,17 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { checkOntology, loadOntology, type Ontology } from '@kf/ontology-compiler';
 
+/**
+ * Strip `readonly` so a defect can be planted, without losing the type.
+ *
+ * The ontology is readonly by design; planting a violation is the one legitimate reason to
+ * write to it. The obvious way — `as { id: string }[]` — also erases every other field, so a
+ * planted defect on a misspelled property would compile and the test would then assert that
+ * the checker catches a rule it was never actually shown. Keeping the real element type means
+ * the compiler still checks what is being corrupted.
+ */
+type Mutable<T> = { -readonly [K in keyof T]: Mutable<T[K]> };
+
 const ROOT = join(import.meta.dirname, '..', '..');
 const base = loadOntology(join(ROOT, 'ontology'));
 
@@ -46,7 +57,7 @@ describe('planted violations are detected', () => {
   it('ONT-001 a token used as two different kinds', () => {
     expect(
       errorsFor((o) => {
-        (o.relationTypes as { id: string }[])[0]!.id = o.objectTypes[0]!.id;
+        (o.relationTypes as Mutable<Ontology['relationTypes'][number]>[])[0]!.id = o.objectTypes[0]!.id;
         return o;
       }),
     ).toContain('ONT-001');
@@ -64,7 +75,7 @@ describe('planted violations are detected', () => {
   it('ONT-002 an unknown authority domain', () => {
     expect(
       errorsFor((o) => {
-        (o.objectTypes as { authority_domain: string }[])[0]!.authority_domain = 'marketing';
+        (o.objectTypes as Mutable<Ontology['objectTypes'][number]>[])[0]!.authority_domain = 'marketing';
         return o;
       }),
     ).toContain('ONT-002');
@@ -73,7 +84,7 @@ describe('planted violations are detected', () => {
   it('ONT-002 a reference to a state machine that does not exist', () => {
     expect(
       errorsFor((o) => {
-        (o.objectTypes as { state_machine: string | null }[])[0]!.state_machine = 'nonexistent';
+        (o.objectTypes as Mutable<Ontology['objectTypes'][number]>[])[0]!.state_machine = 'nonexistent';
         return o;
       }),
     ).toContain('ONT-002');
@@ -82,7 +93,7 @@ describe('planted violations are detected', () => {
   it('ONT-003 an unknown field type', () => {
     expect(
       errorsFor((o) => {
-        (o.objectTypes[0]!.fields as { type: string }[])[0]!.type = 'quaternion';
+        (o.objectTypes[0]!.fields as Mutable<Ontology['objectTypes'][number]['fields'][number]>[])[0]!.type = 'quaternion';
         return o;
       }),
     ).toContain('ONT-003');
@@ -103,7 +114,7 @@ describe('planted violations are detected', () => {
     expect(
       errorsFor((o) => {
         const r = o.relationTypes.find((x) => x.symmetric)!;
-        (r as { inverse: string }).inverse = 'something_else';
+        (r as Mutable<Ontology['relationTypes'][number]>).inverse = 'something_else';
         return o;
       }),
     ).toContain('ONT-004');
@@ -112,7 +123,7 @@ describe('planted violations are detected', () => {
   it('ONT-004 an inverse label colliding with a forward relation id', () => {
     expect(
       errorsFor((o) => {
-        (o.relationTypes as { inverse: string }[])[0]!.inverse = o.relationTypes[1]!.id;
+        (o.relationTypes as Mutable<Ontology['relationTypes'][number]>[])[0]!.inverse = o.relationTypes[1]!.id;
         return o;
       }),
     ).toContain('ONT-004');
@@ -122,7 +133,7 @@ describe('planted violations are detected', () => {
     expect(
       errorsFor((o) => {
         const m = o.stateMachines[0]!;
-        (m.transitions as { action: string }[])[0]!.action = 'teleport_project';
+        (m.transitions as Mutable<Ontology['stateMachines'][number]['transitions'][number]>[])[0]!.action = 'teleport_project';
         return o;
       }),
     ).toContain('ONT-005');
@@ -132,11 +143,11 @@ describe('planted violations are detected', () => {
     expect(
       errorsFor((o) => {
         const i = machine(o, 'work_order');
-        (o.stateMachines[i] as { terminal: string[] }).terminal = [
+        (o.stateMachines[i] as Mutable<Ontology['stateMachines'][number]>).terminal = [
           ...o.stateMachines[i]!.terminal,
           'draft',
         ];
-        (o.stateMachines[i] as { transitions: unknown[] }).transitions = o.stateMachines[
+        (o.stateMachines[i] as Mutable<Ontology['stateMachines'][number]>).transitions = o.stateMachines[
           i
         ]!.transitions.filter((t) => t.to !== 'closed');
         return o;
@@ -163,7 +174,7 @@ describe('planted violations are detected', () => {
     expect(
       errorsFor((o) => {
         const i = machine(o, 'initiative_project');
-        (o.stateMachines[i] as { transitions: unknown[] }).transitions = o.stateMachines[
+        (o.stateMachines[i] as Mutable<Ontology['stateMachines'][number]>).transitions = o.stateMachines[
           i
         ]!.transitions.filter((t) => t.from !== 'parked');
         return o;
@@ -175,7 +186,7 @@ describe('planted violations are detected', () => {
     expect(
       errorsFor((o) => {
         const a = o.actionTypes.find((x) => x.id === 'attach_evidence')!;
-        (a as { drives: string[] }).drives = ['payment'];
+        (a as Mutable<Ontology['actionTypes'][number]>).drives = ['payment'];
         return o;
       }),
     ).toContain('ONT-007');
@@ -185,7 +196,7 @@ describe('planted violations are detected', () => {
     expect(
       errorsFor((o) => {
         const a = o.actionTypes.find((x) => x.id === 'authorize_payment')!;
-        (a as { drives: string[] }).drives = [];
+        (a as Mutable<Ontology['actionTypes'][number]>).drives = [];
         return o;
       }),
     ).toContain('ONT-007');
@@ -194,7 +205,7 @@ describe('planted violations are detected', () => {
   it('ONT-008 an unaudited action', () => {
     expect(
       errorsFor((o) => {
-        (o.actionTypes as { audited: boolean }[])[0]!.audited = false;
+        (o.actionTypes as Mutable<Ontology['actionTypes'][number]>[])[0]!.audited = false;
         return o;
       }),
     ).toContain('ONT-008');
@@ -203,7 +214,7 @@ describe('planted violations are detected', () => {
   it('ONT-010 a rule with no enforcement point — prose-only, spec §27.1', () => {
     expect(
       errorsFor((o) => {
-        (o.rules as { implementation: string[] }[])[0]!.implementation = [];
+        (o.rules as Mutable<Ontology['rules'][number]>[])[0]!.implementation = [];
         return o;
       }),
     ).toContain('ONT-010');
@@ -212,7 +223,7 @@ describe('planted violations are detected', () => {
   it('ONT-010 a malformed rule id', () => {
     expect(
       errorsFor((o) => {
-        (o.rules as { id: string }[])[0]!.id = 'finance-rule-1';
+        (o.rules as Mutable<Ontology['rules'][number]>[])[0]!.id = 'finance-rule-1';
         return o;
       }),
     ).toContain('ONT-010');
@@ -221,7 +232,7 @@ describe('planted violations are detected', () => {
   it('ONT-011 a required envelope field that is not defined', () => {
     expect(
       errorsFor((o) => {
-        (o as { envelopeRequired: string[] }).envelopeRequired = [
+        (o as Mutable<Ontology>).envelopeRequired = [
           ...o.envelopeRequired,
           'retention_class',
         ];
@@ -246,7 +257,7 @@ describe('planted violations are detected', () => {
   it('ONT-012 edge typing that references an object type that does not exist', () => {
     expect(
       errorsFor((o) => {
-        (o.relationTypes as { sourceTypes?: string[] }[])[0]!.sourceTypes = ['spacecraft'];
+        (o.relationTypes as Mutable<Ontology['relationTypes'][number]>[])[0]!.sourceTypes = ['spacecraft'];
         return o;
       }),
     ).toContain('ONT-012');
@@ -255,7 +266,7 @@ describe('planted violations are detected', () => {
   it('ONT-012 an empty edge-type list, which permits nothing', () => {
     expect(
       errorsFor((o) => {
-        (o.relationTypes as { targetTypes?: string[] }[])[0]!.targetTypes = [];
+        (o.relationTypes as Mutable<Ontology['relationTypes'][number]>[])[0]!.targetTypes = [];
         return o;
       }),
     ).toContain('ONT-012');
