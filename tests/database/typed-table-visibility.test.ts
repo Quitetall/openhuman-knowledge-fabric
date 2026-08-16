@@ -14,6 +14,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createDispatcher } from '@kf/actions';
 import { withTransaction } from '@kf/database';
 import {
   bindContext,
@@ -147,6 +148,143 @@ describe('typed rows are visible exactly when their record is', () => {
       );
     });
     expect(Number(atFullClearance.n), 'the same row at the clearance it needs').toBe(1);
+  });
+
+  it('leaves unprotected only the tables that were excluded on purpose', async () => {
+    // Stage one took readable-without-policies from 77 to 47; stage two takes it to 19. The
+    // remainder is not a backlog, it is a decision, so it is written down as an exact set:
+    // anything joining or leaving this list has to be a deliberate edit to this test.
+    //
+    // The reasons, one per group, are in the migrations. In short: registry.* is vocabulary
+    // that `core.object`'s own policies read to rank a row, so a policy there would be a
+    // cycle; ops.* are deployment facts about the whole cluster, and asking which
+    // organization owns a backup of everything has no answer; core.audit_checkpoint is the
+    // global integrity spine; org.role and quality.federated_source carry no organization
+    // anchor at all.
+    const EXCLUDED_ON_PURPOSE = [
+      'core.audit_checkpoint',
+      'ops.backup_copy',
+      'ops.backup_run',
+      'ops.encrypted_backup_evidence',
+      'ops.physical_failure_domain_evidence',
+      'ops.recovery_objective',
+      'ops.restore_drill',
+      // kf_app still reads this one by design: sign-in resolves through it. The two roles
+      // that had no business reading it lost the grant in 20260816000600, which is a
+      // privilege rather than a policy, so the table stays on this list.
+      'org.external_identity',
+      'org.role',
+      'quality.federated_source',
+      'registry.action_type',
+      'registry.classification',
+      'registry.object_state',
+      'registry.object_type',
+      'registry.relation_type',
+      'registry.retention_class',
+      'registry.rule_definition',
+      'registry.schema_release',
+      'registry.state_machine',
+      'registry.state_transition',
+    ];
+
+    const unprotected = await withTransaction(h.adminPool, async (tx) =>
+      tx.query<{ table_name: string }>(
+        `select namespace.nspname || '.' || class.relname as table_name
+           from pg_class class
+           join pg_namespace namespace on namespace.oid = class.relnamespace
+          where class.relkind = 'r'
+            and namespace.nspname not in ('pg_catalog', 'information_schema', 'public')
+            and not class.relrowsecurity
+            and (
+              has_table_privilege('kf_readonly', class.oid, 'select')
+              or has_table_privilege('kf_auditor', class.oid, 'select')
+              or has_table_privilege('kf_app', class.oid, 'select')
+            )
+          order by 1`,
+      ),
+    );
+    expect(unprotected.map((row) => row.table_name)).toEqual(EXCLUDED_ON_PURPOSE);
+  });
+
+  it('scopes the ledger, which is where substance lives before it reaches a typed row', async () => {
+    // `core.action` carries `parameters` — the exact typed payload of every action ever
+    // performed. A nonconformity's description is in `quality.nonconformity` because an
+    // action put it there, and that action still holds it. Protecting the typed table while
+    // leaving the action open would have been a boundary around the copy, not the original.
+    const counts = await withTransaction(h.pool, async (tx) => {
+      const rows: Record<string, number> = {};
+      for (const table of ['core.action', 'core.approval', 'core.snapshot', 'core.outbox']) {
+        const row = await tx.one<{ n: string }>(`select count(*)::text as n from ${table}`);
+        rows[table] = Number(row.n);
+      }
+      return rows;
+    });
+    for (const [table, count] of Object.entries(counts)) {
+      expect(count, `${table} must be invisible to an unbound session`).toBe(0);
+    }
+
+    // And a bound session still sees its own ledger. The action has to be REAL: the harness
+    // binds a fixed bootstrap action id as transaction context without ever inserting the
+    // row, so `core.action` is empty until something dispatches. Asserting "> 0" against that
+    // fixture would have been asserting against nothing — it failed exactly that way first.
+    const execute = createDispatcher(h.pool);
+    const decision = await createObject(h.adminPool, f, {
+      type: 'decision_record',
+      domain: 'engineering',
+      state: 'proposed',
+      title: 'Use an independent internal frame',
+      createdBy: f.performerId,
+    });
+    await execute({
+      actionType: 'accept_decision',
+      actorId: f.reviewerId,
+      actingRoleId: f.reviewerRoleId,
+      targetIds: [decision],
+      idempotencyKey: `visibility-${Date.now()}`,
+      organizationId: f.organizationId,
+      maxClassification: 'restricted',
+    });
+
+    const bound = await withTransaction(h.pool, async (tx) => {
+      await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+      return tx.one<{ n: string }>('select count(*)::text as n from core.action');
+    });
+    expect(Number(bound.n), 'a bound session must still see its own ledger').toBeGreaterThan(0);
+
+    const stillHidden = await withTransaction(h.pool, async (tx) =>
+      tx.one<{ n: string }>('select count(*)::text as n from core.action'),
+    );
+    expect(
+      Number(stillHidden.n),
+      'and the same action stays invisible without a context',
+    ).toBe(0);
+  });
+
+  it('keeps the identity mapping off the direct-reader roles entirely', async () => {
+    // `org.external_identity` cannot take a policy keyed on the caller's organization: it is
+    // read BEFORE that claim has been verified, so scoping it turns "wrong organization" into
+    // "unknown subject" and locks out anyone whose record sits above their requested
+    // clearance. Protected by withdrawing the grant instead — which is why this asserts a
+    // privilege rather than a row count.
+    const grants = await withTransaction(h.adminPool, async (tx) =>
+      tx.one<{
+        readonly_role: boolean;
+        auditor: boolean;
+        app: boolean;
+        backup: boolean;
+      }>(
+        `select has_table_privilege('kf_readonly', 'org.external_identity', 'select') as readonly_role,
+                has_table_privilege('kf_auditor', 'org.external_identity', 'select') as auditor,
+                has_table_privilege('kf_app', 'org.external_identity', 'select') as app,
+                has_table_privilege('kf_backup', 'org.external_identity', 'select') as backup`,
+      ),
+    );
+    expect(grants.readonly_role, 'kf_readonly must not read the identity mapping').toBe(false);
+    expect(grants.auditor, 'kf_auditor must not read the identity mapping').toBe(false);
+    // And the two that must keep it: sign-in resolves through kf_app, and a backup missing
+    // the identity links restores a fabric nobody can sign in to.
+    expect(grants.app, 'kf_app resolves the caller at sign-in').toBe(true);
+    expect(grants.backup, 'preservation exports the identity links').toBe(true);
   });
 
   it('resolves every view through the caller, not through the view owner', async () => {
