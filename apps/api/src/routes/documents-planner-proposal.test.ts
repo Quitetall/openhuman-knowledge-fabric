@@ -1,7 +1,11 @@
 import Fastify from 'fastify';
 import { describe, expect, it, vi } from 'vitest';
 import type { ActionRequest, ActionResult } from '@kf/actions';
-import type { AiProvider, AiRoutingPolicy } from '@kf/agent-tools';
+import type { AiProvider, AiProviderResponse, AiRoutingPolicy } from '@kf/agent-tools';
+import type {
+  DocumentProposalOperation,
+  ReplaceFragmentSourceOperation,
+} from '@kf/documents';
 import type { Pool } from '@kf/database';
 import type { IdentifyCaller } from './actions.js';
 import { registerDocumentRoutes } from './documents.js';
@@ -86,15 +90,26 @@ function executeOk() {
   );
 }
 
-function provider(operation = fragmentOperation(), locality: 'local' | 'remote' = 'local') {
+function provider(
+  // Typed as the UNION, not inferred from the fragment default. Inference pinned it to a
+  // `replace_fragment_source` shape, so the composition-inputs case below — a legitimate
+  // second member, not a malformed value — read as an unknown property.
+  operation: DocumentProposalOperation = fragmentOperation(),
+  locality: 'local' | 'remote' = 'local',
+) {
   return {
     providerId: locality === 'local' ? 'lamu' : 'remote-provider',
     modelId: 'model-1',
     locality,
-    propose: vi.fn(async () => ({
-      summary: 'Updates the controlled source.',
-      operations: [{ subjectId: SUBJECT_ID, precondition: REVISION_ID, operation }],
-    })),
+    // The return type is annotated so the literal is checked against the real contract. An
+    // unannotated literal widens `operation: 'replace_fragment_source'` to `string`, which is
+    // how a mock can drift away from the interface it is standing in for.
+    propose: vi.fn(
+      async (): Promise<AiProviderResponse> => ({
+        summary: 'Updates the controlled source.',
+        operations: [{ subjectId: SUBJECT_ID, precondition: REVISION_ID, operation }],
+      }),
+    ),
   } satisfies AiProvider & { propose: ReturnType<typeof vi.fn> };
 }
 
@@ -128,7 +143,9 @@ function plannerRows(sql: string): readonly Record<string, unknown>[] {
   return [];
 }
 
-function fragmentOperation(overrides: Record<string, unknown> = {}) {
+function fragmentOperation(
+  overrides: Partial<ReplaceFragmentSourceOperation> = {},
+): ReplaceFragmentSourceOperation {
   return {
     operation: 'replace_fragment_source',
     media_type: 'text/markdown',

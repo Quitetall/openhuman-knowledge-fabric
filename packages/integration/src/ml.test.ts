@@ -796,9 +796,6 @@ describe('ML typed-action database authority', () => {
         authorizationVersion: string;
         authorizationActionId: string;
         authorizationDigestMatches: boolean;
-        authorizationVersion: string;
-        authorizationActionId: string;
-        authorizationDigestMatches: boolean;
       }>(
         `select
            (select count(*) from ml.promotion_authority_decision

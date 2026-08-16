@@ -39,7 +39,7 @@ const input = {
 
 describe('HTTP erasure authority signer', () => {
   it('sends only exact non-PHI signing context and returns a decoded signed payload', async () => {
-    const fetcher = vi.fn(async () => response());
+    const fetcher = vi.fn(async (_input: string | URL, _init?: RequestInit) => response());
     const signer = new HttpErasureAuthoritySigner(
       { endpoint: new URL('https://soa.example.test/v1/erasure/sign'), timeoutMs: 5_000 },
       fetcher,
@@ -80,9 +80,11 @@ describe('HTTP erasure authority signer', () => {
       async () => response(body),
     );
 
-    await expect(signer.sign(input)).rejects.toMatchObject<Partial<SecureObjectRejected>>({
-      failure: 'signing_key_unavailable',
-    });
+    // Typed as a value rather than a `toMatchObject<T>` type argument, which vitest does not
+    // accept. The point is the same: the field name and value are checked against the real
+    // rejection type, so a renamed failure code fails here instead of matching nothing.
+    const expected: Partial<SecureObjectRejected> = { failure: 'signing_key_unavailable' };
+    await expect(signer.sign(input)).rejects.toMatchObject(expected);
   });
 
   it('rejects non-JSON, oversized, extra-field, and non-success responses without reflecting them', async () => {
