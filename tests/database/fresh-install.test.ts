@@ -917,4 +917,46 @@ describe('a completely fresh database', () => {
       app_seq_select: false,
     });
   });
+
+  it('compares transaction identity at one width, so wraparound cannot silently stop writes', async () => {
+    // Several authority functions refuse a caller who replays an already-committed action id
+    // as fresh mutation authority, by requiring the action row to have been born in THIS
+    // transaction. Written as `xmin::text = pg_current_xact_id()::text`, that test compares a
+    // 32-bit xid against a 64-bit xid8 carrying an epoch: the text forms agree only while the
+    // epoch is zero, and after the first wraparound the comparison can never hold again.
+    //
+    // Fail-closed — nothing leaks and nothing is forged, the subsystem simply stops, at a
+    // moment nobody chose. A count is the honest assertion: the property is "no function does
+    // this", and naming the three that used to would let a fourth appear unnoticed.
+    const offenders = await withTransaction(pool!, async (tx) =>
+      tx.query<{ fn: string }>(
+        `select namespace.nspname || '.' || routine.proname as fn
+           from pg_proc routine
+           join pg_namespace namespace on namespace.oid = routine.pronamespace
+          where routine.prosrc like '%xmin::text%'
+          order by 1`,
+      ),
+    );
+    expect(offenders.map((row) => row.fn)).toEqual([]);
+
+    // And the replacement still discriminates, rather than being a cast that always matches:
+    // true for a row written in this transaction, false for one that was not.
+    const bornHere = await withTransaction(pool!, async (tx) => {
+      await tx.query('create temporary table kf_xid_probe (id integer) on commit drop');
+      await tx.query('insert into kf_xid_probe (id) values (1)');
+      return tx.one<{ same: boolean }>(
+        'select probe.xmin = pg_current_xact_id()::xid as same from kf_xid_probe probe',
+      );
+    });
+    expect(bornHere.same).toBe(true);
+
+    const bornEarlier = await withTransaction(pool!, async (tx) =>
+      tx.one<{ same: boolean }>(
+        `select relation.xmin = pg_current_xact_id()::xid as same
+           from pg_class relation
+          where relation.oid = 'core.object'::regclass`,
+      ),
+    );
+    expect(bornEarlier.same).toBe(false);
+  });
 });
