@@ -46,6 +46,42 @@ describe('OIDC authorization code client', () => {
     await expect(discoverOidc(config, fetcher as typeof fetch)).rejects.toThrow(/issuer/);
   });
 
+  it('stops reading a provider response at the cap instead of buffering it first', async () => {
+    // The cap used to be applied to the result of `await response.text()`, which bounds what
+    // is ACCEPTED and not what is buffered: by the time it ran, the whole body was already a
+    // string. A hostile or compromised provider could make this process materialise an
+    // arbitrarily large response before the limit had any say.
+    //
+    // So the assertion is not "it rejects a big body" — the old code did that too. It is "it
+    // stops pulling", which is the property that actually bounds memory, and the stream
+    // counts how many chunks were demanded of it.
+    const CHUNK = new Uint8Array(16 * 1024);
+    const TOTAL_CHUNKS = 100; // 1.6 MiB, if it read the whole thing
+    let pulled = 0;
+    const fetcher = vi.fn(
+      async () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            pull(controller) {
+              if (pulled >= TOTAL_CHUNKS) {
+                controller.close();
+                return;
+              }
+              pulled += 1;
+              controller.enqueue(CHUNK);
+            },
+          }),
+          { status: 200 },
+        ),
+    );
+
+    await expect(discoverOidc(config, fetcher as typeof fetch)).rejects.toThrow(/128 KiB/);
+    // 128 KiB is eight 16 KiB chunks: it must refuse shortly after crossing that rather than
+    // walking the remaining ninety-odd.
+    expect(pulled).toBeLessThan(TOTAL_CHUNKS);
+    expect(pulled).toBeLessThanOrEqual(12);
+  });
+
   it('builds code plus S256 authorization requests with state and nonce', () => {
     const transaction = makePkceTransaction('/documents/doc-1');
     const url = authorizationUrl(metadata, config, transaction);

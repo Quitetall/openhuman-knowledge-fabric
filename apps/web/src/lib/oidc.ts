@@ -30,14 +30,61 @@ function endpoint(raw: unknown, name: string): string {
   return url.toString();
 }
 
+const MAX_OIDC_RESPONSE_BYTES = 128 * 1024;
+
+/**
+ * Read a response body, refusing to hold more than the cap in memory.
+ *
+ * `await response.text()` then checking `.length` bounds what is ACCEPTED and not what is
+ * buffered: by the time the check runs, the whole body is already a string. A hostile or
+ * compromised identity provider could make this process materialise an arbitrarily large
+ * response before the limit had any say. The deadline on the request bounds how long that
+ * takes, which is not the same as bounding how much it costs.
+ *
+ * Reading the stream and stopping at the cap makes the limit mean what it says. Falls back to
+ * `text()` only when a response has no readable body stream — a test double, mostly — and the
+ * cap is still applied there, because the fallback should be the same contract with a worse
+ * memory profile rather than a way around it.
+ */
+async function boundedText(response: Response): Promise<string> {
+  const stream = response.body;
+  if (stream === null) {
+    const whole = await response.text();
+    if (Buffer.byteLength(whole, 'utf8') > MAX_OIDC_RESPONSE_BYTES) {
+      throw new Error('OIDC response exceeded 128 KiB');
+    }
+    return whole;
+  }
+
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_OIDC_RESPONSE_BYTES) {
+        // Cancel rather than drain: there is no reason to keep pulling bytes we have already
+        // decided to refuse.
+        await reader.cancel();
+        throw new Error('OIDC response exceeded 128 KiB');
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
 async function json(
   url: string,
   init: RequestInit,
   fetcher: typeof fetch,
 ): Promise<Record<string, unknown>> {
   const response = await fetcher(url, init);
-  const body = await response.text();
-  if (body.length > 128 * 1024) throw new Error('OIDC response exceeded 128 KiB');
+  const body = await boundedText(response);
   if (!response.ok) throw new Error(`OIDC endpoint refused request with HTTP ${response.status}`);
   let parsed: unknown;
   try {

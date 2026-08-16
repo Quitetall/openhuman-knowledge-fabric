@@ -96,6 +96,67 @@ const assertWithinCeiling: PreconditionCheck = async (tx, request, objects) => {
   }
 };
 
+/**
+ * KF-FIN-003, as a refusal the caller can act on.
+ *
+ * `finance.assert_allocation_within_bounds` already enforces this, takes `for update` on the
+ * payment and each invoice, and remains the authority. This is not the enforcement and must
+ * not be mistaken for it: two allocations racing still meet each other at the trigger, which
+ * is correct, because a precondition cannot hold a lock across the dispatcher.
+ *
+ * What was missing is the other half of what `ontology/rules.yaml` promises. The rule lists
+ * `action_precondition` among its implementations and there was none, so a caller who
+ * over-allocated received a raw PostgreSQL `check_violation`. That difference is not
+ * cosmetic: `ActionRejected` carries a code a client can branch on and a message naming the
+ * amounts, where the database error arrives as a transport-level failure that reads like the
+ * fabric broke.
+ *
+ * Deliberately limited to what can be checked without a lock — currency agreement, and the
+ * payment's own total. Reproducing the invoice-balance arithmetic would be a second copy of
+ * the trigger's logic, free to drift, with none of its atomicity.
+ */
+const assertAllocationsFit: PreconditionCheck = async (tx, request) => {
+  const allocations = request.payload?.['allocations'];
+  if (!Array.isArray(allocations) || allocations.length === 0) return;
+
+  const paymentMinor = Number(request.payload?.['amount_minor']);
+  const currency = request.payload?.['currency'];
+  let total = 0;
+  for (const entry of allocations) {
+    const allocation = entry as Record<string, unknown>;
+    const amount = Number(allocation['amount_minor']);
+    if (!Number.isSafeInteger(amount) || amount < 0) {
+      refuse('KF-FIN-003', 'every payment allocation needs a whole, non-negative minor amount');
+    }
+    total += amount;
+
+    const invoiceId = allocation['invoice_id'];
+    if (typeof invoiceId !== 'string' || invoiceId === '') continue;
+    const invoice = await tx.maybeOne<{ currency: string; invoice_number: string }>(
+      'select currency, invoice_number from finance.invoice where id = $1',
+      [invoiceId],
+    );
+    // A missing invoice is the foreign key's to refuse; only disagreement is ours.
+    if (invoice !== undefined && typeof currency === 'string' && invoice.currency !== currency) {
+      refuse(
+        'KF-FIN-003',
+        `payment is in ${currency} and invoice ${invoice.invoice_number} is in ` +
+          `${invoice.currency}; an allocation cannot cross currencies`,
+        { paymentCurrency: currency, invoiceCurrency: invoice.currency },
+      );
+    }
+  }
+
+  if (Number.isSafeInteger(paymentMinor) && total > paymentMinor) {
+    refuse(
+      'KF-FIN-003',
+      `allocations total ${total / 100} against a payment of ${paymentMinor / 100}; ` +
+        'a payment cannot allocate more than it settles',
+      { allocated: total, payment: paymentMinor },
+    );
+  }
+};
+
 export const WORK_CONTROL_PRECONDITIONS: Readonly<Record<string, PreconditionCheck>> = {
   accept_decision: assertDecisionMutable,
   reject_decision: assertDecisionMutable,
@@ -104,4 +165,11 @@ export const WORK_CONTROL_PRECONDITIONS: Readonly<Record<string, PreconditionChe
   verify_change: assertChangeCitesDecision,
   close_project_administrative: assertClosable,
   issue_acceptance: assertWithinCeiling,
+  // `authorize_payment`, not `record_payment_settlement`. Allocations travel in the payload of
+  // the action that CREATES the payment: `authorizePayment` in finance-materializers.ts reads
+  // `payload.allocations` and writes each row. Registered against the settlement action
+  // instead — as this was, first time — the check would find no `allocations` key on any call,
+  // return at its first line every time, and verify nothing at all, while the registration
+  // made it look as though KF-FIN-003 had gained a precondition.
+  authorize_payment: assertAllocationsFit,
 };
