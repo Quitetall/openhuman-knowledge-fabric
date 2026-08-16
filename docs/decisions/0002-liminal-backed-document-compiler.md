@@ -1,12 +1,26 @@
 # Liminal-backed document compiler supersedes the LamQuant documentation model
 
-**Status:** proposed — requires technical-authority acceptance
-**Date:** 2026-08-13
+**Status:** accepted
+**Date proposed:** 2026-08-13
+**Date accepted:** 2026-08-16
 **Decision owner:** technical authority
 **Scope:** document source, composition, compilation, projection, ADR integration, editing,
 search, publication and AI context planning
 **Does not:** approve R01, allocate an enterprise identifier, or resolve
 `0001-r01-schema-pack-defects.md`
+
+> **Accepted 2026-08-16.** The compiler slice built against this record — Compilation Basis,
+> the pinned Liminal process adapter, HIR and CIR provenance, projection capability levels,
+> the document workbench and AI context planning — is the fabric's document model rather than
+> a proposal to be judged. The exclusions above are unaffected: acceptance approves an
+> architecture, not a release, and it allocates no identifier.
+>
+> Two consequences a reader should not have to infer. The "considered and rejected"
+> alternatives below stay as written and are now decisions: reopening one needs a new record,
+> not an argument. And the LamQuant compatibility oracle
+> (`packages/documents/src/lamquant-compat/`) is migration evidence for the measured shadow
+> cutover this record requires — not a permanent second compiler. The record is explicit that
+> two production compilers would be two definitions of current documentation.
 
 ---
 

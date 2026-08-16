@@ -40,6 +40,13 @@ const GOLDEN = join(ROOT, 'tests', 'conformance', 'r01-golden');
  * between prose and machine artifacts release-blocking; §5.1's consistency gate exists to
  * surface exactly these before approval.
  *
+ * The four corrections were ACCEPTED by the pack owner on 2026-08-16
+ * (`docs/decisions/0001-r01-schema-pack-defects.md`). That does not soften this list: it is
+ * still asserted exhaustive, and a new difference in either direction still fails. What
+ * changed is only what the list means — differences that were ruled on, rather than
+ * differences awaiting a ruling. Signing `1.0.0-draft.2` is a separate act and has not
+ * happened; the pack is still non-normative under §1.2.
+ *
  * READ THIS BEFORE CONCLUDING THE BASELINE WAS EDITED. The golden files under
  * `r01-golden/` are NEVER patched — they are the pack as released, and the first test below
  * proves it by checking them against the SHA-256 manifest shipped inside the zip. The

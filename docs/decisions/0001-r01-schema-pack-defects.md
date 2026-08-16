@@ -1,9 +1,14 @@
 # R01 schema pack — five defects and their corrections
 
-**Status:** open — requires the pack owner's decision
+**Status:** resolved on the corrections; the signature is outstanding
 **Against:** `Knowledge_Fabric_OGWCS_R01_Schema_Pack.zip`, version `1.0.0-draft.1`, generated 2026-08-08
 **Raised by:** the ontology consistency checker, Gate 2
 **Corrected package:** `pnpm ontology:pack` → `release/knowledge-fabric-1.0.0-draft.2/`
+**Resolved:** 2026-08-16 — see "Resolution" at the foot of this record. Decision point 1, the
+four corrections, is **accepted**. Decision point 2, approving and signing `1.0.0-draft.2`,
+remains **outstanding**: it is the pack owner's own act with the owner's own key, nothing in
+this repository performs it, and `pnpm ontology:verify release/knowledge-fabric-1.0.0-draft.2`
+still reports `DRAFT` and exits 1.
 
 ---
 
@@ -120,3 +125,40 @@ Recorded in the manifest so approval is an informed act, not an assumption.
 
 Until then the pack remains non-normative under §1.2, and this repository treats
 `ontology/` as the working definition with every divergence enumerated and tested.
+
+---
+
+## Resolution — 2026-08-16
+
+**Decision point 1 is accepted.** All four corrections stand as written:
+
+| Defect | Correction accepted |
+|---|---|
+| R01-DEFECT-002 | add `parked → triage` (`triage_initiative`) |
+| R01-DEFECT-003 | remove `accepted` from `decision_record.terminal` |
+| R01-DEFECT-004 | add `disputed → approved` and `disputed → void` |
+| R01-DEFECT-005 | remove `reconciled` from `payment.terminal` |
+
+R01-DEFECT-001 needed no decision: it was our extraction error, the pack was always right, and
+it is recorded only as evidence that the consistency gate earns its place.
+
+Nothing in the repository changes as a result. The corrections were already in `ontology/` and
+already enumerated in `tests/conformance/r01-golden.test.ts` as `RECORDED_DIVERGENCES`, which
+asserts them EXHAUSTIVELY — a new difference in either direction fails. Accepting them converts
+that list from "differences awaiting a ruling" into "differences that were ruled on", which is
+what the list was always for. The golden pack under `tests/conformance/r01-golden/` is still
+never patched; the divergence lives entirely in the compiler's output, and the first test in
+that file proves the baseline is untouched by checking it against the SHA-256 manifest shipped
+inside the zip.
+
+**Decision point 2 is outstanding, and deliberately so.** Approving and signing
+`1.0.0-draft.2` is the pack owner's act with the pack owner's key. §29.4 forbids a backdated
+approval and §5 requires a signed or approved manifest before the package is normative, so
+until that signature exists:
+
+- `pnpm ontology:verify release/knowledge-fabric-1.0.0-draft.2` reports `DRAFT` and exits 1;
+- the pack remains non-normative under §1.2;
+- `ontology/` remains the working definition.
+
+The three known gaps travelling with the package are unchanged and still travel with it —
+they are inputs to that signing decision, not blockers this record can clear.
