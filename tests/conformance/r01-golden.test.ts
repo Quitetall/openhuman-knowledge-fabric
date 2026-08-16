@@ -267,6 +267,15 @@ const DECLARED_ADDITIONS = {
     'record_secure_object_erasure',
     'record_test_result',
     'register_equipment',
+    // ML lineage registration (docs/architecture/federated-ml-secure-object-contract.md).
+    // Four separate actions rather than one `register_ml_thing` with a kind, because each
+    // binds a different tuple and each is audited independently — a run's lineage, a metric's
+    // definition, a segment of its series, and a safe aggregate are four claims about
+    // different objects, and collapsing them would make one audit entry stand for all four.
+    'register_ml_aggregate_reference',
+    'register_ml_metric_definition',
+    'register_ml_metric_segment',
+    'register_ml_run_lineage',
     'register_secure_object_authority_key',
     'register_supplier',
     'remove_equipment_from_service',
