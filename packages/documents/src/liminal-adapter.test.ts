@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { chmod, mkdtemp, rm, truncate, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, rm, truncate, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -215,6 +215,27 @@ describe.skipIf(process.platform !== 'linux' || !existsSync(TEST_BWRAP))(
         allowScriptExecutableForTests: true,
       });
       await expect(changedLock.preflight()).rejects.toThrow(/Cargo.lock digest mismatch/);
+    });
+
+    it('does not cache a failed preflight, so a transient host failure is not permanent', async () => {
+      const files = await fixture(`process.exit(0)`);
+      const original = await readFile(files.executablePath);
+      const adapter = new PinnedLiminalProcessAdapter({
+        ...files,
+        allowScriptExecutableForTests: true,
+      });
+
+      // Whatever made the probe fail — here a swapped executable; in production, a bubblewrap
+      // spawn that missed its 5s deadline on a loaded host, which has been measured to happen.
+      await writeFile(files.executablePath, '#!/bin/false\n');
+      await expect(adapter.preflight()).rejects.toThrow(/executable digest mismatch/);
+
+      // The SAME adapter instance, once the host is healthy again. Caching the rejected
+      // promise made this second call — and every later compile — reject with the stale error
+      // for the life of the process.
+      await writeFile(files.executablePath, original);
+      await chmod(files.executablePath, 0o700);
+      await expect(adapter.preflight()).resolves.toBeUndefined();
     });
 
     it('rejects a generic no-op ELF as compiler preflight evidence', async () => {

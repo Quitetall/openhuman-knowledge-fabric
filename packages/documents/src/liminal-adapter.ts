@@ -33,10 +33,31 @@ export class PinnedLiminalProcessAdapter implements DocumentCompilerAdapter {
     this.identity = this.#config.identity;
   }
 
-  /** Fail startup before jobs are accepted when the host sandbox contract is absent. */
+  /**
+   * Fail startup before jobs are accepted when the host sandbox contract is absent.
+   *
+   * A SUCCESSFUL probe is cached; a failed one is not. Caching the rejected promise made one
+   * transient failure permanent for the life of the process: `performLiminalPreflight` spawns
+   * a real bubblewrap sandbox under a 5s deadline, and that deadline has been measured at
+   * 3.5–5.3s on a loaded host, so a single busy moment would leave this adapter refusing every
+   * later compile with a stale error until something restarted it.
+   *
+   * Retrying costs nothing in safety. The probe is a host-capability check, not an
+   * authorization decision, and `compile` re-verifies the executable and runtime-closure
+   * digests on every single call regardless of what the probe concluded.
+   *
+   * Concurrent callers still share one in-flight probe rather than spawning a sandbox each.
+   */
   async preflight(): Promise<void> {
-    this.#preflightPromise ??= performLiminalPreflight(this.#config);
-    await this.#preflightPromise;
+    const attempt = (this.#preflightPromise ??= performLiminalPreflight(this.#config));
+    try {
+      await attempt;
+    } catch (error: unknown) {
+      // Only the failed attempt is cleared, and only if it is still the current one: a
+      // concurrent caller may already have started a fresh probe.
+      if (this.#preflightPromise === attempt) this.#preflightPromise = undefined;
+      throw error;
+    }
   }
 
   async compile(request: CompilationRequest): Promise<CompilerResponse> {
