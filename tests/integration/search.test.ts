@@ -1,10 +1,13 @@
 /**
  * Search, and the two properties that make it safe to build on.
  *
- * VISIBILITY. The index holds every record, so classification is enforced at query time. A
- * search that returned a restricted title to an internal-only reader would be a disclosure
- * through the back door — the front door being row-level security, which this table does not
- * inherit.
+ * VISIBILITY. The index holds every record, so a search that returned a restricted title to an
+ * internal-only reader would be a disclosure through the back door. Enforced in two places:
+ * the query applies the organization and classification predicate, and `search.document`
+ * carries row-level security on the same two axes. It did not until
+ * `20260816000100_search_visibility_boundary.sql` — and query-time enforcement reaches only
+ * callers who come through `@kf/search`, which kf_readonly and kf_auditor, holding `select` on
+ * the table and connecting directly, do not.
  *
  * DISPOSABILITY. The index is derived. `rebuild()` reconstructs it from the records, and the
  * test below drops every row and proves the result is identical. If that ever stops holding,
@@ -283,6 +286,37 @@ describe('the index is derived, and provably disposable', () => {
     // A subset would be an index that looks complete and is not — the reason text_for runs
     // as SECURITY DEFINER rather than through the caller's own visibility.
     expect(counts.documents).toBe(counts.objects);
+  });
+
+  it('refuses the whole index and the definer text assemblers to an unbound application session', async () => {
+    // `h.pool` logs in as kf_app_login, which inherits kf_app and is not the table owner —
+    // the shape a deployed API process has. No access context is bound in this transaction.
+    //
+    // Before 20260816000100 both halves of this test failed: `search.document` had no
+    // row-level security at all, and `search.text_for` was SECURITY DEFINER with PostgreSQL's
+    // default EXECUTE grant to PUBLIC, so an unbound session could read the assembled text —
+    // including parsed controlled-document atoms — for any object id it could name.
+    const visible = await withTransaction(h.pool, async (tx) =>
+      tx.one<{ rows: string }>('select count(*)::text as rows from search.document'),
+    );
+    expect(visible.rows, 'an unbound session must see no indexed rows').toBe('0');
+
+    for (const fn of ['search.text_for', 'search.text_for_structured_record']) {
+      await expect(
+        withTransaction(h.pool, async (tx) => tx.query(`select ${fn}($1)`, [board])),
+        `${fn} must not be callable by the application role`,
+      ).rejects.toThrow(/permission denied/i);
+    }
+
+    // rebuild() is an operator action. kf_app holding it through PUBLIC was the exact thing
+    // the original migration's comment said it was preventing.
+    await expect(
+      withTransaction(h.pool, async (tx) => tx.query('select search.rebuild()')),
+    ).rejects.toThrow(/permission denied/i);
+
+    // The bound path is unaffected: same role, same pool, context set from the scope.
+    const hits = await search(h.pool, restricted(), { text: 'leakage' });
+    expect(hits.length).toBeGreaterThan(0);
   });
 
   it('re-indexing one object is idempotent', async () => {

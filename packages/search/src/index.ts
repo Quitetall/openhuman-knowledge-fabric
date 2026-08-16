@@ -1,9 +1,15 @@
 /**
  * Search over the derived index.
  *
- * The index holds every record; who may see what is decided HERE, at query time, on the same
- * two axes as row-level security. One index, many audiences — the alternative is an index per
- * clearance, which is several copies of the records with several ways to drift.
+ * The index holds every record; who may see what is decided on the same two axes as the
+ * records themselves, in two places: row-level security on `search.document`, and the
+ * explicit predicate in the query below. One index, many audiences — the alternative is an
+ * index per clearance, which is several copies of the records with several ways to drift.
+ *
+ * Two places rather than one because the table is reachable by more than this function:
+ * kf_readonly and kf_auditor hold `select` on it and connect directly, and until
+ * `20260816000100_search_visibility_boundary.sql` the query-time rule was the only rule
+ * there was — so for those roles there was no rule at all.
  *
  * Two query paths, because they fail differently:
  *
@@ -18,7 +24,7 @@
  */
 
 import type { Pool, Tx } from '@kf/database';
-import { withTransaction } from '@kf/database';
+import { setAccessContext, withTransaction } from '@kf/database';
 
 export interface SearchScope {
   readonly organizationId: string;
@@ -62,10 +68,29 @@ export async function search(
   scope: SearchScope,
   query: SearchQuery,
 ): Promise<SearchHit[]> {
-  return withTransaction(pool, async (tx) => searchIn(tx, scope, query));
+  return withTransaction(pool, async (tx) => {
+    // The scope is bound as the access context as well as passed to the query.
+    //
+    // `search.document` now carries row-level security on the same two axes, so a session
+    // with no context bound sees nothing at all — which is the correct default, and the
+    // reason this has to be set rather than assumed. This function owns its transaction, so
+    // a transaction-local setting cannot reach anything else.
+    //
+    // `searchIn` deliberately does NOT do this: there the caller owns the transaction and has
+    // already bound its own context, and overwriting it from a search argument would let one
+    // query silently redefine the visibility of everything after it.
+    await setAccessContext(tx, scope);
+    return searchIn(tx, scope, query);
+  });
 }
 
-/** The same search inside an existing transaction. */
+/**
+ * The same search inside an existing transaction.
+ *
+ * The caller is responsible for having bound the access context — every production caller
+ * (`apps/api` search route, `@kf/agent-tools`' scoped readers) does so from the same identity
+ * it derives this scope from.
+ */
 export async function searchIn(
   tx: Tx,
   scope: SearchScope,
@@ -91,9 +116,9 @@ export async function searchIn(
          join registry.classification c on c.id = d.classification
          join registry.classification mine on mine.id = $2
         where d.organization_id = $1
-          -- The same rule row-level security applies to core.object. Applied here rather
-          -- than trusted from there, because the index is a separate table and a filter that
-          -- only exists on one of two paths is a filter that will be missed on the other.
+          -- The same rule row-level security applies to core.object, and now to
+          -- search.document itself. Kept here as well as there, because a filter that only
+          -- exists on one of two paths is a filter that will be missed on the other.
           and c.rank <= mine.rank
           and ($4::text[] is null or d.object_type = any($4))
           and ($5::text[] is null or d.lifecycle_state = any($5))
