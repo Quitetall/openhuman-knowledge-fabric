@@ -1,7 +1,10 @@
 # Row-level security stops at `core.object`; 77 typed tables carry none
 
-**Status:** accepted — option 1, staged. Stage one landed 2026-08-16 in
-`20260816000300_typed_table_row_security.sql`
+**Status:** accepted and complete — option 1. Both stages landed 2026-08-16, in
+`20260816000300_typed_table_row_security.sql` and
+`20260816000500_typed_table_row_security_stage_two.sql`. Readable tables with no policies:
+**77 → 47 → 20**, and all 20 are excluded on purpose, listed with reasons below and asserted
+as an exact set by `tests/database/typed-table-visibility.test.ts`
 **Date raised:** 2026-08-16
 **Date decided:** 2026-08-16
 **Decision owner:** technical authority
@@ -140,9 +143,11 @@ hashed side and one correlated `EXISTS` against a primary key. Full-suite wall c
 49.9s to 51.4s, which is inside the run-to-run spread.
 
 That is a plan-shape observation, not a throughput measurement: these tables hold single-digit
-row counts in every environment available here. **Before stage two, the cost question deserves a
-populated database.** The plan shape is the part that predicts whether it scales, and it is the
-right one.
+row counts in every environment available here. The plan shape is the part that predicts
+whether it scales, and it is the right thing to have measured — but **the cost question still
+deserves a populated database**, and stage two proceeded without one on the grounds that
+waiting for data which does not exist would have deferred the coverage indefinitely. That was
+a deliberate trade, recorded here rather than buried.
 
 ### Two things stage one deliberately did not do
 
@@ -153,15 +158,61 @@ authentication question with a scope answer: a valid token naming the wrong orga
 reporting `role_not_held` and started reporting `unknown_subject`, and a person whose own record
 sits above the classification ceiling they requested could not sign in at all. Both were observed
 when it was included, and both are worse than the exposure they close. It needs a scope that does
-not come from the caller's own claim, or a narrower grant. Open.
+not come from the caller's own claim, or a narrower grant. **Resolved later the same day by the
+narrower grant — see "`org.external_identity`, closed differently" below. No longer open.**
 
 **`org.role`, `quality.federated_source` and `registry.*` are excluded on purpose.** They carry no
 organization anchor — they are vocabulary. `registry.*` additionally cannot take a policy at all:
 `core.object`'s own policies read `registry.classification` to rank a row, and a policy that
 depends on a table whose policy depends on it is not a boundary.
 
-### Stage two
+### Stage two — landed 2026-08-16
 
-`core.action`, `core.approval`, `core.snapshot`, `core.outbox`, `ops.*`, `product.*`, `work.*`,
-`content.*` — 47 tables. `core.action` is the interesting one: it carries every action's
-parameters, which is where substance ends up for anything that has not reached a typed row yet.
+`20260816000500_typed_table_row_security_stage_two.sql`: 28 tables across `core`, `content`,
+`product` and `work`, 68 policies, taking the count from 47 to 20.
+
+`core.action` was the point of it. It carries `parameters` — the exact typed payload of every
+action ever performed — which is where a record's substance lives before, and often instead
+of, reaching a typed row. A nonconformity's description is in `quality.nonconformity` because
+an action put it there, and that action still holds it. Protecting the typed tables while
+leaving the actions that wrote them open would have been a boundary around the copy and not
+the original.
+
+It is scoped by its own `organization_id` rather than through an envelope, because it has one
+and because an action targets an ARRAY of objects: deriving a classification ceiling from
+`target_ids` would mean electing one target's ceiling to stand for all of them, which the
+schema does not support and a migration should not invent.
+
+**One judgement to overturn if you disagree.** `core.action` and `core.approval` follow the
+precedent `20260811000400` set for `core.audit_event` and give kf_auditor an unconditional
+read; nothing else does. An auditor who can read every audit event but only one
+organization's actions has a trail that stops mid-sentence. `core.snapshot` holds copied
+record content and stays scoped.
+
+The cost question this record raised before stage two was not answerable then and is not now:
+these tables still hold single-digit row counts in every environment available here. What is
+known is the plan shape — a hashed subplan, not a per-row correlated subquery — and that the
+full suite moved from 49.9s to 50.7s across both stages, inside the run-to-run spread. **A
+populated database would still be the right place to measure throughput.**
+
+### The 20 that remain, and why
+
+`registry.*` (10) is vocabulary, and `core.object`'s own policies read
+`registry.classification` to rank a row — a policy there would be a cycle. `ops.*` (6) are
+deployment facts about the whole cluster; asking which organization owns a backup of
+everything has no answer, and the `approved_by`/`declared_by` columns are attribution, not
+ownership. `core.audit_checkpoint` is the global integrity spine. `org.role` and
+`quality.federated_source` carry no organization anchor. `org.external_identity` is closed by
+withdrawing the grant instead — see below.
+
+### `org.external_identity`, closed differently — 2026-08-16
+
+Still not by a policy, for the reason stage one gave: it is read before the caller's
+organization claim has been verified, so scoping it by that claim answers an authentication
+question with a scope answer.
+
+`20260816000600_external_identity_reader_grant.sql` withdraws `select` from kf_readonly and
+kf_auditor, which touches the authentication path not at all because that path runs as
+kf_app. kf_app and kf_worker resolve identities; kf_backup keeps it, because a backup missing
+the identity links restores a fabric nobody can sign in to. This record's earlier note that
+the question was open is superseded.
