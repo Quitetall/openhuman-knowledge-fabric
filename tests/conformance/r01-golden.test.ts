@@ -210,6 +210,12 @@ const DECLARED_ADDITIONS = {
     'bound_to',
     'calibrated_with',
     'conforms_to',
+    // Document and ADR relations (ADR 0002). R01 has `supersedes` and `amends`, which say a
+    // later record REPLACES or CHANGES an earlier one. Neither describes a record that adds to
+    // another while leaving it in force — an ADR whose predecessor still stands. That is
+    // `extends`, and it is acyclic for the same reason `supersedes` is: nothing can extend
+    // itself through any chain.
+    'extends',
     'raised_against',
     'remediated_by',
     'supplied_by',

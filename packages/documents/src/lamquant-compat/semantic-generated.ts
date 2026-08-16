@@ -29,7 +29,7 @@ export async function buildGeneratedSemanticProjection(
   const topicPages = await generatedTopicPages(root, allDocs, fileSystem);
   const parentOutputs = await generatedParents(root, allDocs, compose, fileSystem);
   return {
-    atomMembership: declaredMembership(compose, atoms),
+    atomMembership: await composedMembership(root, compose, atoms, fileSystem),
     parentOutputs,
     topics: topicPages.map((page) => page.slug).sort(compareCanonicalText),
     topicMembership: await generatedTopicMembership(root, topicPages, compose, atoms, fileSystem),
@@ -54,20 +54,51 @@ async function readDeclaredAtoms(
   return atoms;
 }
 
-function declaredMembership(
+/**
+ * Which atoms the composed parent ACTUALLY contains, in the order it contains them.
+ *
+ * This reads the generated parent, not `compose.toml`. That distinction is the whole point of
+ * the dimension: the source projection already derives membership from the declaration, so a
+ * generated side that derived it from the same declaration would be comparing a value against
+ * itself. `atom_membership` could then never report a mismatch — which is what it did, and a
+ * composer that dropped or reordered an atom was caught only by `parent_output` telling us a
+ * digest changed, without saying why.
+ *
+ * Atoms are matched to declarations by title, consuming each match, exactly as
+ * `generatedTopicMembership` matches atoms inside a topic page. A heading that matches no
+ * declared atom is recorded by its title rather than dropped, so an unexpected section is a
+ * mismatch instead of a silence.
+ */
+async function composedMembership(
+  root: string,
   parents: readonly ComposeParent[],
   atoms: ReadonlyMap<string, AtomRecord>,
-): readonly string[] {
-  return sorted(
-    parents.flatMap((parent) => {
-      let ordinal = 0;
-      return parent.atoms.flatMap((path): string[] => {
+  fileSystem: LamQuantCompatibilityFileSystem,
+): Promise<readonly string[]> {
+  const entries: string[] = [];
+  for (const parent of parents) {
+    for (const path of parent.atoms) {
+      if (atoms.get(path) === undefined) reject(`generated profile cannot read atom '${path}'`);
+    }
+    const text = await maybeRead(root, parent.file, fileSystem);
+    if (text === undefined) continue;
+    const consumed = new Set<string>();
+    let ordinal = 0;
+    for (const line of text.replace(/\r\n?/g, '\n').split('\n')) {
+      const heading = /^##\s+(.+?)\s*$/.exec(line);
+      if (heading === null) continue;
+      const title = heading[1]!;
+      const matched = parent.atoms.find((path) => {
         const atom = atoms.get(path);
-        if (atom === undefined) reject(`generated profile cannot read atom '${path}'`);
-        return atom.deprecated ? [] : [record(parent.file, ordinal++, path)];
+        return (
+          atom !== undefined && !atom.deprecated && atom.title === title && !consumed.has(path)
+        );
       });
-    }),
-  );
+      if (matched !== undefined) consumed.add(matched);
+      entries.push(record(parent.file, ordinal++, matched ?? `?title:${title}`));
+    }
+  }
+  return sorted(entries);
 }
 
 async function generatedParents(

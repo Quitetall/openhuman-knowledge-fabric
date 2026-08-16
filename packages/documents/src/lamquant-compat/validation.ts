@@ -83,6 +83,26 @@ function validateManifestSymlinkTarget(target: string, path: string): void {
   }
 }
 
+/**
+ * The manifest identity for a manifest as a CALLER holds it.
+ *
+ * `lamQuantManifestIdentity` digests whatever it is given, and `validateCompatibilityOptions`
+ * compares against the identity of the NORMALIZED manifest — normalization fills in `kind`,
+ * so an entry written `{path, sha256}` digests differently from the `{path, sha256, kind}` the
+ * validator ends up holding. A caller who digested their own raw entries therefore got
+ * `invalid_manifest: does not bind the requested commit and manifest`, which describes the
+ * symptom and not the cause.
+ *
+ * Composing the two steps here is the fix: there is now one way to compute the identity a
+ * caller must supply, and it agrees with the validator by construction.
+ */
+export function lamQuantExpectedManifestIdentity(
+  commitSha: string,
+  entries: readonly LamQuantManifestEntry[],
+): string {
+  return lamQuantManifestIdentity(commitSha, validateExpectedManifest(entries));
+}
+
 export function validateCompatibilityOptions(
   options: LamQuantCompatibilityOptions,
 ): {

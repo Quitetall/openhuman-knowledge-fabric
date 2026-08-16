@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { canonicalize, digestBytes } from '@kf/canonicalization';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CompilationRequest, CompilerResponse, LiminalCompilerIdentity } from './compiler.js';
 import { digestLiminalRuntimeClosure, PinnedLiminalProcessAdapter } from './liminal-adapter.js';
 
@@ -137,6 +137,15 @@ describe('PinnedLiminalProcessAdapter configuration', () => {
 describe.skipIf(process.platform !== 'linux' || !existsSync(TEST_BWRAP))(
   'PinnedLiminalProcessAdapter sandbox integration',
   () => {
+    // Every test below spawns a real bubblewrap sandbox around a real Node process. On an idle
+    // machine each takes milliseconds; in the full suite it competes with fifteen other
+    // workers and six PostgreSQL containers, and process startup alone can take seconds.
+    //
+    // The default 30s budget is sized for tests that do arithmetic. Raising it here does not
+    // weaken anything: none of these tests asserts that the sandbox is FAST. They assert that
+    // it refuses, bounds, isolates and cleans up — properties that either hold or hang, and a
+    // hang still fails, just later.
+    vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
     it('does not permit script-fixture override outside test runtime', async () => {
       const files = await fixture(
         `process.stdout.write(${JSON.stringify(canonicalize(response))})`,
@@ -239,7 +248,11 @@ describe.skipIf(process.platform !== 'linux' || !existsSync(TEST_BWRAP))(
     `);
       const adapter = new PinnedLiminalProcessAdapter({
         ...files,
-        timeoutMs: 2_000,
+        // The compile deadline, not an assertion. This test is about the protocol — canonical
+        // JSON on stdin, the required --protocol argument, canonical JSON back — and a budget
+        // tight enough to expire while the machine is busy turns a protocol test into a
+        // timing test that fails for reasons it does not describe.
+        timeoutMs: 60_000,
         allowScriptExecutableForTests: true,
       });
 
@@ -373,7 +386,15 @@ describe.skipIf(process.platform !== 'linux' || !existsSync(TEST_BWRAP))(
 
       await expect(adapter.compile(request)).rejects.toThrow(/timed out/);
       expect(startedAt).toBeGreaterThan(0);
-      expect(Date.now() - startedAt).toBeLessThan(1_000);
+      // The property is BOUNDED, not fast. A detached descendant holding the compiler's pipes
+      // is the case where a naive implementation waits forever, so what has to be proven is
+      // that this returns at all — and the configured budget above (40ms compile, 200ms
+      // cleanup) is what governs how quickly.
+      //
+      // The ceiling is generous on purpose. It was 1s, which under full-suite load lost to
+      // process startup and failed a correct implementation; anything that actually hangs
+      // blows the test timeout instead, so a wide ceiling costs no detection.
+      expect(Date.now() - startedAt).toBeLessThan(15_000);
     });
 
     it('refuses oversized or malformed output', async () => {

@@ -181,11 +181,34 @@ export interface SecureObjectActionAtoms {
 }
 
 export interface SecureObjectAuthoritySigner {
-  sign(input: {
-    readonly organizationId: string;
-    readonly authorityRef: ExternalAuthorityRef;
-    readonly signingKeyRegistryId: string;
-    readonly canonicalTombstoneBytes: Uint8Array;
-    readonly signal: AbortSignal;
-  }): Uint8Array | Promise<Uint8Array>;
+  sign(input: SecureObjectSigningRequest): Uint8Array | Promise<Uint8Array>;
+}
+
+export interface SecureObjectSigningRequest {
+  readonly organizationId: string;
+  readonly authorityRef: ExternalAuthorityRef;
+  readonly signingKeyRegistryId: string;
+  readonly canonicalTombstoneBytes: Uint8Array;
+  readonly signal: AbortSignal;
+}
+
+/**
+ * What an external Secure Object Authority returns over the wire, decoded.
+ *
+ * The signer interface above returns bare signature bytes because that is all KF needs:
+ * `signErasureTombstone` verifies them against the canonical bytes IT computed and the public
+ * key IT looked up, so a substituted key or substituted payload fails there regardless of what
+ * the authority claims.
+ *
+ * This richer shape exists for the transport, not for that guarantee. An authority that echoes
+ * which key it used and which bytes it signed lets a client reject a misconfiguration at the
+ * HTTP boundary, with a message naming the mismatch, instead of surfacing it later as an
+ * opaque signature-verification failure inside a transaction. Defence in depth and a better
+ * error — not a second source of truth.
+ */
+export interface SignedErasureTombstonePayload {
+  readonly version: 'kf-secure-object-erasure-signature/v1';
+  readonly signingKeyRegistryId: string;
+  readonly canonicalTombstoneBytes: Buffer;
+  readonly signature: Buffer;
 }

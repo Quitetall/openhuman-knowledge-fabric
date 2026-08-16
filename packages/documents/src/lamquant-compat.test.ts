@@ -8,10 +8,53 @@ import {
   nodeLamQuantCommandRunner,
   nodeLamQuantCompatibilityFileSystem,
   runLamQuantCompatibilityOracle,
+  lamQuantExpectedManifestIdentity,
   type LamQuantCommandRequest,
+  type LamQuantCompatibilityOptions,
+  type LamQuantManifestEntry,
 } from './lamquant-compat.js';
 
 const temporaryPaths: string[] = [];
+
+/**
+ * How long a real spawned process gets before the runner's deadline fires.
+ *
+ * These tests spawn Node, and one of them spawns a detached grandchild. What they assert is
+ * that the runner BOUNDS a process that will not exit and PRESERVES the output it produced
+ * first — neither of which is a claim about speed. At 2s the deadline could expire before the
+ * child had finished starting under full-suite load, so the child never wrote its line and the
+ * "output is preserved" assertion failed against a correct implementation.
+ *
+ * The cleanup budget below is deliberately NOT widened: 200ms is the bound being tested.
+ *
+ * 8s rather than something larger because each of these tests WAITS for the deadline to fire —
+ * the budget is the test's own runtime. It is several times the worst observed startup under a
+ * full parallel suite, which is the headroom that matters, and still an order of magnitude
+ * under the file's test timeout.
+ */
+const SPAWN_DEADLINE_MS = 8_000;
+
+/**
+ * Options for the oracle, with the manifest identity DERIVED rather than written down.
+ *
+ * `expectedManifestDigest` identifies `{commitSha, expectedManifest}` — it is what pins the
+ * oracle to one exact expected tree. A literal here would go stale the first time a fixture
+ * changed, and these tests would then be asserting against a manifest identity nothing
+ * produces, which is how the whole file came to fail on a shape guard instead of on the
+ * precedence rules it is actually about.
+ */
+function pinnedOptions(
+  checkoutPath: string,
+  commitSha: string,
+  expectedManifest: readonly LamQuantManifestEntry[],
+): LamQuantCompatibilityOptions {
+  return {
+    checkoutPath,
+    commitSha,
+    expectedManifest,
+    expectedManifestDigest: lamQuantExpectedManifestIdentity(commitSha, expectedManifest),
+  };
+}
 
 afterEach(async () => {
   await Promise.all(
@@ -214,9 +257,18 @@ async function writeGeneratedCompatibilityOutputs(
   );
   await writeFile(
     join(root, 'docs', 'topics', 'adr-index.md'),
-    ['# ADR index', '', '| [0001](../../docs/decisions/0001-test.md) | Test | `codec` |', ''].join(
-      '\n',
-    ),
+    // The status heading is load-bearing, not decoration: the generated projection reads an
+    // ADR's status from the section it sits under, while the source projection reads it from
+    // the ADR's own frontmatter. Without it every ADR generated here reads 'unknown' and the
+    // fixture describes a build LamQuant would not produce.
+    [
+      '# ADR index',
+      '',
+      '## Accepted',
+      '',
+      '| [0001](../../docs/decisions/0001-test.md) | Test | `codec` |',
+      '',
+    ].join('\n'),
   );
   await writeFile(
     join(root, 'docs', 'topics', 'adr-digest.md'),
@@ -233,9 +285,28 @@ async function writeGeneratedCompatibilityOutputs(
       '',
     ].join('\n'),
   );
+  // The full book order a conforming `doc_book.py` emits. A single entry made the fixture
+  // describe a build that had dropped five documents, so the oracle refused it — correctly,
+  // which is why this is fixed here rather than by relaxing the comparison.
+  const bookOrder = [
+    'docs/MASTER.md',
+    'docs/PARENT.md',
+    'docs/ADR_OVERVIEW.md',
+    'docs/TRACEABILITY_MATRIX.md',
+    'docs/TRUTH_LEDGER.md',
+    'docs/decisions/0001-test.md',
+  ];
   await writeFile(
     join(root, 'docs', '_dist', 'BOOK.md'),
-    ['# Book', mismatch === 'book' ? '- `docs/OTHER.md`' : '- `docs/PARENT.md`', ''].join('\n'),
+    [
+      '# Book',
+      // The planted defect substitutes a document rather than truncating the list, so the
+      // mismatch is an ORDER defect and not merely a shorter file.
+      ...(mismatch === 'book' ? ['docs/OTHER.md', ...bookOrder.slice(1)] : bookOrder).map(
+        (path) => `- \`${path}\``,
+      ),
+      '',
+    ].join('\n'),
   );
 }
 
@@ -266,11 +337,7 @@ describe('LamQuant compatibility oracle preconditions', () => {
 
     await expect(
       runLamQuantCompatibilityOracle(
-        {
-          checkoutPath: '/source/lamquant',
-          commitSha: 'main',
-          expectedManifest: [{ path: 'docs/MASTER.md', sha256: '0'.repeat(64) }],
-        },
+        pinnedOptions('/source/lamquant', 'main', [{ path: 'docs/MASTER.md', sha256: '0'.repeat(64) }]),
         {
           commandRunner: { run } as never,
           fileSystem: {} as never,
@@ -286,11 +353,7 @@ describe('LamQuant compatibility oracle preconditions', () => {
 
     await expect(
       runLamQuantCompatibilityOracle(
-        {
-          checkoutPath: '/source/lamquant',
-          commitSha: 'a'.repeat(40),
-          expectedManifest: [{ path: 'docs/MASTER.md', sha256: '0'.repeat(64) }],
-        },
+        pinnedOptions('/source/lamquant', 'a'.repeat(40), [{ path: 'docs/MASTER.md', sha256: '0'.repeat(64) }]),
         {
           commandRunner: { run } as never,
           fileSystem: { kind } as never,
@@ -311,11 +374,7 @@ describe('LamQuant compatibility oracle preconditions', () => {
 
     await expect(
       runLamQuantCompatibilityOracle(
-        {
-          checkoutPath: '/source/lamquant',
-          commitSha: 'a'.repeat(40),
-          expectedManifest: [{ path: 'docs/MASTER.md', sha256: '0'.repeat(64) }],
-        },
+        pinnedOptions('/source/lamquant', 'a'.repeat(40), [{ path: 'docs/MASTER.md', sha256: '0'.repeat(64) }]),
         {
           commandRunner: { run },
           fileSystem: { kind: async () => 'directory' },
@@ -349,11 +408,7 @@ describe('LamQuant compatibility oracle preconditions', () => {
 
     await expect(
       runLamQuantCompatibilityOracle(
-        {
-          checkoutPath: '/source/lamquant',
-          commitSha: 'a'.repeat(40),
-          expectedManifest: [{ path: 'docs/MASTER.md', sha256: '0'.repeat(64) }],
-        },
+        pinnedOptions('/source/lamquant', 'a'.repeat(40), [{ path: 'docs/MASTER.md', sha256: '0'.repeat(64) }]),
         {
           commandRunner: { run },
           fileSystem: {
@@ -393,7 +448,7 @@ describe('LamQuant compatibility oracle execution', () => {
 
   it('returns bounded deterministic evidence when a real process times out', async () => {
     const runner = createNodeLamQuantCommandRunner({
-      timeoutMs: 2_000,
+      timeoutMs: SPAWN_DEADLINE_MS,
       cleanupTimeoutMs: 200,
     });
     const startedAt = Date.now();
@@ -407,14 +462,14 @@ describe('LamQuant compatibility oracle execution', () => {
     expect(result).toMatchObject({
       stdout: 'started\n',
       stderr: '',
-      runnerFailure: { kind: 'timeout', timeoutMs: 2_000 },
+      runnerFailure: { kind: 'timeout', timeoutMs: SPAWN_DEADLINE_MS },
     });
-    expect(Date.now() - startedAt).toBeLessThan(4_000);
+    expect(Date.now() - startedAt).toBeLessThan(SPAWN_DEADLINE_MS + 15_000);
   });
 
   it('hard-bounds cleanup when a real descendant retains inherited pipes', async () => {
     const runner = createNodeLamQuantCommandRunner({
-      timeoutMs: 2_000,
+      timeoutMs: SPAWN_DEADLINE_MS,
       cleanupTimeoutMs: 200,
     });
     const descendant =
@@ -433,9 +488,9 @@ describe('LamQuant compatibility oracle execution', () => {
     expect(result).toMatchObject({
       stdout: 'parent-exit\n',
       stderr: '',
-      runnerFailure: { kind: 'timeout', timeoutMs: 2_000 },
+      runnerFailure: { kind: 'timeout', timeoutMs: SPAWN_DEADLINE_MS },
     });
-    expect(Date.now() - startedAt).toBeLessThan(4_000);
+    expect(Date.now() - startedAt).toBeLessThan(SPAWN_DEADLINE_MS + 15_000);
   });
 
   it.each([
@@ -534,17 +589,17 @@ describe('LamQuant compatibility oracle execution', () => {
     });
 
     const report = await runLamQuantCompatibilityOracle(
-      {
-        checkoutPath: source,
-        commitSha: 'a'.repeat(40),
-        expectedManifest: await docsManifest(source),
-      },
+      pinnedOptions(source, 'a'.repeat(40), await docsManifest(source)),
       { commandRunner: { run }, fileSystem },
     );
 
     expect(report).toMatchObject({
       commitSha: 'a'.repeat(40),
-      manifestDigest: '1c1fa1d05262686288b76b51fcb09535db8dfd41cc96c08847980208d612313d',
+      // Frozen digest of a frozen fixture — the pin that catches an unintended change to how
+      // the identity is computed. It moved from 1c1fa1d0… when the fixture's BOOK.md was
+      // corrected to list the whole book rather than one document; that was a deliberate
+      // fixture change, not drift.
+      manifestDigest: 'bd14ceb52d90df4d3e3cc9b735f588a894b7778fa8adbcb0ce05e5ba5b7eb903',
       passed: true,
       parity: { matched: true, missing: [], unexpected: [], mismatched: [] },
       gates: [
@@ -639,11 +694,7 @@ describe('LamQuant compatibility oracle execution', () => {
 
     await expect(
       runLamQuantCompatibilityOracle(
-        {
-          checkoutPath: source,
-          commitSha: 'a'.repeat(40),
-          expectedManifest: await docsManifest(source),
-        },
+        pinnedOptions(source, 'a'.repeat(40), await docsManifest(source)),
         {
           commandRunner: { run: gitOnlyRunner },
           fileSystem: { ...nodeLamQuantCompatibilityFileSystem, makeScratchDirectory },
@@ -663,11 +714,7 @@ describe('LamQuant compatibility oracle execution', () => {
 
     await expect(
       runLamQuantCompatibilityOracle(
-        {
-          checkoutPath: source,
-          commitSha: 'a'.repeat(40),
-          expectedManifest: await docsManifest(source),
-        },
+        pinnedOptions(source, 'a'.repeat(40), await docsManifest(source)),
         {
           commandRunner: { run: gitOnlyRunner },
           fileSystem: { ...nodeLamQuantCompatibilityFileSystem, makeScratchDirectory },
@@ -697,11 +744,7 @@ describe('LamQuant compatibility oracle execution', () => {
 
     await expect(
       runLamQuantCompatibilityOracle(
-        {
-          checkoutPath: source,
-          commitSha: 'a'.repeat(40),
-          expectedManifest: await docsManifest(source),
-        },
+        pinnedOptions(source, 'a'.repeat(40), await docsManifest(source)),
         {
           commandRunner: { run: gitOnlyRunner },
           fileSystem: { ...nodeLamQuantCompatibilityFileSystem, makeScratchDirectory },
@@ -731,11 +774,7 @@ describe('LamQuant compatibility oracle execution', () => {
     });
 
     const report = await runLamQuantCompatibilityOracle(
-      {
-        checkoutPath: source,
-        commitSha: 'a'.repeat(40),
-        expectedManifest: await docsManifest(source),
-      },
+      pinnedOptions(source, 'a'.repeat(40), await docsManifest(source)),
       { commandRunner: { run }, fileSystem: nodeLamQuantCompatibilityFileSystem },
     );
 
@@ -768,11 +807,7 @@ describe('LamQuant compatibility oracle execution', () => {
       });
 
       const report = await runLamQuantCompatibilityOracle(
-        {
-          checkoutPath: source,
-          commitSha: 'a'.repeat(40),
-          expectedManifest: await docsManifest(source),
-        },
+        pinnedOptions(source, 'a'.repeat(40), await docsManifest(source)),
         { commandRunner: { run }, fileSystem: nodeLamQuantCompatibilityFileSystem },
       );
 

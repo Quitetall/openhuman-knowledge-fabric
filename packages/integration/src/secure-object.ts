@@ -33,6 +33,8 @@ export {
   type SecureObjectActionIntent,
   type SecureObjectActionType,
   type SecureObjectAuthoritySigner,
+  type SecureObjectSigningRequest,
+  type SignedErasureTombstonePayload,
   type SecureObjectFailure,
   type SecureObjectPurpose,
   type SecureObjectRoleCategory,

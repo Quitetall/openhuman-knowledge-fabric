@@ -65,6 +65,7 @@ export {
 } from './lamquant-compat/process-runner.js';
 export { nodeLamQuantCompatibilityFileSystem } from './lamquant-compat/filesystem.js';
 export { lamQuantManifestIdentity } from './lamquant-compat/manifest.js';
+export { lamQuantExpectedManifestIdentity } from './lamquant-compat/validation.js';
 
 const NODE_DEPENDENCIES: LamQuantCompatibilityDependencies = {
   commandRunner: nodeLamQuantCommandRunner,

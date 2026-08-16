@@ -56,6 +56,8 @@ export {
 } from './ml.js';
 
 export {
+  DEFAULT_AUTHORITY_SIGNER_TIMEOUT_MS,
+  MAX_AUTHORITY_SIGNER_TIMEOUT_MS,
   MAX_READ_CAPABILITY_SECONDS,
   SECURE_OBJECT_ACTION_TYPES,
   SecureObjectRejected,
@@ -91,5 +93,7 @@ export {
   type SecureObjectActionAtoms,
   type SecureObjectActionIntent,
   type SecureObjectAuthoritySigner,
+  type SecureObjectSigningRequest,
+  type SignedErasureTombstonePayload,
   type WorkloadIdentityRef,
 } from './secure-object.js';
