@@ -14,13 +14,17 @@
   },
   "dependencies": {
     "@kf/actions": "workspace:*",
+    "@kf/agent-tools": "workspace:*",
     "@kf/artifacts": "workspace:*",
     "@kf/authorization": "workspace:*",
     "@kf/database": "workspace:*",
     "@kf/documents": "workspace:*",
     "@kf/domain": "workspace:*",
+    "@kf/integration": "workspace:*",
+    "@kf/ml-registry": "workspace:*",
     "@kf/orchestrator": "workspace:*",
     "@kf/operations": "workspace:*",
+    "@kf/search": "workspace:*",
     "@kf/work-control": "workspace:*",
     "fastify": "^5.11.3"
   },

@@ -1,11 +1,11 @@
 /**
  * Readiness, from a terminal or a cron entry.
  *
- *   kf-readiness              exit 0 only if everything is ok
+ *   kf-readiness              show service and institutional reports
  *   kf-readiness --json       the same, as JSON
  *
- * Exits non-zero on degraded as well as failed. A scheduled check that exits 0 while
- * something is wrong is worse than no scheduled check, because it is believed.
+ * Exit status follows service readiness. Institutional failures remain explicit and block
+ * their governed operations, but do not make a working shared-dogfood service unavailable.
  */
 
 import { createPool } from '@kf/database';
@@ -34,7 +34,7 @@ async function main(): Promise<number> {
     } else {
       console.warn(formatReadiness(report));
     }
-    return report.ready ? 0 : 1;
+    return report.service.ready ? 0 : 1;
   } finally {
     await pool.end();
   }

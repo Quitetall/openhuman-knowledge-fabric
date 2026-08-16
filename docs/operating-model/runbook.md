@@ -125,8 +125,17 @@ probably unreachable — `journalctl -u kf-backup-offsite.service`.
 systemctl start kf-restore-drill.service      # or: scripts/restore-drill.sh
 ```
 
-The drill restores into a scratch database, compares a fresh export against the one taken at
-backup time, records the result against the production ledger, and drops the scratch database.
+The drill restores into a scratch database, compares a fresh export, verifies historical
+checkpoints, invokes configured external object-store verifier, records all three proof
+dimensions against production ledger, then drops scratch database.
+
+## `backup_freshness` FAILED — latest restore is PARTIAL
+
+Database round-trip passed, but checkpoint trust or external object bytes were not proven.
+Read named missing dimensions in readiness output and restore journal. Configure reviewed
+root-owned `KF_OBJECT_STORE_VERIFY_PROGRAM` and credential-free `KF_OBJECT_STORE_PROOF_REF`, or
+restore authenticated checkpoint public-key history. Never relabel partial row as verified;
+rerun drill after missing substrate is available.
 Recording it anywhere else discards the evidence along with the database.
 
 ## `backup_freshness` FAILED — the most recent drill FAILED
@@ -178,8 +187,9 @@ migrated, and that is worth understanding before adding more.
 
 ## A readiness check reports `unknown`
 
-The check could not run. **This counts as not ready**, deliberately: the alternative is a
-dashboard that turns green when monitoring breaks.
+The check could not run. **This makes its named service or institutional partition not ready**,
+deliberately: the alternative is a dashboard that turns green when monitoring breaks. One broken
+check keeps its own ID and does not erase or contaminate evidence from the other partition.
 
 Read the message. It is usually a permission or a missing object, both of which mean something
 changed that nobody recorded.
@@ -189,12 +199,21 @@ changed that nobody recorded.
 ## Restoring
 
 ```
-scripts/restore-verify.sh <backup-directory> <target-database-url>
+scripts/restore-verify.sh <backup-directory> <owner-only-target-url-file> \
+  [owner-only-production-ledger-url-file]
 ```
 
-It refuses a target that already has a `core` schema, checks digests before writing anything,
-and re-exports afterwards to diff against the backup. **A backup is not valid until it has
-been restored** — if this has not been run against a given backup, that backup is a hope.
+It first verifies signed `backup.manifest.json` against external historical trust, including
+closed regular-file set and exact bytes for `roles.sql` and `dump.pgcustom`. Only then does it
+stream those verified bytes into a private staging tree. It refuses a target that already has a
+`core` schema, then executes roles and restores only from staged paths before re-exporting to diff
+against backup, verifies checkpoint trust, and invokes external object-store adapter. Recomputed
+`SHA256SUMS` or a post-verification source-path swap cannot authorize changed SQL or dump bytes.
+Only database + checkpoint + object-store proofs produce `verified`; missing dimensions record
+`partial` and exit nonzero. **A backup is not valid until all three have been restored.**
+
+Connection strings must be stored in mode `0600` files. Never put a URL containing credentials
+on the command line; it is visible in `/proc/<pid>/cmdline` before script code can sanitize it.
 
 Remember the object store. The database holds artifact digests, not bytes; restoring one
 without the other gives you a catalogue of things you no longer have.
@@ -206,9 +225,16 @@ checkpoint whose key has been discarded is unverifiable, and unverifiable is not
 valid.
 
 1. Generate the new key where the API cannot reach it.
-2. Publish the new public key alongside the old.
+2. Write the new public key to the external append-only trust directory as
+   `<CHECKPOINT_SIGNING_KEY_ID>.pub`. Keep every prior file; never place private keys there.
 3. Point the signer at the new key; the next checkpoint uses it.
-4. Verification supplies both keys. `unknown_key` is a finding, never a pass.
+4. Set `CHECKPOINT_PUBLIC_KEY_DIR` for verification. It loads every regular `*.pub` file by
+   signing-key id, refuses symlinks and non-Ed25519 keys, and reports `unknown_key` for any
+   checkpoint whose historical key is absent.
+
+Back up this directory with authenticated preservation metadata, independently of PostgreSQL.
+Database contents are not a trust root: an administrator capable of rewriting the ledger must
+not also be able to replace verification keys unnoticed.
 
 ## Linking a person to an identity provider account
 

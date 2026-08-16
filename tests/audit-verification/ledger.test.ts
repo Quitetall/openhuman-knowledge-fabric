@@ -85,7 +85,7 @@ describe('checkpoint runs', () => {
     const result = await runCheckpoint(h.adminPool, key);
     expect(result.status).toBe('signed');
     expect(result.eventCount).toBe(3);
-    expect(result.checkpoint!.fromSeq).toBe(5);
+    expect(result.checkpoint!.fromSeq).toBe('5');
     expect(await verifyLedger(h.adminPool, keys)).toEqual([]);
   });
 
@@ -107,6 +107,36 @@ describe('checkpoint runs', () => {
     const signed = [a, b].filter((r) => r.status === 'signed');
     expect(signed).toHaveLength(1);
     expect(signed[0]!.eventCount).toBe(2);
+    expect(await verifyLedger(h.adminPool, keys)).toEqual([]);
+  });
+
+  it('serialises concurrent disjoint actions onto one unbranched audit head', async () => {
+    const execute = createDispatcher(h.pool);
+    const objectIds = await Promise.all(
+      ['left', 'right'].map((side) =>
+        createObject(h.adminPool, f, {
+          type: 'decision_record',
+          domain: 'engineering',
+          state: 'proposed',
+          title: `audit chain ${side}`,
+          createdBy: f.performerId,
+        }),
+      ),
+    );
+    await Promise.all(
+      objectIds.map((objectId, index) =>
+        execute({
+          actionType: 'accept_decision',
+          actorId: f.reviewerId,
+          actingRoleId: f.reviewerRoleId,
+          targetIds: [objectId],
+          idempotencyKey: `audit-chain-concurrent-${String(index)}`,
+          organizationId: f.organizationId,
+          maxClassification: 'restricted',
+        }),
+      ),
+    );
+    await runCheckpoint(h.adminPool, key);
     expect(await verifyLedger(h.adminPool, keys)).toEqual([]);
   });
 
@@ -168,9 +198,7 @@ describe('tamper detection — as the database owner', () => {
     }
   }
 
-  it('catches an EDITED event, even one whose chain digests were recomputed', async () => {
-    // The sophisticated attack: change a record, then relink the chain over it so
-    // recomputation from genesis still passes. The signed Merkle root is what fails.
+  it('catches an EDITED digest-bearing event field in both chain and signed root', async () => {
     await withRestoredAudit(
       async () => {
         await withTransaction(h.adminPool, async (tx) => {
@@ -182,10 +210,8 @@ describe('tamper detection — as the database owner', () => {
       },
       async () => {
         const findings = await verifyLedger(h.adminPool, keys);
-        // The chain itself still verifies — digests were untouched — which is exactly why
-        // the chain alone is not enough.
         expect(findings.map((x) => x.kind)).toContain('root_mismatch');
-        expect(findings.some((x) => x.kind === 'chain_broken')).toBe(false);
+        expect(findings.map((x) => x.kind)).toContain('chain_broken');
       },
     );
   });
@@ -290,9 +316,17 @@ describe('tamper detection — as the database owner', () => {
     const duplicate = await withTransaction(h.adminPool, async (tx) => {
       const row = await tx.one<{ id: string }>(
         `insert into core.audit_checkpoint
-           (from_seq, to_seq, leaf_count, merkle_root, signature, signing_key_id)
-         values ($1, $2, $3, $4, 'not-a-real-signature', $5) returning id`,
-        [existing.from_seq, existing.to_seq, existing.leaf_count, 'a'.repeat(64), key.id],
+           (format_version, from_seq, to_seq, leaf_count, merkle_root, signature, signing_key_id)
+         values ('kf.audit-checkpoint.v2', $1, $2, $3, $4, $5, $6)
+         returning id`,
+        [
+          existing.from_seq,
+          existing.to_seq,
+          existing.leaf_count,
+          'a'.repeat(64),
+          Buffer.alloc(64).toString('base64'),
+          key.id,
+        ],
       );
       return row.id;
     });

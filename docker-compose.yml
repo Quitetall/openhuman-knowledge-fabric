@@ -1,18 +1,23 @@
-# Local development stack.
+# Workstation dependency stack for development and local dogfood rehearsal.
 #
-# This is NOT a production topology. Credentials here are fixed and public on purpose so a
-# clean checkout runs without setup; every one of them is rejected outside development by
-# the checks in infrastructure/. Production deployment is Gate 8.
+# This is NOT a private-host or production topology. Credentials here are fixed and public on
+# purpose so a clean checkout runs without setup. Ports bind to loopback so those credentials
+# are not exposed to the LAN. KF_DEPLOYMENT_PROFILE records which application posture is being
+# rehearsed; dogfood still needs the API's real OIDC variables and a bearer-capable client.
 
 name: openhuman-knowledge-fabric
+
+x-kf-profile-labels: &kf-profile-labels
+  org.openhuman.knowledge-fabric.deployment-profile: ${KF_DEPLOYMENT_PROFILE:?Set KF_DEPLOYMENT_PROFILE to development or dogfood}
 
 services:
   postgres:
     # PostgreSQL 18 is a hard requirement, not a preference: uuidv7() is used for object
     # identity and was added in this major version.
-    image: postgres:18-alpine
+    image: postgres:18-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15
     container_name: kf-postgres
     restart: unless-stopped
+    labels: *kf-profile-labels
     environment:
       POSTGRES_DB: kf
       POSTGRES_USER: kf_owner
@@ -29,7 +34,7 @@ services:
       - -c
       - track_commit_timestamp=on
     ports:
-      - '5432:5432'
+      - '127.0.0.1:5432:5432'
     volumes:
       # Mount the PARENT, not .../data. From 18 the image stores the cluster in a
       # major-version subdirectory so `pg_upgrade --link` does not have to cross a mount
@@ -46,16 +51,17 @@ services:
   minio:
     # Pinned, like postgres and keycloak. A floating tag means a clean checkout can stop
     # working because an upstream release changed, with nothing in this repo to explain it.
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
     container_name: kf-minio
     restart: unless-stopped
+    labels: *kf-profile-labels
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: kf-dev-access-key
       MINIO_ROOT_PASSWORD: dev-only-not-a-secret
     ports:
-      - '9000:9000'
-      - '9001:9001'
+      - '127.0.0.1:9000:9000'
+      - '127.0.0.1:9001:9001'
     volumes:
       - minio-data:/data
     healthcheck:
@@ -69,8 +75,9 @@ services:
   # Versioning must exist before the first object is written — enabling it later does not
   # retroactively protect anything already stored.
   minio-init:
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
     container_name: kf-minio-init
+    labels: *kf-profile-labels
     depends_on:
       minio:
         condition: service_healthy
@@ -89,17 +96,18 @@ services:
       "
 
   keycloak:
-    image: quay.io/keycloak/keycloak:26.4
+    image: quay.io/keycloak/keycloak:26.4@sha256:9409c59bdfb65dbffa20b11e6f18b8abb9281d480c7ca402f51ed3d5977e6007
     container_name: kf-keycloak
     restart: unless-stopped
+    labels: *kf-profile-labels
     command: ['start-dev', '--http-port=8080']
     environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: admin
-      KC_BOOTSTRAP_ADMIN_PASSWORD: dev-only-not-a-secret
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME:?Set the local Keycloak bootstrap username}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD:?Set the local Keycloak bootstrap password}
       # Exposes /health/* on the management interface — see the healthcheck below.
       KC_HEALTH_ENABLED: 'true'
     ports:
-      - '8080:8080'
+      - '127.0.0.1:8080:8080'
     volumes:
       - keycloak-data:/opt/keycloak/data
     # Port 9000 is deliberate and is NOT MinIO's. Since Keycloak 25 the health and metrics

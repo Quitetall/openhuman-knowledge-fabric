@@ -14,6 +14,11 @@ coverage/
 # would create a second copy that can drift from the ontology that produced it.
 /release/
 
+# Derived knowledge graph, ~11 MB, rebuilt by `graphify update .`. Same argument as /release/:
+# a committed copy is a second source that drifts from the tree it was derived from, and the
+# tree is the thing anyone should be reading.
+/graphify-out/
+
 # Operational data must never enter git (directive §2.4). These paths exist so an
 # accidental local dump cannot be staged.
 /data/

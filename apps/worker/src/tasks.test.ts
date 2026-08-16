@@ -19,4 +19,30 @@ describe('task registry', () => {
     const list = taskList();
     await expect(list['kf.echo']?.({ any: 'payload' })).resolves.toBeUndefined();
   });
+
+  it('dispatches a typed compiler job only through the configured runtime', async () => {
+    const seen: string[] = [];
+    const list = taskList({
+      compileDocument: async (actionId) => {
+        seen.push(actionId);
+      },
+    });
+    await list['kf.compile_document']?.({
+      actionId: '01940000-0000-8000-8000-000000000001',
+    });
+    expect(seen).toEqual(['01940000-0000-8000-8000-000000000001']);
+
+    await expect(list['kf.compile_document']?.({ action_id: 'wrong-field' })).rejects.toThrow(
+      /actionId/,
+    );
+  });
+
+  it('leaves compiler jobs failed and retryable when runtime configuration is absent', async () => {
+    const list = taskList();
+    await expect(
+      list['kf.compile_document']?.({
+        actionId: '01940000-0000-8000-8000-000000000001',
+      }),
+    ).rejects.toThrow(/not configured/);
+  });
 });

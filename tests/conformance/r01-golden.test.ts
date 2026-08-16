@@ -188,13 +188,16 @@ describe('the pinned golden pack is intact', () => {
  */
 const DECLARED_ADDITIONS = {
   node_types: [
+    'authored_fragment',
     'capa',
     'complaint',
     'configuration_item',
     'controlled_document',
+    'document_composition',
     'equipment',
     'interface_contract',
     'milestone',
+    'ml_promotion_decision',
     'nonconformity',
     'physical_binding',
     'risk_control',
@@ -212,14 +215,23 @@ const DECLARED_ADDITIONS = {
     'supplied_by',
   ],
   action_types: [
+    'accept_document_compilation',
+    'add_authored_fragment',
     'add_controlled_document',
+    'add_document_composition',
+    'append_ml_metric_event',
+    'apply_document_proposal',
     'approve_capa_plan',
     'approve_controlled_document',
     'approve_test_definition',
+    'authorize_ml_metric_stream',
+    'authorize_ml_promotion',
+    'change_document_source_holder',
     'check_capa_effectiveness',
     'close_capa',
     'close_complaint',
     'close_nonconformity',
+    'consume_secure_object_capability',
     'contain_nonconformity',
     'define_test',
     'deprecate_interface_contract',
@@ -231,27 +243,40 @@ const DECLARED_ADDITIONS = {
     'invalidate_test_execution',
     'investigate_complaint',
     'investigate_nonconformity',
+    'issue_secure_object_capability',
     'make_document_effective',
     'open_capa',
     'place_equipment_in_service',
     'plan_test_execution',
     'promote_configuration_item',
     'propose_risk_control',
+    'publish_document_view',
     'publish_interface_contract',
     'qualify_supplier',
     'quarantine_equipment',
     'raise_nonconformity',
     'receive_complaint',
+    'record_document_proposal',
     'record_physical_binding',
+    'record_secure_object_erasure',
     'record_test_result',
     'register_equipment',
+    'register_secure_object_authority_key',
     'register_supplier',
     'remove_equipment_from_service',
     'remove_physical_binding',
+    'request_document_compilation',
+    'request_secure_object_access',
+    'request_secure_object_erasure',
     'restrict_supplier',
+    'retire_authored_fragment',
     'retire_configuration_item',
     'retire_equipment',
     'retire_risk_control',
+    'revise_authored_fragment',
+    'revise_document_composition',
+    'revoke_secure_object_authority_key',
+    'revoke_secure_object_capability',
     'submit_document_for_review',
     'supersede_configuration_item',
     'supersede_controlled_document',
@@ -262,6 +287,15 @@ const DECLARED_ADDITIONS = {
     'withdraw_interface_contract',
   ],
 } as const;
+
+/** New invariants are explicit additions; all pinned R01 invariants remain in exact order. */
+const DECLARED_INVARIANT_ADDITIONS = [
+  'Every authored document subject has one current Source Holder and Holder changes use the narrow typed action.',
+  'A compilation run and its views must consume the exact Basis authorized by one prior compilation request action.',
+  'Each document subject has one immutable authoritative document policy that callers cannot weaken; Holder transfer, compilation acceptance and publication require scoped technical authority plus any quality authority required by that policy.',
+  'A Proposal Overlay is append-only; applying one requires a human-authorized typed action, an applied fragment remains a live draft, and no result is official before controlled review, effectivity and publication.',
+  'Every official document publication has one append-only receipt binding the exact accepted compiler result, effective controlled content revision and registered destination policy that authorized it.',
+] as const;
 
 /**
  * The only constraints an extension is allowed to WIDEN, named one by one.
@@ -301,8 +335,19 @@ describe('the extended ontology preserves R01 exactly', () => {
         expect(diff(definition, b[section]![id]), `${section}.${id} was redefined`).toEqual([]);
       }
     }
-    // The invariants are a list, not a map: all ten must still be there, in order.
-    expect(diff(g['invariants'], b['invariants'])).toEqual([]);
+    // The invariants are a list, not a map: all ten pinned entries remain byte-identical and
+    // in order, while every extension invariant is named exhaustively above.
+    const additions = new Set<string>(DECLARED_INVARIANT_ADDITIONS);
+    const currentInvariants = b['invariants'] as Json[];
+    expect(
+      diff(
+        g['invariants'],
+        currentInvariants.filter((item) => !additions.has(String(item))),
+      ),
+    ).toEqual([]);
+    expect(currentInvariants.filter((item) => additions.has(String(item)))).toEqual([
+      ...DECLARED_INVARIANT_ADDITIONS,
+    ]);
   });
 
   it('every R01 JSON Schema definition survives byte-identically', () => {

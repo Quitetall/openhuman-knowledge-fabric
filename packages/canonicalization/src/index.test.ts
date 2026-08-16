@@ -3,6 +3,7 @@ import {
   canonicalize,
   canonicalBytes,
   chainDigest,
+  compareCanonicalText,
   digest,
   digestBytes,
   CanonicalizationError,
@@ -42,6 +43,13 @@ describe('RFC 8785 conformance', () => {
   it('sorts object keys by UTF-16 code unit, not by locale', () => {
     // Locale-aware collation would order these differently; JCS requires code-unit order.
     expect(canonicalize({ b: 1, a: 2, A: 3, ä: 4, Z: 5 })).toBe('{"A":3,"Z":5,"a":2,"b":1,"ä":4}');
+  });
+
+  it('exports the same ordinal comparator for canonical array ordering', () => {
+    expect(compareCanonicalText('A', 'a')).toBeLessThan(0);
+    expect(compareCanonicalText('ä', 'b')).toBeGreaterThan(0);
+    expect(compareCanonicalText('same', 'same')).toBe(0);
+    expect(['ä', 'b', 'A', 'Z', 'a'].sort(compareCanonicalText)).toEqual(['A', 'Z', 'a', 'b', 'ä']);
   });
 
   it('sorts nested objects independently', () => {
@@ -93,6 +101,18 @@ describe('values that must be rejected rather than coerced', () => {
 
   it('drops undefined object properties, matching absence', () => {
     expect(canonicalize({ a: 1, b: undefined })).toBe('{"a":1}');
+  });
+
+  it.each(['\ud800', '\udfff', `valid\ud800broken`])(
+    'rejects unpaired surrogate string %p required out by I-JSON',
+    (value) => {
+      expect(() => canonicalize(value)).toThrow(/unpaired UTF-16/);
+    },
+  );
+
+  it('rejects unpaired surrogates in property names and accepts valid pairs', () => {
+    expect(() => canonicalize({ ['bad\udc00key']: 1 })).toThrow(/unpaired UTF-16/);
+    expect(canonicalize('valid \ud83d\ude00')).toBe('"valid 😀"');
   });
 });
 

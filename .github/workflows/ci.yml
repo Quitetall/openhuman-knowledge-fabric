@@ -37,6 +37,13 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
+      - name: Provision compiler sandbox integration dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes bubblewrap
+          test -x /usr/bin/bwrap
+          /usr/bin/bwrap --version
+
       - run: pnpm install --frozen-lockfile
 
       - name: Format

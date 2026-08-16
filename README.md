@@ -12,11 +12,13 @@ Control Specification_, with its `1.0.0-draft.1` schema pack.
 
 > ## Status — read this first
 >
-> **Commissioned for local dogfood; not an authoritative service.**
-> Gates 1–8 are closed and their controls are exercised by the test suite. The local web UI
-> still uses a fixed development identity, so records created through it do not prove who
-> acted. The first dogfood corpus is loaded as drafts only: no approval, effective-state
-> transition or enterprise identifier is fabricated.
+> **Operational for local development and draft dogfood; not an authoritative service.**
+> Gates 1–8 are implemented and exercised by the test suite. `development` may explicitly
+> enable a fixed non-authoritative identity; `dogfood` refuses that path and requires verified
+> OIDC identity plus database-backed role assignment. Automated browser proof uses a controlled
+> OIDC fixture. Real identity-provider, TLS, key-custody, external-storage and alerting
+> commissioning still require operator evidence. First dogfood corpus remains draft-only: no
+> approval, effective-state transition or enterprise identifier is fabricated.
 >
 > The specification is also **not yet approved**: the schema pack is `draft_for_approval`
 > and its manifest is unsigned, so under §1.2 it is not normative. Five defects found in it
@@ -65,8 +67,11 @@ pnpm dev                  # api :4000, web :3000, worker
 
 Open <http://localhost:3000/documents> to read parsed document atoms or add another draft.
 The manifest for the initial three-document constitution is
-`dogfood/document-constitution.json`; rerunning the loader replays prior actions instead of
-creating duplicates.
+`dogfood/document-constitution.json`; rerunning the loader replays semantic action receipts or
+reuses only migration-allowlisted, audit-bound materializations created before that replay
+contract. Pinned object versions and parsed source records are reverified. Content-addressed
+staging uses conditional create, so an unchanged rerun creates neither database duplicates nor
+new object-store versions; an occupied key with different bytes fails closed.
 
 Verification, all of which must pass from a clean checkout:
 

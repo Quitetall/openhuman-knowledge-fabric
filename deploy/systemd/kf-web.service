@@ -1,0 +1,52 @@
+[Unit]
+Description=Knowledge Fabric web workbench
+Documentation=file:///opt/kf/docs/deployment/private-host.md
+Wants=network-online.target
+After=network-online.target kf-api.service
+OnFailure=kf-alert@%n.service
+
+[Service]
+Type=simple
+User=kf-web
+Group=kf-web
+WorkingDirectory=/opt/kf/apps/web
+EnvironmentFile=/etc/kf/web.env
+ExecStartPre=/usr/bin/test -s /etc/kf/web/session-key
+# next receives loopback host and port as arguments, so an EnvironmentFile cannot expose it.
+ExecStart=/usr/bin/env NODE_ENV=production KF_DEPLOYMENT_PROFILE=dogfood KF_API_URL=http://127.0.0.1:4000 KF_WEB_SESSION_SECRET_FILE=/etc/kf/web/session-key /usr/bin/node /opt/kf/apps/web/node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3000
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+
+# Next image/data caches stay outside immutable release. Build packaging must create target
+# directory; this private mount makes only cache subtree writable inside service namespace.
+CacheDirectory=kf-web
+BindPaths=/var/cache/kf-web:/opt/kf/apps/web/.next/cache
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectClock=true
+ProtectHostname=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectProc=invisible
+ProcSubset=pid
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

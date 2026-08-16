@@ -8,7 +8,11 @@ Type=oneshot
 User=kf
 WorkingDirectory=/opt/kf
 Environment=DATABASE_URL_FILE=/etc/kf/database-url
-Environment=CHECKPOINT_PUBLIC_KEY_PATH=/etc/kf/checkpoint-key.pub
+EnvironmentFile=/etc/kf/backup.env
+Environment=CHECKPOINT_PUBLIC_KEY_DIR=/etc/kf/checkpoint-public-keys
+ExecStartPre=/usr/bin/test -s /etc/kf/preservation-manifest-key
+ExecStartPre=/usr/bin/test -d /etc/kf/preservation-trust.d
+ExecStartPre=/usr/bin/test -x /usr/local/libexec/kf-verify-object-store
 # Creates the scratch database, restores, compares, records the drill against the PRODUCTION
 # ledger, and drops the scratch database on the way out. The logic is in a script rather than
 # inline here so that it can be read, and so `bash -n` covers it.
@@ -20,5 +24,6 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ReadWritePaths=/srv/kf-backups
+ReadWritePaths=/run/kf
 ProtectHome=true
 UMask=0077

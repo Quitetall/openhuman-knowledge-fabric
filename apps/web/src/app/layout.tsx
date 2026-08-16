@@ -1,11 +1,21 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import { Suspense } from 'react';
+import { SessionStatus } from './components/session-status';
+import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'OpenHuman Knowledge Fabric',
+  title: {
+    default: 'OpenHuman Knowledge Fabric',
+    template: '%s | OpenHuman Knowledge Fabric',
+  },
   description: 'Institutional information platform — OH-DOC-000002-1-R01',
 };
+
+// Identity and authority context are request-scoped. Never evaluate their runtime
+// configuration while producing a static build artifact.
+export const dynamic = 'force-dynamic';
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
@@ -20,6 +30,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <header style={{ borderBottom: '1px solid #e5e7eb', background: '#fff' }}>
           <nav
             aria-label="Primary"
+            className="kf-primary-nav"
             style={{
               maxWidth: '72rem',
               margin: '0 auto',
@@ -35,6 +46,15 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <Link href="/documents" style={{ color: '#334155', textDecoration: 'none' }}>
               Documents
             </Link>
+            <Link href="/search" style={{ color: '#334155', textDecoration: 'none' }}>
+              Search
+            </Link>
+            <Link href="/ml/runs" style={{ color: '#334155', textDecoration: 'none' }}>
+              ML runs
+            </Link>
+            <Suspense fallback={<span style={{ marginLeft: 'auto' }}>Identity…</span>}>
+              <SessionStatus />
+            </Suspense>
           </nav>
         </header>
         {children}

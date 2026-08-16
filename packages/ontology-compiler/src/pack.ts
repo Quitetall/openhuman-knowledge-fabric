@@ -25,6 +25,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Ontology } from './model.js';
 import { buildArtifacts } from './build.js';
+import { compareCanonicalText } from '@kf/canonicalization';
 
 export interface PackFile {
   readonly path: string;
@@ -128,7 +129,7 @@ export function buildReleasePack(o: Ontology, r01Dir: string, version: string): 
   }
 
   files.push({ path: 'README.md', content: readme(o, version) });
-  files.sort((a, b) => a.path.localeCompare(b.path));
+  files.sort((a, b) => compareCanonicalText(a.path, b.path));
 
   // The manifest does NOT list itself: a file cannot contain its own hash. Verifying the
   // manifest is a separate act — signing it.

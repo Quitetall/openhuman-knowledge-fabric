@@ -44,6 +44,7 @@
     "@kf/documents": "workspace:*",
     "@kf/export": "workspace:*",
     "@kf/integration": "workspace:*",
+    "@kf/ml-registry": "workspace:*",
     "@kf/ontology-compiler": "workspace:*",
     "@kf/operations": "workspace:*",
     "@kf/orchestrator": "workspace:*",

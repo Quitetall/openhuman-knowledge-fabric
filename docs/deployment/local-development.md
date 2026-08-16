@@ -1,7 +1,29 @@
-# Local development setup
+# Local development and workstation dogfood
 
-Everything below runs from a clean checkout with no manual configuration beyond copying
-`.env.example`.
+This page is for a single workstation. `docker-compose.yml` starts dependencies with public,
+fixed credentials on loopback; it is not a private-host topology. See
+[`private-host.md`](private-host.md) for the promotion boundary.
+
+## Deployment profiles
+
+`KF_DEPLOYMENT_PROFILE` is mandatory. It describes whether records can carry authenticated
+human provenance; `NODE_ENV` still controls framework behavior, TLS posture and secret loading.
+Neither variable substitutes for the other.
+
+| Profile       | Identity path                                            | Where it is allowed                          | Authority claim |
+| ------------- | -------------------------------------------------------- | -------------------------------------------- | --------------- |
+| `development` | Explicit fixed headers from `KF_DEV_*`                   | `NODE_ENV=development` or `test`, one owner  | None            |
+| `dogfood`     | Verified bearer token plus live database role assignment | Local rehearsal or a controlled private host | Dogfood only    |
+
+The API refuses `dogfood` without all of `OIDC_ISSUER`, `OIDC_AUDIENCE` and `OIDC_JWKS_URI`.
+The web application refuses its fixed caller in `dogfood` even if `NODE_ENV=development` and
+`KF_ALLOW_FIXED_IDENTITY=1` are still present. A forgotten environment cleanup therefore does
+not turn fixed headers into shared identity.
+
+The web application implements OIDC authorization code with required PKCE, validates the
+signed ID token and nonce, stores the access token in an encrypted host-only session cookie,
+and forwards bearer identity to the API. It does not trust identity-provider role claims:
+selected KF authority context is validated by the API before it is retained in the session.
 
 ## Prerequisites
 
@@ -14,15 +36,24 @@ Everything below runs from a clean checkout with no manual configuration beyond 
 `corepack` is not bundled on every distribution. If `pnpm` is missing:
 `npm install -g pnpm@latest`.
 
-## First run
+## Development profile: first run
 
 ```sh
 pnpm install
 cp .env.example .env
 set -a; . ./.env; set +a
+docker compose config --quiet
 docker compose up -d
 DATABASE_URL="$DATABASE_OWNER_URL" pnpm db:migrate
 pnpm dogfood:load -- --source-dir /home/brianklam/Desktop/OpenHuman_Technologies
+```
+
+The loader's JSON output includes `identity.actorId`, `identity.actingRoleId` and
+`identity.organizationId`. Copy those UUIDs into `KF_DEV_ACTOR`, `KF_DEV_ACTING_ROLE` and
+`KF_DEV_ORGANIZATION` in `.env`, then reload it and start the applications:
+
+```sh
+set -a; . ./.env; set +a
 pnpm dev
 ```
 
@@ -32,13 +63,67 @@ pnpm dev
 - MinIO console — <http://localhost:9001>
 - Keycloak — <http://localhost:8080>
 
-The dogfood loader creates the constrained `kf_api_dev` login and a visibly synthetic local
-operator, then imports the manifest sources as drafts. It never approves them, makes them
-effective or allocates an enterprise identifier. Reruns are idempotent.
+The loader creates the constrained `kf_api_dev` login and a visibly synthetic local operator,
+then imports the manifest sources as drafts. It never approves them, makes them effective or
+allocates an enterprise identifier. Reruns are idempotent. Current actions use strict semantic
+receipt replay. Pre-contract materializations require migration-owned provenance, exact action
+and audit identity, a reverified pinned object version, and a source parse for document bytes;
+they are recognized without rewriting history or attempting a second mutation. Staging uses
+conditional create and verifies an existing content-addressed key rather than adding another
+version. That fixed operator is a development
+convenience, not proof of who used the browser; the landing page labels the interface
+non-authoritative for the same reason.
 
 `pnpm dev` works with or without the database up. The worker logs that it is idle rather
 than crash-looping, and `/ready` reports `503` with `database: unconfigured` rather than
 claiming readiness it does not have.
+
+## Dogfood profile: local identity rehearsal
+
+Compose starts Keycloak but deliberately does not invent a realm, client, users, MFA policy or
+token lifetime. Before selecting `dogfood`, an operator has to configure and verify all of the
+following:
+
+1. A `knowledge-fabric` realm, public web client and API audience such as
+   `knowledge-fabric-api`.
+2. Exact callback and post-logout URLs for the web client, with authorization code and PKCE
+   S256 required.
+3. Access tokens whose exact `iss` matches `OIDC_ISSUER` and whose `aud` contains
+   `OIDC_AUDIENCE`.
+4. A reachable JWKS endpoint at `OIDC_JWKS_URI`.
+5. A recorded `org.external_identity` link from the token `sub` to a person, plus the live role
+   assignment the request will name. Nothing is auto-provisioned.
+
+The local values, after that provider configuration exists, are:
+
+```sh
+KF_DEPLOYMENT_PROFILE=dogfood
+OIDC_ISSUER=http://localhost:8080/realms/knowledge-fabric
+OIDC_AUDIENCE=knowledge-fabric-api
+OIDC_JWKS_URI=http://localhost:8080/realms/knowledge-fabric/protocol/openid-connect/certs
+KF_WEB_OIDC_ISSUER=http://localhost:8080/realms/knowledge-fabric
+KF_WEB_OIDC_CLIENT_ID=knowledge-fabric-web
+KF_WEB_OIDC_REDIRECT_URI=http://localhost:3000/auth/callback
+KF_WEB_SESSION_SECRET=<canonical-base64-encoding-of-32-random-bytes>
+```
+
+Start the application processes after provider records and KF authority links exist:
+
+```sh
+set -a; . ./.env; set +a
+pnpm dev
+```
+
+The browser selects a role assignment, organization and classification ceiling after login.
+The web server sends `Authorization: Bearer ...` plus that context to the API. The token
+establishes who the caller is; the database, not Keycloak role claims, decides what that person
+may do. `pnpm --filter @kf/web test:browser` verifies this flow against controlled OIDC and API
+fixtures. It is not qualification evidence for a real Keycloak realm.
+
+Do not share this Compose stack. Its Keycloak `start-dev` mode and database/object-store
+credentials are intentionally unsuitable for a network service. A shared dogfood instance
+follows the private-host contract, uses `NODE_ENV=production`, terminates TLS and supplies
+secrets from owner-only files.
 
 ## Verification
 
@@ -108,8 +193,10 @@ stored.
 ## Credentials
 
 Every credential in `docker-compose.yml` and `.env.example` is a fixed development value,
-public on purpose so a clean checkout runs without setup. They are rejected outside
-development. Production secrets come from a secret manager (Gate 8), never from a file.
+public on purpose so a clean checkout can start its dependencies. Compose binds every published
+port to `127.0.0.1`; changing those bindings makes the public credentials remotely reachable.
+Do not do that. A private host uses distinct credentials and the file-based secret inputs
+described in [`private-host.md`](private-host.md).
 
 ## Resetting
 
@@ -117,5 +204,6 @@ development. Production secrets come from a secret manager (Gate 8), never from 
 docker compose down -v    # destroys the database and object storage
 ```
 
-Safe today because nothing authoritative exists yet. From Gate 5 onward this destroys
-records, and the restore procedure in `docs/backup-and-restore/` applies instead.
+This is a development-only reset. It is destructive even when the records are
+non-authoritative. Never run it against shared dogfood or a private host; the restore procedure
+in `docs/backup-and-restore/` applies there instead.

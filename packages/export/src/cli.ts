@@ -2,122 +2,25 @@
  * Preservation export CLI.
  *
  * The export is the institutional record, so it has to be something an operator can run, hand
- * to an auditor, and verify years later without this repository. Three verbs:
+ * to an auditor, and verify years later without this repository. Database export verbs:
  *
- *   kf-export write <dir>    write a canonical export
- *   kf-export verify <dir>   check a directory against its own manifest
- *   kf-export load <dir>     import into an empty, migrated database
+ *   kf-export write <dir>    write and authenticate a canonical export
+ *   kf-export verify <dir>   verify file digests and authenticated origin
+ *   kf-export load <dir>     verify, then import into an empty migrated database
  *
- * `verify` deliberately needs no database and no configuration: whoever holds the directory
- * can check it, which is most of the point of choosing plain text over a binary dump.
+ * Backup-root verbs authenticate operational restore inputs around that export:
+ *
+ *   kf-export sign-backup <dir>    sign every regular file in a closed backup tree
+ *   kf-export verify-backup <dir>  authenticate that tree against external historical keys
+ *
+ * `verify` deliberately needs no database, but it does need an independently preserved
+ * historical public-key directory. A key shipped inside the package could authenticate only
+ * itself and would turn an attacker-repacked export into a trusted one.
  */
 
-import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative, resolve, sep } from 'node:path';
-import { createPool, withTransaction } from '@kf/database';
-import {
-  createExport,
-  importExport,
-  verifyExport,
-  type ExportManifest,
-  type ExportPackage,
-} from './index.js';
-import { loadSecret } from '@kf/operations';
+import { runCli } from './cli/run.js';
 
-function requireDatabaseUrl(): string {
-  return loadSecret('DATABASE_URL', process.env, {
-    allowInline: process.env['NODE_ENV'] !== 'production',
-  });
-}
-
-function writePackage(dir: string, pkg: ExportPackage): void {
-  for (const f of pkg.files) {
-    const path = join(dir, f.path);
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, f.content, 'utf8');
-  }
-}
-
-/** Read a directory back as a package. Paths are normalised to forward slashes. */
-function readPackage(dir: string): ExportPackage {
-  const root = resolve(dir);
-  const files: { path: string; content: string }[] = [];
-
-  const walk = (current: string): void => {
-    for (const entry of readdirSync(current).sort()) {
-      const full = join(current, entry);
-      if (statSync(full).isDirectory()) walk(full);
-      else {
-        files.push({
-          path: relative(root, full).split(sep).join('/'),
-          content: readFileSync(full, 'utf8'),
-        });
-      }
-    }
-  };
-  walk(root);
-
-  const manifestFile = files.find((f) => f.path === 'manifest.json');
-  if (manifestFile === undefined) throw new Error(`${dir} has no manifest.json`);
-  return { files, manifest: JSON.parse(manifestFile.content) as ExportManifest };
-}
-
-async function main(argv: readonly string[]): Promise<number> {
-  const [verb, dir] = argv;
-  if (verb === undefined || dir === undefined) {
-    console.error('usage: kf-export <write|verify|load> <directory>');
-    return 2;
-  }
-
-  if (verb === 'verify') {
-    const findings = verifyExport(readPackage(dir));
-    if (findings.length > 0) {
-      for (const f of findings) console.error(`${f.problem}: ${f.path} — ${f.detail}`);
-      return 1;
-    }
-    console.warn(`ok: ${dir} matches its manifest`);
-    return 0;
-  }
-
-  const pool = createPool({ connectionString: requireDatabaseUrl(), maxConnections: 2 });
-  try {
-    if (verb === 'write') {
-      const pkg = await withTransaction(pool, async (tx) => createExport(tx));
-      mkdirSync(dir, { recursive: true });
-      writePackage(dir, pkg);
-      // Re-read from disk and verify, rather than trusting what was just in memory. An
-      // export that was corrupted on the way to the filesystem is exactly the failure this
-      // whole format exists to survive.
-      const findings = verifyExport(readPackage(dir));
-      if (findings.length > 0) {
-        for (const f of findings) console.error(`${f.problem}: ${f.path} — ${f.detail}`);
-        return 1;
-      }
-      console.warn(
-        JSON.stringify({
-          wrote: dir,
-          files: pkg.files.length,
-          counts: pkg.manifest.counts,
-          audit_range: [pkg.manifest.audit_from_seq, pkg.manifest.audit_to_seq],
-        }),
-      );
-      return 0;
-    }
-
-    if (verb === 'load') {
-      const result = await withTransaction(pool, async (tx) => importExport(tx, readPackage(dir)));
-      console.warn(JSON.stringify({ loaded: dir, rows: result.imported }));
-      return 0;
-    }
-
-    console.error(`unknown verb: ${verb}`);
-    return 2;
-  } finally {
-    await pool.end();
-  }
-}
-
-main(process.argv.slice(2)).then(
+runCli(process.argv.slice(2)).then(
   (code) => {
     process.exitCode = code;
   },

@@ -1,11 +1,11 @@
 // GENERATED from ontology/ — do not edit.
 // ontology_version: 1.1.0-draft.1
-// source_digest: e2e0283906bed576d89acee4e409cb14e475f04d4aad94bd80178f3f26b5afb9
+// source_digest: 1f26b17f57be7c7a3fc9a70db2dfc102c0a53b0f0203759110cfd52cab32b59f
 
 /* eslint-disable */
 
 export const SCHEMA_VERSION = '1.1.0-draft.1' as const;
-export const ONTOLOGY_SOURCE_DIGEST = 'e2e0283906bed576d89acee4e409cb14e475f04d4aad94bd80178f3f26b5afb9' as const;
+export const ONTOLOGY_SOURCE_DIGEST = '1f26b17f57be7c7a3fc9a70db2dfc102c0a53b0f0203759110cfd52cab32b59f' as const;
 
 export const CLASSIFICATIONS = ['public', 'internal', 'confidential', 'restricted'] as const;
 export type Classifications = (typeof CLASSIFICATIONS)[number];
@@ -16,13 +16,13 @@ export type SourceAuthorities = (typeof SOURCE_AUTHORITIES)[number];
 export const AUTHORITY_DOMAINS = ['artifact', 'commercial', 'configuration', 'engineering', 'finance', 'organization', 'project', 'qms'] as const;
 export type AuthorityDomains = (typeof AUTHORITY_DOMAINS)[number];
 
-export const OBJECT_TYPES = ['organization', 'person', 'role_assignment', 'engagement', 'product_system', 'initiative_project', 'work_package', 'work_order', 'work_execution', 'decision_record', 'change_record', 'deliverable', 'artifact', 'acceptance_record', 'invoice', 'payment', 'requirement', 'risk', 'test', 'release', 'baseline', 'configuration_item', 'interface_contract', 'physical_binding', 'controlled_document', 'nonconformity', 'capa', 'supplier', 'equipment', 'complaint', 'risk_control', 'test_definition', 'test_execution', 'milestone', 'work_order_amendment'] as const;
+export const OBJECT_TYPES = ['organization', 'person', 'role_assignment', 'engagement', 'product_system', 'initiative_project', 'work_package', 'work_order', 'work_execution', 'decision_record', 'change_record', 'deliverable', 'artifact', 'acceptance_record', 'invoice', 'payment', 'requirement', 'risk', 'test', 'release', 'baseline', 'configuration_item', 'interface_contract', 'physical_binding', 'controlled_document', 'authored_fragment', 'document_composition', 'ml_promotion_decision', 'nonconformity', 'capa', 'supplier', 'equipment', 'complaint', 'risk_control', 'test_definition', 'test_execution', 'milestone', 'work_order_amendment'] as const;
 export type ObjectTypes = (typeof OBJECT_TYPES)[number];
 
-export const RELATION_TYPES = ['contains', 'decomposes_into', 'affects', 'authorizes', 'executes', 'produces', 'consumes', 'proposes', 'governs', 'implements', 'satisfies', 'verifies', 'mitigates', 'accepts', 'bills', 'settles', 'allocates_to', 'originated_from', 'supersedes', 'derived_from', 'evidences', 'assigned_to', 'scoped_to', 'depends_on', 'blocks', 'released_by', 'baseline_contains', 'performed_by', 'owned_by', 'linked_to', 'amends', 'generated_by', 'used', 'was_associated_with', 'conforms_to', 'bound_to', 'supplied_by', 'calibrated_with', 'raised_against', 'remediated_by'] as const;
+export const RELATION_TYPES = ['contains', 'decomposes_into', 'affects', 'authorizes', 'executes', 'produces', 'consumes', 'proposes', 'governs', 'implements', 'satisfies', 'verifies', 'mitigates', 'accepts', 'bills', 'settles', 'allocates_to', 'originated_from', 'supersedes', 'derived_from', 'evidences', 'assigned_to', 'scoped_to', 'depends_on', 'blocks', 'released_by', 'baseline_contains', 'performed_by', 'owned_by', 'linked_to', 'amends', 'extends', 'generated_by', 'used', 'was_associated_with', 'conforms_to', 'bound_to', 'supplied_by', 'calibrated_with', 'raised_against', 'remediated_by'] as const;
 export type RelationTypes = (typeof RELATION_TYPES)[number];
 
-export const ACTION_TYPES = ['create_initiative', 'triage_initiative', 'authorize_project', 'activate_project', 'create_work_package', 'start_work_package', 'accept_work_package', 'issue_work_order', 'accept_work_order', 'amend_work_order', 'submit_work_execution', 'review_work_execution', 'issue_acceptance', 'propose_decision', 'accept_decision', 'reject_decision', 'supersede_decision', 'open_change', 'approve_change', 'verify_change', 'make_change_effective', 'submit_invoice', 'approve_invoice', 'authorize_payment', 'record_payment_settlement', 'reconcile_payment', 'complete_project_technical', 'close_project_administrative', 'attach_evidence', 'correct_record', 'promote_configuration_item', 'supersede_configuration_item', 'retire_configuration_item', 'publish_interface_contract', 'deprecate_interface_contract', 'withdraw_interface_contract', 'record_physical_binding', 'remove_physical_binding', 'add_controlled_document', 'submit_document_for_review', 'approve_controlled_document', 'make_document_effective', 'supersede_controlled_document', 'withdraw_controlled_document', 'raise_nonconformity', 'contain_nonconformity', 'investigate_nonconformity', 'disposition_nonconformity', 'close_nonconformity', 'open_capa', 'approve_capa_plan', 'implement_capa', 'check_capa_effectiveness', 'close_capa', 'register_supplier', 'qualify_supplier', 'restrict_supplier', 'disqualify_supplier', 'register_equipment', 'place_equipment_in_service', 'remove_equipment_from_service', 'quarantine_equipment', 'retire_equipment', 'receive_complaint', 'triage_complaint', 'investigate_complaint', 'close_complaint', 'propose_risk_control', 'implement_risk_control', 'verify_risk_control', 'retire_risk_control', 'define_test', 'approve_test_definition', 'supersede_test_definition', 'plan_test_execution', 'execute_test', 'record_test_result', 'invalidate_test_execution'] as const;
+export const ACTION_TYPES = ['create_initiative', 'triage_initiative', 'authorize_project', 'activate_project', 'create_work_package', 'start_work_package', 'accept_work_package', 'issue_work_order', 'accept_work_order', 'amend_work_order', 'submit_work_execution', 'review_work_execution', 'issue_acceptance', 'propose_decision', 'accept_decision', 'reject_decision', 'supersede_decision', 'open_change', 'approve_change', 'verify_change', 'make_change_effective', 'submit_invoice', 'approve_invoice', 'authorize_payment', 'record_payment_settlement', 'reconcile_payment', 'complete_project_technical', 'close_project_administrative', 'attach_evidence', 'correct_record', 'promote_configuration_item', 'supersede_configuration_item', 'retire_configuration_item', 'publish_interface_contract', 'deprecate_interface_contract', 'withdraw_interface_contract', 'record_physical_binding', 'remove_physical_binding', 'add_controlled_document', 'submit_document_for_review', 'approve_controlled_document', 'make_document_effective', 'supersede_controlled_document', 'withdraw_controlled_document', 'add_authored_fragment', 'revise_authored_fragment', 'retire_authored_fragment', 'add_document_composition', 'revise_document_composition', 'change_document_source_holder', 'request_document_compilation', 'accept_document_compilation', 'publish_document_view', 'record_document_proposal', 'apply_document_proposal', 'request_secure_object_access', 'issue_secure_object_capability', 'revoke_secure_object_capability', 'consume_secure_object_capability', 'request_secure_object_erasure', 'record_secure_object_erasure', 'register_secure_object_authority_key', 'revoke_secure_object_authority_key', 'register_ml_aggregate_reference', 'register_ml_run_lineage', 'register_ml_metric_definition', 'register_ml_metric_segment', 'authorize_ml_metric_stream', 'append_ml_metric_event', 'authorize_ml_promotion', 'raise_nonconformity', 'contain_nonconformity', 'investigate_nonconformity', 'disposition_nonconformity', 'close_nonconformity', 'open_capa', 'approve_capa_plan', 'implement_capa', 'check_capa_effectiveness', 'close_capa', 'register_supplier', 'qualify_supplier', 'restrict_supplier', 'disqualify_supplier', 'register_equipment', 'place_equipment_in_service', 'remove_equipment_from_service', 'quarantine_equipment', 'retire_equipment', 'receive_complaint', 'triage_complaint', 'investigate_complaint', 'close_complaint', 'propose_risk_control', 'implement_risk_control', 'verify_risk_control', 'retire_risk_control', 'define_test', 'approve_test_definition', 'supersede_test_definition', 'plan_test_execution', 'execute_test', 'record_test_result', 'invalidate_test_execution'] as const;
 export type ActionTypes = (typeof ACTION_TYPES)[number];
 
 export interface Money {
@@ -336,6 +336,31 @@ export interface ControlledDocumentAttributes {
   readonly owning_role: 'project_owner' | 'technical_authority' | 'design_authority' | 'work_order_manager' | 'performer' | 'reviewer' | 'finance_approver' | 'quality_authority' | 'configuration_authority' | 'system_administrator';
 }
 
+/** Authored Fragment — authority: qms */
+export type AuthoredFragmentState = 'active' | 'retired';
+export interface AuthoredFragmentAttributes {
+  readonly stable_key: string;
+}
+
+/** Document Composition — authority: qms */
+export type DocumentCompositionState = 'active';
+export interface DocumentCompositionAttributes {
+  readonly stable_key: string;
+}
+
+/** ML Promotion Decision — authority: qms */
+export type MlPromotionDecisionState = 'recorded';
+export interface MlPromotionDecisionAttributes {
+  readonly authority_kind: 'technical' | 'quality';
+  readonly alias_id: string;
+  readonly candidate_ref_id: string;
+  readonly run_seal_id: string;
+  readonly policy_ref_id: string;
+  readonly risk_tier: 'research' | 'regulated' | 'high_risk';
+  readonly effective_at: string;
+  readonly valid_until?: string;
+}
+
 /** Nonconformity — authority: qms */
 export type NonconformityState = 'open' | 'contained' | 'investigated' | 'dispositioned' | 'closed';
 export interface NonconformityAttributes {
@@ -578,6 +603,13 @@ export const STATE_MACHINES = {
       { from: 'draft', to: 'withdrawn', action: 'withdraw_controlled_document' },
     ],
   },
+  authored_fragment: {
+    initial: 'active',
+    terminal: ['retired'],
+    transitions: [
+      { from: 'active', to: 'retired', action: 'retire_authored_fragment' },
+    ],
+  },
   nonconformity: {
     initial: 'open',
     terminal: ['closed'],
@@ -681,4 +713,9 @@ export const RULES = [
   { id: 'KF-FIN-003', severity: 'error', implementation: ['database_constraint', 'action_precondition', 'validator'], description: "Payment allocations must sum to no more than the payment amount and must not exceed invoice balances." },
   { id: 'KF-PROJ-001', severity: 'error', implementation: ['validator'], description: "Project progress is computed from accepted or waived work packages, not spending or activity count." },
   { id: 'KF-PROJ-002', severity: 'error', implementation: ['action_precondition', 'validator'], description: "Administrative project closure requires technical disposition plus closure of open work orders and financial obligations." },
+  { id: 'KF-DOC-001', severity: 'error', implementation: ['database_constraint', 'action_precondition', 'validator'], description: "Every authored document subject has one current Source Holder and Holder changes use the narrow typed action." },
+  { id: 'KF-DOC-002', severity: 'error', implementation: ['database_constraint', 'action_precondition', 'validator'], description: "A compilation run and its views must consume the exact Basis authorized by one prior compilation request action." },
+  { id: 'KF-DOC-003', severity: 'error', implementation: ['database_constraint', 'action_precondition', 'validator'], description: "Each document subject has one immutable authoritative document policy that callers cannot weaken; Holder transfer, compilation acceptance and publication require scoped technical authority plus any quality authority required by that policy." },
+  { id: 'KF-DOC-004', severity: 'error', implementation: ['database_constraint', 'action_precondition', 'validator'], description: "A Proposal Overlay is append-only; applying one requires a human-authorized typed action, an applied fragment remains a live draft, and no result is official before controlled review, effectivity and publication." },
+  { id: 'KF-DOC-005', severity: 'error', implementation: ['database_constraint', 'action_precondition', 'validator'], description: "Every official document publication has one append-only receipt binding the exact accepted compiler result, effective controlled content revision and registered destination policy that authorized it." },
 ] as const;

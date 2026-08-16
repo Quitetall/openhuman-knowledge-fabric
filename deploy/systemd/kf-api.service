@@ -1,0 +1,48 @@
+[Unit]
+Description=Knowledge Fabric API
+Documentation=file:///opt/kf/docs/deployment/private-host.md
+Wants=network-online.target
+After=network-online.target
+OnFailure=kf-alert@%n.service
+
+[Service]
+Type=simple
+User=kf-api
+Group=kf-api
+WorkingDirectory=/opt/kf/apps/api
+EnvironmentFile=/etc/kf/api.env
+ExecStartPre=/usr/bin/test -s /etc/kf/api/database-url
+ExecStartPre=/usr/bin/test -s /etc/kf/api/s3-secret-access-key
+# Command-local values cannot be weakened by a value accidentally left in api.env.
+ExecStart=/usr/bin/env NODE_ENV=production KF_DEPLOYMENT_PROFILE=dogfood KF_TLS_TERMINATED_UPSTREAM=1 DATABASE_URL_FILE=/etc/kf/api/database-url S3_SECRET_ACCESS_KEY_FILE=/etc/kf/api/s3-secret-access-key HOST=127.0.0.1 PORT=4000 /usr/bin/node /opt/kf/apps/api/dist/server.js
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectClock=true
+ProtectHostname=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectProc=invisible
+ProcSubset=pid
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

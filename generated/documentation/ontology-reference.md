@@ -1,9 +1,9 @@
 <!-- GENERATED from ontology/ — do not edit. -->
-<!-- ontology_version: 1.1.0-draft.1 · source_digest: e2e0283906bed576d89acee4e409cb14e475f04d4aad94bd80178f3f26b5afb9 -->
+<!-- ontology_version: 1.1.0-draft.1 · source_digest: 1f26b17f57be7c7a3fc9a70db2dfc102c0a53b0f0203759110cfd52cab32b59f -->
 
 # Ontology reference
 
-Compiled from `ontology/`. 35 object types, 40 relation types, 78 action types, 20 state machines, 10 invariants.
+Compiled from `ontology/`. 38 object types, 41 relation types, 104 action types, 21 state machines, 15 invariants.
 
 ## Object types
 
@@ -34,6 +34,9 @@ Compiled from `ontology/`. 35 object types, 40 relation types, 78 action types, 
 | `interface_contract` | configuration | IFC | interface_contract | 4 |
 | `physical_binding` | configuration | BND | physical_binding | 3 |
 | `controlled_document` | qms | DOC | controlled_document | 6 |
+| `authored_fragment` | qms | — | authored_fragment | 2 |
+| `document_composition` | qms | — | — | 1 |
+| `ml_promotion_decision` | qms | — | — | 1 |
 | `nonconformity` | qms | NCR | nonconformity | 5 |
 | `capa` | qms | CPA | capa | 6 |
 | `supplier` | qms | SUP | supplier | 4 |
@@ -80,6 +83,7 @@ Compiled from `ontology/`. 35 object types, 40 relation types, 78 action types, 
 | `owned_by` | owns |  |
 | `linked_to` | linked_to |  |
 | `amends` | amended_by | yes |
+| `extends` | extended_by | yes |
 | `generated_by` | generated |  |
 | `used` | was_used_by |  |
 | `was_associated_with` | associated_with |  |
@@ -138,6 +142,32 @@ Compiled from `ontology/`. 35 object types, 40 relation types, 78 action types, 
 | `make_document_effective` | controlled_document |
 | `supersede_controlled_document` | controlled_document |
 | `withdraw_controlled_document` | controlled_document |
+| `add_authored_fragment` | — |
+| `revise_authored_fragment` | — |
+| `retire_authored_fragment` | authored_fragment |
+| `add_document_composition` | — |
+| `revise_document_composition` | — |
+| `change_document_source_holder` | — |
+| `request_document_compilation` | — |
+| `accept_document_compilation` | — |
+| `publish_document_view` | — |
+| `record_document_proposal` | — |
+| `apply_document_proposal` | — |
+| `request_secure_object_access` | — |
+| `issue_secure_object_capability` | — |
+| `revoke_secure_object_capability` | — |
+| `consume_secure_object_capability` | — |
+| `request_secure_object_erasure` | — |
+| `record_secure_object_erasure` | — |
+| `register_secure_object_authority_key` | — |
+| `revoke_secure_object_authority_key` | — |
+| `register_ml_aggregate_reference` | — |
+| `register_ml_run_lineage` | — |
+| `register_ml_metric_definition` | — |
+| `register_ml_metric_segment` | — |
+| `authorize_ml_metric_stream` | — |
+| `append_ml_metric_event` | — |
+| `authorize_ml_promotion` | — |
 | `raise_nonconformity` | — |
 | `contain_nonconformity` | nonconformity |
 | `investigate_nonconformity` | nonconformity |
@@ -393,6 +423,17 @@ stateDiagram-v2
     withdrawn --> [*]
 ```
 
+### `authored_fragment`
+
+Initial: `active` · Terminal: `retired`
+
+```mermaid
+stateDiagram-v2
+    [*] --> active
+    active --> retired: retire_authored_fragment
+    retired --> [*]
+```
+
 ### `nonconformity`
 
 Initial: `open` · Terminal: `closed`
@@ -529,3 +570,8 @@ stateDiagram-v2
 | `KF-FIN-003` | database_constraint, action_precondition, validator | Payment allocations must sum to no more than the payment amount and must not exceed invoice balances. |
 | `KF-PROJ-001` | validator | Project progress is computed from accepted or waived work packages, not spending or activity count. |
 | `KF-PROJ-002` | action_precondition, validator | Administrative project closure requires technical disposition plus closure of open work orders and financial obligations. |
+| `KF-DOC-001` | database_constraint, action_precondition, validator | Every authored document subject has one current Source Holder and Holder changes use the narrow typed action. |
+| `KF-DOC-002` | database_constraint, action_precondition, validator | A compilation run and its views must consume the exact Basis authorized by one prior compilation request action. |
+| `KF-DOC-003` | database_constraint, action_precondition, validator | Each document subject has one immutable authoritative document policy that callers cannot weaken; Holder transfer, compilation acceptance and publication require scoped technical authority plus any quality authority required by that policy. |
+| `KF-DOC-004` | database_constraint, action_precondition, validator | A Proposal Overlay is append-only; applying one requires a human-authorized typed action, an applied fragment remains a live draft, and no result is official before controlled review, effectivity and publication. |
+| `KF-DOC-005` | database_constraint, action_precondition, validator | Every official document publication has one append-only receipt binding the exact accepted compiler result, effective controlled content revision and registered destination policy that authorized it. |

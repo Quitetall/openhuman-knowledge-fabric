@@ -12,7 +12,7 @@ create table content.document_subject (
   object_id          uuid not null unique references core.object (id) on delete restrict,
   subject_kind       text not null check (subject_kind in ('fragment', 'composition')),
   stable_key         text not null unique check (length(btrim(stable_key)) between 1 and 240),
-  document_policy    text not null default 'ordinary'
+  document_policy    text not null
                        check (document_policy in ('ordinary', 'controlled', 'regulated')),
   current_holder_id  uuid not null,
   created_at         timestamptz not null default now(),
@@ -121,7 +121,7 @@ create table content.authored_fragment_revision (
   holder_id             uuid not null,
   media_type            text not null check (length(btrim(media_type)) > 0),
   classification        text not null references registry.classification (id),
-  revision_state        text not null check (revision_state in ('active', 'retired')),
+  revision_state        text not null check (revision_state in ('draft', 'active', 'retired')),
   content_digest        text not null check (content_digest ~ '^[0-9a-f]{64}$'),
   revision_digest       text not null unique check (revision_digest ~ '^[0-9a-f]{64}$'),
   created_at            timestamptz not null default now(),
@@ -163,36 +163,6 @@ create table content.composition_revision (
 
 create unique index composition_revision_one_initial
   on content.composition_revision (composition_id) where previous_revision_id is null;
-
-create table content.document_publication_target (
-  id                   text primary key check (length(btrim(id)) between 1 and 120),
-  organization_id      uuid not null references core.object (id) on delete restrict,
-  max_classification   text not null references registry.classification (id),
-  active               boolean not null default true,
-  created_at           timestamptz not null default now(),
-  created_by           uuid not null,
-  created_by_action    uuid not null references core.action (id) on delete restrict,
-
-  unique (organization_id, id)
-);
-
-create table content.document_publication (
-  id                       uuid primary key default uuidv7(),
-  subject_id               uuid not null references content.document_subject (id) on delete restrict,
-  compiled_view_id         uuid not null,
-  compiled_view_digest     text not null check (compiled_view_digest ~ '^[0-9a-f]{64}$'),
-  controlled_document_id   uuid not null references quality.controlled_document (id) on delete restrict,
-  content_version_id       uuid not null references content.artifact_version (id) on delete restrict,
-  publication_target       text not null references content.document_publication_target (id) on delete restrict,
-  target_max_classification text not null references registry.classification (id),
-  effective_classification text not null references registry.classification (id),
-  recorded_at              timestamptz not null default now(),
-  recorded_by              uuid not null,
-  recorded_by_action       uuid not null references core.action (id) on delete restrict,
-
-  unique (compiled_view_id),
-  unique (controlled_document_id, content_version_id, publication_target)
-);
 
 -- A binding resolves one declared type at one immutable object revision OR one snapshot.
 -- It never means "whatever value is current when somebody renders this later".
@@ -417,8 +387,68 @@ create table content.compiled_view (
   recorded_by          uuid not null,
 
   unique (compilation_run_id, target),
+  unique (id, content_digest),
   foreign key (artifact_version_id, content_digest)
     references content.artifact_version (id, sha256) on delete restrict
+);
+
+-- Publication destinations are administrator-registered policy facts. Application actions may
+-- select one but cannot create or weaken one. Policy changes create a new versioned row; explicit
+-- retirement is a separate append-only tombstone rather than a mutable active flag.
+create table content.document_publication_target (
+  id                   uuid primary key default uuidv7(),
+  organization_id      uuid not null references org.organization (id) on delete restrict,
+  target_key           text not null check (length(btrim(target_key)) between 1 and 240),
+  max_classification   text not null references registry.classification (id),
+  policy_digest        text not null check (policy_digest ~ '^[0-9a-f]{64}$'),
+  registered_at        timestamptz not null default now(),
+  registered_by        uuid not null,
+
+  unique (organization_id, target_key, policy_digest),
+  unique (organization_id, id, policy_digest)
+);
+
+create table content.document_publication_target_retirement (
+  target_id          uuid primary key references content.document_publication_target (id)
+                       on delete restrict,
+  retired_at         timestamptz not null default now(),
+  retired_by         uuid not null,
+  retirement_reason text not null check (length(btrim(retirement_reason)) > 0)
+);
+
+alter table quality.controlled_document
+  add constraint controlled_document_content_version_identity unique (id, content_version);
+
+-- One immutable deployment authority receipt. It freezes the accepted compiler result, exact
+-- controlled revision and the exact destination policy consulted when publication was allowed.
+create table content.document_publication (
+  id                                   uuid primary key default uuidv7(),
+  action_id                            uuid not null unique references core.action (id)
+                                           on delete restrict,
+  acceptance_action_id                 uuid not null references core.action (id) on delete restrict,
+  organization_id                      uuid not null references org.organization (id)
+                                           on delete restrict,
+  subject_id                           uuid not null references content.document_composition (id)
+                                           on delete restrict,
+  compiled_view_id                     uuid not null,
+  compiled_view_digest                 text not null check (compiled_view_digest ~ '^[0-9a-f]{64}$'),
+  controlled_document_id               uuid not null,
+  controlled_content_version_id        uuid not null,
+  publication_target_id                uuid not null,
+  publication_target_policy_digest     text not null
+                                           check (publication_target_policy_digest ~ '^[0-9a-f]{64}$'),
+  effective_classification             text not null references registry.classification (id),
+  published_at                         timestamptz not null default now(),
+  published_by                         uuid not null,
+
+  foreign key (compiled_view_id, compiled_view_digest)
+    references content.compiled_view (id, content_digest) on delete restrict,
+  foreign key (controlled_document_id, controlled_content_version_id)
+    references quality.controlled_document (id, content_version) on delete restrict,
+  foreign key (organization_id, publication_target_id, publication_target_policy_digest)
+    references content.document_publication_target (organization_id, id, policy_digest)
+    on delete restrict,
+  unique (compiled_view_id, controlled_document_id, publication_target_id)
 );
 
 create table content.proposal_overlay (
@@ -436,9 +466,12 @@ create table content.proposal_overlay (
   model_provider                text,
   model_profile                 text,
   model_request_id              text,
+  model_provenance              jsonb
+                                  check (model_provenance is null
+                                         or jsonb_typeof(model_provenance) = 'object'),
   operations                    jsonb not null
                                   check (jsonb_typeof(operations) = 'array'
-                                         and jsonb_array_length(operations) > 0),
+                                         and jsonb_array_length(operations) = 1),
   proposal_digest               text not null unique check (proposal_digest ~ '^[0-9a-f]{64}$'),
   created_at                    timestamptz not null default now(),
   created_by_action             uuid not null references core.action (id) on delete restrict,
@@ -450,13 +483,15 @@ create table content.proposal_overlay (
   constraint proposal_overlay_author check (
     (proposed_by_kind = 'human'
       and actor_id is not null
-      and model_provider is null and model_profile is null and model_request_id is null)
+      and model_provider is null and model_profile is null and model_request_id is null
+      and model_provenance is null)
     or
     (proposed_by_kind = 'model'
       and actor_id is null
       and model_provider is not null and length(btrim(model_provider)) > 0
       and model_profile is not null and length(btrim(model_profile)) > 0
-      and model_request_id is not null and length(btrim(model_request_id)) > 0)
+      and model_request_id is not null and length(btrim(model_request_id)) > 0
+      and model_provenance is not null)
   ),
   foreign key (subject_id, base_fragment_revision_id)
     references content.authored_fragment_revision (fragment_id, id) on delete restrict,
@@ -478,6 +513,7 @@ declare
 begin
   if new.id <> old.id or new.object_id <> old.object_id
      or new.subject_kind <> old.subject_kind or new.stable_key <> old.stable_key
+     or new.document_policy <> old.document_policy
      or new.created_at <> old.created_at or new.created_by <> old.created_by
      or new.created_by_action <> old.created_by_action then
     raise exception 'document subject identity is immutable'
@@ -1095,6 +1131,10 @@ declare
   v_action_targets uuid[];
   v_action_parameters jsonb;
 begin
+  if core.current_action_id() is distinct from new.requested_by_action then
+    raise exception 'compilation run requested_by_action must equal the active transaction action'
+      using errcode = 'insufficient_privilege';
+  end if;
   select b.created_by_action, b.basis_digest, s.object_id
     into v_basis_action, v_basis_digest, v_target_object
     from content.compilation_basis b
@@ -1176,6 +1216,173 @@ create trigger compiled_view_success_only
   before insert on content.compiled_view
   for each row execute function content.refuse_partial_compiled_view();
 
+-- Retirement and publication serialize on the immutable target row. Without this shared lock,
+-- two READ COMMITTED transactions can both validate before either sees the other's insert.
+create function content.lock_document_publication_target(p_target_id uuid) returns void
+language plpgsql
+security definer
+set search_path = pg_catalog, content
+as $$
+begin
+  perform 1
+    from content.document_publication_target target
+   where target.id = p_target_id
+     for update;
+  if not found then
+    raise exception 'publication target does not exist'
+      using errcode = 'foreign_key_violation';
+  end if;
+end
+$$;
+revoke all on function content.lock_document_publication_target(uuid) from public;
+grant execute on function content.lock_document_publication_target(uuid) to kf_app;
+
+create function content.lock_document_publication_target_retirement() returns trigger
+language plpgsql
+as $$
+begin
+  perform content.lock_document_publication_target(new.target_id);
+  return new;
+end
+$$;
+
+create trigger document_publication_target_retirement_lock
+  before insert on content.document_publication_target_retirement
+  for each row execute function content.lock_document_publication_target_retirement();
+
+create function content.enforce_document_publication() returns trigger
+language plpgsql
+as $$
+declare
+  v_action_type text;
+  v_action_actor uuid;
+  v_action_targets uuid[];
+  v_action_parameters jsonb;
+  v_acceptance_type text;
+  v_acceptance_targets uuid[];
+  v_acceptance_parameters jsonb;
+  v_view_artifact uuid;
+  v_view_digest text;
+  v_view_classification text;
+  v_view_rank integer;
+  v_run_id uuid;
+  v_run_digest text;
+  v_run_status text;
+  v_draft_only boolean;
+  v_subject_organization uuid;
+  v_controlled_content uuid;
+  v_controlled_state text;
+  v_controlled_organization uuid;
+  v_controlled_rank integer;
+  v_target_organization uuid;
+  v_target_policy_digest text;
+  v_target_rank integer;
+begin
+  select a.action_type, a.actor_id, a.target_ids, a.parameters
+    into v_action_type, v_action_actor, v_action_targets, v_action_parameters
+    from core.action a where a.id = new.action_id;
+  if core.current_action_id() is distinct from new.action_id
+     or v_action_type is distinct from 'publish_document_view'
+     or cardinality(v_action_targets) <> 1
+     or v_action_targets[1] is distinct from new.subject_id
+     or v_action_actor is distinct from new.published_by then
+    raise exception 'publication receipt requires the active publish_document_view action'
+      using errcode = 'insufficient_privilege';
+  end if;
+  if v_action_parameters ->> 'compiled_view_id' is distinct from new.compiled_view_id::text
+     or v_action_parameters ->> 'compiled_view_digest'
+          is distinct from new.compiled_view_digest
+     or v_action_parameters ->> 'acceptance_action_id'
+          is distinct from new.acceptance_action_id::text
+     or v_action_parameters ->> 'controlled_document_id'
+          is distinct from new.controlled_document_id::text
+     or v_action_parameters ->> 'controlled_content_version_id'
+          is distinct from new.controlled_content_version_id::text
+     or v_action_parameters ->> 'publication_target_id'
+          is distinct from new.publication_target_id::text then
+    raise exception 'publication receipt does not match its recorded action parameters'
+      using errcode = 'integrity_constraint_violation';
+  end if;
+
+  perform content.lock_document_publication_target(new.publication_target_id);
+
+  select v.artifact_version_id, v.content_digest, v.effective_classification,
+         view_class.rank, r.id, r.run_digest, r.run_status, r.draft_only,
+         subject_object.organization_id
+    into v_view_artifact, v_view_digest, v_view_classification, v_view_rank,
+         v_run_id, v_run_digest, v_run_status, v_draft_only, v_subject_organization
+    from content.compiled_view v
+    join registry.classification view_class on view_class.id = v.effective_classification
+    join content.compilation_run r on r.id = v.compilation_run_id
+    join content.compilation_basis b on b.id = r.basis_id
+    join content.composition_revision cr on cr.id = b.root_composition_revision_id
+    join content.document_subject s on s.id = cr.composition_id
+    join core.object subject_object on subject_object.id = s.object_id
+   where v.id = new.compiled_view_id and s.id = new.subject_id;
+  if not found or v_run_status <> 'succeeded' or v_draft_only then
+    raise exception 'publication requires a qualified succeeded view for the exact subject'
+      using errcode = 'integrity_constraint_violation';
+  end if;
+
+  select a.action_type, a.target_ids, a.parameters
+    into v_acceptance_type, v_acceptance_targets, v_acceptance_parameters
+    from core.action a where a.id = new.acceptance_action_id;
+  if v_acceptance_type is distinct from 'accept_document_compilation'
+     or cardinality(v_acceptance_targets) <> 1
+     or v_acceptance_targets[1] is distinct from new.subject_id
+     or v_acceptance_parameters ->> 'run_id' is distinct from v_run_id::text
+     or v_acceptance_parameters ->> 'run_digest' is distinct from v_run_digest then
+    raise exception 'publication requires the exact compilation acceptance action'
+      using errcode = 'integrity_constraint_violation';
+  end if;
+
+  select cd.content_version, o.lifecycle_state, o.organization_id, controlled_class.rank
+    into v_controlled_content, v_controlled_state, v_controlled_organization, v_controlled_rank
+    from quality.controlled_document cd
+    join core.object o on o.id = cd.id
+    join registry.classification controlled_class on controlled_class.id = o.classification
+   where cd.id = new.controlled_document_id
+     for share of o;
+  if not found or v_controlled_state <> 'effective'
+     or v_controlled_content is distinct from new.controlled_content_version_id
+     or v_controlled_content is distinct from v_view_artifact
+     or v_controlled_rank < v_view_rank then
+    raise exception 'publication requires an effective controlled revision for the exact view bytes'
+      using errcode = 'integrity_constraint_violation';
+  end if;
+
+  select t.organization_id, t.policy_digest, target_class.rank
+    into v_target_organization, v_target_policy_digest, v_target_rank
+    from content.document_publication_target t
+    join registry.classification target_class on target_class.id = t.max_classification
+   where t.id = new.publication_target_id
+     and not exists (
+       select 1 from content.document_publication_target_retirement retired
+        where retired.target_id = t.id
+     );
+  if not found or v_target_rank < v_view_rank then
+    raise exception 'publication destination is unavailable or below the view classification'
+      using errcode = 'integrity_constraint_violation';
+  end if;
+
+  if new.organization_id is distinct from v_subject_organization
+     or new.organization_id is distinct from v_controlled_organization
+     or new.organization_id is distinct from v_target_organization
+     or new.organization_id is distinct from core.current_organization()
+     or new.compiled_view_digest is distinct from v_view_digest
+     or new.publication_target_policy_digest is distinct from v_target_policy_digest
+     or new.effective_classification is distinct from v_view_classification then
+    raise exception 'publication receipt does not equal its authoritative organization and policy facts'
+      using errcode = 'integrity_constraint_violation';
+  end if;
+  return new;
+end
+$$;
+
+create trigger document_publication_authority
+  before insert on content.document_publication
+  for each row execute function content.enforce_document_publication();
+
 -- A later artifact-envelope downgrade must not invalidate an already frozen view guarantee.
 create function content.refuse_compiled_artifact_classification_downgrade() returns trigger
 language plpgsql
@@ -1248,20 +1455,12 @@ create trigger proposal_overlay_append_only
 create trigger document_publication_target_append_only
   before update or delete or truncate on content.document_publication_target
   for each statement execute function core.refuse_mutation();
+create trigger document_publication_target_retirement_append_only
+  before update or delete or truncate on content.document_publication_target_retirement
+  for each statement execute function core.refuse_mutation();
 create trigger document_publication_append_only
   before update or delete or truncate on content.document_publication
   for each statement execute function core.refuse_mutation();
-
-alter table content.compiled_view
-  add constraint compiled_view_identity_digest unique (id, content_digest);
-alter table content.document_publication
-  add constraint document_publication_view
-  foreign key (compiled_view_id)
-  references content.compiled_view (id) on delete restrict;
-alter table content.document_publication
-  add constraint document_publication_view_digest
-  foreign key (compiled_view_id, compiled_view_digest)
-  references content.compiled_view (id, content_digest) on delete restrict;
 
 alter table content.composition_input
   add constraint composition_input_resource_digest
@@ -1309,6 +1508,8 @@ alter table content.document_publication enable row level security;
 alter table content.document_publication force row level security;
 alter table content.document_publication_target enable row level security;
 alter table content.document_publication_target force row level security;
+alter table content.document_publication_target_retirement enable row level security;
+alter table content.document_publication_target_retirement force row level security;
 
 create function content.document_basis_classifier_active() returns boolean
 language sql stable
@@ -1537,12 +1738,37 @@ create policy compiled_view_scope on content.compiled_view
   );
 create policy document_publication_scope on content.document_publication
   for all
-  using (exists (select 1 from content.document_subject s where s.id = subject_id))
-  with check (exists (select 1 from content.document_subject s where s.id = subject_id));
+  using (
+    organization_id = core.current_organization()
+    and exists (select 1 from content.document_subject s where s.id = subject_id)
+    and (select rank from registry.classification c where c.id = effective_classification)
+        <= core.current_classification_rank()
+  )
+  with check (
+    organization_id = core.current_organization()
+    and exists (select 1 from content.document_subject s where s.id = subject_id)
+    and (select rank from registry.classification c where c.id = effective_classification)
+        <= core.current_classification_rank()
+  );
 create policy document_publication_target_scope on content.document_publication_target
   for all
   using (exists (select 1 from core.object o where o.id = document_publication_target.organization_id))
   with check (exists (select 1 from core.object o where o.id = document_publication_target.organization_id));
+create policy document_publication_target_retirement_scope
+  on content.document_publication_target_retirement
+  for all
+  using (
+    exists (
+      select 1 from content.document_publication_target t
+       where t.id = document_publication_target_retirement.target_id
+    )
+  )
+  with check (
+    exists (
+      select 1 from content.document_publication_target t
+       where t.id = document_publication_target_retirement.target_id
+    )
+  );
 
 create policy proposal_overlay_scope on content.proposal_overlay
   for all
@@ -1560,7 +1786,9 @@ begin
     'document_composition', 'authored_fragment_revision', 'composition_revision',
     'typed_binding', 'composition_input', 'compilation_basis',
     'compilation_basis_fragment', 'compilation_basis_composition',
-    'compilation_basis_binding', 'compilation_run', 'compiled_view', 'proposal_overlay'
+    'compilation_basis_binding', 'compilation_run', 'compiled_view', 'proposal_overlay',
+    'document_publication_target', 'document_publication_target_retirement',
+    'document_publication'
   ] loop
     execute format(
       'create policy %I on content.%I for select to kf_backup using (true)',
@@ -1577,7 +1805,9 @@ grant select on content.document_subject, content.document_source_holder,
                 content.compilation_basis, content.compilation_basis_fragment,
                 content.compilation_basis_composition, content.compilation_basis_binding,
                 content.compilation_run, content.compiled_view, content.proposal_overlay,
-                content.document_publication_target, content.document_publication
+                content.document_publication_target,
+                content.document_publication_target_retirement,
+                content.document_publication
   to kf_app, kf_worker, kf_readonly, kf_auditor, kf_backup;
 
 grant insert on content.document_subject, content.document_source_holder,
@@ -1586,8 +1816,7 @@ grant insert on content.document_subject, content.document_source_holder,
                 content.composition_input, content.typed_binding,
                 content.compilation_basis, content.compilation_basis_fragment,
                 content.compilation_basis_composition, content.compilation_basis_binding,
-                content.proposal_overlay,
-                content.document_publication_target, content.document_publication
+                content.proposal_overlay, content.document_publication
   to kf_app;
 grant update (current_holder_id) on content.document_subject to kf_app;
 grant insert on content.compilation_run, content.compiled_view to kf_worker;
@@ -1613,7 +1842,11 @@ revoke update, delete, truncate on content.document_source_holder,
                                       content.compiled_view,
                                       content.proposal_overlay,
                                       content.document_publication_target,
+                                      content.document_publication_target_retirement,
                                       content.document_publication
+  from kf_app, kf_worker;
+revoke insert on content.document_publication_target,
+                 content.document_publication_target_retirement
   from kf_app, kf_worker;
 
 comment on table content.document_source_holder is
@@ -1628,15 +1861,30 @@ comment on table content.proposal_overlay is
 drop policy if exists object_document_basis_classifier on core.object;
 drop trigger if exists core_object_compiled_artifact_classification on core.object;
 drop function if exists content.refuse_compiled_artifact_classification_downgrade();
+
+drop trigger if exists document_publication_authority on content.document_publication;
+drop function if exists content.enforce_document_publication();
+drop trigger if exists document_publication_target_retirement_lock
+  on content.document_publication_target_retirement;
+drop function if exists content.lock_document_publication_target_retirement();
+drop function if exists content.lock_document_publication_target(uuid);
+drop trigger if exists document_subject_holder_revision_complete on content.document_subject;
+drop trigger if exists document_subject_holder_switch on content.document_subject;
+drop function if exists content.enforce_holder_switch_has_revision();
+drop function if exists content.enforce_document_holder_switch();
 drop function if exists content.finalize_compilation_basis(uuid);
+
+drop table if exists content.document_publication;
+drop table if exists content.document_publication_target_retirement;
+drop table if exists content.document_publication_target;
+alter table if exists quality.controlled_document
+  drop constraint if exists controlled_document_content_version_identity;
 drop table if exists content.proposal_overlay;
 drop table if exists content.composition_input;
 drop table if exists content.compilation_basis_binding;
 drop table if exists content.compilation_basis_composition;
 drop table if exists content.compilation_basis_fragment;
 drop table if exists content.compiled_view;
-drop table if exists content.document_publication;
-drop table if exists content.document_publication_target;
 drop table if exists content.compilation_run;
 drop table if exists content.compilation_basis;
 drop table if exists content.typed_binding;
@@ -1663,5 +1911,3 @@ drop function if exists content.enforce_contiguous_composition_order();
 drop function if exists content.refuse_composition_cycle();
 drop function if exists content.enforce_fragment_revision_is_current_holder();
 drop function if exists content.enforce_fragment_revision_holder_scope();
-drop function if exists content.enforce_holder_switch_has_revision();
-drop function if exists content.enforce_document_holder_switch();

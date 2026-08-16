@@ -195,6 +195,129 @@ action_types:
     audited: true
     transactional: true
     drives: [controlled_document]
+
+  # ── Document compiler authority ────────────────────────────────────────────────────────
+  # Authored Fragments and Composition Revisions are changed only through these narrow
+  # actions. Compilation and proposal actions target their existing document subject; none
+  # carries generic mutation, approval, identifier allocation, or decision authority.
+  - id: add_authored_fragment
+    audited: true
+    transactional: true
+    drives: []
+  - id: revise_authored_fragment
+    audited: true
+    transactional: true
+    drives: []
+  - id: retire_authored_fragment
+    audited: true
+    transactional: true
+    drives: [authored_fragment]
+  - id: add_document_composition
+    audited: true
+    transactional: true
+    drives: []
+  - id: revise_document_composition
+    audited: true
+    transactional: true
+    drives: []
+  - id: change_document_source_holder
+    audited: true
+    transactional: true
+    drives: []
+  - id: request_document_compilation
+    audited: true
+    transactional: true
+    drives: []
+  - id: accept_document_compilation
+    audited: true
+    transactional: true
+    drives: []
+  - id: publish_document_view
+    audited: true
+    transactional: true
+    drives: []
+  - id: record_document_proposal
+    audited: true
+    transactional: true
+    drives: []
+  - id: apply_document_proposal
+    audited: true
+    transactional: true
+    drives: []
+
+  # ── Federated Secure Object Authority ──────────────────────────────────────────────────
+  # These actions target exactly one owning organization. Database triggers also require
+  # their parameters to bind the exact opaque authority, immutable revision, digest,
+  # workload identity and policy decision affected by each receipt.
+  - id: request_secure_object_access
+    audited: true
+    transactional: true
+    drives: []
+  - id: issue_secure_object_capability
+    audited: true
+    transactional: true
+    drives: []
+  - id: revoke_secure_object_capability
+    audited: true
+    transactional: true
+    drives: []
+  - id: consume_secure_object_capability
+    audited: true
+    transactional: true
+    drives: []
+  - id: request_secure_object_erasure
+    audited: true
+    transactional: true
+    drives: []
+  - id: record_secure_object_erasure
+    audited: true
+    transactional: true
+    drives: []
+  - id: register_secure_object_authority_key
+    audited: true
+    transactional: true
+    drives: []
+  - id: revoke_secure_object_authority_key
+    audited: true
+    transactional: true
+    drives: []
+
+  # ── ML registry and metric-stream authority ─────────────────────────────────────────────
+  # Registration actions capture privacy-minimal exact provenance and never qualify, seal,
+  # promote, allocate governed identifiers, or handle signing keys. All target exactly the
+  # owning organization and are independently reconstructed at the database authority seam.
+  - id: register_ml_aggregate_reference
+    audited: true
+    transactional: true
+    drives: []
+  - id: register_ml_run_lineage
+    audited: true
+    transactional: true
+    drives: []
+  - id: register_ml_metric_definition
+    audited: true
+    transactional: true
+    drives: []
+  - id: register_ml_metric_segment
+    audited: true
+    transactional: true
+    drives: []
+  # Authorization binds one actor-role, lineage, definition and policy tuple; append binds
+  # one canonical typed metric event.
+  - id: authorize_ml_metric_stream
+    audited: true
+    transactional: true
+    drives: []
+  - id: append_ml_metric_event
+    audited: true
+    transactional: true
+    drives: []
+  # Creation action. Caller supplies no target; ML atoms create one first-class decision
+  # object and bind it to exact actor, role, reason, candidate, seal, policy and risk tuple.
+  - id: authorize_ml_promotion
+    audited: true
+    transactional: true
+    drives: []
   - id: raise_nonconformity
     audited: true
     transactional: true

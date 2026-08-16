@@ -312,6 +312,108 @@ describe('idempotency', () => {
       expect(Number(o.row_version)).toBe(2);
     });
   });
+
+  it('rejects the same key when targets or payload change', async () => {
+    const firstTarget = await proposedDecision();
+    const secondTarget = await proposedDecision();
+    const idempotencyKey = key();
+    const base = {
+      actionType: 'accept_decision',
+      actorId: f.reviewerId,
+      actingRoleId: f.reviewerRoleId,
+      targetIds: [firstTarget],
+      idempotencyKey,
+      organizationId: f.organizationId,
+      maxClassification: 'restricted',
+    };
+
+    await execute(base);
+    const err = await rejection(execute({ ...base, targetIds: [secondTarget] }));
+    expect(err.failure).toBe('idempotency_conflict');
+
+    await withTransaction(h.pool, async (tx) => {
+      await bindContext(tx, f);
+      const action = await tx.one<{ organization_id: string; request_digest: string }>(
+        `select organization_id::text, request_digest
+           from core.action where action_type = $1 and idempotency_key = $2`,
+        [base.actionType, idempotencyKey],
+      );
+      expect(action.organization_id).toBe(f.organizationId);
+      expect(action.request_digest).toMatch(/^[0-9a-f]{64}$/);
+      const untouched = await tx.one<{ lifecycle_state: string }>(
+        'select lifecycle_state from core.object where id = $1',
+        [secondTarget],
+      );
+      expect(untouched.lifecycle_state).toBe('proposed');
+    });
+  });
+
+  it('replays across an audit predecessor hidden by another organization RLS scope', async () => {
+    const other = await seedFixtures(h.adminPool);
+    const firstTarget = await proposedDecision();
+    const otherTarget = await createObject(h.adminPool, other, {
+      type: 'decision_record',
+      domain: 'engineering',
+      state: 'proposed',
+      title: 'Other organization interleaving event',
+      createdBy: other.performerId,
+    });
+    const replayTarget = await proposedDecision();
+
+    await execute({
+      actionType: 'accept_decision',
+      actorId: f.reviewerId,
+      actingRoleId: f.reviewerRoleId,
+      targetIds: [firstTarget],
+      idempotencyKey: key(),
+      organizationId: f.organizationId,
+      maxClassification: 'restricted',
+    });
+    await execute({
+      actionType: 'accept_decision',
+      actorId: other.reviewerId,
+      actingRoleId: other.reviewerRoleId,
+      targetIds: [otherTarget],
+      idempotencyKey: key(),
+      organizationId: other.organizationId,
+      maxClassification: 'restricted',
+    });
+    const request = {
+      actionType: 'accept_decision',
+      actorId: f.reviewerId,
+      actingRoleId: f.reviewerRoleId,
+      targetIds: [replayTarget],
+      idempotencyKey: key(),
+      organizationId: f.organizationId,
+      maxClassification: 'restricted',
+    } as const;
+
+    const first = await execute(request);
+    const replay = await execute(request);
+    expect(replay).toMatchObject({
+      actionId: first.actionId,
+      auditDigest: first.auditDigest,
+      replayed: true,
+      status: 'applied',
+    });
+
+    const global = await withTransaction(h.adminPool, (tx) =>
+      tx.one<{ breaks: number; head_matches: boolean }>(
+        `with linked as (
+           select seq, digest, prev_digest, lag(digest) over (order by seq) as expected_prev
+             from core.audit_event
+         )
+         select count(*) filter (
+                  where (expected_prev is null and prev_digest <> repeat('0', 64))
+                     or (expected_prev is not null and prev_digest <> expected_prev)
+                )::integer as breaks,
+                (select head.digest = (select digest from linked order by seq desc limit 1)
+                   from core.audit_chain_head head) as head_matches
+           from linked`,
+      ),
+    );
+    expect(global).toEqual({ breaks: 0, head_matches: true });
+  });
 });
 
 describe('the audit chain', () => {
@@ -331,8 +433,7 @@ describe('the audit chain', () => {
       });
     }
 
-    await withTransaction(h.pool, async (tx) => {
-      await bindContext(tx, f);
+    await withTransaction(h.adminPool, async (tx) => {
       const rows = await tx.query<{ seq: string; prev_digest: string; digest: string }>(
         'select seq, prev_digest, digest from core.audit_event order by seq',
       );

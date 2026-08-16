@@ -179,6 +179,14 @@ state_machines:
       - { from: superseded, to: withdrawn, action: withdraw_controlled_document }
       - { from: draft, to: withdrawn, action: withdraw_controlled_document }
 
+  - id: authored_fragment
+    initial: active
+    terminal: [retired]
+    transitions:
+      # Retirement appends a sequestered revision and moves the subject once. Restoration is
+      # intentionally absent; replacement uses a new fragment with explicit provenance.
+      - { from: active, to: retired, action: retire_authored_fragment }
+
   - id: nonconformity
     initial: open
     terminal: [closed]

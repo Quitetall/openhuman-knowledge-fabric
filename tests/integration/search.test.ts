@@ -29,6 +29,10 @@ let h: Harness;
 let f: Fixtures;
 let board: string;
 let restrictedOrder: string;
+let percentLiteral: string;
+let percentWildcardNeighbour: string;
+let underscoreLiteral: string;
+let underscoreWildcardNeighbour: string;
 
 const internal = () => ({ organizationId: f.organizationId, maxClassification: 'internal' });
 const restricted = () => ({ organizationId: f.organizationId, maxClassification: 'restricted' });
@@ -88,8 +92,47 @@ beforeAll(async () => {
     return row.id;
   });
 
+  percentLiteral = await createObject(h.adminPool, f, {
+    type: 'decision_record',
+    domain: 'engineering',
+    state: 'proposed',
+    title: 'Literal identifier ZX%Q',
+    createdBy: f.performerId,
+  });
+  percentWildcardNeighbour = await createObject(h.adminPool, f, {
+    type: 'decision_record',
+    domain: 'engineering',
+    state: 'proposed',
+    title: 'Wildcard neighbour ZXXQ',
+    createdBy: f.performerId,
+  });
+  underscoreLiteral = await createObject(h.adminPool, f, {
+    type: 'decision_record',
+    domain: 'engineering',
+    state: 'proposed',
+    title: 'Literal identifier LOT_A7',
+    createdBy: f.performerId,
+  });
+  underscoreWildcardNeighbour = await createObject(h.adminPool, f, {
+    type: 'decision_record',
+    domain: 'engineering',
+    state: 'proposed',
+    title: 'Wildcard neighbour LOTXA7',
+    createdBy: f.performerId,
+  });
+
   await withTransaction(h.adminPool, async (tx) => {
-    for (const id of [board, nc, restrictedOrder]) await indexObject(tx, id);
+    for (const id of [
+      board,
+      nc,
+      restrictedOrder,
+      percentLiteral,
+      percentWildcardNeighbour,
+      underscoreLiteral,
+      underscoreWildcardNeighbour,
+    ]) {
+      await indexObject(tx, id);
+    }
   });
 }, 180_000);
 
@@ -156,6 +199,18 @@ describe('finding things', () => {
     const hits = await search(h.pool, restricted(), { text: 'leakage & | ! ((' });
     expect(Array.isArray(hits)).toBe(true);
   });
+
+  it.each([
+    ['%', () => percentLiteral, () => percentWildcardNeighbour],
+    ['LOT_A7', () => underscoreLiteral, () => underscoreWildcardNeighbour],
+  ])(
+    'treats SQL wildcard characters in %s as literal search text',
+    async (text, exact, neighbour) => {
+      const hits = await search(h.pool, restricted(), { text });
+      expect(hits.map((hit) => hit.objectId)).toContain(exact());
+      expect(hits.map((hit) => hit.objectId)).not.toContain(neighbour());
+    },
+  );
 });
 
 describe('visibility', () => {

@@ -1,6 +1,6 @@
 # GENERATED from ontology/ — do not edit.
 # ontology_version: 1.1.0-draft.1
-# source_digest: e2e0283906bed576d89acee4e409cb14e475f04d4aad94bd80178f3f26b5afb9
+# source_digest: 1f26b17f57be7c7a3fc9a70db2dfc102c0a53b0f0203759110cfd52cab32b59f
 
 @prefix sh: <http://www.w3.org/ns/shacl#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
@@ -93,6 +93,12 @@ kf:InterfaceContractShape a sh:NodeShape ;
 kf:PhysicalBindingShape a sh:NodeShape ;
   sh:targetClass kf:physical_binding ;
   sh:property [ sh:path kf:configuration_item ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ] .
+
+kf:MlPromotionDecisionShape a sh:NodeShape ;
+  sh:targetClass kf:ml_promotion_decision ;
+  sh:property [ sh:path kf:candidate_ref_id ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ] ;
+  sh:property [ sh:path kf:run_seal_id ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ] ;
+  sh:property [ sh:path kf:policy_ref_id ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ] .
 
 kf:SupplierShape a sh:NodeShape ;
   sh:targetClass kf:supplier ;

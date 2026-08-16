@@ -14,11 +14,18 @@ import {
   PandocDocumentParser,
   type DocumentParser,
 } from '@kf/documents';
-import { createFabricDispatcher } from '@kf/orchestrator';
+import {
+  createFabricDispatcher,
+  createFabricTransactionalDispatcher,
+  createFabricTransactionalPreflight,
+} from '@kf/orchestrator';
 import { assessReadiness } from '@kf/operations';
 import type { ApiConfig } from './config.js';
 import { createCallerIdentifier, registerActionRoutes } from './routes/actions.js';
 import { registerDocumentRoutes } from './routes/documents.js';
+import { registerMlRoutes } from './routes/ml.js';
+import { registerSearchRoutes } from './routes/search.js';
+import { hasRequiredSchema } from './schema-contract.js';
 
 export const SERVICE_NAME = 'openhuman-knowledge-fabric-api';
 
@@ -95,15 +102,21 @@ export async function buildApp(
 
   app.get('/ready', async (_request, reply) => {
     const checks: Record<string, 'ok' | 'unconfigured' | 'failing'> = {
-      database: pool === undefined ? 'unconfigured' : 'ok',
+      database: pool === undefined ? 'unconfigured' : 'failing',
+      schema: pool === undefined ? 'unconfigured' : 'failing',
     };
     if (pool !== undefined) {
       try {
         // A real round trip. "The pool object exists" is not readiness — it says nothing
         // about whether the database is reachable, which is the only question being asked.
-        await withTransaction(pool, async (tx) => tx.query('select 1'));
+        await withTransaction(pool, async (tx) => {
+          await tx.query('select 1');
+          checks['database'] = 'ok';
+          checks['schema'] = (await hasRequiredSchema(tx)) ? 'ok' : 'failing';
+        });
       } catch {
         checks['database'] = 'failing';
+        checks['schema'] = 'failing';
       }
     }
     const ready = Object.values(checks).every((v) => v === 'ok');
@@ -133,6 +146,8 @@ export async function buildApp(
         ? undefined
         : createDocumentActionAtoms({ store: objectStore, parser });
     const execute = createFabricDispatcher(pool, documentAtoms);
+    const executeInTransaction = createFabricTransactionalDispatcher(documentAtoms);
+    const preflightInTransaction = createFabricTransactionalPreflight(documentAtoms);
     const verifier = config.identity === undefined ? undefined : new TokenVerifier(config.identity);
     const identify = createCallerIdentifier(pool, verifier);
     await registerActionRoutes(app, {
@@ -147,10 +162,13 @@ export async function buildApp(
     });
     await registerDocumentRoutes(app, {
       pool,
-      execute,
+      executeInTransaction,
+      preflightInTransaction,
       identify,
       store: objectStore,
     });
+    await registerMlRoutes(app, { pool, identify, executeInTransaction });
+    await registerSearchRoutes(app, { pool, identify });
   }
 
   return app;

@@ -1,15 +1,36 @@
 /**
  * Who the web application is acting as.
  *
- * A stand-in until Keycloak lands in Gate 8, and one that refuses to be anything else: it
- * reads a fixed identity from the environment and throws outside development. A web app that
- * silently fell back to a default identity in production would attribute every action to
- * whoever set the variable last, which is worse than not working.
+ * A deliberately non-authoritative stand-in for the `development` deployment profile.
+ *
+ * Shared dogfood uses the separate OIDC web-session path. This helper refuses dogfood outright;
+ * it never turns a fixed environment value into an apparently authenticated person. A web app
+ * that silently fell back to a default identity would attribute every action to whoever set the
+ * variable last, which is worse than not working.
  */
 
 import type { Caller } from './api';
 
 export function developmentCaller(): Caller {
+  const profile = process.env['KF_DEPLOYMENT_PROFILE'];
+  if (profile === undefined || profile === '') {
+    throw new Error(
+      'KF_DEPLOYMENT_PROFILE is required; set it explicitly to development or dogfood.',
+    );
+  }
+  if (profile !== 'development' && profile !== 'dogfood') {
+    throw new Error(
+      `KF_DEPLOYMENT_PROFILE must be development or dogfood, got ${JSON.stringify(profile)}.`,
+    );
+  }
+  if (profile === 'dogfood') {
+    throw new Error(
+      'The dogfood profile requires a real bearer-authenticated identity. The fixed ' +
+        'development caller is disabled; configure the web OIDC session and bearer-token ' +
+        'forwarding before serving this interface.',
+    );
+  }
+
   const environment = process.env['NODE_ENV'] ?? 'development';
   if (environment !== 'development' && environment !== 'test') {
     throw new Error(
@@ -36,6 +57,7 @@ export function developmentCaller(): Caller {
     return value;
   };
   return {
+    authentication: 'development',
     actorId: required('KF_DEV_ACTOR'),
     actingRoleId: required('KF_DEV_ACTING_ROLE'),
     organizationId: required('KF_DEV_ORGANIZATION'),

@@ -15,6 +15,14 @@ export interface ApiConfig {
   readonly databaseUrl: string | undefined;
   readonly environment: 'development' | 'test' | 'staging' | 'production';
   /**
+   * What kind of records this process may serve.
+   *
+   * `development` is a visibly non-authoritative, fixed-identity workspace. `dogfood` may
+   * be shared and therefore requires verified bearer identity even when Node itself runs in
+   * development mode.
+   */
+  readonly deploymentProfile: 'development' | 'dogfood';
+  /**
    * Whether a proxy in front of this process terminates TLS.
    *
    * Stated rather than assumed. This process serves HTTP; whether that is safe depends
@@ -63,8 +71,36 @@ function readEnvironment(raw: string | undefined): ApiConfig['environment'] {
   );
 }
 
+function readDeploymentProfile(raw: string | undefined): ApiConfig['deploymentProfile'] {
+  if (raw === undefined || raw === '') {
+    throw new ConfigError(
+      'KF_DEPLOYMENT_PROFILE is required; set it explicitly to development or dogfood',
+    );
+  }
+  if (raw === 'development' || raw === 'dogfood') return raw;
+  throw new ConfigError(
+    `KF_DEPLOYMENT_PROFILE must be development or dogfood, got ${JSON.stringify(raw)}`,
+  );
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   const environment = readEnvironment(env['NODE_ENV']);
+  const deploymentProfile = readDeploymentProfile(env['KF_DEPLOYMENT_PROFILE']);
+  const host = env['HOST'] ?? (deploymentProfile === 'dogfood' ? '127.0.0.1' : '0.0.0.0');
+
+  // The development profile is the only place header-supplied identity can exist. Naming it
+  // in a deployed Node environment would make a non-authoritative mode look deployable, so
+  // reject that contradiction before considering any credentials.
+  if (
+    deploymentProfile === 'development' &&
+    environment !== 'development' &&
+    environment !== 'test'
+  ) {
+    throw new ConfigError(
+      'The development profile is allowed only when NODE_ENV=development or test; use ' +
+        'KF_DEPLOYMENT_PROFILE=dogfood with verified bearer identity for a shared deployment.',
+    );
+  }
 
   // Serving plain HTTP with nothing terminating TLS means bearer tokens cross the network in
   // clear. Refused rather than warned: the warning would be read once.
@@ -75,6 +111,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
         'terminates TLS, and the deployment must say so by setting ' +
         'KF_TLS_TERMINATED_UPSTREAM=1. Without TLS every bearer token crosses the network in ' +
         'clear.',
+    );
+  }
+  if (
+    deploymentProfile === 'dogfood' &&
+    !tlsTerminatedUpstream &&
+    host !== '127.0.0.1' &&
+    host !== '::1' &&
+    host !== 'localhost'
+  ) {
+    throw new ConfigError(
+      'cleartext dogfood is permitted only on a loopback listener; set HOST=127.0.0.1 or ' +
+        'terminate TLS upstream and set KF_TLS_TERMINATED_UPSTREAM=1',
     );
   }
 
@@ -117,12 +165,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       ? { issuer: issuer!, audience: audience!, jwksUri: jwksUri! }
       : undefined;
 
-  // Outside development an identity provider is not optional. Without this the process would
-  // start, serve, and attribute every action to whoever set a header.
-  if (environment !== 'development' && environment !== 'test' && identity === undefined) {
+  // Dogfood is allowed to run with NODE_ENV=development on a workstation, but it may be
+  // shared and its records still need an authenticated actor. NODE_ENV therefore cannot be
+  // the identity boundary: the explicit deployment profile is.
+  if (deploymentProfile === 'dogfood' && identity === undefined) {
     throw new ConfigError(
-      `An identity provider is required when NODE_ENV=${environment}. Set OIDC_ISSUER, ` +
-        'OIDC_AUDIENCE and OIDC_JWKS_URI.',
+      'An identity provider is required when KF_DEPLOYMENT_PROFILE=dogfood. Set ' +
+        'OIDC_ISSUER, OIDC_AUDIENCE and OIDC_JWKS_URI.',
     );
   }
 
@@ -161,11 +210,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   }
 
   return {
-    host: env['HOST'] ?? '0.0.0.0',
+    host,
     port: readPort(env['PORT'], 4000),
     logLevel: env['LOG_LEVEL'] ?? (environment === 'production' ? 'info' : 'debug'),
     databaseUrl,
     environment,
+    deploymentProfile,
     tlsTerminatedUpstream,
     identity,
     ...(artifactStore === undefined ? {} : { artifactStore }),

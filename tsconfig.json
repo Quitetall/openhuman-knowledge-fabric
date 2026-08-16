@@ -50,6 +50,9 @@
       "path": "./packages/integration"
     },
     {
+      "path": "./packages/ml-registry"
+    },
+    {
       "path": "./packages/ui"
     },
     {

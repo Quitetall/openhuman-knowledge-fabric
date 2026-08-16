@@ -1,0 +1,29 @@
+{
+  "name": "@kf/ml-registry",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Privacy-minimal ML lineage, typed metrics, run seals, and governed promotions",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./contracts": {
+      "types": "./dist/public-contracts.d.ts",
+      "default": "./dist/public-contracts.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@kf/canonicalization": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3"
+  }
+}

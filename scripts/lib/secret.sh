@@ -113,6 +113,89 @@ kf_pgpass_escape() {
   printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/:/\\:/g'
 }
 
+# Return the same libpq connection target with only its database name replaced.
+#
+# URI connection strings need real URI parsing: trimming after the final slash corrupts query
+# values such as sslrootcert=/etc/... and host=/run/postgresql, and it mishandles IPv6. Keyword
+# conninfo deliberately uses libpq's documented last-value-wins behavior. Database names are a
+# closed identifier here because restore-drill generates them itself; accepting quoting syntax
+# would turn this small helper into a second conninfo parser.
+kf_database_override() {
+  _connection="$1"
+  _database="$2"
+  if [[ ! "$_database" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+    echo "database name must match [A-Za-z_][A-Za-z0-9_]*" >&2
+    return 1
+  fi
+
+  case "$_connection" in
+    postgres://*|postgresql://*)
+      # Connection input stays on stdin, never argv. This remains safe if a future caller invokes
+      # the helper before kf_pgpass_url has removed an inline password.
+      printf '%s' "$_connection" | node -e '
+        const database = process.argv[1];
+        let input = "";
+        process.stdin.setEncoding("utf8");
+        process.stdin.on("data", (chunk) => { input += chunk; });
+        process.stdin.on("end", () => {
+          const url = new URL(input);
+          if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") {
+            throw new Error("connection URI must use postgres or postgresql protocol");
+          }
+          url.pathname = `/${database}`;
+          process.stdout.write(url.toString());
+        });
+      ' "$_database"
+      ;;
+    *)
+      printf "%s dbname='%s'" "$_connection" "$_database"
+      ;;
+  esac
+}
+
+# Resolve one coherent PostgreSQL 18 client toolchain before a backup or restore starts.
+# PostgreSQL dump archives are versioned formats; mixing an ambient old pg_dump with a newer
+# server fails late, while mixing client directories makes an operator's PATH part of evidence.
+kf_configure_postgres_client() {
+  _client_dir="${KF_POSTGRES_CLIENT_DIR:-}"
+  if [ -z "$_client_dir" ]; then
+    _psql_path="$(command -v psql 2>/dev/null || true)"
+    if [ -z "$_psql_path" ]; then
+      echo "PostgreSQL 18 client psql was not found" >&2
+      return 1
+    fi
+    _client_dir="$(cd "$(dirname "$_psql_path")" && pwd)"
+  elif [[ "$_client_dir" != /* ]] || [ ! -d "$_client_dir" ]; then
+    echo "KF_POSTGRES_CLIENT_DIR must name an absolute existing directory" >&2
+    return 1
+  else
+    _client_dir="$(cd "$_client_dir" && pwd)"
+  fi
+
+  for _tool in psql pg_dump pg_dumpall pg_restore; do
+    _path="$_client_dir/$_tool"
+    if [ ! -x "$_path" ]; then
+      echo "PostgreSQL 18 client tool is missing or not executable: $_path" >&2
+      return 1
+    fi
+    _version="$("$_path" --version 2>&1)" || {
+      echo "could not execute PostgreSQL client tool: $_path" >&2
+      return 1
+    }
+    if [[ ! "$_version" =~ \(PostgreSQL\)[[:space:]]+18([.]|$) ]]; then
+      echo "PostgreSQL 18 client required; $_path reported: $_version" >&2
+      return 1
+    fi
+  done
+
+  KF_POSTGRES_CLIENT_DIR="$_client_dir"
+  KF_PSQL="$_client_dir/psql"
+  KF_PG_DUMP="$_client_dir/pg_dump"
+  KF_PG_DUMPALL="$_client_dir/pg_dumpall"
+  KF_PG_RESTORE="$_client_dir/pg_restore"
+  export KF_POSTGRES_CLIENT_DIR KF_PSQL KF_PG_DUMP KF_PG_DUMPALL KF_PG_RESTORE
+}
+
 kf_pgpass_url() {
   _url="$1"
 
@@ -158,6 +241,16 @@ kf_pgpass_url() {
 
   _hostport="${_hostpart%%/*}"
   case "$_hostport" in
+    \[*\]:*)
+      _host="${_hostport%%]:*}"
+      _host="${_host#[}"
+      _port="${_hostport##*]:}"
+      ;;
+    \[*\])
+      _host="${_hostport#[}"
+      _host="${_host%]}"
+      _port='*'
+      ;;
     *:*) _host="${_hostport%%:*}"; _port="${_hostport##*:}" ;;
     *)   _host="$_hostport";       _port='*' ;;
   esac

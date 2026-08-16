@@ -35,7 +35,7 @@ describe('document constitution dogfood', () => {
     await store.put(key, bytes, 'text/markdown');
 
     const parser: DocumentParser = {
-      async parse() {
+      async parse(sourceBytes) {
         const atoms = atomsFromPandoc({
           'pandoc-api-version': [1, 23, 1],
           blocks: [
@@ -54,7 +54,21 @@ describe('document constitution dogfood', () => {
             },
           ],
         });
-        return { parser: 'test-parser', parserVersion: '1', atoms, contentDigest: digest(atoms) };
+        const atomClaims = atoms.map(({ digest: _digest, ...claim }) => claim);
+        return {
+          parser: 'test-parser',
+          parserVersion: '1',
+          projectionContract: 'test.atoms.v1',
+          sourceDigest: digestOf(sourceBytes),
+          atoms,
+          conversionLoss: [],
+          lossDigest: digest([]),
+          contentDigest: digest({
+            projectionContract: 'test.atoms.v1',
+            atoms: atomClaims,
+            conversionLoss: [],
+          }),
+        };
       },
     };
     const execute = createFabricDispatcher(

@@ -1,0 +1,46 @@
+[Unit]
+Description=Apply one verified Knowledge Fabric database migration set
+Documentation=file:///opt/kf/docs/deployment/private-host.md
+Wants=network-online.target
+After=network-online.target
+OnFailure=kf-alert@%n.service
+
+[Service]
+Type=oneshot
+User=kf-migrator
+Group=kf-migrator
+WorkingDirectory=/opt/kf
+EnvironmentFile=/etc/kf/migrator.env
+RuntimeDirectory=kf-migrate
+RuntimeDirectoryMode=0700
+StateDirectory=kf-migrator
+StateDirectoryMode=0700
+ExecStart=/usr/bin/env DATABASE_URL_FILE=/etc/kf/migrator/database-url KF_EXPECTED_RELEASE_OWNER_UID=0 KF_MIGRATION_LOCK_FILE=/run/kf-migrate/migration.lock /opt/kf/scripts/deploy/migrate-release.sh apply /opt/kf
+TimeoutStartSec=30min
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectClock=true
+ProtectHostname=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectProc=invisible
+ProcSubset=pid
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+ReadWritePaths=/run/kf-migrate /var/lib/kf-migrator
+UMask=0077
+
+# No install target. Operator starts this oneshot for one reviewed release after rehearsal.

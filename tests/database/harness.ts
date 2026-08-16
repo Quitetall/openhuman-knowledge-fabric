@@ -18,6 +18,8 @@ import { createPool, withTransaction, type Pool, type Tx } from '@kf/database';
 const ROOT = join(import.meta.dirname, '..', '..');
 const MIGRATIONS = join(ROOT, 'database', 'migrations');
 const SEED = join(ROOT, 'generated', 'sql-registry', '001-ontology-seed.sql');
+export const POSTGRES_INITDB_ARGS =
+  '--locale-provider=builtin --builtin-locale=C.UTF-8 --encoding=UTF8';
 
 /**
  * The identity that creates the first records, before any person exists to attribute them
@@ -56,13 +58,36 @@ export async function startHarness(): Promise<Harness> {
     .withDatabase('kf_test')
     .withUsername('kf_owner')
     .withPassword('test-only-not-a-secret')
-    // Matches docker-compose: a libc collation change silently reorders text indexes, so the
-    // test database must be built the same way production is.
+    // Matches Compose: a libc collation change silently reorders text indexes, so every
+    // database path has to initialize with the same provider and locale.
+    .withEnvironment({ POSTGRES_INITDB_ARGS })
     .withCommand(['postgres', '-c', 'wal_level=logical', '-c', 'track_commit_timestamp=on'])
     .start();
 
   const connectionString = container.getConnectionUri();
   const adminPool = createPool({ connectionString, maxConnections: 5 });
+
+  const databaseLocale = await withTransaction(adminPool, (tx) =>
+    tx.one<{ provider: string; locale: string; encoding: string }>(
+      `select datlocprovider as provider,
+              datlocale as locale,
+              pg_encoding_to_char(encoding) as encoding
+         from pg_database
+        where datname = current_database()`,
+    ),
+  );
+  if (
+    databaseLocale.provider !== 'b' ||
+    databaseLocale.locale !== 'C.UTF-8' ||
+    databaseLocale.encoding !== 'UTF8'
+  ) {
+    const mismatch = new Error(
+      `PostgreSQL test harness locale mismatch: ${JSON.stringify(databaseLocale)}`,
+    );
+    await adminPool.end().catch(() => undefined);
+    await container.stop().catch(() => undefined);
+    throw mismatch;
+  }
 
   await withTransaction(adminPool, async (tx) => {
     await tx.query('create extension if not exists btree_gist');
@@ -125,6 +150,53 @@ export interface Fixtures {
   readonly performerId: string;
   readonly performerRoleId: string;
   readonly schemaVersion: string;
+}
+
+export interface TestLiminalCompilerIdentity {
+  readonly name: string;
+  readonly version: string;
+  readonly protocol: 'kf-document-v1';
+  readonly commitSha: string;
+  readonly cargoLockDigest: string;
+  readonly executableDigest: string;
+  readonly runtimeClosureDigest: string;
+  readonly qualification: {
+    readonly state: 'not_run' | 'incomplete' | 'unratified' | 'qualified';
+    readonly receiptDigest: string | null;
+    readonly ratified: boolean;
+  };
+}
+
+/** Owner-only fixture seam. Production deliberately has no default compiler registration. */
+export async function registerTestDocumentCompiler(
+  pool: Pool,
+  identity: TestLiminalCompilerIdentity,
+  registeredBy: string = BOOTSTRAP_IDENTITY,
+): Promise<string> {
+  return withTransaction(pool, async (tx) => {
+    const row = await tx.one<{ id: string }>(
+      `insert into content.document_compiler_registration
+         (compiler_name, compiler_version, protocol, liminal_commit_sha, cargo_lock_digest,
+          executable_digest, runtime_closure_digest, qualification_state,
+          qualification_receipt_digest, qualification_ratified, registered_by)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       returning id`,
+      [
+        identity.name,
+        identity.version,
+        identity.protocol,
+        identity.commitSha,
+        identity.cargoLockDigest,
+        identity.executableDigest,
+        identity.runtimeClosureDigest,
+        identity.qualification.state,
+        identity.qualification.receiptDigest,
+        identity.qualification.ratified,
+        registeredBy,
+      ],
+    );
+    return row.id;
+  });
 }
 
 async function newObject(

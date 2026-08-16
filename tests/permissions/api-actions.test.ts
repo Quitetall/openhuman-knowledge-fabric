@@ -16,6 +16,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { InMemoryObjectStore } from '@kf/artifacts';
+import { withTransaction } from '@kf/database';
 import { buildApp } from '../../apps/api/src/app.js';
 import { registerActionRoutes } from '../../apps/api/src/routes/actions.js';
 import {
@@ -140,6 +141,249 @@ describe('document dogfood surface', () => {
       atomCount: 2,
     });
   });
+
+  it('rolls back every authoritative stage when final document creation is refused', async () => {
+    const documentNumber = 'OH-DOC-TEST-HTTP-ATOMIC-001';
+    const preexisting = await app.inject({
+      method: 'POST',
+      url: '/documents',
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+      payload: {
+        title: 'Existing controlled identity',
+        documentNumber,
+        revision: 'R01',
+        documentClass: 'specification',
+        owningRole: 'technical_authority',
+        fileName: 'existing.txt',
+        mediaType: 'text/plain',
+        contentBase64: Buffer.from('existing controlled bytes').toString('base64'),
+        idempotencyKey: 'api-document-atomic-preexisting',
+      },
+    });
+    expect(preexisting.statusCode, preexisting.body).toBe(201);
+
+    const importKey = 'api-document-atomic-refusal';
+    const response = await app.inject({
+      method: 'POST',
+      url: '/documents',
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+      payload: {
+        title: 'Conflicting import',
+        documentNumber,
+        revision: 'R01',
+        documentClass: 'specification',
+        owningRole: 'technical_authority',
+        fileName: 'conflict.txt',
+        mediaType: 'text/plain',
+        contentBase64: Buffer.from('must not leave partial authority').toString('base64'),
+        idempotencyKey: importKey,
+      },
+    });
+    expect(response.statusCode, response.body).toBe(409);
+
+    const partial = await withTransaction(h.adminPool, (tx) =>
+      tx.one<{ count: string }>(
+        `select count(*)::text as count from core.action
+          where idempotency_key = any($1::text[])`,
+        [[`${importKey}-artifact`, `${importKey}-fragment`, `${importKey}-document`]],
+      ),
+    );
+    expect(partial.count).toBe('0');
+  });
+
+  it('serializes concurrent imports for one document identity into one success and one conflict', async () => {
+    const documentNumber = 'OH-DOC-TEST-HTTP-CONCURRENT-001';
+    const common = {
+      title: 'Concurrent dogfood import',
+      documentNumber,
+      revision: 'R01',
+      documentClass: 'specification',
+      owningRole: 'technical_authority',
+      fileName: 'concurrent.txt',
+      mediaType: 'text/plain',
+      contentBase64: Buffer.from('one exact source under concurrent import').toString('base64'),
+    };
+    const keys = ['api-document-concurrent-left', 'api-document-concurrent-right'] as const;
+    const [left, right] = await Promise.all(
+      keys.map((idempotencyKey) =>
+        app.inject({
+          method: 'POST',
+          url: '/documents',
+          headers: asCaller(f.reviewerId, f.reviewerRoleId),
+          payload: { ...common, idempotencyKey },
+        }),
+      ),
+    );
+
+    expect([left.statusCode, right.statusCode].sort((a, b) => a - b)).toEqual([201, 409]);
+    const conflict = left.statusCode === 409 ? left : right;
+    expect(conflict.json()).toMatchObject({ error: 'duplicate_document' });
+
+    const persisted = await withTransaction(h.adminPool, (tx) =>
+      tx.one<{ documents: string; actions: string }>(
+        `select
+           (select count(*)::text from quality.controlled_document
+             where document_number = $1 and revision = 'R01') as documents,
+           (select count(*)::text from core.action
+             where idempotency_key = any($2::text[])) as actions`,
+        [
+          documentNumber,
+          keys.flatMap((key) => [`${key}-artifact`, `${key}-fragment`, `${key}-document`]),
+        ],
+      ),
+    );
+    expect(persisted).toEqual({ documents: '1', actions: '3' });
+  });
+});
+
+describe('ML metric ingestion surface', () => {
+  it('requires exact actor-role authorization, then persists once with exact replay', async () => {
+    const registry = await withTransaction(h.adminPool, async (tx) => {
+      const reference = async (kind: string, authorityId: string, sha256: string) =>
+        tx.one<{ id: string }>(
+          `insert into ml.aggregate_reference
+             (organization_id, aggregate_kind, authority_id, revision_id, sha256,
+              classification_id, policy_id)
+           values ($1, $2, $3, 'revision-1', $4, 'internal', 'ml-default')
+           returning id`,
+          [f.organizationId, kind, authorityId, sha256],
+        );
+      const run = await reference('run', 'api-training-run', '1'.repeat(64));
+      const code = await reference('code', 'api-training-code', '2'.repeat(64));
+      const recipe = await reference('recipe', 'api-training-recipe', '3'.repeat(64));
+      const environment = await reference(
+        'environment',
+        'api-training-environment',
+        '4'.repeat(64),
+      );
+      const policy = await reference('metric_policy', 'api-training-metric-policy', '5'.repeat(64));
+      const definitionRef = await reference(
+        'metric_definition',
+        'api-validation-loss',
+        '6'.repeat(64),
+      );
+      const lineage = await tx.one<{ id: string }>(
+        `insert into ml.run_lineage
+           (run_ref_id, code_ref_id, recipe_ref_id, environment_ref_id,
+            metric_policy_ref_id, lineage_sha256)
+         values ($1, $2, $3, $4, $5, $6)
+         returning id`,
+        [run.id, code.id, recipe.id, environment.id, policy.id, '7'.repeat(64)],
+      );
+      const definition = await tx.one<{ id: string }>(
+        `insert into ml.metric_definition
+           (definition_ref_id, metric_id, value_kind, unit_id, allowed_enum_ids)
+         values ($1, 'validation.loss', 'number', 'ratio', '{}')
+         returning id`,
+        [definitionRef.id],
+      );
+      return {
+        lineageId: lineage.id,
+        definitionId: definition.id,
+        policyRefId: policy.id,
+      };
+    });
+
+    const payload = {
+      idempotencyKey: 'api-training-run-event-1',
+      sequence: 1,
+      recordedAt: '2026-08-14T18:00:00.000Z',
+      value: { kind: 'number', number: 0.125 },
+    };
+    const url =
+      '/ml/runs/api-training-run/revisions/revision-1/metrics/' +
+      'api-validation-loss/revisions/revision-1/events';
+    const visibleButUnauthorized = await app.inject({
+      method: 'POST',
+      url,
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+      payload,
+    });
+    expect(visibleButUnauthorized.statusCode, visibleButUnauthorized.body).toBe(404);
+    expect(visibleButUnauthorized.json()).toEqual({ error: 'not_found' });
+
+    const countAfterRefusal = await withTransaction(h.adminPool, (tx) =>
+      tx.one<{ count: string }>(
+        'select count(*)::text as count from ml.metric_event where run_lineage_id = $1',
+        [registry.lineageId],
+      ),
+    );
+    expect(countAfterRefusal.count).toBe('0');
+
+    const authorizationKey = 'api-ml-stream-authorization-1';
+    const authorization = await app.inject({
+      method: 'POST',
+      url: '/actions/authorize_ml_metric_stream',
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+      payload: {
+        targetIds: [f.organizationId],
+        idempotencyKey: authorizationKey,
+        payload: {
+          authorizedActorId: f.performerId,
+          authorizedRoleId: f.performerRoleId,
+          runLineageId: registry.lineageId,
+          metricDefinitionId: registry.definitionId,
+          metricPolicyRefId: registry.policyRefId,
+        },
+      },
+    });
+    expect(authorization.statusCode, authorization.body).toBe(201);
+
+    const first = await app.inject({
+      method: 'POST',
+      url,
+      headers: asCaller(f.performerId, f.performerRoleId),
+      payload,
+    });
+    expect(first.statusCode, first.body).toBe(201);
+    const firstBody = first.json() as { replayed: boolean; event: { eventDigest: string } };
+    expect(firstBody.replayed).toBe(false);
+    expect(firstBody.event.eventDigest).toMatch(/^[0-9a-f]{64}$/);
+
+    const retry = await app.inject({
+      method: 'POST',
+      url,
+      headers: asCaller(f.performerId, f.performerRoleId),
+      payload,
+    });
+    expect(retry.statusCode).toBe(200);
+    expect(retry.json()).toMatchObject({
+      replayed: true,
+      event: { eventDigest: firstBody.event.eventDigest },
+    });
+
+    const attribution = await withTransaction(h.adminPool, (tx) =>
+      tx.one<{ actor_id: string; acting_role_id: string }>(
+        `select authz.actor_id::text, authz.acting_role_id::text
+           from ml.metric_event event
+           join ml.metric_write_authorization authz
+             on authz.id = event.metric_write_authorization_id
+           join ml.run_lineage lineage on lineage.id = event.run_lineage_id
+           join ml.aggregate_reference run_ref on run_ref.id = lineage.run_ref_id
+          where run_ref.authority_id = 'api-training-run'`,
+      ),
+    );
+    expect(attribution).toEqual({
+      actor_id: f.performerId,
+      acting_role_id: f.performerRoleId,
+    });
+
+    const envelopes = await withTransaction(h.adminPool, (tx) =>
+      tx.one<{ actions: string; audits: string; outboxes: string }>(
+        `select
+           (select count(*)::text from core.action
+             where idempotency_key = any($1::text[])) as actions,
+           (select count(*)::text from core.audit_event event
+             join core.action action on action.id = event.action_id
+            where action.idempotency_key = any($1::text[])) as audits,
+           (select count(*)::text from core.outbox outbox
+             join core.action action on action.id = outbox.action_id
+            where action.idempotency_key = any($1::text[])) as outboxes`,
+        [[authorizationKey, `ml-event:${firstBody.event.eventDigest}`]],
+      ),
+    );
+    expect(envelopes).toEqual({ actions: '2', audits: '2', outboxes: '2' });
+  });
 });
 
 describe('identity', () => {
@@ -219,6 +463,46 @@ describe('actions over HTTP', () => {
     expect(r.json()).toMatchObject({ error: 'idempotency_key_required' });
   });
 
+  it.each([
+    'not-a-date',
+    '0000-01-01T00:00:00.000Z',
+    '+010000-01-01T00:00:00.000Z',
+    '2026-08-14T12:00:00.000001Z',
+  ])('refuses noncanonical effectiveAt %s before dispatch', async (effectiveAt) => {
+    const idempotencyKey = `api-invalid-effective-at-${Buffer.from(effectiveAt).toString('hex')}`;
+    const before = await withTransaction(h.adminPool, (tx) =>
+      tx.one<{ count: string }>(
+        'select count(*)::text as count from core.action where idempotency_key = $1',
+        [idempotencyKey],
+      ),
+    );
+
+    const r = await app.inject({
+      method: 'POST',
+      url: '/actions/create_initiative',
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+      payload: {
+        idempotencyKey,
+        effectiveAt,
+        payload: { title: 'must not dispatch' },
+      },
+    });
+
+    expect(r.statusCode).toBe(400);
+    expect(r.json()).toEqual({
+      error: 'invalid_effective_at',
+      message: 'effectiveAt must be a canonical four-digit-year RFC 3339 millisecond instant',
+    });
+    const after = await withTransaction(h.adminPool, (tx) =>
+      tx.one<{ count: string }>(
+        'select count(*)::text as count from core.action where idempotency_key = $1',
+        [idempotencyKey],
+      ),
+    );
+    expect(before.count).toBe('0');
+    expect(after.count).toBe('0');
+  });
+
   it('creates a project and returns 201', async () => {
     const r = await app.inject({
       method: 'POST',
@@ -245,12 +529,35 @@ describe('actions over HTTP', () => {
       headers: asCaller(f.reviewerId, f.reviewerRoleId),
       payload: {
         idempotencyKey: 'api-create-project-01',
-        payload: { title: 'Atlas enclosure (API)', objective: 'x', sponsor_id: f.reviewerId },
+        payload: {
+          title: 'Atlas enclosure (API)',
+          objective: 'Created over HTTP, through the same dispatcher.',
+          sponsor_id: f.reviewerId,
+        },
       },
     });
     expect(r.statusCode).toBe(200);
     expect(r.json().replayed).toBe(true);
     expect(r.json().actionId).toBeTruthy();
+  });
+
+  it('refuses reuse of an idempotency key for different mutation semantics', async () => {
+    const r = await app.inject({
+      method: 'POST',
+      url: '/actions/create_initiative',
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+      payload: {
+        idempotencyKey: 'api-create-project-01',
+        payload: {
+          title: 'Different initiative',
+          objective: 'Must not replay or materialize.',
+          sponsor_id: f.reviewerId,
+        },
+      },
+    });
+
+    expect(r.statusCode).toBe(409);
+    expect(r.json()).toMatchObject({ error: 'idempotency_conflict' });
   });
 
   it('maps an illegal transition to 409, not 500', async () => {

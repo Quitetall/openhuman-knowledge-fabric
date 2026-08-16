@@ -11,6 +11,7 @@
     { "path": "../actions" },
     { "path": "../database" },
     { "path": "../documents" },
+    { "path": "../integration" },
     { "path": "../product-quality" },
     { "path": "../work-control" }
   ]

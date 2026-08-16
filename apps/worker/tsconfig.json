@@ -9,10 +9,16 @@
   "exclude": ["src/**/*.test.ts", "dist", "node_modules"],
   "references": [
     {
+      "path": "../../packages/artifacts"
+    },
+    {
       "path": "../../packages/domain"
     },
     {
       "path": "../../packages/database"
+    },
+    {
+      "path": "../../packages/documents"
     },
     {
       "path": "../../packages/operations"

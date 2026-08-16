@@ -49,6 +49,7 @@ async function token(
     issuer?: string;
     audience?: string;
     expiresIn?: string;
+    omitExpiration?: boolean;
     /** Role claims, included ONLY to prove they are ignored. */
     roles?: string[];
     /** Seconds since the person actually authenticated. Absent means the token has no auth_time. */
@@ -69,7 +70,9 @@ async function token(
     .setIssuer(claims.issuer ?? ISSUER)
     .setAudience(claims.audience ?? AUDIENCE)
     .setIssuedAt();
-  return jwt.setExpirationTime(claims.expiresIn ?? '5m').sign(privateKey);
+  return (claims.omitExpiration ? jwt : jwt.setExpirationTime(claims.expiresIn ?? '5m')).sign(
+    privateKey,
+  );
 }
 
 beforeAll(async () => {
@@ -183,6 +186,16 @@ describe('what the token cannot do', () => {
       verifier,
       request({ token: await token({ expiresIn: '-1h' }) }),
     ).catch((e: unknown) => e as IdentityRejected);
+    expect((err as IdentityRejected).failure).toBe('invalid_token');
+  });
+
+  it('refuses a signed token with no expiration boundary', async () => {
+    const err = await resolveCaller(
+      h.adminPool,
+      verifier,
+      request({ token: await token({ omitExpiration: true }) }),
+    ).catch((error: unknown) => error);
+    expect(err).toBeInstanceOf(IdentityRejected);
     expect((err as IdentityRejected).failure).toBe('invalid_token');
   });
 

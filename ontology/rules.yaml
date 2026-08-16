@@ -55,3 +55,28 @@ rules:
     severity: error
     description: Administrative project closure requires technical disposition plus closure of open work orders and financial obligations.
     implementation: [action_precondition, validator]
+
+  - id: KF-DOC-001
+    severity: error
+    description: Every authored document subject has one current Source Holder and Holder changes use the narrow typed action.
+    implementation: [database_constraint, action_precondition, validator]
+
+  - id: KF-DOC-002
+    severity: error
+    description: A compilation run and its views must consume the exact Basis authorized by one prior compilation request action.
+    implementation: [database_constraint, action_precondition, validator]
+
+  - id: KF-DOC-003
+    severity: error
+    description: Each document subject has one immutable authoritative document policy that callers cannot weaken; Holder transfer, compilation acceptance and publication require scoped technical authority plus any quality authority required by that policy.
+    implementation: [database_constraint, action_precondition, validator]
+
+  - id: KF-DOC-004
+    severity: error
+    description: A Proposal Overlay is append-only; applying one requires a human-authorized typed action, an applied fragment remains a live draft, and no result is official before controlled review, effectivity and publication.
+    implementation: [database_constraint, action_precondition, validator]
+
+  - id: KF-DOC-005
+    severity: error
+    description: Every official document publication has one append-only receipt binding the exact accepted compiler result, effective controlled content revision and registered destination policy that authorized it.
+    implementation: [database_constraint, action_precondition, validator]

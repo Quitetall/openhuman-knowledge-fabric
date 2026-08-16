@@ -1,15 +1,13 @@
 /**
  * Rule implementation ledger.
  *
- * The ontology declares ten machine-enforceable invariants, and each names where it is
+ * The ontology declares machine-enforceable invariants, and each names where it is
  * enforced. Declaring an enforcement point is not the same as having one. Without this
- * ledger, `registry.rule_definition` would list ten rules with `database_constraint` beside
- * them and a reader would reasonably conclude the database enforces ten things — when today
- * it enforces one.
+ * ledger, `registry.rule_definition` could claim enforcement that no executable gate proves.
  *
  * So the honest state is written down, asserted exhaustive, and checked against the
- * database. A rule added without a ledger entry fails. A rule whose entry claims LIVE is
- * verified by an actual planted violation below.
+ * database. A rule added without a ledger entry fails. Rules claiming LIVE are covered by
+ * planted violations here or in their owning package's database-backed conformance suite.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -47,15 +45,49 @@ interface LedgerEntry {
 /**
  * The ledger. EXHAUSTIVE — a rule in the ontology with no entry here fails the first test.
  *
- * One of ten is live. That is the true state of the system today, and stating it plainly is
- * the point: the financial invariants are the ones that stop a contractor being overpaid,
- * and none of them can be enforced until the tables they constrain exist.
+ * Six of fifteen are live. Stating this plainly matters: financial and work invariants still
+ * advertise target-state enforcement that cannot exist until their domain tables land.
  */
 const LEDGER: readonly LedgerEntry[] = [
   {
     rule: 'KF-GRAPH-001',
     status: 'live',
     note: 'core.relation.source_id/target_id are foreign keys into core.object.',
+  },
+  {
+    rule: 'KF-DOC-001',
+    status: 'live',
+    note:
+      'content.document_source_holder enforces one current Holder, while document actions ' +
+      'validate complete Holder identity and reserve changes for change_document_source_holder.',
+  },
+  {
+    rule: 'KF-DOC-002',
+    status: 'live',
+    note:
+      'Compilation persistence binds one exact active request action, finalized Basis, run ' +
+      'and immutable compiled-view digests; database-backed document tests plant mismatches.',
+  },
+  {
+    rule: 'KF-DOC-003',
+    status: 'live',
+    note:
+      'Immutable content.document_policy is loaded from subject authority; action handlers ' +
+      'reject caller downgrades and enforce technical plus policy-required quality authority.',
+  },
+  {
+    rule: 'KF-DOC-004',
+    status: 'live',
+    note:
+      'Proposal overlays are append-only and applied only through record/apply typed actions; ' +
+      'applied fragments stay draft and official status requires separate controlled gates.',
+  },
+  {
+    rule: 'KF-DOC-005',
+    status: 'live',
+    note:
+      'content.document_publication is append-only and publication action locks and binds exact ' +
+      'accepted run, effective controlled revision, view digest and active target policy.',
   },
   {
     rule: 'KF-WORK-001',
@@ -121,9 +153,16 @@ describe('the ledger is honest about coverage', () => {
     expect(LEDGER.map((e) => e.rule).sort()).toEqual(rules.map((r) => r.id).sort());
   });
 
-  it('reports one of ten enforced — say it plainly rather than imply ten', () => {
+  it('reports six of fifteen enforced — say it plainly rather than imply fifteen', () => {
     const live = LEDGER.filter((e) => e.status === 'live');
-    expect(live.map((e) => e.rule)).toEqual(['KF-GRAPH-001']);
+    expect(live.map((e) => e.rule)).toEqual([
+      'KF-GRAPH-001',
+      'KF-DOC-001',
+      'KF-DOC-002',
+      'KF-DOC-003',
+      'KF-DOC-004',
+      'KF-DOC-005',
+    ]);
     expect(LEDGER.filter((e) => e.status === 'pending')).toHaveLength(9);
   });
 

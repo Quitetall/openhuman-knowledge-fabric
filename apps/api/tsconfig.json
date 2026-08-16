@@ -21,6 +21,9 @@
       "path": "../../packages/actions"
     },
     {
+      "path": "../../packages/agent-tools"
+    },
+    {
       "path": "../../packages/artifacts"
     },
     {
@@ -30,6 +33,12 @@
       "path": "../../packages/documents"
     },
     {
+      "path": "../../packages/ml-registry"
+    },
+    {
+      "path": "../../packages/integration"
+    },
+    {
       "path": "../../packages/orchestrator"
     },
     {
@@ -37,6 +46,9 @@
     },
     {
       "path": "../../packages/operations"
+    },
+    {
+      "path": "../../packages/search"
     }
   ]
 }

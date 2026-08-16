@@ -18,7 +18,9 @@
   },
   "dependencies": {
     "@kf/actions": "workspace:*",
+    "@kf/canonicalization": "workspace:*",
     "@kf/database": "workspace:*",
+    "@kf/documents": "workspace:*",
     "@kf/domain": "workspace:*",
     "@kf/search": "workspace:*"
   },

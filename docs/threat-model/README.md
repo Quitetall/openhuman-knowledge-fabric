@@ -91,7 +91,7 @@ database is an operational requirement — see [backup and restore](../backup-an
 | Restore drill runs the shipped scripts against real containers       | `scripts/`                                               | `tests/backup-restore/drill.test.ts` |
 | Restore refuses a target that already holds records                  | `restore-verify.sh`                                      | same                                 |
 | Every derived index is rebuildable from the records                  | `search.rebuild()`                                       | `tests/integration/search.test.ts`   |
-| A declared recovery objective, or readiness FAILS                    | `ops.recovery_objective`                                 | `tests/database/readiness.test.ts`   |
+| A declared recovery objective, or institutional readiness FAILS      | `ops.recovery_objective`                                 | `tests/database/readiness.test.ts`   |
 | Backups, off-site copies and drills are recorded and checked         | `ops.backup_run`, `ops.backup_copy`, `ops.restore_drill` | same                                 |
 | The objective cannot be edited into compliance — only superseded     | append-only trigger                                      | same                                 |
 | Continuous archiving is checked against the declared objective       | `pitr_readiness`                                         | same                                 |
@@ -99,9 +99,10 @@ database is an operational requirement — see [backup and restore](../backup-an
 
 **The load-bearing part is the objective, not the schedule.** "Back up nightly" is an activity;
 an objective says how much work the organization has decided it can afford to lose. Until one
-is declared, no schedule can be called sufficient — so an undeclared objective is a readiness
-FAILURE rather than a default, and the check reads the declared numbers rather than constants
-of its own.
+is declared, no schedule can be called sufficient — so an undeclared objective is an
+institutional-readiness FAILURE rather than a default. It blocks preservation claims without
+making a capable shared-dogfood service unavailable. Check reads declared numbers rather than
+constants of its own.
 
 **Not mitigated: the timers themselves are not proven by a test.** `deploy/systemd/` is
 configuration for a host this repository does not own. What IS proven is that a system whose

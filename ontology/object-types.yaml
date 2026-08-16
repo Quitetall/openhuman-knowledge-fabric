@@ -925,6 +925,49 @@ object_types:
             ],
         }
 
+  # Compiler-native document subjects. UUID identity is sufficient; no enterprise namespace
+  # is allocated by this ontology extension.
+  - id: authored_fragment
+    title: Authored Fragment
+    authority_domain: qms
+    enterprise_namespace: null
+    first_class: true
+    state_machine: authored_fragment
+    states: [active, retired]
+    fields:
+      - { name: stable_key, type: string, required: true, min_length: 1, max_length: 240 }
+
+  - id: document_composition
+    title: Document Composition
+    authority_domain: qms
+    enterprise_namespace: null
+    first_class: true
+    state_machine: null
+    states: [active]
+    fields:
+      - { name: stable_key, type: string, required: true, min_length: 1, max_length: 240 }
+
+  # Human authority for one exact ML promotion tuple. UUID identity is sufficient; creating
+  # this record never allocates or requests an enterprise identifier. Risk tier is descriptive
+  # until an immutable organization-scoped candidate+seal+policy binding exists, so it never
+  # weakens the independent Technical plus Quality requirement.
+  - id: ml_promotion_decision
+    title: ML Promotion Decision
+    authority_domain: qms
+    enterprise_namespace: null
+    first_class: true
+    state_machine: null
+    states: [recorded]
+    fields:
+      - { name: authority_kind, type: enum, required: true, values: [technical, quality] }
+      - { name: alias_id, type: string, required: true, pattern: '^[a-z][a-z0-9._:-]{0,127}$' }
+      - { name: candidate_ref_id, type: uuid, required: true }
+      - { name: run_seal_id, type: uuid, required: true }
+      - { name: policy_ref_id, type: uuid, required: true }
+      - { name: risk_tier, type: enum, required: true, values: [research, regulated, high_risk] }
+      - { name: effective_at, type: timestamp, required: true }
+      - { name: valid_until, type: timestamp }
+
   - id: nonconformity
     title: Nonconformity
     authority_domain: qms

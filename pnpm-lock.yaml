@@ -38,6 +38,9 @@ importers:
       '@kf/integration':
         specifier: workspace:*
         version: link:packages/integration
+      '@kf/ml-registry':
+        specifier: workspace:*
+        version: link:packages/ml-registry
       '@kf/ontology-compiler':
         specifier: workspace:*
         version: link:packages/ontology-compiler
@@ -104,6 +107,9 @@ importers:
       '@kf/actions':
         specifier: workspace:*
         version: link:../../packages/actions
+      '@kf/agent-tools':
+        specifier: workspace:*
+        version: link:../../packages/agent-tools
       '@kf/artifacts':
         specifier: workspace:*
         version: link:../../packages/artifacts
@@ -119,12 +125,21 @@ importers:
       '@kf/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@kf/integration':
+        specifier: workspace:*
+        version: link:../../packages/integration
+      '@kf/ml-registry':
+        specifier: workspace:*
+        version: link:../../packages/ml-registry
       '@kf/operations':
         specifier: workspace:*
         version: link:../../packages/operations
       '@kf/orchestrator':
         specifier: workspace:*
         version: link:../../packages/orchestrator
+      '@kf/search':
+        specifier: workspace:*
+        version: link:../../packages/search
       '@kf/work-control':
         specifier: workspace:*
         version: link:../../packages/work-control
@@ -163,9 +178,15 @@ importers:
 
   apps/web:
     dependencies:
+      '@kf/ml-registry':
+        specifier: workspace:*
+        version: link:../../packages/ml-registry
       '@kf/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      jose:
+        specifier: ^6.2.8
+        version: 6.2.8
       next:
         specifier: ^16.3.0
         version: 16.3.0(@types/node@24.13.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -185,12 +206,21 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.4
         version: 19.2.4(@types/react@19.2.18)
+      playwright-core:
+        specifier: ^1.59.1
+        version: 1.59.1
 
   apps/worker:
     dependencies:
+      '@kf/artifacts':
+        specifier: workspace:*
+        version: link:../../packages/artifacts
       '@kf/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@kf/documents':
+        specifier: workspace:*
+        version: link:../../packages/documents
       '@kf/domain':
         specifier: workspace:*
         version: link:../../packages/domain
@@ -229,9 +259,15 @@ importers:
       '@kf/actions':
         specifier: workspace:*
         version: link:../actions
+      '@kf/canonicalization':
+        specifier: workspace:*
+        version: link:../canonicalization
       '@kf/database':
         specifier: workspace:*
         version: link:../database
+      '@kf/documents':
+        specifier: workspace:*
+        version: link:../documents
       '@kf/domain':
         specifier: workspace:*
         version: link:../domain
@@ -347,12 +383,31 @@ importers:
 
   packages/integration:
     dependencies:
+      '@kf/actions':
+        specifier: workspace:*
+        version: link:../actions
+      '@kf/canonicalization':
+        specifier: workspace:*
+        version: link:../canonicalization
       '@kf/database':
         specifier: workspace:*
         version: link:../database
       '@kf/domain':
         specifier: workspace:*
         version: link:../domain
+      '@kf/ml-registry':
+        specifier: workspace:*
+        version: link:../ml-registry
+
+  packages/ml-registry:
+    dependencies:
+      '@kf/canonicalization':
+        specifier: workspace:*
+        version: link:../canonicalization
+    devDependencies:
+      '@types/node':
+        specifier: ^24.13.3
+        version: 24.13.3
 
   packages/ontology-compiler:
     dependencies:
@@ -394,6 +449,9 @@ importers:
       '@kf/documents':
         specifier: workspace:*
         version: link:../documents
+      '@kf/integration':
+        specifier: workspace:*
+        version: link:../integration
       '@kf/product-quality':
         specifier: workspace:*
         version: link:../product-quality
@@ -2256,6 +2314,11 @@ packages:
 
   pino@10.3.1:
     resolution: {integrity: sha512-r34yH/GlQpKZbU1BvFFqOjhISRo1MNx1tWYsYvmj6KIRHSPMT2+yHOEb1SG6NMvRoHRF0a07kCOox/9yakl1vg==}
+    hasBin: true
+
+  playwright-core@1.59.1:
+    resolution: {integrity: sha512-HBV/RJg81z5BiiZ9yPzIiClYV/QMsDCKUyogwH9p3MCP6IYjUFu/MActgYAvK0oWyV9NlwM3GLBjADyWgydVyg==}
+    engines: {node: '>=18'}
     hasBin: true
 
   postcss@8.5.23:
@@ -4475,6 +4538,8 @@ snapshots:
       safe-stable-stringify: 2.5.0
       sonic-boom: 4.2.1
       thread-stream: 4.2.0
+
+  playwright-core@1.59.1: {}
 
   postcss@8.5.23:
     dependencies:

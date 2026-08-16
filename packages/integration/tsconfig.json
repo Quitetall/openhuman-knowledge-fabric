@@ -9,10 +9,19 @@
   "exclude": ["src/**/*.test.ts", "dist", "node_modules"],
   "references": [
     {
+      "path": "../actions"
+    },
+    {
+      "path": "../canonicalization"
+    },
+    {
       "path": "../domain"
     },
     {
       "path": "../database"
+    },
+    {
+      "path": "../ml-registry"
     }
   ]
 }

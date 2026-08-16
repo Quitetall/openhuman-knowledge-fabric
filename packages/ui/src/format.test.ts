@@ -71,10 +71,11 @@ describe('digests and instants', () => {
     expect(shortDigest('not-a-digest')).toBe('not-a-digest');
   });
 
-  it('renders instants in UTC with the zone stated', () => {
+  it('renders instants in UTC without discarding millisecond evidence', () => {
     // A local-time rendering of an audit event is ambiguous the moment it is quoted anywhere
-    // else.
-    expect(formatInstant('2026-08-11T09:30:00.000Z')).toBe('2026-08-11 09:30:00Z');
+    // else. Milliseconds stay visible because two governed events can share one second.
+    expect(formatInstant('2026-08-11T09:30:00.123Z')).toBe('2026-08-11 09:30:00.123Z');
+    expect(formatInstant('2026-08-11T09:30:00.000Z')).toBe('2026-08-11 09:30:00.000Z');
   });
 
   it('passes through anything that is not a timestamp', () => {

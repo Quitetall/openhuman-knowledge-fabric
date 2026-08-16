@@ -118,6 +118,7 @@ export function formatInstant(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
   // UTC, explicitly labelled. A local-time rendering of an audit event is ambiguous the
-  // moment it is quoted anywhere else.
-  return `${date.toISOString().slice(0, 19).replace('T', ' ')}Z`;
+  // moment it is quoted anywhere else. Milliseconds remain visible because two governed
+  // events can share one second and still have distinct recorded instants.
+  return date.toISOString().replace('T', ' ');
 }

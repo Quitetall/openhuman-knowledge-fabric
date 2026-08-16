@@ -100,7 +100,7 @@ describe('delivery', () => {
     expect(after).toEqual(before);
   });
 
-  it('leaves a row undelivered when its handler throws, and keeps the batch moving', async () => {
+  it('leaves a row undelivered after a SQL error, and keeps the batch moving', async () => {
     await acceptSomething('A decision whose delivery fails', 'outbox-failing-001');
     await acceptSomething('A decision whose delivery works', 'outbox-working-001');
 
@@ -108,7 +108,10 @@ describe('delivery', () => {
     const flaky: OutboxHandler = async (tx, payload) => {
       calls += 1;
       // The first row of the batch fails; the rest must still be delivered.
-      if (calls === 1) throw new Error('delivery failed');
+      if (calls === 1) {
+        await tx.query('select * from search.table_that_does_not_exist');
+        return;
+      }
       const targets = payload['targets'];
       if (Array.isArray(targets)) {
         for (const id of targets) await tx.query('select search.index_object($1)', [id]);
@@ -117,6 +120,10 @@ describe('delivery', () => {
 
     const result = await drainOutbox(h.adminPool, { handlers: { '*': flaky } });
     expect(result.failed).toBe(1);
+    expect(result.failures).toEqual([
+      expect.objectContaining({ topic: expect.stringMatching(/^kf\./), error: expect.any(String) }),
+    ]);
+    expect(result.failures[0]!.error).toMatch(/table_that_does_not_exist/);
     // One bad row must not strand everything behind it.
     expect(result.delivered).toBeGreaterThan(0);
 

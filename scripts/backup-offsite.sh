@@ -28,10 +28,14 @@ set -euo pipefail
 # shellcheck source=lib/secret.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/secret.sh"
 kf_resolve_database_url
+kf_configure_postgres_client
 
 BACKUP="${1:?usage: backup-offsite.sh <backup-directory> <destination> <label> [--same-host]}"
 DESTINATION="${2:?usage: backup-offsite.sh <backup-directory> <destination> <label> [--same-host]}"
 LABEL="${3:?usage: backup-offsite.sh <backup-directory> <destination> <label> [--same-host]}"
+: "${PRESERVATION_TRUST_STORE_DIR:?set PRESERVATION_TRUST_STORE_DIR to the historical public-key directory}"
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OFFSITE=true
 # An `if`, not `[ ... ] && ...`: under `set -e` a false test at the end of an && list is a
 # failing statement, and the script would exit whenever --same-host was NOT passed.
@@ -43,21 +47,33 @@ LOCATION="$(cd "$BACKUP" && pwd)"
 NAME="$(basename "$LOCATION")"
 
 echo "==> checking the source before copying it"
-# A corrupt source copied faithfully is a corrupt backup in two places.
+# A corrupt source copied faithfully is a corrupt backup in two places. SHA256SUMS remains a
+# compatibility check, but the signed root manifest is the authority for restore-critical
+# sidecars and the closed file set.
+node "$ROOT/packages/export/dist/cli.js" verify-backup "$LOCATION" \
+  --trust-store "$PRESERVATION_TRUST_STORE_DIR"
 ( cd "$BACKUP" && sha256sum -c SHA256SUMS --quiet )
+SOURCE_MANIFEST_DIGEST="$(sha256sum "$LOCATION/backup.manifest.json" | cut -d' ' -f1)"
+SOURCE_SIGNATURE_DIGEST="$(sha256sum "$LOCATION/backup.manifest.signature.json" | cut -d' ' -f1)"
+SOURCE_SUMS_DIGEST="$(sha256sum "$LOCATION/SHA256SUMS" | cut -d' ' -f1)"
 
 echo "==> checking this backup is one we recorded"
 # The ledger is the thing readiness reads. Copying a directory it has never heard of would
 # produce a copy row pointing at nothing, so the run has to exist first.
 # Fed on stdin rather than with -c: psql does NOT interpolate :'var' in a -c string, and the
 # failure is a syntax error at the colon rather than anything that reads like the cause.
-RUN_ID="$(psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -tA -v location="$LOCATION" <<'SQL'
-select id from ops.backup_run where location = :'location';
+RUN_ROW="$("$KF_PSQL" "$DATABASE_URL" -v ON_ERROR_STOP=1 -tA -F $'\t' -v location="$LOCATION" <<'SQL'
+select id, manifest_digest from ops.backup_run where location = :'location';
 SQL
 )"
+IFS=$'\t' read -r RUN_ID RUN_MANIFEST_DIGEST <<< "$RUN_ROW"
 if [ -z "$RUN_ID" ]; then
   echo "refusing to record: no ops.backup_run row for $LOCATION" >&2
   echo "this directory was not produced by scripts/backup.sh against this database" >&2
+  exit 1
+fi
+if [ "$SOURCE_MANIFEST_DIGEST" != "$RUN_MANIFEST_DIGEST" ]; then
+  echo "refusing to copy: source root manifest digest differs from ops.backup_run" >&2
   exit 1
 fi
 
@@ -69,7 +85,8 @@ echo "==> copying to $DESTINATION"
 # source that was digest-verified two lines up. It cannot reach other backups at the
 # destination. What it does do is make a retry after a partial transfer converge on the source
 # rather than accumulate.
-rsync --archive --checksum --delete "$LOCATION/" "$DESTINATION/$NAME/"
+rsync --archive --checksum --delete --delay-updates --fsync \
+  "$LOCATION/" "$DESTINATION/$NAME/"
 
 echo "==> verifying at the destination"
 # Re-checked THERE, not here. Verifying the source again would prove only that the source is
@@ -78,23 +95,40 @@ case "$DESTINATION" in
   *:*)
     REMOTE_HOST="${DESTINATION%%:*}"
     REMOTE_PATH="${DESTINATION#*:}"
-    ssh "$REMOTE_HOST" "cd '$REMOTE_PATH/$NAME' && sha256sum -c SHA256SUMS --quiet"
-    DIGEST="$(ssh "$REMOTE_HOST" "sha256sum '$REMOTE_PATH/$NAME/SHA256SUMS'" | cut -d' ' -f1)"
+    printf -v REMOTE_DIRECTORY_QUOTED '%q' "$REMOTE_PATH/$NAME"
+    ssh "$REMOTE_HOST" "cd -- $REMOTE_DIRECTORY_QUOTED && sha256sum -c SHA256SUMS --quiet"
+    DESTINATION_MANIFEST_DIGEST="$(ssh "$REMOTE_HOST" "sha256sum $REMOTE_DIRECTORY_QUOTED/backup.manifest.json" | cut -d' ' -f1)"
+    DESTINATION_SIGNATURE_DIGEST="$(ssh "$REMOTE_HOST" "sha256sum $REMOTE_DIRECTORY_QUOTED/backup.manifest.signature.json" | cut -d' ' -f1)"
+    DESTINATION_SUMS_DIGEST="$(ssh "$REMOTE_HOST" "sha256sum $REMOTE_DIRECTORY_QUOTED/SHA256SUMS" | cut -d' ' -f1)"
+    ssh "$REMOTE_HOST" "sync -f -- $REMOTE_DIRECTORY_QUOTED"
     ;;
   *)
+    node "$ROOT/packages/export/dist/cli.js" verify-backup "$DESTINATION/$NAME" \
+      --trust-store "$PRESERVATION_TRUST_STORE_DIR"
     ( cd "$DESTINATION/$NAME" && sha256sum -c SHA256SUMS --quiet )
-    DIGEST="$(sha256sum "$DESTINATION/$NAME/SHA256SUMS" | cut -d' ' -f1)"
+    DESTINATION_MANIFEST_DIGEST="$(sha256sum "$DESTINATION/$NAME/backup.manifest.json" | cut -d' ' -f1)"
+    DESTINATION_SIGNATURE_DIGEST="$(sha256sum "$DESTINATION/$NAME/backup.manifest.signature.json" | cut -d' ' -f1)"
+    DESTINATION_SUMS_DIGEST="$(sha256sum "$DESTINATION/$NAME/SHA256SUMS" | cut -d' ' -f1)"
+    sync -f -- "$DESTINATION/$NAME"
     ;;
 esac
 
-SOURCE_DIGEST="$(sha256sum "$LOCATION/SHA256SUMS" | cut -d' ' -f1)"
-if [ "$DIGEST" != "$SOURCE_DIGEST" ]; then
-  echo "the copy at $DESTINATION does not match the source manifest" >&2
+if [ "$DESTINATION_MANIFEST_DIGEST" != "$RUN_MANIFEST_DIGEST" ]; then
+  echo "the copy at $DESTINATION does not match the recorded root manifest" >&2
   exit 1
 fi
+if [ "$DESTINATION_SIGNATURE_DIGEST" != "$SOURCE_SIGNATURE_DIGEST" ]; then
+  echo "the copy at $DESTINATION does not match the source root manifest signature" >&2
+  exit 1
+fi
+if [ "$DESTINATION_SUMS_DIGEST" != "$SOURCE_SUMS_DIGEST" ]; then
+  echo "the copy at $DESTINATION does not match the source compatibility sums" >&2
+  exit 1
+fi
+DIGEST="$DESTINATION_MANIFEST_DIGEST"
 
 echo "==> recording the copy"
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q \
+"$KF_PSQL" "$DATABASE_URL" -v ON_ERROR_STOP=1 -q \
   -v run="$RUN_ID" -v label="$LABEL" -v offsite="$OFFSITE" -v digest="$DIGEST" <<'SQL'
 insert into ops.backup_copy (backup_run_id, destination_label, offsite, manifest_digest)
 values (:'run'::uuid, :'label', :'offsite'::boolean, :'digest')

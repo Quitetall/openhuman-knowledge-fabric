@@ -27,6 +27,11 @@ import { withTransaction, type Pool, type Tx } from '@kf/database';
 export interface DrainResult {
   readonly delivered: number;
   readonly failed: number;
+  readonly failures: readonly {
+    readonly id: string;
+    readonly topic: string;
+    readonly error: string;
+  }[];
   /** Topics seen but with no handler. Reported, never silently dropped. */
   readonly unhandled: readonly string[];
 }
@@ -62,6 +67,11 @@ export const OUTBOX_HANDLERS: Readonly<Record<string, OutboxHandler>> = {
 
 const DEFAULT_BATCH = 100;
 
+function boundedFailure(error: unknown): string {
+  const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  return message.length <= 1_024 ? message : `${message.slice(0, 1_021)}...`;
+}
+
 export async function drainOutbox(
   pool: Pool,
   options: {
@@ -86,6 +96,7 @@ export async function drainOutbox(
 
     let delivered = 0;
     let failed = 0;
+    const failures: { id: string; topic: string; error: string }[] = [];
     const unhandled = new Set<string>();
 
     for (const row of rows) {
@@ -97,22 +108,30 @@ export async function drainOutbox(
         unhandled.add(row.topic);
         continue;
       }
+      // A caught PostgreSQL error still leaves the transaction aborted. Isolate each row in
+      // a savepoint so one handler can fail without making every later query fail with 25P02.
+      // The effect and delivery mark remain atomic inside the enclosing transaction.
+      await tx.query('savepoint kf_outbox_row');
       try {
         await handler(tx, row.payload);
         // Marked delivered in the SAME transaction as the effect. A crash between the two
         // would otherwise either lose the work or repeat it depending on the order, and only
         // one of those is recoverable.
         await tx.query('update core.outbox set delivered_at = now() where id = $1', [row.id]);
+        await tx.query('release savepoint kf_outbox_row');
         delivered += 1;
-      } catch {
+      } catch (error: unknown) {
+        await tx.query('rollback to savepoint kf_outbox_row');
+        await tx.query('release savepoint kf_outbox_row');
         // One bad row must not strand the batch behind it. Left undelivered, so the next
         // drain retries it — and if it keeps failing, it stays visible as a growing backlog
         // rather than disappearing.
         failed += 1;
+        failures.push({ id: row.id, topic: row.topic, error: boundedFailure(error) });
       }
     }
 
-    return { delivered, failed, unhandled: [...unhandled].sort() };
+    return { delivered, failed, failures, unhandled: [...unhandled].sort() };
   });
 }
 

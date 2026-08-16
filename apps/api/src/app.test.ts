@@ -2,13 +2,77 @@ import { describe, expect, it } from 'vitest';
 import { buildApp, SERVICE_NAME } from './app.js';
 import { ConfigError, loadConfig } from './config.js';
 
-const baseEnv = { NODE_ENV: 'test' } as NodeJS.ProcessEnv;
+const baseEnv = {
+  NODE_ENV: 'test',
+  KF_DEPLOYMENT_PROFILE: 'development',
+} as NodeJS.ProcessEnv;
 
 describe('config', () => {
   it('defaults port and host in development', () => {
-    const c = loadConfig({ NODE_ENV: 'development' });
+    const c = loadConfig({ NODE_ENV: 'development', KF_DEPLOYMENT_PROFILE: 'development' });
     expect(c.port).toBe(4000);
     expect(c.host).toBe('0.0.0.0');
+    expect(c.deploymentProfile).toBe('development');
+  });
+
+  it('requires an explicit deployment profile', () => {
+    expect(() => loadConfig({ NODE_ENV: 'development' })).toThrow(
+      /KF_DEPLOYMENT_PROFILE is required/,
+    );
+  });
+
+  it('rejects an unknown deployment profile rather than guessing', () => {
+    expect(() => loadConfig({ NODE_ENV: 'development', KF_DEPLOYMENT_PROFILE: 'shared' })).toThrow(
+      /KF_DEPLOYMENT_PROFILE must be development or dogfood/,
+    );
+  });
+
+  it('keeps the visibly non-authoritative development profile out of deployed environments', () => {
+    expect(() =>
+      loadConfig({
+        NODE_ENV: 'production',
+        KF_DEPLOYMENT_PROFILE: 'development',
+        KF_TLS_TERMINATED_UPSTREAM: '1',
+      }),
+    ).toThrow(/development profile is allowed only when NODE_ENV=development or test/);
+  });
+
+  it('requires a real identity provider for dogfood even under NODE_ENV=development', () => {
+    expect(() => loadConfig({ NODE_ENV: 'development', KF_DEPLOYMENT_PROFILE: 'dogfood' })).toThrow(
+      /identity provider is required when KF_DEPLOYMENT_PROFILE=dogfood/,
+    );
+  });
+
+  it('accepts a complete OIDC configuration for dogfood', () => {
+    const config = loadConfig({
+      NODE_ENV: 'development',
+      KF_DEPLOYMENT_PROFILE: 'dogfood',
+      OIDC_ISSUER: 'http://localhost:8080/realms/knowledge-fabric',
+      OIDC_AUDIENCE: 'knowledge-fabric-api',
+      OIDC_JWKS_URI: 'http://localhost:8080/realms/knowledge-fabric/protocol/openid-connect/certs',
+    });
+
+    expect(config.deploymentProfile).toBe('dogfood');
+    expect(config.identity).toEqual({
+      issuer: 'http://localhost:8080/realms/knowledge-fabric',
+      audience: 'knowledge-fabric-api',
+      jwksUri: 'http://localhost:8080/realms/knowledge-fabric/protocol/openid-connect/certs',
+    });
+    expect(config.host).toBe('127.0.0.1');
+  });
+
+  it('refuses cleartext dogfood on a non-loopback listener', () => {
+    expect(() =>
+      loadConfig({
+        NODE_ENV: 'development',
+        KF_DEPLOYMENT_PROFILE: 'dogfood',
+        HOST: '0.0.0.0',
+        OIDC_ISSUER: 'http://localhost:8080/realms/knowledge-fabric',
+        OIDC_AUDIENCE: 'knowledge-fabric-api',
+        OIDC_JWKS_URI:
+          'http://localhost:8080/realms/knowledge-fabric/protocol/openid-connect/certs',
+      }),
+    ).toThrow(/cleartext dogfood.*loopback/);
   });
 
   it.each(['0', '65536', 'abc', '4000.5'])('rejects invalid PORT %s', (port) => {
@@ -16,7 +80,9 @@ describe('config', () => {
   });
 
   it('rejects an unknown NODE_ENV rather than guessing', () => {
-    expect(() => loadConfig({ NODE_ENV: 'prod' })).toThrow(ConfigError);
+    expect(() => loadConfig({ NODE_ENV: 'prod', KF_DEPLOYMENT_PROFILE: 'development' })).toThrow(
+      ConfigError,
+    );
   });
 
   it('refuses to boot in production without DATABASE_URL', () => {
@@ -24,14 +90,22 @@ describe('config', () => {
     // that refuses to start.
     // The TLS posture is asserted so that THIS test fails for the reason it names. Without
     // it the config refuses earlier, and the test would pass while proving something else.
-    expect(() => loadConfig({ NODE_ENV: 'production', KF_TLS_TERMINATED_UPSTREAM: '1' })).toThrow(
-      /DATABASE_URL is required/,
-    );
+    expect(() =>
+      loadConfig({
+        NODE_ENV: 'production',
+        KF_DEPLOYMENT_PROFILE: 'dogfood',
+        KF_TLS_TERMINATED_UPSTREAM: '1',
+      }),
+    ).toThrow(/DATABASE_URL is required/);
   });
 
   it('allows a missing DATABASE_URL in development and test', () => {
-    expect(() => loadConfig({ NODE_ENV: 'development' })).not.toThrow();
-    expect(() => loadConfig({ NODE_ENV: 'test' })).not.toThrow();
+    expect(() =>
+      loadConfig({ NODE_ENV: 'development', KF_DEPLOYMENT_PROFILE: 'development' }),
+    ).not.toThrow();
+    expect(() =>
+      loadConfig({ NODE_ENV: 'test', KF_DEPLOYMENT_PROFILE: 'development' }),
+    ).not.toThrow();
   });
 
   it('refuses an inline DATABASE_URL in production', () => {
@@ -41,6 +115,7 @@ describe('config', () => {
     expect(() =>
       loadConfig({
         NODE_ENV: 'production',
+        KF_DEPLOYMENT_PROFILE: 'dogfood',
         KF_TLS_TERMINATED_UPSTREAM: '1',
         DATABASE_URL: 'postgres://kf_app:secret@db/kf',
       }),
@@ -51,15 +126,22 @@ describe('config', () => {
     // This process serves plain HTTP. Whether that is safe depends entirely on what is in
     // front of it, and that is a fact about the deployment which the deployment has to
     // assert — not one this code can assume in either direction.
-    expect(() => loadConfig({ NODE_ENV: 'production', DATABASE_URL_FILE: '/dev/null' })).toThrow(
-      /KF_TLS_TERMINATED_UPSTREAM/,
-    );
+    expect(() =>
+      loadConfig({
+        NODE_ENV: 'production',
+        KF_DEPLOYMENT_PROFILE: 'dogfood',
+        DATABASE_URL_FILE: '/dev/null',
+      }),
+    ).toThrow(/KF_TLS_TERMINATED_UPSTREAM/);
   });
 
   it('does not require the TLS assertion in development', () => {
     // Refusing here would make `pnpm dev` need a flag that means nothing locally, and a flag
     // people set to make the error go away is a flag that means nothing anywhere.
-    expect(loadConfig({ NODE_ENV: 'development' }).tlsTerminatedUpstream).toBe(false);
+    expect(
+      loadConfig({ NODE_ENV: 'development', KF_DEPLOYMENT_PROFILE: 'development' })
+        .tlsTerminatedUpstream,
+    ).toBe(false);
   });
 });
 

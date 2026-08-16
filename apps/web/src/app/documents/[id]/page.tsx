@@ -1,10 +1,27 @@
 import { notFound } from 'next/navigation';
+import type { Metadata } from 'next';
 import { formatState } from '@kf/ui';
-import { ApiError, get, type DocumentDetail } from '../../../lib/api';
+import {
+  ApiError,
+  get,
+  parseDocumentDetail,
+  parseDocumentWorkspace,
+  type DocumentDetail,
+  type DocumentWorkspace,
+} from '../../../lib/api';
 import { webCaller } from '../../../lib/session';
 import { ActionPanel } from '../../components/action-panel';
 import { Badge } from '../../components/badge';
 import { DocumentWorkbench } from './document-workbench';
+
+export async function generateMetadata({
+  params,
+}: {
+  readonly params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  return { title: `Document ${id}` };
+}
 
 export default async function DocumentPage({
   params,
@@ -18,10 +35,24 @@ export default async function DocumentPage({
   const caller = await webCaller(`/documents/${id}`);
   let document: DocumentDetail;
   try {
-    document = await get<DocumentDetail>(`/documents/${encodeURIComponent(id)}`, caller);
+    document = await get(`/documents/${encodeURIComponent(id)}`, caller, parseDocumentDetail);
   } catch (error: unknown) {
     if (error instanceof ApiError && error.status === 404) notFound();
     throw error;
+  }
+  let workspace: DocumentWorkspace = { status: 'unavailable' };
+  let workspaceError: string | undefined;
+  try {
+    workspace = await get(
+      `/documents/${encodeURIComponent(id)}/workbench`,
+      caller,
+      parseDocumentWorkspace,
+    );
+  } catch (error: unknown) {
+    workspaceError =
+      error instanceof ApiError
+        ? `Workbench projection unavailable (${error.code}).`
+        : 'Workbench projection unavailable.';
   }
   // No typed document-to-training-run binding exists yet. Inventing one in UI would create a
   // second provenance model. Run metrics remain visible only from their authoritative run view.
@@ -41,17 +72,28 @@ export default async function DocumentPage({
       </p>
       <section style={{ maxWidth: '52rem', marginTop: '1.5rem' }}>
         <h2 style={{ fontSize: '1.1rem' }}>Source provenance</h2>
-        <p style={{ margin: 0, fontFamily: 'var(--font-mono, monospace)' }}>
+        <p
+          style={{
+            margin: 0,
+            fontFamily: 'var(--font-mono, monospace)',
+            overflowWrap: 'anywhere',
+          }}
+        >
           {document.sha256 ?? 'unavailable'}
         </p>
       </section>
 
-      <DocumentWorkbench document={document} metrics={metrics} />
+      <DocumentWorkbench
+        document={document}
+        workspace={workspace}
+        workspaceError={workspaceError}
+        metrics={metrics}
+      />
 
       <section style={{ maxWidth: '52rem', marginTop: '3rem' }}>
         <h2 style={{ fontSize: '1.1rem' }}>Lifecycle</h2>
         {refused === undefined ? null : (
-          <p style={{ padding: '0.75rem', background: '#fef2f2', color: '#991b1b' }}>
+          <p role="alert" aria-live="assertive" className="kf-status kf-status-error">
             <strong>Refused.</strong> {refused}
           </p>
         )}

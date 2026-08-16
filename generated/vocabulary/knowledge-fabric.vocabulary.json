@@ -2,7 +2,7 @@
   "schema_version": "1.1.0-draft.1",
   "x-generated-from": {
     "ontology_version": "1.1.0-draft.1",
-    "source_digest": "e2e0283906bed576d89acee4e409cb14e475f04d4aad94bd80178f3f26b5afb9"
+    "source_digest": "1f26b17f57be7c7a3fc9a70db2dfc102c0a53b0f0203759110cfd52cab32b59f"
   },
   "node_types": {
     "organization": {
@@ -105,6 +105,18 @@
     "controlled_document": {
       "authority_domain": "qms",
       "enterprise_namespace": "DOC"
+    },
+    "authored_fragment": {
+      "authority_domain": "qms",
+      "enterprise_namespace": null
+    },
+    "document_composition": {
+      "authority_domain": "qms",
+      "enterprise_namespace": null
+    },
+    "ml_promotion_decision": {
+      "authority_domain": "qms",
+      "enterprise_namespace": null
     },
     "nonconformity": {
       "authority_domain": "qms",
@@ -245,6 +257,10 @@
     },
     "amends": {
       "inverse": "amended_by",
+      "acyclic": true
+    },
+    "extends": {
+      "inverse": "extended_by",
       "acyclic": true
     },
     "generated_by": {
@@ -452,6 +468,110 @@
       "audited": true,
       "transactional": true
     },
+    "add_authored_fragment": {
+      "audited": true,
+      "transactional": true
+    },
+    "revise_authored_fragment": {
+      "audited": true,
+      "transactional": true
+    },
+    "retire_authored_fragment": {
+      "audited": true,
+      "transactional": true
+    },
+    "add_document_composition": {
+      "audited": true,
+      "transactional": true
+    },
+    "revise_document_composition": {
+      "audited": true,
+      "transactional": true
+    },
+    "change_document_source_holder": {
+      "audited": true,
+      "transactional": true
+    },
+    "request_document_compilation": {
+      "audited": true,
+      "transactional": true
+    },
+    "accept_document_compilation": {
+      "audited": true,
+      "transactional": true
+    },
+    "publish_document_view": {
+      "audited": true,
+      "transactional": true
+    },
+    "record_document_proposal": {
+      "audited": true,
+      "transactional": true
+    },
+    "apply_document_proposal": {
+      "audited": true,
+      "transactional": true
+    },
+    "request_secure_object_access": {
+      "audited": true,
+      "transactional": true
+    },
+    "issue_secure_object_capability": {
+      "audited": true,
+      "transactional": true
+    },
+    "revoke_secure_object_capability": {
+      "audited": true,
+      "transactional": true
+    },
+    "consume_secure_object_capability": {
+      "audited": true,
+      "transactional": true
+    },
+    "request_secure_object_erasure": {
+      "audited": true,
+      "transactional": true
+    },
+    "record_secure_object_erasure": {
+      "audited": true,
+      "transactional": true
+    },
+    "register_secure_object_authority_key": {
+      "audited": true,
+      "transactional": true
+    },
+    "revoke_secure_object_authority_key": {
+      "audited": true,
+      "transactional": true
+    },
+    "register_ml_aggregate_reference": {
+      "audited": true,
+      "transactional": true
+    },
+    "register_ml_run_lineage": {
+      "audited": true,
+      "transactional": true
+    },
+    "register_ml_metric_definition": {
+      "audited": true,
+      "transactional": true
+    },
+    "register_ml_metric_segment": {
+      "audited": true,
+      "transactional": true
+    },
+    "authorize_ml_metric_stream": {
+      "audited": true,
+      "transactional": true
+    },
+    "append_ml_metric_event": {
+      "audited": true,
+      "transactional": true
+    },
+    "authorize_ml_promotion": {
+      "audited": true,
+      "transactional": true
+    },
     "raise_nonconformity": {
       "audited": true,
       "transactional": true
@@ -599,6 +719,11 @@
     "Invoice line value must not exceed accepted value available for the referenced work order.",
     "Payment allocations must sum to no more than the payment amount and must not exceed invoice balances.",
     "Project progress is computed from accepted or waived work packages, not spending or activity count.",
-    "Administrative project closure requires technical disposition plus closure of open work orders and financial obligations."
+    "Administrative project closure requires technical disposition plus closure of open work orders and financial obligations.",
+    "Every authored document subject has one current Source Holder and Holder changes use the narrow typed action.",
+    "A compilation run and its views must consume the exact Basis authorized by one prior compilation request action.",
+    "Each document subject has one immutable authoritative document policy that callers cannot weaken; Holder transfer, compilation acceptance and publication require scoped technical authority plus any quality authority required by that policy.",
+    "A Proposal Overlay is append-only; applying one requires a human-authorized typed action, an applied fragment remains a live draft, and no result is official before controlled review, effectivity and publication.",
+    "Every official document publication has one append-only receipt binding the exact accepted compiler result, effective controlled content revision and registered destination policy that authorized it."
   ]
 }

@@ -1,33 +1,33 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { addDocument, ApiError, get, type DocumentSummary } from '../../lib/api';
-import { developmentCaller } from '../../lib/caller';
+import {
+  addDocument,
+  ApiError,
+  get,
+  parseDocumentsResponse,
+  type DocumentSummary,
+} from '../../lib/api';
+import { webCaller } from '../../lib/session';
 import { formatState } from '@kf/ui';
 import { Badge } from '../components/badge';
+import { PendingButton } from '../components/pending-button';
 
 export const dynamic = 'force-dynamic';
-
-const inputStyle = {
-  boxSizing: 'border-box' as const,
-  width: '100%',
-  padding: '0.55rem 0.65rem',
-  border: '1px solid #cbd5e1',
-  borderRadius: '0.4rem',
-};
+export const metadata: Metadata = { title: 'Documents' };
 
 export default async function DocumentsPage({
   searchParams,
 }: {
   readonly searchParams: Promise<{ refused?: string }>;
 }) {
-  const caller = developmentCaller();
+  const caller = await webCaller('/documents');
   const { refused } = await searchParams;
   let documents: readonly DocumentSummary[] = [];
   let loadError: string | undefined;
   try {
-    documents = (await get<{ documents: readonly DocumentSummary[] }>('/documents', caller))
-      .documents;
+    documents = (await get('/documents', caller, parseDocumentsResponse)).documents;
   } catch (error: unknown) {
     loadError = error instanceof ApiError ? error.message : 'Document library could not be loaded.';
   }
@@ -54,7 +54,7 @@ export default async function DocumentsPage({
           contentBase64: Buffer.from(await file.arrayBuffer()).toString('base64'),
           idempotencyKey: String(formData.get('idempotencyKey')),
         },
-        developmentCaller(),
+        await webCaller('/documents'),
       );
       revalidatePath('/documents');
       redirect(`/documents/${outcome.id}`);
@@ -74,25 +74,25 @@ export default async function DocumentsPage({
         </p>
         <h1 style={{ margin: '0.25rem 0 0.5rem', fontSize: '2rem' }}>Document library</h1>
         <p style={{ color: '#475569', marginTop: 0 }}>
-          Verified source bytes, machine-parsed atoms, controlled lifecycle, one coherent view.
+          Verified source bytes, machine-parsed blocks, controlled lifecycle, one coherent view.
           Adding a document creates a draft. It does not approve or make anything effective.
         </p>
       </div>
 
       {refused === undefined ? null : (
-        <p style={{ padding: '0.75rem 1rem', background: '#fef2f2', color: '#991b1b' }}>
+        <p role="alert" aria-live="assertive" className="kf-status kf-status-error">
           <strong>Not added.</strong> {refused}
         </p>
       )}
       {loadError === undefined ? null : (
-        <p style={{ padding: '0.75rem 1rem', background: '#fff7ed', color: '#9a3412' }}>
+        <p role="status" aria-live="polite" className="kf-status kf-status-warning">
           {loadError}
         </p>
       )}
 
       <section style={{ marginTop: '2rem' }}>
         <h2 style={{ fontSize: '1.1rem' }}>Constitution and controlled documents</h2>
-        {documents.length === 0 ? (
+        {loadError !== undefined ? null : documents.length === 0 ? (
           <p style={{ color: '#64748b' }}>No documents loaded yet.</p>
         ) : (
           <div style={{ display: 'grid', gap: '0.75rem' }}>
@@ -100,9 +100,8 @@ export default async function DocumentsPage({
               <Link
                 key={document.id}
                 href={`/documents/${document.id}`}
+                className="kf-document-row"
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'minmax(0, 1fr) auto',
                   gap: '1rem',
                   padding: '1rem 1.1rem',
                   border: '1px solid #e2e8f0',
@@ -116,7 +115,8 @@ export default async function DocumentsPage({
                   <strong>{document.title}</strong>
                   <span style={{ display: 'block', color: '#64748b', fontSize: '0.85rem' }}>
                     {document.documentNumber} · {document.revision} ·{' '}
-                    {formatState(document.documentClass)} · {document.atomCount} atoms
+                    {formatState(document.documentClass)} · {document.parsedBlockCount} Parsed
+                    Blocks
                   </span>
                 </span>
                 <Badge state={document.lifecycleState} />
@@ -145,22 +145,22 @@ export default async function DocumentsPage({
           />
           <label>
             <span>Title</span>
-            <input name="title" required maxLength={240} style={inputStyle} />
+            <input name="title" required maxLength={240} className="kf-control" />
           </label>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.75rem' }}>
+          <div className="kf-responsive-grid" style={{ gridTemplateColumns: '2fr 1fr' }}>
             <label>
               <span>Document number</span>
-              <input name="documentNumber" required style={inputStyle} />
+              <input name="documentNumber" required className="kf-control" />
             </label>
             <label>
               <span>Revision</span>
-              <input name="revision" required placeholder="R01" style={inputStyle} />
+              <input name="revision" required placeholder="R01" className="kf-control" />
             </label>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+          <div className="kf-responsive-grid">
             <label>
               <span>Class</span>
-              <select name="documentClass" defaultValue="specification" style={inputStyle}>
+              <select name="documentClass" defaultValue="specification" className="kf-control">
                 {[
                   'policy',
                   'procedure',
@@ -179,7 +179,7 @@ export default async function DocumentsPage({
             </label>
             <label>
               <span>Owning role</span>
-              <select name="owningRole" defaultValue="technical_authority" style={inputStyle}>
+              <select name="owningRole" defaultValue="technical_authority" className="kf-control">
                 {[
                   'technical_authority',
                   'quality_authority',
@@ -200,23 +200,16 @@ export default async function DocumentsPage({
               type="file"
               required
               accept=".docx,.odt,.md,.markdown,.txt"
-              style={{ ...inputStyle, background: '#fff' }}
+              className="kf-control"
             />
           </label>
-          <button
-            type="submit"
-            style={{
-              justifySelf: 'start',
-              padding: '0.55rem 1rem',
-              border: 0,
-              borderRadius: '0.45rem',
-              background: '#0f172a',
-              color: '#fff',
-              cursor: 'pointer',
-            }}
+          <PendingButton
+            pendingLabel="Adding draft…"
+            className="kf-button-primary"
+            style={{ justifySelf: 'start' }}
           >
             Add draft
-          </button>
+          </PendingButton>
         </form>
       </section>
     </main>

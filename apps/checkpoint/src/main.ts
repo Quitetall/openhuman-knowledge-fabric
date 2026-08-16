@@ -9,13 +9,13 @@
  *   checkpoint --verify   recompute the whole ledger from genesis and report findings
  */
 
-import { readFileSync } from 'node:fs';
-import { createPublicKey, type KeyObject } from 'node:crypto';
 import { createPool } from '@kf/database';
 import { loadSecret, readSecretFile } from '@kf/operations';
 import { S3ObjectStore, type ObjectStore } from '@kf/artifacts';
+import type { KeyObject } from 'node:crypto';
 import { loadSigningKey, type SigningKey } from './sign.js';
 import { runCheckpoint, verifyLedger } from './run.js';
+import { loadSingleVerificationKey, loadVerificationKeyDirectory } from './keys.js';
 
 function required(name: string): string {
   const v = process.env[name];
@@ -53,11 +53,25 @@ function objectStore(): ObjectStore | undefined {
  */
 function verificationKeys(): Map<string, KeyObject> {
   const id = process.env['CHECKPOINT_SIGNING_KEY_ID'] ?? 'checkpoint-1';
+  const directoryPath = process.env['CHECKPOINT_PUBLIC_KEY_DIR'];
   const publicPath = process.env['CHECKPOINT_PUBLIC_KEY_PATH'];
+  if (
+    directoryPath !== undefined &&
+    directoryPath !== '' &&
+    publicPath !== undefined &&
+    publicPath !== ''
+  ) {
+    throw new Error(
+      'CHECKPOINT_PUBLIC_KEY_DIR and CHECKPOINT_PUBLIC_KEY_PATH are mutually exclusive',
+    );
+  }
+  if (directoryPath !== undefined && directoryPath !== '') {
+    return loadVerificationKeyDirectory(directoryPath);
+  }
   if (publicPath !== undefined && publicPath !== '') {
     // Read plainly, not as a secret: a public key is meant to be readable, and refusing a
     // world-readable one would stop an auditor verifying with the key they were given.
-    return new Map([[id, createPublicKey(readFileSync(publicPath, 'utf8'))]]);
+    return loadSingleVerificationKey(id, publicPath);
   }
   return new Map([[id, signingKey().publicKey]]);
 }

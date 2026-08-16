@@ -8,8 +8,10 @@
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts", "dist", "node_modules"],
   "references": [
+    { "path": "../canonicalization" },
     { "path": "../domain" },
     { "path": "../database" },
+    { "path": "../documents" },
     { "path": "../actions" },
     { "path": "../search" }
   ]

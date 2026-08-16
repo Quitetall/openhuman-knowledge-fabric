@@ -12,9 +12,18 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
 const work = mkdtempSync(join(tmpdir(), 'kf-script-creds-'));
@@ -63,6 +72,14 @@ describe('moving the password out of the connection string', () => {
     // whichever tool moved first — which reads like a permissions problem and is not one.
     const r = sh(`kf_pgpass_url "postgres://u:p@h:5432/onedb" >/dev/null; cat "$PGPASSFILE"`);
     expect(r.out.trim()).toBe('h:5432:*:u:p');
+  });
+
+  it('writes a valid pgpass host field for bracketed IPv6 URLs', () => {
+    const r = sh(
+      `kf_pgpass_url "postgres://u:p@[2001:db8::1]:5432/onedb" >/dev/null; cat "$PGPASSFILE"`,
+    );
+    expect(r.code, r.out).toBe(0);
+    expect(r.out.trim()).toBe('2001\\:db8\\:\\:1:5432:*:u:p');
   });
 
   it('escapes the characters pgpass treats specially', () => {
@@ -190,5 +207,76 @@ describe('reading the connection string from a file', () => {
       { DATABASE_URL_FILE: keywordFile },
     );
     expect(r.out).toContain('[host=db user=kf dbname=kf]');
+  });
+});
+
+describe('changing only the database in libpq connection settings', () => {
+  it('preserves URI hosts, ports and query paths while replacing dbname', () => {
+    const r = sh(`
+      kf_database_override \
+        'postgresql://kf@[2001:db8::1]:5432/old?sslrootcert=%2Fetc%2Fpki%2Fca.pem&sslmode=verify-full' \
+        'kf_drill_20260815'
+    `);
+    expect(r.code, r.out).toBe(0);
+    const parsed = new URL(r.out.trim());
+    expect(parsed.hostname).toBe('[2001:db8::1]');
+    expect(parsed.port).toBe('5432');
+    expect(parsed.pathname).toBe('/kf_drill_20260815');
+    expect(parsed.searchParams.get('sslrootcert')).toBe('/etc/pki/ca.pem');
+    expect(parsed.searchParams.get('sslmode')).toBe('verify-full');
+  });
+
+  it('preserves Unix-socket URI parameters while replacing dbname', () => {
+    const r = sh(
+      `kf_database_override 'postgresql:///old?host=%2Frun%2Fpostgresql&sslmode=disable' scratch_db`,
+    );
+    expect(r.code, r.out).toBe(0);
+    const parsed = new URL(r.out.trim());
+    expect(parsed.pathname).toBe('/scratch_db');
+    expect(parsed.searchParams.get('host')).toBe('/run/postgresql');
+    expect(parsed.searchParams.get('sslmode')).toBe('disable');
+  });
+
+  it('overrides keyword conninfo through libpq last-value semantics', () => {
+    const r = sh(
+      `kf_database_override "host=/run/postgresql user=kf dbname='old db' sslmode=disable" scratch_db`,
+    );
+    expect(r.code, r.out).toBe(0);
+    expect(r.out.trim()).toBe(
+      "host=/run/postgresql user=kf dbname='old db' sslmode=disable dbname='scratch_db'",
+    );
+  });
+
+  it('refuses a database name that cannot be quoted by the closed helper', () => {
+    const r = sh(`kf_database_override 'host=db user=kf' "bad'name"`);
+    expect(r.code).not.toBe(0);
+    expect(r.out).toMatch(/database name/);
+  });
+});
+
+describe('PostgreSQL client toolchain identity', () => {
+  it('resolves one absolute PostgreSQL 18 client directory', () => {
+    const r = sh(`
+      kf_configure_postgres_client
+      printf '%s\n' "$KF_PSQL" "$KF_PG_DUMP" "$KF_PG_DUMPALL" "$KF_PG_RESTORE"
+    `);
+    expect(r.code, r.out).toBe(0);
+    const paths = r.out.trim().split('\n');
+    expect(paths).toHaveLength(4);
+    expect(paths.every((path) => path.startsWith('/'))).toBe(true);
+    expect(new Set(paths.map((path) => dirname(path))).size).toBe(1);
+  });
+
+  it('refuses a configured client directory from another PostgreSQL major', () => {
+    const fake = join(work, 'postgres-17-bin');
+    mkdirSync(fake);
+    for (const tool of ['psql', 'pg_dump', 'pg_dumpall', 'pg_restore']) {
+      const path = join(fake, tool);
+      writeFileSync(path, `#!/usr/bin/env bash\nprintf '%s\\n' '${tool} (PostgreSQL) 17.9'\n`);
+      chmodSync(path, 0o755);
+    }
+    const r = sh(`KF_POSTGRES_CLIENT_DIR="${fake}" kf_configure_postgres_client`);
+    expect(r.code).not.toBe(0);
+    expect(r.out).toMatch(/PostgreSQL 18/);
   });
 });

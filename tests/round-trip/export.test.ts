@@ -7,6 +7,7 @@
  * something the build checks rather than something the README asserts.
  */
 
+import { createHash, generateKeyPairSync } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDispatcher } from '@kf/actions';
 import { withTransaction } from '@kf/database';
@@ -18,12 +19,22 @@ import {
   recordVersion,
   verifyRecordedVersion,
   verifyUpload,
+  type ObjectStore,
 } from '@kf/artifacts';
-import { canonicalize, digestBytes } from '@kf/canonicalization';
+import {
+  auditChainDigest,
+  canonicalize,
+  compareCanonicalText,
+  digestBytes,
+} from '@kf/canonicalization';
 import {
   createExport,
+  EXPORT_MANIFEST_SIGNATURE_PATH,
   exportIdentity,
   importExport,
+  PRESERVATION_IMPORT_TARGETS,
+  recomputeDatabaseSnapshotDigest,
+  signExportPackage,
   verifyExport,
   type ExportManifest,
   type ExportPackage,
@@ -41,6 +52,23 @@ let h: Harness;
 let f: Fixtures;
 let store: InMemoryObjectStore;
 
+const PRESERVATION_KEY_ID = 'round-trip-preservation-key';
+const PRESERVATION_KEY = generateKeyPairSync('ed25519');
+const PRESERVATION_VERIFICATION = {
+  trustedManifestKeys: new Map([[PRESERVATION_KEY_ID, PRESERVATION_KEY.publicKey]]),
+};
+const PRECISE_ACTION_ID = '019f0000-0000-7000-8000-00000000f001';
+const PRECISE_JSON_INTEGER = '900719925474099312345678901234567890';
+const PRECISE_RECORDED_AT = '2026-08-15T12:34:56.123456Z';
+const PRECISE_EFFECTIVE_AT = '2026-08-15T12:34:56.123Z';
+
+function authenticate(pkg: ExportPackage): ExportPackage {
+  return signExportPackage(pkg, {
+    keyId: PRESERVATION_KEY_ID,
+    privateKey: PRESERVATION_KEY.privateKey,
+  });
+}
+
 beforeAll(async () => {
   h = await startHarness();
   f = await seedFixtures(h.adminPool);
@@ -48,6 +76,7 @@ beforeAll(async () => {
 
   // A little real history, so the export has something to be faithful about.
   const execute = createDispatcher(h.pool);
+  let preciseTargetId = '';
   for (let i = 0; i < 3; i++) {
     const id = await createObject(h.adminPool, f, {
       type: 'decision_record',
@@ -56,6 +85,7 @@ beforeAll(async () => {
       title: `Decision ${i}`,
       createdBy: f.performerId,
     });
+    if (i === 0) preciseTargetId = id;
     await execute({
       actionType: 'accept_decision',
       actorId: f.reviewerId,
@@ -66,6 +96,63 @@ beforeAll(async () => {
       maxClassification: 'restricted',
     });
   }
+
+  await withTransaction(h.adminPool, async (tx) => {
+    const actionType = await tx.one<{ id: string }>(
+      'select id from registry.action_type order by id limit 1',
+    );
+    await tx.query(
+      `insert into core.action
+         (id, organization_id, request_digest, action_type, actor_id, acting_role_id,
+          target_ids, parameters, preconditions, idempotency_key, recorded_at, effective_at,
+          result_status, result)
+       values ($1, $2, $3, $4, $5, $6, $7::uuid[], $8::jsonb, '{}'::jsonb, $9, $10, $11,
+               'applied', '{}'::jsonb)`,
+      [
+        PRECISE_ACTION_ID,
+        f.organizationId,
+        'b'.repeat(64),
+        actionType.id,
+        f.performerId,
+        f.performerRoleId,
+        [preciseTargetId],
+        `{"precise":${PRECISE_JSON_INTEGER}}`,
+        'precision-export-fixture-aaaaaaaa',
+        PRECISE_RECORDED_AT,
+        PRECISE_EFFECTIVE_AT,
+      ],
+    );
+    const head = await tx.one<{ digest: string }>(
+      'select digest from core.audit_event order by seq desc limit 1',
+    );
+    const auditDigest = auditChainDigest(head.digest, {
+      action_id: PRECISE_ACTION_ID,
+      action_type: actionType.id,
+      actor_id: f.performerId,
+      acting_role_id: f.performerRoleId,
+      object_ids: [preciseTargetId],
+      effective_at: PRECISE_EFFECTIVE_AT,
+      before_digest: null,
+      after_digest: null,
+    });
+    await tx.query(
+      `insert into core.audit_event
+         (action_id, actor_id, acting_role_id, action_type, object_id, recorded_at,
+          effective_at, before_digest, after_digest, prev_digest, digest)
+       values ($1,$2,$3,$4,$5,$6,$7,null,null,$8,$9)`,
+      [
+        PRECISE_ACTION_ID,
+        f.performerId,
+        f.performerRoleId,
+        actionType.id,
+        preciseTargetId,
+        PRECISE_RECORDED_AT,
+        PRECISE_EFFECTIVE_AT,
+        head.digest,
+        auditDigest,
+      ],
+    );
+  });
 }, 180_000);
 
 afterAll(async () => {
@@ -183,20 +270,62 @@ describe('evidence vault', () => {
       sha256: verified.sha256,
       sizeBytes: verified.sizeBytes,
       storageUri: verified.key,
-      storageVersion: verified.storageVersion ?? null,
+      storageVersion: verified.storageVersion,
     });
     expect(intact.ok).toBe(true);
 
-    store.tamper(ticket.key, Buffer.from('quietly altered later', 'utf8'));
+    store.tamper(ticket.key, Buffer.alloc(BYTES.length, 'x'));
 
-    const after = await verifyRecordedVersion(store, {
+    const sameSizeTamper = await verifyRecordedVersion(store, {
       sha256: verified.sha256,
       sizeBytes: verified.sizeBytes,
       storageUri: verified.key,
-      storageVersion: null,
+      storageVersion: verified.storageVersion,
     });
-    expect(after.ok).toBe(false);
-    if (!after.ok) expect(after.failure).toBe('digest_mismatch');
+    expect(sameSizeTamper.ok).toBe(false);
+    if (!sameSizeTamper.ok) expect(sameSizeTamper.failure).toBe('digest_mismatch');
+
+    store.tamper(ticket.key, Buffer.from('quietly altered later', 'utf8'));
+    const changedSizeTamper = await verifyRecordedVersion(store, {
+      sha256: verified.sha256,
+      sizeBytes: verified.sizeBytes,
+      storageUri: verified.key,
+      storageVersion: verified.storageVersion,
+    });
+    expect(changedSizeTamper.ok).toBe(false);
+    if (!changedSizeTamper.ok) expect(changedSizeTamper.failure).toBe('size_mismatch');
+  });
+
+  it('verifies a pinned historical version even when the current key is absent', async () => {
+    const bytes = Buffer.from('historical immutable bytes');
+    const sha256 = digestOf(bytes);
+    const versionId = 'immutable-v1';
+    const historicalOnlyStore = {
+      presignPut: async () => 'unused',
+      head: async (_key: string, requestedVersion?: string) =>
+        requestedVersion === versionId
+          ? { key: 'historical', sizeBytes: bytes.length, versionId }
+          : undefined,
+      read: async (_key: string, requestedVersion?: string) => {
+        if (requestedVersion !== versionId) throw new Error('version not found');
+        return Buffer.from(bytes);
+      },
+      putIfAbsent: async () => {
+        throw new Error('unused');
+      },
+      put: async () => {
+        throw new Error('unused');
+      },
+    } satisfies ObjectStore;
+
+    await expect(
+      verifyRecordedVersion(historicalOnlyStore, {
+        sha256,
+        sizeBytes: bytes.length,
+        storageUri: 'historical',
+        storageVersion: versionId,
+      }),
+    ).resolves.toEqual({ ok: true });
   });
 
   it('assigns version numbers under a lock, so concurrent uploads do not collide', async () => {
@@ -241,36 +370,150 @@ describe('evidence vault', () => {
  */
 async function repack(base: ExportPackage, path: string, content: unknown): Promise<ExportPackage> {
   const files = base.files
-    .filter((x) => x.path !== 'manifest.json')
+    .filter((x) => x.path !== 'manifest.json' && x.path !== EXPORT_MANIFEST_SIGNATURE_PATH)
     .map((x) => (x.path === path ? { path, content: `${canonicalize(content)}\n` } : x));
 
   const manifest: ExportManifest = {
     ...base.manifest,
+    database_snapshot_sha256: recomputeDatabaseSnapshotDigest(files),
     files: files.map((f) => {
       const bytes = Buffer.from(f.content, 'utf8');
       return { path: f.path, size_bytes: bytes.length, sha256: digestBytes(bytes) };
     }),
   };
-  const pkg: ExportPackage = {
+  const pkg = authenticate({
+    files: [...files, { path: 'manifest.json', content: `${canonicalize(manifest)}\n` }],
+    manifest,
+  });
+  expect(
+    verifyExport(pkg, PRESERVATION_VERIFICATION),
+    'the hostile package must be internally consistent and signed by the trusted test authority',
+  ).toEqual([]);
+  return pkg;
+}
+
+function asLegacyValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(asLegacyValue);
+  if (value !== null && typeof value === 'object') {
+    const row = value as Record<string, unknown>;
+    if (
+      Object.keys(row).length === 2 &&
+      typeof row['$kf_type'] === 'string' &&
+      typeof row['text'] === 'string'
+    ) {
+      if (row['$kf_type'] === 'postgres.timestamptz') return row['text'];
+      if (row['$kf_type'] === 'postgres.json' || row['$kf_type'] === 'postgres.jsonb') {
+        return JSON.parse(row['text']);
+      }
+    }
+    return Object.fromEntries(Object.entries(row).map(([key, item]) => [key, asLegacyValue(item)]));
+  }
+  return value;
+}
+
+const LEGACY_V1_SECTIONS = [
+  'objects',
+  'relations',
+  'actions',
+  'approvals',
+  'snapshots',
+  'audit-events',
+  'audit-checkpoints',
+  'artifacts',
+  'artifact-versions',
+  'artifact-relationships',
+  'external-identifiers',
+  'organizations',
+  'people',
+  'engagements',
+  'role-assignments',
+] as const;
+
+/** Reproduce exact format-1 section/column shape for an importer compatibility fixture. */
+function asLegacyV1(base: ExportPackage): ExportPackage {
+  const wanted = new Set<string>([
+    'ontology/registry.json',
+    ...LEGACY_V1_SECTIONS.map((name) => `${name}.json`),
+  ]);
+  const files = base.files
+    .filter((entry) => wanted.has(entry.path))
+    .map((entry) => {
+      const rows = JSON.parse(entry.content) as Record<string, unknown>[];
+      if (entry.path === 'ontology/registry.json') {
+        return { path: entry.path, content: `${canonicalize(asLegacyValue(rows))}\n` };
+      }
+      const legacyRows = asLegacyValue(rows) as Record<string, unknown>[];
+      if (entry.path === 'actions.json') {
+        return {
+          path: entry.path,
+          content: `${canonicalize(
+            legacyRows.map(
+              ({ organization_id: _organizationId, request_digest: _requestDigest, ...row }) => row,
+            ),
+          )}\n`,
+        };
+      }
+      if (entry.path !== 'audit-checkpoints.json') {
+        return { path: entry.path, content: `${canonicalize(legacyRows)}\n` };
+      }
+      return {
+        path: entry.path,
+        content: `${canonicalize(legacyRows.map(({ format_version: _formatVersion, ...row }) => row))}\n`,
+      };
+    })
+    .sort((left, right) => compareCanonicalText(left.path, right.path));
+  const counts = Object.fromEntries(
+    LEGACY_V1_SECTIONS.map((name) => [name, base.manifest.counts[name] ?? 0]),
+  );
+  const { database_snapshot_sha256: _databaseSnapshot, ...legacyManifest } = base.manifest;
+  const manifest: ExportManifest = {
+    ...legacyManifest,
+    format_version: '1',
+    counts,
+    files: files.map((entry) => {
+      const bytes = Buffer.from(entry.content, 'utf8');
+      return { path: entry.path, size_bytes: bytes.length, sha256: digestBytes(bytes) };
+    }),
+  };
+  return {
     files: [...files, { path: 'manifest.json', content: `${canonicalize(manifest)}\n` }],
     manifest,
   };
-  expect(verifyExport(pkg), 'the hostile package must be internally consistent').toEqual([]);
-  return pkg;
 }
 
 describe('preservation export', () => {
   let pkg: ExportPackage;
 
   it('exports and verifies against its own manifest', async () => {
-    pkg = await withTransaction(h.adminPool, async (tx) => createExport(tx));
-    expect(verifyExport(pkg)).toEqual([]);
+    pkg = authenticate(await withTransaction(h.adminPool, async (tx) => createExport(tx)));
+    expect(verifyExport(pkg, PRESERVATION_VERIFICATION)).toEqual([]);
     expect(pkg.manifest.counts['objects']).toBeGreaterThan(0);
     expect(pkg.manifest.counts['audit-events']).toBeGreaterThanOrEqual(3);
     // The artifact index travels too — the digests that prove the object store still agrees
     // with the record are worthless if only one of the two is restorable.
     expect(pkg.manifest.counts['artifacts']).toBeGreaterThan(0);
     expect(pkg.manifest.counts['artifact-versions']).toBeGreaterThan(0);
+
+    const actions = JSON.parse(
+      pkg.files.find((entry) => entry.path === 'actions.json')!.content,
+    ) as Record<string, unknown>[];
+    const precise = actions.find((row) => row['id'] === PRECISE_ACTION_ID)!;
+    expect(precise['recorded_at']).toEqual({
+      $kf_type: 'postgres.timestamptz',
+      text: PRECISE_RECORDED_AT,
+    });
+    expect(precise['parameters']).toEqual({
+      $kf_type: 'postgres.jsonb',
+      text: `{"precise": ${PRECISE_JSON_INTEGER}}`,
+    });
+
+    const auditRows = JSON.parse(
+      pkg.files.find((entry) => entry.path === 'audit-events.json')!.content,
+    ) as Record<string, unknown>[];
+    expect(pkg.manifest.audit_from_seq).toBe(auditRows[0]?.['seq']);
+    expect(pkg.manifest.audit_to_seq).toBe(auditRows[auditRows.length - 1]?.['seq']);
+    expect(typeof pkg.manifest.audit_from_seq).toBe('string');
+    expect(pkg.manifest.database_snapshot_sha256).toBe(recomputeDatabaseSnapshotDigest(pkg.files));
   });
 
   it('carries the ontology with the data — all of it', async () => {
@@ -298,6 +541,51 @@ describe('preservation export', () => {
     expect(Number(registry.types)).toBeGreaterThan(20);
   });
 
+  it('imports a strict PostgreSQL snapshot and keeps one repeatable-read, read-only view', async () => {
+    const anchor = await h.adminPool.connect();
+    const roleId = 'snapshot_visibility_probe';
+    try {
+      await anchor.query('begin isolation level repeatable read, read only');
+      const tokenResult = await anchor.query<{ token: string }>(
+        'select pg_export_snapshot() as token',
+      );
+      const token = tokenResult.rows[0]!.token;
+
+      await withTransaction(h.adminPool, async (tx) => {
+        await tx.query('insert into org.role (id, description) values ($1, $2)', [
+          roleId,
+          'Committed after exported snapshot',
+        ]);
+      });
+
+      const strict = await withTransaction(h.adminPool, async (tx) => {
+        const exported = await createExport(tx, { strictSnapshotToken: token });
+        const settings = await tx.one<{ isolation: string; read_only: string }>(
+          `select current_setting('transaction_isolation') as isolation,
+                  current_setting('transaction_read_only') as read_only`,
+        );
+        return { exported, settings };
+      });
+      const current = await withTransaction(h.adminPool, (tx) => createExport(tx));
+      const roleIds = (exported: ExportPackage): string[] =>
+        (
+          JSON.parse(exported.files.find((entry) => entry.path === 'roles.json')!.content) as {
+            id: string;
+          }[]
+        ).map((row) => row.id);
+
+      expect(strict.settings).toEqual({ isolation: 'repeatable read', read_only: 'on' });
+      expect(roleIds(strict.exported)).not.toContain(roleId);
+      expect(roleIds(current)).toContain(roleId);
+    } finally {
+      await anchor.query('rollback').catch(() => undefined);
+      anchor.release();
+      await withTransaction(h.adminPool, async (tx) => {
+        await tx.query('delete from org.role where id = $1', [roleId]);
+      });
+    }
+  });
+
   it('does not list its own manifest — a file cannot contain its own hash', () => {
     expect(pkg.manifest.files.map((x) => x.path)).not.toContain('manifest.json');
     expect(pkg.files.some((x) => x.path === 'manifest.json')).toBe(true);
@@ -310,7 +598,7 @@ describe('preservation export', () => {
         x.path === 'objects.json' ? { ...x, content: `${x.content} ` } : x,
       ),
     };
-    const findings = verifyExport(damaged);
+    const findings = verifyExport(damaged, PRESERVATION_VERIFICATION);
     expect(findings.map((x) => x.problem)).toContain('digest_mismatch');
   });
 
@@ -320,7 +608,9 @@ describe('preservation export', () => {
       files: [...pkg.files, { path: 'extra.json', content: '{}\n' }],
     };
     // Content nobody vouched for is as much a problem as content that went missing.
-    expect(verifyExport(smuggled).map((x) => x.problem)).toContain('unlisted');
+    expect(verifyExport(smuggled, PRESERVATION_VERIFICATION).map((x) => x.problem)).toContain(
+      'unlisted',
+    );
   });
 
   it('ROUND TRIP: import into an empty database and re-export identically', async () => {
@@ -328,12 +618,28 @@ describe('preservation export', () => {
     const fresh = await startHarness();
     try {
       await withTransaction(fresh.adminPool, async (tx) => {
-        await importExport(tx, pkg);
+        await importExport(tx, pkg, PRESERVATION_VERIFICATION);
       });
 
-      const again = await withTransaction(fresh.adminPool, async (tx) => createExport(tx));
+      const precise = await withTransaction(fresh.adminPool, (tx) =>
+        tx.one<{ parameters: string; recorded_at: string }>(
+          `select parameters::text as parameters,
+                  to_char(recorded_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
+                    as recorded_at
+             from core.action where id = $1`,
+          [PRECISE_ACTION_ID],
+        ),
+      );
+      expect(precise).toEqual({
+        parameters: `{"precise": ${PRECISE_JSON_INTEGER}}`,
+        recorded_at: PRECISE_RECORDED_AT,
+      });
 
-      expect(verifyExport(again)).toEqual([]);
+      const again = authenticate(
+        await withTransaction(fresh.adminPool, async (tx) => createExport(tx)),
+      );
+
+      expect(verifyExport(again, PRESERVATION_VERIFICATION)).toEqual([]);
       expect(again.manifest.counts).toEqual(pkg.manifest.counts);
       expect(exportIdentity(again.manifest)).toBe(exportIdentity(pkg.manifest));
 
@@ -344,6 +650,97 @@ describe('preservation export', () => {
         if (file.path === 'manifest.json') continue;
         expect(file.content, `${file.path} differs after round trip`).toBe(before.get(file.path));
       }
+    } finally {
+      await fresh.stop();
+    }
+  }, 180_000);
+
+  it('resumes an empty restored audit sequence at its first value', async () => {
+    const emptySource = await startHarness();
+    const emptyTarget = await startHarness();
+    try {
+      const empty = authenticate(
+        await withTransaction(emptySource.adminPool, async (tx) => createExport(tx)),
+      );
+      expect(empty.manifest.counts['actions']).toBe(0);
+      expect(empty.manifest.counts['audit-events']).toBe(0);
+
+      await withTransaction(emptyTarget.adminPool, async (tx) => {
+        await importExport(tx, empty, PRESERVATION_VERIFICATION);
+        const next = await tx.one<{ seq: string }>(
+          `select nextval(pg_get_serial_sequence('core.audit_event', 'seq'))::text as seq`,
+        );
+        expect(next.seq).toBe('1');
+      });
+    } finally {
+      await emptyTarget.stop();
+      await emptySource.stop();
+    }
+  }, 180_000);
+
+  it('restores original format-1 archives through an explicit fixed-point upconverter', async () => {
+    const legacy = asLegacyV1(pkg);
+    expect(legacy.manifest.format_version).toBe('1');
+    const legacyVerification = {
+      allowUnsignedLegacyV1: true,
+      onWarning: () => undefined,
+    };
+    expect(verifyExport(legacy, legacyVerification)).toEqual([]);
+
+    const fresh = await startHarness();
+    try {
+      await withTransaction(fresh.adminPool, (tx) => importExport(tx, legacy, legacyVerification));
+      const restoredV2 = authenticate(
+        await withTransaction(fresh.adminPool, (tx) => createExport(tx)),
+      );
+      expect(restoredV2.manifest.counts['legacy-action-provenance']).toBe(
+        legacy.manifest.counts['actions'],
+      );
+      expect(
+        JSON.parse(
+          restoredV2.files.find((entry) => entry.path === 'legacy-action-provenance.json')!.content,
+        ),
+      ).toEqual(
+        expect.arrayContaining(
+          (
+            JSON.parse(
+              legacy.files.find((entry) => entry.path === 'actions.json')!.content,
+            ) as Record<string, unknown>[]
+          ).map((action) => ({
+            action_id: action['id'],
+            migration_version: '20260814001900',
+          })),
+        ),
+      );
+      const downconverted = asLegacyV1(restoredV2);
+      expect(downconverted.manifest).toEqual(legacy.manifest);
+      expect(new Map(downconverted.files.map((entry) => [entry.path, entry.content]))).toEqual(
+        new Map(legacy.files.map((entry) => [entry.path, entry.content])),
+      );
+    } finally {
+      await fresh.stop();
+    }
+  }, 180_000);
+
+  it('refuses unknown preservation formats instead of guessing missing sections', async () => {
+    const futureManifest = { ...pkg.manifest, format_version: '999' };
+    const future: ExportPackage = {
+      manifest: futureManifest,
+      files: pkg.files
+        .filter((entry) => entry.path !== EXPORT_MANIFEST_SIGNATURE_PATH)
+        .map((entry) =>
+          entry.path === 'manifest.json'
+            ? { ...entry, content: `${canonicalize(futureManifest)}\n` }
+            : entry,
+        ),
+    };
+    const fresh = await startHarness();
+    try {
+      await expect(
+        withTransaction(fresh.adminPool, (tx) =>
+          importExport(tx, future, PRESERVATION_VERIFICATION),
+        ),
+      ).rejects.toThrow(/unsupported export format version/);
     } finally {
       await fresh.stop();
     }
@@ -369,7 +766,7 @@ describe('preservation export', () => {
       }));
       await expect(
         withTransaction(fresh.adminPool, async (tx) =>
-          importExport(tx, await repack(pkg, 'objects.json', injected)),
+          importExport(tx, await repack(pkg, 'objects.json', injected), PRESERVATION_VERIFICATION),
         ),
       ).rejects.toThrow(/does not have/);
 
@@ -378,15 +775,168 @@ describe('preservation export', () => {
       const ragged = rows('objects.json').map((r, i) => (i === 1 ? { id: r['id'] } : r));
       await expect(
         withTransaction(fresh.adminPool, async (tx) =>
-          importExport(tx, await repack(pkg, 'objects.json', ragged)),
+          importExport(tx, await repack(pkg, 'objects.json', ragged), PRESERVATION_VERIFICATION),
         ),
       ).rejects.toThrow(/different column set/);
+
+      const orphanAuditEvent = rows('audit-events.json').map((row, index) =>
+        index === 0 ? { ...row, action_id: '019f0000-0000-7000-8000-00000000dead' } : row,
+      );
+      await expect(
+        withTransaction(fresh.adminPool, async (tx) =>
+          importExport(
+            tx,
+            await repack(pkg, 'audit-events.json', orphanAuditEvent),
+            PRESERVATION_VERIFICATION,
+          ),
+        ),
+      ).rejects.toThrow(/foreign key constraint/);
+
+      const nullTarget = rows('actions.json').map((row, index) =>
+        index === 0 ? { ...row, target_ids: [null] } : row,
+      );
+      await expect(
+        withTransaction(fresh.adminPool, async (tx) =>
+          importExport(
+            tx,
+            await repack(pkg, 'actions.json', nullTarget),
+            PRESERVATION_VERIFICATION,
+          ),
+        ),
+      ).rejects.toThrow(/action_target_ids_canonical/);
+
+      const reservedWithoutProvenance = rows('actions.json').map((row, index) => {
+        if (index !== 0) return row;
+        const actionId = row['id'];
+        if (typeof actionId !== 'string') throw new Error('fixture action id is not text');
+        return {
+          ...row,
+          request_digest: createHash('sha256')
+            .update(`kf-action-legacy-v1:${actionId}`, 'utf8')
+            .digest('hex'),
+        };
+      });
+      await expect(
+        withTransaction(fresh.adminPool, async (tx) =>
+          importExport(
+            tx,
+            await repack(pkg, 'actions.json', reservedWithoutProvenance),
+            PRESERVATION_VERIFICATION,
+          ),
+        ),
+      ).rejects.toThrow(/legacy action provenance mismatch/);
+
+      const microsecondAction = rows('actions.json').map((row, index) => {
+        if (index !== 0) return row;
+        return {
+          ...row,
+          effective_at: {
+            $kf_type: 'postgres.timestamptz',
+            text: '2026-08-15T12:34:56.123456Z',
+          },
+        };
+      });
+      await expect(
+        withTransaction(fresh.adminPool, async (tx) =>
+          importExport(
+            tx,
+            await repack(pkg, 'actions.json', microsecondAction),
+            PRESERVATION_VERIFICATION,
+          ),
+        ),
+      ).rejects.toThrow(/action_effective_at_canonical_wire/);
+
+      const disconnectedAudit = rows('audit-events.json').map((row, index) => {
+        if (index !== 0) return row;
+        const action = rows('actions.json').find(
+          (candidate) => candidate['id'] === row['action_id'],
+        );
+        if (action === undefined) throw new Error('audit fixture has no action');
+        const timestamp = row['effective_at'];
+        if (
+          timestamp === null ||
+          typeof timestamp !== 'object' ||
+          !('text' in timestamp) ||
+          typeof timestamp.text !== 'string'
+        ) {
+          throw new Error('audit fixture timestamp is not lossless text');
+        }
+        const prevDigest = 'f'.repeat(64);
+        return {
+          ...row,
+          prev_digest: prevDigest,
+          digest: auditChainDigest(prevDigest, {
+            action_id: row['action_id'] as string,
+            action_type: row['action_type'] as string,
+            actor_id: row['actor_id'] as string,
+            acting_role_id: row['acting_role_id'] as string,
+            object_ids: action['target_ids'] as string[],
+            effective_at: timestamp.text.replace(/(\.\d{3})\d{3}Z$/, '$1Z'),
+            before_digest: row['before_digest'] as string | null,
+            after_digest: row['after_digest'] as string | null,
+          }),
+        };
+      });
+      await expect(
+        withTransaction(fresh.adminPool, async (tx) =>
+          importExport(
+            tx,
+            await repack(pkg, 'audit-events.json', disconnectedAudit),
+            PRESERVATION_VERIFICATION,
+          ),
+        ),
+      ).rejects.toThrow(/audit chain predecessor mismatch/);
+
+      const duplicatedReceipt = rows('audit-events.json').map((row, index, all) =>
+        index === 0 && all.length > 1 ? { ...row, action_id: all[1]!['action_id'] } : row,
+      );
+      await expect(
+        withTransaction(fresh.adminPool, async (tx) =>
+          importExport(
+            tx,
+            await repack(pkg, 'audit-events.json', duplicatedReceipt),
+            PRESERVATION_VERIFICATION,
+          ),
+        ),
+      ).rejects.toThrow(/audit receipts; expected exactly one/);
+
+      const seededRolesBefore = await withTransaction(fresh.adminPool, (tx) =>
+        tx.one<{ count: number }>('select count(*)::integer as count from org.role'),
+      );
+      // Even a broken caller that swallows the import error cannot commit seed deletion or
+      // disabled-trigger DDL. importExport poisons its transaction on every failure.
+      await withTransaction(fresh.adminPool, async (tx) => {
+        await importExport(
+          tx,
+          await repack(pkg, 'objects.json', injected),
+          PRESERVATION_VERIFICATION,
+        ).catch(() => undefined);
+      });
+      const seededRolesAfter = await withTransaction(fresh.adminPool, (tx) =>
+        tx.one<{ count: number }>('select count(*)::integer as count from org.role'),
+      );
+      expect(seededRolesAfter).toEqual(seededRolesBefore);
 
       // Neither attempt wrote anything, and the table it named is still there.
       const remaining = await withTransaction(fresh.adminPool, async (tx) =>
         tx.one<{ n: string }>('select count(*)::text as n from core.object'),
       );
       expect(Number(remaining.n)).toBe(0);
+
+      const triggerState = await withTransaction(fresh.adminPool, (tx) =>
+        tx.one<{ total: number; disabled: number }>(
+          `select count(*)::integer as total,
+                  count(*) filter (where t.tgenabled <> 'O')::integer as disabled
+             from pg_trigger t
+             join pg_class c on c.oid = t.tgrelid
+             join pg_namespace n on n.oid = c.relnamespace
+            where not t.tgisinternal
+              and n.nspname || '.' || c.relname = any($1::text[])`,
+          [[...new Set(Object.values(PRESERVATION_IMPORT_TARGETS))]],
+        ),
+      );
+      expect(triggerState.total).toBeGreaterThan(0);
+      expect(triggerState.disabled).toBe(0);
     } finally {
       await fresh.stop();
     }
@@ -399,7 +949,9 @@ describe('preservation export', () => {
       files: pkg.files.map((x) => (x.path === 'actions.json' ? { ...x, content: '[]\n' } : x)),
     };
     await expect(
-      withTransaction(h.adminPool, async (tx) => importExport(tx, damaged)),
+      withTransaction(h.adminPool, async (tx) =>
+        importExport(tx, damaged, PRESERVATION_VERIFICATION),
+      ),
     ).rejects.toThrow(/fails its own manifest/);
   });
 });

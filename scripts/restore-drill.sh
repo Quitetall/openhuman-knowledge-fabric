@@ -23,6 +23,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=lib/secret.sh
 . "$ROOT/scripts/lib/secret.sh"
 kf_resolve_database_url
+kf_configure_postgres_client
 
 BACKUP_ROOT="${1:-/srv/kf-backups}"
 
@@ -31,7 +32,7 @@ echo "==> choosing a backup"
 # prove that the dump file is readable and nothing about whether the copy that would be used
 # in a real recovery is — and it is the copy that gets used, because in a real recovery the
 # host is gone.
-LOCATION="$(psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -tA -c "
+LOCATION="$("$KF_PSQL" "$DATABASE_URL" -v ON_ERROR_STOP=1 -tA -c "
   select b.location
     from ops.backup_run b
    where exists (select 1 from ops.backup_copy c
@@ -50,30 +51,37 @@ if [ ! -d "$LOCATION" ]; then
   # reach. Restoring from the local original is still worth doing and is NOT the same drill,
   # so it says which one it did rather than quietly substituting.
   echo "the recorded location $LOCATION is not present on this host" >&2
-  echo "restore the off-site copy by hand, then: scripts/restore-verify.sh <dir> <target> \$DATABASE_URL" >&2
+  echo "restore the off-site copy by hand, then: scripts/restore-verify.sh <dir> <target-url-file> <ledger-url-file>" >&2
   exit 1
 fi
 
 # Names are derived from the clock, so two drills on the same day do not collide and a
 # leftover scratch database is obviously dated.
 SCRATCH="kf_drill_$(date -u +%Y%m%d%H%M)"
-# Everything up to the last slash is the server; what follows is the database name.
-SERVER="${DATABASE_URL%/*}"
+RESTORE_TARGET_URL_FILE="$(mktemp)"
+RESTORE_LEDGER_URL_FILE="$(mktemp)"
+chmod 600 "$RESTORE_TARGET_URL_FILE" "$RESTORE_LEDGER_URL_FILE"
+kf_database_override "$DATABASE_URL" "$SCRATCH" > "$RESTORE_TARGET_URL_FILE"
+printf '\n' >> "$RESTORE_TARGET_URL_FILE"
+printf '%s\n' "$DATABASE_URL" > "$RESTORE_LEDGER_URL_FILE"
+kf_at_exit 'rm -f "$RESTORE_TARGET_URL_FILE" "$RESTORE_LEDGER_URL_FILE"'
 
 echo "==> creating scratch database $SCRATCH"
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -c "create database \"$SCRATCH\""
+"$KF_PSQL" "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -c "create database \"$SCRATCH\""
 
 # Dropped whether the drill passes or fails. A failed drill leaves its ROW behind, which is
 # the durable evidence; the database itself is scaffolding and a stale one is just a cluster
 # slowly filling with abandoned restores.
 cleanup() {
-  psql "$DATABASE_URL" -q -c "drop database if exists \"$SCRATCH\" with (force)" || true
+  "$KF_PSQL" "$DATABASE_URL" -q -c \
+    "drop database if exists \"$SCRATCH\" with (force)" || true
 }
 # Registered through the shared dispatcher rather than with a bare `trap`, which would replace
 # the hook that removes the temporary password file.
 kf_at_exit cleanup
 
 echo "==> restoring and verifying"
-"$ROOT/scripts/restore-verify.sh" "$LOCATION" "$SERVER/$SCRATCH" "$DATABASE_URL"
+"$ROOT/scripts/restore-verify.sh" \
+  "$LOCATION" "$RESTORE_TARGET_URL_FILE" "$RESTORE_LEDGER_URL_FILE"
 
 echo "==> drill complete"

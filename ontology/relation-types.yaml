@@ -36,6 +36,7 @@ relation_types:
   - { id: owned_by, inverse: owns }
   - { id: linked_to, inverse: linked_to, symmetric: true }
   - { id: amends, inverse: amended_by, acyclic: true }
+  - { id: extends, inverse: extended_by, acyclic: true }
   - { id: generated_by, inverse: generated }
   - { id: used, inverse: was_used_by }
   - { id: was_associated_with, inverse: associated_with }

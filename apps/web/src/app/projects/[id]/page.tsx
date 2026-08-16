@@ -11,11 +11,29 @@
  * event.
  */
 
-import { get, ApiError, type HistoryView, type ProjectView } from '../../../lib/api';
-import { formatInstant, formatProgress, formatState, shortDigest } from '@kf/ui';
+import {
+  get,
+  ApiError,
+  parseHistoryView,
+  parseProjectView,
+  type HistoryView,
+  type ProjectView,
+} from '../../../lib/api';
+import type { Metadata } from 'next';
+import { formatInstant, formatProgress, formatState } from '@kf/ui';
 import { ActionPanel } from './action-panel';
-import { developmentCaller } from '../../../lib/caller';
+import { webCaller } from '../../../lib/session';
 import { Badge } from '../../components/badge';
+import { DigestDisclosure } from '../../components/digest-disclosure';
+
+export async function generateMetadata({
+  params,
+}: {
+  readonly params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  return { title: `Project ${id}` };
+}
 
 export default async function ProjectPage({
   params,
@@ -26,15 +44,15 @@ export default async function ProjectPage({
 }) {
   const { id } = await params;
   const { refused } = await searchParams;
-  const caller = developmentCaller();
+  const caller = await webCaller(`/projects/${id}`);
 
   let project: ProjectView;
   let history: HistoryView;
   try {
     const encoded = encodeURIComponent(id);
     [project, history] = await Promise.all([
-      get<ProjectView>(`/projects/${encoded}`, caller),
-      get<HistoryView>(`/objects/${encoded}/history`, caller),
+      get(`/projects/${encoded}`, caller, parseProjectView),
+      get(`/objects/${encoded}/history`, caller, parseHistoryView),
     ]);
   } catch (err: unknown) {
     // A refusal is a fact about the record and is shown as one. A fault is our problem and
@@ -44,7 +62,7 @@ export default async function ProjectPage({
     return (
       <main style={{ maxWidth: '52rem', margin: '0 auto', padding: '3rem 1.5rem' }}>
         <h1 style={{ fontSize: '1.25rem' }}>{refusal ? 'Not available' : 'Something failed'}</h1>
-        <p style={{ color: '#666' }}>
+        <p role="alert" aria-live="assertive" className="kf-status kf-status-error">
           {refusal
             ? (err as ApiError).message
             : 'This page could not be loaded. The failure has been logged.'}
@@ -76,42 +94,38 @@ export default async function ProjectPage({
       {project.packages.length === 0 ? (
         <p style={{ color: '#666' }}>None yet.</p>
       ) : (
-        <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-          <thead>
-            <tr style={{ textAlign: 'left', borderBottom: '1px solid #ddd' }}>
-              <th style={{ padding: '0.4rem 0.5rem 0.4rem 0', width: '3rem' }}>#</th>
-              <th style={{ padding: '0.4rem 0.5rem' }}>Package</th>
-              <th style={{ padding: '0.4rem 0.5rem' }}>State</th>
-            </tr>
-          </thead>
-          <tbody>
-            {project.packages.map((p) => (
-              <tr key={p.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                <td style={{ padding: '0.4rem 0.5rem 0.4rem 0' }}>{p.sequence_no}</td>
-                <td style={{ padding: '0.4rem 0.5rem' }}>
-                  {p.title}
-                  <div style={{ color: '#666', fontSize: '0.8rem' }}>{p.acceptance_criterion}</div>
-                </td>
-                <td style={{ padding: '0.4rem 0.5rem' }}>
-                  <Badge state={p.lifecycle_state} />
-                </td>
+        <div className="kf-table-scroll" tabIndex={0} aria-label="Work packages table">
+          <table aria-label="Work packages" style={{ borderCollapse: 'collapse', width: '100%' }}>
+            <thead>
+              <tr style={{ textAlign: 'left', borderBottom: '1px solid #ddd' }}>
+                <th style={{ padding: '0.4rem 0.5rem 0.4rem 0', width: '3rem' }}>#</th>
+                <th style={{ padding: '0.4rem 0.5rem' }}>Package</th>
+                <th style={{ padding: '0.4rem 0.5rem' }}>State</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {project.packages.map((p) => (
+                <tr key={p.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <td style={{ padding: '0.4rem 0.5rem 0.4rem 0' }}>{p.sequence_no}</td>
+                  <td style={{ padding: '0.4rem 0.5rem' }}>
+                    {p.title}
+                    <div style={{ color: '#666', fontSize: '0.8rem' }}>
+                      {p.acceptance_criterion}
+                    </div>
+                  </td>
+                  <td style={{ padding: '0.4rem 0.5rem' }}>
+                    <Badge state={p.lifecycle_state} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       <h2 style={{ fontSize: '1rem', marginTop: '2rem' }}>Actions</h2>
       {refused === undefined ? null : (
-        <p
-          style={{
-            border: '1px solid #dc2626',
-            background: '#fef2f2',
-            color: '#7f1d1d',
-            padding: '0.6rem 0.85rem',
-            borderRadius: '0.375rem',
-          }}
-        >
+        <p role="alert" aria-live="assertive" className="kf-status kf-status-error">
           {/* The last attempt was refused. Shown here rather than swallowed, because a form
               that appears to do nothing is indistinguishable from one that worked. */}
           <strong>Refused.</strong> {refused}
@@ -128,50 +142,48 @@ export default async function ProjectPage({
       <p style={{ color: '#666', fontSize: '0.85rem', marginTop: 0 }}>
         Every controlled change, in order, with the digest that chains it to the one before.
       </p>
-      <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '0.9rem' }}>
-        <thead>
-          <tr style={{ textAlign: 'left', borderBottom: '1px solid #ddd' }}>
-            <th style={{ padding: '0.4rem 0.5rem 0.4rem 0' }}>When</th>
-            <th style={{ padding: '0.4rem 0.5rem' }}>Action</th>
-            <th style={{ padding: '0.4rem 0.5rem' }}>Actor</th>
-            <th style={{ padding: '0.4rem 0.5rem' }}>Digest</th>
-          </tr>
-        </thead>
-        <tbody>
-          {history.events.map((e) => (
-            <tr key={e.seq} style={{ borderBottom: '1px solid #f0f0f0' }}>
-              <td style={{ padding: '0.4rem 0.5rem 0.4rem 0', whiteSpace: 'nowrap' }}>
-                {formatInstant(e.recorded_at)}
-              </td>
-              <td style={{ padding: '0.4rem 0.5rem' }}>
-                {formatState(e.action_type)}
-                {e.reason === null ? null : (
-                  <div style={{ color: '#666', fontSize: '0.8rem' }}>{e.reason}</div>
-                )}
-              </td>
-              <td
-                style={{
-                  padding: '0.4rem 0.5rem',
-                  fontFamily: 'ui-monospace, monospace',
-                  fontSize: '0.8rem',
-                }}
-              >
-                {e.actor_id.slice(0, 8)}
-              </td>
-              <td
-                style={{
-                  padding: '0.4rem 0.5rem',
-                  fontFamily: 'ui-monospace, monospace',
-                  fontSize: '0.8rem',
-                }}
-                title={e.digest}
-              >
-                {shortDigest(e.digest)}
-              </td>
+      <div className="kf-table-scroll" tabIndex={0} aria-label="Project history table">
+        <table
+          aria-label="Project history"
+          style={{ borderCollapse: 'collapse', width: '100%', fontSize: '0.9rem' }}
+        >
+          <thead>
+            <tr style={{ textAlign: 'left', borderBottom: '1px solid #ddd' }}>
+              <th style={{ padding: '0.4rem 0.5rem 0.4rem 0' }}>When</th>
+              <th style={{ padding: '0.4rem 0.5rem' }}>Action</th>
+              <th style={{ padding: '0.4rem 0.5rem' }}>Actor</th>
+              <th style={{ padding: '0.4rem 0.5rem' }}>Digest</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {history.events.map((e) => (
+              <tr key={e.seq} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                <td style={{ padding: '0.4rem 0.5rem 0.4rem 0', whiteSpace: 'nowrap' }}>
+                  {formatInstant(e.recorded_at)}
+                </td>
+                <td style={{ padding: '0.4rem 0.5rem' }}>
+                  {formatState(e.action_type)}
+                  {e.reason === null ? null : (
+                    <div style={{ color: '#666', fontSize: '0.8rem' }}>{e.reason}</div>
+                  )}
+                </td>
+                <td
+                  style={{
+                    padding: '0.4rem 0.5rem',
+                    fontFamily: 'ui-monospace, monospace',
+                    fontSize: '0.8rem',
+                  }}
+                >
+                  {e.actor_id.slice(0, 8)}
+                </td>
+                <td style={{ padding: '0.4rem 0.5rem', fontSize: '0.8rem' }}>
+                  <DigestDisclosure digest={e.digest} label={`event ${e.seq} digest`} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </main>
   );
 }

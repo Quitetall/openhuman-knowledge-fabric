@@ -98,6 +98,11 @@ export async function searchIn(
           and ($4::text[] is null or d.object_type = any($4))
           and ($5::text[] is null or d.lifecycle_state = any($5))
      ),
+     needle as (
+       -- ILIKE patterns are not search syntax. Escape their metacharacters so an identifier
+       -- such as LOT_A7 or ZX%Q stays literal instead of widening into a wildcard scan.
+       select replace(replace(replace($3, '!', '!!'), '%', '!%'), '_', '!_') as pattern
+     ),
      full_text as (
        select v.*, ts_rank(v.document, websearch_to_tsquery('english', $3)) as rank,
               'full_text' as matched_by
@@ -109,8 +114,9 @@ export async function searchIn(
        -- match on the actual words beats a substring every time.
        select v.*, greatest(similarity(v.title, $3), similarity(v.body, $3)) * 0.5 as rank,
               'partial_identifier' as matched_by
-         from visible v
-        where (v.title ilike '%' || $3 || '%' or v.body ilike '%' || $3 || '%')
+         from visible v cross join needle n
+        where (v.title ilike '%' || n.pattern || '%' escape '!'
+               or v.body ilike '%' || n.pattern || '%' escape '!')
           and v.object_id not in (select object_id from full_text)
      )
      select object_id, object_type, title, lifecycle_state, classification, rank, matched_by

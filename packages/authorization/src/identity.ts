@@ -108,6 +108,9 @@ export class TokenVerifier {
         audience: this.#config.audience,
         clockTolerance: this.#config.clockToleranceSeconds ?? 30,
       });
+      if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp)) {
+        throw new Error('token has no finite expiration');
+      }
       return payload;
     } catch (err: unknown) {
       const reason = err instanceof Error ? err.message : 'not verifiable';
