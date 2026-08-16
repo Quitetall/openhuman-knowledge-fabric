@@ -1,4 +1,6 @@
-const STRICT_SNAPSHOT_TOKEN = /^[0-9A-F]{8}-[0-9A-F]{8}-[0-9]+$/;
+// One definition, shared with the library that interpolates this value into SQL. A private
+// copy here is how the two drifted apart in the first place.
+import { STRICT_SNAPSHOT_TOKEN } from '../internal/format.js';
 
 export interface CliArguments {
   readonly verb: string | undefined;

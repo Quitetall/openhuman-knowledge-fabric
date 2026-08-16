@@ -9,7 +9,21 @@ export const CHECKPOINT_PUBLIC_KEY_EXPORT_PATH =
   /^trust\/checkpoint\/([A-Za-z0-9][A-Za-z0-9._-]{0,127})\.pub$/;
 export const PRIVATE_KEY_PEM = /-----BEGIN [A-Z ]*PRIVATE KEY-----/;
 export const DECIMAL_SEQUENCE = /^(?:0|[1-9][0-9]*)$/;
-export const STRICT_SNAPSHOT_TOKEN = /^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{8}-[0-9]+$/;
+/**
+ * A PostgreSQL snapshot token, in the exact shape `pg_export_snapshot()` emits.
+ *
+ * Uppercase hex, measured rather than assumed: PostgreSQL 18 returns
+ * `0000001A-0000000D-1`. This pattern read `[0-9A-Fa-f]` while `cli/arguments.ts` kept its own
+ * private `[0-9A-F]` — two definitions of one validator that had already drifted, so a
+ * lowercase token was accepted through the library and refused through the command line. This
+ * is now the only definition and the CLI imports it.
+ *
+ * It matters more than a shape check usually would, because `SET TRANSACTION SNAPSHOT` has no
+ * bind-parameter form: `exporter.ts` interpolates this value into SQL, and closed-form
+ * validation is the entire reason that is safe. A validator with two definitions has no
+ * closed form, only two approximations of one.
+ */
+export const STRICT_SNAPSHOT_TOKEN = /^[0-9A-F]{8}-[0-9A-F]{8}-[0-9]+$/;
 export const UTC_TIMESTAMPTZ =
   /^(\d{4,}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})(?:\.(\d{1,6}))?\+00(?::?00)?$/;
 export const ISO_UTC_TIMESTAMPTZ = /^\d{4,}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/;

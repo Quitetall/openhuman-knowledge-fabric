@@ -553,4 +553,32 @@ describe('failing closed', () => {
       expect(report.ready).toBe(false);
     }
   });
+
+  it('assesses the search index as an unprivileged role, which is how it runs in production', async () => {
+    // Every other assertion in this file uses `h.adminPool`, which connects as the container's
+    // bootstrap superuser. A superuser bypasses row-level security, so none of them exercises
+    // the thing the federated check exists to do: enumerate organizations, bind each one, and
+    // count inside that scope. Deployment connects as kf_app — `deploy/systemd/kf-readiness.
+    // service` runs with a DATABASE_URL_FILE, not as the owner — and that path had no coverage
+    // at all until this test.
+    //
+    // Three things have to hold for it, and each fails differently: EXECUTE on
+    // `core.readiness_organization_ids()`, SELECT on `registry.classification` to find the
+    // ceiling, and the right to call `core.set_access_context`. Any one missing turns the
+    // check `unknown`, which fails readiness closed — correct, but it would have failed closed
+    // in production while every test here stayed green.
+    const report = await assessReadiness(h.pool);
+    const index = serviceCheck(report, 'search_index');
+
+    expect(index, 'the search index check must be present').toBeDefined();
+    expect(
+      index?.status,
+      `search_index could not run as kf_app: ${index?.detail ?? 'no detail'}`,
+    ).not.toBe('unknown');
+
+    // It genuinely enumerated rather than short-circuiting on an empty list: the fixtures
+    // create one organization, so a check that could not see any would report zero and look
+    // identical to a healthy one.
+    expect(Number(index?.measured?.['organizations'] ?? 0)).toBeGreaterThan(0);
+  });
 });
