@@ -6,7 +6,11 @@ import { refuse } from './errors.js';
 export const recordAcceptance: ActionEffect = async (tx, request, objects) => {
   const execution = objects.find((o) => o.object_type === 'work_execution');
   if (execution === undefined) {
-    refuse('KF-WORK-001', 'issue_acceptance must name the work execution being judged');
+    // KF-WORK-TARGET-001, not KF-WORK-001. `ontology/rules.yaml` declares KF-WORK-001 as
+    // "a work_execution references exactly one work_order" — a structural invariant of the
+    // record. This is a caller who did not name a target. A client that special-cases the
+    // declared code would read "your record is malformed" and act on the wrong thing.
+    refuse('KF-WORK-TARGET-001', 'issue_acceptance must name the work execution being judged');
   }
 
   const disposition = requireString(request.payload, 'disposition');
@@ -51,7 +55,10 @@ export const recordAcceptance: ActionEffect = async (tx, request, objects) => {
 
 export const amendWorkOrder: ActionEffect = async (tx, request, objects) => {
   const order = objects.find((o) => o.object_type === 'work_order');
-  if (order === undefined) refuse('KF-FIN-001', 'amend_work_order must name a work order');
+  // KF-FIN-TARGET-001, not KF-FIN-001. The declared rule is "accepted value must not exceed
+  // authorized work-order ceiling without an approved amendment", whose remedy is to raise an
+  // amendment — advice that is actively wrong for a caller who simply named no work order.
+  if (order === undefined) refuse('KF-FIN-TARGET-001', 'amend_work_order must name a work order');
 
   const { next, currency } = await tx.one<{ next: number; currency: string }>(
     `select coalesce(max(a.amendment_no), 0) + 1 as next, wo.currency
