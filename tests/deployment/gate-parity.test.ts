@@ -157,8 +157,16 @@ function ciJobs(): { readonly all: readonly string[]; readonly shellOnly: readon
     // empty and the README count claimed four jobs run the gate commands instead of three.
     // A comment explaining that a job is NOT in the gate was enough to convince the parser it
     // was. The failure was loud rather than silent, but it accused the wrong thing.
-    if (line.trimStart().startsWith('#')) continue;
-    if (line.includes('pnpm ')) sawPnpm = true;
+    // Trailing comments count too, and for the same reason: the natural place to write "not
+    // pnpm gate" is at the end of the line it is about.
+    //
+    //     - run: ./gitleaks git --config .gitleaks.toml .   # not part of pnpm gate
+    //
+    // A YAML comment starts at an unquoted `#` preceded by whitespace, so stripping from there
+    // handles both a whole-line comment and a trailing one. It also strips a `#` inside a
+    // quoted argument, which can only cause a `pnpm ` AFTER that `#` to be missed — the job
+    // then looks shell-only and is reported, which is the direction to be wrong in.
+    if (line.replace(/(^|\s)#.*$/, '').includes('pnpm ')) sawPnpm = true;
   }
   finish();
   return { all, shellOnly };
