@@ -29,20 +29,26 @@
 #
 # HOW THE PUBLISH PATH WAS PROVEN, and how to prove it again after changing this file. Point
 # --remote at a local bare repository and publish a throwaway tag into it; nothing leaves the
-# machine and every claim above becomes checkable:
+# machine and every claim above becomes checkable. Run from the repository root:
 #
-#   git init --bare /tmp/fake-public.git
+#   # rm -rf FIRST: `git init --bare` on an existing path REINITIALISES it and keeps the refs,
+#   # so a re-run would otherwise report the previous run's commit and look like a pass.
+#   rm -rf /tmp/fake-public.git && git init --bare /tmp/fake-public.git
 #   ./scripts/publish-public.sh --remote /tmp/fake-public.git --tag <tag> --publish
 #   git --git-dir=/tmp/fake-public.git rev-list --count main        # 1
 #   git --git-dir=/tmp/fake-public.git log -1 --format=%P main      # empty: a root commit
 #   git --git-dir=/tmp/fake-public.git for-each-ref | wc -l         # 1: no tags, no other branch
 #   git rev-parse '<tag>^{tree}'                                    # equal to:
 #   git --git-dir=/tmp/fake-public.git rev-parse 'main^{tree}'
-#   git --git-dir=/tmp/fake-public.git cat-file -e $(git rev-parse main)  # non-zero: no leak
+#   # `cat-file -e` prints NOTHING and only sets an exit code, so say so out loud — a silent
+#   # check is one a reader scores as passed without looking, which is the habit this whole
+#   # script exists to resist.
+#   git --git-dir=/tmp/fake-public.git cat-file -e "$(git rev-parse main)" \
+#     && echo 'LEAK: private HEAD is in the public repo' || echo 'clean: private HEAD absent'
 #
 # The two tree hashes matching is the claim that matters: the published bytes ARE the tag's, not
-# a copy that resembles it. The last line is the other one: the private HEAD commit is not an
-# object in the public repository at all. Both held when this was last run, along with the
+# a copy that resembles it. The `cat-file` line is the other one: the private HEAD commit is not
+# an object in the public repository at all. Both held when this was last run, along with the
 # refusal on a mismatched confirmation leaving zero refs behind.
 #
 # Usage:
