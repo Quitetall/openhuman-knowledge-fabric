@@ -60,8 +60,8 @@ commissioning, not evidence of it.
 
 ## What v1.0 claims
 
-1. The software is complete against roadmap steps 1–9 and every gate CI runs passes from a
-   clean checkout — **in CI, on the commit being tagged**, not only on the workstation that
+1. The software is complete against roadmap steps 1–9 and every gate `ci.yml` defines passes
+   from a clean checkout — **in CI, on the commit being tagged**, not only on the workstation that
    wrote it. See criterion 5, which exists because that distinction turned out to be load-bearing
    rather than pedantic.
 2. The R01 schema pack `1.0.0-draft.2` has been approved and signed, so

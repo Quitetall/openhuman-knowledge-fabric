@@ -97,7 +97,7 @@ pnpm install --frozen-lockfile
 pnpm gate
 ```
 
-`pnpm gate` runs every check CI runs except the `secrets` scan, in CI's order, ending with
+`pnpm gate` runs every check `ci.yml` defines except the `secrets` scan, in that file's order, ending with
 `pnpm build` — so the release bytes below are built by the same command that gates them. It
 replaces the five checks previously listed here, which were five of the seven: the two ontology
 gates were missing, so a release could be cut from a tree whose committed `generated/` did not

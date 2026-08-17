@@ -109,6 +109,53 @@ function gateCommands(): ReadonlySet<string> {
   );
 }
 
+/**
+ * Every job in `ci.yml`, split by whether it runs any pnpm command.
+ *
+ * The job-name pattern is the whole set GitHub allows in a job id, not the set this file happens
+ * to use. An earlier version accepted `[a-z][a-z0-9-]*`, which silently skipped `DB-Migration`
+ * and `build_docs` — and a job this loop never sees is a job that cannot be reported, which is
+ * the one thing the callers below are for.
+ */
+function ciJobs(): { readonly all: readonly string[]; readonly shellOnly: readonly string[] } {
+  const workflow = readFileSync(join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8');
+  const body = workflow.slice(workflow.indexOf('\njobs:'));
+
+  const all: string[] = [];
+  const shellOnly: string[] = [];
+  let current: string | null = null;
+  let sawPnpm = false;
+  const finish = (): void => {
+    if (current !== null && !sawPnpm) shellOnly.push(current);
+  };
+  for (const line of body.split('\n')) {
+    const job = /^ {2}([A-Za-z_][A-Za-z0-9_-]*):\s*$/.exec(line);
+    if (job !== null) {
+      finish();
+      current = job[1]!;
+      all.push(current);
+      sawPnpm = false;
+    } else if (line.includes('pnpm ')) {
+      sawPnpm = true;
+    }
+  }
+  finish();
+  return { all, shellOnly };
+}
+
+const NUMBER_WORDS: Readonly<Record<string, number>> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+};
+
 describe('the local gate command and CI agree on what a gate is', () => {
   it('runs every gate CI runs', () => {
     const gate = gateCommands();
@@ -158,32 +205,7 @@ describe('the local gate command and CI agree on what a gate is', () => {
     // So the exception is enumerated rather than reasoned about. A second shell-only job fails
     // here, and closing that failure means deciding: put it in `pnpm gate`, or add it to this
     // list and say why it cannot be.
-    const workflow = readFileSync(join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8');
-    const body = workflow.slice(workflow.indexOf('\njobs:'));
-
-    // Job names are the two-space keys under `jobs:`; step lines are anything more indented.
-    //
-    // The character class is the whole set GitHub allows in a job id, not the set this file
-    // happens to use. An earlier version accepted `[a-z][a-z0-9-]*`, which silently skipped
-    // `DB-Migration` and `build_docs` — and a job this loop never sees is a job that cannot be
-    // reported as shell-only, which is the one thing the assertion is for.
-    const shellOnly: string[] = [];
-    let current: string | null = null;
-    let sawPnpm = false;
-    const finish = (): void => {
-      if (current !== null && !sawPnpm) shellOnly.push(current);
-    };
-    for (const line of body.split('\n')) {
-      const job = /^ {2}([A-Za-z_][A-Za-z0-9_-]*):\s*$/.exec(line);
-      if (job !== null) {
-        finish();
-        current = job[1]!;
-        sawPnpm = false;
-      } else if (line.includes('pnpm ')) {
-        sawPnpm = true;
-      }
-    }
-    finish();
+    const { shellOnly } = ciJobs();
 
     expect(
       shellOnly.length,
@@ -195,5 +217,40 @@ describe('the local gate command and CI agree on what a gate is', () => {
         '`pnpm gate` cannot reproduce them. Add the job to `pnpm gate`, or add it here with a ' +
         'reason it has to stay CI-only.',
     ).toEqual(['secrets']);
+  });
+
+  it('holds the README to the real number of CI jobs', () => {
+    // Prose counts do not self-heal. The README said `pnpm gate` is "what the three CI jobs run
+    // between them" for exactly as long as it took to add a fourth — in the same commit that
+    // added it, by the person who added it. Nothing objected, because a sentence is not a check.
+    //
+    // The parity tests above compare COMMANDS, so they were blind to a wrong count. This one
+    // reads the two numbers the README actually asserts and compares them to `ci.yml`.
+    const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
+    const claim = /(\w+) of the (\w+) CI jobs/.exec(readme);
+    expect(
+      claim,
+      'README.md no longer states how many CI jobs there are in the form "<n> of the <m> CI ' +
+        'jobs". If the sentence was rewritten, rewrite this assertion with it — do not delete ' +
+        'it, or the count goes back to being unchecked prose.',
+    ).not.toBeNull();
+
+    const withPnpm = NUMBER_WORDS[claim![1]!.toLowerCase()];
+    const total = NUMBER_WORDS[claim![2]!.toLowerCase()];
+    expect(withPnpm, `README says "${claim![1]}", which is not a number word 1-10`).toBeTypeOf(
+      'number',
+    );
+    expect(total, `README says "${claim![2]}", which is not a number word 1-10`).toBeTypeOf(
+      'number',
+    );
+
+    const { all, shellOnly } = ciJobs();
+    expect(total, `README claims ${claim![2]} CI jobs; ci.yml defines ${all.length}`).toBe(
+      all.length,
+    );
+    expect(
+      withPnpm,
+      `README claims ${claim![1]} of them run the gate commands; ${all.length - shellOnly.length} do`,
+    ).toBe(all.length - shellOnly.length);
   });
 });
