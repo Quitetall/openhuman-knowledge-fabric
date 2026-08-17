@@ -312,3 +312,163 @@ export const evidenceReceipts: CommissioningCheckFn = async (inputs: Commissioni
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
+
+/**
+ * The installed reverse proxy terminates TLS, and nothing behind it is reachable in clear.
+ *
+ * The API sets `KF_TLS_TERMINATED_UPSTREAM=1` and refuses to start without it, which is an
+ * assertion by whoever deployed rather than a fact anyone checked. The threat model says so
+ * under T8 — "nothing here can verify that the thing in front of it actually terminates TLS,
+ * and a false assertion produces exactly the exposure it claims to prevent".
+ *
+ * This does not close that gap; the running nginx cannot be interrogated from here and a
+ * configuration file is not proof of what is loaded. It narrows it to the part that CAN be
+ * read, which is the configuration the host was given. Two properties matter more than the
+ * rest:
+ *
+ *   1. NO CLEARTEXT SERVER MAY PROXY. A `server` listening on 80 without `ssl` must `return`
+ *      — a redirect or a refusal. If one proxies to the application instead, every bearer
+ *      token it forwards crosses the network in clear, which is the precise exposure the
+ *      upstream-termination assertion exists to deny.
+ *   2. EVERY UPSTREAM MUST BE LOOPBACK. The API and web processes bind 127.0.0.1 and rely on
+ *      the proxy being the only route to them. `proxy_pass` to any other address means
+ *      something else on the network can reach a process whose whole threat model assumes it
+ *      cannot.
+ *
+ * Parsing is by brace depth, which is enough for the shipped template's shape and is stated
+ * here as a limit rather than implied to be an nginx parser: `include` directives are NOT
+ * followed, so a deployment that splits its configuration across files must point this at the
+ * file that actually contains the server blocks.
+ */
+export const reverseProxyPosture: CommissioningCheckFn = async (inputs: CommissioningInputs) => {
+  const path = inputs.reverseProxyConfigPath;
+  if (path === undefined) {
+    return {
+      status: 'unverifiable',
+      detail:
+        'No reverse-proxy configuration was supplied, so KF_TLS_TERMINATED_UPSTREAM=1 remains ' +
+        'an unchecked assertion about what sits in front of this deployment.',
+      observed: { reverseProxyConfigPath: null },
+    };
+  }
+
+  let text: string;
+  try {
+    text = await readFile(path, 'utf8');
+  } catch (error: unknown) {
+    return {
+      status: 'unverifiable',
+      detail: `Cannot read the reverse-proxy configuration at ${path}: ${message(error)}`,
+      observed: { reverseProxyConfigPath: path },
+    };
+  }
+
+  // `server { ... }` blocks at depth 1. Comments are stripped first so a commented-out
+  // `proxy_pass` is not read as a live one.
+  const blocks: string[] = [];
+  const stripped = text
+    .split('\n')
+    .map((line) => line.replace(/#.*$/, ''))
+    .join('\n');
+  const serverStarts = [...stripped.matchAll(/\bserver\s*\{/g)];
+  for (const start of serverStarts) {
+    let depth = 0;
+    let index = start.index! + start[0].length - 1;
+    const from = index;
+    for (; index < stripped.length; index += 1) {
+      if (stripped[index] === '{') depth += 1;
+      else if (stripped[index] === '}') {
+        depth -= 1;
+        if (depth === 0) break;
+      }
+    }
+    blocks.push(stripped.slice(from, index + 1));
+  }
+  if (blocks.length === 0) {
+    return {
+      status: 'unverifiable',
+      detail: `${path} contains no server blocks. If the configuration uses include directives, point KF_REVERSE_PROXY_CONFIG at the file that defines them — this reader does not follow includes.`,
+      observed: { reverseProxyConfigPath: path, serverBlocks: 0 },
+    };
+  }
+
+  const cleartextProxying: string[] = [];
+  const remoteUpstreams: string[] = [];
+  const missingForwardedProto: string[] = [];
+  const weakProtocols: string[] = [];
+
+  for (const [ordinal, block] of blocks.entries()) {
+    const names = /server_name\s+([^;]+);/.exec(block)?.[1]?.trim() ?? `block ${ordinal + 1}`;
+    const listens = [...block.matchAll(/\blisten\s+([^;]+);/g)].map((m) => m[1]!.trim());
+    const proxied = [...block.matchAll(/\bproxy_pass\s+([^;]+);/g)].map((m) => m[1]!.trim());
+    const servesCleartext = listens.some(
+      (listen) => !/\bssl\b/.test(listen) && /(^|[^0-9])80(\s|$)/.test(listen),
+    );
+
+    if (servesCleartext && proxied.length > 0) cleartextProxying.push(names);
+
+    for (const target of proxied) {
+      const host = /^https?:\/\/([^/:]+|\[[^\]]+\])/.exec(target)?.[1] ?? target;
+      if (!['127.0.0.1', 'localhost', '[::1]', '::1'].includes(host)) {
+        remoteUpstreams.push(`${names} -> ${target}`);
+      }
+    }
+    if (proxied.length > 0 && !/X-Forwarded-Proto\s+https/.test(block)) {
+      missingForwardedProto.push(names);
+    }
+    const protocols = /ssl_protocols\s+([^;]+);/.exec(block)?.[1] ?? '';
+    if (/TLSv1(\.1)?(\s|$)/.test(protocols)) weakProtocols.push(`${names}: ${protocols.trim()}`);
+  }
+
+  const observed = {
+    reverseProxyConfigPath: path,
+    serverBlocks: blocks.length,
+    cleartextProxying: cleartextProxying.join(', ') || 'none',
+    remoteUpstreams: remoteUpstreams.join('; ') || 'none',
+    missingForwardedProto: missingForwardedProto.join(', ') || 'none',
+    weakProtocols: weakProtocols.join('; ') || 'none',
+  };
+
+  if (cleartextProxying.length > 0) {
+    return {
+      status: 'unsatisfied',
+      detail:
+        `${cleartextProxying.length} server block(s) accept cleartext HTTP and proxy to the ` +
+        'application. Every bearer token they forward crosses the network unencrypted, which ' +
+        'is exactly what KF_TLS_TERMINATED_UPSTREAM=1 asserts does not happen.',
+      observed,
+    };
+  }
+  if (remoteUpstreams.length > 0) {
+    return {
+      status: 'unsatisfied',
+      detail:
+        'A proxy_pass names an upstream that is not loopback. The API and web processes bind ' +
+        '127.0.0.1 and rely on this proxy being the only route to them.',
+      observed,
+    };
+  }
+  if (weakProtocols.length > 0) {
+    return {
+      status: 'unsatisfied',
+      detail: 'A server block permits TLS 1.0 or 1.1.',
+      observed,
+    };
+  }
+  if (missingForwardedProto.length > 0) {
+    return {
+      status: 'unsatisfied',
+      detail:
+        'A proxying block does not set X-Forwarded-Proto https, which the application trusts ' +
+        'to know whether the original request was encrypted.',
+      observed,
+    };
+  }
+  return {
+    status: 'satisfied',
+    detail:
+      `All ${blocks.length} server blocks terminate TLS before proxying, every upstream is ` +
+      'loopback, TLS 1.0/1.1 are refused, and each proxying block forwards the original scheme.',
+    observed,
+  };
+};

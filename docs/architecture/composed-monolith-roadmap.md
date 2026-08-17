@@ -19,7 +19,11 @@ contracts.
 7. Add signed approved-public bundles and read-only public projection API.
 8. Add provider-neutral AI proposal boundary with LAMU as first local adapter.
 9. Qualify Secure Object Authority and full BLUT/KF lineage and metric flow.
-10. Run zero-drift LamQuant shadow for 30 days, prove rollback, then request human cutover.
+10. Run the zero-drift LamQuant shadow to the criterion in decision 0004, prove rollback,
+    then request human cutover. **The thirty days in earlier revisions of this line is
+    superseded**: drift is observed per compilation, not per day, so the gate is now a
+    count of compilations and exercised action paths with a seven-day floor. See
+    `docs/decisions/0004-production-release.md`.
 
 ## Human-only actions
 

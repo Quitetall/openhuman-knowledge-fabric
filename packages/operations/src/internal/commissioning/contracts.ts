@@ -71,6 +71,16 @@ export interface CommissioningInputs {
   readonly releaseId?: string;
   /** Node version this release was tested against, e.g. `24.18.1`. */
   readonly expectedNodeVersion?: string;
+  /**
+   * The reverse-proxy configuration AS INSTALLED, not the template this repository ships.
+   *
+   * `KF_TLS_TERMINATED_UPSTREAM=1` is an assertion by whoever deployed, and the threat model
+   * says so plainly under T8: "nothing here can verify that the thing in front of it actually
+   * terminates TLS". This narrows that gap rather than closing it — the installed
+   * configuration is a file on the host and can be read, even though the running nginx cannot
+   * be interrogated from here.
+   */
+  readonly reverseProxyConfigPath?: string;
   /** Days before certificate expiry at which renewal is already overdue. */
   readonly certificateRenewalDays: number;
   /** Days after which a rollback rehearsal no longer counts as evidence. */

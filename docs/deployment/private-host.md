@@ -486,20 +486,29 @@ cannot quietly acquire the appearance of coverage.
   login against the real realm.
 - no site hostnames or certificates — `tls_termination`, which reads the certificate the host
   presents, checks it covers the served name and is currently valid, and checks the private key
-  is closed. Firewall rules and installed nginx validation have **no check** and
-  remain inspection by hand.
+  is closed. Installed nginx validation is now `reverse_proxy_posture`, which reads the
+  configuration as installed and refuses a cleartext server that proxies, an upstream that is
+  not loopback, TLS 1.0/1.1, and a proxying block that does not forward the original scheme.
+  It does not follow `include` directives and cannot interrogate the running nginx, so point it
+  at the file that defines the server blocks. **Firewall rules still have no check** and remain
+  inspection by hand.
 - no installed user/file ownership evidence, service start/restart/reboot evidence —
   `unit_provenance`; and no proof host uses exact tested Node/PostgreSQL versions —
   `runtime_version`.
 - no successful disposable-cluster rollback receipt or host migration result for a release —
   `evidence_receipts`, which requires a receipt matched to the running release id.
 - no person has yet received an alert — **no check**, and none is possible from here.
-  `kf-alert@.service` now ships and `tests/deployment/alert-dispatch.test.ts` proves it
-  delivers over real TLS and fails loudly when it cannot, but a webhook URL that is wrong,
-  revoked or pointed at an abandoned channel passes every one of those and reaches nobody.
+  `kf-alert@.service` ships and `tests/deployment/alert-dispatch.test.ts` proves it delivers
+  over real TLS and fails loudly when it cannot, but a webhook URL that is wrong, revoked or
+  pointed at an abandoned channel passes every one of those and reaches nobody.
   `unit_provenance` verifies each unit declares `OnFailure=`, which is a weaker claim again.
-  Send one deliberately during commissioning and have a person confirm it arrived;
-  `kf-alert-heartbeat.timer` then keeps the path proven daily by its absence.
+
+  Run `kf-commissioning --send-test-alert` during commissioning. It sends one real alert and
+  then tells you what it has and has not established: the endpoint accepted a message, and
+  nothing more. Ask the person who is meant to receive alerts whether one arrived, naming
+  `kf-commissioning-test.service`, and record their answer in the evidence.
+  `kf-alert-heartbeat.timer` then keeps the path proven daily, by its absence.
+
 - no reviewed native `kf-document-v1` Liminal artifact or external runtime-closure inventory —
   **no check**; the human-ratified qualification receipt in the same sentence is covered by
   `evidence_receipts`.

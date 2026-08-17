@@ -374,8 +374,13 @@ Delivery SHALL proceed in this order:
    after their qualification gates close.
 5. **AI compiler:** ship scoped retrieval, AI MIR, model profiles, multimodal projections,
    semantic proposals, provider routing and evaluation.
-6. **Cutover:** shadow LamQuant and KF compilers for 30 consecutive days after strict parity
-   passes. Zero unexplained semantic drift is required. Then freeze LamQuant compiler tools
+6. **Cutover:** shadow LamQuant and KF compilers after strict parity passes. Zero unexplained
+   semantic drift is required. **The "30 consecutive days" this step originally specified is
+   superseded by decision 0004**, which replaces the duration with a count — every constitution
+   document compiled twice with byte-identical output, every document-lifecycle action path
+   exercised, and a seven-day floor. The reasoning is in 0004: drift is evidence produced per
+   compilation, and a quiet month records "no drift observed" and "nothing was observed"
+   identically. The zero-drift requirement itself is unchanged. Then freeze LamQuant compiler tools
    read-only and preserve their final source, fixtures and expected outputs as migration
    evidence.
 

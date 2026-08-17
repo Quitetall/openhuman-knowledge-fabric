@@ -8,6 +8,7 @@ import {
 import {
   evidenceReceipts,
   identityProviderPolicy,
+  reverseProxyPosture,
   runtimeVersion,
   tlsTermination,
 } from './host.js';
@@ -46,6 +47,13 @@ export const COMMISSIONING_CHECKS: readonly CommissioningCheckDefinition[] = [
     id: 'tls_termination',
     blocker: 'no site hostnames or certificates validated against the name this host serves',
     run: tlsTermination,
+  },
+  {
+    id: 'reverse_proxy_posture',
+    blocker:
+      'no installed nginx validation: upstream TLS termination is asserted by the deployment ' +
+      'and, until this passes, verified by nobody',
+    run: reverseProxyPosture,
   },
   {
     id: 'identity_provider_policy',

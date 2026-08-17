@@ -87,6 +87,28 @@ async function commissionedHost(): Promise<{
   const policy = join(root, 'realm-policy.json');
   await writeFile(policy, '{"requiredAcr":"mfa","implicitFlow":false}\n');
 
+  // A correctly configured reverse proxy: cleartext redirects rather than proxies, the
+  // upstream is loopback, TLS 1.0/1.1 are refused and the original scheme is forwarded.
+  const reverseProxy = join(root, 'nginx.conf');
+  await writeFile(
+    reverseProxy,
+    `server {
+    listen 80;
+    server_name fabric.example.org;
+    return 308 https://$host$request_uri;
+}
+server {
+    listen 443 ssl;
+    server_name fabric.example.org;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    location / {
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_pass http://127.0.0.1:4000;
+    }
+}
+`,
+  );
+
   const releaseId = 'kf-1.0.0';
   await writeFile(
     join(evidence, 'release-verification.json'),
@@ -115,6 +137,7 @@ async function commissionedHost(): Promise<{
       identityClientId: 'knowledge-fabric',
       identityPolicyPath: policy,
       identityPolicyDigest: await digestOf(policy),
+      reverseProxyConfigPath: reverseProxy,
       evidenceDirectory: evidence,
       releaseId,
       expectedNodeVersion: process.versions.node,
@@ -422,5 +445,115 @@ describe('certificate parsing', () => {
     const certificate = new X509Certificate(await readFile(certificatePath));
     expect(certificate.checkHost('fabric.example.org')).toBe('fabric.example.org');
     expect(certificate.checkHost('evil.example.org')).toBeUndefined();
+  });
+});
+
+describe('reverse proxy posture', () => {
+  const directories: string[] = [];
+  afterEach(async () => {
+    for (const directory of directories.splice(0))
+      await rm(directory, { recursive: true, force: true });
+  });
+
+  async function configured(body: string): Promise<string> {
+    const directory = await mkdtemp(join(tmpdir(), 'kf-nginx-'));
+    directories.push(directory);
+    const path = join(directory, 'site.conf');
+    await writeFile(path, body);
+    return path;
+  }
+
+  const assess = async (path: string | undefined) => {
+    const { reverseProxyPosture } = await import('./internal/commissioning/host.js');
+    return reverseProxyPosture({
+      systemdDirectory: '/etc/systemd/system',
+      shippedUnitDirectory: 'deploy/systemd',
+      certificateRenewalDays: 21,
+      rollbackRehearsalDays: 180,
+      ...(path === undefined ? {} : { reverseProxyConfigPath: path }),
+    });
+  };
+
+  const TLS_BLOCK = `server {
+    listen 443 ssl;
+    server_name fabric.example.internal;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    location / {
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_pass http://127.0.0.1:3000;
+    }
+}`;
+
+  it('accepts the configuration this repository ships', async () => {
+    // Against the real template, not a fixture resembling it. A check that passes a
+    // hand-written approximation and fails the shipped file is worse than no check.
+    const result = await assess('deploy/nginx/knowledge-fabric.conf');
+    expect(result.status, result.detail).toBe('satisfied');
+  });
+
+  it('refuses a cleartext server that proxies to the application', async () => {
+    // The sharpest failure this can catch: bearer tokens crossing the network in clear, which
+    // is precisely what KF_TLS_TERMINATED_UPSTREAM=1 asserts does not happen.
+    const path = await configured(`server {
+    listen 80;
+    server_name fabric.example.internal;
+    location / { proxy_pass http://127.0.0.1:3000; proxy_set_header X-Forwarded-Proto https; }
+}`);
+    const result = await assess(path);
+    expect(result.status).toBe('unsatisfied');
+    expect(result.detail).toContain('cleartext');
+  });
+
+  it('accepts a cleartext server that only redirects', async () => {
+    const path = await configured(`server {
+    listen 80;
+    server_name fabric.example.internal;
+    return 308 https://$host$request_uri;
+}
+${TLS_BLOCK}`);
+    expect((await assess(path)).status).toBe('satisfied');
+  });
+
+  it('refuses an upstream that is not loopback', async () => {
+    const path = await configured(TLS_BLOCK.replace('127.0.0.1', '10.0.0.9'));
+    const result = await assess(path);
+    expect(result.status).toBe('unsatisfied');
+    expect(result.detail).toContain('loopback');
+  });
+
+  it('refuses TLS 1.0 and 1.1', async () => {
+    const path = await configured(TLS_BLOCK.replace('TLSv1.2 TLSv1.3', 'TLSv1 TLSv1.2'));
+    expect((await assess(path)).status).toBe('unsatisfied');
+  });
+
+  it('refuses a proxying block that does not forward the original scheme', async () => {
+    const path = await configured(
+      TLS_BLOCK.replace('    proxy_set_header X-Forwarded-Proto https;\n', ''),
+    );
+    expect((await assess(path)).status).toBe('unsatisfied');
+  });
+
+  it('ignores a commented-out proxy_pass rather than reading it as live', async () => {
+    const path = await configured(`server {
+    listen 80;
+    server_name fabric.example.internal;
+    # location / { proxy_pass http://127.0.0.1:3000; }
+    return 308 https://$host$request_uri;
+}
+${TLS_BLOCK}`);
+    expect((await assess(path)).status).toBe('satisfied');
+  });
+
+  it('is unverifiable, not satisfied, when the file defines no server blocks', async () => {
+    // An nginx.conf that only includes other files parses to nothing here. Reporting that as
+    // a pass would be the worst outcome available: a clean result from a file never read.
+    const path = await configured('include /etc/nginx/sites-enabled/*;\n');
+    const result = await assess(path);
+    expect(result.status).toBe('unverifiable');
+    expect(result.detail).toContain('does not follow includes');
+  });
+
+  it('is unverifiable when no configuration is supplied at all', async () => {
+    expect((await assess(undefined)).status).toBe('unverifiable');
   });
 });
