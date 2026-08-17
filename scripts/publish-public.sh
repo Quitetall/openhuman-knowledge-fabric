@@ -27,6 +27,24 @@
 # WHAT IT CANNOT DECIDE, and says so rather than pretending: whether a file under `dogfood/`
 # names a real person. It lists them and requires a human to look. A name is not a pattern.
 #
+# HOW THE PUBLISH PATH WAS PROVEN, and how to prove it again after changing this file. Point
+# --remote at a local bare repository and publish a throwaway tag into it; nothing leaves the
+# machine and every claim above becomes checkable:
+#
+#   git init --bare /tmp/fake-public.git
+#   ./scripts/publish-public.sh --remote /tmp/fake-public.git --tag <tag> --publish
+#   git --git-dir=/tmp/fake-public.git rev-list --count main        # 1
+#   git --git-dir=/tmp/fake-public.git log -1 --format=%P main      # empty: a root commit
+#   git --git-dir=/tmp/fake-public.git for-each-ref | wc -l         # 1: no tags, no other branch
+#   git rev-parse '<tag>^{tree}'                                    # equal to:
+#   git --git-dir=/tmp/fake-public.git rev-parse 'main^{tree}'
+#   git --git-dir=/tmp/fake-public.git cat-file -e $(git rev-parse main)  # non-zero: no leak
+#
+# The two tree hashes matching is the claim that matters: the published bytes ARE the tag's, not
+# a copy that resembles it. The last line is the other one: the private HEAD commit is not an
+# object in the public repository at all. Both held when this was last run, along with the
+# refusal on a mismatched confirmation leaving zero refs behind.
+#
 # Usage:
 #   scripts/publish-public.sh --remote git@github.com:<org>/knowledge-fabric.git [--tag v1.0.0]
 #   scripts/publish-public.sh --remote ... --tag v1.0.0 --publish
