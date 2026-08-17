@@ -15,6 +15,20 @@ export interface UnitFacts {
 
 const DIRECTIVE = /^\s*([A-Za-z]+)\s*=\s*(.*)$/;
 const SECRET_ASSIGNMENT = /\b([A-Z0-9_]*(?:_FILE|_KEY_PATH))=(\/[^\s'"]+)/g;
+/**
+ * `test -s <path>` — the idiom every unit uses to refuse an empty secret placeholder.
+ *
+ * Added because it was missed. `/etc/kf/preservation-manifest-key` is an Ed25519 private key
+ * reached through `backup.env` at runtime rather than through a directive, so the unit names
+ * it only in its `ExecStartPre` guard. The posture check therefore never inspected the mode of
+ * a private signing key — it reported on the secrets it could see and said nothing about the
+ * one it could not, which is the failure mode a verifier exists to prevent.
+ *
+ * Only `-s`. `-d` is a directory of PUBLIC keys and `-x` is an executable; neither is a secret,
+ * and folding them in would make "every secret is closed to group and other" fail on a
+ * directory that has to be traversable.
+ */
+const SECRET_PRESENCE_TEST = /\btest\s+-s\s+(\/[^\s'"]+)/g;
 
 export function parseUnit(name: string, text: string): UnitFacts {
   let user: string | null = null;
@@ -36,6 +50,10 @@ export function parseUnit(name: string, text: string): UnitFacts {
     // `Environment=` into the command still gets checked.
     for (const match of value.matchAll(SECRET_ASSIGNMENT)) {
       const path = match[2];
+      if (path !== undefined) secretPaths.add(path);
+    }
+    for (const match of value.matchAll(SECRET_PRESENCE_TEST)) {
+      const path = match[1];
       if (path !== undefined) secretPaths.add(path);
     }
   }
@@ -120,6 +138,35 @@ export const unitProvenance: CommissioningCheckFn = async (inputs: Commissioning
     checkpoint.user !== null &&
     api.user !== checkpoint.user;
 
+  // Shared identity is only defensible when the units sharing it need exactly the same
+  // secrets. This is the check that would have caught what the API-versus-checkpoint
+  // comparison above could not: until 2026-08-17 five units ran as `kf`, so the checkpoint
+  // signing key was readable by the backup, offsite, readiness and restore-drill jobs. The
+  // narrow comparison passed the whole time, because kf-api was not among them.
+  //
+  // Stated as a property rather than a list of approved pairs, so a NEW unit dropped onto an
+  // existing identity is measured against what that identity already reaches instead of
+  // against somebody's memory of why the sharing was once fine.
+  const byUser = new Map<string, UnitFacts[]>();
+  for (const unit of installed) {
+    if (unit.user === null) continue;
+    byUser.set(unit.user, [...(byUser.get(unit.user) ?? []), unit]);
+  }
+  const unevenSharing: string[] = [];
+  for (const [user, sharing] of byUser) {
+    if (sharing.length < 2) continue;
+    const shape = (unit: UnitFacts): string => [...unit.secretPaths].sort().join(',');
+    const reference = shape(sharing[0]!);
+    if (sharing.every((unit) => shape(unit) === reference)) continue;
+    const union = [...new Set(sharing.flatMap((unit) => unit.secretPaths))].sort();
+    for (const unit of sharing) {
+      const surplus = union.filter((path) => !unit.secretPaths.includes(path));
+      if (surplus.length > 0) {
+        unevenSharing.push(`${unit.name} (as ${user}) also reaches ${surplus.join(', ')}`);
+      }
+    }
+  }
+
   const unalerted = installed.filter((unit) => unit.onFailure === null).map((unit) => unit.name);
 
   const observed = {
@@ -130,6 +177,7 @@ export const unitProvenance: CommissioningCheckFn = async (inputs: Commissioning
     apiUser: api?.user ?? null,
     checkpointUser: checkpoint?.user ?? null,
     withoutOnFailure: unalerted.join(', ') || 'none',
+    identitiesReachingSurplusSecrets: unevenSharing.join('; ') || 'none',
   };
 
   if (missing.length > 0 || altered.length > 0) {
@@ -150,6 +198,16 @@ export const unitProvenance: CommissioningCheckFn = async (inputs: Commissioning
       observed,
     };
   }
+  if (unevenSharing.length > 0) {
+    return {
+      status: 'unsatisfied',
+      detail:
+        'Units sharing a system identity do not need the same secrets, so at least one reaches ' +
+        'a key it has no use for. Filesystem permissions cannot separate what one uid owns: ' +
+        'give the unit its own identity, or explain why the surplus access is intended.',
+      observed,
+    };
+  }
   if (unalerted.length > 0) {
     return {
       status: 'unsatisfied',
@@ -161,7 +219,8 @@ export const unitProvenance: CommissioningCheckFn = async (inputs: Commissioning
     status: 'satisfied',
     detail:
       `All ${shipped.length} shipped units are installed byte-identically, the API (${observed.apiUser}) and ` +
-      `checkpoint signer (${observed.checkpointUser}) are separate identities, and every unit routes failure to an alert.`,
+      `checkpoint signer (${observed.checkpointUser}) are separate identities, no identity reaches a secret ` +
+      `its unit does not name, and every unit routes failure to an alert.`,
     observed,
   };
 };

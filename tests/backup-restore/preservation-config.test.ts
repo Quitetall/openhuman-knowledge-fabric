@@ -18,13 +18,15 @@ describe('preservation key custody deployment contract', () => {
 
     for (const unit of [backup, restore]) {
       expect(unit).toContain('EnvironmentFile=/etc/kf/backup.env');
-      expect(unit).toContain('ExecStartPre=/usr/bin/test -s /etc/kf/preservation-manifest-key');
+      expect(unit).toContain(
+        'ExecStartPre=/usr/bin/test -s /etc/kf/backup/preservation-manifest-key',
+      );
       expect(unit).toContain('ExecStartPre=/usr/bin/test -d /etc/kf/preservation-trust.d');
     }
     expect(backup).toContain('CHECKPOINT_PUBLIC_KEY_DIR=/etc/kf/checkpoint-public-keys');
     expect(environment).toContain('PRESERVATION_SIGNING_KEY_ID=replace-with-immutable-key-id');
     expect(environment).toContain(
-      'PRESERVATION_SIGNING_KEY_PATH=/etc/kf/preservation-manifest-key',
+      'PRESERVATION_SIGNING_KEY_PATH=/etc/kf/backup/preservation-manifest-key',
     );
     expect(environment).toContain('PRESERVATION_TRUST_STORE_DIR=/etc/kf/preservation-trust.d');
     expect(restore).toContain(

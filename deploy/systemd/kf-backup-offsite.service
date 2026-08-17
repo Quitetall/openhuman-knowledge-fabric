@@ -7,9 +7,11 @@ OnFailure=kf-alert@%n.service
 
 [Service]
 Type=oneshot
-User=kf
+User=kf-offsite
+Group=kf-offsite
 WorkingDirectory=/opt/kf
-Environment=DATABASE_URL_FILE=/etc/kf/database-url
+Environment=DATABASE_URL_FILE=/etc/kf/offsite/database-url
+ExecStartPre=/usr/bin/test -s /etc/kf/offsite/database-url
 # The newest directory, because it is the one the backup that just ran produced. Resolved at
 # run time rather than passed in, so a manual `systemctl start` copies the right thing.
 ExecStart=/bin/sh -c 'exec /opt/kf/scripts/backup-offsite.sh \

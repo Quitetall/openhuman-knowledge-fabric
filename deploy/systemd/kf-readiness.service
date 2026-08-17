@@ -5,9 +5,11 @@ OnFailure=kf-alert@%n.service
 
 [Service]
 Type=oneshot
-User=kf
+User=kf-readiness
+Group=kf-readiness
 WorkingDirectory=/opt/kf
-Environment=DATABASE_URL_FILE=/etc/kf/database-url
+Environment=DATABASE_URL_FILE=/etc/kf/readiness/database-url
+ExecStartPre=/usr/bin/test -s /etc/kf/readiness/database-url
 # Exits non-zero on degraded as well as failed, and on `unknown` — a check that could not run
 # counts as not ready. The alternative is a green light that means monitoring broke.
 ExecStart=/usr/bin/node /opt/kf/packages/operations/dist/cli.js

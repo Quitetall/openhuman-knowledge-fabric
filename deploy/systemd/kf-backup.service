@@ -10,12 +10,13 @@ Before=kf-backup-offsite.service
 
 [Service]
 Type=oneshot
-User=kf
+User=kf-backup
+Group=kf-backup
 WorkingDirectory=/opt/kf
-Environment=DATABASE_URL_FILE=/etc/kf/database-url
+Environment=DATABASE_URL_FILE=/etc/kf/backup/database-url
 EnvironmentFile=/etc/kf/backup.env
 Environment=CHECKPOINT_PUBLIC_KEY_DIR=/etc/kf/checkpoint-public-keys
-ExecStartPre=/usr/bin/test -s /etc/kf/preservation-manifest-key
+ExecStartPre=/usr/bin/test -s /etc/kf/backup/preservation-manifest-key
 ExecStartPre=/usr/bin/test -d /etc/kf/preservation-trust.d
 ExecStartPre=/usr/bin/test -d /etc/kf/checkpoint-public-keys
 # `%%` is systemd's escape for a literal percent, so the shell receives `date -u +%Y...`.

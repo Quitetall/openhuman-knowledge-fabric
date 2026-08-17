@@ -24,11 +24,21 @@ API also needs complete `OIDC_ISSUER` / `OIDC_AUDIENCE` / `OIDC_JWKS_URI` set an
 database/object-store secret files. Web needs reviewed public OIDC client plus owner-only
 session key. Fixed `KF_DEV_*` identity is forbidden.
 
-`kf-api`, `kf-web`, `kf-worker` and `kf-migrator` units use distinct unprivileged accounts.
-Command-local API/web listener settings prevent an environment file widening loopback binds.
-Scheduled operation units still use legacy `kf` account. Checkpoint key stays mode `0600`, owner
-`kf`; the independent preservation-manifest key has the same custody boundary. None of four
-application identities may read either private key. Host must prove denial after install.
+Every unit uses a distinct unprivileged account except `kf-backup.service` and
+`kf-restore-drill.service`, which share `kf-backup` because they need exactly the same secrets
+and the same archive. Command-local API/web listener settings prevent an environment file
+widening loopback binds.
+
+The two private keys are each owned mode `0600` by the single identity that uses them:
+`/etc/kf/checkpoint/checkpoint-key` by `kf-checkpoint`, `/etc/kf/backup/preservation-manifest-key`
+by `kf-backup`. No other identity — application or scheduled — can read either. Host must prove
+denial after install.
+
+This is stricter than it was. Until 2026-08-17 all five scheduled units ran as a shared `kf`,
+so both signing keys were readable by the backup, offsite, readiness and restore-drill jobs.
+`kf-commissioning` now refuses any host where units sharing an identity do not need the same
+secrets, which is the property that failure violated and that comparing only the API against
+the checkpoint signer could never have caught.
 
 `kf-migrate.service` is manual oneshot with no install target. It checks exact release tree,
 pinned dbmate version and matching disposable-cluster rollback receipt before reading production
@@ -75,7 +85,7 @@ sudo install -m 0640 -o root -g kf-api api.env.example /etc/kf/api.env
 sudo install -m 0640 -o root -g kf-web web.env.example /etc/kf/web.env
 sudo install -m 0640 -o root -g kf-worker worker.env.example /etc/kf/worker.env
 sudo install -m 0640 -o root -g kf-migrator migrator.env.example /etc/kf/migrator.env
-sudo install -m 0640 -o root -g kf backup.env.example /etc/kf/backup.env
+sudo install -m 0640 -o root -g kf-backup backup.env.example /etc/kf/backup.env
 
 sudo install -m 0600 -o kf-api -g kf-api /dev/null /etc/kf/api/database-url
 sudo install -m 0600 -o kf-api -g kf-api /dev/null /etc/kf/api/s3-secret-access-key
@@ -84,12 +94,39 @@ sudo install -m 0600 -o kf-worker -g kf-worker /dev/null /etc/kf/worker/database
 sudo install -m 0600 -o kf-worker -g kf-worker /dev/null /etc/kf/worker/s3-secret-access-key
 sudo install -m 0600 -o kf-migrator -g kf-migrator /dev/null /etc/kf/migrator/database-url
 
-# Existing scheduled-operation identity and secrets:
-sudo install -m 0600 -o kf -g kf /dev/null /etc/kf/database-url
-sudo install -m 0600 -o kf -g kf /dev/null /etc/kf/checkpoint-key
-sudo install -m 0600 -o kf -g kf /dev/null /etc/kf/preservation-manifest-key
-sudo install -d -m 0750 -o root -g kf /etc/kf/preservation-trust.d
-sudo install -d -m 0750 -o root -g kf /etc/kf/checkpoint-public-keys
+# Scheduled-operation identities: one per set of secrets, not one shared `kf`. Until
+# 2026-08-17 all five scheduled units ran as `kf`, which made the checkpoint signing key and
+# the preservation signing key readable by every one of them — including kf-backup-offsite,
+# whose job is moving bytes to another machine. kf-backup and kf-restore-drill share
+# `kf-backup` deliberately: they need exactly the same secrets and the same archive.
+sudo useradd --system --user-group --home-dir /nonexistent --shell /usr/sbin/nologin kf-checkpoint
+sudo useradd --system --user-group --home-dir /nonexistent --shell /usr/sbin/nologin kf-backup
+sudo useradd --system --user-group --home-dir /nonexistent --shell /usr/sbin/nologin kf-offsite
+sudo useradd --system --user-group --home-dir /nonexistent --shell /usr/sbin/nologin kf-readiness
+
+sudo install -d -m 0750 -o root -g kf-checkpoint /etc/kf/checkpoint
+sudo install -d -m 0750 -o root -g kf-backup /etc/kf/backup
+sudo install -d -m 0750 -o root -g kf-offsite /etc/kf/offsite
+sudo install -d -m 0750 -o root -g kf-readiness /etc/kf/readiness
+
+sudo install -m 0600 -o kf-checkpoint -g kf-checkpoint /dev/null /etc/kf/checkpoint/database-url
+sudo install -m 0600 -o kf-checkpoint -g kf-checkpoint /dev/null /etc/kf/checkpoint/checkpoint-key
+sudo install -m 0600 -o kf-backup -g kf-backup /dev/null /etc/kf/backup/database-url
+sudo install -m 0600 -o kf-backup -g kf-backup /dev/null /etc/kf/backup/preservation-manifest-key
+sudo install -m 0600 -o kf-offsite -g kf-offsite /dev/null /etc/kf/offsite/database-url
+sudo install -m 0600 -o kf-readiness -g kf-readiness /dev/null /etc/kf/readiness/database-url
+
+# Public trust material, read by the backup and restore-drill jobs. Public, so a shared group
+# is fine here in a way it is not for a signing key.
+sudo install -d -m 0750 -o root -g kf-backup /etc/kf/preservation-trust.d
+sudo install -d -m 0750 -o root -g kf-backup /etc/kf/checkpoint-public-keys
+
+# The archive: written by kf-backup, read by kf-offsite to ship it. Setgid so new archives stay
+# group-readable. Its contents are signed artifacts, not keys — kf-offsite holds no key at all.
+sudo groupadd --system kf-archive
+sudo usermod -aG kf-archive kf-backup
+sudo usermod -aG kf-archive kf-offsite
+sudo install -d -m 2750 -o kf-backup -g kf-archive /srv/kf-backups
 sudo install -d -m 0755 -o root -g root /usr/local/libexec
 # Install reviewed federation-specific verifier as root-owned mode 0755:
 # /usr/local/libexec/kf-verify-object-store
@@ -117,7 +154,7 @@ register the exact digests, qualification state, and any ratification receipt.
 
 ### Preservation signing-key custody
 
-`/etc/kf/preservation-manifest-key` is an Ed25519 private key in external owner-only custody;
+`/etc/kf/backup/preservation-manifest-key` is an Ed25519 private key in external owner-only custody;
 it is never generated by this repository, copied into a release, or included in a backup.
 `/etc/kf/preservation-trust.d` is the independently preserved historical public trust store.
 It contains only regular UTF-8 PEM files named `<immutable-key-id>.pub`. Treat that directory

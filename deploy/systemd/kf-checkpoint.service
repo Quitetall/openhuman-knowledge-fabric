@@ -6,18 +6,26 @@ OnFailure=kf-alert@%n.service
 
 [Service]
 Type=oneshot
-User=kf
+# Its own identity, not the shared `kf`. Until 2026-08-17 this unit ran as `kf` alongside
+# kf-backup, kf-backup-offsite, kf-readiness and kf-restore-drill, which made the signing key
+# readable by all four — including the offsite job, whose entire purpose is moving bytes to
+# another machine. The directives below deny the API; only a separate uid denies the siblings,
+# because filesystem permissions cannot separate what one uid owns.
+User=kf-checkpoint
+Group=kf-checkpoint
 WorkingDirectory=/opt/kf
 # Files, not inline values. An environment variable is readable from /proc/<pid>/environ by
 # anything running as the same user and is printed in full by most crash reporters.
-Environment=DATABASE_URL_FILE=/etc/kf/database-url
-Environment=CHECKPOINT_SIGNING_KEY_PATH=/etc/kf/checkpoint-key
+Environment=DATABASE_URL_FILE=/etc/kf/checkpoint/database-url
+Environment=CHECKPOINT_SIGNING_KEY_PATH=/etc/kf/checkpoint/checkpoint-key
+ExecStartPre=/usr/bin/test -s /etc/kf/checkpoint/database-url
+ExecStartPre=/usr/bin/test -s /etc/kf/checkpoint/checkpoint-key
 ExecStart=/usr/bin/node /opt/kf/apps/checkpoint/dist/main.js --run
 
-# The signing key is the one secret in this system that the API must never be able to read:
-# an attacker who has the API has the database, and a signature they can forge proves nothing.
-# This unit is where it lives, and these directives are why "the API cannot reach it" is a
-# property of the host rather than a promise about the code.
+# The signing key is the one secret in this system that nothing else may read: an attacker who
+# has the API has the database, and a signature they can forge proves nothing. This unit is
+# where it lives, and these directives plus the dedicated uid above are why "nothing else can
+# reach it" is a property of the host rather than a promise about the code.
 NoNewPrivileges=true
 PrivateTmp=true
 PrivateDevices=true

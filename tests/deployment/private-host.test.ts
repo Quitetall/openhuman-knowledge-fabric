@@ -169,6 +169,75 @@ describe('private-host service boundary', () => {
     });
   }
 
+  it('gives no identity a secret that one of its units does not need', async () => {
+    // Checked against the shipped units in the repository, not only on a host at commissioning
+    // time. Until 2026-08-17 five scheduled units ran as a shared `kf`, so the checkpoint
+    // signing key and the preservation signing key were readable by the backup, offsite,
+    // readiness and restore-drill jobs — including the one whose whole purpose is moving bytes
+    // to another machine.
+    //
+    // The per-unit test above asserts kf-api/web/worker do not name CHECKPOINT_SIGNING_KEY, and
+    // it passed the entire time, because it asks about the three units that were never the
+    // problem. Sharing is allowed — kf-backup.service and kf-restore-drill.service share
+    // `kf-backup` on purpose — but only between units needing exactly the same secrets, because
+    // filesystem permissions cannot separate what one uid owns.
+    const { readUnits } =
+      await import('../../packages/operations/src/internal/commissioning/units.js');
+    const units = await readUnits(join(ROOT, 'deploy', 'systemd'));
+    expect(units.length, 'no units parsed, so this check proves nothing').toBeGreaterThan(5);
+
+    const byUser = new Map<string, typeof units>();
+    for (const unit of units) {
+      if (unit.user === null) continue;
+      byUser.set(unit.user, [...(byUser.get(unit.user) ?? []), unit]);
+    }
+
+    const surplus: string[] = [];
+    for (const [user, sharing] of byUser) {
+      if (sharing.length < 2) continue;
+      const union = [...new Set(sharing.flatMap((unit) => unit.secretPaths))].sort();
+      for (const unit of sharing) {
+        const extra = union.filter((path) => !unit.secretPaths.includes(path));
+        if (extra.length > 0) {
+          surplus.push(`${unit.name} (as ${user}) also reaches ${extra.join(', ')}`);
+        }
+      }
+    }
+    expect(
+      surplus,
+      'these units share a uid with a unit that needs different secrets, so at least one can ' +
+        'read a key it has no use for. Give it its own identity.',
+    ).toEqual([]);
+
+    // Non-vacuous: the property holds trivially of a fleet where nothing shares an identity,
+    // so the one intentional sharing is pinned by name.
+    expect(
+      byUser
+        .get('kf-backup')
+        ?.map((unit) => unit.name)
+        .sort(),
+    ).toEqual(['kf-backup.service', 'kf-restore-drill.service']);
+  });
+
+  it('lets exactly one identity hold each private signing key', async () => {
+    const { readUnits } =
+      await import('../../packages/operations/src/internal/commissioning/units.js');
+    const units = await readUnits(join(ROOT, 'deploy', 'systemd'));
+    for (const key of ['checkpoint-key', 'preservation-manifest-key']) {
+      const holders = [
+        ...new Set(
+          units
+            .filter((unit) => unit.secretPaths.some((path) => path.endsWith(key)))
+            .map((unit) => unit.user),
+        ),
+      ];
+      expect(
+        holders,
+        `${key} is reachable by ${holders.length} identities; a signing key belongs to one`,
+      ).toHaveLength(1);
+    }
+  });
+
   it('refuses empty secret placeholders before application processes start', () => {
     const api = readFileSync(join(ROOT, 'deploy', 'systemd', 'kf-api.service'), 'utf8');
     const web = readFileSync(join(ROOT, 'deploy', 'systemd', 'kf-web.service'), 'utf8');

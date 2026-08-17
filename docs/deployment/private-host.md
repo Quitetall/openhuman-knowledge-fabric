@@ -482,8 +482,16 @@ reports on it rather than a paragraph describing it:
 - no concrete `kf-alert@.service` integration;
 - no reviewed native `kf-document-v1` Liminal artifact, external runtime-closure inventory or
   human-ratified qualification receipt has been supplied by this repository;
-- scheduled operation units still share `kf` identity; checkpoint key isolation from API is
-  designed by separate service user, but filesystem denial remains host evidence gate.
+- key isolation is now expressed in the units — each private key is owned mode `0600` by the
+  one identity that uses it — but **filesystem denial remains host evidence**. The units say
+  who may read a key; only the installed host proves nobody else can.
+
+  This line previously read "scheduled operation units still share `kf` identity". They did:
+  five units ran as one account, so both signing keys were readable by the backup, offsite,
+  readiness and restore-drill jobs, including the one whose purpose is copying bytes to another
+  machine. Fixed 2026-08-17 by giving each its own identity. `kf-commissioning` now refuses a
+  host where units sharing an identity do not need the same secrets — the property that failure
+  violated, and one that comparing only the API against the checkpoint signer could not catch.
 
 Until those are implemented and the host evidence exists, this document is a target and a
 fail-closed checklist. It must not be cited as proof that the Knowledge Fabric is an
