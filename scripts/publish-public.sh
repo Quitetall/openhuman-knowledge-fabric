@@ -33,6 +33,14 @@
 
 set -euo pipefail
 
+# Sourced for `kf_at_exit`, not for anything to do with passwords. A bare `trap ... EXIT`
+# REPLACES whatever handler is already installed rather than adding to it, which is how a
+# temporary credential file survived a script twice in this repository —
+# `tests/backup-restore/script-credentials.test.ts` now refuses a bare trap in any script here,
+# and refused this one. Sourcing arms the shared dispatcher; the cost is one unused mktemp.
+# shellcheck source=lib/secret.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/secret.sh"
+
 die() {
   printf '\nREFUSING: %s\n' "$*" >&2
   exit 1
@@ -109,7 +117,7 @@ note "public remote ${resolved_remote}"
 # a licence that the published bytes did not contain.
 # ---------------------------------------------------------------------------------------------
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+kf_at_exit 'rm -rf "$work"'
 tree="${work}/tree"
 mkdir -p "$tree"
 git archive "$tag" | tar -x -C "$tree"
