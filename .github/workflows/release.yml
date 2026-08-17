@@ -90,7 +90,20 @@ jobs:
       - name: Generate CycloneDX SBOM
         run: pnpm sbom --sbom-format cyclonedx --sbom-spec-version 1.6 --out sbom.cdx.json
 
+      # A tag push does NOT create a GitHub Release. `gh release upload` against a tag that has
+      # no release fails with "release not found", so the first real tag would have generated a
+      # bill of materials and then thrown it away — a failure that could only show up on release
+      # day. Create if absent, then upload, so the step is correct whether the release was made
+      # by hand first or not.
+      #
+      # `--verify-tag` refuses to create a release for a tag that does not exist, so a mistyped
+      # or deleted ref fails here instead of silently publishing an empty release.
       - name: Attach to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${GITHUB_REF_NAME}" sbom.cdx.json --clobber
+        run: |
+          set -euo pipefail
+          if ! gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release create "${GITHUB_REF_NAME}" --verify-tag --generate-notes
+          fi
+          gh release upload "${GITHUB_REF_NAME}" sbom.cdx.json --clobber

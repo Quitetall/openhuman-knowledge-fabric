@@ -162,6 +162,11 @@ describe('the local gate command and CI agree on what a gate is', () => {
     const body = workflow.slice(workflow.indexOf('\njobs:'));
 
     // Job names are the two-space keys under `jobs:`; step lines are anything more indented.
+    //
+    // The character class is the whole set GitHub allows in a job id, not the set this file
+    // happens to use. An earlier version accepted `[a-z][a-z0-9-]*`, which silently skipped
+    // `DB-Migration` and `build_docs` — and a job this loop never sees is a job that cannot be
+    // reported as shell-only, which is the one thing the assertion is for.
     const shellOnly: string[] = [];
     let current: string | null = null;
     let sawPnpm = false;
@@ -169,7 +174,7 @@ describe('the local gate command and CI agree on what a gate is', () => {
       if (current !== null && !sawPnpm) shellOnly.push(current);
     };
     for (const line of body.split('\n')) {
-      const job = /^ {2}([a-z][a-z0-9-]*):\s*$/.exec(line);
+      const job = /^ {2}([A-Za-z_][A-Za-z0-9_-]*):\s*$/.exec(line);
       if (job !== null) {
         finish();
         current = job[1]!;

@@ -53,6 +53,11 @@ chosen to be READABLE so a failing assertion says which attempt it was, which is
 generic-api-key rule's entropy heuristic reaches for them. Scoped to the assignment shape and to
 lowercase-dashed words, so a real key assigned to the same field is still reported.
 """
+# The four trailing apostrophes are not a typo and not a doubled quote in the pattern: TOML
+# allows one or two apostrophes inside a ''' literal, so this is ONE apostrophe of regex
+# followed by the closing delimiter. The pattern is idempotencyKey:\s*'[a-z][a-z0-9-]{3,39}' —
+# confirm with `python3 -c "import tomllib;print(tomllib.load(open('.gitleaks.toml','rb')))"`
+# rather than by counting quotes, and note that writing it as ...{3,39}''] does not parse.
 regexes = ['''idempotencyKey:\s*'[a-z][a-z0-9-]{3,39}'''']
 regexTarget = "match"
 

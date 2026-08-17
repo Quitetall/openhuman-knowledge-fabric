@@ -133,6 +133,15 @@ jobs:
       # The gitleaks CLI itself is MIT. Pinned by version AND sha256, verified against the
       # project's published `gitleaks_8.30.1_checksums.txt`, so a replaced release asset fails the
       # job rather than scanning with an unknown binary.
+      #
+      # THAT VERIFICATION WAS DONE ONCE, BY HAND, AND CANNOT BE DONE HERE. Re-downloading the
+      # checksums file from the same release and comparing against it would be circular: an
+      # attacker able to replace the tarball can replace the checksums beside it. The pin is the
+      # trust anchor, so bumping GITLEAKS_VERSION means re-establishing it out of band —
+      # https://github.com/gitleaks/gitleaks/releases/download/v<version>/gitleaks_<version>_checksums.txt
+      # read from a machine that is not the one being attacked, not copied out of the diff being
+      # reviewed. Bumping the version WITHOUT updating the hash is the safe failure and already
+      # fails this step loudly.
       - name: Install gitleaks
         env:
           GITLEAKS_VERSION: 8.30.1
