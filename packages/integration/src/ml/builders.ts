@@ -64,7 +64,8 @@ export function actionForRunLineageRegistration(
     recipeRefId: input.recipeRefId,
     environmentRefId: input.environmentRefId,
     metricPolicyRefId: input.metricPolicyRefId,
-  })) requireUuid(value, field);
+  }))
+    requireUuid(value, field);
   const arrays = [input.inputRefIds, input.outputRefIds, input.parentModelRefIds];
   if (input.inputRefIds.length === 0 || input.outputRefIds.length === 0) {
     rejected('run lineage requires at least one input and output reference');
@@ -100,15 +101,19 @@ export function actionForMetricDefinitionRegistration(
   requireUuid(input.definitionRefId, 'definitionRefId');
   requireGovernedId(input.metricId, 'metricId');
   if (input.unitId !== null) requireGovernedId(input.unitId, 'unitId');
-  input.allowedEnumIds.forEach((value, index) => requireGovernedId(value, `allowedEnumIds[${index}]`));
+  input.allowedEnumIds.forEach((value, index) =>
+    requireGovernedId(value, `allowedEnumIds[${index}]`),
+  );
   if (new Set(input.allowedEnumIds).size !== input.allowedEnumIds.length) {
     rejected('allowedEnumIds must be unique');
   }
   if (
     (input.valueKind === 'number' && (input.unitId === null || input.allowedEnumIds.length > 0)) ||
-    (input.valueKind === 'safe_enum' && (input.unitId !== null || input.allowedEnumIds.length === 0)) ||
+    (input.valueKind === 'safe_enum' &&
+      (input.unitId !== null || input.allowedEnumIds.length === 0)) ||
     (input.valueKind === 'timestamp' && (input.unitId !== null || input.allowedEnumIds.length > 0))
-  ) rejected('metric definition does not match its value kind');
+  )
+    rejected('metric definition does not match its value kind');
   return {
     actionType: ML_ACTION_TYPES.registerMetricDefinition,
     targetId: input.organizationId,
@@ -130,8 +135,10 @@ export function actionForMetricSegmentRegistration(
   requireUuid(input.segmentId, 'segmentId');
   requireUuid(input.segmentRefId, 'segmentRefId');
   requireUuid(input.runLineageId, 'runLineageId');
-  if (input.segment.run.organizationId !== input.organizationId ||
-      input.segment.segment.organizationId !== input.organizationId) {
+  if (
+    input.segment.run.organizationId !== input.organizationId ||
+    input.segment.segment.organizationId !== input.organizationId
+  ) {
     rejected('metric segment must belong to the action organization');
   }
   requireDigest(input.segment.eventManifestDigest, 'segment.eventManifestDigest');

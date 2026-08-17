@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { digest } from '@kf/canonicalization';
-import {
-  createMetricSegment,
-  createRunLineage,
-  type AggregateReference,
-} from '@kf/ml-registry';
+import { createMetricSegment, createRunLineage, type AggregateReference } from '@kf/ml-registry';
 
 import {
   actionForAggregateReferenceRegistration,

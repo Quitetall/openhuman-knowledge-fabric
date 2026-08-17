@@ -103,9 +103,7 @@ export function lamQuantExpectedManifestIdentity(
   return lamQuantManifestIdentity(commitSha, validateExpectedManifest(entries));
 }
 
-export function validateCompatibilityOptions(
-  options: LamQuantCompatibilityOptions,
-): {
+export function validateCompatibilityOptions(options: LamQuantCompatibilityOptions): {
   readonly manifest: readonly LamQuantManifestEntry[];
   readonly expectedManifestDigest: string;
 } {
@@ -202,9 +200,7 @@ async function inspectSubmodulePins(
     .sort((left, right) => compareCanonicalText(left.path, right.path));
 }
 
-function assertSubmoduleLine(
-  line: string,
-): { readonly path: string; readonly commitSha: string } {
+function assertSubmoduleLine(line: string): { readonly path: string; readonly commitSha: string } {
   if (line.startsWith('-')) {
     throw new LamQuantCompatibilityRejected(
       'missing_input',

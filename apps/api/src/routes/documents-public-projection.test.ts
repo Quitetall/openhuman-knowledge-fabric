@@ -3,10 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { digestOf } from '@kf/artifacts';
 import type { Pool } from '@kf/database';
 import { registerDocumentRoutes } from './documents.js';
-import type {
-  ApprovedPublicProjection,
-  DocumentRoutesOptions,
-} from './documents/contracts.js';
+import type { ApprovedPublicProjection, DocumentRoutesOptions } from './documents/contracts.js';
 
 const request = {
   publicationId: 'publication-1',

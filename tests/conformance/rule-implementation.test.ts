@@ -89,9 +89,9 @@ const LOCAL_FAMILIES: readonly string[] = [
 function declaredRules(): ReadonlyMap<string, string> {
   const yaml = readFileSync(join(ROOT, 'ontology', 'rules.yaml'), 'utf8');
   const rules = new Map<string, string>(
-    [
-      ...yaml.matchAll(/- id:\s*(KF-[A-Z0-9-]+)[\s\S]*?implementation:\s*\[([^\]]*)\]/g),
-    ].map((match) => [match[1]!, match[2]!]),
+    [...yaml.matchAll(/- id:\s*(KF-[A-Z0-9-]+)[\s\S]*?implementation:\s*\[([^\]]*)\]/g)].map(
+      (match) => [match[1]!, match[2]!],
+    ),
   );
   expect(rules.size, 'no invariants parsed out of ontology/rules.yaml').toBeGreaterThan(5);
   return rules;
@@ -152,9 +152,7 @@ describe('every refusal code is traceable to a rule, or explicitly is not one', 
     const dangling = FAMILY_IMPLEMENTS.filter(([, rule]) => !declared.has(rule)).map(
       ([family, rule]) => `${family} -> ${rule}`,
     );
-    expect(dangling, 'these families claim to implement invariants that do not exist').toEqual(
-      [],
-    );
+    expect(dangling, 'these families claim to implement invariants that do not exist').toEqual([]);
   });
 
   it('leaves no invariant claiming to be a precondition with nothing raising it', () => {

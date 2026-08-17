@@ -68,7 +68,15 @@ export async function materializeLamQuantGitObjects(
     await requireSuccess(
       runner.run({
         executable: 'git',
-        args: ['clone', '--shared', '--no-checkout', '--no-tags', '--', sourcePath, destinationPath],
+        args: [
+          'clone',
+          '--shared',
+          '--no-checkout',
+          '--no-tags',
+          '--',
+          sourcePath,
+          destinationPath,
+        ],
         cwd: dirname(destinationPath),
       }),
       `LamQuant submodule '${path}' Git-object materialization failed`,
@@ -154,7 +162,10 @@ async function checkoutCommit(
   }
 }
 
-async function requireSuccess(result: Promise<LamQuantCommandResult>, message: string): Promise<void> {
+async function requireSuccess(
+  result: Promise<LamQuantCommandResult>,
+  message: string,
+): Promise<void> {
   const resolved = await result;
   if (!commandSucceeded(resolved)) {
     throw new LamQuantCompatibilityRejected(

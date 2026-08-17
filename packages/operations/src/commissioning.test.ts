@@ -24,7 +24,9 @@ import {
 const roots: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(async (root) => rm(root, { force: true, recursive: true })));
+  await Promise.all(
+    roots.splice(0).map(async (root) => rm(root, { force: true, recursive: true })),
+  );
 });
 
 async function scratch(): Promise<string> {
@@ -65,12 +67,7 @@ async function commissionedHost(): Promise<{
   const systemd = join(root, 'systemd');
   const secrets = join(root, 'secrets');
   const evidence = join(root, 'evidence');
-  await Promise.all([
-    mkdir(shipped),
-    mkdir(systemd),
-    mkdir(secrets),
-    mkdir(evidence),
-  ]);
+  await Promise.all([mkdir(shipped), mkdir(systemd), mkdir(secrets), mkdir(evidence)]);
 
   const api = API_UNIT.replaceAll('SECRET_DIR', secrets).replace(
     '/nonexistent/api.env',
@@ -223,13 +220,19 @@ describe('planted violations — commissioning must refuse', () => {
     const { inputs, systemd, secrets } = await commissionedHost();
     await writeFile(
       join(systemd, 'kf-checkpoint.service'),
-      CHECKPOINT_UNIT.replaceAll('SECRET_DIR', secrets).replace('User=kf-checkpoint', 'User=kf-api'),
+      CHECKPOINT_UNIT.replaceAll('SECRET_DIR', secrets).replace(
+        'User=kf-checkpoint',
+        'User=kf-api',
+      ),
     );
     // Also update the shipped copy, so provenance passes and identity separation is the only
     // thing that can fail — otherwise this test would pass for the wrong reason.
     await writeFile(
       join(inputs.shippedUnitDirectory!, 'kf-checkpoint.service'),
-      CHECKPOINT_UNIT.replaceAll('SECRET_DIR', secrets).replace('User=kf-checkpoint', 'User=kf-api'),
+      CHECKPOINT_UNIT.replaceAll('SECRET_DIR', secrets).replace(
+        'User=kf-checkpoint',
+        'User=kf-api',
+      ),
     );
     const entry = check(await assessCommissioning(inputs), 'unit_provenance');
     expect(entry.status).toBe('unsatisfied');

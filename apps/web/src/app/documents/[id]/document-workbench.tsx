@@ -75,7 +75,9 @@ export function DocumentWorkbench({
         ) : null}
         {tab === 'Composition' ? <CompositionPanel workspace={workspace} /> : null}
         {tab === 'Navigation' ? <NavigationPanel workspace={workspace} /> : null}
-        {tab === 'Provenance' ? <ProvenancePanel document={document} workspace={workspace} /> : null}
+        {tab === 'Provenance' ? (
+          <ProvenancePanel document={document} workspace={workspace} />
+        ) : null}
         {tab === 'Diagnostics' ? (
           <DiagnosticsPanel document={document} workspace={workspace} />
         ) : null}

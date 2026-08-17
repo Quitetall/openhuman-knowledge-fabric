@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  SecureObjectSignerConfigError,
-  loadSecureObjectSignerConfig,
-} from './config.js';
+import { SecureObjectSignerConfigError, loadSecureObjectSignerConfig } from './config.js';
 
 describe('secure-object signer configuration', () => {
   it('keeps the external signer absent unless explicitly configured', () => {
@@ -54,10 +51,7 @@ describe('secure-object signer configuration', () => {
     'https://soa.example.test/sign#fragment',
   ])('rejects credential-bearing or ambiguous signer URL %s', (url) => {
     expect(() =>
-      loadSecureObjectSignerConfig(
-        { KF_SECURE_OBJECT_ERASURE_SIGNER_URL: url },
-        'production',
-      ),
+      loadSecureObjectSignerConfig({ KF_SECURE_OBJECT_ERASURE_SIGNER_URL: url }, 'production'),
     ).toThrow(SecureObjectSignerConfigError);
   });
 

@@ -71,8 +71,7 @@ export interface ReplaceCompositionInputsProposal {
 }
 
 export type DocumentProposalOperation =
-  | ReplaceFragmentSourceProposal
-  | ReplaceCompositionInputsProposal;
+  ReplaceFragmentSourceProposal | ReplaceCompositionInputsProposal;
 
 export interface DocumentProposalInput {
   readonly proposalId: string;
@@ -301,7 +300,10 @@ export function parseDocumentProposalInput(value: unknown): DocumentProposalInpu
     throw new Error('proposalKind is invalid');
   }
   const operation = parseDocumentProposalOperation(input['operation']);
-  if (input['proposalKind'] === 'source_patch' && operation.operation !== 'replace_fragment_source') {
+  if (
+    input['proposalKind'] === 'source_patch' &&
+    operation.operation !== 'replace_fragment_source'
+  ) {
     throw new Error('source_patch proposalKind requires replace_fragment_source');
   }
   if (

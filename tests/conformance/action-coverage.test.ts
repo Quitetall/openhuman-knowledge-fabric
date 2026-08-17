@@ -80,11 +80,9 @@ describe('the ontology and the dispatcher agree on what an action is', () => {
     // documents package already uses for local conditions.
     const rules = readFileSync(join(ROOT, 'ontology', 'rules.yaml'), 'utf8');
     const declared = new Map<string, string>(
-      [
-        ...rules.matchAll(
-          /- id:\s*(KF-[A-Z0-9-]+)[\s\S]*?implementation:\s*\[([^\]]*)\]/g,
-        ),
-      ].map((match) => [match[1]!, match[2]!]),
+      [...rules.matchAll(/- id:\s*(KF-[A-Z0-9-]+)[\s\S]*?implementation:\s*\[([^\]]*)\]/g)].map(
+        (match) => [match[1]!, match[2]!],
+      ),
     );
     expect(declared.size, 'no invariants parsed out of ontology/rules.yaml').toBeGreaterThan(5);
 
@@ -93,9 +91,7 @@ describe('the ontology and the dispatcher agree on what an action is', () => {
       ['-rho', '--include=*.ts', "refuse[A-Za-z]*(\\s*'KF-[A-Z0-9-]*'", 'packages', 'apps'],
       { cwd: ROOT, encoding: 'utf8' },
     );
-    const used = new Set(
-      [...sources.matchAll(/'(KF-[A-Z0-9-]+)'/g)].map((match) => match[1]!),
-    );
+    const used = new Set([...sources.matchAll(/'(KF-[A-Z0-9-]+)'/g)].map((match) => match[1]!));
 
     const misapplied = [...used]
       .filter((id) => declared.has(id))

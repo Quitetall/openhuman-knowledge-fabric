@@ -96,10 +96,7 @@ export const unitProvenance: CommissioningCheckFn = async (inputs: Commissioning
     };
   }
   try {
-    installed = await readUnits(
-      inputs.systemdDirectory,
-      new Set(shipped.map((unit) => unit.name)),
-    );
+    installed = await readUnits(inputs.systemdDirectory, new Set(shipped.map((unit) => unit.name)));
   } catch (error: unknown) {
     return {
       status: 'unverifiable',
@@ -123,9 +120,7 @@ export const unitProvenance: CommissioningCheckFn = async (inputs: Commissioning
     checkpoint.user !== null &&
     api.user !== checkpoint.user;
 
-  const unalerted = installed
-    .filter((unit) => unit.onFailure === null)
-    .map((unit) => unit.name);
+  const unalerted = installed.filter((unit) => unit.onFailure === null).map((unit) => unit.name);
 
   const observed = {
     shippedUnits: shipped.length,

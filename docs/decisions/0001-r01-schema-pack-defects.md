@@ -132,12 +132,12 @@ Until then the pack remains non-normative under §1.2, and this repository treat
 
 **Decision point 1 is accepted.** All four corrections stand as written:
 
-| Defect | Correction accepted |
-|---|---|
-| R01-DEFECT-002 | add `parked → triage` (`triage_initiative`) |
+| Defect         | Correction accepted                               |
+| -------------- | ------------------------------------------------- |
+| R01-DEFECT-002 | add `parked → triage` (`triage_initiative`)       |
 | R01-DEFECT-003 | remove `accepted` from `decision_record.terminal` |
-| R01-DEFECT-004 | add `disputed → approved` and `disputed → void` |
-| R01-DEFECT-005 | remove `reconciled` from `payment.terminal` |
+| R01-DEFECT-004 | add `disputed → approved` and `disputed → void`   |
+| R01-DEFECT-005 | remove `reconciled` from `payment.terminal`       |
 
 R01-DEFECT-001 needed no decision: it was our extraction error, the pack was always right, and
 it is recorded only as evidence that the consistency gate earns its place.

@@ -367,10 +367,10 @@ KF_EXPECTED_NODE_VERSION=24.18.1 \
 Exit status is 0 only when every check is **satisfied**. There are three states, and the third
 is the point:
 
-| state | meaning |
-|---|---|
-| `satisfied` | the check looked at real host state and it was as required |
-| `unsatisfied` | the check looked at real host state and it was not |
+| state          | meaning                                                                     |
+| -------------- | --------------------------------------------------------------------------- |
+| `satisfied`    | the check looked at real host state and it was as required                  |
+| `unsatisfied`  | the check looked at real host state and it was not                          |
 | `unverifiable` | the check could not see what it needs — an absent path, an unsupplied value |
 
 `unverifiable` fails exactly as `unsatisfied` does. It is a separate word only so that "we
@@ -380,14 +380,14 @@ it.
 
 What each check reads, and the blocker it closes:
 
-| check | reads | blocker |
-|---|---|---|
-| `unit_provenance` | installed units against the ones this release ships, byte for byte; `User=` on the API and checkpoint units; `OnFailure=` on each | units installed, identities separated, alerting wired |
-| `secret_posture` | every path a shipped unit names as `EnvironmentFile=` or `*_FILE=`/`*_KEY_PATH=`: exists, regular file, no group or other bits | checkpoint key isolation from the API |
-| `tls_termination` | the certificate for the public hostname — SAN coverage, validity window, renewal margin — and the private key's mode | site hostname, certificate, TLS termination |
-| `identity_provider_policy` | issuer is https, client is named, and the reviewed realm policy on disk still digests to what was reviewed | reviewed reproducible Keycloak realm/client policy |
-| `runtime_version` | the Node version this process runs, against the tested one | host uses the exact tested runtime |
-| `evidence_receipts` | release verification, rollback rehearsal and compiler qualification receipts: present, naming this release, ratified, recent enough | rollback receipt, migration result, ratified compiler qualification |
+| check                      | reads                                                                                                                               | blocker                                                             |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `unit_provenance`          | installed units against the ones this release ships, byte for byte; `User=` on the API and checkpoint units; `OnFailure=` on each   | units installed, identities separated, alerting wired               |
+| `secret_posture`           | every path a shipped unit names as `EnvironmentFile=` or `*_FILE=`/`*_KEY_PATH=`: exists, regular file, no group or other bits      | checkpoint key isolation from the API                               |
+| `tls_termination`          | the certificate for the public hostname — SAN coverage, validity window, renewal margin — and the private key's mode                | site hostname, certificate, TLS termination                         |
+| `identity_provider_policy` | issuer is https, client is named, and the reviewed realm policy on disk still digests to what was reviewed                          | reviewed reproducible Keycloak realm/client policy                  |
+| `runtime_version`          | the Node version this process runs, against the tested one                                                                          | host uses the exact tested runtime                                  |
+| `evidence_receipts`        | release verification, rollback rehearsal and compiler qualification receipts: present, naming this release, ratified, recent enough | rollback receipt, migration result, ratified compiler qualification |
 
 `unit_provenance` and `secret_posture` consider only the unit names this release ships.
 Everything else installed on the host is somebody else's contract, and an earlier version that

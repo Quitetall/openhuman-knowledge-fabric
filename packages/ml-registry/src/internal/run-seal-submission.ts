@@ -1,4 +1,11 @@
-import { assertExactKeys, checkedEd25519Signature, checkedOrganizationId, checkedSha256, checkedTimestamp, reject } from './validation.js';
+import {
+  assertExactKeys,
+  checkedEd25519Signature,
+  checkedOrganizationId,
+  checkedSha256,
+  checkedTimestamp,
+  reject,
+} from './validation.js';
 
 const WORKLOAD_IDENTITY = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,254}$/u;
 const SIGNING_KEY_ID = /^[A-Za-z0-9][A-Za-z0-9._:@+-]{0,127}$/u;

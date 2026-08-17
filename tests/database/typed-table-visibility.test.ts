@@ -254,10 +254,7 @@ describe('typed rows are visible exactly when their record is', () => {
     const stillHidden = await withTransaction(h.pool, async (tx) =>
       tx.one<{ n: string }>('select count(*)::text as n from core.action'),
     );
-    expect(
-      Number(stillHidden.n),
-      'and the same action stays invisible without a context',
-    ).toBe(0);
+    expect(Number(stillHidden.n), 'and the same action stays invisible without a context').toBe(0);
   });
 
   it('keeps the identity mapping off the direct-reader roles entirely', async () => {

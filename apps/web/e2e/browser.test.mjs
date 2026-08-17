@@ -1033,11 +1033,11 @@ test(
       );
       await page.getByRole('tab', { name: 'Composition' }).click();
       await assert.doesNotReject(() => page.getByText('Constitution composition').waitFor());
-      await assert.doesNotReject(() =>
-        page.getByText(/Constitution source fragment/).waitFor(),
-      );
+      await assert.doesNotReject(() => page.getByText(/Constitution source fragment/).waitFor());
       await page.getByRole('tab', { name: 'Navigation' }).click();
-      await assert.doesNotReject(() => page.getByText('Policy register', { exact: true }).waitFor());
+      await assert.doesNotReject(() =>
+        page.getByText('Policy register', { exact: true }).waitFor(),
+      );
       await assert.doesNotReject(() =>
         page.getByText('ADR-0002 Liminal-backed compiler', { exact: true }).waitFor(),
       );

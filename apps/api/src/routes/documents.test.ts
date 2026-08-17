@@ -275,8 +275,7 @@ describe('POST /documents fabric-native source', () => {
     const store = new InMemoryObjectStore();
     const putIfAbsent = vi.spyOn(store, 'putIfAbsent');
     const preflightInTransaction = vi.fn(
-      async (_tx: Tx, _request: ActionRequest, _objects: readonly ObjectRow[] = []) =>
-        undefined,
+      async (_tx: Tx, _request: ActionRequest, _objects: readonly ObjectRow[] = []) => undefined,
     );
     const app = Fastify({ logger: false });
     await registerDocumentRoutes(app, {
@@ -403,8 +402,7 @@ describe('POST /documents fabric-native source', () => {
       return actionResult('33333333-3333-7333-8333-333333333333', [DOCUMENT_ID], true);
     });
     const preflightInTransaction = vi.fn(
-      async (_tx: Tx, _request: ActionRequest, _objects: readonly ObjectRow[] = []) =>
-        undefined,
+      async (_tx: Tx, _request: ActionRequest, _objects: readonly ObjectRow[] = []) => undefined,
     );
     const app = Fastify({ logger: false });
     await registerDocumentRoutes(app, {
@@ -485,8 +483,7 @@ describe('POST /documents fabric-native source', () => {
         : actionResult('33333333-3333-7333-8333-333333333333', [DOCUMENT_ID], true);
     });
     const preflightInTransaction = vi.fn(
-      async (_tx: Tx, _request: ActionRequest, _objects: readonly ObjectRow[] = []) =>
-        undefined,
+      async (_tx: Tx, _request: ActionRequest, _objects: readonly ObjectRow[] = []) => undefined,
     );
     const app = Fastify({ logger: false });
     await registerDocumentRoutes(app, {

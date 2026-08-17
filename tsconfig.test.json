@@ -8,9 +8,7 @@
     "declarationMap": false,
     "sourceMap": false,
     "incremental": false,
-    "types": [
-      "node"
-    ]
+    "types": ["node"]
   },
   "include": [
     "packages/*/src/**/*.test.ts",
@@ -19,9 +17,5 @@
     "apps/checkpoint/src/**/*.test.ts",
     "tests/**/*.ts"
   ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "**/dist/**"
-  ]
+  "exclude": ["node_modules", "dist", "**/dist/**"]
 }

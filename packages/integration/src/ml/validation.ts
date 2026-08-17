@@ -156,7 +156,11 @@ function requireExactPayload(request: ActionRequest, keys: readonly string[]): v
 export function payloadStringArray(
   request: ActionRequest,
   key: string,
-  options: { readonly requireOne?: boolean; readonly digest?: boolean; readonly uuid?: boolean } = {},
+  options: {
+    readonly requireOne?: boolean;
+    readonly digest?: boolean;
+    readonly uuid?: boolean;
+  } = {},
 ): readonly string[] {
   const value = request.payload?.[key];
   if (!Array.isArray(value) || (options.requireOne === true && value.length === 0)) {

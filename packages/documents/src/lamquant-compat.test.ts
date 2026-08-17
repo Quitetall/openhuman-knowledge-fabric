@@ -368,7 +368,9 @@ describe('LamQuant compatibility oracle preconditions', () => {
 
     await expect(
       runLamQuantCompatibilityOracle(
-        pinnedOptions('/source/lamquant', 'main', [{ path: 'docs/MASTER.md', sha256: '0'.repeat(64) }]),
+        pinnedOptions('/source/lamquant', 'main', [
+          { path: 'docs/MASTER.md', sha256: '0'.repeat(64) },
+        ]),
         {
           commandRunner: { run },
           fileSystem: refusingFileSystem(),
@@ -384,7 +386,9 @@ describe('LamQuant compatibility oracle preconditions', () => {
 
     await expect(
       runLamQuantCompatibilityOracle(
-        pinnedOptions('/source/lamquant', 'a'.repeat(40), [{ path: 'docs/MASTER.md', sha256: '0'.repeat(64) }]),
+        pinnedOptions('/source/lamquant', 'a'.repeat(40), [
+          { path: 'docs/MASTER.md', sha256: '0'.repeat(64) },
+        ]),
         {
           commandRunner: { run },
           fileSystem: refusingFileSystem({ kind }),
@@ -405,7 +409,9 @@ describe('LamQuant compatibility oracle preconditions', () => {
 
     await expect(
       runLamQuantCompatibilityOracle(
-        pinnedOptions('/source/lamquant', 'a'.repeat(40), [{ path: 'docs/MASTER.md', sha256: '0'.repeat(64) }]),
+        pinnedOptions('/source/lamquant', 'a'.repeat(40), [
+          { path: 'docs/MASTER.md', sha256: '0'.repeat(64) },
+        ]),
         {
           commandRunner: { run },
           fileSystem: refusingFileSystem({ kind: async () => 'directory' }),
@@ -439,7 +445,9 @@ describe('LamQuant compatibility oracle preconditions', () => {
 
     await expect(
       runLamQuantCompatibilityOracle(
-        pinnedOptions('/source/lamquant', 'a'.repeat(40), [{ path: 'docs/MASTER.md', sha256: '0'.repeat(64) }]),
+        pinnedOptions('/source/lamquant', 'a'.repeat(40), [
+          { path: 'docs/MASTER.md', sha256: '0'.repeat(64) },
+        ]),
         {
           commandRunner: { run },
           fileSystem: refusingFileSystem({

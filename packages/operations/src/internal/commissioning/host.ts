@@ -119,14 +119,13 @@ export const tlsTermination: CommissioningCheckFn = async (inputs: Commissioning
  * issuer, names a client, and that the reviewed policy document is the one that was reviewed:
  * a policy that drifted after review is not a reviewed policy.
  */
-export const identityProviderPolicy: CommissioningCheckFn = async (
-  inputs: CommissioningInputs,
-) => {
+export const identityProviderPolicy: CommissioningCheckFn = async (inputs: CommissioningInputs) => {
   const { identityIssuer, identityClientId, identityPolicyPath, identityPolicyDigest } = inputs;
   if (identityIssuer === undefined || identityClientId === undefined) {
     return {
       status: 'unverifiable',
-      detail: 'No identity issuer and client are configured, so the deployment authenticates nobody.',
+      detail:
+        'No identity issuer and client are configured, so the deployment authenticates nobody.',
       observed: { issuer: identityIssuer ?? null, clientId: identityClientId ?? null },
     };
   }

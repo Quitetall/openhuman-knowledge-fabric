@@ -533,10 +533,10 @@ describe('GET /ml/governed-aliases/:aliasId', () => {
       );
       const app = Fastify({ logger: false });
       await registerMlRoutes(app, {
-      pool: db.pool,
-      identify: caller(),
-      executeInTransaction: refuseWrites,
-    });
+        pool: db.pool,
+        identify: caller(),
+        executeInTransaction: refuseWrites,
+      });
 
       const response = await app.inject({ method: 'GET', url: governedAliasUrl() });
 

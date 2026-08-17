@@ -19,7 +19,7 @@ describe('offline run-seal submission adapter', () => {
     // exactly as with `@kf/database`'s `Tx`. A fixture row can only be written concretely,
     // so the narrowing is confined to this one adapter instead of casting the whole seam.
     const database: RunSealSubmissionDatabase = {
-      one: async <T,>(sql: string, values: readonly unknown[]): Promise<T> =>
+      one: async <T>(sql: string, values: readonly unknown[]): Promise<T> =>
         (await one(sql, values)) as T,
     };
 
@@ -33,18 +33,15 @@ describe('offline run-seal submission adapter', () => {
       signature: SIGNATURE,
     });
 
-    expect(one).toHaveBeenCalledWith(
-      expect.stringMatching(/ml\.append_signed_run_seal/),
-      [
-        '11111111-1111-7111-8111-111111111111',
-        '22222222-2222-7222-8222-222222222222',
-        'spiffe:kf.internal:blut:sealer',
-        '2026-08-15T08:30:00.000Z',
-        'blut-run-seal-2026-08',
-        'a'.repeat(64),
-        SIGNATURE,
-      ],
-    );
+    expect(one).toHaveBeenCalledWith(expect.stringMatching(/ml\.append_signed_run_seal/), [
+      '11111111-1111-7111-8111-111111111111',
+      '22222222-2222-7222-8222-222222222222',
+      'spiffe:kf.internal:blut:sealer',
+      '2026-08-15T08:30:00.000Z',
+      'blut-run-seal-2026-08',
+      'a'.repeat(64),
+      SIGNATURE,
+    ]);
     expect(result).toEqual({
       id: '33333333-3333-7333-8333-333333333333',
       sealDigest: 'a'.repeat(64),

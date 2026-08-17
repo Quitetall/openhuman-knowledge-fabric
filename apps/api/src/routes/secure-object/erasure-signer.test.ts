@@ -73,7 +73,10 @@ describe('HTTP erasure authority signer', () => {
   it.each([
     ['wrong key', { signing_key_registry_id: '019b0000-0000-7000-8000-000000000099' }],
     ['wrong payload', { canonical_tombstone_base64: Buffer.from('wrong').toString('base64') }],
-    ['noncanonical signature', { signature_base64: `${signature.toString('base64').slice(0, -2)}AB` }],
+    [
+      'noncanonical signature',
+      { signature_base64: `${signature.toString('base64').slice(0, -2)}AB` },
+    ],
   ])('rejects a %s instead of accepting caller-selected receipt material', async (_name, body) => {
     const signer = new HttpErasureAuthoritySigner(
       { endpoint: new URL('https://soa.example.test/sign'), timeoutMs: 5_000 },

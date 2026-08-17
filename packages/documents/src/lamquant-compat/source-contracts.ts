@@ -146,9 +146,7 @@ export async function collectAdrs(
       ),
     );
     topicMembership.push(
-      ...adr.topics.map(
-        (topic) => semanticRecord(topic, 'adr', adr.number, adr.summary, adr.path),
-      ),
+      ...adr.topics.map((topic) => semanticRecord(topic, 'adr', adr.number, adr.summary, adr.path)),
     );
   }
   return { inventory: sorted(inventory), topicMembership };

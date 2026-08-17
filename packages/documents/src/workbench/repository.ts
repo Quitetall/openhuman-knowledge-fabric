@@ -14,8 +14,7 @@ export async function documentWorkspace(
 ): Promise<DocumentWorkspace> {
   const runs = await recentRuns(tx, target.basis_id);
   const current = runs[0];
-  const projections =
-    current?.run_status === 'succeeded' ? await runViews(tx, current.run_id) : [];
+  const projections = current?.run_status === 'succeeded' ? await runViews(tx, current.run_id) : [];
   const succeeded = await successfulRuns(tx, target.basis_id);
   const latestSucceeded = succeeded[0];
   const previousSucceeded = succeeded[1];

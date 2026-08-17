@@ -44,10 +44,7 @@ const RESPONSE_FIELDS = [
 
 const ED25519_SIGNATURE_BYTES = 64;
 
-export type SignerFetch = (
-  input: string | URL,
-  init?: RequestInit,
-) => Promise<Response>;
+export type SignerFetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
 /** Refused without naming what the authority said. */
 function transportRejected(detail: string): SecureObjectRejected {

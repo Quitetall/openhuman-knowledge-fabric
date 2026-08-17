@@ -2,10 +2,7 @@ import Fastify from 'fastify';
 import { describe, expect, it, vi } from 'vitest';
 import type { ActionRequest, ActionResult } from '@kf/actions';
 import type { AiProvider, AiProviderResponse, AiRoutingPolicy } from '@kf/agent-tools';
-import type {
-  DocumentProposalOperation,
-  ReplaceFragmentSourceOperation,
-} from '@kf/documents';
+import type { DocumentProposalOperation, ReplaceFragmentSourceOperation } from '@kf/documents';
 import type { Pool } from '@kf/database';
 import type { IdentifyCaller } from './actions.js';
 import { registerDocumentRoutes } from './documents.js';
@@ -104,12 +101,10 @@ function provider(
     // The return type is annotated so the literal is checked against the real contract. An
     // unannotated literal widens `operation: 'replace_fragment_source'` to `string`, which is
     // how a mock can drift away from the interface it is standing in for.
-    propose: vi.fn(
-      async (): Promise<AiProviderResponse> => ({
-        summary: 'Updates the controlled source.',
-        operations: [{ subjectId: SUBJECT_ID, precondition: REVISION_ID, operation }],
-      }),
-    ),
+    propose: vi.fn(async (): Promise<AiProviderResponse> => ({
+      summary: 'Updates the controlled source.',
+      operations: [{ subjectId: SUBJECT_ID, precondition: REVISION_ID, operation }],
+    })),
   } satisfies AiProvider & { propose: ReturnType<typeof vi.fn> };
 }
 

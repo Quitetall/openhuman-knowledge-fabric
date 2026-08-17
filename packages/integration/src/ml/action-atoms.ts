@@ -36,7 +36,8 @@ import {
  * authority and digest checks at database seam; these checks are not final authority.
  */
 export function createMlActionAtoms(): MlActionAtoms {
-  const registryPrecondition = (validate: (request: Parameters<PreconditionCheck>[1]) => void): PreconditionCheck =>
+  const registryPrecondition =
+    (validate: (request: Parameters<PreconditionCheck>[1]) => void): PreconditionCheck =>
     async (tx, request, objects) => {
       requireOrganizationTarget(request, objects);
       validate(request);
@@ -166,15 +167,15 @@ export function createMlActionAtoms(): MlActionAtoms {
 
   const registerAggregateReference: ActionEffect = async (tx, request) => {
     validateAggregateReferencePayload(request);
-    await tx.query(
-      `select * from ml.register_aggregate_reference_action($1,$2,$3,$4,$5,$6,$7)`,
-      [
-        payloadString(request, 'referenceId'), payloadString(request, 'kind'),
-        payloadString(request, 'authorityId'), payloadString(request, 'revisionId'),
-        payloadString(request, 'sha256'), payloadString(request, 'classificationId'),
-        payloadString(request, 'policyId'),
-      ],
-    );
+    await tx.query(`select * from ml.register_aggregate_reference_action($1,$2,$3,$4,$5,$6,$7)`, [
+      payloadString(request, 'referenceId'),
+      payloadString(request, 'kind'),
+      payloadString(request, 'authorityId'),
+      payloadString(request, 'revisionId'),
+      payloadString(request, 'sha256'),
+      payloadString(request, 'classificationId'),
+      payloadString(request, 'policyId'),
+    ]);
   };
   const registerRunLineage: ActionEffect = async (tx, request) => {
     validateRunLineagePayload(request);
@@ -183,9 +184,12 @@ export function createMlActionAtoms(): MlActionAtoms {
          $1,$2,$3,$4,$5,$6,$7::uuid[],$8::uuid[],$9::uuid[],$10
        )`,
       [
-        payloadString(request, 'lineageId'), payloadString(request, 'runRefId'),
-        payloadString(request, 'codeRefId'), payloadString(request, 'recipeRefId'),
-        payloadString(request, 'environmentRefId'), payloadString(request, 'metricPolicyRefId'),
+        payloadString(request, 'lineageId'),
+        payloadString(request, 'runRefId'),
+        payloadString(request, 'codeRefId'),
+        payloadString(request, 'recipeRefId'),
+        payloadString(request, 'environmentRefId'),
+        payloadString(request, 'metricPolicyRefId'),
         payloadStringArray(request, 'inputRefIds', { requireOne: true, uuid: true }),
         payloadStringArray(request, 'outputRefIds', { requireOne: true, uuid: true }),
         payloadStringArray(request, 'parentModelRefIds', { uuid: true }),
@@ -198,9 +202,12 @@ export function createMlActionAtoms(): MlActionAtoms {
     await tx.query(
       `select * from ml.register_metric_definition_action($1,$2,$3,$4,$5,$6::text[])`,
       [
-        payloadString(request, 'definitionId'), payloadString(request, 'definitionRefId'),
-        payloadString(request, 'metricId'), payloadString(request, 'valueKind'),
-        payloadNullableString(request, 'unitId'), payloadStringArray(request, 'allowedEnumIds'),
+        payloadString(request, 'definitionId'),
+        payloadString(request, 'definitionRefId'),
+        payloadString(request, 'metricId'),
+        payloadString(request, 'valueKind'),
+        payloadNullableString(request, 'unitId'),
+        payloadStringArray(request, 'allowedEnumIds'),
       ],
     );
   };
@@ -211,13 +218,16 @@ export function createMlActionAtoms(): MlActionAtoms {
          $1,$2,$3,$4,$5::bigint,$6::bigint,$7::bigint,$8::text[],$9,$10
        )`,
       [
-        payloadString(request, 'segmentId'), payloadString(request, 'segmentRefId'),
-        payloadString(request, 'runLineageId'), payloadPositiveInteger(request, 'ordinal'),
+        payloadString(request, 'segmentId'),
+        payloadString(request, 'segmentRefId'),
+        payloadString(request, 'runLineageId'),
+        payloadPositiveInteger(request, 'ordinal'),
         payloadPositiveInteger(request, 'firstSequence'),
         payloadPositiveInteger(request, 'lastSequence'),
         payloadPositiveInteger(request, 'eventCount'),
         payloadStringArray(request, 'eventDigests', { requireOne: true, digest: true }),
-        payloadString(request, 'eventManifestDigest'), payloadString(request, 'metadataDigest'),
+        payloadString(request, 'eventManifestDigest'),
+        payloadString(request, 'metadataDigest'),
       ],
     );
   };
@@ -238,9 +248,13 @@ export function createMlActionAtoms(): MlActionAtoms {
       [ML_ACTION_TYPES.authorizePromotion]: authorizePromotion,
     },
     preconditions: {
-      [ML_ACTION_TYPES.registerAggregateReference]: registryPrecondition(validateAggregateReferencePayload),
+      [ML_ACTION_TYPES.registerAggregateReference]: registryPrecondition(
+        validateAggregateReferencePayload,
+      ),
       [ML_ACTION_TYPES.registerRunLineage]: registryPrecondition(validateRunLineagePayload),
-      [ML_ACTION_TYPES.registerMetricDefinition]: registryPrecondition(validateMetricDefinitionPayload),
+      [ML_ACTION_TYPES.registerMetricDefinition]: registryPrecondition(
+        validateMetricDefinitionPayload,
+      ),
       [ML_ACTION_TYPES.registerMetricSegment]: registryPrecondition(validateMetricSegmentPayload),
       [ML_ACTION_TYPES.authorizeMetricStream]: authorizePrecondition,
       [ML_ACTION_TYPES.appendMetricEvent]: appendPrecondition,

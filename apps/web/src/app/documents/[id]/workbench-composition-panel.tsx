@@ -61,9 +61,7 @@ export function CompositionPanel({ workspace }: { readonly workspace: DocumentWo
           {workspace.composition.inputs.map((input) => (
             <li key={`${input.compositionRevisionId}:${input.ordinal}`}>
               <strong>{formatState(input.role)}</strong> {input.targetTitle ?? input.targetId}{' '}
-              <small style={{ color: '#64748b', overflowWrap: 'anywhere' }}>
-                {input.targetId}
-              </small>
+              <small style={{ color: '#64748b', overflowWrap: 'anywhere' }}>{input.targetId}</small>
               {input.contentDigest === null ? null : (
                 <span>
                   {' '}

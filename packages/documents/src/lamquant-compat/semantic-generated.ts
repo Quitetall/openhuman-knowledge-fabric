@@ -183,13 +183,7 @@ async function generatedTopicMembership(
       const adr = /^- \[ADR (\d{4})\s*[—-]\s*([^\]]+)]\(([^)]+)\)/.exec(line);
       if (adr !== null) {
         out.push(
-          record(
-            page.slug,
-            'adr',
-            adr[1]!,
-            adr[2]!.trim(),
-            normalizeTopicLink(page.path, adr[3]!),
-          ),
+          record(page.slug, 'adr', adr[1]!, adr[2]!.trim(), normalizeTopicLink(page.path, adr[3]!)),
         );
         continue;
       }
@@ -229,7 +223,8 @@ async function generatedLedgerBindings(
     const text = await readSourceText(root, path, fileSystem);
     for (const match of text.matchAll(/\{\{ledger:([^}]+)}}/g)) {
       const id = match[1]!.trim();
-      if (!ledger.has(id)) reject(`generated profile has unknown ledger binding '${id}' in '${path}'`);
+      if (!ledger.has(id))
+        reject(`generated profile has unknown ledger binding '${id}' in '${path}'`);
       output.push(record(path, id));
     }
   }
@@ -303,7 +298,11 @@ function overviewFacts(markdown: string): ReadonlyMap<string, { gate: string; re
     if (link === null) continue;
     const gateText = cells[3]!.trim();
     facts.set(link[1]!, {
-      gate: gateText.includes('declared') ? 'declared' : gateText.includes('debt') ? 'debt' : 'none',
+      gate: gateText.includes('declared')
+        ? 'declared'
+        : gateText.includes('debt')
+          ? 'debt'
+          : 'none',
       relations: generatedRelations(cells[4]!),
     });
   }
@@ -338,7 +337,8 @@ async function generatedTraceability(
       .split('\n')
       .flatMap((line): string[] => {
         const cells = tableCells(line);
-        if (cells.length !== 6 || cells[0] === 'Component' || /^-+$/.test(cells[0] ?? '')) return [];
+        if (cells.length !== 6 || cells[0] === 'Component' || /^-+$/.test(cells[0] ?? ''))
+          return [];
         return [record(...cells.map((cell) => cell.trim() || '—'))];
       }),
   );

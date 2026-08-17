@@ -346,9 +346,10 @@ describe('the extended ontology preserves R01 exactly', () => {
     // of maps: `invariants` is a list, so the two-level annotation was false for that key,
     // and it is the key the assertions at the bottom of this test read.
     const g = stripProvenance(golden('knowledge-fabric.vocabulary.json')) as Record<string, Json>;
-    const b = stripProvenance(
-      built('vocabulary/knowledge-fabric.vocabulary.json'),
-    ) as Record<string, Json>;
+    const b = stripProvenance(built('vocabulary/knowledge-fabric.vocabulary.json')) as Record<
+      string,
+      Json
+    >;
 
     // Each section is checked to BE a map before it is walked as one. A section that came
     // back missing or the wrong shape would otherwise walk zero entries and pass — a
@@ -365,8 +366,10 @@ describe('the extended ontology preserves R01 exactly', () => {
     for (const section of ['node_types', 'edge_types', 'action_types'] as const) {
       const goldenSection = sectionOf(g, section);
       const builtSection = sectionOf(b, section);
-      expect(Object.keys(goldenSection).length, `${section} is empty in the golden pack`)
-        .toBeGreaterThan(0);
+      expect(
+        Object.keys(goldenSection).length,
+        `${section} is empty in the golden pack`,
+      ).toBeGreaterThan(0);
       for (const [id, definition] of Object.entries(goldenSection)) {
         expect(builtSection, `${section}.${id} was removed`).toHaveProperty(id);
         expect(diff(definition, builtSection[id]), `${section}.${id} was redefined`).toEqual([]);
