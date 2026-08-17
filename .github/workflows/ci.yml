@@ -9,6 +9,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Read-only by default, raised per job only where a job needs more. A workflow that can write
+# to the repository is a workflow whose dependencies can.
+permissions:
+  contents: read
+
 env:
   NODE_VERSION: '24.18.1'
 
@@ -28,11 +33,11 @@ jobs:
     name: format · lint · typecheck · test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -58,13 +63,16 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Dependency advisories
+        run: pnpm audit --audit-level=high
+
   ontology:
     name: ontology consistent · generated/ current
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -89,11 +97,59 @@ jobs:
     name: build from a clean checkout
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+
+  secrets:
+    name: no secret has ever been committed
+    runs-on: ubuntu-latest
+    steps:
+      # Full history, not a shallow clone: the question is whether a credential was EVER
+      # committed, and `fetch-depth: 1` cannot answer it. A reverted commit is still a
+      # disclosure.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+
+      # THE CLI, NOT `gitleaks/gitleaks-action`. Three reasons, in order of how much they cost:
+      #
+      #   1. The action has been under a COMMERCIAL licence since v2.0.0 and requires a
+      #      `GITLEAKS_LICENSE` secret for repositories owned by an organization. This repository
+      #      is to be published under an organization, so that is a gate sitting on the publish
+      #      path — and one that would first be discovered on the day of the publish.
+      #   2. It transmits the repository name and owner to a third-party licence service. A
+      #      secret-scanning gate should not itself be a data flow off the runner.
+      #   3. It could not honestly be pinned. `@v2` resolves to an ANNOTATED TAG OBJECT, and the
+      #      SHA written here for it was that tag object rather than a commit — a moving target
+      #      wearing a hex string, which is the exact hazard pinning exists to remove.
+      #      (`pnpm/action-setup@v4` had the same defect and was corrected in the same commit.)
+      #
+      # The gitleaks CLI itself is MIT. Pinned by version AND sha256, verified against the
+      # project's published `gitleaks_8.30.1_checksums.txt`, so a replaced release asset fails the
+      # job rather than scanning with an unknown binary.
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --output gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum --check --strict
+          tar -xzf gitleaks.tar.gz gitleaks
+          ./gitleaks version
+
+      # `git`, so the subject is every commit rather than the current tree. `--redact` so a real
+      # finding is reported without being printed into the build log.
+      #
+      # Allowlists live in `.gitleaks.toml`, which records the three findings this repository's
+      # history produces and why none of them is a credential. Read that file before adding a
+      # fourth — particularly its warning about `paths`.
+      - name: Scan full history
+        run: ./gitleaks git --no-banner --redact --config .gitleaks.toml .

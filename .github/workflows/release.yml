@@ -1,0 +1,96 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+# WHAT THIS WORKFLOW DELIBERATELY DOES NOT DO: build the deployable release tree.
+#
+# `docs/deployment/private-host.md` is explicit that the workstation build is promoted
+# byte-for-byte and that the host "does not run `pnpm build`, resolve a newer dependency or
+# substitute source from another checkout". The build happens once, in a disposable worktree,
+# at the exact commit, and its `SHA256SUMS` is what the host verifies against.
+#
+# A CI job that also built a release tree would produce a SECOND artifact by a second path.
+# Two artifacts for one tag is the drift this repository keeps removing, and here it would be
+# the worst version of it: the one an operator installs and the one a release page advertises
+# would not be the same bytes, and nothing would say which was which.
+#
+# So this proves the tag is green and publishes provenance. The artifact stays a workstation
+# act, performed by a person following the documented recipe.
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: the tag passes every gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '24.18.1'
+          cache: pnpm
+
+      - name: Provision compiler sandbox integration dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes bubblewrap
+          test -x /usr/bin/bwrap
+
+      - run: pnpm install --frozen-lockfile
+
+      # The same command a contributor runs and the same one CI runs on every push. A release
+      # that gated itself differently from every other commit would not be evidence about the
+      # thing being released.
+      - name: Gate
+        run: pnpm gate
+
+  provenance:
+    name: bill of materials
+    needs: gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # to attach the SBOM to the release
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '24.18.1'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # A records system whose entire claim is provenance should be able to say what it is made
+      # of.
+      #
+      # NOT `--lockfile-only`, which was the first version of this step and was measured to be
+      # wrong: it produces 0 of 511 components with licence data, against 426 without it,
+      # because pnpm reads licences from the store and the lockfile does not record them. The
+      # install above is `--frozen-lockfile`, so the store holds exactly the lockfile's
+      # resolution — reading it adds licence data without describing a different tree. A bill of
+      # materials with no licences in it is most of the way to not being one.
+      #
+      # 85 components still carry no licence. That is the package's own metadata missing, not a
+      # generation flag, and an absent licence must not be read as a permissive one.
+      #
+      # The spec version is pinned. pnpm's default is 1.7 and moves with pnpm; a release
+      # artifact whose format changes because a tool updated is a change nobody decided.
+      #
+      # This is NOT invoked through a package.json script. `sbom` is a pnpm built-in, and a
+      # script by that name is silently shadowed — `pnpm sbom` runs pnpm's command and never
+      # the script, with no warning. That was written here once and the mistake is worth the
+      # sentence.
+      #
+      # WHAT THE BILL DOES NOT COVER: non-npm dependencies. PostgreSQL, MinIO, Keycloak,
+      # bubblewrap and the Node runtime are all part of what gets deployed and none of them
+      # appear in it; `docs/deployment/private-host.md` is the inventory for those.
+      - name: Generate CycloneDX SBOM
+        run: pnpm sbom --sbom-format cyclonedx --sbom-spec-version 1.6 --out sbom.cdx.json
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${GITHUB_REF_NAME}" sbom.cdx.json --clobber

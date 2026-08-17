@@ -1,0 +1,12 @@
+# Blank issues stay enabled. This project is small enough that a form is a courtesy rather than a
+# filter, and a report that does not fit the form is still worth having.
+blank_issues_enabled: true
+# DELIBERATELY NO `contact_links` FOR SECURITY REPORTING. GitHub already shows a "Report a
+# security vulnerability" entry in this chooser whenever the repository has a SECURITY.md and
+# private reporting is on, so a contact link here would be a duplicate — and `contact_links`
+# requires an absolute URL, which means hardcoding a repository path.
+#
+# That is the actual objection. This repository is published as a squashed public tree from a
+# private one under a different name, so an absolute URL here would either 404 for every public
+# reader or disclose the private repository's path. Neither is worth re-stating a link GitHub
+# renders on its own.

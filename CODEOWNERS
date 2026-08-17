@@ -1,0 +1,23 @@
+# Every file has an owner, and today that owner is one person.
+#
+# `docs/decisions/0004-production-release.md` records that separation of duty is NOT achieved
+# for release approval: one person is technical authority, quality authority and accepting
+# party. This file states the same fact for code review rather than implying a second reviewer
+# exists. When one does, the paths that most deserve a second pair of eyes are listed
+# separately below so they can be reassigned first.
+
+*                                   @Quitetall
+
+# The authority kernel and the boundaries built on it. A defect here is the kind that only
+# shows up in an audit, and these are the first paths to move to a second reviewer.
+/database/migrations/               @Quitetall
+/packages/authorization/            @Quitetall
+/packages/integration/src/secure-object/  @Quitetall
+/packages/ml-registry/              @Quitetall
+
+# The deployment surface. Changing a unit file changes what a host runs as and what it can read.
+/deploy/                            @Quitetall
+/scripts/                           @Quitetall
+
+# Decision records. Amending one rewrites the reason a control exists.
+/docs/decisions/                    @Quitetall

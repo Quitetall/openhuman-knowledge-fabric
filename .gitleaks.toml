@@ -1,0 +1,66 @@
+# gitleaks configuration.
+#
+# The scan runs over FULL HISTORY in CI (`.github/workflows/ci.yml`, job `secrets`) because the
+# question is whether a credential was ever committed, and a reverted commit is still a
+# disclosure.
+#
+# The first full-history run, at 80 commits, returned three findings. All three were verified by
+# reading the flagged bytes at the commit that introduced them, and all three are literals in
+# test files:
+#
+#   1. `idempotencyKey: 'dogfood-fragment-0001'` — an idempotency key in an end-to-end test.
+#   2. `idempotencyKey: 'prod-attempt-1234'` — the same, in an API permissions test.
+#   3. `-----BEGIN PRIVATE KEY-----\nx\n-----END PRIVATE KEY-----` — a fake PEM whose body is the
+#      single character `x`, in the test that asserts a world-readable signing-key file is
+#      REJECTED. The test exists to prove secrets are refused; the "secret" is its input.
+#
+# No real credential has ever been committed to this repository.
+#
+# WHY ALLOWLISTS AND NOT `.gitleaksignore`. The fingerprint mechanism keys on a commit SHA, and
+# the public repository is published as a SQUASHED tree — every commit SHA changes, so every
+# fingerprint would silently stop matching. Silently is the problem: the findings would return on
+# the public repository, at the worst moment, and the ignore file would look like it was working.
+# Shape-scoped allowlists survive a rewrite because they describe the content.
+#
+# THESE ALLOWLISTS MATCH A SHAPE, NOT A LOCATION, AND THAT IS THE WHOLE DESIGN — read the next
+# paragraph before adding a `paths` key to one of them.
+#
+# DO NOT ADD `paths` TO A TOP-LEVEL ALLOWLIST. It does not narrow the block; it switches the
+# scanner off for every file it matches. A global allowlist's `paths` is applied as a FILE FILTER
+# before any rule runs, so matching files are never read — `condition = "AND"` does not save you,
+# because the file is gone before the regexes are consulted.
+#
+# This was written here and measured. With `paths = ['^tests/']` on these blocks, scanning
+# `tests/` reported `scanned ~0 bytes` and "no leaks found", against 871 KB and six findings with
+# no config at all. It read as a clean scan. It was no scan. Both credentials planted to test the
+# allowlist — an AWS access key and a GitHub token — went unreported, and so would a real one.
+#
+# Removing `paths` and keeping only `regexes` fixed it: 871 KB scanned, exactly the three planted
+# probes reported, the three false positives above allowlisted. That is the state this file is in,
+# and the check to repeat after touching it — plant a real-shaped credential in one of the files
+# named above, confirm it is REPORTED, then remove it. A green scan that has not been shown to go
+# red is not evidence.
+
+title = "OpenHuman Knowledge Fabric"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = """
+Idempotency keys in tests. These are request-deduplication identifiers, not credentials: they are
+chosen to be READABLE so a failing assertion says which attempt it was, which is precisely why the
+generic-api-key rule's entropy heuristic reaches for them. Scoped to the assignment shape and to
+lowercase-dashed words, so a real key assigned to the same field is still reported.
+"""
+regexes = ['''idempotencyKey:\s*'[a-z][a-z0-9-]{3,39}'''']
+regexTarget = "match"
+
+[[allowlists]]
+description = """
+The fake PEM in the secret-file permission tests. Pinned to a body of exactly one character, which
+no real key has — a real PEM body is hundreds of base64 characters, so pasting one here still
+fails the scan.
+"""
+regexes = ['''-----BEGIN [A-Z ]*PRIVATE KEY-----\\n.\\n-----END [A-Z ]*PRIVATE KEY-----''']
+regexTarget = "match"

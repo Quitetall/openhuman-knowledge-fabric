@@ -35,11 +35,21 @@
  * commands are environment rather than gates: the bubblewrap provisioning and the `actions/*`
  * setup steps. The one non-pnpm command inside `pnpm gate` — the `git diff` that proves
  * `generated/` is current — is therefore outside the comparison, so it is pinned by name in
- * the last test rather than left to be dropped silently. A whole CI job whose steps are all
- * non-pnpm (a `bash scripts/check.sh` gate, say) would be invisible; if one is ever added,
- * this comparison has to grow to meet it. Order is not checked, and `pnpm gate` is expected
- * to stay FLAT — the commands are read from its own `&&` chain and not followed into a
- * sub-script, so delegating part of the gate to another script would fail here.
+ * the last test rather than left to be dropped silently. Order is not checked, and `pnpm gate`
+ * is expected to stay FLAT — the commands are read from its own `&&` chain and not followed
+ * into a sub-script, so delegating part of the gate to another script would fail here.
+ *
+ * THE PREDICTED HOLE CAME TRUE, so it is now pinned instead of predicted. This file used to say
+ * "a whole CI job whose steps are all non-pnpm would be invisible; if one is ever added, this
+ * comparison has to grow to meet it". One was then added: `secrets`, which downloads the gitleaks
+ * CLI and scans full history, and is a real gate made entirely of shell. Both comparisons above
+ * stayed green while CI gained a gate `pnpm gate` cannot run.
+ *
+ * It is deliberately NOT added to `pnpm gate`. The scan needs a binary that is not installed on
+ * every contributor's machine, and the alternative — a gate step that does nothing when its tool
+ * is missing — is the silent-skip failure this repository keeps deleting. So the exception is
+ * made explicit and counted: the last test pins the set of shell-only CI jobs, and a second one
+ * added without a decision fails the suite.
  */
 
 import { readFileSync } from 'node:fs';
@@ -136,5 +146,49 @@ describe('the local gate command and CI agree on what a gate is', () => {
     ).gate;
     expect(gate).toContain(GENERATED_IS_CURRENT);
     expect(NOT_A_GATE).toEqual(['pnpm install --frozen-lockfile']);
+  });
+
+  it('pins the CI jobs that run no pnpm command at all', () => {
+    // The blind spot the two comparisons above share. They read COMMANDS, so a job made entirely
+    // of shell contributes nothing to either set and both stay green while CI gains a gate the
+    // local command cannot run. `secrets` is such a job — gitleaks over full history — and it is
+    // CI-only on purpose, because the scan needs a binary contributors may not have and a step
+    // that skips when its tool is missing is worse than no step.
+    //
+    // So the exception is enumerated rather than reasoned about. A second shell-only job fails
+    // here, and closing that failure means deciding: put it in `pnpm gate`, or add it to this
+    // list and say why it cannot be.
+    const workflow = readFileSync(join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8');
+    const body = workflow.slice(workflow.indexOf('\njobs:'));
+
+    // Job names are the two-space keys under `jobs:`; step lines are anything more indented.
+    const shellOnly: string[] = [];
+    let current: string | null = null;
+    let sawPnpm = false;
+    const finish = (): void => {
+      if (current !== null && !sawPnpm) shellOnly.push(current);
+    };
+    for (const line of body.split('\n')) {
+      const job = /^ {2}([a-z][a-z0-9-]*):\s*$/.exec(line);
+      if (job !== null) {
+        finish();
+        current = job[1]!;
+        sawPnpm = false;
+      } else if (line.includes('pnpm ')) {
+        sawPnpm = true;
+      }
+    }
+    finish();
+
+    expect(
+      shellOnly.length,
+      'no CI jobs parsed, so this assertion proves nothing — the jobs: block shape changed',
+    ).toBeGreaterThan(0);
+    expect(
+      shellOnly,
+      'these CI jobs run no pnpm command, so neither comparison above can see them and ' +
+        '`pnpm gate` cannot reproduce them. Add the job to `pnpm gate`, or add it here with a ' +
+        'reason it has to stay CI-only.',
+    ).toEqual(['secrets']);
   });
 });

@@ -1,0 +1,20 @@
+#!/bin/sh
+# Formatting and lint, on STAGED FILES ONLY. Deliberately not `pnpm gate`.
+#
+# The gate takes minutes because it starts a real PostgreSQL through Testcontainers. A hook that
+# costs minutes per commit does not get run — it gets bypassed with `--no-verify`, and a hook
+# everyone bypasses is worse than no hook, because the repository reads as if it has one.
+#
+# WHAT THIS DOES NOT CHECK, so nobody mistakes a green commit for a green gate:
+#
+#   - types, tests, the ontology build, and that `generated/` is current. `pnpm gate` is still
+#     the only claim of green that counts, and CI runs it regardless of what happened here.
+#   - secrets. The gitleaks scan is a CI gate over full history and a precondition of publishing;
+#     it is not run here because it is not installed on every machine, and a scan that silently
+#     does nothing when its binary is missing is the exact failure this repository keeps
+#     removing.
+#
+# This hook REWRITES staged files (`prettier --write`, `eslint --fix`) and lint-staged re-stages
+# what it changed, so the commit contains the formatted version. If that is unwanted for a
+# particular commit, `git commit --no-verify` is the honest way to skip it.
+pnpm exec lint-staged

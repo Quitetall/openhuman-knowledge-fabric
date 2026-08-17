@@ -1,0 +1,64 @@
+name: Bug report
+description: Something behaves differently from what the repository says it does.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Not for suspected vulnerabilities — use the security policy instead. And please read
+        `SECURITY.md`'s "out of scope" section first: **no deployment of this software exists**,
+        so anything that requires a commissioned host cannot be reproduced by anyone yet.
+
+  - type: textarea
+    id: command
+    attributes:
+      label: What you ran
+      description: The exact command, and the commit or tag you ran it at.
+      placeholder: pnpm test tests/database/rls-read-cost.test.ts, at v1.0.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened
+      description: >-
+        Paste the output rather than describing it. If it is long, the failing assertion and
+        twenty lines around it beat a summary — several bugs here were found because a report
+        included a line the reporter thought was irrelevant.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what said so
+      description: >-
+        The useful version cites the file. "`docs/decisions/0003-typed-table-row-security.md`
+        says reads are bounded by classification ceiling, and this read returned a row above
+        mine" is actionable; "it should not do that" needs a round trip to become actionable.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: >-
+        Node and pnpm versions (`node -v`, `pnpm -v`), OS, and whether Docker is available — the
+        suite starts a real PostgreSQL through Testcontainers and fails in a distinctive way
+        without it.
+      placeholder: |
+        node v24.18.1, pnpm 11.21.0, Ubuntu 24.04, Docker 27.3 with Compose v2
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: hygiene
+    attributes:
+      label: Before submitting
+      options:
+        - label: >-
+            This report contains no protected health information, no credentials, and no content
+            from a third-party datasheet. Issues are public and permanent.
+          required: true
