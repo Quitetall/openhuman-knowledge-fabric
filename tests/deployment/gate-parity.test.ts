@@ -1,11 +1,16 @@
 /**
  * `pnpm gate` runs what CI runs.
  *
- * CI is three jobs — `verify`, `ontology`, `build` — so there is no single command a
+ * CI is four jobs — `verify`, `ontology`, `build`, `secrets` — so there is no single command a
  * contributor can run to answer "will this pass?". The answer was assembled by reading
  * `ci.yml`, and it was assembled wrong: a week of work went in under "gates green" while
  * `format:check` failed, because four of the seven steps looked like the important ones and
  * the list was never checked against the file. `pnpm gate` is that list, made runnable.
+ *
+ * (This sentence said "three jobs" until the count was checked — in the very file that now
+ * asserts the README's count against `ci.yml`. A prose count is wrong the moment a job lands,
+ * wherever it is written, including here. The tests below read the file; this comment does not,
+ * and that asymmetry is the point rather than an oversight.)
  *
  * A hand-maintained mirror of a CI config drifts the first time somebody adds a step, and it
  * drifts SILENTLY — the mirror keeps passing, which is the failure mode it was built to
@@ -119,7 +124,13 @@ function gateCommands(): ReadonlySet<string> {
  */
 function ciJobs(): { readonly all: readonly string[]; readonly shellOnly: readonly string[] } {
   const workflow = readFileSync(join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8');
-  const body = workflow.slice(workflow.indexOf('\njobs:'));
+  const start = workflow.indexOf('\njobs:');
+  expect(start, 'ci.yml has no top-level `jobs:` key — every assertion below would be vacuous')
+    // Not `toBeGreaterThan(0)` on the slice: `slice(-1)` silently yields the file's last
+    // character, and a parse of one character finds no jobs and reports "the shape changed"
+    // rather than "the file moved".
+    .toBeGreaterThan(-1);
+  const body = workflow.slice(start);
 
   const all: string[] = [];
   const shellOnly: string[] = [];
@@ -135,15 +146,26 @@ function ciJobs(): { readonly all: readonly string[]; readonly shellOnly: readon
       current = job[1]!;
       all.push(current);
       sawPnpm = false;
-    } else if (line.includes('pnpm ')) {
-      sawPnpm = true;
+      continue;
     }
+    // COMMENTS ARE NOT COMMANDS, and treating them as such was a real hole rather than a
+    // hypothetical one. Adding the wholly ordinary line
+    //
+    //     # Not part of pnpm gate — see CONTRIBUTING.
+    //
+    // inside the `secrets` job made that job stop counting as shell-only: `shellOnly` went
+    // empty and the README count claimed four jobs run the gate commands instead of three.
+    // A comment explaining that a job is NOT in the gate was enough to convince the parser it
+    // was. The failure was loud rather than silent, but it accused the wrong thing.
+    if (line.trimStart().startsWith('#')) continue;
+    if (line.includes('pnpm ')) sawPnpm = true;
   }
   finish();
   return { all, shellOnly };
 }
 
 const NUMBER_WORDS: Readonly<Record<string, number>> = {
+  zero: 0,
   one: 1,
   two: 2,
   three: 3,
@@ -237,10 +259,10 @@ describe('the local gate command and CI agree on what a gate is', () => {
 
     const withPnpm = NUMBER_WORDS[claim![1]!.toLowerCase()];
     const total = NUMBER_WORDS[claim![2]!.toLowerCase()];
-    expect(withPnpm, `README says "${claim![1]}", which is not a number word 1-10`).toBeTypeOf(
+    expect(withPnpm, `README says "${claim![1]}", which is not a number word 0-10`).toBeTypeOf(
       'number',
     );
-    expect(total, `README says "${claim![2]}", which is not a number word 1-10`).toBeTypeOf(
+    expect(total, `README says "${claim![2]}", which is not a number word 0-10`).toBeTypeOf(
       'number',
     );
 
