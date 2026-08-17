@@ -216,3 +216,81 @@ kf_auditor, which touches the authentication path not at all because that path r
 kf_app. kf_app and kf_worker resolve identities; kf_backup keeps it, because a backup missing
 the identity links restores a fabric nobody can sign in to. This record's earlier note that
 the question was open is superseded.
+
+### The cost question, answered — 2026-08-17
+
+This record said twice that the cost "deserves a populated database" and shipped both stages
+without one. `tests/database/rls-read-cost.test.ts` is that database: 36,007 objects and
+36,000 actions across three organizations, read as **kf_readonly** with the access context
+bound — the direct-connection path this record is about, not the application path — median of
+seven runs. It is not a gate and does not run in CI; `KF_MEASURE_RLS=1` runs it.
+
+The answer was not the one expected, in two ways.
+
+**The typed-table policies are not where the cost is.** The three shapes measured very
+differently, and the ordering is the reverse of what the predicate complexity suggests:
+
+| shape                                          | policy | the join it replaces |
+| ---------------------------------------------- | ------ | -------------------- |
+| envelope-keyed (`quality.controlled_document`) | 514 ms | 445 ms               |
+| child chain (`quality.training_requirement`)   | 616 ms | 546 ms               |
+| direct column (`core.action`)                  | 12 ms  | 13 ms                |
+
+`core.action` — the one whose scoping column carries **no index**, which was the suspicion
+that prompted the measurement — is 40× faster than the envelope-keyed shape that joins to an
+indexed primary key. The missing index is real and is still not worth adding: a sequential
+scan of 36,000 rows costs 12 ms, and nothing in the plan degrades non-linearly. Revisit it
+when the ledger is large enough for that scan to matter, and add it then with a measurement
+rather than now with an intuition.
+
+**The cost is in `core.object`'s own policies, and most of it was avoidable.** Adding one
+term at a time to a hand-written copy of the predicate:
+
+```
+core.object · scan, no predicate                        0.8 ms   36007 rows
+core.object · organization term only                    0.8 ms   12005 rows
+core.object · organization + classification rank       98.2 ms   12005 rows
+core.object · full policy predicate, hand-written     461.1 ms   12005 rows
+core.object · same predicate, OR branches hoisted       93.8 ms   12005 rows
+```
+
+The organization term is free — `object_by_org` covers it. The classification rank costs
+~97 ms and is honestly per-row: it depends on the row's own classification. The remaining
+~363 ms was two predicates that depend on **nothing about the row** —
+`content.document_basis_classifier_active()` and `content.compiler_runtime_active()`, which
+ask whether a runtime is active. Both are separate PERMISSIVE policies, so PostgreSQL ORs
+them with the scoped policy and every row failing the organization test goes on to call both.
+
+Both are declared STABLE, which is easy to read as "evaluated once" and is not: STABLE
+promises only that the answer will not change within a statement. In a per-row filter the
+function is still called per row.
+
+`20260817000100_hoist_row_independent_policy_predicates.sql` wraps all 30 such policies in
+`(select …)`, which lets the planner lift them into an InitPlan evaluated once per statement.
+Same truth value, same rows — the harness asserts the row counts match before it reports
+either duration, and the full suite passes unchanged, which is what makes this a plan change
+rather than a policy change. Re-measured with it installed:
+
+| shape                         | before | after      |
+| ----------------------------- | ------ | ---------- |
+| `controlled_document` policy  | 514 ms | **190 ms** |
+| `controlled_document` join    | 445 ms | **114 ms** |
+| `training_requirement` policy | 616 ms | **272 ms** |
+| `training_requirement` join   | 546 ms | **210 ms** |
+| `core.action` policy          | 12 ms  | 12 ms      |
+
+`core.action` is unchanged, correctly: its policy has no such branch. The gain lands on every
+read of every object in the fabric, including the application's join path, because the
+predicate being fixed belongs to `core.object` rather than to anything stage one or two added.
+
+`tests/database/policy-predicate-shape.test.ts` pins the property against the INSTALLED
+policies rather than the migration text, and refuses to pass vacuously: it requires the 30 to
+be present in the hoisted form, so a renamed function or an unapplied migration fails rather
+than reporting a clean sweep of an empty set.
+
+**What is left, with its size.** The classification-rank term is now the largest remaining
+cost — roughly 99 ms of the ~190 ms envelope-keyed read — and it is a correlated subquery
+into `registry.classification` executed once per row (12,005 index searches for 12,005 rows).
+`registry.classification` is a handful of rows, so a form the planner could hash once would
+remove most of it. That is a change to the security predicate itself rather than to how often
+it runs, so it wants its own decision and its own measurement, and it is not made here.
