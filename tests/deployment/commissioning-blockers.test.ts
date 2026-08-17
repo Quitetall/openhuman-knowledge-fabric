@@ -1,0 +1,116 @@
+/**
+ * Every remaining blocker names its check, or says it has none.
+ *
+ * `docs/deployment/private-host.md` lists what still stands between this repository and a
+ * commissioned host. Its blocker list and `COMMISSIONING_CHECKS` are two hand-maintained
+ * descriptions of the same set, and they had already drifted: the registry still described
+ * "scheduled operation units still share `kf` identity" after that was fixed, and the document
+ * claimed "each now with a check that reports on it" when four blockers had no check at all.
+ *
+ * A blanket claim over an unevenly covered list is the dangerous shape. It reads as coverage,
+ * it is cheap to write, and nothing contradicts it — an operator planning a commissioning run
+ * would reasonably conclude the verifier reports on `kf-alert@` delivery, which it cannot.
+ *
+ * So the document now marks each blocker with the check id that reports on it, or with the
+ * literal `**no check**`, and this test holds the two together:
+ *
+ *   - every check id named in the document exists in the registry;
+ *   - every check in the registry is named by at least one blocker, so a check cannot be added
+ *     without saying which gap it closes;
+ *   - every blocker either names a check or says it has none, so silence is not an option and
+ *     an unchecked blocker cannot drift into looking checked.
+ *
+ * What it deliberately does not do is compare the PROSE. The registry's `blocker` strings are
+ * printed beside a failing check and the document's bullets are read by somebody planning the
+ * work; requiring identical wording would make one of them worse. The id is the contract.
+ */
+
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { COMMISSIONING_CHECKS } from '@kf/operations';
+
+const ROOT = join(import.meta.dirname, '..', '..');
+const DOCUMENT = join(ROOT, 'docs', 'deployment', 'private-host.md');
+
+/** The `## Known blockers` section, as a list of bullets. */
+function blockerBullets(): readonly string[] {
+  const body = readFileSync(DOCUMENT, 'utf8');
+  const start = body.indexOf('## Known blockers');
+  expect(start, 'the blockers section is gone from private-host.md').toBeGreaterThan(0);
+  const section = body.slice(start, body.indexOf('\nUntil those', start));
+  expect(section, 'the blockers section has no terminating paragraph').not.toEqual('');
+
+  // Bullets start at column zero with "- " and continue through indented lines, so a bullet
+  // that wraps or carries a follow-up paragraph stays one bullet.
+  const bullets: string[] = [];
+  for (const line of section.split('\n')) {
+    if (line.startsWith('- ')) bullets.push(line);
+    else if (bullets.length > 0 && (line.startsWith('  ') || line.trim() === '')) {
+      bullets[bullets.length - 1] += `\n${line}`;
+    }
+  }
+  expect(
+    bullets.length,
+    'no blocker bullets parsed, so every assertion below is vacuous',
+  ).toBeGreaterThan(4);
+  return bullets;
+}
+
+const KNOWN_IDS = new Set(COMMISSIONING_CHECKS.map((check) => check.id));
+
+describe('the blockers list and the commissioning checks describe the same set', () => {
+  it('names only checks that exist', () => {
+    // Backticked identifiers that look like check ids: lower_snake_case. Anything else in
+    // backticks is a path, a unit name or a setting, and is not claiming coverage.
+    const named = new Set<string>();
+    for (const bullet of blockerBullets()) {
+      for (const match of bullet.matchAll(/`([a-z][a-z0-9_]*)`/g)) {
+        const candidate = match[1]!;
+        if (candidate.includes('_')) named.add(candidate);
+      }
+    }
+    const unknown = [...named].filter((id) => !KNOWN_IDS.has(id));
+    expect(
+      unknown,
+      'the blockers list names these as checks and the registry has no such check, so an ' +
+        'operator is told something reports on a gap when nothing does',
+    ).toEqual([]);
+    expect(named.size, 'no check ids found in the blockers list').toBeGreaterThan(3);
+  });
+
+  it('accounts for every check the verifier runs', () => {
+    const document = blockerBullets().join('\n');
+    const unmentioned = [...KNOWN_IDS].filter((id) => !document.includes(`\`${id}\``));
+    expect(
+      unmentioned,
+      'these checks run but no blocker says what gap they close, so a failing one sends the ' +
+        'operator to a document that does not mention it',
+    ).toEqual([]);
+  });
+
+  it('leaves no blocker silent about whether anything checks it', () => {
+    const silent = blockerBullets()
+      .filter((bullet) => !/`[a-z][a-z0-9_]*_[a-z0-9_]*`/.test(bullet))
+      .filter((bullet) => !bullet.includes('**no check**'))
+      .map((bullet) => bullet.split('\n')[0]!.slice(0, 90));
+    expect(
+      silent,
+      'these blockers name no check and do not say they have none. Silence reads as coverage ' +
+        'to anyone planning a commissioning run — mark them `**no check**` if nothing reports ' +
+        'on them.',
+    ).toEqual([]);
+  });
+
+  it('still records the blockers that have no check, so the gaps stay visible', () => {
+    // The uncomfortable half. If this ever reaches zero because somebody deleted the wording
+    // rather than built the checks, that should be a deliberate edit to this number and not a
+    // silent improvement in how the document reads.
+    const uncovered = blockerBullets().filter((bullet) => bullet.includes('**no check**'));
+    expect(
+      uncovered.length,
+      'the count of blockers with no automated check changed; update this number in the same ' +
+        'commit that adds or removes a check, and say which it was',
+    ).toBe(4);
+  });
+});

@@ -471,20 +471,39 @@ Three things stay human evidence, and the verifier reports `unverifiable` rather
 
 Repository supplies application/migrator units, environment templates, TLS proxy template,
 release verifier, migration runner, rollback-rehearsal contract, and the commissioning verifier
-above. None has been commissioned on a host. Remaining blockers — each now with a check that
-reports on it rather than a paragraph describing it:
+above. None has been commissioned on a host.
 
-- no reviewed reproducible Keycloak realm/client policy or real-provider browser evidence;
-- no site hostnames, certificates, firewall rules or installed nginx validation;
-- no installed user/file ownership evidence, service start/restart/reboot evidence or proof
-  host uses exact tested Node/PostgreSQL versions;
-- no successful disposable-cluster rollback receipt or host migration result for a release;
-- no concrete `kf-alert@.service` integration;
-- no reviewed native `kf-document-v1` Liminal artifact, external runtime-closure inventory or
-  human-ratified qualification receipt has been supplied by this repository;
+Each blocker below names the `kf-commissioning` check that reports on it, or says plainly that
+it has none. An earlier revision claimed "each now with a check that reports on it rather than
+a paragraph describing it", and that was not true of four of them — a blanket claim over a list
+where the coverage is genuinely uneven. `tests/deployment/commissioning-blockers.test.ts` keeps
+these markers and the check registry in agreement, so neither can drift and an unchecked blocker
+cannot quietly acquire the appearance of coverage.
+
+- no reviewed reproducible Keycloak realm/client policy — `identity_provider_policy`. Real-provider
+  browser evidence, named in the same sentence, has **no check**: the verifier reads the
+  configured issuer, client and policy digest, and cannot tell whether a person ever completed a
+  login against the real realm.
+- no site hostnames or certificates — `tls_termination`, which reads the certificate the host
+  presents, checks it covers the served name and is currently valid, and checks the private key
+  is closed. Firewall rules and installed nginx validation have **no check** and
+  remain inspection by hand.
+- no installed user/file ownership evidence, service start/restart/reboot evidence —
+  `unit_provenance`; and no proof host uses exact tested Node/PostgreSQL versions —
+  `runtime_version`.
+- no successful disposable-cluster rollback receipt or host migration result for a release —
+  `evidence_receipts`, which requires a receipt matched to the running release id.
+- no concrete `kf-alert@.service` integration — **no check**. `unit_provenance`
+  verifies every unit declares `OnFailure=`, which is not the same claim: a unit can route
+  failure to an alert unit that reaches nobody, and the difference is exactly what matters at
+  03:00. Proving delivery needs a person to receive one.
+- no reviewed native `kf-document-v1` Liminal artifact or external runtime-closure inventory —
+  **no check**; the human-ratified qualification receipt in the same sentence is covered by
+  `evidence_receipts`.
 - key isolation is now expressed in the units — each private key is owned mode `0600` by the
   one identity that uses it — but **filesystem denial remains host evidence**. The units say
-  who may read a key; only the installed host proves nobody else can.
+  who may read a key; only the installed host proves nobody else can. Reported by
+  `secret_posture`, which inspects the mode of every secret a unit names.
 
   This line previously read "scheduled operation units still share `kf` identity". They did:
   five units ran as one account, so both signing keys were readable by the backup, offsite,

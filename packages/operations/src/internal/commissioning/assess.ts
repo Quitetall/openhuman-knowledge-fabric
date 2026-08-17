@@ -14,26 +14,37 @@ import {
 import { secretPosture, unitProvenance } from './units.js';
 
 /**
- * One check per blocker in `docs/deployment/private-host.md`, in the order an operator meets
- * them: what is installed, what it can read, how it is reached, who it trusts, what it runs
- * on, and what somebody proved by doing it.
+ * A check for most blockers in `docs/deployment/private-host.md`, in the order an operator
+ * meets them: what is installed, what it can read, how it is reached, who it trusts, what it
+ * runs on, and what somebody proved by doing it.
+ *
+ * NOT one per blocker, which this comment used to claim. Four of them have no check at all —
+ * real-provider browser evidence, firewall and nginx validation, `kf-alert@` actually reaching
+ * a person, and the reviewed Liminal artifact and runtime-closure inventory. The document marks
+ * each of those explicitly, and `tests/deployment/commissioning-blockers.test.ts` holds the two
+ * lists together so a blocker cannot silently acquire the appearance of coverage.
+ *
+ * Each `blocker` string is the operator-facing restatement of what is still missing when the
+ * check does not pass. Keep it describing the GAP, not the mechanism — it is printed next to a
+ * failing check, where "what is still not proven" is the useful sentence.
  */
 export const COMMISSIONING_CHECKS: readonly CommissioningCheckDefinition[] = [
   {
     id: 'unit_provenance',
     blocker:
       'no installed user/file ownership evidence, service start/restart/reboot evidence; ' +
-      'scheduled operation units still share `kf` identity',
+      'no proof that units sharing an identity need the same secrets',
     run: unitProvenance,
   },
   {
     id: 'secret_posture',
-    blocker: 'checkpoint key isolation from API remains a host evidence gate',
+    blocker:
+      'no host evidence that each private key is readable only by the one identity that uses it',
     run: secretPosture,
   },
   {
     id: 'tls_termination',
-    blocker: 'no site hostnames, certificates, firewall rules or installed nginx validation',
+    blocker: 'no site hostnames or certificates validated against the name this host serves',
     run: tlsTermination,
   },
   {
