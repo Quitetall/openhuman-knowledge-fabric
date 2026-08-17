@@ -98,6 +98,15 @@ jobs:
       #
       # `--verify-tag` refuses to create a release for a tag that does not exist, so a mistyped
       # or deleted ref fails here instead of silently publishing an empty release.
+      #
+      # `--generate-notes` is deliberate, not a shortcut to stop the step failing: the release
+      # notes for this repository are the commit log, because the commit messages here record
+      # what was measured and what was ruled out. It only applies when CI creates the release —
+      # a release written by hand beforehand keeps its own body and just receives the SBOM.
+      #
+      # The view-then-create is not atomic. If something else creates the release in the gap,
+      # `create` fails and takes the step with it. That is the direction to fail in: the
+      # alternative, `|| true`, would swallow an auth or network failure just as quietly.
       - name: Attach to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
