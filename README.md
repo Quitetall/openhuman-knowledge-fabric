@@ -76,13 +76,26 @@ new object-store versions; an occupied key with different bytes fails closed.
 Verification, all of which must pass from a clean checkout:
 
 ```sh
+pnpm gate
+```
+
+That is the whole set, in CI's order, fail-fast. It is what the three CI jobs run between
+them, and `tests/deployment/gate-parity.test.ts` asserts the two agree in both directions — so
+a step added to `.github/workflows/ci.yml` and not to `gate` fails the suite rather than
+waiting to fail on somebody's push. Run the pieces individually while iterating:
+
+```sh
 pnpm format:check
 pnpm lint
 pnpm typecheck
-pnpm ontology:check   # ontology consistent, generated/ current
-pnpm test             # includes a real PostgreSQL 18 via Testcontainers
+pnpm ontology:check                        # ontology internally consistent
+pnpm ontology:build && git diff --exit-code -- generated/   # and the committed output is current
+pnpm test                                  # includes a real PostgreSQL 18 via Testcontainers
 pnpm build
 ```
+
+`ontology:check` compares in memory; the regenerate-and-diff is a separate step because only a
+real write proves the emitters are deterministic.
 
 Requires Node 24.18.1 (current active LTS), pnpm 11, Docker with Compose v2.
 

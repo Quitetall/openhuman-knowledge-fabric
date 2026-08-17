@@ -127,13 +127,23 @@ secrets from owner-only files.
 
 ## Verification
 
+`pnpm gate` runs all of it in CI's order, fail-fast, and is the only list that cannot go
+stale — `tests/deployment/gate-parity.test.ts` compares it against `.github/workflows/ci.yml`
+and fails if either grows a step the other lacks. Prefer it over running these by hand:
+
 ```sh
 pnpm format:check   # prettier
 pnpm lint           # eslint + typescript-eslint
 pnpm typecheck      # tsc --build across 16 projects, then Next's own tsc
 pnpm test           # vitest
+pnpm ontology:check # ontology internally consistent, compared in memory
+pnpm ontology:build && git diff --exit-code -- generated/   # committed output is current
 pnpm build          # every package plus a real Next production build
 ```
+
+The two ontology steps were missing from this list until 2026-08-16, which is the failure mode
+`pnpm gate` exists to remove: a hand-maintained list of checks is wrong the moment CI gains one,
+and it is wrong silently, because nothing compares the list to the thing it describes.
 
 ## Toolchain decisions worth knowing
 
