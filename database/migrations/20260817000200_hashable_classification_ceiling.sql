@@ -83,12 +83,24 @@ begin
      and (coalesce(qual, '') ~ 'SELECT classification\.rank'
           or coalesce(with_check, '') ~ 'SELECT classification\.rank');
 
+  -- Matched against what PostgreSQL 18 actually renders, checked on a real server rather than
+  -- assumed. `classification in (select id from registry.classification where …)` reads back
+  -- as:
+  --
+  --     (classification IN ( SELECT classification.id
+  --        FROM registry.classification
+  --       WHERE (classification.rank <= core.current_classification_rank())))
+  --
+  -- so it is `IN (`, not the `= ANY (` that an `IN`-subquery is often said to become. The
+  -- subquery's own text is required too: matching a bare `IN (` would be satisfied by any
+  -- unrelated set comparison a later migration added to these policies, and would then report
+  -- the ceiling hashed when it was not.
   select count(*) into now_hashable
     from pg_policies
    where schemaname = 'core' and tablename = 'object'
      and policyname in ('object_read', 'object_write', 'object_update')
-     and (coalesce(qual, '') ~ 'hashed SubPlan|= ANY|IN \(| ANY \('
-          or coalesce(with_check, '') ~ 'hashed SubPlan|= ANY|IN \(| ANY \(');
+     and (coalesce(qual, '') ~ 'IN \(\s*SELECT classification\.id'
+          or coalesce(with_check, '') ~ 'IN \(\s*SELECT classification\.id');
 
   if still_correlated <> 0 then
     raise exception 'core.object still has % policy expression(s) using the per-row ceiling',

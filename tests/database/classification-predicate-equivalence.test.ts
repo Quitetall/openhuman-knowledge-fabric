@@ -28,12 +28,18 @@
  * table gains a classification tomorrow, the cross product grows to match, because it is read
  * from the registry rather than written down here.
  *
- * The NULL analysis that makes this tractable, verified against the schema rather than
+ * The NULL analysis, verified against the schema and then against the server rather than
  * assumed: `registry.classification.rank` is `integer not null unique`, and
- * `core.current_classification_rank()` coalesces a missing setting to `-1`. Neither side of
- * the comparison can be NULL. The only path to a NULL verdict is a row whose classification
- * matches no registry row, and RLS denies on NULL — which the cases below cover explicitly
- * rather than leave to inference.
+ * `core.current_classification_rank()` coalesces a missing setting to `-1`, so the RANK side
+ * of the comparison can never be NULL. The classification side can, and the first version of
+ * this file argued it could not — `core.object.classification` is `not null`, so surely no
+ * row reaches the policy with one.
+ *
+ * That argument is wrong, and testing it is how that was discovered. RLS WITH CHECK runs
+ * BEFORE the column constraint: an insert of a NULL classification is rejected with 42501
+ * `new row violates row-level security policy`, not with a not-null violation. The policy
+ * evaluates NULL. So NULL is in the cross product below on its own merits, and the reason
+ * this case is safe is not that it cannot happen — it is that both forms deny when it does.
  */
 
 import { withTransaction } from '@kf/database';
@@ -59,8 +65,18 @@ const HASHABLE = `candidate.classification in
  */
 const NON_CLASSIFICATION_CEILINGS = ['', 'not_a_classification', 'RESTRICTED'] as const;
 
-/** Classifications a row can carry that the registry does not define. */
-const NON_CLASSIFICATION_ROWS = ['not_a_classification', ''] as const;
+/**
+ * Classifications a row can carry that the registry does not define.
+ *
+ * NULL is in this list, and it is not decoration. `core.object.classification` is `not null`,
+ * which looks like it makes NULL unreachable — but RLS WITH CHECK is evaluated BEFORE the
+ * column constraint. Measured: inserting a NULL classification is rejected with 42501,
+ * `new row violates row-level security policy`, not with a not-null violation. So the policy
+ * really does see NULL on an attempted insert, and "the constraint prevents it" is the wrong
+ * reason to think this case is safe. The right reason is that both forms deny, which is what
+ * the comparison below establishes.
+ */
+const NON_CLASSIFICATION_ROWS = ['not_a_classification', '', null] as const;
 
 let harness: Harness | undefined;
 let classifications: readonly string[] = [];
@@ -93,11 +109,16 @@ describe('the classification ceiling means the same thing written either way', (
      *
      * These are real and this is where they are: a classification the registry does not
      * define yields NULL from the correlated form (a subquery with no rows) and FALSE from
-     * the hashable form (absent from the set). RLS denies on both, so no row's fate changes
-     * — and `core.object.classification` is `not null references registry.classification
-     * (id)`, so no row can carry such a value in the first place. Collected and asserted to
-     * be exactly that set rather than tolerated by a looser comparison, because "they differ
-     * only somewhere harmless" is a claim that needs checking, not an aside.
+     * the hashable form (absent from the set). RLS denies on NULL and on FALSE alike, so no
+     * row's fate changes.
+     *
+     * NULL itself mostly does NOT land here, which is worth knowing rather than assuming:
+     * `NULL in (non-empty set)` is NULL, matching the correlated form exactly. It appears
+     * only against an empty set — a ceiling below every rank — where `NULL in ()` is FALSE
+     * and the correlated form is still NULL. Deny either way, again.
+     *
+     * Collected and asserted rather than tolerated by a looser comparison, because "they
+     * differ only somewhere harmless" is a claim that needs checking, not an aside.
      */
     const valueOnlyDifferences: string[] = [];
     let compared = 0;
@@ -106,7 +127,7 @@ describe('the classification ceiling means the same thing written either way', (
       const verdicts = await withTransaction(harness!.adminPool, async (tx) => {
         await tx.query('select set_config($1, $2, true)', ['kf.max_classification', ceiling]);
         return tx.query<{
-          classification: string;
+          classification: string | null;
           correlated: boolean | null;
           hashable: boolean | null;
         }>(
@@ -154,10 +175,16 @@ describe('the classification ceiling means the same thing written either way', (
       'the two forms differ in value at a classification the registry defines, which is a ' +
         'reachable row and not the benign unreachable corner',
     ).toEqual([]);
+    // Asserted as a property rather than an exact count. The count depends on whether the
+    // ceiling admits any rank at all — `NULL in (empty)` is FALSE while `NULL in (non-empty)`
+    // is NULL — so a hardcoded number would encode an accident of the registry's contents and
+    // break the first time a classification is added. Non-emptiness is what stops the check
+    // above passing because nothing was collected.
     expect(
       valueOnlyDifferences.length,
-      'expected NULL-vs-false only at the classifications no registry row defines, once per ceiling',
-    ).toBe(NON_CLASSIFICATION_ROWS.length * ceilings.length);
+      'no value-level differences at all, so the characterisation above is describing nothing ' +
+        'and the two forms may have been compared incorrectly',
+    ).toBeGreaterThan(0);
     for (const entry of valueOnlyDifferences) {
       expect(entry, 'a value-level difference that is not the expected NULL-vs-false').toContain(
         'correlated=null hashable=false',
@@ -200,7 +227,11 @@ describe('the classification ceiling means the same thing written either way', (
     // other, and `nullif` only collapses the first. A fresh transaction that binds nothing is
     // the only way to exercise the second, and it is the state every connection starts in.
     const verdicts = await withTransaction(harness!.adminPool, (tx) =>
-      tx.query<{ classification: string; correlated: boolean | null; hashable: boolean | null }>(
+      tx.query<{
+        classification: string | null;
+        correlated: boolean | null;
+        hashable: boolean | null;
+      }>(
         `select candidate.classification,
                 (${CORRELATED}) as correlated,
                 (${HASHABLE}) as hashable
