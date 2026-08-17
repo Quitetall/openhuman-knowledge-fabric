@@ -25,18 +25,13 @@ import { withTransaction } from '@kf/database';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startHarness, type Harness } from './harness.js';
 
-const MIGRATION = join(
-  import.meta.dirname,
-  '..',
-  '..',
-  'database',
-  'migrations',
-  '20260817000100_hoist_row_independent_policy_predicates.sql',
-);
+const MIGRATIONS = join(import.meta.dirname, '..', '..', 'database', 'migrations');
+const HOIST_MIGRATION = '20260817000100_hoist_row_independent_policy_predicates.sql';
+const CEILING_SWEEP_MIGRATION = '20260817000300_hashable_classification_ceiling_remaining.sql';
 
 /** The `-- migrate:up` or `-- migrate:down` half of a dbmate migration. */
-function section(which: 'up' | 'down'): string {
-  const sql = readFileSync(MIGRATION, 'utf8');
+function section(which: 'up' | 'down', file: string = HOIST_MIGRATION): string {
+  const sql = readFileSync(join(MIGRATIONS, file), 'utf8');
   const up = sql.indexOf('-- migrate:up');
   const down = sql.indexOf('-- migrate:down');
   expect(up, 'migration has no up section').toBeGreaterThanOrEqual(0);
@@ -161,5 +156,80 @@ describe('row-independent policy predicates are evaluated once per statement', (
     expect(reapplied, 'reapplying after a rollback did not restore the hoisted form').toEqual(
       before,
     );
+  }, 300_000);
+
+  it('asks the classification ceiling once per statement, in every policy that asks it', async () => {
+    // The other half of the same idea, and the one with teeth: a policy that compares a row's
+    // classification rank with a CORRELATED subquery runs that subquery per row. Measured on
+    // 36,007 objects it cost 137 ms where the uncorrelated form costs 2 ms
+    // (`tests/database/rls-read-cost.test.ts`).
+    //
+    // Fabric-wide rather than scoped to the tables that were rewritten, because the failure
+    // this guards against is a NEW policy written the natural way — the correlated form is
+    // what anyone writes first, and it is invisible until somebody measures.
+    const correlated = await withTransaction(harness!.adminPool, (tx) =>
+      tx.query<{ table: string; policy: string; clause: string }>(
+        `select schemaname || '.' || tablename as "table", policyname as policy, 'qual' as clause
+           from pg_policies where qual ~ 'SELECT [a-z_]+\\.rank'
+         union all
+         select schemaname || '.' || tablename, policyname, 'with_check'
+           from pg_policies where with_check ~ 'SELECT [a-z_]+\\.rank'
+         order by 1, 2, 3`,
+      ),
+    );
+    expect(
+      correlated.map((row) => `${row.table}.${row.policy} (${row.clause})`),
+      'these policy clauses look up a classification rank once per row tested. Use the ' +
+        'uncorrelated form so the planner can hash it once: ' +
+        '`<column> in (select id from registry.classification where rank <= ' +
+        'core.current_classification_rank())`. Equivalence is already established ' +
+        'exhaustively in classification-predicate-equivalence.test.ts.',
+    ).toEqual([]);
+  }, 120_000);
+
+  it('still has ceiling clauses to be right about, so that check cannot pass vacuously', async () => {
+    const hashed = await withTransaction(harness!.adminPool, (tx) =>
+      tx.one<{ count: string }>(
+        `select count(*)::text as count
+           from (select qual as clause from pg_policies
+                 union all
+                 select with_check from pg_policies) as clauses
+          where clause ~ 'IN \\(\\s*SELECT classification\\.id'`,
+      ),
+    );
+    // 4 clauses on core.object (20260817000200) plus 19 elsewhere (20260817000300). An
+    // assertion of "more than zero" would be satisfied by one, and report a finished sweep.
+    expect(
+      Number(hashed.count),
+      'the fabric does not carry the expected number of hashed ceiling clauses, so the ' +
+        'check above may be passing because it found nothing rather than nothing wrong',
+    ).toBe(23);
+  }, 120_000);
+
+  it('reverses the ceiling sweep and reapplies it', async () => {
+    const perRow = async (): Promise<number> =>
+      withTransaction(harness!.adminPool, async (tx) => {
+        const row = await tx.one<{ count: string }>(
+          `select count(*)::text as count
+             from (select qual as clause from pg_policies
+                   union all
+                   select with_check from pg_policies) as clauses
+            where clause ~ 'SELECT [a-z_]+\\.rank'`,
+        );
+        return Number(row.count);
+      });
+
+    expect(await perRow()).toBe(0);
+    await withTransaction(harness!.adminPool, (tx) =>
+      tx.query(section('down', CEILING_SWEEP_MIGRATION)),
+    );
+    expect(
+      await perRow(),
+      'the sweep rollback did not restore the 19 per-row clauses it replaced',
+    ).toBe(19);
+    await withTransaction(harness!.adminPool, (tx) =>
+      tx.query(section('up', CEILING_SWEEP_MIGRATION)),
+    );
+    expect(await perRow(), 'reapplying the sweep left per-row clauses behind').toBe(0);
   }, 300_000);
 });

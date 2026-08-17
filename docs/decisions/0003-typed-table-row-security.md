@@ -367,14 +367,47 @@ to whoever operates it. It is recorded in `docs/deployment/private-host.md` with
 numbers. Worth knowing that the effect grows with policy nesting, so it lands hardest exactly
 where this record added the most policies.
 
-### Still carrying the correlated ceiling
+### The rest of them — 2026-08-17
 
-`core.object` is done because it is on every read and its predicates were read from source.
-Ten other policies carry the same correlated term — on `ml.aggregate_reference`,
-`search.document`, `secure_object.capability_request`, `secure_object.erasure_request` and
-`content.compilation_basis` — and are NOT rewritten here. Each has a different surrounding
-predicate, several govern writes, and reconstructing ten security rules from their rendered
-text is exactly the risk the `core.object` migration avoided by stating them in full. They
-want the same recipe applied deliberately, one at a time, against the same exhaustive
-equivalence test — which already covers the term itself, so what remains per policy is
-transcription rather than proof.
+`20260817000300_hashable_classification_ceiling_remaining.sql` finishes the sweep. **No policy
+anywhere in the fabric now evaluates the classification ceiling once per row.**
+
+**A correction first.** The paragraph this replaces said "ten other policies". That was wrong,
+and wrong in the direction that matters: it came from reading a truncated listing rather than
+counting. Enumerated properly from `pg_policies`, the remainder was **15 policies, 19 clauses,
+across 10 tables**:
+
+| table                                | policies       | clauses | ceiling column                               |
+| ------------------------------------ | -------------- | ------- | -------------------------------------------- |
+| `content.adr_decision_body`          | read, insert   | 2       | `decision.classification`, inside an EXISTS  |
+| `content.authored_fragment_revision` | scope (ALL)    | 2       | `classification`                             |
+| `content.compilation_basis`          | read, finalize | 2       | `effective_classification`, one inside an OR |
+| `content.compilation_run`            | scope (ALL)    | 2       | `effective_classification`                   |
+| `content.compiled_view`              | scope (ALL)    | 2       | `effective_classification`                   |
+| `content.document_publication`       | scope (ALL)    | 2       | `effective_classification`                   |
+| `ml.aggregate_reference`             | read, insert   | 2       | `classification_id`                          |
+| `search.document`                    | read           | 1       | `classification`                             |
+| `secure_object.capability_request`   | read, insert   | 2       | `classification_id`                          |
+| `secure_object.erasure_request`      | read, insert   | 2       | `classification_id`                          |
+
+Four distinct classification columns and four different surrounding predicates, which is why
+this was transcription rather than a textual sweep. Each policy is restated in full from its
+defining migration; every clause that is not the ceiling is copied verbatim, so the diff is
+exactly the ceiling and nothing else.
+
+**What was measured and what was not, stated separately.** The throughput effect was measured
+on `core.object` — 137.3 ms to 2.0 ms on the term. These 19 clauses carry the _identical_
+term and receive the _identical_ rewrite, and that is verified two ways: the migration asserts
+fabric-wide that zero per-row clauses remain and exactly 23 hashed clauses exist, and the
+exhaustive equivalence test covers the term itself. Per-table throughput on these ten tables
+was **not** separately benchmarked — they hold single-digit row counts in every environment
+available here, which is the same limitation stage one recorded and the same reason it is
+worth saying rather than implying a measurement that was not taken.
+
+**Fail-closed on both sides.** The up section refuses to complete unless zero correlated
+clauses remain fabric-wide AND exactly 23 hashed clauses are present; a count of "more than
+zero" would be satisfied by one rewritten clause and report a finished sweep. The down section
+refuses unless it restores exactly 19. `tests/database/policy-predicate-shape.test.ts` runs
+the round trip — 0 to 19 to 0 — and carries a standing guard that lists any policy clause
+anywhere that reintroduces the per-row form, because that form is what anyone writes first and
+it is invisible until somebody measures.
