@@ -53,7 +53,19 @@ function upSection(sql: string): string {
   return sql.slice(start + '-- migrate:up'.length, end < 0 ? undefined : end);
 }
 
-export async function startHarness(): Promise<Harness> {
+export interface HarnessOptions {
+  /**
+   * Migration filenames to leave unapplied.
+   *
+   * Exists for one purpose: comparing the schema a migration produces against the schema
+   * without it. A test that wants to prove a migration changed only what it claims has to be
+   * able to observe both sides, and applying-then-reversing observes the reversal instead —
+   * which is the thing under suspicion.
+   */
+  readonly skipMigrations?: ReadonlySet<string>;
+}
+
+export async function startHarness(options: HarnessOptions = {}): Promise<Harness> {
   const container: StartedPostgreSqlContainer = await new PostgreSqlContainer('postgres:18-alpine')
     .withDatabase('kf_test')
     .withUsername('kf_owner')
@@ -95,6 +107,7 @@ export async function startHarness(): Promise<Harness> {
 
   for (const file of readdirSync(MIGRATIONS)
     .filter((f) => f.endsWith('.sql'))
+    .filter((f) => !options.skipMigrations?.has(f))
     .sort()) {
     const sql = upSection(readFileSync(join(MIGRATIONS, file), 'utf8'));
     // Each migration in its own transaction, as dbmate applies them: a migration that fails

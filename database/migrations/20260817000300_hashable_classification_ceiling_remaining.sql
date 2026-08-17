@@ -383,16 +383,35 @@ alter policy erasure_request_insert on secure_object.erasure_request
 
 do $$
 declare
-  restored integer;
+  restored      integer;
+  hashable_left integer;
 begin
   select count(*) into restored
     from (select qual as clause from pg_policies
           union all
           select with_check from pg_policies) as clauses
    where clause ~ 'SELECT [a-z_]+\.rank';
+
+  -- Two-sided, like the up section. Counting only what was restored cannot distinguish a
+  -- rollback that reverted all 19 from one that reverted some while leaving hashed clauses
+  -- behind — the counts are independent, and a policy carrying neither form would satisfy
+  -- neither check on its own.
+  select count(*) into hashable_left
+    from (select qual as clause from pg_policies
+          union all
+          select with_check from pg_policies) as clauses
+   where clause ~ 'IN \(\s*SELECT classification\.id';
+
   if restored <> 19 then
     raise exception
       'rollback restored % per-row ceiling clause(s), expected 19', restored
       using errcode = 'check_violation';
+  end if;
+  -- The 4 that belong to core.object and 20260817000200, which this migration never touched
+  -- and its rollback must not.
+  if hashable_left <> 4 then
+    raise exception
+      'rollback left % hashed ceiling clause(s), expected the 4 owned by 20260817000200',
+      hashable_left using errcode = 'check_violation';
   end if;
 end $$;
