@@ -23,11 +23,23 @@
  * The cost is strictness — CI writing `pnpm run test` while the gate says `pnpm test` fails
  * this test. That is the right direction to fail in, and the fix is to write them the same.
  *
+ * TWO CI STEP SHAPES FAIL NOISILY RATHER THAN SILENTLY, measured against the parser rather
+ * than reasoned about. A shell continuation (`pnpm test \`) is read as the literal
+ * `'pnpm test \'`, and two commands on one line (`pnpm lint && pnpm test`) are read as one
+ * string; neither matches a gate entry, so the suite fails and says the gate is missing a
+ * command it appears to have. Confusing, but it fails CLOSED, which is why both are left
+ * alone: the fix is to write the CI step as one command per line. Block scalars are fine —
+ * `run: |` content lines are read individually and each parses correctly.
+ *
  * WHAT IT STILL DOES NOT COVER. Only `pnpm` commands are compared. CI steps that are not pnpm
  * commands are environment rather than gates: the bubblewrap provisioning and the `actions/*`
  * setup steps. The one non-pnpm command inside `pnpm gate` — the `git diff` that proves
  * `generated/` is current — is therefore outside the comparison, so it is pinned by name in
- * the last test rather than left to be dropped silently. Order is not checked.
+ * the last test rather than left to be dropped silently. A whole CI job whose steps are all
+ * non-pnpm (a `bash scripts/check.sh` gate, say) would be invisible; if one is ever added,
+ * this comparison has to grow to meet it. Order is not checked, and `pnpm gate` is expected
+ * to stay FLAT — the commands are read from its own `&&` chain and not followed into a
+ * sub-script, so delegating part of the gate to another script would fail here.
  */
 
 import { readFileSync } from 'node:fs';
@@ -94,7 +106,10 @@ describe('the local gate command and CI agree on what a gate is', () => {
     expect(
       missing,
       'CI runs these and `pnpm gate` does not, so a contributor who runs the gate and sees ' +
-        'green can still be red on push — which is how format:check stayed broken for a week',
+        'green can still be red on push — which is how format:check stayed broken for a week. ' +
+        'If the gate looks like it already has one of these, check the SHAPE: commands are ' +
+        'compared verbatim, so `pnpm lint && pnpm test` on one CI line does not match a gate ' +
+        'that runs them as two, and a trailing `\\` continuation is part of the string.',
     ).toEqual([]);
   });
 
