@@ -272,37 +272,65 @@ re-run preflight. For incompatible schema or partial migration, restore pre-migr
 into new database instance, verify audit/export/readiness there, then change credential file
 under approved recovery procedure. Never run `dbmate down` against production database.
 
-## PostgreSQL: consider raising `jit_above_cost`
+## PostgreSQL JIT: do not tune it host-wide
 
-Not applied by any migration, because it is a host-wide setting and choosing it belongs to
-whoever operates the host. Recorded with the measurement so the choice is informed.
+**Recommendation: leave the defaults alone.** An earlier revision of this section suggested
+`jit_above_cost = 500000`. That was wrong twice over and is corrected here rather than
+quietly dropped.
 
 The fabric's row-level security nests: a typed table's policy tests `exists (select 1 from
-core.object …)`, and `core.object`'s own policies run inside that. The planner's cost estimate
-for the nested form comes out around **2.2 million** — an artefact of the subplan structure,
-not of the work — which crosses the default `jit_above_cost` of 100,000. PostgreSQL then
-compiles ~44 functions for a query that does not need them.
+core.object …)`, and `core.object`'s own policies run inside that. On an unbounded scan the
+planner's estimate for the nested form comes out around **2.2 million** — an artefact of the
+subplan structure, not of the work — which crosses the default `jit_above_cost` of 100,000,
+and PostgreSQL compiles ~44 functions for a query that does not need them.
 
-Measured on 36,007 objects, reading one organization's 12,000 controlled documents as
-`kf_readonly` (`KF_MEASURE_RLS=1`, `tests/database/rls-read-cost.test.ts`):
+That much is real. What was missing was whether it happens to any query the application
+actually runs. Measured on 36,007 objects as `kf_readonly` (`KF_MEASURE_RLS=1`,
+`tests/database/rls-read-cost.test.ts`), with the query shapes the API issues:
 
-| read                                 | median    |
-| ------------------------------------ | --------- |
-| through the policy                   | 146 ms    |
-| the same read, `set local jit = off` | **16 ms** |
-| the equivalent hand-written join     | 16 ms     |
+| query shape            | JIT         | with JIT | JIT off | planner estimate |
+| ---------------------- | ----------- | -------- | ------- | ---------------- |
+| point read by id       | idle        | 0.5 ms   | 0.3 ms  | 70               |
+| bounded list (50 rows) | idle        | 13.4 ms  | 15.4 ms | 6,174            |
+| envelope join, bounded | idle        | 1.0 ms   | 1.0 ms  | 6,274            |
+| unbounded `count(*)`   | **engaged** | 146.7 ms | 16.2 ms | 2,222,440        |
 
-So on this workload JIT costs about 8x the query it is compiling, and the effect grows with
-policy nesting — it lands hardest on exactly the tables decision 0003 added policies to.
+**JIT never engages on a bounded query.** Every application shape estimates three to four
+orders of magnitude below the threshold. Tuning JIT would change nothing about API latency,
+and a setting that changes nothing is worse than none: it reads as a mitigation.
+
+The second error was the value. Against a 2.2 million estimate, `500000` is still below the
+threshold being crossed:
+
+| setting on the unbounded scan | median                                           |
+| ----------------------------- | ------------------------------------------------ |
+| default                       | 151.5 ms                                         |
+| `jit_above_cost = 500000`     | 140.1 ms ← the value previously recommended here |
+| `jit_above_cost = 5000000`    | 16.2 ms                                          |
+| inline + optimize raised      | 25.0 ms                                          |
+| `jit = off`                   | 17.0 ms                                          |
+
+The previously suggested value buys 7%. Raising `jit_inline_above_cost` and
+`jit_optimize_above_cost` instead recovers most of the win while keeping basic JIT, because
+those two phases were 90 ms of the 137 ms.
+
+**If it ever does matter**, it will be for the paths that scan without a bound — readiness
+counts, search index rebuilds, exports, an auditor session on `kf_readonly` — none of which is
+latency-critical. Set it on those roles rather than on the host:
 
 ```sh
-# In postgresql.conf, after confirming it suits the rest of the workload on this host:
-jit_above_cost = 500000     # or: jit = off
+alter role kf_readonly set jit_above_cost = 5000000;   -- only if a scan-heavy path needs it
 ```
 
-This is a starting point, not a recommendation to apply blind. A host that also runs large
-analytical queries may want JIT for those, and the right threshold depends on what else the
-database does. Re-measure with the harness above after changing it.
+One caveat that cuts the other way, worth knowing before treating 9x as a standing figure: the
+JIT cost is roughly FIXED (~130 ms of compilation) while the scan cost grows with the data. At
+ten times this row count the scan itself dominates and the relative penalty shrinks; far enough
+out, JIT starts paying for itself. The 9x is a property of this data size, not a constant.
+Re-measure with the harness above before acting on it.
+
+And the general caution that still applies whatever is decided: a host that also runs large
+analytical queries may want JIT for those, so the right threshold depends on everything else
+the database does, not only on the fabric. Re-measure after any change.
 
 ## Runtime configuration
 

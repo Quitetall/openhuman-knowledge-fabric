@@ -85,7 +85,11 @@ async function measure(
   label: string,
   sql: string,
   organizationId: string,
-  options: { readonly jit?: boolean } = {},
+  options: {
+    readonly jit?: boolean;
+    /** Extra `set local` settings, as [name, value] — for testing individual JIT knobs. */
+    readonly settings?: ReadonlyArray<readonly [string, string]>;
+  } = {},
 ): Promise<Measurement> {
   const durations: number[] = [];
   let rows = 0;
@@ -93,6 +97,9 @@ async function measure(
     const elapsed = await withTransaction(readerPool, async (tx) => {
       await tx.query('select core.set_access_context($1, $2)', [organizationId, 'restricted']);
       if (options.jit === false) await tx.query('set local jit = off');
+      for (const [name, value] of options.settings ?? []) {
+        await tx.query(`set local ${name} = ${value}`);
+      }
       const startedAt = process.hrtime.bigint();
       const result = await tx.one<{ count: string }>(sql);
       const finishedAt = process.hrtime.bigint();
@@ -405,6 +412,104 @@ describe.skipIf(!MEASURING)('row-level security read cost on a populated databas
     expect(envelopePolicy.rows).toBe(DOCUMENTS_PER_ORG);
     expect(actionUnbounded.rows).toBe(ACTIONS_PER_ORG * organizations.length);
     expect(actionPolicy.rows).toBe(ACTIONS_PER_ORG);
+  }, 900_000);
+
+  it('says whether JIT tuning would help the queries an application actually runs', async () => {
+    // The full-scan `count(*)` measured above costs 146 ms with JIT and 16 ms without, which
+    // reads like a 9x win waiting to be taken. It is not obviously that, and the gap is the
+    // point of this test: JIT engages on an estimated COST, and the application does not
+    // mostly run full scans. A keyed lookup estimates cheap and may never cross the threshold,
+    // in which case the tuning is real and irrelevant.
+    //
+    // So the query shapes are the ones the API issues — a point read, a small bounded list,
+    // the envelope join — and the reported fact is not just the duration but whether JIT
+    // ENGAGED AT ALL, read from the plan rather than inferred from the timing.
+    const organizationId = organizations[0]!;
+    const sample = await withTransaction(readerPool, async (tx) => {
+      await tx.query('select core.set_access_context($1, $2)', [organizationId, 'restricted']);
+      const row = await tx.one<{ id: string }>(
+        'select id from quality.controlled_document limit 1',
+      );
+      return row.id;
+    });
+
+    const shapes: ReadonlyArray<readonly [string, string]> = [
+      [
+        'point read by id',
+        `select count(*)::text as count from quality.controlled_document
+                              where id = '${sample}'`,
+      ],
+      [
+        'bounded list (50)',
+        `select count(*)::text as count
+                               from (select id from quality.controlled_document limit 50) page`,
+      ],
+      [
+        'envelope join, bounded',
+        `select count(*)::text as count
+                                    from (select document.id
+                                            from quality.controlled_document document
+                                            join core.object envelope on envelope.id = document.id
+                                           limit 50) page`,
+      ],
+      ['full scan count', 'select count(*)::text as count from quality.controlled_document'],
+    ];
+
+    const lines: string[] = [];
+    const engaged: Record<string, boolean> = {};
+    for (const [name, sql] of shapes) {
+      const plan = await planFor(sql, organizationId);
+      const jitted = plan.includes('JIT:');
+      engaged[name] = jitted;
+      const withJit = await measure(name, sql, organizationId);
+      const withoutJit = await measure(name, sql, organizationId, { jit: false });
+      const cost = /cost=[\d.]+\.\.([\d.]+)/.exec(plan)?.[1] ?? '?';
+      lines.push(
+        `  ${name.padEnd(24)} jit ${jitted ? 'ENGAGED' : 'idle   '}  ` +
+          `${withJit.medianMs.toFixed(1).padStart(7)} ms on  ` +
+          `${withoutJit.medianMs.toFixed(1).padStart(7)} ms off  est.cost ${cost}`,
+      );
+    }
+
+    // Which knob, not just whether. `jit_above_cost` (default 100000) gates JIT at all;
+    // `jit_inline_above_cost` and `jit_optimize_above_cost` (both default 500000) gate the
+    // two expensive phases, which the earlier plan showed cost 23.6 ms and 66.8 ms of the
+    // 137.6 ms total. A setting chosen without knowing which phase dominates is a guess.
+    const full = shapes[3]![1];
+    const knobs: ReadonlyArray<readonly [string, ReadonlyArray<readonly [string, string]>]> = [
+      ['default settings', []],
+      ['jit_above_cost=500000', [['jit_above_cost', '500000']]],
+      ['jit_above_cost=5000000', [['jit_above_cost', '5000000']]],
+      [
+        'inline+optimize raised',
+        [
+          ['jit_inline_above_cost', '5000000'],
+          ['jit_optimize_above_cost', '5000000'],
+        ],
+      ],
+      ['jit=off', []],
+    ];
+    for (const [name, settings] of knobs) {
+      const result = await measure(name, full, organizationId, {
+        settings,
+        ...(name === 'jit=off' ? { jit: false } : {}),
+      });
+      lines.push(`  full scan · ${name.padEnd(24)} ${result.medianMs.toFixed(1).padStart(7)} ms`);
+    }
+
+    // eslint-disable-next-line no-console
+    console.info(
+      ['', 'Does JIT tuning help the shapes an application runs?', ...lines, ''].join('\n'),
+    );
+
+    // The load-bearing claim, asserted rather than left in prose: a point read does not JIT.
+    // If this ever becomes false, the tuning question changes from "irrelevant to the API" to
+    // "on the hot path", and that should fail a test rather than be noticed later.
+    expect(
+      engaged['point read by id'],
+      'a keyed single-row read now crosses the JIT threshold, which changes the conclusion ' +
+        'recorded in docs/deployment/private-host.md',
+    ).toBe(false);
   }, 900_000);
 
   it('attributes the envelope-keyed cost to a specific term in the core.object predicate', async () => {
