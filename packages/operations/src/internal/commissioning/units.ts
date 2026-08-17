@@ -18,7 +18,7 @@ const SECRET_ASSIGNMENT = /\b([A-Z0-9_]*(?:_FILE|_KEY_PATH))=(\/[^\s'"]+)/g;
 /**
  * `test -s <path>` — the idiom every unit uses to refuse an empty secret placeholder.
  *
- * Added because it was missed. `/etc/kf/preservation-manifest-key` is an Ed25519 private key
+ * Added because it was missed. `/etc/kf/backup/preservation-manifest-key` is an Ed25519 private key
  * reached through `backup.env` at runtime rather than through a directive, so the unit names
  * it only in its `ExecStartPre` guard. The posture check therefore never inspected the mode of
  * a private signing key — it reported on the secrets it could see and said nothing about the
