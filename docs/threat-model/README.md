@@ -201,8 +201,32 @@ whoever deploys, and a false one produces exactly the exposure it claims to prev
 | 2   | Checkpoint key custody separated from database administration  | T1 residual |
 | 3   | Object store backup on the database's schedule                 | T4 residual |
 | 4   | Certificate issuance and renewal at the proxy                  | Service     |
-| 5   | An alert unit (`kf-alert@`) that actually reaches a person     | T5, T8      |
+| 5   | A person confirming they receive an alert                      | T5, T8      |
 
-Items 1–4 are decisions for whoever operates this, not code that is missing. Item 5 is a
-genuine gap: every scheduled unit declares `OnFailure=kf-alert@%n.service` and no such unit
-exists, because a default that goes nowhere is worse than an absent one that fails to start.
+Items 1–4 are decisions for whoever operates this, not code that is missing.
+
+**Item 5 was a genuine gap and is now half of one.** Every scheduled unit declares
+`OnFailure=kf-alert@%n.service`, and until 2026-08-17 no such unit existed — deliberately,
+because a default that goes nowhere is worse than an absent one that fails to start.
+
+`kf-alert@.service` now ships. It POSTs to a webhook URL held as an owner-only file, refuses a
+cleartext endpoint, retries, and exits non-zero when the endpoint will not take it — so a
+delivery that reached nobody is a failed unit rather than a silent success.
+`tests/deployment/alert-dispatch.test.ts` exercises it against a real HTTPS server with real
+`curl`, including the refusals.
+
+**The alert carries no log content.** Unit name, host, time, systemd's result words, and the
+invocation id — never a journal excerpt. The destination is a third-party endpoint outside this
+system, and a log line from a failed backup or compilation can carry record content; the
+invocation id lets the recipient run `journalctl _SYSTEMD_INVOCATION_ID=<id>` on the host
+instead, under the host's own access control. The test asserts the payload's key set exactly,
+so a later change that attaches "just a bit of context" fails rather than lands.
+
+`kf-alert-heartbeat.timer` sends a daily success ping through the same path. This is what makes
+a DEAD alerter detectable: a failed delivery is visible on the host, but a path that has quietly
+stopped working is visible nowhere, and the receiver noticing the silence is the only signal
+that leaves the machine.
+
+What remains is the half no code can supply: **nobody has yet received one.** A webhook URL
+that is wrong, revoked, or pointed at an abandoned channel passes every check here and reaches
+no person. That is host evidence, and it is the form item 5 now takes.

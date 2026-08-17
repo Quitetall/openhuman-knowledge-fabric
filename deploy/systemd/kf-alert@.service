@@ -1,0 +1,44 @@
+[Unit]
+Description=Report that %i failed, to a person
+Documentation=file:///opt/kf/docs/threat-model/README.md
+After=network-online.target
+
+# NO OnFailure= HERE, AND THAT IS THE POINT.
+#
+# Every other unit in this deployment routes its failure to this one. If this one routed its
+# own failure back to itself, a host whose webhook endpoint is unreachable would spawn an alert
+# about the alert about the alert, without bound, at exactly the moment the operator can least
+# afford the noise.
+#
+# Its failure is visible two other ways instead: `systemctl --failed` lists it on the host, and
+# the daily heartbeat stops arriving at the far end. The second one is the one that matters,
+# because it is the only signal that leaves the machine.
+
+[Service]
+Type=oneshot
+# Its own identity, holding exactly one secret: the webhook URL. No signing key, no database
+# credential — it never touches the database, and an alerter that could read the checkpoint key
+# would undo the separation the other units were just given.
+User=kf-alert
+Group=kf-alert
+WorkingDirectory=/opt/kf
+Environment=KF_ALERT_WEBHOOK_URL_FILE=/etc/kf/alert/webhook-url
+ExecStartPre=/usr/bin/test -s /etc/kf/alert/webhook-url
+ExecStart=/opt/kf/scripts/alert-dispatch.sh failure %i
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+# Outbound HTTPS is the whole job, so the address families cannot be narrowed further than this.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+UMask=0077

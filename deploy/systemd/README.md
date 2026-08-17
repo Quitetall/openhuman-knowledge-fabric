@@ -55,10 +55,19 @@ Five things have to happen on a schedule, and until they are scheduled they are 
 | `kf-backup-offsite.service` | after each backup | The copy is beside the original; a lost host loses both.                                   |
 | `kf-restore-drill.timer`    | monthly           | Nothing has proven the backups can be read.                                                |
 | `kf-readiness.timer`        | every 15 min      | Nothing notices when any of the above stops running.                                       |
+| `kf-alert-heartbeat.timer`  | daily             | Nothing notices when the thing that notices stops working.                                 |
 
-The last one is the one that makes the others real. A backup timer that silently stops is
+The last two are what make the others real. A backup timer that silently stops is
 indistinguishable from a backup timer that is working, right up until the restore — unless
 something is checking, and something is failing when the check fails.
+
+And that check reports through `kf-alert@`, which is why the heartbeat exists. A failed alert
+is visible on the host in `systemctl --failed`; an alert path that has quietly stopped working
+is visible nowhere. The daily ping means the RECEIVER can alert on silence, which is the only
+way to catch an alerter that cannot report its own death.
+
+Enable both: `systemctl enable --now kf-alert-heartbeat.timer`. `kf-alert@.service` is a
+template pulled in by `OnFailure=` and is never enabled directly.
 
 ## Install
 
@@ -115,6 +124,16 @@ sudo install -m 0600 -o kf-backup -g kf-backup /dev/null /etc/kf/backup/database
 sudo install -m 0600 -o kf-backup -g kf-backup /dev/null /etc/kf/backup/preservation-manifest-key
 sudo install -m 0600 -o kf-offsite -g kf-offsite /dev/null /etc/kf/offsite/database-url
 sudo install -m 0600 -o kf-readiness -g kf-readiness /dev/null /etc/kf/readiness/database-url
+
+# The alerter. Its own identity holding exactly one secret — the webhook URL — and no key,
+# no database credential. Every other unit routes OnFailure= here, so it must be the least
+# privileged thing on the host, not the most.
+sudo useradd --system --user-group --home-dir /nonexistent --shell /usr/sbin/nologin kf-alert
+sudo install -d -m 0750 -o root -g kf-alert /etc/kf/alert
+# The URL is a credential: whoever holds it can forge alerts from this deployment. Must be
+# https:// — the dispatcher refuses cleartext rather than announcing which host is in trouble
+# to anyone on the path.
+sudo install -m 0600 -o kf-alert -g kf-alert /dev/null /etc/kf/alert/webhook-url
 
 # Public trust material, read by the backup and restore-drill jobs. Public, so a shared group
 # is fine here in a way it is not for a signing key.

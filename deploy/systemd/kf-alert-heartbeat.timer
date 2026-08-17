@@ -1,0 +1,14 @@
+[Unit]
+Description=Daily proof that the alert path still works
+
+[Timer]
+OnCalendar=daily
+# Spread across the hour so a fleet does not arrive at the endpoint in one burst, and so the
+# receiver's "expect one per day" rule is not tied to a minute that drifts.
+RandomizedDelaySec=1h
+# A host that was off at the scheduled time still reports in when it comes back, rather than
+# silently skipping a day and looking dead to whoever is watching for absence.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

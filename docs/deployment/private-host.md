@@ -493,10 +493,13 @@ cannot quietly acquire the appearance of coverage.
   `runtime_version`.
 - no successful disposable-cluster rollback receipt or host migration result for a release —
   `evidence_receipts`, which requires a receipt matched to the running release id.
-- no concrete `kf-alert@.service` integration — **no check**. `unit_provenance`
-  verifies every unit declares `OnFailure=`, which is not the same claim: a unit can route
-  failure to an alert unit that reaches nobody, and the difference is exactly what matters at
-  03:00. Proving delivery needs a person to receive one.
+- no person has yet received an alert — **no check**, and none is possible from here.
+  `kf-alert@.service` now ships and `tests/deployment/alert-dispatch.test.ts` proves it
+  delivers over real TLS and fails loudly when it cannot, but a webhook URL that is wrong,
+  revoked or pointed at an abandoned channel passes every one of those and reaches nobody.
+  `unit_provenance` verifies each unit declares `OnFailure=`, which is a weaker claim again.
+  Send one deliberately during commissioning and have a person confirm it arrived;
+  `kf-alert-heartbeat.timer` then keeps the path proven daily by its absence.
 - no reviewed native `kf-document-v1` Liminal artifact or external runtime-closure inventory —
   **no check**; the human-ratified qualification receipt in the same sentence is covered by
   `evidence_receipts`.

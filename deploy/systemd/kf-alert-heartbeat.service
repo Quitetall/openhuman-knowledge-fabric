@@ -1,0 +1,33 @@
+[Unit]
+Description=Prove the alert path still reaches a person
+Documentation=file:///opt/kf/docs/threat-model/README.md
+After=network-online.target
+
+# Deliberately no OnFailure=. A heartbeat that failed to send is reported by its own ABSENCE at
+# the far end, which is the signal this unit exists to produce; routing it to kf-alert@ would
+# try to report a broken delivery path through the broken delivery path.
+
+[Service]
+Type=oneshot
+User=kf-alert
+Group=kf-alert
+WorkingDirectory=/opt/kf
+Environment=KF_ALERT_WEBHOOK_URL_FILE=/etc/kf/alert/webhook-url
+ExecStartPre=/usr/bin/test -s /etc/kf/alert/webhook-url
+ExecStart=/opt/kf/scripts/alert-dispatch.sh heartbeat
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+UMask=0077

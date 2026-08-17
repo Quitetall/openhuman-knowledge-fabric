@@ -388,9 +388,22 @@ describe('the shipped units', () => {
     const { readUnits } = await import('./internal/commissioning/units.js');
     const shipped = await readUnits('deploy/systemd');
     expect(shipped.length).toBeGreaterThan(0);
-    for (const unit of shipped) {
-      expect(unit.onFailure, `${unit.name} declares no OnFailure=`).not.toBeNull();
-    }
+
+    // Every unit routes failure to an alert, EXCEPT the alert path itself, which must not.
+    // An alerter whose own failure is reported through the path that just failed is a loop,
+    // and on a host with an unreachable endpoint an unbounded one.
+    //
+    // Asserted as an EXACT set rather than skipped: a unit outside it with no OnFailure= is
+    // silently unreported, a unit inside it with one loops, and a third name joining the
+    // exemption is a decision somebody should have to make here rather than in passing.
+    const alertPath = ['kf-alert-heartbeat.service', 'kf-alert@.service'];
+    expect(
+      shipped
+        .filter((unit) => unit.onFailure === null)
+        .map((unit) => unit.name)
+        .sort(),
+      'the set of units without OnFailure= is not exactly the alert path',
+    ).toEqual(alertPath);
     const api = shipped.find((unit) => unit.name === 'kf-api.service');
     const checkpoint = shipped.find((unit) => unit.name === 'kf-checkpoint.service');
     expect(api?.user).toBeDefined();

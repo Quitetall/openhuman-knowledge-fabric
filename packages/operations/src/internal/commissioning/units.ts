@@ -167,7 +167,26 @@ export const unitProvenance: CommissioningCheckFn = async (inputs: Commissioning
     }
   }
 
-  const unalerted = installed.filter((unit) => unit.onFailure === null).map((unit) => unit.name);
+  // Every unit routes failure to an alert — except the alert path itself, which must NOT.
+  //
+  // `kf-alert@.service` is where every other unit's `OnFailure=` points. If it pointed its own
+  // failure back at itself, a host whose webhook endpoint is unreachable would spawn an alert
+  // about the alert about the alert without bound, at the moment an operator can least afford
+  // it. The heartbeat is the same argument: a delivery path that has stopped working cannot
+  // report that through the delivery path that has stopped working.
+  //
+  // Checked in BOTH directions rather than skipped, because "this unit is exempt" is exactly
+  // the kind of exception that quietly grows. A unit outside this set with no OnFailure= fails
+  // silently; a unit inside it WITH one is an alert loop.
+  const alertPath = new Set(['kf-alert@.service', 'kf-alert-heartbeat.service']);
+  const unalerted = installed
+    .filter((unit) => !alertPath.has(unit.name))
+    .filter((unit) => unit.onFailure === null)
+    .map((unit) => unit.name);
+  const selfAlerting = installed
+    .filter((unit) => alertPath.has(unit.name))
+    .filter((unit) => unit.onFailure !== null)
+    .map((unit) => unit.name);
 
   const observed = {
     shippedUnits: shipped.length,
@@ -205,6 +224,15 @@ export const unitProvenance: CommissioningCheckFn = async (inputs: Commissioning
         'Units sharing a system identity do not need the same secrets, so at least one reaches ' +
         'a key it has no use for. Filesystem permissions cannot separate what one uid owns: ' +
         'give the unit its own identity, or explain why the surplus access is intended.',
+      observed,
+    };
+  }
+  if (selfAlerting.length > 0) {
+    return {
+      status: 'unsatisfied',
+      detail:
+        `${selfAlerting.length} unit(s) on the alert path declare OnFailure=, which is a loop: ` +
+        'a host whose endpoint is unreachable would alert about the alert without bound.',
       observed,
     };
   }
