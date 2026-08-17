@@ -119,19 +119,24 @@ git archive "$tag" | tar -x -C "$tree"
 # without a licence is, by default, all-rights-reserved with no grant to anybody.
 [ -s "${tree}/LICENSE" ] ||
   die "no LICENSE in the ${tag} tree. Nothing may be published before the licence is decided."
-if grep -q '"license": *"UNLICENSED"' "${tree}/package.json"; then
-  die "package.json in ${tag} still declares \"UNLICENSED\" while a LICENSE exists. Make them agree."
-fi
+# Fields first, then the package.json agreement. The other order shadowed this loop: an
+# UNLICENSED package.json failed before any field was looked at, so the placeholder check was
+# unreachable in exactly the state it was written for — a freshly drafted LICENSE.
 for field in 'Licensor' 'Licensed Work' 'Change Date' 'Change License'; do
   grep -q "^${field}:" "${tree}/LICENSE" ||
     die "LICENSE has no '${field}:' line — BUSL-1.1 requires it."
   value="$(sed -n "s/^${field}: *//p" "${tree}/LICENSE" | head -1)"
   [ -n "$value" ] || die "LICENSE leaves '${field}:' blank."
   case "$value" in
-    *'<'* | *'TODO'* | *'TBD'*) die "LICENSE '${field}:' is still a placeholder: ${value}" ;;
+    *'<'* | *'TODO'* | *'TBD'* | *'FIXME'* | *'XXX'*)
+      die "LICENSE '${field}:' is still a placeholder: ${value}"
+      ;;
   esac
   note "LICENSE ${field}: ${value}"
 done
+if grep -q '"license": *"UNLICENSED"' "${tree}/package.json"; then
+  die "package.json in ${tag} still declares \"UNLICENSED\" while a LICENSE exists. Make them agree."
+fi
 
 printf '\n== the tree that would be published ==\n'
 files="$(find "$tree" -type f | wc -l)"
@@ -143,25 +148,79 @@ printf '\n== denylist ==\n'
 # Paths that must never reach a public repository. Extensions are matched on the tree being
 # published, not on the working directory, so an ignored-but-tracked file cannot slip through.
 denied=0
-check_deny() {
+
+# THE ALTERNATIVES ARE PARENTHESISED, AND THAT IS THE WHOLE BUG THIS FUNCTION ONCE HAD.
+# `find . -name a -o -name b -o -name c -print` does NOT print every match: `-print` binds to
+# the last alternative only, so it means `a -o b -o (c -a -print)`. The first version of this
+# denylist was written that way and a `signing.pem` containing a private key sailed through to
+# the dry run, because only the final pattern in the list could ever be reported. Every match
+# after the first pattern was found and silently dropped.
+#
+# Building one parenthesised OR group and appending `-print` outside it is the fix. `*.example`
+# is excluded once, here, so a checked-in `*.env.example` or `*.pem.example` stays publishable
+# without each caller having to remember.
+deny_names() {
   local description="$1"
   shift
+  local expression=()
+  local pattern
+  for pattern in "$@"; do
+    [ ${#expression[@]} -eq 0 ] || expression+=(-o)
+    expression+=(-name "$pattern")
+  done
   local hits
-  hits="$(cd "$tree" && find . "$@" -print 2>/dev/null | sed 's|^\./||' || true)"
+  hits="$(cd "$tree" && find . \( "${expression[@]}" \) -not -name '*.example' -print 2>/dev/null |
+    sed 's|^\./||' || true)"
   if [ -n "$hits" ]; then
     printf '  DENIED (%s):\n' "$description"
     printf '%s\n' "$hits" | sed 's/^/    /'
     denied=1
   fi
 }
-check_deny 'internal review scratch' -path './.omo*'
-check_deny 'release staging directory' -path './release/*'
-check_deny 'environment file that is not an example' \
-  -name '*.env' -not -name '*.example'
-check_deny 'dotenv file that is not an example' \
-  -name '.env' -o -name '.env.*' -not -name '*.example'
-check_deny 'private key material' \
-  -name '*.pem' -o -name '*.key' -o -name 'id_rsa*' -o -name '*.p12' -o -name '*.pfx'
+
+deny_paths() {
+  local description="$1"
+  shift
+  local expression=()
+  local pattern
+  for pattern in "$@"; do
+    [ ${#expression[@]} -eq 0 ] || expression+=(-o)
+    expression+=(-path "$pattern")
+  done
+  local hits
+  hits="$(cd "$tree" && find . \( "${expression[@]}" \) -print 2>/dev/null | sed 's|^\./||' || true)"
+  if [ -n "$hits" ]; then
+    printf '  DENIED (%s):\n' "$description"
+    printf '%s\n' "$hits" | sed 's/^/    /'
+    denied=1
+  fi
+}
+
+# Deny a file for what it CONTAINS, for the ones whose name alone proves nothing.
+deny_content() {
+  local description="$1" filename="$2" pattern="$3"
+  local hits
+  hits="$(cd "$tree" && grep -rlE "$pattern" --include="$filename" . 2>/dev/null |
+    sed 's|^\./||' || true)"
+  if [ -n "$hits" ]; then
+    printf '  DENIED (%s):\n' "$description"
+    printf '%s\n' "$hits" | sed 's/^/    /'
+    denied=1
+  fi
+}
+
+deny_paths 'internal scratch and release staging' './.omo*' './release/*'
+deny_names 'environment file' '*.env' '.env' '.env.*'
+deny_names 'private key material' '*.pem' '*.key' '*.p12' '*.pfx' 'id_rsa*' 'id_ed25519*'
+deny_names 'credential store' '*.kdbx' '.netrc' '.pgpass'
+
+# `.npmrc` IS NOT DENIED BY NAME, and the first version of this list got that wrong: it denied
+# every `.npmrc` and therefore denied this repository's own, which is tracked, public and holds
+# nothing but registry and peer-dependency settings. A denylist that fires on a legitimate file
+# is not cautious, it is a rule people learn to override — and the override is what publishes the
+# next one. An `.npmrc` becomes a credential store when it carries a token, so that is the test.
+deny_content 'npm credentials in .npmrc' '.npmrc' '_(authToken|auth|password)[[:space:]]*='
+
 [ "$denied" -eq 0 ] || die 'denylisted paths are present in the tree (listed above).'
 note 'no denylisted paths'
 

@@ -2,10 +2,10 @@ packages:
   - 'apps/*'
   - 'packages/*'
 allowBuilds:
-  cpu-features: set this to true or false
-  esbuild: set this to true or false
-  protobufjs: set this to true or false
-  ssh2: set this to true or false
+  cpu-features: true
+  esbuild: true
+  protobufjs: true
+  ssh2: true
 minimumReleaseAgeExclude:
   - '@typescript-eslint/eslint-plugin@8.67.0'
   - '@typescript-eslint/parser@8.67.0'
@@ -21,16 +21,6 @@ minimumReleaseAgeExclude:
   - '@aws-sdk/client-s3@3.1107.0'
   - '@aws-sdk/s3-request-presigner@3.1107.0'
 
-# Transitive build scripts permitted to run.
-#
-# All three arrive under testcontainers, a devDependency, and none reaches production: ssh2's
-# optional crypto bindings, cpu-features' CPU detection, protobufjs' post-install codegen.
-# They are approved rather than declined because refusing them does not reduce exposure —
-# the code is already in the tree the moment testcontainers is a dependency — and pnpm
-# rightly treats an unacknowledged build script as something a human must decide about.
-#
-# The list is exhaustive on purpose: a NEW package wanting to run a build script fails the
-# install until someone looks at it.
 # Transitive build scripts permitted to run, and actually run.
 #
 # All three arrive under testcontainers, a devDependency, and none reaches production:
@@ -45,7 +35,3 @@ minimumReleaseAgeExclude:
 #
 # The list is exhaustive on purpose: a NEW package wanting to run a build script fails the
 # install until someone looks at it.
-onlyBuiltDependencies:
-  - cpu-features
-  - protobufjs
-  - ssh2
