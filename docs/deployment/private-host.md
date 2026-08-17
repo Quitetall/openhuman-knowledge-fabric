@@ -97,11 +97,18 @@ pnpm install --frozen-lockfile
 pnpm gate
 ```
 
-`pnpm gate` runs every check CI runs, in CI's order, ending with `pnpm build` — so the release
-bytes below are built by the same command that gates them. It replaces the five checks
-previously listed here, which were five of the seven: the two ontology gates were missing, so a
-release could be cut from a tree whose committed `generated/` did not match its `ontology/`.
-`tests/deployment/gate-parity.test.ts` keeps the command and `ci.yml` in agreement.
+`pnpm gate` runs every check CI runs except the `secrets` scan, in CI's order, ending with
+`pnpm build` — so the release bytes below are built by the same command that gates them. It
+replaces the five checks previously listed here, which were five of the seven: the two ontology
+gates were missing, so a release could be cut from a tree whose committed `generated/` did not
+match its `ontology/`. `tests/deployment/gate-parity.test.ts` keeps the command and `ci.yml` in
+agreement, and pins the CI jobs that run no pnpm command so a second CI-only gate cannot appear
+unnoticed.
+
+This is currently the ONLY gate an operator can rely on, and that is not a preference: no CI job
+has ever executed in this repository — 38 runs, 38 failures at job-start on Actions billing, as
+of 2026-08-17. Whoever cuts a release is therefore also the only party who has run the checks,
+which is worth knowing while reading the rest of this document.
 
 After those gates pass, assemble runnable package directories from those already-built bytes.
 `--legacy` is required by repository's current non-injected pnpm workspace layout.

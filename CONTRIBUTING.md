@@ -20,6 +20,14 @@ previously said `pnpm gate` runs _every_ check CI runs. That stopped being true 
 job landed, which is precisely the drift the test was written to catch — and it caught it in the
 commit that introduced it.)
 
+> **CI is not running at all, as of 2026-08-17.** All 38 workflow runs in this repository's
+> history failed at job-start — "recent account payments have failed or your spending limit needs
+> to be increased" — so no step has ever executed on a runner. `pnpm gate` on your machine is
+> currently the _only_ thing enforcing any of this, and the `secrets` job in particular has never
+> run anywhere. Until billing is restored, read every "CI checks it" in this repository as "CI
+> would check it". `docs/decisions/0004-production-release.md` criterion 5 makes a green run a
+> condition of v1.0 for this reason.
+
 That test exists because the gate was wrong. Three checks were run locally for a week under
 "gates green" while `format:check` failed, and the list of gates was assembled from memory
 rather than from `ci.yml`. Run `pnpm gate`.

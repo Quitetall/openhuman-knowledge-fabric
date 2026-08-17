@@ -79,10 +79,16 @@ Verification, all of which must pass from a clean checkout:
 pnpm gate
 ```
 
-That is the whole set, in CI's order, fail-fast. It is what the three CI jobs run between
-them, and `tests/deployment/gate-parity.test.ts` asserts the two agree in both directions — so
-a step added to `.github/workflows/ci.yml` and not to `gate` fails the suite rather than
-waiting to fail on somebody's push. Run the pieces individually while iterating:
+That is the whole set, in CI's order, fail-fast. It is what three of the four CI jobs run
+between them — the fourth, `secrets`, is a gitleaks scan over full history that cannot run
+locally on every machine — and `tests/deployment/gate-parity.test.ts` asserts the two agree in
+both directions, so a step added to `.github/workflows/ci.yml` and not to `gate` fails the suite
+rather than waiting to fail on somebody's push.
+
+**And nothing in CI has ever actually run.** As of 2026-08-17 all 38 workflow runs failed at
+job-start on GitHub Actions billing, so `pnpm gate` on a workstation is currently the only thing
+enforcing any of the above. `docs/decisions/0004-production-release.md` criterion 5 makes a green
+CI run a condition of v1.0. Run the pieces individually while iterating:
 
 ```sh
 pnpm format:check
@@ -104,7 +110,7 @@ Requires Node 24.18.1 (current active LTS), pnpm 11, Docker with Compose v2.
 | Path                        | Contents                                                                                                                  |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `ontology/`                 | **Canonical** organizational semantics — object, relation, action, state, rule definitions                                |
-| `generated/`                | Compiler output. Never hand-edited; CI fails on drift                                                                     |
+| `generated/`                | Compiler output. Never hand-edited; `pnpm gate` fails on drift (CI would too — see above)                                 |
 | `database/`                 | Plain SQL migrations, functions, triggers, constraints, row security                                                      |
 | `packages/`                 | Domain, database, actions, authorization, validation, artifacts, audit, canonicalization, export, search, integration, ui |
 | `apps/`                     | `api` (Fastify) · `web` (Next.js) · `worker` (Graphile Worker) · `checkpoint` (audit signer)                              |

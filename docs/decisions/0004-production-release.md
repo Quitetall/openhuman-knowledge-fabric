@@ -13,10 +13,23 @@ deployment profile. The shadow becomes an evidence criterion rather than a calen
 
 ## Why this exists
 
-Roadmap steps 1–9 are implemented. Seven CI gates pass (112 test files, 1120 tests). The last
-blocker that was missing _code_ rather than host evidence closed on 2026-08-17 with
-`kf-alert@.service`. What is left is of a different kind, and the version number has to say
-which kind it is.
+Roadmap steps 1–9 are implemented. `pnpm gate` passes on a workstation — 112 test files, 1120
+tests when this was raised. The last blocker that was missing _code_ rather than host evidence
+closed on 2026-08-17 with `kf-alert@.service`. What is left is of a different kind, and the
+version number has to say which kind it is.
+
+**This paragraph previously read "Seven CI gates pass", and that was false in a way this record
+of all records should not have contained: no CI job has ever run in this repository.** All 38
+workflow runs — every run that exists, back to the oldest retained — failed within seconds at
+job-start with "The job was not started because recent account payments have failed or your
+spending limit needs to be increased". Not one step executed. The seven gates have only ever been
+enforced by a person running them on one machine.
+
+That does not make the tests less green; `pnpm gate` really does pass, and the parity test really
+does hold the local command to `ci.yml`. It makes the enforcement imaginary. Every guarantee in
+this repository that ends "and CI checks it" currently ends at a workstation instead, including
+the secret scan, which by construction cannot be run locally by everyone. Corrected 2026-08-17.
+The consequences are criterion 1 and the new criterion 5.
 
 The risk this record exists to prevent is a familiar one in this repository: a true statement
 that reads as a larger one. "Knowledge Fabric v1.0" would be read by almost anyone as "this is
@@ -27,11 +40,19 @@ and nothing has ever been deployed", and nothing in a version number distinguish
 
 ```
 pnpm gate                    exit 0 — 112 files, 1120 passed, 4 skipped
+gh run list --limit 100      38 runs, 38 failed, 0 succeeded — no job ever started
 pnpm ontology:verify         release/knowledge-fabric-1.0.0-draft.2 → DRAFT, exit 1
 kf-commissioning             never run against a host
 deployment profiles          development | dogfood        (no `production`)
 known blockers               7, of which 4 have no automated check
 ```
+
+The second line is the one that changes what this record says. It was measured after the
+workflows were hardened on 2026-08-17 and it was not what anyone expected to find: the failures
+are a billing state on the GitHub account, not a defect in the workflows, and they predate every
+change made that day. A workflow that cannot start is indistinguishable, in a repository's own
+documentation, from one that starts and passes — which is why this line is now measured here
+rather than assumed anywhere.
 
 Nothing has been commissioned on any host. Every deployment artifact in this repository — units,
 templates, verifiers, the migration runner, the rollback contract — is an input to
@@ -40,13 +61,28 @@ commissioning, not evidence of it.
 ## What v1.0 claims
 
 1. The software is complete against roadmap steps 1–9 and every gate CI runs passes from a
-   clean checkout.
+   clean checkout — **in CI, on the commit being tagged**, not only on the workstation that
+   wrote it. See criterion 5, which exists because that distinction turned out to be load-bearing
+   rather than pedantic.
 2. The R01 schema pack `1.0.0-draft.2` has been approved and signed, so
    `pnpm ontology:verify` reports `APPROVED` rather than `DRAFT`.
 3. **One host has been commissioned**, and `kf-commissioning` reports every check `satisfied`.
    Not `unverifiable` — a check that could not run is not a check that passed, which is why
    that status exists and why it fails the gate.
 4. The document-compiler parity criterion below has been met and cutover accepted.
+5. **A CI run has actually executed and passed on the tagged commit.** Added 2026-08-17, when the
+   run history was checked for the first time and found to be 38 failures out of 38, none of which
+   started a job. The workflow existing is not the gate; a green run is. This is a **blocker on
+   the account, not on the code** — GitHub Actions is disabled for billing, so no change to this
+   repository can clear it, and it needs the decision owner to restore billing before it can be
+   evidenced either way.
+
+   It is a v1.0 criterion rather than a nice-to-have because of what the other criteria rest on.
+   The secret scan cannot be run locally by everyone and is CI-only by design; the SBOM is
+   produced by `release.yml` on tag; `release.yml` has never run either, so the first tag would
+   have produced no bill of materials whatever the workflow says. Tagging v1.0 while the only
+   thing that has ever enforced any of this is one laptop would assert exactly the kind of
+   guarantee this record was written to stop asserting.
 
 ## What v1.0 does not claim
 
