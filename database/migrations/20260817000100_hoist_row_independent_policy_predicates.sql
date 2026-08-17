@@ -36,6 +36,14 @@
 -- block RAISES if it rewrites nothing: a migration that silently matches zero policies would
 -- report this fixed while leaving every one of them slow.
 
+-- ALTER POLICY ... USING (...) PRESERVES any existing WITH CHECK, it does not clear it.
+-- Verified rather than read: a FOR ALL policy created `using (f()) with check (id > 0)` and
+-- then altered with USING alone reads back as `with_check = (id > 0)`, unchanged. It is the
+-- non-obvious part of this migration and the one an auditor will stop on, so it is recorded
+-- here with how it was established. It is also moot for the policies actually rewritten —
+-- all 30 are FOR SELECT, and a SELECT policy has no WITH CHECK at all — which the loop below
+-- asserts rather than assumes.
+
 do $$
 declare
   policy_row  record;
@@ -43,7 +51,7 @@ declare
   rewritten   integer := 0;
 begin
   for policy_row in
-    select schemaname, tablename, policyname, qual
+    select schemaname, tablename, policyname, qual, cmd
       from pg_policies
      where qual is not null
        and qual ~ '^\(?\s*(content\.)?(document_basis_classifier_active|compiler_runtime_active)\(\)\s*\)?$'
@@ -55,6 +63,16 @@ begin
         then '(select content.document_basis_classifier_active())'
       else '(select content.compiler_runtime_active())'
     end;
+    -- Only SELECT policies are in scope. A FOR ALL or FOR UPDATE policy would also carry a
+    -- WITH CHECK governing writes, and rewriting one half of that pair is a decision about
+    -- write authority that this migration has no business making silently.
+    if policy_row.cmd <> 'SELECT' then
+      raise exception
+        'policy %.%.% is a % policy, not SELECT; hoisting its USING would leave its WITH '
+        'CHECK governing writes by a different expression',
+        policy_row.schemaname, policy_row.tablename, policy_row.policyname, policy_row.cmd
+        using errcode = 'check_violation';
+    end if;
     execute format(
       'alter policy %I on %I.%I using (%s)',
       policy_row.policyname, policy_row.schemaname, policy_row.tablename, hoisted
@@ -78,12 +96,19 @@ do $$
 declare
   policy_row record;
   restored   text;
+  reverted   integer := 0;
 begin
+  -- Matched loosely on purpose. PostgreSQL does not store the text you wrote; it stores a
+  -- parse tree and renders it back, and the rendering of a scalar subquery carries an alias
+  -- it invents: `using ((select content.compiler_runtime_active()))` reads back as
+  -- `( SELECT content.compiler_runtime_active() AS compiler_runtime_active)`. An anchored
+  -- pattern written against the SOURCE text matches none of them, and a down-migration that
+  -- silently reverses nothing is worse than one that fails.
   for policy_row in
     select schemaname, tablename, policyname, qual
       from pg_policies
      where qual is not null
-       and qual ~ '^\(?\s*\(?\s*SELECT\s+(content\.)?(document_basis_classifier_active|compiler_runtime_active)\(\)\s*\)?\s*\)?$'
+       and qual ~* 'select\s+(content\.)?(document_basis_classifier_active|compiler_runtime_active)\(\)'
   loop
     restored := case
       when policy_row.qual like '%document_basis_classifier_active%'
@@ -94,5 +119,16 @@ begin
       'alter policy %I on %I.%I using (%s)',
       policy_row.policyname, policy_row.schemaname, policy_row.tablename, restored
     );
+    reverted := reverted + 1;
   end loop;
+
+  -- The same guard the up section carries, and for a sharper reason: a rollback that exits 0
+  -- having changed nothing is indistinguishable from one that worked, and it is consulted
+  -- precisely when something has already gone wrong.
+  if reverted = 0 then
+    raise exception
+      'rollback matched no hoisted policies; nothing was reverted and the database is not in '
+      'the state this down section reports leaving it in'
+      using errcode = 'check_violation';
+  end if;
 end $$;
