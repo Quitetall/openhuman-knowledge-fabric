@@ -293,4 +293,88 @@ cost — roughly 99 ms of the ~190 ms envelope-keyed read — and it is a correl
 into `registry.classification` executed once per row (12,005 index searches for 12,005 rows).
 `registry.classification` is a handful of rows, so a form the planner could hash once would
 remove most of it. That is a change to the security predicate itself rather than to how often
-it runs, so it wants its own decision and its own measurement, and it is not made here.
+it runs, so it wants its own decision and its own measurement. **Made below.**
+
+### The classification ceiling, hashed — 2026-08-17
+
+`20260817000200_hashable_classification_ceiling.sql` rewrites the ceiling in `core.object`'s
+three policies from a correlated subquery naming the row
+
+```sql
+(select rank from registry.classification where id = classification)
+  <= core.current_classification_rank()
+```
+
+to an uncorrelated one the planner can hash once:
+
+```sql
+classification in (select id from registry.classification
+                    where rank <= core.current_classification_rank())
+```
+
+```
+core.object · organization term only                    1.3 ms   12005 rows
+core.object · organization + classification rank      137.3 ms   12005 rows
+core.object · organization + rank, hashable form        2.0 ms   12005 rows
+```
+
+**Why this is safe is established, not argued.** The term is in `object_write`'s WITH CHECK
+and in BOTH halves of `object_update`, so it governs what a caller may write and what they may
+reclassify a record to — not only what they may read. A form subtly weaker in some corner
+would let a writer move a record beyond their own ceiling.
+
+`tests/database/classification-predicate-equivalence.test.ts` compares the two forms
+EXHAUSTIVELY — every classification the registry defines crossed with every ceiling a caller
+can bind, including ceilings that are not classifications and classifications that are not in
+the registry. The admission decision is identical at all 42 points.
+
+They differ in exactly one respect, at inputs that cannot occur: a classification the registry
+does not define yields NULL from the correlated form and FALSE from the hashable one. RLS
+denies on both, and `core.object.classification` is `not null references
+registry.classification (id)`, so no row can carry such a value. The test asserts the
+difference is confined to exactly those inputs, and asserts the constraint that makes them
+unreachable — so relaxing that constraint later fails the suite instead of quietly widening
+the corner.
+
+### Both changes together, and the third cost neither of them touched
+
+```
+controlled_document · policy                          146 ms   12000 rows
+controlled_document · policy, jit off                  16 ms   12000 rows
+controlled_document · join (status quo)                16 ms   12000 rows
+controlled_document · no boundary (pre-ADR)             1 ms   36000 rows
+```
+
+|                              | at stage two | after both | after both, JIT off |
+| ---------------------------- | ------------ | ---------- | ------------------- |
+| `controlled_document` policy | 514 ms       | 146 ms     | **16 ms**           |
+| `controlled_document` join   | 445 ms       | 16 ms      | —                   |
+
+Buffer traffic on the same read fell from **145,657 to 1,637**. The plan now shows the two
+runtime gates as `InitPlan`s evaluated once (0.06 ms) and the ceiling as a single hashed
+`SubPlan` with `Index Searches: 1` over 4 rows.
+
+**The remaining 130 ms is JIT compilation, not query execution.** Measured directly rather
+than inferred by subtraction: the identical read with `set local jit = off` costs 16 ms, the
+same as the join. Nesting the typed-table policy inside `core.object`'s gives the planner a
+cost estimate around 2.2 million — the estimate is an artefact of nested subplans, not of the
+work — that estimate crosses the default `jit_above_cost` of 100,000, and PostgreSQL compiles
+44 functions for a query that runs in 16 ms without them.
+
+That is a **deployment setting, not a schema change**, and it is not applied here: raising
+`jit_above_cost` or disabling JIT affects every query on the host, and choosing that belongs
+to whoever operates it. It is recorded in `docs/deployment/private-host.md` with these
+numbers. Worth knowing that the effect grows with policy nesting, so it lands hardest exactly
+where this record added the most policies.
+
+### Still carrying the correlated ceiling
+
+`core.object` is done because it is on every read and its predicates were read from source.
+Ten other policies carry the same correlated term — on `ml.aggregate_reference`,
+`search.document`, `secure_object.capability_request`, `secure_object.erasure_request` and
+`content.compilation_basis` — and are NOT rewritten here. Each has a different surrounding
+predicate, several govern writes, and reconstructing ten security rules from their rendered
+text is exactly the risk the `core.object` migration avoided by stating them in full. They
+want the same recipe applied deliberately, one at a time, against the same exhaustive
+equivalence test — which already covers the term itself, so what remains per policy is
+transcription rather than proof.

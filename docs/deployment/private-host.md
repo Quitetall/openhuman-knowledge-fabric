@@ -94,12 +94,14 @@ test -z "$(git status --porcelain=v1 --untracked-files=all --ignored)" || {
   exit 1
 }
 pnpm install --frozen-lockfile
-pnpm format:check
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm build
+pnpm gate
 ```
+
+`pnpm gate` runs every check CI runs, in CI's order, ending with `pnpm build` — so the release
+bytes below are built by the same command that gates them. It replaces the five checks
+previously listed here, which were five of the seven: the two ontology gates were missing, so a
+release could be cut from a tree whose committed `generated/` did not match its `ontology/`.
+`tests/deployment/gate-parity.test.ts` keeps the command and `ci.yml` in agreement.
 
 After those gates pass, assemble runnable package directories from those already-built bytes.
 `--legacy` is required by repository's current non-injected pnpm workspace layout.
@@ -269,6 +271,38 @@ release accepts new schema: stop services, verify previous release, switch `/opt
 re-run preflight. For incompatible schema or partial migration, restore pre-migration backup
 into new database instance, verify audit/export/readiness there, then change credential file
 under approved recovery procedure. Never run `dbmate down` against production database.
+
+## PostgreSQL: consider raising `jit_above_cost`
+
+Not applied by any migration, because it is a host-wide setting and choosing it belongs to
+whoever operates the host. Recorded with the measurement so the choice is informed.
+
+The fabric's row-level security nests: a typed table's policy tests `exists (select 1 from
+core.object …)`, and `core.object`'s own policies run inside that. The planner's cost estimate
+for the nested form comes out around **2.2 million** — an artefact of the subplan structure,
+not of the work — which crosses the default `jit_above_cost` of 100,000. PostgreSQL then
+compiles ~44 functions for a query that does not need them.
+
+Measured on 36,007 objects, reading one organization's 12,000 controlled documents as
+`kf_readonly` (`KF_MEASURE_RLS=1`, `tests/database/rls-read-cost.test.ts`):
+
+| read                                 | median    |
+| ------------------------------------ | --------- |
+| through the policy                   | 146 ms    |
+| the same read, `set local jit = off` | **16 ms** |
+| the equivalent hand-written join     | 16 ms     |
+
+So on this workload JIT costs about 8x the query it is compiling, and the effect grows with
+policy nesting — it lands hardest on exactly the tables decision 0003 added policies to.
+
+```sh
+# In postgresql.conf, after confirming it suits the rest of the workload on this host:
+jit_above_cost = 500000     # or: jit = off
+```
+
+This is a starting point, not a recommendation to apply blind. A host that also runs large
+analytical queries may want JIT for those, and the right threshold depends on what else the
+database does. Re-measure with the harness above after changing it.
 
 ## Runtime configuration
 

@@ -81,12 +81,18 @@ function median(values: readonly number[]): number {
  * measurement that bound it once and then timed a later transaction would be timing the
  * unbound case, which sees nothing and is fast for the wrong reason.
  */
-async function measure(label: string, sql: string, organizationId: string): Promise<Measurement> {
+async function measure(
+  label: string,
+  sql: string,
+  organizationId: string,
+  options: { readonly jit?: boolean } = {},
+): Promise<Measurement> {
   const durations: number[] = [];
   let rows = 0;
   for (let run = 0; run < RUNS; run += 1) {
     const elapsed = await withTransaction(readerPool, async (tx) => {
       await tx.query('select core.set_access_context($1, $2)', [organizationId, 'restricted']);
+      if (options.jit === false) await tx.query('set local jit = off');
       const startedAt = process.hrtime.bigint();
       const result = await tx.one<{ count: string }>(sql);
       const finishedAt = process.hrtime.bigint();
@@ -292,6 +298,19 @@ describe.skipIf(!MEASURING)('row-level security read cost on a populated databas
       'select count(*)::text as count from quality.controlled_document',
       organizationId,
     );
+    // The same policy read with JIT disabled. Once the predicate itself became cheap, the
+    // plan showed 137 ms of JIT compilation on a query whose scan work is ~15 ms: nesting the
+    // typed-table policy inside core.object's gives the planner a wildly inflated cost
+    // estimate (~2.2M), that estimate crosses `jit_above_cost`, and PostgreSQL compiles 44
+    // functions for a query that did not need them. Measured rather than inferred from the
+    // plan, because "JIT is the rest of it" is a subtraction and subtractions hide things.
+    const envelopePolicyNoJit = await measure(
+      'controlled_document · policy, jit off',
+      'select count(*)::text as count from quality.controlled_document',
+      organizationId,
+      { jit: false },
+    );
+
     await setRowSecurity('quality.controlled_document', false);
     const envelopeJoin = await measure(
       'controlled_document · join (status quo)',
@@ -306,7 +325,7 @@ describe.skipIf(!MEASURING)('row-level security read cost on a populated databas
       organizationId,
     );
     await setRowSecurity('quality.controlled_document', true);
-    report.push(envelopePolicy, envelopeJoin, envelopeUnbounded);
+    report.push(envelopePolicy, envelopePolicyNoJit, envelopeJoin, envelopeUnbounded);
 
     // ── shape 2: child chain ─────────────────────────────────────────────────────────────
     const childPolicy = await measure(
@@ -439,6 +458,20 @@ describe.skipIf(!MEASURING)('row-level security read cost on a populated databas
         organizationId,
       );
 
+      // The classification ceiling written so the planner can hash it once, instead of as a
+      // correlated subquery run per row. Equivalence is not argued here — it is established
+      // exhaustively in `classification-predicate-equivalence.test.ts` over every
+      // classification crossed with every ceiling — so this measures only the cost.
+      const withHashableRank = await measure(
+        'core.object · organization + rank, hashable form',
+        `select count(*)::text as count from core.object envelope
+          where envelope.organization_id = core.current_organization()
+            and envelope.classification in
+                (select id from registry.classification
+                  where rank <= core.current_classification_rank())`,
+        organizationId,
+      );
+
       // The candidate fix, measured rather than asserted. Both OR branches are row-
       // INDEPENDENT — they ask whether a runtime is active, not anything about the row — so
       // wrapping each in an uncorrelated scalar subquery lets the planner lift it into an
@@ -455,7 +488,14 @@ describe.skipIf(!MEASURING)('row-level security read cost on a populated databas
         organizationId,
       );
 
-      const terms = [scanOnly, organizationOnly, withRank, withOrBranches, withHoistedOrBranches];
+      const terms = [
+        scanOnly,
+        organizationOnly,
+        withRank,
+        withHashableRank,
+        withOrBranches,
+        withHoistedOrBranches,
+      ];
       const width = Math.max(...terms.map((entry) => entry.label.length));
       // eslint-disable-next-line no-console
       console.info(
@@ -469,6 +509,7 @@ describe.skipIf(!MEASURING)('row-level security read cost on a populated databas
           ),
           '',
           `  rank term costs        ${(withRank.medianMs - organizationOnly.medianMs).toFixed(1)} ms`,
+          `  hashable rank costs    ${(withHashableRank.medianMs - organizationOnly.medianMs).toFixed(1)} ms`,
           `  OR branches cost       ${(withOrBranches.medianMs - withRank.medianMs).toFixed(1)} ms`,
           `  hoisting recovers      ${(withOrBranches.medianMs - withHoistedOrBranches.medianMs).toFixed(1)} ms`,
           '',
@@ -481,6 +522,11 @@ describe.skipIf(!MEASURING)('row-level security read cost on a populated databas
         withHoistedOrBranches.rows,
         'hoisting the OR branches changed which rows come back, so it is not the same predicate',
       ).toBe(withOrBranches.rows);
+      expect(
+        withHashableRank.rows,
+        'the hashable ceiling form returned a different row count than the correlated one on ' +
+          'real data, which the exhaustive equivalence test says cannot happen — believe this',
+      ).toBe(withRank.rows);
 
       // The hand-written predicate must select what the policy selects, or it is not the
       // predicate under study and the attribution above is of something else.
