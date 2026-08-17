@@ -99,31 +99,39 @@ resolved_remote="$(git remote get-url "$remote" 2>/dev/null || printf '%s' "$rem
   die "--remote resolves to origin (${origin_url}). That is the PRIVATE repository."
 note "public remote ${resolved_remote}"
 
-# The licence is a precondition rather than a reminder. BUSL-1.1 has four fields that must be
-# filled in — Licensor, Licensed Work, Change Date, Change License — and a repository published
-# without a licence is, by default, all-rights-reserved with no grant to anybody.
-[ -s LICENSE ] || die 'no LICENSE file. Nothing may be published before the licence is decided.'
-if grep -q '"license": *"UNLICENSED"' package.json; then
-  die 'package.json still declares "UNLICENSED" while a LICENSE file exists. Make them agree.'
-fi
-for field in 'Licensor' 'Licensed Work' 'Change Date' 'Change License'; do
-  grep -q "^${field}:" LICENSE || die "LICENSE has no '${field}:' line — BUSL-1.1 requires it."
-  value="$(sed -n "s/^${field}: *//p" LICENSE | head -1)"
-  [ -n "$value" ] || die "LICENSE leaves '${field}:' blank."
-  case "$value" in
-    *'<'* | *'TODO'* | *'TBD'*) die "LICENSE '${field}:' is still a placeholder: ${value}" ;;
-  esac
-  note "LICENSE ${field}: ${value}"
-done
-
 # ---------------------------------------------------------------------------------------------
 # The tree that would be published, materialised so it can be inspected rather than assumed.
+#
+# EVERYTHING BELOW READS THIS TREE, NOT THE WORKING DIRECTORY, and the first version of this
+# script got that wrong: it checked LICENSE and package.json in the working directory while
+# publishing the archived tag. Those are the same tree only when the tag is HEAD. Pass `--tag`
+# for an earlier release and it would have validated one tree and published another — approving
+# a licence that the published bytes did not contain.
 # ---------------------------------------------------------------------------------------------
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 tree="${work}/tree"
 mkdir -p "$tree"
 git archive "$tag" | tar -x -C "$tree"
+
+# The licence is a precondition rather than a reminder. BUSL-1.1 has four fields that must be
+# filled in — Licensor, Licensed Work, Change Date, Change License — and a repository published
+# without a licence is, by default, all-rights-reserved with no grant to anybody.
+[ -s "${tree}/LICENSE" ] ||
+  die "no LICENSE in the ${tag} tree. Nothing may be published before the licence is decided."
+if grep -q '"license": *"UNLICENSED"' "${tree}/package.json"; then
+  die "package.json in ${tag} still declares \"UNLICENSED\" while a LICENSE exists. Make them agree."
+fi
+for field in 'Licensor' 'Licensed Work' 'Change Date' 'Change License'; do
+  grep -q "^${field}:" "${tree}/LICENSE" ||
+    die "LICENSE has no '${field}:' line — BUSL-1.1 requires it."
+  value="$(sed -n "s/^${field}: *//p" "${tree}/LICENSE" | head -1)"
+  [ -n "$value" ] || die "LICENSE leaves '${field}:' blank."
+  case "$value" in
+    *'<'* | *'TODO'* | *'TBD'*) die "LICENSE '${field}:' is still a placeholder: ${value}" ;;
+  esac
+  note "LICENSE ${field}: ${value}"
+done
 
 printf '\n== the tree that would be published ==\n'
 files="$(find "$tree" -type f | wc -l)"
@@ -158,8 +166,11 @@ check_deny 'private key material' \
 note 'no denylisted paths'
 
 printf '\n== gitleaks over the tree being published ==\n'
+# The TREE's config, not the working directory's, for the same reason as the licence: the
+# allowlists that belong to a release are the ones shipped in it. A release whose config was
+# written later has not been scanned under the policy it was released with.
 config_arg=()
-[ -f .gitleaks.toml ] && config_arg=(--config "${root}/.gitleaks.toml")
+[ -f "${tree}/.gitleaks.toml" ] && config_arg=(--config "${tree}/.gitleaks.toml")
 if ! gitleaks dir --no-banner --redact "${config_arg[@]}" "$tree"; then
   die 'gitleaks found something in the tree that would be published.'
 fi
