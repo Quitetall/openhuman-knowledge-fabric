@@ -510,8 +510,11 @@ cannot quietly acquire the appearance of coverage.
   `kf-alert-heartbeat.timer` then keeps the path proven daily, by its absence.
 
 - no reviewed native `kf-document-v1` Liminal artifact or external runtime-closure inventory —
-  **no check**; the human-ratified qualification receipt in the same sentence is covered by
-  `evidence_receipts`.
+  `liminal_runtime_inventory`, which runs the release's own
+  `scripts/deploy/verify-liminal-runtime.sh` against the installed tree rather than
+  reimplementing its digesting. It needs the six `LIMINAL_*` values `kf-worker.service`
+  supplies, and reports `unverifiable` rather than passing when they are absent. The
+  human-ratified qualification receipt in the same sentence is covered by `evidence_receipts`.
 - key isolation is now expressed in the units — each private key is owned mode `0600` by the
   one identity that uses it — but **filesystem denial remains host evidence**. The units say
   who may read a key; only the installed host proves nobody else can. Reported by

@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { createHash, X509Certificate } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -469,6 +470,115 @@ export const reverseProxyPosture: CommissioningCheckFn = async (inputs: Commissi
     detail:
       `All ${blocks.length} server blocks terminate TLS before proxying, every upstream is ` +
       'loopback, TLS 1.0/1.1 are refused, and each proxying block forwards the original scheme.',
+    observed,
+  };
+};
+
+/** The values `verify-liminal-runtime.sh` requires, named here so a missing one is reportable. */
+const LIMINAL_RUNTIME_VARIABLES = [
+  'LIMINAL_COMPILER_PATH',
+  'LIMINAL_CARGO_LOCK_PATH',
+  'LIMINAL_RUNTIME_FILE_PATHS',
+  'LIMINAL_EXECUTABLE_SHA256',
+  'LIMINAL_CARGO_LOCK_SHA256',
+  'LIMINAL_RUNTIME_CLOSURE_SHA256',
+] as const;
+
+/**
+ * The reviewed Liminal artifact and its external runtime closure are the reviewed ones.
+ *
+ * `evidence_receipts` covers the human-ratified qualification receipt — that somebody
+ * qualified a compiler. This covers the other half of the same blocker: that the compiler and
+ * shared-library closure ON THIS HOST are the bytes that were qualified, rather than whatever
+ * a package manager installed since.
+ *
+ * IT RUNS THE RELEASE'S OWN VERIFIER rather than digesting anything itself.
+ * `scripts/deploy/verify-liminal-runtime.sh` already resolves the configured paths against the
+ * release tree, refuses a symlink or a non-executable, bounds the manifest size, and compares
+ * three SHA-256 digests. Reimplementing that here would create a second statement of one rule,
+ * and two statements of a rule drift — which is the defect this repository has spent the most
+ * effort removing. If the verifier and this check ever disagreed, the disagreement itself would
+ * be the security problem.
+ *
+ * The six values come from the process environment because that is exactly how
+ * `kf-worker.service` supplies them and how the verifier reads them. An operator running
+ * `kf-commissioning` with the worker's environment is asking the question the worker asks at
+ * every start.
+ *
+ * NOTHING IS EXECUTED. The verifier checks the compiler is executable and digests it; it never
+ * runs it, and neither does this. Commissioning must not be the first thing to execute an
+ * unqualified binary.
+ */
+export const liminalRuntimeInventory: CommissioningCheckFn = async (
+  inputs: CommissioningInputs,
+) => {
+  const release = inputs.releaseDirectory;
+  if (release === undefined) {
+    return {
+      status: 'unverifiable',
+      detail:
+        'No release directory was supplied, so nothing here can say the compiler and runtime ' +
+        'closure on this host are the reviewed ones.',
+      observed: { releaseDirectory: null },
+    };
+  }
+
+  const absent = LIMINAL_RUNTIME_VARIABLES.filter((name) => {
+    const value = process.env[name];
+    return value === undefined || value.trim() === '';
+  });
+  if (absent.length > 0) {
+    return {
+      status: 'unverifiable',
+      detail:
+        `${absent.length} of the values the runtime verifier requires are not set: ` +
+        `${absent.join(', ')}. Run this with the environment kf-worker.service uses.`,
+      observed: { releaseDirectory: release, missingVariables: absent.join(', ') },
+    };
+  }
+
+  const verifier = join(release, 'scripts', 'deploy', 'verify-liminal-runtime.sh');
+  const result = await new Promise<{ code: number; output: string }>((resolve) => {
+    const child = spawn('bash', [verifier, release], { env: process.env });
+    let output = '';
+    child.stdout.on('data', (chunk) => {
+      output += String(chunk);
+    });
+    child.stderr.on('data', (chunk) => {
+      output += String(chunk);
+    });
+    child.on('error', (error) => resolve({ code: 127, output: message(error) }));
+    child.on('close', (code) => resolve({ code: code ?? 1, output }));
+  });
+
+  const observed = {
+    releaseDirectory: release,
+    verifier,
+    exitStatus: result.code,
+  };
+
+  // 64 is the verifier's usage error, which means this check invoked it wrongly rather than
+  // that the host failed. Reported as unverifiable so a bug here is never read as a host
+  // finding.
+  if (result.code === 64) {
+    return {
+      status: 'unverifiable',
+      detail: `The runtime verifier rejected its own arguments: ${result.output.trim()}`,
+      observed,
+    };
+  }
+  if (result.code !== 0) {
+    return {
+      status: 'unsatisfied',
+      detail: result.output.trim() || `The runtime verifier exited ${result.code}.`,
+      observed,
+    };
+  }
+  return {
+    status: 'satisfied',
+    detail:
+      'The packaged compiler, its Cargo.lock and the external runtime closure all match the ' +
+      'digests recorded in this release.',
     observed,
   };
 };

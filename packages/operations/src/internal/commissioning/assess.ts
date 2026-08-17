@@ -8,6 +8,7 @@ import {
 import {
   evidenceReceipts,
   identityProviderPolicy,
+  liminalRuntimeInventory,
   reverseProxyPosture,
   runtimeVersion,
   tlsTermination,
@@ -19,11 +20,13 @@ import { secretPosture, unitProvenance } from './units.js';
  * meets them: what is installed, what it can read, how it is reached, who it trusts, what it
  * runs on, and what somebody proved by doing it.
  *
- * NOT one per blocker, which this comment used to claim. Four of them have no check at all —
- * real-provider browser evidence, firewall and nginx validation, `kf-alert@` actually reaching
- * a person, and the reviewed Liminal artifact and runtime-closure inventory. The document marks
- * each of those explicitly, and `tests/deployment/commissioning-blockers.test.ts` holds the two
- * lists together so a blocker cannot silently acquire the appearance of coverage.
+ * NOT one per blocker, which this comment once claimed. Two still have no check at all, and
+ * neither can be closed from here: real-provider browser evidence, and a person actually
+ * receiving an alert. Both need a human. (`reverse_proxy_posture` and
+ * `liminal_runtime_inventory` closed two others on 2026-08-17; firewall rules remain part of
+ * an otherwise-covered bullet.) The document marks each uncovered one explicitly, and
+ * `tests/deployment/commissioning-blockers.test.ts` holds the two lists together so a blocker
+ * cannot silently acquire the appearance of coverage.
  *
  * Each `blocker` string is the operator-facing restatement of what is still missing when the
  * check does not pass. Keep it describing the GAP, not the mechanism — it is printed next to a
@@ -64,6 +67,13 @@ export const COMMISSIONING_CHECKS: readonly CommissioningCheckDefinition[] = [
     id: 'runtime_version',
     blocker: 'no proof host uses exact tested Node/PostgreSQL versions',
     run: runtimeVersion,
+  },
+  {
+    id: 'liminal_runtime_inventory',
+    blocker:
+      'no proof that the compiler and external runtime closure on this host are the reviewed ' +
+      'bytes rather than whatever was installed since',
+    run: liminalRuntimeInventory,
   },
   {
     id: 'evidence_receipts',

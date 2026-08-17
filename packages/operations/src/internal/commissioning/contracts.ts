@@ -81,6 +81,13 @@ export interface CommissioningInputs {
    * be interrogated from here.
    */
   readonly reverseProxyConfigPath?: string;
+  /**
+   * The release tree installed on this host, e.g. `/opt/kf`.
+   *
+   * Used to run the release's own `verify-liminal-runtime.sh` against itself, which is where
+   * the compiler, its `Cargo.lock` and the external runtime closure are digested.
+   */
+  readonly releaseDirectory?: string;
   /** Days before certificate expiry at which renewal is already overdue. */
   readonly certificateRenewalDays: number;
   /** Days after which a rollback rehearsal no longer counts as evidence. */

@@ -107,18 +107,21 @@ describe('the blockers list and the commissioning checks describe the same set',
     // rather than built the checks, that should be a deliberate edit to this number and not a
     // silent improvement in how the document reads.
     //
-    // 4 -> 3 on 2026-08-17: `reverse_proxy_posture` now reads the installed nginx
-    // configuration, so "firewall rules and installed nginx validation" lost its nginx half.
-    // Firewall rules remain unchecked, which is why that bullet still carries the marker.
+    // 4 -> 3 -> 2 on 2026-08-17. `reverse_proxy_posture` reads the installed nginx
+    // configuration, so "firewall rules and installed nginx validation" lost its nginx half
+    // (firewall rules remain unchecked, which is why that bullet still carries the marker).
+    // `liminal_runtime_inventory` then closed the artifact and runtime-closure bullet by
+    // running the release's own verifier.
     //
-    // The three that remain are, in order of how closeable they are: the reviewed Liminal
-    // artifact and runtime-closure inventory (checkable, not yet built), a person receiving an
-    // alert, and real-provider browser evidence. The last two need a human and always will.
+    // THE TWO THAT REMAIN CANNOT BE CLOSED FROM HERE, and that is the point of still counting
+    // them: a person receiving an alert, and real-provider browser evidence. Both need a human
+    // to do something and then say so. If this number ever reaches zero, check whether someone
+    // built two more checks or simply deleted two sentences.
     const uncovered = blockerBullets().filter((bullet) => bullet.includes('**no check**'));
     expect(
       uncovered.length,
       'the count of blockers with no automated check changed; update this number in the same ' +
         'commit that adds or removes a check, and say which it was',
-    ).toBe(3);
+    ).toBe(2);
   });
 });

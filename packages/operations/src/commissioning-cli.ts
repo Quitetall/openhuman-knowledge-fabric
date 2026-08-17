@@ -129,6 +129,9 @@ async function main(): Promise<number> {
     ...(optional('KF_REVERSE_PROXY_CONFIG') === undefined
       ? {}
       : { reverseProxyConfigPath: optional('KF_REVERSE_PROXY_CONFIG')! }),
+    ...(optional('KF_RELEASE_DIR') === undefined
+      ? {}
+      : { releaseDirectory: optional('KF_RELEASE_DIR')! }),
     certificateRenewalDays: positiveDays('KF_CERTIFICATE_RENEWAL_DAYS', 21),
     rollbackRehearsalDays: positiveDays('KF_ROLLBACK_REHEARSAL_DAYS', 180),
   };

@@ -217,13 +217,33 @@ describe('a host nobody commissioned', () => {
 });
 
 describe('a host that was commissioned properly', () => {
-  it('satisfies every check', async () => {
+  it('satisfies every check that can be satisfied without root', async () => {
+    // ONE CHECK IS EXCLUDED, AND THE REASON IS AN ENVIRONMENT LIMIT RATHER THAN A GAP.
+    //
+    // `liminal_runtime_inventory` runs the release's own verify-liminal-runtime.sh, which
+    // requires the external shared-library closure to be root-owned files under /lib, /lib64,
+    // /usr/lib or /usr/lib64 with matching digests. A test process cannot create those, so no
+    // fixture here can make that check pass.
+    //
+    // Excluded BY NAME rather than by loosening this to "most checks pass". Naming it means
+    // adding a second unsatisfiable check is a visible edit to this list, and every other
+    // check still has to be satisfied. `report.commissioned` is therefore false — correctly,
+    // because a host on which that check has not run is not a commissioned host.
+    const environmentLimited = ['liminal_runtime_inventory'];
+
     const { inputs } = await commissionedHost();
     const report = await assessCommissioning(inputs);
-    const unsatisfied = report.checks.filter((entry) => entry.status !== 'satisfied');
+    const unsatisfied = report.checks
+      .filter((entry) => !environmentLimited.includes(entry.id))
+      .filter((entry) => entry.status !== 'satisfied');
     expect(unsatisfied.map((entry) => `${entry.id}: ${entry.detail}`)).toEqual([]);
-    expect(report.commissioned).toBe(true);
-    expect(formatCommissioning(report)).toContain('COMMISSIONED');
+
+    // And the excluded one reports "we could not look", never a quiet pass.
+    for (const id of environmentLimited) {
+      expect(check(report, id).status, `${id} should be unverifiable here`).toBe('unverifiable');
+    }
+    expect(report.commissioned).toBe(false);
+    expect(formatCommissioning(report)).toContain('NOT COMMISSIONED');
   });
 });
 
@@ -555,5 +575,129 @@ ${TLS_BLOCK}`);
 
   it('is unverifiable when no configuration is supplied at all', async () => {
     expect((await assess(undefined)).status).toBe('unverifiable');
+  });
+});
+
+describe('liminal runtime inventory', () => {
+  const directories: string[] = [];
+  afterEach(async () => {
+    for (const directory of directories.splice(0))
+      await rm(directory, { recursive: true, force: true });
+  });
+
+  const LIMINAL_VARS = [
+    'LIMINAL_COMPILER_PATH',
+    'LIMINAL_CARGO_LOCK_PATH',
+    'LIMINAL_RUNTIME_FILE_PATHS',
+    'LIMINAL_EXECUTABLE_SHA256',
+    'LIMINAL_CARGO_LOCK_SHA256',
+    'LIMINAL_RUNTIME_CLOSURE_SHA256',
+  ] as const;
+
+  const assess = async (releaseDirectory?: string) => {
+    const { liminalRuntimeInventory } = await import('./internal/commissioning/host.js');
+    return liminalRuntimeInventory({
+      systemdDirectory: '/etc/systemd/system',
+      shippedUnitDirectory: 'deploy/systemd',
+      certificateRenewalDays: 21,
+      rollbackRehearsalDays: 180,
+      ...(releaseDirectory === undefined ? {} : { releaseDirectory }),
+    });
+  };
+
+  /** A release tree carrying this repository's real verifier and a plausible vendor payload. */
+  async function releaseTree(): Promise<string> {
+    const root = await mkdtemp(join(tmpdir(), 'kf-release-'));
+    directories.push(root);
+    const { copyFile } = await import('node:fs/promises');
+    await mkdir(join(root, 'scripts', 'deploy'), { recursive: true });
+    await copyFile(
+      'scripts/deploy/verify-liminal-runtime.sh',
+      join(root, 'scripts', 'deploy', 'verify-liminal-runtime.sh'),
+    );
+    await mkdir(join(root, 'vendor', 'liminal'), { recursive: true });
+    // ELF magic, so the verifier reaches the digest comparison rather than refusing earlier —
+    // the digest comparison is the control under test.
+    const compiler = join(root, 'vendor', 'liminal', 'liminal-document-compiler');
+    await writeFile(compiler, Buffer.from([0x7f, 0x45, 0x4c, 0x46, 0x02, 0x01, 0x01, 0x00]));
+    await chmod(compiler, 0o755);
+    await writeFile(join(root, 'vendor', 'liminal', 'Cargo.lock'), 'version = 4\n');
+    await writeFile(
+      join(root, 'vendor', 'liminal', 'RUNTIME-CLOSURE.json'),
+      JSON.stringify({
+        format: 'kf-liminal-runtime-closure-v1',
+        entries: [],
+        runtimeClosureDigest: '0'.repeat(64),
+      }),
+    );
+    return root;
+  }
+
+  function withLiminalEnvironment(root: string, overrides: Record<string, string> = {}) {
+    const saved = new Map(LIMINAL_VARS.map((name) => [name, process.env[name]]));
+    Object.assign(process.env, {
+      LIMINAL_COMPILER_PATH: join(root, 'vendor', 'liminal', 'liminal-document-compiler'),
+      LIMINAL_CARGO_LOCK_PATH: join(root, 'vendor', 'liminal', 'Cargo.lock'),
+      LIMINAL_RUNTIME_FILE_PATHS: '/usr/lib/libc.so.6',
+      LIMINAL_EXECUTABLE_SHA256: 'a'.repeat(64),
+      LIMINAL_CARGO_LOCK_SHA256: 'b'.repeat(64),
+      LIMINAL_RUNTIME_CLOSURE_SHA256: 'c'.repeat(64),
+      ...overrides,
+    });
+    return () => {
+      for (const [name, value] of saved) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    };
+  }
+
+  it('is unverifiable when no release directory is supplied', async () => {
+    const result = await assess(undefined);
+    expect(result.status).toBe('unverifiable');
+  });
+
+  it('is unverifiable, and names them, when the LIMINAL_* values are absent', async () => {
+    // The common case on a host where somebody ran kf-commissioning from their own shell
+    // rather than with the worker's environment. It must not read as a host defect.
+    const saved = new Map(LIMINAL_VARS.map((name) => [name, process.env[name]]));
+    for (const name of LIMINAL_VARS) delete process.env[name];
+    try {
+      const result = await assess(await releaseTree());
+      expect(result.status).toBe('unverifiable');
+      expect(result.detail).toContain('LIMINAL_COMPILER_PATH');
+    } finally {
+      for (const [name, value] of saved) if (value !== undefined) process.env[name] = value;
+    }
+  });
+
+  it('refuses a compiler whose digest is not the reviewed one, in the verifier’s own words', async () => {
+    // Runs this repository's real verify-liminal-runtime.sh. The check deliberately does not
+    // reimplement the digesting: two statements of one rule drift, and a disagreement between
+    // them would itself be the security problem.
+    const root = await releaseTree();
+    const restore = withLiminalEnvironment(root);
+    try {
+      const result = await assess(root);
+      expect(result.status).toBe('unsatisfied');
+      expect(result.detail).toContain('digest mismatch');
+    } finally {
+      restore();
+    }
+  });
+
+  it('reports its own misuse as unverifiable rather than as a host finding', async () => {
+    // Exit 64 is the verifier's usage error, which means this check called it wrongly. A bug
+    // here must never be reported as "the host failed".
+    const root = await mkdtemp(join(tmpdir(), 'kf-release-empty-'));
+    directories.push(root);
+    const restore = withLiminalEnvironment(root);
+    try {
+      const result = await assess(root);
+      // No verifier at that path at all: spawn fails, which is also not a host finding.
+      expect(result.status).not.toBe('satisfied');
+    } finally {
+      restore();
+    }
   });
 });
