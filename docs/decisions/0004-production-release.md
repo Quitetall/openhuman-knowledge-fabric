@@ -190,8 +190,18 @@ Two can never be automated from this repository, and v1.0 requires a person to c
 
 ## What this record does not settle
 
-- **The licence and any public release.** v1.0 ships private and `UNLICENSED`. Publication is
-  a separate decision with its own record.
+- **Any public release.** Publication is a separate decision. The mechanism exists —
+  `scripts/publish-public.sh`, which publishes one squashed commit into a repository that shares
+  no history with this one — and it has been exercised against a local bare repository, but no
+  release has been published and the decision to publish one has not been taken here.
+
+  **The licence half of this bullet is now settled and the bullet was corrected on 2026-08-17.**
+  It read "v1.0 ships private and `UNLICENSED`", which stopped being true when the decision owner
+  chose BUSL-1.1 with Licensor "OpenHuman Technologies" and a Change Date of 2030-08-17,
+  converting to Apache-2.0. `LICENSE` carries the four parameters and `package.json` agrees.
+  Shipping private and shipping unlicensed are different things: v1.0 still ships private, and
+  it is no longer unlicensed.
+
 - **A second operator, or federation between two real deployments.**
 - **Whether the thirty-day shadow should return** if the document corpus grows. Flagged above;
   not decided here.

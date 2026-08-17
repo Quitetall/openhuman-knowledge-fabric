@@ -171,4 +171,32 @@ they stay in restricted HR/finance systems and are referenced, never copied.
 
 ## Licence
 
-Proprietary and confidential — OpenHuman Technologies LLC.
+[Business Source License 1.1](LICENSE). Licensor **OpenHuman Technologies**; Change Date
+**2030-08-17**, on which this version converts to the **Apache License, Version 2.0**.
+
+**BUSL-1.1 is not an open-source licence, and this project is not open source until the Change
+Date.** It is not OSI-approved and does not meet the Open Source Definition, because it
+restricts one field of use. Saying otherwise before 2030-08-17 would be exactly the kind of
+true-sounding overclaim the rest of this repository exists to prevent, so it is said plainly
+here instead: source-available now, open source on the Change Date.
+
+What you may do without buying anything, in the licence's own words rather than a paraphrase —
+read [`LICENSE`](LICENSE) for the text that governs:
+
+|                                                                 |                                              |
+| --------------------------------------------------------------- | -------------------------------------------- |
+| Read, modify, fork, redistribute, and use non-production        | Granted by BUSL itself                       |
+| Run it in production to keep **your own institution's** records | Granted by the Additional Use Grant          |
+| Offer it to third parties as a hosted or managed service        | **Not** granted — needs a commercial licence |
+| Everything, under Apache-2.0                                    | From the Change Date, 2030-08-17             |
+
+The Change Date is fixed at four years, and the licence converts on that date or four years
+after this version is first published, whichever is EARLIER — so it can never be later than
+four years from publication, whenever publication happens.
+
+> **Open question for the Licensor.** This section previously read "Proprietary and confidential
+> — OpenHuman Technologies LLC", and `LICENSE` names the Licensor as "OpenHuman Technologies",
+> without `LLC`, because that is the name that was given when the licence was decided. Those are
+> either the same entity written two ways or two different things, and a licence naming the
+> wrong entity is worth ten minutes now rather than a conversation later. Confirm the exact
+> registered name and make `LICENSE` match it.

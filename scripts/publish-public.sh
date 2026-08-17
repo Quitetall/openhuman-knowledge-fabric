@@ -154,7 +154,7 @@ git archive "$tag" | tar -x -C "$tree"
 # Fields first, then the package.json agreement. The other order shadowed this loop: an
 # UNLICENSED package.json failed before any field was looked at, so the placeholder check was
 # unreachable in exactly the state it was written for — a freshly drafted LICENSE.
-for field in 'Licensor' 'Licensed Work' 'Change Date' 'Change License'; do
+for field in 'Licensor' 'Licensed Work' 'Additional Use Grant' 'Change Date' 'Change License'; do
   grep -q "^${field}:" "${tree}/LICENSE" ||
     die "LICENSE has no '${field}:' line — BUSL-1.1 requires it."
   value="$(sed -n "s/^${field}: *//p" "${tree}/LICENSE" | head -1)"
@@ -169,6 +169,20 @@ done
 if grep -q '"license": *"UNLICENSED"' "${tree}/package.json"; then
   die "package.json in ${tag} still declares \"UNLICENSED\" while a LICENSE exists. Make them agree."
 fi
+
+# THE LICENCE IS PER-VERSION, which is not a detail: BUSL says "This License applies separately
+# for each version of the Licensed Work and the Change Date may vary for each version". So a
+# LICENSE naming v1.0.0, published under the tag v1.1.0, states the wrong Change Date for the
+# bytes beside it — and the wrong grant, if the terms moved. Nothing else here would notice,
+# because every other check would pass on a perfectly well-formed licence for a different
+# release.
+licensed_work="$(sed -n 's/^Licensed Work: *//p' "${tree}/LICENSE" | head -1)"
+case "$licensed_work" in
+  *"$tag"*) note "LICENSE names ${tag}" ;;
+  *) die "LICENSE says 'Licensed Work: ${licensed_work}', which does not name ${tag}. The licence
+       is per-version — update it for this release rather than publishing one version's bytes
+       under another version's terms." ;;
+esac
 
 printf '\n== the tree that would be published ==\n'
 files="$(find "$tree" -type f | wc -l)"
