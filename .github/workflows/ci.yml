@@ -32,6 +32,18 @@ jobs:
   verify:
     name: format · lint · typecheck · test
     runs-on: ubuntu-latest
+    env:
+      # ONE client toolchain, named rather than inherited from PATH. The backup and restore
+      # drills call `kf_configure_postgres_client` (scripts/lib/secret.sh), which refuses any
+      # directory whose psql/pg_dump/pg_dumpall/pg_restore do not all report PostgreSQL 18 —
+      # because dump archives are versioned formats and an ambient old pg_dump fails late.
+      #
+      # `ubuntu-latest` ships psql 16 from PGDG, so nine drill tests failed with "PostgreSQL 18
+      # client required; /usr/bin/psql reported: psql (PostgreSQL) 16.14". That was the guard
+      # working correctly on a runner nobody had qualified — CI is a host like any other, and
+      # `docs/deployment/private-host.md` says a host must be qualified before it is trusted.
+      # This is that qualification, written down.
+      KF_POSTGRES_CLIENT_DIR: /usr/lib/postgresql/18/bin
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
@@ -48,6 +60,50 @@ jobs:
           sudo apt-get install --yes bubblewrap
           test -x /usr/bin/bwrap
           /usr/bin/bwrap --version
+
+      # The compiler sandbox creates a user namespace and then disables further ones
+      # (`--unshare-all --unshare-user --disable-userns`, packages/documents/src/liminal-adapter
+      # /sandbox.ts). Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor by
+      # default, and eleven sandbox tests failed with "preflight verified-byte transfer failed:
+      # read ECONNRESET" — the child dying before it could hand back its bytes.
+      #
+      # Relaxing the sysctl weakens the RUNNER, which is an ephemeral VM, not the product: the
+      # sandbox still passes `--disable-userns`, so nothing nested inside it gains the ability.
+      # Proven rather than assumed — the probe below creates the namespace the compiler needs
+      # and fails the job here, with one message, rather than eleven tests later.
+      - name: Qualify the runner for the compiler sandbox
+        run: |
+          set -euo pipefail
+          restricted="$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null || echo absent)"
+          echo "kernel.apparmor_restrict_unprivileged_userns = ${restricted}"
+          if [ "${restricted}" != "absent" ] && [ "${restricted}" != "0" ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          if bwrap --unshare-user --disable-userns --ro-bind / / -- /bin/true; then
+            echo "user namespace creation: works"
+          else
+            echo "::error::bubblewrap cannot create a user namespace on this runner, so the"
+            echo "::error::document compiler sandbox cannot start. See sandbox.ts for the flags."
+            exit 1
+          fi
+
+      - name: Provision the PostgreSQL 18 client
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client-18
+          # Assert the whole toolchain here, in the words the resolver uses, so a partial
+          # install fails at provisioning instead of inside a drill.
+          for tool in psql pg_dump pg_dumpall pg_restore; do
+            path="${KF_POSTGRES_CLIENT_DIR}/${tool}"
+            test -x "${path}" || { echo "::error::missing ${path}"; exit 1; }
+            version="$("${path}" --version)"
+            echo "${version}"
+            case "${version}" in
+              *'(PostgreSQL) 18'*) ;;
+              *) echo "::error::${path} is not PostgreSQL 18: ${version}"; exit 1 ;;
+            esac
+          done
 
       - run: pnpm install --frozen-lockfile
 
