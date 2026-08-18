@@ -87,9 +87,31 @@ jobs:
             exit 1
           fi
 
+      # THE PGDG REPOSITORY HAS TO BE ADDED, which was not obvious and was got wrong once. The
+      # runner's stock psql reports "16.14-1.pgdg24.04+1", and that version string was read as
+      # evidence that the PGDG apt source was configured. It is not: GitHub's image ships a
+      # package PGDG BUILT, without leaving the repository enabled, so `apt-get install
+      # postgresql-client-18` failed with "Unable to locate package". A package's provenance is
+      # not a source list.
+      #
+      # The signing key is checksum-pinned, for the same reason the gitleaks tarball is: this
+      # workflow otherwise trusts whatever a URL serves it today. The codename comes from
+      # lsb_release rather than being hardcoded, so a runner-image bump to a release PGDG does
+      # not yet publish fails loudly at `apt-get update` instead of silently resolving to
+      # something else.
       - name: Provision the PostgreSQL 18 client
+        env:
+          PGDG_KEY_SHA256: 0144068502a1eddd2a0280ede10ef607d1ec592ce819940991203941564e8e76
         run: |
           set -euo pipefail
+          key=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          sudo install -d "$(dirname "${key}")"
+          curl --fail --silent --show-error --location \
+            --output /tmp/pgdg.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "${PGDG_KEY_SHA256}  /tmp/pgdg.asc" | sha256sum --check --strict
+          sudo cp /tmp/pgdg.asc "${key}"
+          echo "deb [signed-by=${key}] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" |
+            sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
           sudo apt-get update
           sudo apt-get install --yes postgresql-client-18
           # Assert the whole toolchain here, in the words the resolver uses, so a partial
