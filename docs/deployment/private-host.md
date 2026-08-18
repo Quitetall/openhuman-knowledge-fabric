@@ -55,6 +55,23 @@ userland behavior such as `readlink -f`, `realpath -ms`, `stat -Lc`, `find -prin
 `sha256sum`, `install` and FHS locations under `/opt`, `/etc`, `/var/lib`, `/run` and
 `/usr/bin`.
 
+Install **pandoc**, on `PATH`, for the process that serves document import.
+`packages/documents/src/internal/pandoc-parser.ts` runs `pandoc --from=<format> --to=json` as a
+child process, so a host without it answers every document import with HTTP 500 and logs
+`spawn pandoc ENOENT` — the API deliberately does not tell the caller more than a request id.
+
+**This requirement was undocumented until 2026-08-18**, when CI ran the suite on a machine that
+was not the workstation and three import tests failed opaquely. It had always been satisfied here
+by pandoc being installed years ago for something else, which is the same way the PostgreSQL 18
+client and `/usr/bin/node` were satisfied: by accident of one machine's history.
+
+**The version is an open question, not a settled requirement.** The parser reads
+`pandoc-api-version` from the AST and records it as the atoms' `parserVersion`, so the version is
+carried in the provenance rather than assumed — but nothing requires a particular one, and two
+hosts running different pandocs can produce different atoms for the same source. For a system
+whose parity criterion is byte-identical compilation, that is worth a decision rather than a
+default. Recorded here so the decision is visible; not taken here.
+
 Install a Node.js version allowed by `package.json` (`>=24.18.1 <25`) as the real executable
 `/usr/bin/node`. Service units and Liminal runtime assembly/verification invoke that absolute
 path; an `nvm`, `asdf`, shell alias or PATH-only Node installation does not satisfy the host

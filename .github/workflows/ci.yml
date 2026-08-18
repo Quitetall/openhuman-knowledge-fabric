@@ -71,6 +71,23 @@ jobs:
           test -x /usr/bin/bwrap
           /usr/bin/bwrap --version
 
+      # PANDOC IS A RUNTIME DEPENDENCY OF DOCUMENT IMPORT, and was documented nowhere until this
+      # run found it. `packages/documents/src/internal/pandoc-parser.ts` does `spawn('pandoc',
+      # ['--from=...', '--to=json'])`, so without it every import returns 500 — which is exactly
+      # what three tests did, opaquely, until LOG_LEVEL was raised and the log said
+      # `spawn pandoc ENOENT`.
+      #
+      # The version is PRINTED, not pinned, and that is a real open question rather than an
+      # oversight: the parser reads `pandoc-api-version` out of the AST and records it as the
+      # atoms' parserVersion, so two hosts running different pandocs can produce different atoms
+      # for the same document and the record will say so. Printing it here means a run's evidence
+      # includes which parser produced it. See docs/deployment/private-host.md.
+      - name: Provision the document parser
+        run: |
+          set -euo pipefail
+          sudo apt-get install --yes pandoc
+          pandoc --version | head -1
+
       # The compiler sandbox creates a user namespace and then disables further ones
       # (`--unshare-all --unshare-user --disable-userns`, packages/documents/src/liminal-adapter
       # /sandbox.ts). Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor by
