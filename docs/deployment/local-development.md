@@ -129,9 +129,10 @@ secrets from owner-only files.
 
 `pnpm gate` runs all of it in CI's order, fail-fast, and is the only list that cannot go
 stale — `tests/deployment/gate-parity.test.ts` compares it against `.github/workflows/ci.yml`
-and fails if either grows a step the other lacks. It is also, as of 2026-08-17, the only place
-any of this actually runs: no CI job has ever started in this repository (38 runs, 38 billing
-failures). Prefer it over running these by hand:
+and fails if either grows a step the other lacks. It stopped being the only place any of this runs
+on 2026-08-18, when CI passed for the first time (run `32146924053`); before that, 38 runs had
+died at job-start on Actions billing without executing a step. Prefer it over running these by
+hand:
 
 ```sh
 pnpm format:check   # prettier

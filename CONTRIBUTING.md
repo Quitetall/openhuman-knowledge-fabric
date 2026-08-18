@@ -20,13 +20,18 @@ previously said `pnpm gate` runs _every_ check CI runs. That stopped being true 
 job landed, which is precisely the drift the test was written to catch — and it caught it in the
 commit that introduced it.)
 
-> **CI is not running at all, as of 2026-08-17.** All 38 workflow runs in this repository's
-> history failed at job-start — "recent account payments have failed or your spending limit needs
-> to be increased" — so no step has ever executed on a runner. `pnpm gate` on your machine is
-> currently the _only_ thing enforcing any of this, and the `secrets` job in particular has never
-> run anywhere. Until billing is restored, read every "CI checks it" in this repository as "CI
-> would check it". `docs/decisions/0004-production-release.md` criterion 5 makes a green run a
-> condition of v1.0 for this reason.
+> **CI passed for the first time on 2026-08-18** — run `32146924053`, commit `93e5b6c4`, four
+> jobs green. This block previously said "CI is not running at all", which was true when written:
+> all 38 runs to that point died at job-start on Actions billing.
+>
+> What the first real runs found is worth knowing before you trust a green `pnpm gate`. Five host
+> requirements were unsatisfied on the runner — bubblewrap, unprivileged user namespaces, a
+> PostgreSQL 18 client, `/usr/bin/node`, and pandoc. Four were named in
+> `docs/deployment/private-host.md` and had never been checked against a machine; pandoc was
+> written down nowhere. The suite had been green here throughout, on a workstation that happened
+> to have all five. If your `pnpm gate` is green and CI is not, suspect your machine has something
+> the contract never asked for — that is the failure mode this repository has now hit five times
+> in one day.
 
 That test exists because the gate was wrong. Three checks were run locally for a week under
 "gates green" while `format:check` failed, and the list of gates was assembled from memory

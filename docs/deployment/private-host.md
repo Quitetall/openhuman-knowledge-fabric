@@ -122,10 +122,15 @@ match its `ontology/`. `tests/deployment/gate-parity.test.ts` keeps the command 
 agreement, and pins the CI jobs that run no pnpm command so a second CI-only gate cannot appear
 unnoticed.
 
-This is currently the ONLY gate an operator can rely on, and that is not a preference: no CI job
-has ever executed in this repository — 38 runs, 38 failures at job-start on Actions billing, as
-of 2026-08-17. Whoever cuts a release is therefore also the only party who has run the checks,
-which is worth knowing while reading the rest of this document.
+This paragraph used to say `pnpm gate` was the only gate an operator could rely on, because no
+CI job had ever executed here — 38 runs, 38 failures at job-start on Actions billing. CI passed
+for the first time on 2026-08-18 (run `32146924053`, commit `93e5b6c4`).
+
+Read the platform requirements above with that in mind. Qualifying the first machine that was not
+the workstation found FIVE of them unsatisfied, and the suite had been green throughout on a
+workstation that happened to satisfy all five by accident of its own history. That is the specific
+risk this document exists to remove, and it went undetected for the life of the repository because
+there was never a second machine to detect it.
 
 After those gates pass, assemble runnable package directories from those already-built bytes.
 `--legacy` is required by repository's current non-injected pnpm workspace layout.

@@ -26,10 +26,23 @@ spending limit needs to be increased". Not one step executed. The seven gates ha
 enforced by a person running them on one machine.
 
 That does not make the tests less green; `pnpm gate` really does pass, and the parity test really
-does hold the local command to `ci.yml`. It makes the enforcement imaginary. Every guarantee in
-this repository that ends "and CI checks it" currently ends at a workstation instead, including
-the secret scan, which by construction cannot be run locally by everyone. Corrected 2026-08-17.
-The consequences are criterion 1 and the new criterion 5.
+does hold the local command to `ci.yml`. It made the enforcement imaginary. Every guarantee in
+this repository that ended "and CI checks it" ended at a workstation instead, including the secret
+scan, which by construction cannot be run locally by everyone. Corrected 2026-08-17. The
+consequences are criterion 1 and the new criterion 5.
+
+**Billing was restored on 2026-08-18 and CI passed the same day** — run `32146924053` at commit
+`93e5b6c4`, four jobs green in 6.8 minutes. It took six runs, and the five failures in between are
+the real content of this amendment: the runner did not satisfy bubblewrap's namespace
+requirements, a PostgreSQL 18 client, `/usr/bin/node`, or pandoc. Four of those are named in
+`docs/deployment/private-host.md` as host requirements and had never once been checked against a
+machine. Pandoc was named nowhere at all, and a host commissioned strictly by that document would
+have answered every document import with HTTP 500.
+
+So the enforcement was imaginary in a second sense nobody had stated: not only was no gate
+running, but the environment the gates assume had never been described completely enough for
+another machine to reproduce. `pnpm gate` was green here for the life of the repository because
+this workstation happened to have five things, not because the contract asked for them.
 
 The risk this record exists to prevent is a familiar one in this repository: a true statement
 that reads as a larger one. "Knowledge Fabric v1.0" would be read by almost anyone as "this is
@@ -40,19 +53,24 @@ and nothing has ever been deployed", and nothing in a version number distinguish
 
 ```
 pnpm gate                    exit 0 — 112 files, 1120 passed, 4 skipped
-gh run list --limit 100      38 runs, 38 failed, 0 succeeded — no job ever started
+gh run list (2026-08-17)     38 runs, 38 failed, 0 succeeded — no job ever started
+gh run 32146924053           SUCCESS, 4/4 jobs, 6.8 min — first green run, 2026-08-18
 pnpm ontology:verify         release/knowledge-fabric-1.0.0-draft.2 → DRAFT, exit 1
 kf-commissioning             never run against a host
 deployment profiles          development | dogfood        (no `production`)
 known blockers               7, of which 4 have no automated check
 ```
 
-The second line is the one that changes what this record says. It was measured after the
-workflows were hardened on 2026-08-17 and it was not what anyone expected to find: the failures
-are a billing state on the GitHub account, not a defect in the workflows, and they predate every
-change made that day. A workflow that cannot start is indistinguishable, in a repository's own
-documentation, from one that starts and passes — which is why this line is now measured here
-rather than assumed anywhere.
+The second and third lines are the ones that changed what this record says. The 38 failures were
+measured after the workflows were hardened on 2026-08-17 and were not what anyone expected: a
+billing state on the GitHub account, not a defect in the workflows, predating every change made
+that day. A workflow that cannot start is indistinguishable, in a repository's own documentation,
+from one that starts and passes — which is why both lines are measured here rather than assumed
+anywhere.
+
+The third line does NOT discharge criterion 5, which asks for a green run on the TAGGED commit;
+nothing is tagged. What it establishes is narrower and was previously unknown: that these gates
+CAN pass on a machine nobody configured by hand.
 
 Nothing has been commissioned on any host. Every deployment artifact in this repository — units,
 templates, verifiers, the migration runner, the rollback contract — is an input to
@@ -72,17 +90,23 @@ commissioning, not evidence of it.
 4. The document-compiler parity criterion below has been met and cutover accepted.
 5. **A CI run has actually executed and passed on the tagged commit.** Added 2026-08-17, when the
    run history was checked for the first time and found to be 38 failures out of 38, none of which
-   started a job. The workflow existing is not the gate; a green run is. This is a **blocker on
-   the account, not on the code** — GitHub Actions is disabled for billing, so no change to this
-   repository can clear it, and it needs the decision owner to restore billing before it can be
-   evidenced either way.
+   started a job. The workflow existing is not the gate; a green run is.
+
+   **Still open, and no longer for the reason it was written.** Billing was restored on
+   2026-08-18 and CI now passes on `main` (run `32146924053`). That answers the question the
+   criterion was really asking — whether these gates can pass anywhere but the workstation — and
+   it does not satisfy the criterion, which says _tagged commit_. Nothing is tagged.
 
    It is a v1.0 criterion rather than a nice-to-have because of what the other criteria rest on.
    The secret scan cannot be run locally by everyone and is CI-only by design; the SBOM is
-   produced by `release.yml` on tag; `release.yml` has never run either, so the first tag would
-   have produced no bill of materials whatever the workflow says. Tagging v1.0 while the only
-   thing that has ever enforced any of this is one laptop would assert exactly the kind of
-   guarantee this record was written to stop asserting.
+   produced by `release.yml` on tag, and **`release.yml` has still never run**, because it
+   triggers on `v*` tags only. The first tag is therefore the first execution of the release
+   path: the SBOM step, the create-if-absent release and the `--verify-tag` refusal are all
+   unproven on a runner, exercised only locally against a bare repository.
+
+   Six runs on 2026-08-18 turned up five unsatisfied host requirements, four documented and
+   unchecked, one undocumented entirely. Expect the first tag to find something too, and prefer
+   finding it on a tag that can be deleted over one that has been published.
 
 ## What v1.0 does not claim
 

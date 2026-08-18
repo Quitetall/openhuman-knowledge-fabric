@@ -85,10 +85,18 @@ locally on every machine — and `tests/deployment/gate-parity.test.ts` asserts 
 both directions, so a step added to `.github/workflows/ci.yml` and not to `gate` fails the suite
 rather than waiting to fail on somebody's push.
 
-**And nothing in CI has ever actually run.** As of 2026-08-17 all 38 workflow runs failed at
-job-start on GitHub Actions billing, so `pnpm gate` on a workstation is currently the only thing
-enforcing any of the above. `docs/decisions/0004-production-release.md` criterion 5 makes a green
-CI run a condition of v1.0. Run the pieces individually while iterating:
+**CI passed for the first time on 2026-08-18**, run `32146924053` at commit `93e5b6c4`, all four
+jobs green in 6.8 minutes. This paragraph previously read "nothing in CI has ever actually run",
+which was true when written: all 38 runs to that point had failed at job-start on GitHub Actions
+billing. Billing was restored and the first real runs found five host requirements the runner did
+not satisfy — bubblewrap, unprivileged user namespaces, a PostgreSQL 18 client, `/usr/bin/node`
+and pandoc — four of them named in `docs/deployment/private-host.md` and never checked against a
+machine, and the fifth written down nowhere at all.
+
+That is the useful part, so it is stated plainly rather than tidied away: `pnpm gate` was green on
+this workstation the entire time, and it was green because of what happened to be installed here.
+`docs/decisions/0004-production-release.md` criterion 5 still requires a green run on the TAGGED
+commit, which has not happened. Run the pieces individually while iterating:
 
 ```sh
 pnpm format:check
