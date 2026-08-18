@@ -197,15 +197,19 @@ Two can never be automated from this repository, and v1.0 requires a person to c
 
   **The licence half of this bullet is now settled and the bullet was corrected on 2026-08-17.**
   It read "v1.0 ships private and `UNLICENSED`", which stopped being true when the decision owner
-  chose BUSL-1.1 with Licensor "OpenHuman Technologies" and a Change Date of 2030-08-17,
+  chose BUSL-1.1 with Licensor "OpenHuman Technologies LLC" and a Change Date of 2030-08-17,
   converting to Apache-2.0. `LICENSE` carries all five parameters — Licensor, Licensed Work,
   Additional Use Grant, Change Date, Change License — and `package.json` agrees. Shipping
   private and shipping unlicensed are different things: v1.0 still ships private, and it is no
   longer unlicensed.
 
-  The Licensor's exact registered name is still open: this repository has written it both with
-  and without `LLC`, and `LICENSE` uses the form given when the licence was decided. Resolve it
-  before any public tag — see the note in `README.md`.
+  The Licensor's registered name was open for one commit — `LICENSE` said "OpenHuman
+  Technologies" and `README.md` said "OpenHuman Technologies LLC" — and was confirmed as
+  **OpenHuman Technologies LLC** on 2026-08-17. The repository had in fact already answered it
+  wherever the name appears as DATA rather than prose: the dogfood bootstrap, the database
+  harness and the R01 golden conformance fixture all seed `legal_name` "OpenHuman Technologies
+  LLC". Worth recording as a method, not just an outcome — when a name is written two ways, the
+  fixtures are usually the ones that had to be right.
 
 - **A second operator, or federation between two real deployments.**
 - **Whether the thirty-day shadow should return** if the document corpus grows. Flagged above;

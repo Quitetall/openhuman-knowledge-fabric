@@ -171,7 +171,7 @@ they stay in restricted HR/finance systems and are referenced, never copied.
 
 ## Licence
 
-[Business Source License 1.1](LICENSE). Licensor **OpenHuman Technologies**; Change Date
+[Business Source License 1.1](LICENSE). Licensor **OpenHuman Technologies LLC**; Change Date
 **2030-08-17**, on which this version converts to the **Apache License, Version 2.0**.
 
 **BUSL-1.1 is not an open-source licence, and this project is not open source until the Change
@@ -194,9 +194,10 @@ The Change Date is fixed at four years, and the licence converts on that date or
 after this version is first published, whichever is EARLIER — so it can never be later than
 four years from publication, whenever publication happens.
 
-> **Open question for the Licensor.** This section previously read "Proprietary and confidential
-> — OpenHuman Technologies LLC", and `LICENSE` names the Licensor as "OpenHuman Technologies",
-> without `LLC`, because that is the name that was given when the licence was decided. Those are
-> either the same entity written two ways or two different things, and a licence naming the
-> wrong entity is worth ten minutes now rather than a conversation later. Confirm the exact
-> registered name and make `LICENSE` match it.
+The Licensor is written `OpenHuman Technologies LLC`, with the `LLC`. This was briefly open —
+`LICENSE` first said "OpenHuman Technologies" while this file said "OpenHuman Technologies LLC" —
+and the repository turned out to have already answered it everywhere the name appears as data
+rather than prose: the seeded organization in `apps/api/src/dogfood/bootstrap.ts`, the database
+harness, and the R01 golden conformance fixture all carry `legal_name` "OpenHuman Technologies
+LLC". Confirmed by the Licensor on 2026-08-17 and corrected in `LICENSE`. Kept here because the
+next person to notice the two forms should find the answer rather than re-open the question.
