@@ -127,6 +127,27 @@ jobs:
             esac
           done
 
+      # THE FOURTH THING THE HOST CONTRACT ASKS FOR, and the last one this runner was missing.
+      # `docs/deployment/private-host.md`: "Install a Node.js version allowed by package.json
+      # (>=24.18.1 <25) as the real executable /usr/bin/node. Service units and Liminal runtime
+      # assembly/verification invoke that absolute path; an nvm, asdf, shell alias or PATH-only
+      # Node installation does not satisfy the host contract."
+      #
+      # actions/setup-node installs into the runner's tool cache, so /usr/bin/node did not exist
+      # and seven Liminal release tests failed with
+      #   could not seal runtime closure: /usr/bin/env: '/usr/bin/node': No such file or directory
+      #
+      # COPIED, not symlinked, because the contract says "the real executable" and the runtime
+      # closure is sealed from whatever that path resolves to. The version is asserted against
+      # NODE_VERSION so this cannot quietly install a Node the lockfile does not allow.
+      - name: Install Node at the absolute path the host contract requires
+        run: |
+          set -euo pipefail
+          sudo install -m 0755 "$(command -v node)" /usr/bin/node
+          installed="$(/usr/bin/node --version)"
+          echo "/usr/bin/node -> ${installed}"
+          test "${installed}" = "v${NODE_VERSION}"
+
       - run: pnpm install --frozen-lockfile
 
       - name: Format

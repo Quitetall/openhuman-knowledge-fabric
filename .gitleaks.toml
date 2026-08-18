@@ -69,3 +69,26 @@ fails the scan.
 """
 regexes = ['''-----BEGIN [A-Z ]*PRIVATE KEY-----\\n.\\n-----END [A-Z ]*PRIVATE KEY-----''']
 regexTarget = "match"
+
+[[allowlists]]
+description = """
+Pinned checksums. This repository pins what it downloads — the gitleaks tarball, the PGDG signing
+key — and a sha256 is 64 characters of maximal entropy sitting beside a name, which is precisely
+the shape generic-api-key hunts for. `PGDG_KEY_SHA256` tripped it on the first CI run that
+scanned it; `GITLEAKS_SHA256`, added the day before, never did. The only difference the rule
+cares about is that one of those names contains KEY.
+
+Allowlisting the SHAPE rather than renaming the variable. Renaming to slip past a heuristic
+teaches the next person to name things for the scanner instead of for the reader, and leaves the
+rule equally likely to fire on the next honest checksum. A value that is exactly 64 lowercase hex
+digits, assigned to a name that says SHA256, is a digest: publishing it discloses nothing, since
+anyone holding the artefact can compute it.
+
+Narrow by construction: a credential is not 64 lowercase hex characters attached to a name that
+says SHA256. Falsified the way the header prescribes, by hand, because no test can run gitleaks —
+the binary is not installed on every machine, which is why the scan is CI-only in the first
+place. Plant a real-shaped credential beside a checksum in ci.yml, confirm it is still REPORTED,
+then remove it.
+"""
+regexes = ['''[A-Z0-9_]*SHA256[A-Z0-9_]*:\s*[0-9a-f]{64}''']
+regexTarget = "match"
