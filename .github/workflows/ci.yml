@@ -44,6 +44,16 @@ jobs:
       # `docs/deployment/private-host.md` says a host must be qualified before it is trusted.
       # This is that qualification, written down.
       KF_POSTGRES_CLIENT_DIR: /usr/lib/postgresql/18/bin
+      # A 500 in a test tells you a request id and nothing else, because the API deliberately
+      # refuses to leak internals to a caller and the harness builds it with logLevel 'silent'.
+      # That is right in production and useless in CI, where nobody can attach a debugger: three
+      # document-import tests failed here with `{"error":"internal_error","requestId":...}` and
+      # the cause was not in the log at all.
+      #
+      # `LOG_LEVEL` is the variable the API's own config reads (apps/api/src/config.ts), not a
+      # new one invented for tests, and `error` keeps the output to failures rather than turning
+      # the suite into a firehose.
+      LOG_LEVEL: error
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 

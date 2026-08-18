@@ -54,7 +54,7 @@ beforeAll(async () => {
     {
       host: '127.0.0.1',
       port: 0,
-      logLevel: 'silent',
+      logLevel: process.env['LOG_LEVEL'] ?? 'silent',
       databaseUrl: appUri.toString(),
       environment: 'test',
       // The profile decides whether a fixed non-authoritative identity is permitted at all.
@@ -440,7 +440,7 @@ describe('identity', () => {
     const dogfood = await buildApp({
       host: '127.0.0.1',
       port: 0,
-      logLevel: 'silent',
+      logLevel: process.env['LOG_LEVEL'] ?? 'silent',
       databaseUrl: new URL(h.connectionString).toString(),
       environment: 'test',
       deploymentProfile: 'dogfood',
@@ -472,7 +472,7 @@ describe('identity', () => {
     const prod = await buildApp({
       host: '127.0.0.1',
       port: 0,
-      logLevel: 'silent',
+      logLevel: process.env['LOG_LEVEL'] ?? 'silent',
       databaseUrl: new URL(h.connectionString).toString(),
       environment: 'production',
       deploymentProfile: 'dogfood',
