@@ -252,8 +252,22 @@ export function checkRegistryPolicy(p: RegistryPolicy, ontologyDir: string): Che
     .map((n) => String(n['code']))
     .sort();
   const enterprisePattern = String(asRecord(grammars['enterprise'], 'enterprise').pattern ?? '');
-  const enumerated = /\(([A-Z|]+)\)/.exec(enterprisePattern)?.[1]?.split('|').sort() ?? [];
-  if (canonicalize(enterpriseDeclared) !== canonicalize(enumerated)) {
+  // Extracting the alternation by regex is fragile by nature: rewrite the pattern as a
+  // character class or nest a group and this stops matching. It would still FAIL — an empty
+  // enumeration never equals nineteen namespaces — but it would fail saying "pattern
+  // enumerates []", which sends the reader looking for a missing namespace instead of a
+  // changed pattern. Say which it is.
+  const alternation = /\(([A-Z|]+)\)/.exec(enterprisePattern)?.[1];
+  if (alternation === undefined) {
+    fail(
+      'enterprise_pattern_enumerates_namespaces',
+      'could not find an alphabetic alternation in the enterprise pattern. It must enumerate ' +
+        'its namespaces — a character class would accept namespaces nobody allocated, which ' +
+        'is what §8 forbids.',
+    );
+  }
+  const enumerated = alternation?.split('|').sort() ?? [];
+  if (alternation !== undefined && canonicalize(enterpriseDeclared) !== canonicalize(enumerated)) {
     fail(
       'enterprise_pattern_matches_namespaces',
       `pattern enumerates [${enumerated.join(', ')}] but namespaces.yaml declares ` +
