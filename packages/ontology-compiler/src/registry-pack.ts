@@ -266,11 +266,16 @@ export function checkRegistryPolicy(p: RegistryPolicy, ontologyDir: string): Che
         'is what §8 forbids.',
     );
   }
-  const enumerated = alternation?.split('|').sort() ?? [];
-  if (alternation !== undefined && canonicalize(enterpriseDeclared) !== canonicalize(enumerated)) {
+  // `fail` records rather than throws, so execution continues past the check above. The guard
+  // is what stops an unparseable pattern producing a SECOND, confusing error about an empty
+  // enumeration on top of the accurate one.
+  if (
+    alternation !== undefined &&
+    canonicalize(enterpriseDeclared) !== canonicalize(alternation.split('|').sort())
+  ) {
     fail(
       'enterprise_pattern_matches_namespaces',
-      `pattern enumerates [${enumerated.join(', ')}] but namespaces.yaml declares ` +
+      `pattern enumerates [${alternation.split('|').sort().join(', ')}] but namespaces.yaml declares ` +
         `[${enterpriseDeclared.join(', ')}] as grammar: enterprise`,
     );
   }
