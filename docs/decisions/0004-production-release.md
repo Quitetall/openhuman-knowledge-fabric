@@ -55,7 +55,8 @@ and nothing has ever been deployed", and nothing in a version number distinguish
 pnpm gate                    exit 0 — 112 files, 1120 passed, 4 skipped
 gh run list (2026-08-17)     38 runs, 38 failed, 0 succeeded — no job ever started
 gh run 32146924053           SUCCESS, 4/4 jobs, 6.8 min — first green run, 2026-08-18
-pnpm ontology:verify         release/knowledge-fabric-1.0.0-draft.2 → DRAFT, exit 1
+pnpm ontology:verify (2026-08-17)  release/knowledge-fabric-1.0.0-draft.2 → DRAFT, exit 1
+pnpm ontology:verify --key         same package → APPROVED, signed 2026-08-19
 kf-commissioning             never run against a host
 deployment profiles          development | dogfood        (no `production`)
 known blockers               7, of which 4 have no automated check
@@ -82,8 +83,28 @@ commissioning, not evidence of it.
    from a clean checkout — **in CI, on the commit being tagged**, not only on the workstation that
    wrote it. See criterion 5, which exists because that distinction turned out to be load-bearing
    rather than pedantic.
-2. The R01 schema pack `1.0.0-draft.2` has been approved and signed, so
-   `pnpm ontology:verify` reports `APPROVED` rather than `DRAFT`.
+2. **MET on 2026-08-19.** The R01 schema pack `1.0.0-draft.2` has been approved and signed by
+   Brian Lam (Technical Authority), key `release-1`, accepting all three recorded gaps.
+
+   ```sh
+   pnpm ontology:verify release/knowledge-fabric-1.0.0-draft.2 \
+     --key ontology/release-keys/release-1.pub      # 9 file(s) checked — APPROVED
+   ```
+
+   **The `--key` is not optional and this criterion used to omit it.** It read "so
+   `pnpm ontology:verify` reports `APPROVED`", which describes a command that cannot produce
+   that result: without a public key the verifier reports "signed with 'release-1', for which
+   no public key was supplied". `approval.ts` is explicit that approval "is a claim about a
+   signature that verifies, not about a file", so an approval nobody can check is not one. The
+   public key is committed at `ontology/release-keys/release-1.pub` for exactly that reason.
+
+   **The signed package itself is NOT in this repository.** `/release/` is gitignored, so
+   `approval.json` — the only copy of the signature — lives on the workstation that produced
+   it. Re-signing would produce a different `approved_at`, and `approve` refuses to overwrite
+   an existing approval, so this artifact is not reproducible, only re-creatable as a
+   different record. Where signed packages live is an open decision; until it is taken, that
+   file is a single point of loss.
+
 3. **One host has been commissioned**, and `kf-commissioning` reports every check `satisfied`.
    Not `unverifiable` — a check that could not run is not a check that passed, which is why
    that status exists and why it fails the gate.
