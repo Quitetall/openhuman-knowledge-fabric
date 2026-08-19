@@ -33,3 +33,23 @@ export {
 export { emitDocumentation, emitOpenApi, emitSqlRegistry, emitTypeScript } from './emit/code.js';
 export { buildReleasePack, packGaps } from './pack.js';
 export type { PackFile } from './pack.js';
+
+// Identifier policy — OH-DOC-000001-3. A separate authority from the ontology above (§1.1),
+// compiled from ontology-registry/ and packaged through the same approval flow.
+export {
+  buildRegistryPack,
+  checkRegistryPolicy,
+  loadRegistryPolicy,
+  registryPackGaps,
+} from './registry-pack.js';
+export type { CheckFailure, RegistryPolicy } from './registry-pack.js';
+export {
+  DAMM_TABLE,
+  ENTERPRISE_NAMESPACES,
+  dammCheck,
+  dammValid,
+  formatEnterpriseId,
+  isAntiSymmetricQuasigroup,
+  validateIdentifier,
+} from './damm.js';
+export type { IdentifierKind, IdentifierVerdict } from './damm.js';

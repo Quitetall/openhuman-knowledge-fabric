@@ -1,0 +1,156 @@
+# Semantic codes — OH-DOC-000001-3 R01 §5.2, §5.3, §5.5.
+#
+# READ THIS BEFORE USING ANY CODE BELOW.
+#
+# These are NOT identifier fields. Under R01 §4.3 rule R5, "Mutable semantics — including name,
+# product family, class, modality, channel count, form factor, generation, state and owner —
+# shall not be encoded in either identity." A code here is a classification attribute or a
+# controlled alias. It never appears between OH- and the sequence.
+#
+# This is the change that ended three schemes in three weeks. Under OH-DOC-REG-SYS-001-R2 and
+# OH-DOC-LST-SYS-001-R4 the document-kind code WAS an identifier field, so every reclassification
+# killed live identifiers: REG→LST, ECO→CHG, ICD→SPC, ENC→HSG, ACC→PER, CRT→CTX, IFC→API,
+# CMP→PKG, and scope MFG→QMS — nine in R4 alone. Then R01 §5.5 retired SPC one revision after
+# R4 introduced it. Every one of those was a change to how a document is *described*, and under
+# the old grammar that was indistinguishable from a change to what it *is*.
+#
+# Codes are still controlled (R12: an alias may be superseded but is never reused for a
+# different meaning). Retiring one now costs an alias update, not a renumbering.
+
+source:
+  document: OH-DOC-000001-3
+  revision: R01
+  sections: ['5.2', '5.3', '5.5']
+
+# §5.2 — product families and physical form factors. Carried forward from R4/R5 unchanged,
+# including R4's ENC→HSG and ACC→PER renames, which survive into R01.
+product_families:
+  - { code: SOMA, meaning: 'Soma product family', state: active }
+  - { code: ATLS, meaning: 'Atlas product family', state: active }
+  - { code: AXON, meaning: 'Axon compute family', state: active }
+  - { code: TESS, meaning: 'Tessera compute family', state: active }
+  - { code: DEND, meaning: 'Dendrite connector/input-adapter family', state: active }
+  - { code: PLEX, meaning: 'Plexus product family', state: reserved }
+  - { code: MYON, meaning: 'Myon product family', state: reserved }
+  - { code: CERE, meaning: 'Cerebra product family', state: reserved }
+
+form_factors:
+  - { code: CLASSIC, meaning: 'Vertically stacked physical arrangement', state: active }
+  - { code: SPINE, meaning: 'Coplanar modules mating to a central interconnect', state: active }
+
+# §5.3 — role mnemonics (item classification attributes) and interface aliases. `use` records
+# which of the two a code is, because they are governed differently: a classification attribute
+# describes an ITM master, an interface alias is the preferred_alias of an INTF master.
+role_codes:
+  - { code: AFE, meaning: 'Acquisition/analog front-end role', use: item_classification }
+  - { code: CAR, meaning: 'Carrier role', use: item_classification }
+  - { code: MCU, meaning: 'Compute-module role', use: item_classification }
+  - {
+      code: CNB,
+      meaning: 'Sensor/electrode connector or input-adapter role',
+      use: item_classification,
+    }
+  - { code: BPL, meaning: 'Backplane/interconnect role', use: item_classification }
+  - { code: CBL, meaning: 'Cable/harness role', use: item_classification }
+  - { code: HSG, meaning: 'Housing/enclosure role', use: item_classification }
+  - { code: PER, meaning: 'Peripheral/accessory role', use: item_classification }
+  - { code: STK, meaning: 'Stack Interface', use: interface_alias }
+  - {
+      code: MFI,
+      meaning: 'Modular Front-End Interface between acquisition module and replaceable sensor/input-adapter module',
+      use: interface_alias,
+    }
+  - { code: CMI, meaning: 'Compute Module Interface', use: interface_alias }
+  - { code: TRG, meaning: 'Trigger and Synchronisation Interface', use: interface_alias }
+  - { code: AUX, meaning: 'Accessory Interface', use: interface_alias }
+
+# §5.5 — document-kind codes, for descriptive aliases and filenames only.
+document_kinds:
+  - { code: SPEC, meaning: 'Specification or interface specification' }
+  - { code: REQ, meaning: 'Requirements document' }
+  - { code: RISK, meaning: 'Risk-management document or analysis' }
+  - { code: PLAN, meaning: 'Plan' }
+  - { code: RPT, meaning: 'Report' }
+  - { code: PROC, meaning: 'Procedure' }
+  - { code: WI, meaning: 'Work instruction' }
+  - { code: POL, meaning: 'Policy or design principles' }
+  - { code: FORM, meaning: 'Controlled form definition' }
+  - { code: LIST, meaning: 'Controlled list or registry view' }
+  - { code: DRAW, meaning: 'Engineering drawing' }
+  - { code: BOM, meaning: 'Bill of materials representation' }
+  - { code: MAN, meaning: 'Manual or instructions' }
+  - { code: LABEL, meaning: 'Labeling or label artwork' }
+
+# Codes that may not be allocated, with the reason. §5.5 forbids SPC by name. The rest are the
+# retired identifier-field codes from R2 and R4: under R12 they may never be reused for a
+# different meaning, and listing them here is what makes "deprecated" checkable rather than
+# remembered. `scheme` records which dead registry allocated each.
+forbidden:
+  - code: SPC
+    reason: >-
+      R01 §5.5: "SPC shall not be allocated to mean Specification because it is an established
+      quality/manufacturing abbreviation for statistical process control. SPEC is the allocated
+      descriptive code." Allocated as a document type by R4; retired one revision later.
+    scheme: OH-DOC-LST-SYS-001-R4
+
+retired_identifier_field_codes:
+  # R2 document types. Under R2 these sat between OH-DOC- and the scope field.
+  - { code: SOP, scheme: OH-DOC-REG-SYS-001-R2, replaced_by_kind: PROC }
+  - { code: FRM, scheme: OH-DOC-REG-SYS-001-R2, replaced_by_kind: FORM }
+  - { code: REG, scheme: OH-DOC-REG-SYS-001-R2, replaced_by_kind: LIST }
+  - { code: ICD, scheme: OH-DOC-REG-SYS-001-R2, replaced_by_kind: SPEC }
+  - { code: PRD, scheme: OH-DOC-REG-SYS-001-R2, replaced_by_kind: REQ }
+  - { code: PLN, scheme: OH-DOC-REG-SYS-001-R2, replaced_by_kind: PLAN }
+  - {
+      code: RSK,
+      scheme: OH-DOC-REG-SYS-001-R2,
+      replaced_by_kind: RISK,
+      note: 'RSK survives as a NAMESPACE in R01 §4.2; it is retired only as a document-type field',
+    }
+  - {
+      code: ECO,
+      scheme: OH-DOC-REG-SYS-001-R2,
+      replaced_by_kind: null,
+      note: 'change objects are the CHG namespace in R01',
+    }
+  - {
+      code: WRK,
+      scheme: OH-DOC-REG-SYS-001-R2,
+      replaced_by_kind: WI,
+      note: 'WRK survives as a NAMESPACE in R01 §4.2 for work orders',
+    }
+  # R2 document scopes. R01 has no scope field at all.
+  - {
+      code: SYS,
+      scheme: OH-DOC-REG-SYS-001-R2,
+      replaced_by_kind: null,
+      note: 'scope field removed entirely',
+    }
+  - {
+      code: QMS,
+      scheme: OH-DOC-REG-SYS-001-R2,
+      replaced_by_kind: null,
+      note: 'scope field removed entirely',
+    }
+  - {
+      code: MFG,
+      scheme: OH-DOC-REG-SYS-001-R2,
+      replaced_by_kind: null,
+      note: 'retired by R4 into QMS scope; scope field then removed entirely by R01',
+    }
+  # R4 codes that never reached this repository's mirror but are recorded so they can never be
+  # revived under a different meaning.
+  - { code: LST, scheme: OH-DOC-LST-SYS-001-R4, replaced_by_kind: LIST }
+  - {
+      code: API,
+      scheme: OH-DOC-LST-SYS-001-R4,
+      replaced_by_kind: null,
+      note: 'interface contracts are the INTF namespace in R01',
+    }
+  - {
+      code: PKG,
+      scheme: OH-DOC-LST-SYS-001-R4,
+      replaced_by_kind: null,
+      note: 'software components are the SWC namespace in R01',
+    }
+  - { code: CTX, scheme: OH-DOC-LST-SYS-001-R4, replaced_by_kind: null }

@@ -1,0 +1,149 @@
+# Identifier design rules R1–R18 — OH-DOC-000001-3 R01 §4.3.
+#
+# `enforced_by` names where each rule is actually checked, or says `unenforced` and why. That
+# column is the useful part of this file: a rule nobody checks is a comment, and this repository
+# has been burned by a guard that could not fail. Where a rule is enforced in more than one
+# place the list is exhaustive, so removing an enforcement point without noticing is a diff here.
+#
+# `human_judgement: true` marks rules that no automation can decide (R13 says so explicitly).
+# Those are not defects in the toolchain; they are the boundary of it.
+
+source:
+  document: OH-DOC-000001-3
+  revision: R01
+  section: '4.3'
+
+rules:
+  - id: R1
+    text: Every first-class object shall have one immutable UUIDv7 object_id.
+    enforced_by:
+      [
+        database/migrations core.object.id primary key (uuidv7 default),
+        ontology/meta.yaml envelope.required,
+      ]
+
+  - id: R2
+    text: >-
+      UUIDv7 values shall conform to RFC 9562, use lowercase canonical text, and shall never be
+      reused, reassigned or regenerated for the same object.
+    enforced_by: [ontology-registry/grammars.yaml uuid, ontology/meta.yaml uuid_pattern]
+
+  - id: R3
+    text: >-
+      The UUIDv7 object_id is the internal primary key for foreign keys, typed relations,
+      actions, approvals, audit, snapshots, import/export and federation.
+    enforced_by: [database/migrations core.object primary key and referential integrity]
+
+  - id: R4
+    text: >-
+      Enterprise identifiers use uppercase ASCII, digits and hyphens only and follow
+      OH-<NAMESPACE>-<NNNNNN>-<C> or an approved instance grammar.
+    enforced_by:
+      [ontology-registry/grammars.yaml enterprise, packages/ontology-compiler/src/damm.ts]
+
+  - id: R5
+    text: >-
+      Mutable semantics — including name, product family, class, modality, channel count, form
+      factor, generation, state and owner — shall not be encoded in either identity.
+    enforced_by: [ontology-registry/grammars.yaml enterprise]
+    note: >-
+      Structurally enforced rather than checked: the grammar has no field a semantic could
+      occupy. This is the rule the whole R01 architecture exists to make true.
+
+  - id: R6
+    text: Enterprise sequences are fixed width, zero padded and atomically allocated. Leading zeroes are required.
+    enforced_by: [ontology-registry/grammars.yaml enterprise]
+    partially_unenforced: >-
+      Fixed width and zero padding are checked by the pattern. ATOMIC ALLOCATION IS NOT YET
+      IMPLEMENTED — there is no sequence table or allocator. Deferred with R01 §17 Phase 1;
+      until then allocation is a reviewed seed file, not a service.
+
+  - id: R7
+    text: The final enterprise-ID digit is a Damm check digit. Invalid check digits shall be rejected at entry and import.
+    enforced_by:
+      - packages/ontology-compiler/src/damm.ts
+      - database/migrations core.object enterprise_id check constraint
+      - openhuman-quality tools/qms_index.py
+
+  - id: R8
+    text: >-
+      An allocated enterprise identifier is permanent. It shall never be reused, redefined,
+      deleted, reassigned or attached to a different UUIDv7 object.
+    enforced_by:
+      [
+        database/migrations core.object enterprise_id unique,
+        database/migrations enterprise_id immutability trigger,
+      ]
+
+  - id: R9
+    text: >-
+      enterprise_id may be absent before the allocation threshold is met. Allocation attaches
+      the ID to the existing object_id and never replaces the object.
+    enforced_by: [database/migrations core.object.enterprise_id nullable]
+
+  - id: R10
+    text: Revision, version, release, baseline, effectivity, lot, serial and record identity are separate fields or objects.
+    enforced_by: [ontology/object-types.yaml, ontology-registry/grammars.yaml revision]
+
+  - id: R11
+    text: >-
+      Released revisions, approval snapshots and release manifests are immutable. Any change
+      creates a new revision/version or attributable amendment.
+    enforced_by:
+      [database/migrations append-only triggers, packages/ontology-compiler/src/approval.ts]
+
+  - id: R12
+    text: >-
+      Aliases and semantic codes are controlled metadata. They may be superseded but are never
+      reused for a different meaning.
+    enforced_by:
+      [
+        ontology-registry/codes.yaml retired_identifier_field_codes,
+        openhuman-quality registry/allocations.yaml superseded_aliases,
+      ]
+
+  - id: R13
+    text: >-
+      Automated checks support semantic-code review, but a named human reviewer decides whether
+      an acronym or meaning creates material confusion.
+    human_judgement: true
+    enforced_by: unenforced
+    note: R01 says so in the rule itself. The pack builder reports edit distance; it does not adjudicate.
+
+  - id: R14
+    text: >-
+      Identifiers, aliases, filenames and external references shall not contain PHI, unnecessary
+      PII, passwords, secrets or export-controlled detail.
+    enforced_by: ['.gitleaks.toml + the secrets CI job']
+    note: >-
+      Partial by construction. gitleaks finds credential shapes; it cannot recognise PHI. The
+      standing project rule that PHI never enters a git repository is the real control here,
+      and it is a human one.
+
+  - id: R15
+    text: >-
+      Supplier numbers, standards identifiers, UDI values, repository IDs and provider locators
+      are typed external references and are not repurposed as OpenHuman identities.
+    enforced_by: [ontology/meta.yaml ExternalReference]
+
+  - id: R16
+    text: >-
+      Source authority, storage location and synchronized copies are explicit metadata. A
+      location or mirror shall never be mistaken for canonical identity or authority.
+    enforced_by:
+      [ontology/meta.yaml source_authorities, ontology/meta.yaml ExternalReference.authority]
+
+  - id: R17
+    text: >-
+      Case-insensitive enterprise-ID inputs may be normalized to uppercase; stored UUIDv7 values
+      are lowercase and stored enterprise IDs are uppercase.
+    enforced_by: [packages/ontology-compiler/src/damm.ts, ontology-registry/grammars.yaml uuid]
+
+  - id: R18
+    text: A grammar string, example, draft value or generated preview does not allocate an enterprise identity.
+    enforced_by:
+      [openhuman-quality registry/allocations.yaml state, openhuman-quality tools/qms_index.py]
+    note: >-
+      This is why every identifier in the initial seed carries `state: proposed` and the QMS
+      gate refuses one cited as though allocated. It is also why the examples in grammars.yaml
+      and damm.yaml allocate nothing.

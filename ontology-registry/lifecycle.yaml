@@ -1,0 +1,100 @@
+# Lifecycle states and disposition vocabulary — OH-DOC-000001-3 R01 §4.4, §13.3, §13.4.
+#
+# These are the states of IDENTITY, which is not the same question as the states of an OBJECT.
+# ontology/state-machines.yaml governs the eight Knowledge Fabric object lifecycles (how a
+# decision record or an invoice moves). This file governs what happens to an identifier: when a
+# sequence may be allocated, when a master may be deprecated, and what "retired" permits.
+#
+# The two must not be merged. §1.1 lists "identifier and configuration policy" and "ontology and
+# validation schema" as separate authorities with different change frequencies — rare and
+# controlled versus versioned and generated.
+
+source:
+  document: OH-DOC-000001-3
+  revision: R01
+  sections: ['4.4', '13.3', '13.4']
+
+# §13.3. `terminal` marks a state with no onward transition in R01's table. Note that no
+# lifecycle here ends in deletion: §13.4 is explicit that a retired identity "remains
+# permanently resolvable".
+lifecycles:
+  first_class_object:
+    states: [created, active, archived, retired]
+    initial: created
+    terminal: [retired]
+    note: object_id never changes or disappears, in any state.
+
+  enterprise_master_id:
+    states: [unallocated, reserved, active, deprecated, retired]
+    initial: unallocated
+    terminal: [retired]
+    note: Once allocated, never detached or reused.
+
+  revision:
+    states: [draft, review, released, superseded, obsolete, cancelled]
+    initial: draft
+    terminal: [superseded, obsolete, cancelled]
+    note: Draft and Review may become Cancelled; Released may not.
+
+  release_baseline:
+    states: [proposed, review, approved, superseded]
+    initial: proposed
+    terminal: [superseded]
+    note: Never edited or deleted.
+
+  instance:
+    states:
+      [
+        planned,
+        in_build,
+        accepted,
+        distributed,
+        in_service,
+        returned,
+        quarantined,
+        reworked,
+        scrapped,
+        retired,
+      ]
+    initial: planned
+    terminal: [scrapped, retired]
+
+  record:
+    states: [open, completed, approved, corrected, superseded, archived]
+    initial: open
+    terminal: [archived]
+    note: The original is preserved through correction and supersession (§9.4).
+
+# §13.4. These five terms are routinely used interchangeably in ordinary speech and mean
+# different things here. Recorded as a controlled vocabulary because "this document is
+# obsolete" and "this document is superseded" authorise different behaviour.
+disposition:
+  superseded_revision: A newer revision exists; prior revision remains valid for its historical/effective uses.
+  obsolete_revision: Blocked from new use unless specifically authorized; preserved in where-used and history.
+  deprecated_master_or_alias: New use discouraged during a controlled phase-out or replacement; historical approved use remains resolvable.
+  retired_master_or_code: No new use. Identity and meaning remain permanently resolvable.
+  cancelled_draft: Never released; sequence remains consumed and history preserved.
+
+# §4.4. Which notation each object class uses. Mixing schemes within one master is prohibited —
+# "The selected scheme is declared once per master and not mixed casually."
+revision_notation:
+  physical_item: { scheme: rnn, pattern_ref: revision }
+  controlled_document: { scheme: rnn, pattern_ref: revision }
+  interface_contract:
+    { scheme: semver, pattern_ref: semver, note: 'exact conformance version required (§7.2)' }
+  software_component:
+    { scheme: semver, pattern_ref: semver, note: 'released contents are immutable (§8.2)' }
+  dataset_or_model:
+    {
+      scheme: rnn_plus_hash_or_semver,
+      note: 'declared once per master; SemVer only where a public compatibility contract exists',
+    }
+  working_iteration:
+    { scheme: tool_native, note: 'not a released revision and never printed as one' }
+
+# §4.4's "No minor-revision suffix" callout, kept as a machine-checkable prohibition rather than
+# prose: a silkscreen correction or added approved alternate is either covered by an approved
+# configuration rule or it is a new revision. R04a is not a third option.
+prohibited_revision_forms:
+  - pattern: '^R[0-9]{2,}[a-z]$'
+    reason: Lowercase revision suffixes hide a changed definition behind an unchanged-looking revision.

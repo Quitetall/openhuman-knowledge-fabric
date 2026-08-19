@@ -1,14 +1,19 @@
 /**
  * Ontology compiler CLI.
  *
- *   check            validate the ontology, then report any drift in generated/
- *   build            regenerate generated/ from ontology/
- *   pack [version]   assemble a spec §5 release package under release/
- *   approve <dir>    sign the package's manifest, making it normative under §5
- *   verify <dir>     check every digest, and report whether the package is approved
+ *   check                     validate the ontology, then report any drift in generated/
+ *   build                     regenerate generated/ from ontology/
+ *   pack [version]            assemble a spec §5 release package under release/
+ *   registry-check            validate ontology-registry/ — identifier policy, OH-DOC-000001-3
+ *   registry-pack [version]   assemble the identifier-policy package under release/
+ *   approve <dir>             sign the package's manifest, making it normative under §5
+ *   verify <dir>              check every digest, and report whether the package is approved
  *
- * `check` and `verify` never write. They are what CI runs, and a check that repairs what it
- * is inspecting cannot report a failure.
+ * `check`, `registry-check` and `verify` never write. They are what CI runs, and a check that
+ * repairs what it is inspecting cannot report a failure.
+ *
+ * `approve` and `verify` take any package directory, so they serve both packages unchanged —
+ * the ontology pack (OH-DOC-000002-1) and the identifier-policy pack (OH-DOC-000001-3).
  */
 
 import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -16,6 +21,12 @@ import { createPublicKey, createPrivateKey, type KeyObject } from 'node:crypto';
 import { join, resolve } from 'node:path';
 import { buildArtifacts, findDrift, writeArtifacts } from './build.js';
 import { buildReleasePack, packGaps } from './pack.js';
+import {
+  buildRegistryPack,
+  checkRegistryPolicy,
+  loadRegistryPolicy,
+  registryPackGaps,
+} from './registry-pack.js';
 import {
   approveRelease,
   verifyRelease,
@@ -96,8 +107,54 @@ function fileReader(dir: string): (path: string) => Buffer | undefined {
 
 const ONTOLOGY_DIR = resolve(process.cwd(), 'ontology');
 const GENERATED_DIR = resolve(process.cwd(), 'generated');
+const REGISTRY_DIR = resolve(process.cwd(), 'ontology-registry');
+
+/**
+ * Identifier policy (`OH-DOC-000001-3`) is a different authority from the Knowledge Fabric
+ * ontology (`OH-DOC-000002-1`) — §1.1 lists them separately, with different change
+ * frequencies. These commands run BEFORE `loadOntology` deliberately: an unrelated defect in
+ * the object-type graph should not block work on identifier policy, and the one place the two
+ * overlap (identity patterns) is cross-checked inside `checkRegistryPolicy` against
+ * `ontology/meta.yaml` directly.
+ */
+function runRegistry(command: string): number | undefined {
+  if (command !== 'registry-check' && command !== 'registry-pack') return undefined;
+
+  const policy = loadRegistryPolicy(REGISTRY_DIR);
+  const findings = checkRegistryPolicy(policy, ONTOLOGY_DIR);
+  const warnings = findings.filter((f) => f.severity === 'warning');
+  const errors = findings.filter((f) => f.severity === 'error');
+  for (const f of warnings) console.error(`  warning  ${f.check.padEnd(38)} ${f.detail}`);
+  if (errors.length > 0) {
+    console.error(`\nregistry: FAILED — ${errors.length} check(s)\n`);
+    for (const f of errors) console.error(`  error    ${f.check.padEnd(38)} ${f.detail}`);
+    console.error('\nNo artifacts were written.');
+    return 1;
+  }
+  console.error(
+    `registry: policy consistent — source digest ${policy.sourceDigest.slice(0, 12)}` +
+      (warnings.length > 0 ? ` (${warnings.length} warning(s) above)` : ''),
+  );
+
+  if (command === 'registry-check') return 0;
+
+  const version = process.argv[3] ?? '1.0.0-draft.1';
+  const out = resolve(process.cwd(), 'release', `openhuman-registry-${version}`);
+  const files = buildRegistryPack(policy, version);
+  mkdirSync(out, { recursive: true });
+  for (const f of files) writeFileSync(join(out, f.path), f.content);
+  console.error(`registry: wrote ${files.length} file(s) to release/openhuman-registry-${version}`);
+  console.error('\nThis package is NOT normative until its manifest is signed or approved,');
+  console.error('and OH-DOC-000001-3 R01 itself is still "Draft for approval".');
+  console.error('Known gaps travelling with it:');
+  for (const g of registryPackGaps()) console.error(`  - ${g}`);
+  return 0;
+}
 
 function run(command: string): number {
+  const registry = runRegistry(command);
+  if (registry !== undefined) return registry;
+
   const o = loadOntology(ONTOLOGY_DIR);
 
   const findings = checkOntology(o);
@@ -237,7 +294,10 @@ function run(command: string): number {
     return 0;
   }
 
-  console.error(`unknown command '${command}'. Expected: check | build | pack | approve | verify`);
+  console.error(
+    `unknown command '${command}'. Expected: ` +
+      'check | build | pack | registry-check | registry-pack | approve | verify',
+  );
   return 2;
 }
 

@@ -1,0 +1,66 @@
+# Damm check digit — OH-DOC-000001-3 R01 Appendix A.
+#
+# THIS IS THE ONLY COPY OF THE TABLE IN THIS REPOSITORY. `packages/ontology-compiler/src/damm.ts`
+# and the PL/pgSQL function in the database migration both derive from this file, because two
+# hand-transcribed copies of a 100-entry table is two chances to typo one cell — and a single
+# wrong cell produces a validator that accepts some invalid identifiers and rejects some valid
+# ones, with no symptom until an identifier is rejected in the field.
+#
+# HOW IT WORKS. Begin with interim value 0 and consume each payload digit left to right,
+# reading table[interim][digit]. The final interim value is the check digit. To validate,
+# consume the payload AND the check digit; the result is 0 if and only if the identifier is
+# well formed.
+#
+# WHY DAMM AND NOT LUHN OR MOD-97. The property that matters is total anti-symmetry: the table
+# is a quasigroup (every row and every column is a permutation of 0-9) with a zero diagonal.
+# That is what makes it detect *every* single-digit error and *every* adjacent transposition
+# with one decimal digit and no positional weighting. `checks:` below are machine-verified by
+# the pack builder rather than asserted here — a table with one transposed cell would still
+# look like a table.
+
+source:
+  document: OH-DOC-000001-3
+  revision: R01
+  section: 'Appendix A'
+
+# Rows are the running interim value, columns the digit being consumed.
+table:
+  - [0, 3, 1, 7, 5, 9, 8, 6, 4, 2]
+  - [7, 0, 9, 2, 1, 5, 4, 8, 6, 3]
+  - [4, 2, 0, 6, 8, 7, 1, 3, 5, 9]
+  - [1, 7, 5, 0, 9, 8, 3, 4, 2, 6]
+  - [6, 1, 2, 3, 0, 4, 5, 9, 7, 8]
+  - [3, 6, 7, 4, 2, 0, 9, 5, 8, 1]
+  - [5, 8, 6, 9, 7, 2, 0, 1, 3, 4]
+  - [8, 9, 4, 5, 3, 6, 2, 0, 1, 7]
+  - [9, 4, 3, 8, 6, 1, 7, 2, 0, 5]
+  - [2, 5, 8, 1, 4, 3, 6, 7, 9, 0]
+
+# Structural properties the pack builder asserts. Each is independently falsifiable: break one
+# cell and at least one of these fails by name.
+checks:
+  rows_are_permutations: true
+  columns_are_permutations: true
+  zero_diagonal: true
+
+# Appendix A's own worked examples, carried as test vectors. If the table were transcribed
+# wrongly these would stop reproducing, which is the point of keeping them.
+vectors:
+  - { payload: '000123', check: 4, canonical: OH-ITM-000123-4, note: 'master sequence' }
+  - { payload: '000042', check: 7, canonical: '0000427', note: 'six-digit example' }
+  - { payload: '000000001', check: 3, canonical: OH-SN-000000001-3, note: 'global serial' }
+  - { payload: '2026000001', check: 5, canonical: OH-RCD-2026-000001-5, note: 'annual record' }
+
+# The two identifiers this organisation has actually issued. Verified rather than assumed:
+# both were checked against this table before the pack was built.
+allocated_vectors:
+  - { payload: '000001', check: 3, canonical: OH-DOC-000001-3, note: 'this registry' }
+  - { payload: '000002', check: 1, canonical: OH-DOC-000002-1, note: 'Knowledge Fabric OGWCS' }
+
+# Negative vectors. A check-digit validator that cannot reject is not a validator, and the
+# repository rule is that a guard must be shown able to fail before it is trusted. These are
+# the correct payloads with one digit wrong.
+reject_vectors:
+  - { identifier: OH-DOC-000001-4, reason: 'check digit wrong by one' }
+  - { identifier: OH-DOC-000010-3, reason: 'adjacent transposition of the payload' }
+  - { identifier: OH-SN-000000001-9, reason: 'serial check digit wrong' }

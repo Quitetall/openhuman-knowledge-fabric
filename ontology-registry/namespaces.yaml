@@ -1,0 +1,87 @@
+# Enterprise namespaces — OH-DOC-000001-3 R01 §4.2.
+#
+# A namespace is the alphabetic field in OH-<NAMESPACE>-<NNNNNN>-<C>. Each carries its own
+# six-digit sequence, allocated atomically and independently of every other namespace.
+#
+# RCD IS DELIBERATELY NOT IN THE ENTERPRISE PATTERN. §4.2 lists it as a namespace, but §9.4
+# gives completed records their own grammar (OH-RCD-<YYYY>-<NNNNNN>-<C>), and Appendix B.1's
+# enterprise regex enumerates nineteen namespaces with RCD absent. Both statements are true
+# together: RCD names a namespace whose members use the record grammar. `enterprise_pattern`
+# below records which of the two applies, so a validator cannot accidentally accept
+# OH-RCD-000001-3 as a master identifier or reject OH-RCD-2026-000001-5 as malformed.
+
+source:
+  document: OH-DOC-000001-3
+  revision: R01
+  section: '4.2'
+
+namespaces:
+  - {
+      code: ITM,
+      grammar: enterprise,
+      name: 'Physical item: part, PCB, PCBA, assembly, cable, tool, material, packaging or label',
+    }
+  - { code: DOC, grammar: enterprise, name: 'Controlled document definition' }
+  - { code: INTF, grammar: enterprise, name: 'Logical/electrical/protocol interface contract' }
+  - {
+      code: BIND,
+      grammar: enterprise,
+      name: 'Physical realization of an interface: connector, pinout, mating and mechanical envelope',
+    }
+  - {
+      code: SWC,
+      grammar: enterprise,
+      name: 'Software, firmware, gateware, service or tool component',
+    }
+  - { code: DAT, grammar: enterprise, name: 'Controlled dataset or immutable data snapshot' }
+  - { code: MDL, grammar: enterprise, name: 'Model architecture, trained model or model package' }
+  - {
+      code: REQ,
+      grammar: enterprise,
+      name: 'Atomic stakeholder, system, subsystem, software or process requirement',
+    }
+  - {
+      code: RSK,
+      grammar: enterprise,
+      name: 'Atomic hazard, hazardous situation, risk evaluation or risk-control object',
+    }
+  - {
+      code: TST,
+      grammar: enterprise,
+      name: 'Test method, test case or verification/validation procedure definition',
+    }
+  - { code: CHG, grammar: enterprise, name: 'Change request/order and its implementation package' }
+  - { code: ADR, grammar: enterprise, name: 'Architecture or engineering decision record' }
+  - { code: BSL, grammar: enterprise, name: 'Configuration baseline' }
+  - { code: RLS, grammar: enterprise, name: 'Release package' }
+  - {
+      code: RCD,
+      grammar: record,
+      name: 'Completed record instance; uses the record grammar in Section 9',
+    }
+  - {
+      code: QEV,
+      grammar: enterprise,
+      name: 'Quality event such as complaint, nonconformance, CAPA, recall or audit finding',
+    }
+  - {
+      code: EQP,
+      grammar: enterprise,
+      name: 'Equipment, calibration asset or controlled production/test resource',
+    }
+  - { code: SUP, grammar: enterprise, name: 'Supplier or external service provider master' }
+  - { code: LOT, grammar: enterprise, name: 'Manufacturing lot or batch' }
+  - {
+      code: WRK,
+      grammar: enterprise,
+      name: 'Work order, build order or controlled manufacturing run',
+    }
+
+# §13.3. An enterprise master ID moves through these; `active` is the only state in which a
+# namespace accepts new allocations. Retired and deprecated codes stay permanently resolvable
+# (§13.4) — this is a phase-out, never a deletion.
+namespace_states: [unallocated, reserved, active, deprecated, retired]
+
+# Every namespace above is Active at initial issue. Recorded explicitly rather than defaulted,
+# so a later deprecation is a visible diff to this file and not an absence.
+state: active

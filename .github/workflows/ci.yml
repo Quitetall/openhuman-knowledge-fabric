@@ -209,6 +209,13 @@ jobs:
       - name: Ontology check
         run: pnpm ontology:check
 
+      # Identifier policy is a SEPARATE authority from the ontology — OH-DOC-000001-3 versus
+      # OH-DOC-000002-1, listed separately in §1.1 with different change frequencies. It gets
+      # its own check for the same reason it gets its own package: a defect in one should not
+      # be reported as a defect in the other.
+      - name: Identifier registry check
+        run: pnpm ontology:registry-check
+
       # Belt and braces. `ontology:check` compares in memory; this proves a real write
       # produces byte-identical files, catching any non-determinism in the emitters.
       - name: Regenerate and diff
