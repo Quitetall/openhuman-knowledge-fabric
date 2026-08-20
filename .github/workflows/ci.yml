@@ -105,6 +105,18 @@ jobs:
       # default, and eleven sandbox tests failed with "preflight verified-byte transfer failed:
       # read ECONNRESET" — the child dying before it could hand back its bytes.
       #
+      # python3 is a RUNTIME dependency, not a test fixture.
+      # `packages/documents/src/lamquant-compat.ts` runs the LamQuant source gates through
+      # `options.pythonExecutable ?? 'python3'`, and nothing supplies that option, so the
+      # fallback is the production path. Undocumented until 2026-08-20 and found only because
+      # the self-hosted runner image installs nothing — GitHub's ubuntu-latest ships python3,
+      # so hosted CI was green while the host contract stayed silent, which is precisely the
+      # pandoc failure repeating.
+      - name: Install python3, which the LamQuant compatibility oracle spawns
+        run: |
+          sudo apt-get install --yes python3
+          python3 --version
+
       # Relaxing the sysctl weakens the RUNNER, which is an ephemeral VM, not the product: the
       # sandbox still passes `--disable-userns`, so nothing nested inside it gains the ability.
       # Proven rather than assumed — the probe below creates the namespace the compiler needs

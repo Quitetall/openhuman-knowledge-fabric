@@ -72,6 +72,22 @@ hosts running different pandocs can produce different atoms for the same source.
 whose parity criterion is byte-identical compilation, that is worth a decision rather than a
 default. Recorded here so the decision is visible; not taken here.
 
+Install **python3**, on `PATH`, for the LamQuant compatibility oracle.
+`packages/documents/src/lamquant-compat.ts` runs the source gates through
+`options.pythonExecutable ?? 'python3'`, and nothing in the codebase supplies that option — the
+fallback IS the production path. A host without python3 fails every compatibility run with
+`spawn python3 ENOENT`.
+
+**This requirement was undocumented until 2026-08-20**, and it is the sixth of its kind. It was
+found by moving CI onto a deliberately near-empty `ubuntu:24.04` container, and it is worth
+noting that **GitHub's hosted runner would never have found it**: `ubuntu-latest` ships python3,
+so CI was green on a machine that satisfied the requirement by accident in exactly the way this
+workstation did. Only an image that installs nothing exposed it.
+
+No version is pinned. The gates are invoked as a plain interpreter and this repository does not
+constrain which python3; if that ever needs to be a real requirement it belongs here, next to
+the same open question recorded above for pandoc.
+
 Install a Node.js version allowed by `package.json` (`>=24.18.1 <25`) as the real executable
 `/usr/bin/node`. Service units and Liminal runtime assembly/verification invoke that absolute
 path; an `nvm`, `asdf`, shell alias or PATH-only Node installation does not satisfy the host
