@@ -210,21 +210,48 @@ export function checkRegistryPolicy(p: RegistryPolicy, ontologyDir: string): Che
     }
   }
 
-  // Confusable trailing letters. OH-DOC-REG-SYS-001-R2 rule R3 forbade I, O and Q adjacent to a
-  // numeric field — a good rule for identifiers transcribed at small print or across scripts,
-  // since Q/0 and I/1 are the classic confusions.
+  // NO TWO NAMESPACES MAY COLLAPSE TO THE SAME STRING WHEN MISREAD.
   //
-  // R01 DOES NOT CARRY THAT RULE. It appears nowhere in the document, and §4.2 then allocates
-  // REQ, whose Q sits directly against the sequence in OH-REQ-000123-4. So this is a WARNING:
-  // the observation is worth keeping, but refusing to build would be this toolchain overruling
-  // an allocation the registry made deliberately. Raised as an amendment question instead.
+  // OH-DOC-REG-SYS-001-R2 rule R3 forbade I, O and Q adjacent to a numeric field — Q/0 and I/1
+  // are the classic transcription confusions. R01 does not carry that rule anywhere, and §4.2
+  // then allocates REQ, whose Q sits directly against the sequence in OH-REQ-000123-4.
+  //
+  // Dropping it was correct, and structurally so. Under R2 the alphabetic fields were semantic
+  // and open-ended, so a misread could land on ANOTHER REAL CODE: SOP -> S0P named a different
+  // document and looked entirely valid. Under R01 the namespace is one of nineteen closed
+  // values, so a misread lands outside the set and is rejected by name. The closed enumeration
+  // does the work the rule used to do, and does it better — R2's rule reduced the chance of a
+  // bad read; R01's structure guarantees one is caught.
+  //
+  // THAT HOLDS ONLY WHILE NO TWO NAMESPACES ARE CONFUSABLE WITH EACH OTHER, so that is checked
+  // here rather than assumed. It is the load-bearing precondition for a rule R01 chose not to
+  // state, and a precondition nobody checks is an assumption.
+  //
+  // THE OBVIOUS FORMULATION IS WRONG, AND WAS TRIED FIRST. Comparing every pair to see whether
+  // one is a single substitution from the other misses the case that actually matters: REQ and
+  // REO are not one substitution apart, but BOTH read as RE0 — Q->0 and O->0 — so a person
+  // transcribing either can produce the other. Two codes collide when they FOLD TO THE SAME
+  // STRING, not when they are adjacent. Folding to a canonical form and grouping catches both
+  // shapes; pairwise adjacency catches only one, and silently passed the REQ/REO probe.
+  //
+  // The reverse direction needs no check: the sequence field is [0-9]{6}, so a digit misread as
+  // a letter (OH-REQ-OOO123-4) fails the grammar outright.
+  const FOLD: Record<string, string> = { I: '1', O: '0', Q: '0', S: '5', B: '8' };
+  const foldConfusable = (code: string): string => [...code].map((ch) => FOLD[ch] ?? ch).join('');
+
+  const byFolded = new Map<string, string[]>();
   for (const c of codes) {
-    const last = c[c.length - 1]!;
-    if (last === 'I' || last === 'O' || last === 'Q') {
-      warn(
-        'code_confusable_trailing_letter',
-        `${c} ends in '${last}', adjacent to the numeric sequence. Allocated by R01 §4.2; the ` +
-          'I/O/Q prohibition was an OH-DOC-REG-SYS-001-R2 rule that R01 does not carry.',
+    const key = foldConfusable(c);
+    byFolded.set(key, [...(byFolded.get(key) ?? []), c]);
+  }
+  for (const [folded, group] of byFolded) {
+    if (group.length > 1) {
+      fail(
+        'namespaces_are_not_confusable',
+        `${group.join(' and ')} all read as '${folded}' under I/1, O/0, Q/0, S/5 or B/8 ` +
+          'confusion. R01 carries no I/O/Q prohibition; what makes that safe is that a misread ' +
+          'lands outside the allocated set. This group breaks that — a misread of one names ' +
+          'another and validates.',
       );
     }
   }

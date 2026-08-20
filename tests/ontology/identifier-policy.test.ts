@@ -16,11 +16,13 @@ import { describe, expect, it } from 'vitest';
 import {
   DAMM_TABLE,
   ENTERPRISE_NAMESPACES,
+  checkRegistryPolicy,
   dammCheck,
   formatEnterpriseId,
   isAntiSymmetricQuasigroup,
   loadRegistryPolicy,
   validateIdentifier,
+  type CheckFailure,
 } from '@kf/ontology-compiler';
 
 // The policy is read through the compiler's own loader rather than by parsing the YAML here.
@@ -181,5 +183,54 @@ describe('the namespace list', () => {
   it('has 19 enterprise namespaces and excludes RCD', () => {
     expect(ENTERPRISE_NAMESPACES).toHaveLength(19);
     expect(ENTERPRISE_NAMESPACES).not.toContain('RCD');
+  });
+});
+
+describe('the namespace confusability guard', () => {
+  // R01 carries no I/O/Q prohibition. What makes that safe is that a misread of any allocated
+  // namespace lands OUTSIDE the allocated set — so this guard is the load-bearing precondition
+  // for a rule the registry chose not to state. It has to be exercised, not assumed.
+  const ONTOLOGY = join(import.meta.dirname, '..', '..', 'ontology');
+
+  function withExtraNamespace(code: string): CheckFailure[] {
+    const declared = POLICY.namespaces['namespaces'] as { code: string; grammar: string }[];
+    return checkRegistryPolicy(
+      {
+        ...POLICY,
+        namespaces: {
+          ...POLICY.namespaces,
+          namespaces: [...declared, { code, grammar: 'enterprise', name: 'test fixture' }],
+        },
+      },
+      ONTOLOGY,
+    );
+  }
+
+  const named = (fs: CheckFailure[], check: string): CheckFailure[] =>
+    fs.filter((f) => f.check === check && f.severity === 'error');
+
+  it('passes on the twenty namespaces R01 actually allocates', () => {
+    expect(named(checkRegistryPolicy(POLICY, ONTOLOGY), 'namespaces_are_not_confusable')).toEqual(
+      [],
+    );
+  });
+
+  it.each([
+    ['REO', 'RE0', 'REQ — neither is one substitution from the other, but both fold to RE0'],
+    ['1TM', '1TM', 'ITM — I read as 1'],
+    ['D0C', 'D0C', 'DOC — O read as 0'],
+    ['5UP', '5UP', 'SUP — S read as 5'],
+    ['L0T', 'L0T', 'LOT — O read as 0'],
+  ])('refuses %s, which collides with %s (%s)', (code, folded) => {
+    const failures = named(withExtraNamespace(code), 'namespaces_are_not_confusable');
+    expect(failures).toHaveLength(1);
+    expect(failures[0]?.detail).toContain(`read as '${folded}'`);
+  });
+
+  it('does NOT fire on a difference that is not a modelled confusion', () => {
+    // RSQ vs RSK differ by Q/K. Q folds to 0, K folds to nothing, so they do not collide.
+    // A guard that fired here would be over-broad, and over-broad guards get disabled.
+    expect(named(withExtraNamespace('RSQ'), 'namespaces_are_not_confusable')).toEqual([]);
+    expect(named(withExtraNamespace('XYZ'), 'namespaces_are_not_confusable')).toEqual([]);
   });
 });
