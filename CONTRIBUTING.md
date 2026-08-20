@@ -20,9 +20,18 @@ previously said `pnpm gate` runs _every_ check CI runs. That stopped being true 
 job landed, which is precisely the drift the test was written to catch — and it caught it in the
 commit that introduced it.)
 
-> **CI passed for the first time on 2026-08-18** — run `32146924053`, commit `93e5b6c4`, four
-> jobs green. This block previously said "CI is not running at all", which was true when written:
-> all 38 runs to that point died at job-start on Actions billing.
+> **CI runs on a sandboxed self-hosted runner, on the maintainer's machine, since 2026-08-20.**
+> `runs-on` reads the `RUNNER_LABEL` repository variable, so it is a settings change and not a
+> commit — see `deploy/self-hosted-runner/`.
+>
+> This block has now been wrong twice, in opposite directions. It first said "CI is not running
+> at all", which was true — 38 runs died at job-start on Actions billing. Then it said CI passed
+> for the first time on 2026-08-18 (run `32146924053`, commit `93e5b6c4`), which was also true,
+> and then stopped being true on 2026-08-20 when billing failed again and four more jobs died
+> the same way. Four commits carried a green local gate and no CI at all before anyone noticed.
+>
+> **A green run is not evidence CI is running.** Check that the run you are looking at is recent
+> and that its jobs executed steps rather than dying at job-start in two seconds.
 >
 > What the first real runs found is worth knowing before you trust a green `pnpm gate`. Five host
 > requirements were unsatisfied on the runner — bubblewrap, unprivileged user namespaces, a
