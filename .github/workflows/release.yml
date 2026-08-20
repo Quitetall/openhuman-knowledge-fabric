@@ -25,7 +25,7 @@ permissions:
 jobs:
   gate:
     name: the tag passes every gate
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
@@ -34,11 +34,11 @@ jobs:
           node-version: '24.18.1'
           cache: pnpm
 
-      - name: Provision compiler sandbox integration dependency
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes bubblewrap
-          test -x /usr/bin/bwrap
+      # THE SAME six host requirements ci.yml provisions. Until 2026-08-20 this workflow
+      # installed bubblewrap and nothing else, so the gate that qualifies a v1.0.0 tag would
+      # have run without pandoc, python3, the PostgreSQL 18 client, /usr/bin/node or the
+      # user-namespace sysctl. It had never run, so nothing exposed it.
+      - uses: ./.github/actions/provision-host
 
       - run: pnpm install --frozen-lockfile
 
@@ -51,7 +51,7 @@ jobs:
   provenance:
     name: bill of materials
     needs: gate
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
     permissions:
       contents: write # to attach the SBOM to the release
     steps:

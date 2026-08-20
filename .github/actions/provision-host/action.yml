@@ -1,0 +1,140 @@
+name: Provision the host contract
+description: >-
+  Install everything ci.yml's gate needs that a clean machine does not have. Shared by ci.yml
+  and release.yml because they DRIFTED: release.yml provisioned bubblewrap alone and nothing
+  else, and gated the v1.0.0 tag while missing pandoc, python3, the PostgreSQL 18 client,
+  /usr/bin/node and the user-namespace sysctl. It had never run, so nothing exposed it.
+
+  Two copies of a host contract is two chances to be wrong about it. There is now one.
+
+runs:
+  using: composite
+  steps:
+    - name: Provision compiler sandbox integration dependency
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install --yes bubblewrap
+        test -x /usr/bin/bwrap
+        /usr/bin/bwrap --version
+
+    # PANDOC IS A RUNTIME DEPENDENCY OF DOCUMENT IMPORT, and was documented nowhere until this
+    # run found it. `packages/documents/src/internal/pandoc-parser.ts` does `spawn('pandoc',
+    # ['--from=...', '--to=json'])`, so without it every import returns 500 — which is exactly
+    # what three tests did, opaquely, until LOG_LEVEL was raised and the log said
+    # `spawn pandoc ENOENT`.
+    #
+    # The version is PRINTED, not pinned, and that is a real open question rather than an
+    # oversight: the parser reads `pandoc-api-version` out of the AST and records it as the
+    # atoms' parserVersion, so two hosts running different pandocs can produce different atoms
+    # for the same document and the record will say so. Printing it here means a run's evidence
+    # includes which parser produced it. See docs/deployment/private-host.md.
+    - name: Provision the document parser
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo apt-get install --yes pandoc
+        pandoc --version | head -1
+
+    # The compiler sandbox creates a user namespace and then disables further ones
+    # (`--unshare-all --unshare-user --disable-userns`, packages/documents/src/liminal-adapter
+    # /sandbox.ts). Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor by
+    # default, and eleven sandbox tests failed with "preflight verified-byte transfer failed:
+    # read ECONNRESET" — the child dying before it could hand back its bytes.
+    #
+    # python3 is a RUNTIME dependency, not a test fixture.
+    # `packages/documents/src/lamquant-compat.ts` runs the LamQuant source gates through
+    # `options.pythonExecutable ?? 'python3'`, and nothing supplies that option, so the
+    # fallback is the production path. Undocumented until 2026-08-20 and found only because
+    # the self-hosted runner image installs nothing — GitHub's ubuntu-latest ships python3,
+    # so hosted CI was green while the host contract stayed silent, which is precisely the
+    # pandoc failure repeating.
+    - name: Install python3, which the LamQuant compatibility oracle spawns
+      shell: bash
+      run: |
+        sudo apt-get install --yes python3
+        python3 --version
+
+    # Relaxing the sysctl weakens the RUNNER, which is an ephemeral VM, not the product: the
+    # sandbox still passes `--disable-userns`, so nothing nested inside it gains the ability.
+    # Proven rather than assumed — the probe below creates the namespace the compiler needs
+    # and fails the job here, with one message, rather than eleven tests later.
+    - name: Qualify the runner for the compiler sandbox
+      shell: bash
+      run: |
+        set -euo pipefail
+        restricted="$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null || echo absent)"
+        echo "kernel.apparmor_restrict_unprivileged_userns = ${restricted}"
+        if [ "${restricted}" != "absent" ] && [ "${restricted}" != "0" ]; then
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+        fi
+        if bwrap --unshare-user --disable-userns --ro-bind / / -- /bin/true; then
+          echo "user namespace creation: works"
+        else
+          echo "::error::bubblewrap cannot create a user namespace on this runner, so the"
+          echo "::error::document compiler sandbox cannot start. See sandbox.ts for the flags."
+          exit 1
+        fi
+
+    # THE PGDG REPOSITORY HAS TO BE ADDED, which was not obvious and was got wrong once. The
+    # runner's stock psql reports "16.14-1.pgdg24.04+1", and that version string was read as
+    # evidence that the PGDG apt source was configured. It is not: GitHub's image ships a
+    # package PGDG BUILT, without leaving the repository enabled, so `apt-get install
+    # postgresql-client-18` failed with "Unable to locate package". A package's provenance is
+    # not a source list.
+    #
+    # The signing key is checksum-pinned, for the same reason the gitleaks tarball is: this
+    # workflow otherwise trusts whatever a URL serves it today. The codename comes from
+    # lsb_release rather than being hardcoded, so a runner-image bump to a release PGDG does
+    # not yet publish fails loudly at `apt-get update` instead of silently resolving to
+    # something else.
+    - name: Provision the PostgreSQL 18 client
+      env:
+        PGDG_KEY_SHA256: 0144068502a1eddd2a0280ede10ef607d1ec592ce819940991203941564e8e76
+      shell: bash
+      run: |
+        set -euo pipefail
+        key=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+        sudo install -d "$(dirname "${key}")"
+        curl --fail --silent --show-error --location \
+          --output /tmp/pgdg.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+        echo "${PGDG_KEY_SHA256}  /tmp/pgdg.asc" | sha256sum --check --strict
+        sudo cp /tmp/pgdg.asc "${key}"
+        echo "deb [signed-by=${key}] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" |
+          sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+        sudo apt-get update
+        sudo apt-get install --yes postgresql-client-18
+        # Assert the whole toolchain here, in the words the resolver uses, so a partial
+        # install fails at provisioning instead of inside a drill.
+        for tool in psql pg_dump pg_dumpall pg_restore; do
+          path="${KF_POSTGRES_CLIENT_DIR}/${tool}"
+          test -x "${path}" || { echo "::error::missing ${path}"; exit 1; }
+          version="$("${path}" --version)"
+          echo "${version}"
+          case "${version}" in
+            *'(PostgreSQL) 18'*) ;;
+            *) echo "::error::${path} is not PostgreSQL 18: ${version}"; exit 1 ;;
+          esac
+        done
+
+    # THE FOURTH THING THE HOST CONTRACT ASKS FOR, and the last one this runner was missing.
+    # `docs/deployment/private-host.md`: "Install a Node.js version allowed by package.json
+    # (>=24.18.1 <25) as the real executable /usr/bin/node. Service units and Liminal runtime
+    # assembly/verification invoke that absolute path; an nvm, asdf, shell alias or PATH-only
+    # Node installation does not satisfy the host contract."
+    #
+    # actions/setup-node installs into the runner's tool cache, so /usr/bin/node did not exist
+    # and seven Liminal release tests failed with
+    #   could not seal runtime closure: /usr/bin/env: '/usr/bin/node': No such file or directory
+    #
+    # COPIED, not symlinked, because the contract says "the real executable" and the runtime
+    # closure is sealed from whatever that path resolves to. The version is asserted against
+    # NODE_VERSION so this cannot quietly install a Node the lockfile does not allow.
+    - name: Install Node at the absolute path the host contract requires
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo install -m 0755 "$(command -v node)" /usr/bin/node
+        installed="$(/usr/bin/node --version)"
+        echo "/usr/bin/node -> ${installed}"
+        test "${installed}" = "v${NODE_VERSION}"
