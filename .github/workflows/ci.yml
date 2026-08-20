@@ -1,5 +1,16 @@
 name: CI
 
+# `runs-on` is a repository VARIABLE, not a literal, so switching between GitHub-hosted and the
+# sandboxed self-hosted runner is a settings change rather than a commit:
+#
+#   gh variable set RUNNER_LABEL --body kf-sandboxed     # this box, free
+#   gh variable delete RUNNER_LABEL                      # back to ubuntu-latest, billed
+#
+# The self-hosted runner is deliberately a near-empty ubuntu-24.04 container, so the steps
+# below still install their own dependencies and stay under test. See
+# deploy/self-hosted-runner/ — including why it must be removed before this repository is ever
+# made public.
+
 on:
   push:
     branches: [main]
@@ -31,7 +42,7 @@ env:
 jobs:
   verify:
     name: format · lint · typecheck · test
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
     env:
       # ONE client toolchain, named rather than inherited from PATH. The backup and restore
       # drills call `kf_configure_postgres_client` (scripts/lib/secret.sh), which refuses any
@@ -194,7 +205,7 @@ jobs:
 
   ontology:
     name: ontology consistent · generated/ current
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
@@ -228,7 +239,7 @@ jobs:
 
   build:
     name: build from a clean checkout
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
@@ -241,7 +252,7 @@ jobs:
 
   secrets:
     name: no secret has ever been committed
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
     steps:
       # Full history, not a shallow clone: the question is whether a credential was EVER
       # committed, and `fetch-depth: 1` cannot answer it. A reverted commit is still a
