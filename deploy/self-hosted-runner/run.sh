@@ -78,6 +78,36 @@ if ! docker inspect -f '{{.State.Running}}' "$DIND" 2>/dev/null | grep -q true; 
     docker:29-dind --host=tcp://0.0.0.0:2375 >/dev/null
 fi
 
+# ── CLEANING UP AFTER OURSELVES ─────────────────────────────────────────────────────────────
+#
+# Ctrl-C does NOT propagate into `docker run` reliably, so without this the container survives
+# the supervisor and stays registered with GitHub — idle, invisible, and eligible to be handed
+# the next job. That is worse than an absent runner: it took a job with the OLD configuration
+# and failed for a reason that had already been fixed, which is a very confusing hour.
+#
+# GitHub also keeps listing a runner as `online` for a while after its container dies, so a
+# forced removal leaves a phantom registration that would silently swallow a job. Both halves
+# are cleaned up here: the container, then any registration without a container behind it.
+CONTAINER="kf-runner-$$"
+
+cleanup() {
+  echo
+  echo "runner: stopping"
+  docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+  # Delete registrations that no longer have a live container. Matching on our own PID-derived
+  # name keeps this from touching a runner someone else started on this machine.
+  gh api "/repos/${REPO}/actions/runners" --jq '.runners[] | "\(.id) \(.name)"' 2>/dev/null |
+    while read -r id name; do
+      case "$name" in
+        "kf-ephemeral-$$-"*)
+          gh api -X DELETE "/repos/${REPO}/actions/runners/${id}" >/dev/null 2>&1 &&
+            echo "runner: deregistered $name"
+          ;;
+      esac
+    done
+}
+trap cleanup EXIT INT TERM
+
 echo "runner: repo=$REPO image=$IMAGE labels=$LABELS"
 echo "runner: one fresh container per job. Ctrl-C to stop."
 
@@ -86,8 +116,36 @@ while :; do
   token="$(gh api -X POST "/repos/${REPO}/actions/runners/registration-token" --jq .token)" ||
     die 'could not mint a registration token — does this account have admin on the repo?'
 
-  docker run --rm \
+  # ── WHY TWO SECURITY RELAXATIONS, AND ONLY TWO ──────────────────────────────────────────
+  #
+  # `packages/documents/src/liminal-adapter/sandbox.ts` runs the document compiler under
+  # bubblewrap with `--unshare-all --unshare-user --disable-userns`, and ci.yml refuses to take
+  # a job unless that works. A default docker container cannot do it, for two independent
+  # reasons — the first run on this runner failed on exactly this, which is the containerised
+  # runner doing its job.
+  #
+  # Measured, on this image:
+  #
+  #   (nothing)                                  fails: no permissions to create new namespace
+  #   --security-opt systempaths=unconfined      fails: no permissions to create new namespace
+  #   --security-opt seccomp=unconfined          fails: /proc/sys/user/max_user_namespaces ro
+  #   seccomp=unconfined + cap-add SYS_ADMIN     fails: /proc/sys/user/max_user_namespaces ro
+  #   seccomp=unconfined + systempaths=unconfined      WORKS
+  #   --privileged                                     WORKS
+  #
+  # So both are needed and neither alone suffices. SYS_ADMIN is NOT the missing piece, which is
+  # worth knowing: the reflex to reach for a capability would not have fixed it.
+  #
+  # This is deliberately NOT `--privileged`. Capabilities stay dropped, no host devices are
+  # exposed, no host namespaces are shared. What is given up is syscall filtering and a
+  # read-only /proc/sys — enough for bubblewrap to create a user namespace and no more.
+  #
+  # bubblewrap on Debian/Ubuntu reads /proc/sys/user/max_user_namespaces at startup, which is
+  # why the read-only mount blocks it even once seccomp allows the clone.
+  docker run --rm --name "$CONTAINER" \
     --network "$NET" \
+    --security-opt seccomp=unconfined \
+    --security-opt systempaths=unconfined \
     -e DOCKER_HOST=tcp://docker:2375 \
     `# Testcontainers publishes ports on the DAEMON's host, which here is the DinD container,` \
     `# not localhost inside the runner. Without this override every container it starts is` \
