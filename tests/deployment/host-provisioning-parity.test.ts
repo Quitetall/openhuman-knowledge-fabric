@@ -147,18 +147,18 @@ describe('the runner image provides the tools a hosted runner would', () => {
    */
   const installedPackages = (text: string): Set<string> => {
     const packages = new Set<string>();
-    const lines = text.split('\n');
-    for (let i = 0; i < lines.length; i += 1) {
-      if (!lines[i]!.includes('apt-get install')) continue;
-      let joined = lines[i]!;
-      while (/\\\s*$/.test(joined) && i + 1 < lines.length) {
-        i += 1;
-        joined = `${joined.replace(/\\\s*$/, ' ')}${lines[i]!}`;
-      }
-      const marker = 'apt-get install';
-      const args = joined.slice(joined.indexOf(marker) + marker.length).split('&&')[0]!;
-      for (const token of args.split(/\s+/)) {
-        if (token && !token.startsWith('-')) packages.add(token);
+    // Join `\` continuations first so a command split over lines becomes one string, then treat
+    // `&&`, `;` and newlines alike as command separators. Doing it in that order means a RUN
+    // with more than one `apt-get install` in its chain contributes all of them, rather than
+    // only the first — which is what taking `split('&&')[0]` of a single line used to do.
+    const joined = text.replace(/\\\s*\n/g, ' ');
+    const marker = 'apt-get install';
+    for (const command of joined.split(/&&|;|\n/)) {
+      const at = command.indexOf(marker);
+      if (at < 0) continue;
+      for (const token of command.slice(at + marker.length).split(/\s+/)) {
+        if (!token || token.startsWith('-')) continue; // `-y`, `--no-install-recommends`
+        packages.add(token.split('=')[0]!); // a version pin still names the package
       }
     }
     return packages;

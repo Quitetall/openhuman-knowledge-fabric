@@ -306,11 +306,27 @@ describe.skipIf(process.platform !== 'linux' || !existsSync(TEST_BWRAP))(
     });
 
     it('hides worker secrets, source paths, ambient environment and external interfaces', async () => {
+      // A CANARY THE TEST CREATES, rather than a list of paths guessed to exist on the host.
+      //
+      // This previously probed `/etc/kf`, `/opt/kf` and `/mnt/4tb`. None of the three is
+      // guaranteed to exist anywhere, so on a machine without them those disjuncts could never
+      // fire and the assertion rested entirely on `/usr/share`. `/mnt/4tb` was worse than
+      // useless: it is one contributor's disk mount, so it also put a personal path into a
+      // repository about to be published.
+      //
+      // A directory created here exists by construction, on every machine, so if the sandbox
+      // ever stops hiding the host filesystem this fails instead of passing quietly.
+      const hostCanary = await mkdtemp(join(tmpdir(), 'kf-host-canary-'));
+      roots.push(hostCanary);
+      // "The sandbox cannot see it" is vacuous if it does not exist to be seen. Assert the
+      // premise here so the test cannot pass by the canary having quietly failed to be created.
+      expect(existsSync(hostCanary), 'the host canary was not created').toBe(true);
+
       const files = await fixture(`
       const fs = require('node:fs');
       const os = require('node:os');
       const interfaces = Object.values(os.networkInterfaces()).flat().filter(Boolean);
-      if (fs.existsSync('/etc/kf') || fs.existsSync('/opt/kf') || fs.existsSync('/mnt/4tb') ||
+      if (fs.existsSync(${JSON.stringify(hostCanary)}) ||
           fs.existsSync('/usr/src') || fs.existsSync('/usr/share')) {
         process.exit(41);
       }
