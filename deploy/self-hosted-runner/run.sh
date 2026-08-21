@@ -38,12 +38,21 @@
 # volume, and CI containers simply cannot see the host's.
 set -euo pipefail
 
-REPO="${KF_RUNNER_REPO:-Quitetall/openhuman-knowledge-fabric}"
 IMAGE="${KF_RUNNER_IMAGE:-kf-runner:2.336.0}"
 LABELS="${KF_RUNNER_LABELS:-self-hosted,linux,x64,kf-sandboxed}"
 NET="kf-ci"
 DIND="kf-ci-dind"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Derived from `origin`, not hardcoded. A default naming one particular repository is wrong
+# twice over in a public repository: it discloses that repository's path to every reader, and a
+# stranger who clones this and runs it would register a runner against SOMEONE ELSE'S repo
+# rather than their own fork — which fails confusingly at best.
+default_repo() {
+  git -C "$HERE" remote get-url origin 2>/dev/null |
+    sed -E 's#^git@[^:]+:##; s#^https?://[^/]+/##; s#\.git$##'
+}
+REPO="${KF_RUNNER_REPO:-$(default_repo)}"
 
 once=false
 build=false
@@ -62,6 +71,7 @@ command -v gh >/dev/null ||
   die 'the gh CLI is required — it mints a fresh registration token for every job, so no
      long-lived credential has to be stored anywhere on disk.'
 gh auth status >/dev/null 2>&1 || die 'gh is not authenticated (gh auth login)'
+[ -n "$REPO" ] || die 'could not determine the repository from `origin`. Set KF_RUNNER_REPO=owner/repo.'
 
 if [ "$build" = true ] || ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
   echo "runner: building $IMAGE"

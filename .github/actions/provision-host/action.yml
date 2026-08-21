@@ -7,6 +7,16 @@ description: >-
 
   Two copies of a host contract is two chances to be wrong about it. There is now one.
 
+inputs:
+  node-version:
+    description: >-
+      The exact Node the host contract allows. Declared as an input rather than read from the
+      caller's job `env:` — a composite action that depends on an ambient variable works in
+      whichever workflow happens to set it and fails in the one that does not, which is exactly
+      how release.yml died on its first run: `KF_POSTGRES_CLIENT_DIR: unbound variable`.
+    required: false
+    default: '24.18.1'
+
 runs:
   using: composite
   steps:
@@ -106,8 +116,14 @@ runs:
         sudo apt-get install --yes postgresql-client-18
         # Assert the whole toolchain here, in the words the resolver uses, so a partial
         # install fails at provisioning instead of inside a drill.
+        # The thing that installs the toolchain is the thing that says where it is. Reading
+        # this from the caller made the action work in ci.yml, which sets it, and fail in
+        # release.yml, which does not. Exported to GITHUB_ENV so the job's own steps — the
+        # backup and restore drills — see the same value without repeating it.
+        client_dir=/usr/lib/postgresql/18/bin
+        echo "KF_POSTGRES_CLIENT_DIR=${client_dir}" >> "${GITHUB_ENV}"
         for tool in psql pg_dump pg_dumpall pg_restore; do
-          path="${KF_POSTGRES_CLIENT_DIR}/${tool}"
+          path="${client_dir}/${tool}"
           test -x "${path}" || { echo "::error::missing ${path}"; exit 1; }
           version="$("${path}" --version)"
           echo "${version}"
@@ -137,4 +153,4 @@ runs:
         sudo install -m 0755 "$(command -v node)" /usr/bin/node
         installed="$(/usr/bin/node --version)"
         echo "/usr/bin/node -> ${installed}"
-        test "${installed}" = "v${NODE_VERSION}"
+        test "${installed}" = "v${{ inputs.node-version }}"

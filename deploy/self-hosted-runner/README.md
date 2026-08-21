@@ -109,14 +109,14 @@ with a deliberately wrong hash: the build stops at that layer.
 
 ## Operating notes
 
-|                                      |                                                                      |
-| ------------------------------------ | -------------------------------------------------------------------- |
-| Stop serving jobs                    | Ctrl-C `run.sh`. The ephemeral agent deregisters itself.             |
-| Stop the inner daemon                | `docker rm -f kf-ci-dind`                                            |
-| Reclaim the image cache              | `docker volume rm kf-ci-dind-images`                                 |
-| Rebuild after editing the Dockerfile | `run.sh --build`                                                     |
-| Take exactly one job                 | `run.sh --once`                                                      |
-| What GitHub sees                     | `gh api /repos/Quitetall/openhuman-knowledge-fabric/actions/runners` |
+|                                      |                                                                                        |
+| ------------------------------------ | -------------------------------------------------------------------------------------- |
+| Stop serving jobs                    | Ctrl-C `run.sh`. The ephemeral agent deregisters itself.                               |
+| Stop the inner daemon                | `docker rm -f kf-ci-dind`                                                              |
+| Reclaim the image cache              | `docker volume rm kf-ci-dind-images`                                                   |
+| Rebuild after editing the Dockerfile | `run.sh --build`                                                                       |
+| Take exactly one job                 | `run.sh --once`                                                                        |
+| What GitHub sees                     | `gh api /repos/$(gh repo view --json nameWithOwner -q .nameWithOwner)/actions/runners` |
 
 `run.sh` runs in the foreground on purpose. Nothing here installs a systemd unit, because a
 runner that starts at boot and nobody remembers is a machine quietly executing whatever lands

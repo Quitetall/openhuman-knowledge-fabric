@@ -110,3 +110,32 @@ describe('a fork pull request cannot run on the self-hosted runner', () => {
     ).not.toMatch(/pull_request/);
   });
 });
+
+/**
+ * A composite action must not depend on the caller's environment.
+ *
+ * `release.yml` died on its first ever run with `KF_POSTGRES_CLIENT_DIR: unbound variable`. The
+ * shared action read a shell variable that `ci.yml` happened to declare in its job `env:` and
+ * `release.yml` did not, so the action worked in one workflow and failed in the other — which
+ * is the same defect the action was extracted to remove, one level up.
+ *
+ * An action that reads an ambient variable is not shared, it is coupled. Values it needs are
+ * either inputs with defaults, or things it computes itself and exports.
+ */
+describe('the shared provisioning action is self-contained', () => {
+  it('reads no variable the caller has to have set', () => {
+    const action = readFileSync(join(ROOT, ACTION, 'action.yml'), 'utf8');
+    const read = new Set([...action.matchAll(/\$\{([A-Z][A-Z0-9_]{2,})\}/g)].map((m) => m[1]!));
+    // Declared as step-level `env:`, assigned in-script, or provided by the runner itself.
+    const declared = new Set([...action.matchAll(/^\s+([A-Z][A-Z0-9_]{2,}):/gm)].map((m) => m[1]!));
+    for (const provided of ['GITHUB_ENV', 'GITHUB_PATH', 'GITHUB_OUTPUT', 'PATH', 'HOME']) {
+      declared.add(provided);
+    }
+    const ambient = [...read].filter((v) => !declared.has(v)).sort();
+    expect(
+      ambient,
+      `${ACTION} reads ${ambient.join(', ')} from whoever calls it. Make it an input with a ` +
+        'default, or compute it in the action and export it to GITHUB_ENV.',
+    ).toEqual([]);
+  });
+});
