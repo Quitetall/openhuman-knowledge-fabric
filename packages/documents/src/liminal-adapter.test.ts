@@ -316,6 +316,17 @@ describe.skipIf(process.platform !== 'linux' || !existsSync(TEST_BWRAP))(
       //
       // A directory created here exists by construction, on every machine, so if the sandbox
       // ever stops hiding the host filesystem this fails instead of passing quietly.
+      //
+      // VERIFIED AGAINST THE REAL FAILURE MODE, not a proxy. The sandbox root is `--tmpfs /`
+      // with only explicit fd-binds, so nothing on the host is reachable by path and every
+      // probe here is false by construction — which raises the fair objection that the test
+      // could be passing for the wrong reason. It is not: adding `--bind /tmp /tmp` to
+      // buildSandboxArguments, so the sandbox really does expose the host tmpdir, turns this
+      // test red. Removing the bind turns it green again.
+      //
+      // `/usr/src` and `/usr/share` stay, and are NOT redundant with the canary. They catch a
+      // different regression: a bind of a host directory the canary does not live under. The
+      // canary catches an exposed tmpdir; those catch an exposed system tree.
       const hostCanary = await mkdtemp(join(tmpdir(), 'kf-host-canary-'));
       roots.push(hostCanary);
       // "The sandbox cannot see it" is vacuous if it does not exist to be seen. Assert the
