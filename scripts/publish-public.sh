@@ -146,43 +146,53 @@ tree="${work}/tree"
 mkdir -p "$tree"
 git archive "$tag" | tar -x -C "$tree"
 
-# The licence is a precondition rather than a reminder. BUSL-1.1 has four fields that must be
-# filled in — Licensor, Licensed Work, Change Date, Change License — and a repository published
-# without a licence is, by default, all-rights-reserved with no grant to anybody.
+# The licence is a precondition rather than a reminder: a repository published without one is,
+# by default, all-rights-reserved with no grant to anybody.
 [ -s "${tree}/LICENSE" ] ||
   die "no LICENSE in the ${tag} tree. Nothing may be published before the licence is decided."
-# Fields first, then the package.json agreement. The other order shadowed this loop: an
-# UNLICENSED package.json failed before any field was looked at, so the placeholder check was
-# unreachable in exactly the state it was written for — a freshly drafted LICENSE.
-for field in 'Licensor' 'Licensed Work' 'Additional Use Grant' 'Change Date' 'Change License'; do
-  grep -q "^${field}:" "${tree}/LICENSE" ||
-    die "LICENSE has no '${field}:' line — BUSL-1.1 requires it."
-  value="$(sed -n "s/^${field}: *//p" "${tree}/LICENSE" | head -1)"
-  [ -n "$value" ] || die "LICENSE leaves '${field}:' blank."
-  case "$value" in
-    *'<'* | *'TODO'* | *'TBD'* | *'FIXME'* | *'XXX'*)
-      die "LICENSE '${field}:' is still a placeholder: ${value}"
-      ;;
-  esac
-  note "LICENSE ${field}: ${value}"
-done
-if grep -q '"license": *"UNLICENSED"' "${tree}/package.json"; then
-  die "package.json in ${tag} still declares \"UNLICENSED\" while a LICENSE exists. Make them agree."
-fi
 
-# THE LICENCE IS PER-VERSION, which is not a detail: BUSL says "This License applies separately
-# for each version of the Licensed Work and the Change Date may vary for each version". So a
-# LICENSE naming v1.0.0, published under the tag v1.1.0, states the wrong Change Date for the
-# bytes beside it — and the wrong grant, if the terms moved. Nothing else here would notice,
-# because every other check would pass on a perfectly well-formed licence for a different
-# release.
-licensed_work="$(sed -n 's/^Licensed Work: *//p' "${tree}/LICENSE" | head -1)"
-case "$licensed_work" in
-  *"$tag"*) note "LICENSE names ${tag}" ;;
-  *) die "LICENSE says 'Licensed Work: ${licensed_work}', which does not name ${tag}. The licence
-       is per-version — update it for this release rather than publishing one version's bytes
-       under another version's terms." ;;
-esac
+# WHAT THESE CHECKS USED TO BE, AND WHY THEY ARE GONE. Until 2026-08-21 this validated BUSL-1.1:
+# five parameter lines (Licensor, Licensed Work, Additional Use Grant, Change Date, Change
+# License), each non-blank and free of placeholders, plus a check that 'Licensed Work' named the
+# tag being published — because BUSL applies separately per version and a LICENSE naming v1.0.0
+# published as v1.1.0 states the wrong Change Date for the bytes beside it.
+#
+# The project moved to Apache-2.0, which has NO parameters and is NOT per-version. Every one of
+# those checks would now fail against a perfectly correct licence, and the per-version concern
+# they existed to catch cannot occur: one Apache-2.0 text governs every release identically.
+#
+# Recorded rather than quietly deleted, because a gate that disappears in a refactor is
+# indistinguishable from a gate that was never there.
+#
+# What replaces them is stronger, not weaker. Apache-2.0 is a fixed text, so it can be checked
+# by identity instead of by parsing fields out of it: any edit at all — a helpfully added
+# sentence, a filled-in appendix, a stray CRLF — changes the digest and stops the publish.
+apache_sha='c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4'
+actual_sha="$(sha256sum "${tree}/LICENSE" | cut -d' ' -f1)"
+if [ "$actual_sha" != "$apache_sha" ]; then
+  die "LICENSE in ${tag} is not the canonical Apache-2.0 text.
+       expected sha256 ${apache_sha}
+       actual   sha256 ${actual_sha}
+       Publish the licence verbatim. Put the copyright in NOTICE, not in LICENSE."
+fi
+note "LICENSE is the canonical Apache-2.0 text (sha256 ${actual_sha})"
+
+# NOTICE carries the copyright, since the canonical LICENSE keeps the appendix placeholders. If
+# it is missing there is no copyright statement anywhere, and Apache-2.0 section 4(d) obliges
+# redistributors to reproduce a file that does not exist.
+[ -s "${tree}/NOTICE" ] ||
+  die "no NOTICE in the ${tag} tree. LICENSE is the verbatim Apache text, so NOTICE is the only
+       place the copyright is stated."
+grep -qi 'copyright' "${tree}/NOTICE" ||
+  die "NOTICE in ${tag} states no copyright."
+note "NOTICE: $(grep -i -m1 'copyright' "${tree}/NOTICE")"
+
+# package.json must agree with the file beside it. Disagreement is what tooling and downstream
+# scanners read, and they read the metadata, not the text.
+declared="$(sed -n 's/.*"license": *"\([^"]*\)".*/\1/p' "${tree}/package.json" | head -1)"
+[ "$declared" = 'Apache-2.0' ] ||
+  die "package.json in ${tag} declares license \"${declared}\" while LICENSE is Apache-2.0."
+note "package.json license: ${declared}"
 
 printf '\n== the tree that would be published ==\n'
 files="$(find "$tree" -type f | wc -l)"

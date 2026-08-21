@@ -179,33 +179,35 @@ they stay in restricted HR/finance systems and are referenced, never copied.
 
 ## Licence
 
-[Business Source License 1.1](LICENSE). Licensor **OpenHuman Technologies LLC**; Change Date
-**2030-08-17**, on which this version converts to the **Apache License, Version 2.0**.
+[Apache License, Version 2.0](LICENSE). Copyright **OpenHuman Technologies LLC**, stated in
+[`NOTICE`](NOTICE).
 
-**BUSL-1.1 is not an open-source licence, and this project is not open source until the Change
-Date.** It is not OSI-approved and does not meet the Open Source Definition, because it
-restricts one field of use. Saying otherwise before 2030-08-17 would be exactly the kind of
-true-sounding overclaim the rest of this repository exists to prevent, so it is said plainly
-here instead: source-available now, open source on the Change Date.
+This is open source: Apache-2.0 is OSI-approved and meets the Open Source Definition. Use it
+for anything, including commercially, including in closed-source products. There is no field-of-use
+restriction, no change date, and nothing to buy.
 
-What you may do without buying anything, in the licence's own words rather than a paraphrase —
-read [`LICENSE`](LICENSE) for the text that governs:
+|                                                              |                             |
+| ------------------------------------------------------------ | --------------------------- |
+| Read, modify, fork, redistribute, run in production, sell it | Granted                     |
+| Use any patent of ours that this code needs                  | Granted — section 3         |
+| Use the OpenHuman name or logo                               | **Not** granted — section 6 |
+| Keep the LICENSE and NOTICE with copies you distribute       | Required — section 4        |
 
-|                                                                 |                                              |
-| --------------------------------------------------------------- | -------------------------------------------- |
-| Read, modify, fork, redistribute, and use non-production        | Granted by BUSL itself                       |
-| Run it in production to keep **your own institution's** records | Granted by the Additional Use Grant          |
-| Offer it to third parties as a hosted or managed service        | **Not** granted — needs a commercial licence |
-| Everything, under Apache-2.0                                    | From the Change Date, 2030-08-17             |
+`LICENSE` is the canonical Apache-2.0 text, byte-identical to the copy published by the Apache
+Software Foundation, with the appendix placeholders left intact as the ASF intends. The
+copyright lives in `NOTICE` instead, which is both the convention and what lets automated
+licence detection recognise the file.
 
-The Change Date is fixed at four years, and the licence converts on that date or four years
-after this version is first published, whichever is EARLIER — so it can never be later than
-four years from publication, whenever publication happens.
+**This replaced BUSL-1.1 before the repository was ever public**, so no version was ever
+distributed under it and nobody holds rights under the old terms. BUSL exists to stop one
+thing — a third party offering the software as a hosted service — and that is not a thing this
+project needs to stop. Under BUSL it would have been source-available but not open source, and
+saying otherwise would have been exactly the kind of true-sounding overclaim the rest of this
+repository exists to prevent. Now the plain statement and the accurate one are the same.
+[ADR 0005](docs/decisions/0005-apache-2-0-licence.md) records the decision.
 
-The Licensor is written `OpenHuman Technologies LLC`, with the `LLC`. This was briefly open —
-`LICENSE` first said "OpenHuman Technologies" while this file said "OpenHuman Technologies LLC" —
-and the repository turned out to have already answered it everywhere the name appears as data
-rather than prose: the seeded organization in `apps/api/src/dogfood/bootstrap.ts`, the database
-harness, and the R01 golden conformance fixture all carry `legal_name` "OpenHuman Technologies
-LLC". Confirmed by the Licensor on 2026-08-17 and corrected in `LICENSE`. Kept here because the
-next person to notice the two forms should find the answer rather than re-open the question.
+The legal name is written `OpenHuman Technologies LLC`, with the `LLC`, and appears as data in
+the seeded organization in `apps/api/src/dogfood/bootstrap.ts`, the database harness, and the
+R01 golden conformance fixture, all carrying `legal_name` "OpenHuman Technologies LLC". Kept
+here because the next person to notice a shortened form should find the answer rather than
+re-open the question.

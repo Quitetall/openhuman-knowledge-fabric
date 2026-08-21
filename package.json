@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "description": "OpenHuman Knowledge Fabric \u2014 institutional information platform (OH-DOC-000002-1-R01)",
-  "license": "BUSL-1.1",
+  "license": "Apache-2.0",
   "engines": {
     "node": ">=24.18.1 <25",
     "pnpm": ">=11"

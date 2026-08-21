@@ -240,6 +240,12 @@ Two can never be automated from this repository, and v1.0 requires a person to c
   no history with this one — and it has been exercised against a local bare repository, but no
   release has been published and the decision to publish one has not been taken here.
 
+  > **SUPERSEDED 2026-08-21 by [ADR 0005](0005-apache-2-0-licence.md).** The licence is now
+  > Apache-2.0, not BUSL-1.1. The paragraph below is left standing as the record of what was
+  > decided at the time and is no longer a description of the repository. The BUSL choice was
+  > never published — the repository was private for its entire duration — so no version was
+  > distributed under it. Nothing else in this ADR is affected.
+
   **The licence half of this bullet is now settled and the bullet was corrected on 2026-08-17.**
   It read "v1.0 ships private and `UNLICENSED`", which stopped being true when the decision owner
   chose BUSL-1.1 with Licensor "OpenHuman Technologies LLC" and a Change Date of 2030-08-17,
