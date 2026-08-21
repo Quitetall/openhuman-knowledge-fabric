@@ -16,11 +16,18 @@
 # acceptable ONLY because this repository is PRIVATE and only its owner can push to it, so the
 # only code the runner executes is code the owner wrote.
 #
-# IT STOPS BEING ACCEPTABLE THE MOMENT THE REPOSITORY IS PUBLIC. A pull request from a fork
-# would then run attacker-controlled code as root on this machine. Before making the repository
-# public: delete the runner, or restrict it to a runner group that no fork-PR workflow can
-# reach. `scripts/publish-public.sh` publishes to a SEPARATE repository precisely so this one
-# can stay private; if that ever changes, this file has to change with it.
+# A PULL REQUEST FROM A FORK MUST NEVER REACH IT. Once this repository is public anyone can
+# open one, and that code would otherwise run as root here.
+#
+# The usual control is a runner group restricted to selected workflows. That is an organization
+# and enterprise feature and this repository belongs to a personal account, so it does not
+# exist here. The control that DOES exist is the trigger: every ci.yml job routes
+# `pull_request` to ubuntu-latest and only `push` — which requires write access — uses this
+# runner. release.yml is reachable only by pushing a tag, same guarantee.
+#
+# `tests/deployment/host-provisioning-parity.test.ts` holds that property, so it fails rather
+# than erodes. If you add a workflow that both uses this runner and can be triggered by a
+# stranger, that test is what should stop you.
 #
 # ── WHY A PRIVATE DAEMON RATHER THAN THE HOST SOCKET ────────────────────────────────────────
 #

@@ -45,7 +45,7 @@ set -a; . ./.env; set +a
 docker compose config --quiet
 docker compose up -d
 DATABASE_URL="$DATABASE_OWNER_URL" pnpm db:migrate
-pnpm dogfood:load -- --source-dir /home/brianklam/Desktop/OpenHuman_Technologies
+pnpm dogfood:load -- --source-dir /path/to/OpenHuman_Technologies
 ```
 
 The loader's JSON output includes `identity.actorId`, `identity.actingRoleId` and

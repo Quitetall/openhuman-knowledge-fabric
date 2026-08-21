@@ -61,7 +61,7 @@ cp .env.example .env
 set -a; . ./.env; set +a
 docker compose up -d      # PostgreSQL 18, MinIO, Keycloak
 DATABASE_URL="$DATABASE_OWNER_URL" pnpm db:migrate
-pnpm dogfood:load -- --source-dir /home/brianklam/Desktop/OpenHuman_Technologies
+pnpm dogfood:load -- --source-dir /path/to/OpenHuman_Technologies
 pnpm dev                  # api :4000, web :3000, worker
 ```
 

@@ -62,14 +62,51 @@ describe('every workflow that runs the gate provisions the same host contract', 
   });
 
   it('every gate workflow can be pointed at the self-hosted runner', () => {
-    // A workflow pinned to `ubuntu-latest` cannot run while Actions billing is failing, which
-    // is the state that made this repository's CI stop twice. release.yml was pinned.
+    // A workflow pinned to a bare `ubuntu-latest` cannot run while Actions billing is failing,
+    // which is the state that stopped this repository's CI twice. release.yml was pinned.
     for (const name of GATE_WORKFLOWS) {
-      const pinned = [...workflow(name).matchAll(/runs-on: ubuntu-latest/g)];
+      const pinned = [...workflow(name).matchAll(/runs-on: ubuntu-latest\s*$/gm)];
       expect(
         pinned,
         `${name}.yml pins runs-on to ubuntu-latest instead of vars.RUNNER_LABEL`,
       ).toEqual([]);
     }
+  });
+});
+
+/**
+ * UNTRUSTED CODE MUST NEVER REACH THE SELF-HOSTED RUNNER.
+ *
+ * The sandbox in `deploy/self-hosted-runner/` runs a `--privileged` inner docker daemon, which
+ * is root-equivalent on whoever's machine hosts it. That is acceptable for code the maintainers
+ * wrote and unacceptable for code a stranger opened a pull request with.
+ *
+ * The usual control is a runner group restricted to selected workflows. That is an organization
+ * and enterprise feature, and this repository belongs to a personal account — so the event that
+ * triggers the job is the only control surface available, and this test is what holds it.
+ *
+ * `push` to a branch requires write access. `pull_request` does not, the moment the repository
+ * is public.
+ */
+describe('a fork pull request cannot run on the self-hosted runner', () => {
+  it('every ci.yml job sends pull_request to ubuntu-latest', () => {
+    const runsOn = [...workflow('ci').matchAll(/^ {4}runs-on: (.+)$/gm)].map((m) => m[1]!);
+    expect(runsOn.length, 'ci.yml has no jobs').toBeGreaterThan(0);
+    for (const expr of runsOn) {
+      expect(expr, 'a ci.yml job does not special-case pull_request').toContain(
+        "github.event_name == 'pull_request' && 'ubuntu-latest'",
+      );
+    }
+  });
+
+  it('release.yml is reachable only by pushing a tag', () => {
+    // Tags can only be pushed by someone with write access, so release.yml may use the
+    // self-hosted runner unconditionally. If it ever grows a pull_request trigger, that stops
+    // being true and this fails.
+    const on = workflow('release').split(/^jobs:/m)[0]!;
+    expect(
+      on,
+      'release.yml gained a pull_request trigger while using the self-hosted runner',
+    ).not.toMatch(/pull_request/);
   });
 });

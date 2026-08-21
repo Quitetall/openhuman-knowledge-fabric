@@ -76,12 +76,26 @@ test timeout rather than a wiring problem.
 That is acceptable only because this repository is **private** and only its owner can push, so
 the only code the runner executes is code the owner wrote.
 
-**It stops being acceptable the moment the repository is public.** A pull request from a fork
-would then run attacker-controlled code as root on this box. Before making this repository
-public, delete the runner or move it into a runner group no fork-PR workflow can reach.
+**A fork pull request must never reach it.** Once this repository is public anyone can open
+one, and that code would otherwise run as root here.
 
-`scripts/publish-public.sh` publishes to a _separate_ repository precisely so this one can stay
-private. If that ever changes, this directory has to change with it.
+The usual control is a runner group restricted to selected workflows — an organization and
+enterprise feature, and this repository belongs to a personal account, so it does not exist
+here. The control that does exist is the **trigger**:
+
+| Event                    | Runs on                 | Who can cause it    |
+| ------------------------ | ----------------------- | ------------------- |
+| `push` to `main`         | this runner             | write access only   |
+| `pull_request`           | `ubuntu-latest`, always | anyone, once public |
+| tag `v*` (`release.yml`) | this runner             | write access only   |
+
+Routing pull requests to `ubuntu-latest` costs nothing on a public repository, where
+GitHub-hosted minutes are free and unlimited. Fork PRs still get full CI, in a disposable VM
+that is not someone's workstation.
+
+`tests/deployment/host-provisioning-parity.test.ts` asserts every `ci.yml` job special-cases
+`pull_request`, and that `release.yml` has no `pull_request` trigger. Add a workflow that both
+uses this runner and can be triggered by a stranger, and that test is what stops you.
 
 ## Provenance
 
