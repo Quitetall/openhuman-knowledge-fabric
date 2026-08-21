@@ -112,17 +112,6 @@ describe('a fork pull request cannot run on the self-hosted runner', () => {
 });
 
 /**
- * A composite action must not depend on the caller's environment.
- *
- * `release.yml` died on its first ever run with `KF_POSTGRES_CLIENT_DIR: unbound variable`. The
- * shared action read a shell variable that `ci.yml` happened to declare in its job `env:` and
- * `release.yml` did not, so the action worked in one workflow and failed in the other — which
- * is the same defect the action was extracted to remove, one level up.
- *
- * An action that reads an ambient variable is not shared, it is coupled. Values it needs are
- * either inputs with defaults, or things it computes itself and exports.
- */
-/**
  * The runner image must provide the PLATFORM tools, because it claims to substitute for
  * `ubuntu-latest`.
  *
@@ -173,6 +162,17 @@ describe('the runner image provides the tools a hosted runner would', () => {
   });
 });
 
+/**
+ * A composite action must not depend on the caller's environment.
+ *
+ * `release.yml` died on its first ever run with `KF_POSTGRES_CLIENT_DIR: unbound variable`. The
+ * shared action read a shell variable that `ci.yml` happened to declare in its job `env:` and
+ * `release.yml` did not, so the action worked in one workflow and failed in the other — which
+ * is the same defect the action was extracted to remove, one level up.
+ *
+ * An action that reads an ambient variable is not shared, it is coupled. Values it needs are
+ * either inputs with defaults, or things it computes itself and exports.
+ */
 describe('the shared provisioning action is self-contained', () => {
   it('reads no variable the caller has to have set', () => {
     const action = readFileSync(join(ROOT, ACTION, 'action.yml'), 'utf8');
