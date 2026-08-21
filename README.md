@@ -55,6 +55,10 @@ philosophy.
 
 ## Getting started
 
+**New here? Read [`docs/onboarding.md`](docs/onboarding.md).** It is the same path with the
+traps written down — including which steps have actually been walked and which have not. The
+seven lines below are the summary, not the instructions.
+
 ```sh
 pnpm install
 cp .env.example .env
@@ -62,6 +66,7 @@ set -a; . ./.env; set +a
 docker compose up -d      # PostgreSQL 18, MinIO, Keycloak
 DATABASE_URL="$DATABASE_OWNER_URL" pnpm db:migrate
 pnpm dogfood:load -- --source-dir /path/to/OpenHuman_Technologies
+# paste the three KF_DEV_* values the loader prints into .env
 pnpm dev                  # api :4000, web :3000, worker
 ```
 

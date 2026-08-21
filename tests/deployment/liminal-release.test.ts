@@ -101,7 +101,24 @@ function verify(
   };
 }
 
-describe('Liminal release runtime closure', () => {
+/**
+ * 90s, not the 30s global, because these tests build and hash a release tree.
+ *
+ * Every test here shells out — `cargo`-adjacent packaging, `execFileSync` over the compiler, and
+ * a SHA-256 of the whole runtime closure. That is disk and CPU bound, so its wall time is set by
+ * what else the machine is doing, not by the code under test.
+ *
+ * Measured on 2026-08-21: the slowest case ran in 17.8s alone and BLEW the 30s budget inside the
+ * full suite on a box at load average 36. A 1.7x margin is not a margin for a test whose cost is
+ * contention; it is a coin flip that reads as a real failure and sends the next person hunting a
+ * bug in the release packaging that is not there. It already cost that once, in this repository,
+ * on document-dogfood.
+ *
+ * Raising a timeout is usually the wrong reflex — it hides a slow path. It is right here because
+ * the failure mode is a false RED, not a missed regression: nothing about these assertions gets
+ * weaker with more time, and a genuine hang still fails, just 60s later.
+ */
+describe('Liminal release runtime closure', { timeout: 90_000 }, () => {
   it('packages exact compiler and Cargo.lock bytes with an explicit external closure manifest', async () => {
     const fixture = assembleFixture();
 

@@ -35,6 +35,26 @@ export async function runDocumentConstitutionDogfood(): Promise<void> {
     const staged = await stageDocumentConstitution(directory, store);
     const result = await loadDocumentConstitution(app, store, execute, identity, staged);
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+
+    // `.env.example` told the reader "the dogfood loader prints the three generated UUIDs; copy
+    // them into the blank values below before starting the web app" — and until 2026-08-21 it
+    // printed no such thing. The instruction had never been walked. Without these three values
+    // the web app throws on `required('KF_DEV_ACTOR')`, and the only way to recover was to know
+    // the schema well enough to query core.object by hand, which is not onboarding.
+    //
+    // Printed last, in paste-ready form, so it is what remains on screen when the loader ends.
+    // Two of the three are UUIDs; KF_DEV_ACTING_ROLE is a role id such as `system_administrator`,
+    // which is why this prints the actual values rather than describing them.
+    process.stdout.write(
+      [
+        '',
+        '# Paste into .env before `pnpm dev` — the web app requires all three.',
+        `KF_DEV_ORGANIZATION=${identity.organizationId}`,
+        `KF_DEV_ACTOR=${identity.actorId}`,
+        `KF_DEV_ACTING_ROLE=${identity.actingRoleId}`,
+        '',
+      ].join('\n'),
+    );
   } finally {
     await app?.end();
     await owner.end();
