@@ -27,7 +27,7 @@
 -- Appendix A's operation table, flattened row-major into a 100-element array. Indexed
 -- 1-based, so cell (interim, digit) is at interim * 10 + digit + 1.
 --
--- This is the THIRD copy of the table — ontology-registry/damm.yaml is canonical, damm.ts is
+-- This is the THIRD copy of the table — registries/<instance>/damm.yaml is canonical, damm.ts is
 -- a checked copy, and this is a translation into SQL. Duplication is the price of enforcing
 -- the same rule in three runtimes; `tests/database/enterprise-id-check-digit.test.ts` compares
 -- this function's output against the TypeScript one across the full six-digit space it will

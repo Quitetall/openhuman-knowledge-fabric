@@ -4,7 +4,7 @@
  *   check                     validate the ontology, then report any drift in generated/
  *   build                     regenerate generated/ from ontology/
  *   pack [version]            assemble a spec §5 release package under release/
- *   registry-check            validate ontology-registry/ — identifier policy, OH-DOC-000001-3
+ *   registry-check            validate the configured registry (KF_REGISTRY_DIR) — identifier policy
  *   registry-pack [version]   assemble the identifier-policy package under release/
  *   approve <dir>             sign the package's manifest, making it normative under §5
  *   verify <dir>              check every digest, and report whether the package is approved
@@ -107,7 +107,28 @@ function fileReader(dir: string): (path: string) => Buffer | undefined {
 
 const ONTOLOGY_DIR = resolve(process.cwd(), 'ontology');
 const GENERATED_DIR = resolve(process.cwd(), 'generated');
-const REGISTRY_DIR = resolve(process.cwd(), 'ontology-registry');
+
+/**
+ * WHICH INSTANCE'S IDENTIFIER POLICY TO COMPILE.
+ *
+ * The Knowledge Fabric is the product; an identifier registry is one deployment's policy. They
+ * are different authorities with different owners and different change frequencies, and the
+ * registry directory is the seam between them. `registries/openhuman/` is OpenHuman
+ * Technologies LLC's policy — a transcription of OH-DOC-000001-3 R01 — and it is the default
+ * only because it is the one instance that exists. It is an example of the shape, not part of
+ * the product.
+ *
+ * Point `KF_REGISTRY_DIR` at your own directory to run your own policy.
+ *
+ * BE HONEST ABOUT WHAT THIS SEAM DOES NOT YET REACH. The compiler is parameterised, but
+ * `ontology/meta.yaml` and `database/migrations/20260819000100_enterprise_id_check_digit.sql` still hardcode
+ * the `OH-` prefix and OpenHuman's nineteen namespaces, so a different registry compiles and is
+ * then rejected by the database constraint. See docs/decisions/0006-product-instance-boundary.md.
+ */
+const REGISTRY_DIR = resolve(
+  process.cwd(),
+  process.env['KF_REGISTRY_DIR'] ?? 'registries/openhuman',
+);
 
 /**
  * Identifier policy (`OH-DOC-000001-3`) is a different authority from the Knowledge Fabric

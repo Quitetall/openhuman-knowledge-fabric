@@ -1,7 +1,6 @@
 import { dirname, join } from 'node:path';
 import { compareCanonicalText } from '@kf/canonicalization';
 import {
-  CODE_PREFIXES,
   LamQuantCompatibilityRejected,
   commandSucceeded,
   type LamQuantCommandResult,
@@ -55,13 +54,34 @@ export async function materializeLamQuantGitObjects(
     await requireCommit(sourcePath, pin.commitSha, runner, `LamQuant submodule '${pin.path}'`);
   }
 
-  const requiredRoots = [...new Set(CODE_PREFIXES.map(([, path]) => path.replace(/\/$/, '')))].sort(
-    compareCanonicalText,
-  );
-  const pinsByPath = new Map(pins.map((pin) => [pin.path, pin.commitSha]));
-  for (const path of requiredRoots) {
-    const commitSha = pinsByPath.get(path);
-    if (commitSha === undefined) continue;
+  // Materialize EVERY pinned submodule, not an allowlist derived from
+  // CODE_PREFIXES.
+  //
+  // Two measured defects motivated this, both found the first time the oracle
+  // was pointed at LamQuant rather than at fixtures:
+  //
+  //  1. The old loop did `pinsByPath.get(path)` — an EXACT match — over roots
+  //     taken from CODE_PREFIXES, then `continue`d. CODE_PREFIXES names paths
+  //     *inside* submodules ('codec-neural/lamquant_neural'); pins are keyed by
+  //     submodule roots ('codec-neural'). At LamQuant 551d3c50, 0 of 3 roots
+  //     matched any of 12 pins, so the loop materialized NOTHING, every time.
+  //     Not a false green — `assertRequiredInputs` still rejected downstream —
+  //     but it reported a missing FILE, sending a reader after a deletion that
+  //     never happened instead of a clone that never ran.
+  //
+  //  2. Fixing the match was not enough. CODE_PREFIXES lists three roots, while
+  //     LamQuant's atoms also cite `codec-lossless/...` and
+  //     `evaluation/openecs/...`. Those files exist; they were simply never
+  //     cloned, so LamQuant's own doc gate failed inside scratch on three
+  //     `links.code does not resolve` errors that are false in the real tree.
+  //
+  // An allowlist of roots is the wrong mechanism for this: it is a second place
+  // to remember something, it was already wrong twice, and the impending
+  // 13-repo collapse would invalidate it again. Every pin is cloned `--shared
+  // --no-checkout`, so the cost is a checkout rather than an object copy, and
+  // there is no list left to drift. CODE_PREFIXES keeps its real job —
+  // expanding 'N/'-style reference shorthand — and stops deciding what exists.
+  for (const { path, commitSha } of pins) {
     const sourcePath = join(options.checkoutPath, path);
     const destinationPath = join(scratchPath, path);
     await fileSystem.makeDirectory(dirname(destinationPath));

@@ -9,7 +9,7 @@
  * nothing validated the digit, so `OH-DOC-000001-4` — one digit wrong on this organisation's
  * own registry — matched every pattern in the system and would have been stored.
  *
- * WHY THE TABLE IS DUPLICATED HERE. `ontology-registry/damm.yaml` is canonical. This constant
+ * WHY THE TABLE IS DUPLICATED HERE. `registries/<instance>/damm.yaml` is canonical. This constant
  * is a copy, and `checkDammTableMatchesSource()` in registry-pack.ts asserts they are identical
  * on every build. The alternative — reading the YAML at module load — would put filesystem IO
  * and a parse behind a function that a database import loop calls per row, and would make this

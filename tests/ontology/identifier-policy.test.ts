@@ -30,7 +30,7 @@ import {
 // is the compiler's dependency, not the workspace root's. Going through `loadRegistryPolicy`
 // also means these tests exercise the same parse the pack builder uses, so a loader that
 // silently dropped a section could not pass here while failing there.
-const POLICY = loadRegistryPolicy(join(import.meta.dirname, '..', '..', 'ontology-registry'));
+const POLICY = loadRegistryPolicy(join(import.meta.dirname, '..', '..', 'registries', 'openhuman'));
 
 describe('the Damm table', () => {
   it('is an anti-symmetric quasigroup', () => {
@@ -171,7 +171,7 @@ describe('formatEnterpriseId', () => {
 });
 
 describe('the namespace list', () => {
-  it('matches ontology-registry/namespaces.yaml', () => {
+  it('matches registries/openhuman/namespaces.yaml', () => {
     // damm.ts carries the list as a constant so it needs no filesystem at runtime. That copy
     // is only safe while something compares it to the source.
     const declared = (POLICY.namespaces['namespaces'] as { code: string; grammar: string }[])

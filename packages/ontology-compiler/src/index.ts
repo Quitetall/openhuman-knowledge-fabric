@@ -35,7 +35,7 @@ export { buildReleasePack, packGaps } from './pack.js';
 export type { PackFile } from './pack.js';
 
 // Identifier policy — OH-DOC-000001-3. A separate authority from the ontology above (§1.1),
-// compiled from ontology-registry/ and packaged through the same approval flow.
+// compiled from the configured registry directory and packaged through the same approval flow.
 export {
   buildRegistryPack,
   checkRegistryPolicy,

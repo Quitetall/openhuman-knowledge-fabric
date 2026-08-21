@@ -3,7 +3,7 @@
  *
  * §15.3 names "Machine-readable policy and ontology" as a required bootstrap work product, and
  * §12.1 makes the structured data authoritative with the DOCX as "a controlled human-readable
- * representation". This module compiles `ontology-registry/*.yaml` into that structured form
+ * representation". This module compiles a registry directory's `*.yaml` into that structured form
  * and packages it under a manifest the existing approval flow can sign.
  *
  * IT IS A SIBLING OF pack.ts, NOT A GENERALISATION OF IT. `model.ts` and the eight modules
@@ -64,13 +64,13 @@ function asArray(value: unknown, where: string): readonly unknown[] {
 export function loadRegistryPolicy(dir: string): RegistryPolicy {
   const present = new Set(readdirSync(dir).filter((f) => f.endsWith('.yaml')));
   for (const name of SOURCES) {
-    if (!present.has(name)) throw new Error(`ontology-registry: missing ${name}`);
+    if (!present.has(name)) throw new Error(`${dir}: missing ${name}`);
     present.delete(name);
   }
   if (present.size > 0) {
     // An unlisted YAML file is either a source nobody compiles — so its content is not in the
     // pack and not in force — or a stray edit. Both are worth failing on.
-    throw new Error(`ontology-registry: unexpected file(s): ${[...present].sort().join(', ')}`);
+    throw new Error(`${dir}: unexpected file(s): ${[...present].sort().join(', ')}`);
   }
 
   const read = (name: string): Record<string, unknown> =>
@@ -330,7 +330,7 @@ export function checkRegistryPolicy(p: RegistryPolicy, ontologyDir: string): Che
   if (String(meta['uuid_pattern']) !== uuidHere) {
     fail(
       'uuid_pattern_agrees_with_ontology',
-      `ontology/meta.yaml uuid_pattern differs from ontology-registry/grammars.yaml uuid.pattern`,
+      `ontology/meta.yaml uuid_pattern differs from the registry's grammars.yaml uuid.pattern`,
     );
   }
 

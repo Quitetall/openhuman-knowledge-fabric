@@ -26,7 +26,7 @@ rules:
     text: >-
       UUIDv7 values shall conform to RFC 9562, use lowercase canonical text, and shall never be
       reused, reassigned or regenerated for the same object.
-    enforced_by: [ontology-registry/grammars.yaml uuid, ontology/meta.yaml uuid_pattern]
+    enforced_by: [registries/openhuman/grammars.yaml uuid, ontology/meta.yaml uuid_pattern]
 
   - id: R3
     text: >-
@@ -39,20 +39,20 @@ rules:
       Enterprise identifiers use uppercase ASCII, digits and hyphens only and follow
       OH-<NAMESPACE>-<NNNNNN>-<C> or an approved instance grammar.
     enforced_by:
-      [ontology-registry/grammars.yaml enterprise, packages/ontology-compiler/src/damm.ts]
+      [registries/openhuman/grammars.yaml enterprise, packages/ontology-compiler/src/damm.ts]
 
   - id: R5
     text: >-
       Mutable semantics — including name, product family, class, modality, channel count, form
       factor, generation, state and owner — shall not be encoded in either identity.
-    enforced_by: [ontology-registry/grammars.yaml enterprise]
+    enforced_by: [registries/openhuman/grammars.yaml enterprise]
     note: >-
       Structurally enforced rather than checked: the grammar has no field a semantic could
       occupy. This is the rule the whole R01 architecture exists to make true.
 
   - id: R6
     text: Enterprise sequences are fixed width, zero padded and atomically allocated. Leading zeroes are required.
-    enforced_by: [ontology-registry/grammars.yaml enterprise]
+    enforced_by: [registries/openhuman/grammars.yaml enterprise]
     partially_unenforced: >-
       Fixed width and zero padding are checked by the pattern. ATOMIC ALLOCATION IS NOT YET
       IMPLEMENTED — there is no sequence table or allocator. Deferred with R01 §17 Phase 1;
@@ -83,7 +83,7 @@ rules:
 
   - id: R10
     text: Revision, version, release, baseline, effectivity, lot, serial and record identity are separate fields or objects.
-    enforced_by: [ontology/object-types.yaml, ontology-registry/grammars.yaml revision]
+    enforced_by: [ontology/object-types.yaml, registries/openhuman/grammars.yaml revision]
 
   - id: R11
     text: >-
@@ -98,7 +98,7 @@ rules:
       reused for a different meaning.
     enforced_by:
       [
-        ontology-registry/codes.yaml retired_identifier_field_codes,
+        registries/openhuman/codes.yaml retired_identifier_field_codes,
         openhuman-quality registry/allocations.yaml superseded_aliases,
       ]
 
@@ -137,7 +137,7 @@ rules:
     text: >-
       Case-insensitive enterprise-ID inputs may be normalized to uppercase; stored UUIDv7 values
       are lowercase and stored enterprise IDs are uppercase.
-    enforced_by: [packages/ontology-compiler/src/damm.ts, ontology-registry/grammars.yaml uuid]
+    enforced_by: [packages/ontology-compiler/src/damm.ts, registries/openhuman/grammars.yaml uuid]
 
   - id: R18
     text: A grammar string, example, draft value or generated preview does not allocate an enterprise identity.

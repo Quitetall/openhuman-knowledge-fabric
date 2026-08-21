@@ -932,7 +932,15 @@ describe('SOA signing-key authority', () => {
           maxClassification: 'restricted',
         }),
       ).rejects.toMatchObject({ failure: 'signer_timeout' });
-      expect(Date.now() - startedAt).toBeLessThan(1_500);
+      // "It released rather than hanging" — a coarse guard, deliberately far from the 25ms
+      // signer timeout above. It is NOT a latency budget: what proves the timeout worked is
+      // `aborted` below and the connection being usable afterwards.
+      //
+      // Was 1_500 and failed at 1_722 inside the full suite on a box at load 38, while passing
+      // alone. The gap is transaction setup and rollback under contention, not the signer path,
+      // so the tight bound only ever produced a false red. 5s is still 200x the configured
+      // timeout, and a genuine hang fails the 30s test timeout rather than reaching here.
+      expect(Date.now() - startedAt).toBeLessThan(5_000);
       expect(aborted).toBe(true);
 
       await expect(

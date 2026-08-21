@@ -6,7 +6,7 @@
  * session reaches `core.object` without passing through any TypeScript, and a rule enforced
  * only in the application layer is not enforced on the path most likely to carry a typo.
  *
- * There are now three implementations of one table — `ontology-registry/damm.yaml` is
+ * There are now three implementations of one table — `registries/openhuman/damm.yaml` is
  * canonical, `damm.ts` is a checked copy, and `core.damm_check` is a translation into SQL.
  * The test below compares the SQL against the TypeScript across the ENTIRE six-digit space,
  * because a single transposed cell in a hundred-cell table produces a validator that accepts

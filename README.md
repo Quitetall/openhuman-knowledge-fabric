@@ -1,11 +1,23 @@
-# OpenHuman Knowledge Fabric
+# Knowledge Fabric
 
-Institutional information platform for OpenHuman Technologies LLC. One coherent,
-machine-readable view of products, projects, work packages, contractor work orders, work
-execution, artifacts, decisions, configuration changes, requirements, risks, tests,
-acceptance, invoices, payments, controlled documents, people and provenance — while keeping
-project management, engineering configuration, contractor authorization, quality management
-and finance as separate authorities linked by typed identities.
+An institutional information platform: one coherent, machine-readable view of products,
+projects, work packages, contractor work orders, work execution, artifacts, decisions,
+configuration changes, requirements, risks, tests, acceptance, invoices, payments, controlled
+documents, people and provenance — while keeping project management, engineering configuration,
+contractor authorization, quality management and finance as separate authorities linked by
+typed identities.
+
+**The product and one instance of it live in this repository, and they are different things.**
+The software is general: it does not know your company. What it does know is loaded from an
+identifier registry — the namespaces, grammars, check digits and lifecycle rules your
+organisation allocates under. `registries/openhuman/` is the one that exists today, a
+transcription of OpenHuman Technologies LLC's `OH-DOC-000001-3` R01. It is an example of the
+shape, not part of the product, and `KF_REGISTRY_DIR` points at a different one.
+
+That boundary is **partly enforced and partly aspirational today** — the compiler takes any
+registry, the database does not. [ADR 0006](docs/decisions/0006-product-instance-boundary.md)
+records exactly where the line holds and where it leaks, rather than claiming a separation that
+has never been exercised.
 
 Specification: `OH-DOC-000002-1-R01` — _Knowledge Fabric Organizational Graph and Work
 Control Specification_, with its `1.0.0-draft.1` schema pack.
