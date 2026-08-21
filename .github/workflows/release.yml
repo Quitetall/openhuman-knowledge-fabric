@@ -73,8 +73,10 @@ jobs:
       # resolution — reading it adds licence data without describing a different tree. A bill of
       # materials with no licences in it is most of the way to not being one.
       #
-      # 85 components still carry no licence. That is the package's own metadata missing, not a
-      # generation flag, and an absent licence must not be read as a permissive one.
+      # 87 of the 511 components still carry no licence, measured on the v0.9.0 bill. That is the
+      # package's own metadata missing, not a generation flag, and an absent licence must not be
+      # read as a permissive one. The count moves with the dependency tree — it was 85 when this
+      # was written — so treat it as an order of magnitude, not a checksum.
       #
       # The spec version is pinned. pnpm's default is 1.7 and moves with pnpm; a release
       # artifact whose format changes because a tool updated is a change nobody decided.

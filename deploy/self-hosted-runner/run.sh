@@ -48,9 +48,23 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # twice over in a public repository: it discloses that repository's path to every reader, and a
 # stranger who clones this and runs it would register a runner against SOMEONE ELSE'S repo
 # rather than their own fork — which fails confusingly at best.
+#
+# It must also REJECT what it cannot parse rather than pass it on. The first version handled
+# `git@host:owner/repo` and `https://host/owner/repo` and silently let anything else through
+# unchanged: an `ssh://git@github.com:22/owner/repo` remote produced the whole URL as `$REPO`,
+# which is non-empty, so the guard below did not fire and it reached `gh api /repos/<the entire
+# URL>/actions/runners`. Measured, not supposed — both `ssh://` forms came out malformed.
+#
+# So: strip the three forms, then require exactly `owner/repo`. Anything else yields empty and
+# the caller dies with a message naming KF_RUNNER_REPO, which is a fixable error rather than a
+# confusing 404.
 default_repo() {
-  git -C "$HERE" remote get-url origin 2>/dev/null |
-    sed -E 's#^git@[^:]+:##; s#^https?://[^/]+/##; s#\.git$##'
+  local url derived
+  url="$(git -C "$HERE" remote get-url origin 2>/dev/null)" || return 0
+  derived="$(printf '%s\n' "$url" |
+    sed -E 's#^git@[^:]+:##; s#^ssh://[^/]+/##; s#^https?://[^/]+/##; s#\.git$##')"
+  printf '%s' "$derived" | grep -qE '^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$' || return 0
+  printf '%s\n' "$derived"
 }
 REPO="${KF_RUNNER_REPO:-$(default_repo)}"
 
@@ -71,7 +85,10 @@ command -v gh >/dev/null ||
   die 'the gh CLI is required — it mints a fresh registration token for every job, so no
      long-lived credential has to be stored anywhere on disk.'
 gh auth status >/dev/null 2>&1 || die 'gh is not authenticated (gh auth login)'
-[ -n "$REPO" ] || die 'could not determine the repository from `origin`. Set KF_RUNNER_REPO=owner/repo.'
+# Empty also means "derived something that was not owner/repo" — an unusual remote URL, or a
+# checkout whose remote is not called `origin`. Both are fixed the same way.
+[ -n "$REPO" ] ||
+  die 'could not determine owner/repo from the `origin` remote. Set KF_RUNNER_REPO=owner/repo.'
 
 if [ "$build" = true ] || ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
   echo "runner: building $IMAGE"

@@ -133,11 +133,43 @@ describe('the runner image provides the tools a hosted runner would', () => {
   const dockerfile = (): string =>
     readFileSync(join(ROOT, 'deploy', 'self-hosted-runner', 'Dockerfile'), 'utf8');
 
+  /**
+   * The package names actually passed to `apt-get install`, following `\` continuations and
+   * stopping at the next `&&`.
+   *
+   * The first version of this test searched the whole file for the tool's name, and THREE of the
+   * six guards could not fail. Removing `sudo`, `tar` or `curl` from the install line left the
+   * test green, because each occurs elsewhere: `tar xzf runner.tar.gz`, `curl -fsSL` in the
+   * keyring fetch, and `sudo` in the sudoers setup. Only `git` and `jq` worked, and only because
+   * they happen to appear nowhere else — an accident, not a design.
+   *
+   * A comment naming a tool must never be able to satisfy a guard that the tool is installed.
+   */
+  const installedPackages = (text: string): Set<string> => {
+    const packages = new Set<string>();
+    const lines = text.split('\n');
+    for (let i = 0; i < lines.length; i += 1) {
+      if (!lines[i]!.includes('apt-get install')) continue;
+      let joined = lines[i]!;
+      while (/\\\s*$/.test(joined) && i + 1 < lines.length) {
+        i += 1;
+        joined = `${joined.replace(/\\\s*$/, ' ')}${lines[i]!}`;
+      }
+      const marker = 'apt-get install';
+      const args = joined.slice(joined.indexOf(marker) + marker.length).split('&&')[0]!;
+      for (const token of args.split(/\s+/)) {
+        if (token && !token.startsWith('-')) packages.add(token);
+      }
+    }
+    return packages;
+  };
+
   it.each(['git', 'gh', 'curl', 'jq', 'tar', 'sudo'])('installs %s', (tool) => {
+    const installed = installedPackages(dockerfile());
     expect(
-      dockerfile(),
+      [...installed].sort(),
       `the runner image no longer installs ${tool}, which workflows assume the platform has`,
-    ).toMatch(new RegExp(`(^|\\s)${tool}(\\s|\\\\|$)`, 'm'));
+    ).toContain(tool);
   });
 
   it('installs the GitHub CLI that release.yml depends on', () => {
@@ -146,9 +178,10 @@ describe('the runner image provides the tools a hosted runner would', () => {
     // test that should have caught it.
     const usesGh = /^\s*gh /m.test(workflow('release'));
     expect(usesGh, 'release.yml no longer invokes gh — drop it from the runner image').toBe(true);
-    expect(dockerfile(), 'release.yml invokes gh and the runner image does not install it').toMatch(
-      /apt-get install[^\n]*\bgh\b/,
-    );
+    expect(
+      [...installedPackages(dockerfile())].sort(),
+      'release.yml invokes gh and the runner image does not install it',
+    ).toContain('gh');
   });
 
   it('pins the GitHub CLI repository to a keyring', () => {
