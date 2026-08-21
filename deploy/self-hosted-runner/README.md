@@ -121,3 +121,20 @@ with a deliberately wrong hash: the build stops at that layer.
 `run.sh` runs in the foreground on purpose. Nothing here installs a systemd unit, because a
 runner that starts at boot and nobody remembers is a machine quietly executing whatever lands
 on `main`.
+
+### Editing either file does nothing to a supervisor that is already running
+
+A live `run.sh` holds its parsed loop, and the container it started holds the image it started
+from. Neither notices an edit. So after changing `run.sh`, or after `docker build`, the change
+does not take effect until the supervisor is restarted or the idle container is removed —
+`docker rm -f <container>` is enough for an image change, because the loop resolves the tag
+again on the next job.
+
+Two things make this hard to see, and both cost time on 2026-08-21:
+
+- The container is idle and **registered**, so GitHub will hand it the next job. Nothing looks
+  wrong; the job simply runs against the old image and fails for a reason already fixed.
+- Rebuilding the tag leaves the running container's image **untagged**, so `docker ps` prints a
+  bare ID like `a7a391097818` instead of `kf-runner:2.336.0`. Filtering with
+  `--filter ancestor=kf-runner:2.336.0` or grepping for the name then matches nothing, and the
+  runner reads as gone when it is up and about to take work. Check with a plain `docker ps`.

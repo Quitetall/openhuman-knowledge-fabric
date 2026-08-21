@@ -32,6 +32,33 @@ RUN apt-get update \
       libicu74 \
  && rm -rf /var/lib/apt/lists/*
 
+# The GitHub CLI is PLATFORM tooling, not a project dependency, and that distinction is the
+# whole rule this image runs on.
+#
+# `release.yml` attaches the SBOM with `gh release create` / `gh release upload`. On its second
+# real run it died with `gh: command not found`, because a GitHub-hosted `ubuntu-latest` ships
+# the CLI preinstalled and a bare `ubuntu:24.04` does not.
+#
+# It would be consistent-looking to say "then the workflow should install it, like pandoc" — and
+# it would be wrong. bubblewrap, pandoc, python3 and the PostgreSQL client are things the
+# PRODUCT needs, so a workflow installing them is the host contract being written down and
+# tested, which is exactly why they belong there. `gh` is how a job talks to Actions and
+# Releases: it is part of being a runner, like `git` and the agent itself, both already here.
+# Pushing it into the workflow would make ci.yml install a tool to compensate for this image not
+# being the thing it claims to substitute for.
+#
+# Keyring-pinned, same as docker-ce-cli below. `apt-key`-style unsigned repositories are how a
+# build host gets its packages replaced.
+RUN install -m 0755 -d /etc/apt/keyrings \
+ && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+      -o /etc/apt/keyrings/githubcli.gpg \
+ && chmod a+r /etc/apt/keyrings/githubcli.gpg \
+ && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/githubcli.gpg] https://cli.github.com/packages stable main" \
+      > /etc/apt/sources.list.d/github-cli.list \
+ && apt-get update \
+ && apt-get install --yes --no-install-recommends gh \
+ && rm -rf /var/lib/apt/lists/*
+
 # Docker CLI only — no daemon. The daemon runs in a sibling DinD container so CI containers are
 # isolated from the host's, and the CLI talks to it over TCP. See run.sh for why.
 RUN install -m 0755 -d /etc/apt/keyrings \

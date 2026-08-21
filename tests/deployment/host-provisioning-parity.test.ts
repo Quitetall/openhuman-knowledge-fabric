@@ -122,6 +122,57 @@ describe('a fork pull request cannot run on the self-hosted runner', () => {
  * An action that reads an ambient variable is not shared, it is coupled. Values it needs are
  * either inputs with defaults, or things it computes itself and exports.
  */
+/**
+ * The runner image must provide the PLATFORM tools, because it claims to substitute for
+ * `ubuntu-latest`.
+ *
+ * `release.yml` died a second time on `gh: command not found`. A GitHub-hosted runner ships the
+ * CLI; the sandbox image is a bare `ubuntu:24.04` and did not.
+ *
+ * The image is deliberately almost empty, and that is load-bearing — it is what found
+ * bubblewrap, pandoc, python3, the PostgreSQL client, `/usr/bin/node` and the userns sysctl,
+ * none of which a pre-loaded image would ever have surfaced. So this is NOT a licence to
+ * pre-install what the workflows need. The line is:
+ *
+ *   things the PRODUCT needs  -> the workflow installs them, and the host contract stays tested
+ *   things a RUNNER is        -> this image provides them, or it is not a runner
+ *
+ * Named individually rather than counted, for the same reason as the six above: a count still
+ * passes when one is swapped for another.
+ */
+describe('the runner image provides the tools a hosted runner would', () => {
+  const dockerfile = (): string =>
+    readFileSync(join(ROOT, 'deploy', 'self-hosted-runner', 'Dockerfile'), 'utf8');
+
+  it.each(['git', 'gh', 'curl', 'jq', 'tar', 'sudo'])('installs %s', (tool) => {
+    expect(
+      dockerfile(),
+      `the runner image no longer installs ${tool}, which workflows assume the platform has`,
+    ).toMatch(new RegExp(`(^|\\s)${tool}(\\s|\\\\|$)`, 'm'));
+  });
+
+  it('installs the GitHub CLI that release.yml depends on', () => {
+    // The tie, not just the tool: if the release path stops shelling out to `gh` this becomes
+    // dead weight and should go, and if it starts shelling out to something else this is the
+    // test that should have caught it.
+    const usesGh = /^\s*gh /m.test(workflow('release'));
+    expect(usesGh, 'release.yml no longer invokes gh — drop it from the runner image').toBe(true);
+    expect(dockerfile(), 'release.yml invokes gh and the runner image does not install it').toMatch(
+      /apt-get install[^\n]*\bgh\b/,
+    );
+  });
+
+  it('pins the GitHub CLI repository to a keyring', () => {
+    // An unsigned apt source on a build host is how its packages get replaced. docker-ce-cli is
+    // installed this way already; a second repository added without one would be the weak link.
+    const sources = [...dockerfile().matchAll(/^\s*&& echo "deb \[([^\]]*)\]/gm)].map((m) => m[1]!);
+    expect(sources.length, 'no third-party apt source found to check').toBeGreaterThan(0);
+    for (const opts of sources) {
+      expect(opts, `an apt source is added without signed-by: [${opts}]`).toContain('signed-by=');
+    }
+  });
+});
+
 describe('the shared provisioning action is self-contained', () => {
   it('reads no variable the caller has to have set', () => {
     const action = readFileSync(join(ROOT, ACTION, 'action.yml'), 'utf8');
