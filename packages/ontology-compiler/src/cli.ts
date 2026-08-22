@@ -120,10 +120,16 @@ const GENERATED_DIR = resolve(process.cwd(), 'generated');
  *
  * Point `KF_REGISTRY_DIR` at your own directory to run your own policy.
  *
- * BE HONEST ABOUT WHAT THIS SEAM DOES NOT YET REACH. The compiler is parameterised, but
- * `ontology/meta.yaml` and `database/migrations/20260819000100_enterprise_id_check_digit.sql` still hardcode
- * the `OH-` prefix and OpenHuman's nineteen namespaces, so a different registry compiles and is
- * then rejected by the database constraint. See docs/decisions/0006-product-instance-boundary.md.
+ * BE HONEST ABOUT WHAT THIS SEAM REACHES. Namespaces, codes, grammars, rules and lifecycle are
+ * fully per-instance: the compiler reads them from here, and since
+ * `20260822000100_instance_identifier_namespaces.sql` the database enforces allocation through a
+ * foreign key against seeded data rather than a literal.
+ *
+ * The enterprise PREFIX is the exception, and it is pinned by governance rather than by code.
+ * `ontology/meta.yaml` fixes `^OH-`, and widening it redefines an approved R01 semantic —
+ * `tests/conformance/r01-golden.test.ts` refuses it by name under its PRESERVATION rule, which
+ * is the control working. Changing it needs the pack owner.
+ * See docs/decisions/0006-product-instance-boundary.md.
  */
 const REGISTRY_DIR = resolve(
   process.cwd(),
