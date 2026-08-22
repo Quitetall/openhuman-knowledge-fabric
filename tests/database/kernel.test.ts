@@ -730,6 +730,9 @@ describe('a blocked statement and a slow statement fail differently', () => {
       // It must give up on the LOCK budget, not sit there until the statement budget. Without
       // this the assertion above would still pass if lock_timeout were ignored and the wait
       // ran the full twenty seconds, which is the failure mode being ruled out.
+      //
+      // 10x the 1s budget, deliberately loose: the bound only has to separate 1s from 20s, and
+      // tightening it towards the budget would trade a real distinction for CI jitter.
       expect(Date.now() - started).toBeLessThan(10_000);
     } finally {
       await blocker.query('rollback');
@@ -753,6 +756,22 @@ describe('a blocked statement and a slow statement fail differently', () => {
       );
       expect(sqlstate(failure)).toBe(QUERY_CANCELED);
       expect(sqlstate(failure)).not.toBe(LOCK_NOT_AVAILABLE);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  it('clamps the DEFAULT lock budget under a tight statement budget instead of refusing it', async () => {
+    // A caller who sets a short statement budget and no lock budget has written nothing wrong.
+    // Refusing that config would be `createPool` inventing an error out of a default the caller
+    // never chose — so the default gives way and only an explicit contradiction is refused.
+    const pool = createPool({
+      connectionString: h.connectionString,
+      statementTimeoutMillis: 5_000,
+    });
+    try {
+      const shown = await pool.query<{ lock_timeout: string }>('show lock_timeout');
+      expect(shown.rows[0]!.lock_timeout).toBe('4999ms');
     } finally {
       await pool.end();
     }

@@ -46,9 +46,15 @@ export class DatabaseError extends Error {
 export function createPool(config: DatabaseConfig): Pool {
   const statementTimeout = config.statementTimeoutMillis ?? 30_000;
   // Ten seconds is far longer than any healthy statement here waits to be granted a lock, and
-  // comfortably under the statement budget, so the two bounds stay distinguishable.
-  const lockTimeout = config.lockTimeoutMillis ?? 10_000;
-  if (lockTimeout >= statementTimeout) {
+  // comfortably under the default statement budget, so the two bounds stay distinguishable.
+  //
+  // Clamped rather than applied blindly: a caller who sets a tight `statementTimeoutMillis` and
+  // no lock budget has written nothing wrong, and refusing their config over a default they
+  // never chose would be this function inventing an error. Only an explicit contradiction is
+  // refused.
+  const lockTimeout =
+    config.lockTimeoutMillis ?? Math.min(10_000, Math.max(1, statementTimeout - 1));
+  if (config.lockTimeoutMillis !== undefined && lockTimeout >= statementTimeout) {
     throw new DatabaseError(
       `lockTimeoutMillis (${lockTimeout}) must be below statementTimeoutMillis ` +
         `(${statementTimeout}); otherwise the statement budget always fires first and the ` +
