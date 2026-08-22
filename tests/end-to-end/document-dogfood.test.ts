@@ -240,19 +240,45 @@ describe('document constitution dogfood', { timeout: 120_000 }, () => {
              from core.action
             where action_type in ('approve_controlled_document', 'accept_decision')`,
           ),
-          source: await tx.one<{
-            fragments: string;
-            compositions: string;
-            inputs: string;
-            holder_kinds: string[];
-          }>(
-            `select
-             (select count(*)::text from content.authored_fragment) as fragments,
-             (select count(*)::text from content.document_composition) as compositions,
-             (select count(*)::text from content.composition_input) as inputs,
-             (select array_agg(holder_kind order by holder_kind)
-                from content.document_source_holder) as holder_kinds`,
-          ),
+          // FOUR STATEMENTS, NOT ONE, and the reason is measured rather than stylistic.
+          //
+          // These were a single statement with four scalar subqueries. That form took 11_795ms
+          // against tables holding about five rows, while the same four counts issued
+          // separately cost ~1s in total — 12x the sum of the parts. `content.composition_input`
+          // has an RLS policy that is a CASE over six branches, each an `exists` against another
+          // RLS-protected table, and PostgreSQL inlines every referenced table's own policy
+          // transitively: `explain` shows InitPlan 1307 and SubPlan 1306 for one `count(*)`.
+          // Combining them plans that whole expansion in one tree, which is where the
+          // superlinearity comes from.
+          //
+          // At 11.8s local this sat under a 30s server-side statement budget that CI contention
+          // pushed it through, which is the whole of the #156 flake. Splitting removes it.
+          //
+          // This is NOT the fix for the underlying defect — composition_input still costs ~958ms
+          // to count a single row, a fixed tax on every query that touches it. That is #157.
+          source: {
+            fragments: (
+              await tx.one<{ count: string }>(
+                'select count(*)::text as count from content.authored_fragment',
+              )
+            ).count,
+            compositions: (
+              await tx.one<{ count: string }>(
+                'select count(*)::text as count from content.document_composition',
+              )
+            ).count,
+            inputs: (
+              await tx.one<{ count: string }>(
+                'select count(*)::text as count from content.composition_input',
+              )
+            ).count,
+            holder_kinds: (
+              await tx.one<{ holder_kinds: string[] }>(
+                `select array_agg(holder_kind order by holder_kind) as holder_kinds
+                   from content.document_source_holder`,
+              )
+            ).holder_kinds,
+          },
         };
       },
     );
