@@ -8,7 +8,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDispatcher, ActionRejected } from '@kf/actions';
-import { withTransaction } from '@kf/database';
+import { createPool, withTransaction } from '@kf/database';
 import {
   bindContext,
   createObject,
@@ -674,5 +674,100 @@ describe('function privileges', () => {
       ),
     );
     expect(rows[0]).toEqual({ core: true, registry: true, org: true });
+  });
+});
+
+describe('a blocked statement and a slow statement fail differently', () => {
+  // `statement_timeout` alone cannot tell "waiting for a lock" from "running too long": both
+  // arrive as one aborted statement with one message. That ambiguity cost a real diagnosis —
+  // the document-dogfood CI flake (#156) is a `count(*)` over tables holding under twenty rows,
+  // and its log cannot say whether it was blocked or starved. `lock_timeout` splits them.
+  //
+  // Asserting on SQLSTATE rather than message text: the codes are contract, the prose is not.
+  const LOCK_NOT_AVAILABLE = '55P03';
+  const QUERY_CANCELED = '57014';
+
+  const sqlstate = (error: unknown): string | undefined =>
+    typeof error === 'object' && error !== null && 'code' in error
+      ? (error as { code?: string }).code
+      : undefined;
+
+  it('applies lock_timeout to the session at all — pg could have dropped it silently', async () => {
+    // `pg` accepts unknown PoolConfig keys without complaint, so a typo or an unsupported
+    // option produces a pool that looks configured and enforces nothing. Read it back from
+    // the server, which is the only party whose opinion counts.
+    const pool = createPool({
+      connectionString: h.connectionString,
+      lockTimeoutMillis: 1_000,
+      statementTimeoutMillis: 20_000,
+    });
+    try {
+      const shown = await pool.query<{ lock_timeout: string; statement_timeout: string }>(
+        'show lock_timeout',
+      );
+      expect(shown.rows[0]!.lock_timeout).toBe('1s');
+    } finally {
+      await pool.end();
+    }
+  });
+
+  it('reports a lock wait as a LOCK timeout, not a statement timeout', async () => {
+    const pool = createPool({
+      connectionString: h.connectionString,
+      lockTimeoutMillis: 1_000,
+      statementTimeoutMillis: 20_000,
+    });
+    const blocker = await h.adminPool.connect();
+    try {
+      // ACCESS EXCLUSIVE is the one lock class that blocks a bare `count(*)`.
+      await blocker.query('begin');
+      await blocker.query('lock table core.object in access exclusive mode');
+
+      const started = Date.now();
+      await expect(pool.query('select count(*) from core.object')).rejects.toMatchObject({
+        code: LOCK_NOT_AVAILABLE,
+      });
+      // It must give up on the LOCK budget, not sit there until the statement budget. Without
+      // this the assertion above would still pass if lock_timeout were ignored and the wait
+      // ran the full twenty seconds, which is the failure mode being ruled out.
+      expect(Date.now() - started).toBeLessThan(10_000);
+    } finally {
+      await blocker.query('rollback');
+      blocker.release();
+      await pool.end();
+    }
+  });
+
+  it('reports a genuinely slow statement as a STATEMENT timeout, with no lock involved', async () => {
+    // The other half of the discriminator. If both conditions produced 55P03 the split would
+    // be worthless, so the contrast is asserted rather than assumed.
+    const pool = createPool({
+      connectionString: h.connectionString,
+      lockTimeoutMillis: 1_000,
+      statementTimeoutMillis: 1_500,
+    });
+    try {
+      const failure = await pool.query('select pg_sleep(5)').then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+      expect(sqlstate(failure)).toBe(QUERY_CANCELED);
+      expect(sqlstate(failure)).not.toBe(LOCK_NOT_AVAILABLE);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  it('refuses a lock budget that can never fire', () => {
+    // A bound above the statement budget is unreachable: the statement is killed first, every
+    // time. That is not a conservative setting, it is a control that reports itself present
+    // while enforcing nothing — the exact shape of defect this suite exists to catch.
+    expect(() =>
+      createPool({
+        connectionString: h.connectionString,
+        lockTimeoutMillis: 30_000,
+        statementTimeoutMillis: 30_000,
+      }),
+    ).toThrow(/must be below statementTimeoutMillis/);
   });
 });

@@ -25,6 +25,13 @@ export interface DatabaseConfig {
   /** Fail fast rather than queue forever behind an exhausted pool. */
   readonly connectionTimeoutMillis?: number;
   readonly statementTimeoutMillis?: number;
+  /**
+   * Budget for waiting on a lock, as opposed to running.
+   *
+   * Must stay below `statementTimeoutMillis` or it can never fire, and a bound that cannot
+   * fire is worse than no bound: it reads as a control while enforcing nothing.
+   */
+  readonly lockTimeoutMillis?: number;
 }
 
 export class DatabaseError extends Error {
@@ -37,13 +44,30 @@ export class DatabaseError extends Error {
 }
 
 export function createPool(config: DatabaseConfig): Pool {
+  const statementTimeout = config.statementTimeoutMillis ?? 30_000;
+  // Ten seconds is far longer than any healthy statement here waits to be granted a lock, and
+  // comfortably under the statement budget, so the two bounds stay distinguishable.
+  const lockTimeout = config.lockTimeoutMillis ?? 10_000;
+  if (lockTimeout >= statementTimeout) {
+    throw new DatabaseError(
+      `lockTimeoutMillis (${lockTimeout}) must be below statementTimeoutMillis ` +
+        `(${statementTimeout}); otherwise the statement budget always fires first and the ` +
+        `lock budget is decoration.`,
+    );
+  }
   const options: PoolConfig = {
     connectionString: config.connectionString,
     max: config.maxConnections ?? 10,
     connectionTimeoutMillis: config.connectionTimeoutMillis ?? 5_000,
     // A statement that runs unboundedly holds locks unboundedly. Every action is meant to
     // be short; one that is not should fail and be looked at, not stall the system.
-    statement_timeout: config.statementTimeoutMillis ?? 30_000,
+    statement_timeout: statementTimeout,
+    // Separates "waiting for a lock" from "running too long", which `statement_timeout` alone
+    // cannot: both surface as the same aborted statement. That ambiguity is not hypothetical —
+    // it is why a CI flake in the document dogfood could not be diagnosed from its own logs
+    // (task #156). Blocked and starved now fail with different SQLSTATEs, so the next
+    // occurrence classifies itself instead of needing a reproduction.
+    lock_timeout: lockTimeout,
     // An idle transaction holds its snapshot and its locks. This is the guard against a
     // forgotten `await` leaving a transaction open across a request boundary.
     idle_in_transaction_session_timeout: 60_000,
