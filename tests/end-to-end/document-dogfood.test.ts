@@ -26,7 +26,29 @@ afterAll(async () => {
   await harness?.stop();
 });
 
-describe('document constitution dogfood', () => {
+/**
+ * 120s, not the 30s global, and this one is measured rather than guessed.
+ *
+ * The single test here drives the whole document path end to end: a PostgreSQL container, the
+ * action dispatcher, the Liminal compiler under bubblewrap, pandoc, and content-addressed
+ * staging into object storage. Its wall time is set by how fast the machine is, not by anything
+ * the assertions are checking.
+ *
+ * THIRTY-EIGHT recorded runs from this repository's own gate logs on 2026-08-21/22:
+ *
+ *   fastest  10_455ms
+ *   median   ~19_000ms
+ *   slowest  24_385ms      <- 81% of the 30_000ms budget, on a passing run
+ *   CI       30_031ms      <- failed by 31ms on a GitHub-hosted runner
+ *
+ * A budget the median already consumes two thirds of is not a budget, and the failure it
+ * produces is a false red on an end-to-end test — the most expensive kind to misread, because
+ * the natural next move is to go hunting through the document pipeline for a regression that
+ * is not there. It cost exactly that once already this session on the self-hosted runner.
+ *
+ * 120s is ~5x the slowest observed pass. A genuine hang still fails, just later.
+ */
+describe('document constitution dogfood', { timeout: 120_000 }, () => {
   it('adds one source as a draft and reads its independently digested atoms', async () => {
     const bytes = Buffer.from('# Constitution\n\nOne fact, one owner.\n');
     const sha256 = digestOf(bytes);
