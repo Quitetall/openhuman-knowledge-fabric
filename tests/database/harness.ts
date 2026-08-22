@@ -264,6 +264,27 @@ export async function seedFixtures(pool: Pool): Promise<Fixtures> {
       'harness-bootstrap',
     ]);
 
+    // THIS DEPLOYMENT'S ALLOCATED NAMESPACES. Since 2026-08-22 `core.object.enterprise_id` is
+    // checked in two independent layers: an immutable CHECK for shape and Damm digit, and a
+    // foreign key to `registry.identifier_namespace` for whether the namespace was allocated at
+    // all (ADR 0006 — the prefix is instance policy, not product data). The migration creates
+    // that table EMPTY on purpose, so a fixture that allocates an identifier must say which
+    // namespaces this instance has, exactly as a real deployment seeds them from its registry.
+    //
+    // Without this every test that writes an enterprise_id fails on the foreign key, which is
+    // the correct behaviour and a confusing way to discover it.
+    await tx.query(
+      `insert into registry.identifier_namespace (qualified_code, grammar) values
+         ('OH-ITM','enterprise'),  ('OH-DOC','enterprise'),  ('OH-INTF','enterprise'),
+         ('OH-BIND','enterprise'), ('OH-SWC','enterprise'),  ('OH-DAT','enterprise'),
+         ('OH-MDL','enterprise'),  ('OH-REQ','enterprise'),  ('OH-RSK','enterprise'),
+         ('OH-TST','enterprise'),  ('OH-CHG','enterprise'),  ('OH-ADR','enterprise'),
+         ('OH-BSL','enterprise'),  ('OH-RLS','enterprise'),  ('OH-QEV','enterprise'),
+         ('OH-EQP','enterprise'),  ('OH-SUP','enterprise'),  ('OH-LOT','enterprise'),
+         ('OH-WRK','enterprise'),  ('OH-RCD','record'),      ('OH-SN','serial')
+       on conflict (qualified_code) do nothing`,
+    );
+
     const orgObj = await newObject(tx, {
       type: 'organization',
       domain: 'organization',

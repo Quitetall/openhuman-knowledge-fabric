@@ -177,6 +177,11 @@ describe('typed rows are visible exactly when their record is', () => {
       'quality.federated_source',
       'registry.action_type',
       'registry.classification',
+      // Which identifier namespaces this deployment allocated (ADR 0006). Policy reference
+      // data, like every other registry.* table here: it is read by everyone, written only by
+      // migrations and the instance seeder, and holds nothing organisation-scoped. RLS on it
+      // would be theatre — there is no second organisation whose namespaces it could leak.
+      'registry.identifier_namespace',
       'registry.object_state',
       'registry.object_type',
       'registry.relation_type',

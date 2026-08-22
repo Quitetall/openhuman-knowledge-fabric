@@ -94,8 +94,18 @@ describe('core.valid_enterprise_id', () => {
     ['OH-SN-000000001-3', true, 'serial grammar, §10.1'],
     ['OH-DOC-000001-4', false, 'check digit wrong by one'],
     ['OH-DOC-000010-3', false, 'adjacent transposition'],
-    ['OH-XYZ-000001-3', false, 'namespace nobody allocated'],
-    ['OH-RCD-000001-3', false, 'RCD under the enterprise grammar'],
+    // THESE TWO FLIPPED FROM false TO true ON 2026-08-22, and the flip is the point.
+    //
+    // This function used to enumerate OpenHuman's nineteen namespaces, so it rejected an
+    // unallocated namespace as a side effect of one organisation's prefix being compiled into
+    // the product. That is precisely what made a second deployment impossible (ADR 0006). It
+    // now checks shape and check digit only, and both strings satisfy both.
+    //
+    // The rejection did not disappear. It moved to a foreign key, where it can be per-instance
+    // data instead of a literal: `instance-identifier-namespace.test.ts` asserts core.object
+    // still refuses both, by name. If that file is ever deleted, these two lines are wrong.
+    ['OH-XYZ-000001-3', true, 'shape and digit hold; the FK rejects the unallocated namespace'],
+    ['OH-RCD-000001-3', true, 'shape and digit hold; the FK rejects RCD under enterprise grammar'],
     ['OH-RCD-2026-000001-3', false, 'record digit computed over the sequence alone'],
     ['oh-doc-000001-3', false, 'lowercase'],
     ['OH-DOC-000001-3-R01', false, 'filename form, not an identifier'],
@@ -151,9 +161,20 @@ describe('core.object refuses an invalid enterprise_id', () => {
     await expect(allocate(id, 'OH-DOC-000001-4')).rejects.toThrow(/object_enterprise_id_valid/);
   });
 
-  it('rejects an unallocated namespace', async () => {
+  it('rejects an unallocated namespace — by the FK now, not the CHECK', async () => {
+    // Still rejected, by a different constraint, and the difference is the fix in ADR 0006.
+    // The CHECK used to enumerate this organisation's namespaces, which is what made the
+    // product unusable by anyone else. It now checks shape and Damm digit; whether the
+    // namespace was ALLOCATED is a foreign key to registry.identifier_namespace, so it is
+    // per-instance data instead of a literal compiled into the software.
+    //
+    // Asserting the constraint BY NAME is what keeps this honest: if the rejection ever moved
+    // back into the CHECK, or stopped happening at all, this fails rather than passing on a
+    // coincidence.
     const id = await newObject('Should not get an invented namespace');
-    await expect(allocate(id, 'OH-XYZ-000001-3')).rejects.toThrow(/object_enterprise_id_valid/);
+    await expect(allocate(id, 'OH-XYZ-000001-3')).rejects.toThrow(
+      /object_enterprise_namespace_allocated/,
+    );
   });
 
   it('accepts a correctly formed identifier', async () => {
