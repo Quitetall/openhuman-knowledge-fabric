@@ -43,8 +43,9 @@ export async function runDocumentConstitutionDogfood(): Promise<void> {
     // the schema well enough to query core.object by hand, which is not onboarding.
     //
     // Printed last, in paste-ready form, so it is what remains on screen when the loader ends.
-    // Two of the three are UUIDs; KF_DEV_ACTING_ROLE is a role id such as `system_administrator`,
-    // which is why this prints the actual values rather than describing them.
+    // All three are UUIDs — KF_DEV_ACTING_ROLE is an `org.role_assignment` id, not a role name.
+    // Printing the real values rather than describing them is what makes that unarguable; a
+    // comment claiming otherwise survived a day here before the output disproved it.
     process.stdout.write(
       [
         '',

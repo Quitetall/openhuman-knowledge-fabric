@@ -73,11 +73,13 @@ KF_DEV_ACTING_ROLE=system_administrator
 
 Paste those three into `.env`. The web app calls `required()` on each and throws if any is blank.
 
-> Two of the three are UUIDs. `KF_DEV_ACTING_ROLE` is **not** — it is a role id from `org.role`,
-> such as `system_administrator` or `quality_authority`. `.env.example` described all three as
-> UUIDs until 2026-08-21, and the loader printed nothing at all, so this instruction had never
-> been followed by anyone. Both are fixed; this note stays so the next reader knows why the
-> older wording disagrees.
+> **All three are UUIDs.** `KF_DEV_ACTING_ROLE` is the id of an `org.role_assignment` row — the
+> assignment granting the role, not the role's name. An earlier version of this document claimed
+> it was a name like `system_administrator`; that was my error, corrected on 2026-08-22 after
+> the loader printed a UUID there and contradicted me.
+>
+> The real defect here was the other one: the loader printed **nothing at all** until 2026-08-21,
+> so the "copy them in" instruction had never once been followed. It prints them now.
 
 If you are recovering an older database whose loader predates the print, the same values are:
 

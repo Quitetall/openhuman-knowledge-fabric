@@ -8,12 +8,12 @@
     "owningRole": "technical_authority"
   },
   {
-    "file": "OH-DOC-LST-SYS-001-R4_Identifier_Registry.docx",
-    "title": "Identifier Registry",
-    "documentNumber": "OH-DOC-LST-SYS-001",
-    "revision": "R4",
-    "documentClass": "record",
-    "owningRole": "system_administrator"
+    "file": "OH-DOC-000001-3-R01_Identifier_and_Configuration_Registry.docx",
+    "title": "Identifier and Configuration Registry",
+    "documentNumber": "OH-DOC-000001-3",
+    "revision": "R01",
+    "documentClass": "specification",
+    "owningRole": "configuration_authority"
   },
   {
     "file": "OH-DOC-SPC-QMS-001-R1_QMS_Architecture_and_Operating_Model.docx",
