@@ -43,3 +43,25 @@ export const PACKAGE = {
   role: 'Document parsing, composition, and controlled-document action atoms',
   owns: [],
 } as const;
+
+export {
+  assembleBriefing,
+  growBriefing,
+  renderBriefing,
+  type Briefing,
+  type BriefingEntry,
+  type BriefingSource,
+} from './citation/assemble.js';
+export {
+  CitationSyntaxError,
+  parseCitation,
+  type Citation,
+  type SectionSelector,
+} from './citation/parse.js';
+export { resolveCitation, type ResolvedExcerpt } from './citation/resolve.js';
+export {
+  compareSectionPaths,
+  indexSections,
+  isWithinSection,
+  type SectionSpan,
+} from './citation/sections.js';
