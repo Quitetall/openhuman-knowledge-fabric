@@ -52,9 +52,20 @@ export function createPool(config: DatabaseConfig): Pool {
   // no lock budget has written nothing wrong, and refusing their config over a default they
   // never chose would be this function inventing an error. Only an explicit contradiction is
   // refused.
+  //
+  // PostgreSQL reads `statement_timeout = 0` as "no limit", so there is no ceiling to stay
+  // under and the plain default applies. Clamping against it arithmetically would compute
+  // `max(1, -1)` and hand back a ONE MILLISECOND lock budget — the precise inversion of what
+  // the caller asked for, and silent.
+  const statementsAreUnbounded = statementTimeout <= 0;
   const lockTimeout =
-    config.lockTimeoutMillis ?? Math.min(10_000, Math.max(1, statementTimeout - 1));
-  if (config.lockTimeoutMillis !== undefined && lockTimeout >= statementTimeout) {
+    config.lockTimeoutMillis ??
+    (statementsAreUnbounded ? 10_000 : Math.min(10_000, Math.max(1, statementTimeout - 1)));
+  if (
+    !statementsAreUnbounded &&
+    config.lockTimeoutMillis !== undefined &&
+    lockTimeout >= statementTimeout
+  ) {
     throw new DatabaseError(
       `lockTimeoutMillis (${lockTimeout}) must be below statementTimeoutMillis ` +
         `(${statementTimeout}); otherwise the statement budget always fires first and the ` +

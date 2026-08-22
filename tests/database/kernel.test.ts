@@ -703,9 +703,10 @@ describe('a blocked statement and a slow statement fail differently', () => {
     });
     try {
       const shown = await pool.query<{ lock_timeout: string; statement_timeout: string }>(
-        'show lock_timeout',
+        `select current_setting('lock_timeout') as lock_timeout,
+                current_setting('statement_timeout') as statement_timeout`,
       );
-      expect(shown.rows[0]!.lock_timeout).toBe('1s');
+      expect(shown.rows[0]).toEqual({ lock_timeout: '1s', statement_timeout: '20s' });
     } finally {
       await pool.end();
     }
@@ -775,6 +776,40 @@ describe('a blocked statement and a slow statement fail differently', () => {
     } finally {
       await pool.end();
     }
+  });
+
+  it('treats statementTimeoutMillis 0 as no limit, not as a 1ms lock budget', async () => {
+    // PostgreSQL reads 0 as "no limit". Clamping against it arithmetically gives max(1, -1) = 1,
+    // so a caller asking for UNBOUNDED statements would have silently received the tightest
+    // possible lock budget instead. There is no ceiling to stay under, so the plain default
+    // applies.
+    const pool = createPool({
+      connectionString: h.connectionString,
+      statementTimeoutMillis: 0,
+    });
+    try {
+      const shown = await pool.query<{ lock_timeout: string; statement_timeout: string }>(
+        `select current_setting('lock_timeout') as lock_timeout,
+                current_setting('statement_timeout') as statement_timeout`,
+      );
+      // Both halves asserted: that the 0 really did reach PostgreSQL as "unbounded", and that
+      // the lock budget it produced is the default rather than the 1ms the old arithmetic gave.
+      expect(shown.rows[0]).toEqual({ lock_timeout: '10s', statement_timeout: '0' });
+    } finally {
+      await pool.end();
+    }
+  });
+
+  it('still refuses an explicit contradiction under a tight statement budget', () => {
+    // The clamp must not have disarmed the guard for the case it exists to catch: budgets the
+    // caller wrote down themselves, in the wrong order.
+    expect(() =>
+      createPool({
+        connectionString: h.connectionString,
+        statementTimeoutMillis: 5_000,
+        lockTimeoutMillis: 6_000,
+      }),
+    ).toThrow(/must be below statementTimeoutMillis/);
   });
 
   it('refuses a lock budget that can never fire', () => {
