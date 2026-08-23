@@ -84,11 +84,42 @@ Both checks were confirmed able to fail, by planting two defects and requiring d
   was never only on the counts — every query the test made against the table was paying it.
 - The equivalence test is now the thing to keep. If the predicate changes again, it must change in
   the migration the test lifts its reference from, or the test will say so.
-- **Three sibling policies are unexamined.** A census of all 367 policies found only four with three
-  or more `EXISTS` clauses. The other three — `ml.promotion_receipt`, `ml.run_lineage`,
-  `ml.registry_registration` — all sit on tables holding zero rows, so they cannot be measured
-  today, and `run_lineage_read`'s five references are all to the _same_ table, which is structurally
-  milder than six different ones. Predicted cheap; not measured. Tracked in task #157.
-- A measurement of any of these against an **empty** table reports it healthy and proves nothing:
-  the expansion happens at plan time but the cost is in building the hashed subplans, and those
-  build lazily on first evaluation of the row filter.
+- A census of all 367 policies found only four with three or more `EXISTS` clauses. The other three
+  are `ml.promotion_receipt`, `ml.run_lineage` and `ml.registry_registration`.
+
+### Measured 2026-08-23, and both things this section previously said were wrong
+
+They were called "predicted cheap; not measured", and a measurement against an empty table was
+called worthless. Neither survived contact.
+
+`select count(*)` per table, empty, as the application role with an access context bound:
+
+| table                      | jit on    | jit off | ratio |
+| -------------------------- | --------- | ------- | ----- |
+| `ml.registry_registration` | 4591.6 ms | 2.84 ms | 1617x |
+| `ml.run_lineage`           | 82.8 ms   | 0.35 ms | 235x  |
+| `ml.promotion_receipt`     | 2.2 ms    | 1.4 ms  | —     |
+
+**"An empty table reports it healthy" was exactly backwards.** `ml.registry_registration` with ZERO
+rows took four and a half seconds. The mechanism half of that claim was right — every subplan in the
+plan reads `never executed`, and the sequential scan finishes in 0.03 ms — but the conclusion drawn
+from it was not, because it accounted for only one of the two costs:
+
+- the **hashed subplans** cost scales with ROWS, and does build lazily, so an empty table hides it;
+- the **JIT compilation** cost scales with PLAN SIZE, which is data-independent, so an empty table
+  shows it in full. `registry_registration` expands to 33 distinct subplans, and compiling that is
+  where the 4.5 s went.
+
+Conflating the two produced a rule that would have told the next person to skip the measurement
+that mattered most.
+
+**The policies themselves are fine.** At 0.35–2.84 ms with JIT off, none of the three needs the
+treatment `composition_input` got — that one is 950 ms of genuine per-query execution, a different
+defect. What these three needed was `jit = off`, which `deploy/postgres/planner.conf`,
+`docker-compose.yml` and the test harness now all set. Their contribution beyond that is planning
+time: 8–16 ms for `registry_registration` against 0.4 ms for a plain table, paid per query and worth
+knowing about, but not worth a rewrite.
+
+The wider lesson for the JIT decision: 1617x on a real table is far outside the 8–14x measured on
+the `controlled_document` and `training_requirement` shapes, so that commit understated its own
+result.
