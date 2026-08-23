@@ -28,9 +28,16 @@
  *   3. direct column, `core.action` only
  *      `action.organization_id = core.current_organization()`
  *      — no join at all, which looks like the cheapest of the three and is the one this file
- *        was written to be suspicious of: `core.action.organization_id` carries NO INDEX,
- *        while `core.object.organization_id` and `search.document.organization_id` both do,
- *        and `core.action` is the append-only ledger that grows with every action performed.
+ *        was written to be suspicious of, because `core.action` is the append-only ledger that
+ *        grows with every action performed.
+ *
+ *        CORRECTED 2026-08-23. This said `core.action.organization_id` "carries NO INDEX". It
+ *        does: `action_idempotency` is UNIQUE (organization_id, action_type, idempotency_key),
+ *        so organization_id is a usable LEADING column. There is no dedicated index, which is
+ *        probably what was meant, but that is a different claim and the plan does not turn on
+ *        it — the scan is sequential because a third of the table matches, and no index helps
+ *        at that selectivity. Worth being exact about, since "add an index" would have been the
+ *        obvious wrong fix.
  *
  * THE COMPARISON THAT MATTERS is not "RLS on versus no boundary at all" — that measures the
  * cost of being correct, which is not optional. It is "RLS on" versus the JOIN THROUGH
@@ -353,7 +360,7 @@ describe.skipIf(!MEASURING)('row-level security read cost on a populated databas
 
     // ── shape 3: direct column, unindexed ────────────────────────────────────────────────
     const actionPolicy = await measure(
-      'core.action · policy (organization_id, NO INDEX)',
+      'core.action · policy (organization_id, leading col only)',
       'select count(*)::text as count from core.action',
       organizationId,
     );

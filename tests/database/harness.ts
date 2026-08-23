@@ -73,7 +73,19 @@ export async function startHarness(options: HarnessOptions = {}): Promise<Harnes
     // Matches Compose: a libc collation change silently reorders text indexes, so every
     // database path has to initialize with the same provider and locale.
     .withEnvironment({ POSTGRES_INITDB_ARGS })
-    .withCommand(['postgres', '-c', 'wal_level=logical', '-c', 'track_commit_timestamp=on'])
+    // Planner-affecting settings must match docker-compose.yml, or every timing measured here
+    // describes a server nobody runs. `jit=off` in particular: RLS inflates cost estimates far
+    // past jit_above_cost, and leaving JIT on made a 16ms count take 154ms. Enforced by
+    // tests/deployment/postgres-settings-parity.test.ts.
+    .withCommand([
+      'postgres',
+      '-c',
+      'wal_level=logical',
+      '-c',
+      'track_commit_timestamp=on',
+      '-c',
+      'jit=off',
+    ])
     .start();
 
   const connectionString = container.getConnectionUri();

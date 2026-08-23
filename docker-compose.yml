@@ -33,6 +33,27 @@ services:
       - log_statement=ddl
       - -c
       - track_commit_timestamp=on
+      # JIT off, because the planner's cost estimates cannot be trusted on this schema and JIT
+      # is triggered by exactly those estimates.
+      #
+      # Row-level security wraps almost every table (113 of 139 force it) and its subplans
+      # inflate the estimate far out of proportion to the work. Measured by
+      # tests/database/rls-read-cost.test.ts at 12k documents per organization: a count over
+      # controlled_document estimates cost 2_222_440 — 22x the default jit_above_cost of
+      # 100_000 — and then executes in 16ms while spending 122ms compiling. Same query, same
+      # data, jit off: 16.5ms. JIT was 10x slower than no JIT.
+      #
+      # It is not paying for itself anywhere else either. Of the four shapes that file measures
+      # against a populated database, JIT engages on ONE and loses badly; on the other three
+      # (point read, bounded list of 50, bounded envelope join) it never triggers at all, so
+      # there is no measured case of it helping.
+      #
+      # Off rather than a raised jit_above_cost: a threshold is a number that silently expires
+      # as the data grows, and the underlying problem is that the estimate is ~100x the real
+      # work. Revisit if a genuinely analytical workload appears — and revisit with that file,
+      # which will answer it again.
+      - -c
+      - jit=off
     ports:
       - '127.0.0.1:5432:5432'
     volumes:

@@ -245,6 +245,16 @@ Every placeholder requires named human authority; deployment tooling must not ch
 server archiving against that decision and fail when archiving is off or last attempt failed.
 See [`../postgres/pitr.conf`](../postgres/pitr.conf).
 
+## Planner settings
+
+Include [`../postgres/planner.conf`](../postgres/planner.conf) from `postgresql.conf` and reload.
+
+Unlike `pitr.conf` this is not posture-dependent. It turns JIT off, measured at 8–14× on
+row-level-security-filtered reads: RLS subplans inflate the planner's cost estimate to roughly a
+hundred times the real work, and JIT triggers on that estimate. The dev stack and the test
+harness both set it, so a host that skips this file is the only place left running the
+configuration that was measured slow.
+
 ## Failure handling
 
 Each unit has `OnFailure=kf-alert@%n.service`. Write that unit for whatever this deployment
