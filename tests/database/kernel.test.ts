@@ -677,6 +677,96 @@ describe('function privileges', () => {
   });
 });
 
+describe('an idle connection dying', () => {
+  it('is reported, not left to take the process down', async () => {
+    // `pg.Pool` emits 'error' when an IDLE client's connection dies — the server restarted,
+    // failed over, or dropped the socket. node-postgres is explicit that with no listener node
+    // "will emit an uncaught error and potentially crash your node process", and `createPool`
+    // attached none. In a test run that shows up as a red suite with every test passing, which
+    // is how it was found; in the API or the worker it is a process death on a network blip.
+    //
+    // Killed with pg_terminate_backend rather than by stopping a container: the failure mode is
+    // identical from the client's side, and this one is deterministic.
+    const seen: Error[] = [];
+    const pool = createPool({
+      connectionString: h.connectionString,
+      maxConnections: 1,
+      onIdleClientError: (error) => seen.push(error),
+    });
+    try {
+      const { rows } = await pool.query<{ pid: number }>('select pg_backend_pid() as pid');
+      const pid = rows[0]!.pid;
+      // The query is finished, so that connection is now sitting idle in the pool with no
+      // pending caller — which is the whole point. Anything it reports has no owner.
+      await withTransaction(h.adminPool, (tx) =>
+        tx.query('select pg_terminate_backend($1)', [pid]),
+      );
+
+      // Review raised that 10s might be exactly one keepalive interval, making this a coin
+      // flip. It is not: PostgreSQL sends the FATAL and closes the socket, so the client learns
+      // immediately rather than waiting to be pinged. Both tests in this block run two complete
+      // terminate-and-detect cycles and the whole file finishes in about four seconds, so the
+      // deadline is orders of margin, not a race. Left generous anyway — it costs nothing when
+      // the answer arrives in milliseconds.
+      const deadline = Date.now() + 10_000;
+      while (seen.length === 0 && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      expect(seen, 'the pool never reported the idle client dying').toHaveLength(1);
+      expect(seen[0]).toBeInstanceOf(Error);
+      // 57P01 is admin_shutdown — exactly what a container stop produces.
+      expect((seen[0] as { code?: string }).code).toBe('57P01');
+    } finally {
+      await pool.end().catch(() => undefined);
+    }
+  });
+
+  it('survives a reporting callback that throws, and labels the fallback warning', async () => {
+    // Two findings from review, both real, both checked here.
+    //
+    // The callback is caller-supplied and the doc comment asks it not to rethrow — but a throw
+    // from inside an EventEmitter 'error' handler is the uncaught-exception path this whole
+    // mechanism exists to close, so asking is not enough. A logger whose transport has dropped
+    // is the obvious way to hit it.
+    //
+    // And the fallback has to actually carry its label: `process.emitWarning(err, type)` IGNORES
+    // the type when the first argument is an Error, so the original version emitted a warning
+    // named "Error", indistinguishable from anything else. Verified directly on node v24.18.1.
+    const warnings: { name: string; message: string }[] = [];
+    const onWarning = (w: Error): void => {
+      warnings.push({ name: w.name, message: w.message });
+    };
+    process.on('warning', onWarning);
+    const pool = createPool({
+      connectionString: h.connectionString,
+      maxConnections: 1,
+      onIdleClientError: () => {
+        throw new Error('the logger transport is gone');
+      },
+    });
+    try {
+      const { rows } = await pool.query<{ pid: number }>('select pg_backend_pid() as pid');
+      await withTransaction(h.adminPool, (tx) =>
+        tx.query('select pg_terminate_backend($1)', [rows[0]!.pid]),
+      );
+
+      const deadline = Date.now() + 10_000;
+      while (!warnings.some((w) => w.name === 'KfIdleClientError') && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      const labelled = warnings.filter((w) => w.name === 'KfIdleClientError');
+      expect(
+        labelled,
+        `no KfIdleClientError warning; saw ${JSON.stringify(warnings.map((w) => w.name))}`,
+      ).not.toHaveLength(0);
+      expect(labelled[0]!.message).toContain('terminating connection');
+    } finally {
+      process.off('warning', onWarning);
+      await pool.end().catch(() => undefined);
+    }
+  });
+});
+
 describe('a blocked statement and a slow statement fail differently', () => {
   // `statement_timeout` alone cannot tell "waiting for a lock" from "running too long": both
   // arrive as one aborted statement with one message. That ambiguity cost a real diagnosis —

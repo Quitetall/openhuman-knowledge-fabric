@@ -32,6 +32,17 @@ export interface DatabaseConfig {
    * fire is worse than no bound: it reads as a control while enforcing nothing.
    */
   readonly lockTimeoutMillis?: number;
+  /**
+   * Where an IDLE client's death is reported.
+   *
+   * Not the same thing as a failed query, which rejects at its call site. This fires for
+   * connections sitting in the pool between requests when the server goes away underneath them —
+   * a restart, a failover, a dropped socket. There is no caller to reject, so without somewhere
+   * to send it the error has nowhere to go but up.
+   *
+   * Defaults to a process warning. It must never rethrow.
+   */
+  readonly onIdleClientError?: (error: Error) => void;
 }
 
 export class DatabaseError extends Error {
@@ -89,7 +100,43 @@ export function createPool(config: DatabaseConfig): Pool {
     // forgotten `await` leaving a transaction open across a request boundary.
     idle_in_transaction_session_timeout: 60_000,
   };
-  return new Pool(options);
+  const pool = new Pool(options);
+  // A `pg.Pool` with no 'error' listener is a process-killer, and this is the only place in the
+  // system that constructs one. node-postgres says it plainly: "if a pool emits an error event
+  // and no listeners are added node will emit an uncaught error and potentially crash your node
+  // process". The pool emits that event when an IDLE client dies — the server restarted, failed
+  // over, or dropped the socket — and an idle client has no pending query to reject, so the
+  // error surfaces with no owner.
+  //
+  // Found from a CI failure where every one of 1251 tests passed and the run still went red: a
+  // PostgreSQL container stopped while a pooled connection was still open, SQLSTATE 57P01. The
+  // test suite is where it was cheap to notice. In the API or the worker the same event is a
+  // process death on a network blip, which is the part that actually matters.
+  pool.on('error', (cause) => {
+    const error = cause instanceof Error ? cause : new Error(String(cause));
+    if (config.onIdleClientError) {
+      try {
+        config.onIdleClientError(error);
+        return;
+      } catch {
+        // The doc comment asks callers not to rethrow, but a contract is not enforcement, and a
+        // throw from here lands inside an EventEmitter 'error' handler — which is precisely the
+        // uncaught-exception path this whole function exists to close. A logger whose transport
+        // has dropped is the obvious way to hit it. Fall through to the default.
+      }
+    }
+    // Warn rather than swallow. Silence here would turn "the database went away" into a
+    // connection count that quietly drops, which is worse to diagnose than a noisy log.
+    //
+    // Message-plus-options, NOT the Error itself: `process.emitWarning(err, type)` IGNORES the
+    // type when the first argument is an Error, so the label silently became "Error" and the
+    // warning was indistinguishable from any other. Verified on node v24.18.1.
+    process.emitWarning(error.message, {
+      type: 'KfIdleClientError',
+      detail: error.stack ?? '',
+    });
+  });
+  return pool;
 }
 
 /**
