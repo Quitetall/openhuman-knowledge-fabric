@@ -487,14 +487,16 @@ it.
 
 What each check reads, and the blocker it closes:
 
-| check                      | reads                                                                                                                               | blocker                                                             |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `unit_provenance`          | installed units against the ones this release ships, byte for byte; `User=` on the API and checkpoint units; `OnFailure=` on each   | units installed, identities separated, alerting wired               |
-| `secret_posture`           | every path a shipped unit names as `EnvironmentFile=` or `*_FILE=`/`*_KEY_PATH=`: exists, regular file, no group or other bits      | checkpoint key isolation from the API                               |
-| `tls_termination`          | the certificate for the public hostname — SAN coverage, validity window, renewal margin — and the private key's mode                | site hostname, certificate, TLS termination                         |
-| `identity_provider_policy` | issuer is https, client is named, and the reviewed realm policy on disk still digests to what was reviewed                          | reviewed reproducible Keycloak realm/client policy                  |
-| `runtime_version`          | the Node version this process runs, against the tested one                                                                          | host uses the exact tested runtime                                  |
-| `evidence_receipts`        | release verification, rollback rehearsal and compiler qualification receipts: present, naming this release, ratified, recent enough | rollback receipt, migration result, ratified compiler qualification |
+| check                       | reads                                                                                                                                                                 | blocker                                                             |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `unit_provenance`           | installed units against the ones this release ships, byte for byte; `User=` on the API and checkpoint units; `OnFailure=` on each                                     | units installed, identities separated, alerting wired               |
+| `secret_posture`            | every path a shipped unit names as `EnvironmentFile=` or `*_FILE=`/`*_KEY_PATH=`: exists, regular file, no group or other bits                                        | checkpoint key isolation from the API                               |
+| `tls_termination`           | the certificate for the public hostname — SAN coverage, validity window, renewal margin — and the private key's mode                                                  | site hostname, certificate, TLS termination                         |
+| `identity_provider_policy`  | issuer is https, client is named, and the reviewed realm policy on disk still digests to what was reviewed                                                            | reviewed reproducible Keycloak realm/client policy                  |
+| `runtime_version`           | the Node version this process runs, against the tested one                                                                                                            | host uses the exact tested runtime                                  |
+| `reverse_proxy_posture`     | the installed nginx configuration: refuses a cleartext server that proxies, a non-loopback upstream, TLS 1.0/1.1, and a proxying block that drops the original scheme | installed nginx validation                                          |
+| `liminal_runtime_inventory` | the compiler and its runtime closure on this host, via the release's own `verify-liminal-runtime.sh`                                                                  | reviewed compiler artifact and runtime-closure inventory            |
+| `evidence_receipts`         | release verification, rollback rehearsal and compiler qualification receipts: present, naming this release, ratified, recent enough                                   | rollback receipt, migration result, ratified compiler qualification |
 
 `unit_provenance` and `secret_posture` consider only the unit names this release ships.
 Everything else installed on the host is somebody else's contract, and an earlier version that
@@ -507,8 +509,10 @@ Three things stay human evidence, and the verifier reports `unverifiable` rather
 
 - **real-provider browser evidence.** `identity_provider_policy` proves the deployment points
   at the reviewed policy; it cannot prove a person can sign in or that the flow behaves.
-- **firewall rules and installed nginx validation.** The certificate check proves the name is
-  covered; it does not prove what can reach the port.
+- **firewall rules.** The certificate check proves the name is covered and
+  `reverse_proxy_posture` reads the installed nginx configuration; neither proves what can reach
+  the port. This bullet said "firewall rules and installed nginx validation" until 2026-08-24,
+  which stopped being true when `reverse_proxy_posture` shipped.
 - **service start, restart and reboot behaviour.** `unit_provenance` proves the right units are
   installed; whether the host survives a reboot is observed, not inferred.
 
@@ -535,7 +539,7 @@ cannot quietly acquire the appearance of coverage.
   configuration as installed and refuses a cleartext server that proxies, an upstream that is
   not loopback, TLS 1.0/1.1, and a proxying block that does not forward the original scheme.
   It does not follow `include` directives and cannot interrogate the running nginx, so point it
-  at the file that defines the server blocks. **Firewall rules still have no check** and remain
+  at the file that defines the server blocks. Firewall rules have **no check** and remain
   inspection by hand.
 - no installed user/file ownership evidence, service start/restart/reboot evidence —
   `unit_provenance`; and no proof host uses exact tested Node/PostgreSQL versions —

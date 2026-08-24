@@ -98,12 +98,31 @@ commissioning, not evidence of it.
    signature that verifies, not about a file", so an approval nobody can check is not one. The
    public key is committed at `ontology/release-keys/release-1.pub` for exactly that reason.
 
-   **The signed package itself is NOT in this repository.** `/release/` is gitignored, so
-   `approval.json` — the only copy of the signature — lives on the workstation that produced
-   it. Re-signing would produce a different `approved_at`, and `approve` refuses to overwrite
-   an existing approval, so this artifact is not reproducible, only re-creatable as a
-   different record. Where signed packages live is an open decision; until it is taken, that
-   file is a single point of loss.
+   **The signature is in this repository; the pack it signs is not, and that asymmetry is the
+   decision rather than an accident of `.gitignore`.** Settled 2026-08-24 in `3f2c68e0`, and
+   this paragraph is a correction: it previously read "the signed package itself is NOT in this
+   repository … that file is a single point of loss", which described the risk accurately on
+   the day it was written and was still standing here for hours after the risk was closed. The
+   record that defines the release gate is the worst place for a stale warning, because a
+   reader budgets work against it.
+
+   What is recoverable was measured, not assumed:
+
+   |                 |                  |                                                                                                                            |
+   | --------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------- |
+   | pack + manifest | **reproducible** | two builds byte-identical, and a rebuild from the source at `7b56a13f` reproduced the approved manifest `3a2b133b` exactly |
+   | `approval.json` | **not**          | `approveRelease` signs a payload containing `approved_at`, so re-signing the same manifest yields a different signature    |
+
+   A grep for `new Date` / `Date.now` / `randomUUID` / `Math.random` across the whole
+   ontology-compiler package hits exactly one file — `approval.ts` — so the timestamp is the
+   sole nondeterminism, and it is enough to make the signature irreplaceable.
+
+   So `.gitignore` keeps `/release/*/approval.json` and excludes everything beside it. Tracking
+   the pack as well would commit ~280 KB of derived bytes that regenerate from `ontology/`, and
+   a second copy of a derived artifact is the drift this repository keeps removing. Tracking
+   the signature alone costs a few hundred bytes and removes the single point of loss entirely:
+   the approval now survives a lost workstation, and any clone can verify it after rebuilding
+   the pack from source.
 
 3. **One host has been commissioned**, and `kf-commissioning` reports every check `satisfied`.
    Not `unverifiable` — a check that could not run is not a check that passed, which is why

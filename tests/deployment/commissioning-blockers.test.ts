@@ -79,6 +79,36 @@ describe('the blockers list and the commissioning checks describe the same set',
     expect(named.size, 'no check ids found in the blockers list').toBeGreaterThan(3);
   });
 
+  it('summarises exactly the checks that run, in the table that describes them', () => {
+    // The blockers list below was already held to the registry by the assertions in this file.
+    // The "what each check reads" table forty lines above it was held to nothing, and by
+    // 2026-08-24 it listed SIX of the eight — `reverse_proxy_posture` and
+    // `liminal_runtime_inventory` had been shipping, running, and correctly named in the
+    // blockers list while the summary went on describing an older registry.
+    //
+    // That is the argument for this test in one artefact: the guarded half stayed true and the
+    // unguarded half did not, in the same document, about the same eight things.
+    const body = readFileSync(DOCUMENT, 'utf8');
+    const heading = body.indexOf('What each check reads, and the blocker it closes:');
+    expect(heading, 'the check-summary table is gone from private-host.md').toBeGreaterThan(0);
+
+    const listed: string[] = [];
+    for (const line of body.slice(heading).split('\n').slice(1)) {
+      if (!line.startsWith('|')) {
+        if (listed.length > 0) break;
+        continue;
+      }
+      const first = line.split('|')[1] ?? '';
+      const id = /`([a-z][a-z0-9_]*)`/.exec(first)?.[1];
+      if (id !== undefined) listed.push(id);
+    }
+
+    expect(
+      listed.sort(),
+      'the table describing what each check reads does not name the checks that actually run',
+    ).toEqual([...KNOWN_IDS].sort());
+  });
+
   it('accounts for every check the verifier runs', () => {
     const document = blockerBullets().join('\n');
     const unmentioned = [...KNOWN_IDS].filter((id) => !document.includes(`\`${id}\``));
@@ -113,15 +143,26 @@ describe('the blockers list and the commissioning checks describe the same set',
     // `liminal_runtime_inventory` then closed the artifact and runtime-closure bullet by
     // running the release's own verifier.
     //
-    // THE TWO THAT REMAIN CANNOT BE CLOSED FROM HERE, and that is the point of still counting
-    // them: a person receiving an alert, and real-provider browser evidence. Both need a human
-    // to do something and then say so. If this number ever reaches zero, check whether someone
-    // built two more checks or simply deleted two sentences.
+    // 2 -> 3 on 2026-08-24, and the count went UP without anything regressing. Three blockers
+    // have no check; only two carried the literal marker, because the firewall bullet wrapped
+    // its bold around "Firewall rules still have no check" while the counter matches
+    // `**no check**` exactly. The number was right about the markup and wrong about the world.
+    //
+    // The three are not the same kind, and the difference is worth keeping straight:
+    //
+    //   CANNOT be closed from here   a person receiving an alert; real-provider browser
+    //                                evidence. Both need a human to act and then say so.
+    //   NOT YET closed               firewall rules. Automatable in principle; nobody has
+    //                                written it. `reverse_proxy_posture` reads the nginx
+    //                                configuration but cannot say what reaches the port.
+    //
+    // If this number falls, check which kind moved. A check closing the firewall gap is
+    // progress; either of the other two falling means somebody deleted a sentence.
     const uncovered = blockerBullets().filter((bullet) => bullet.includes('**no check**'));
     expect(
       uncovered.length,
       'the count of blockers with no automated check changed; update this number in the same ' +
         'commit that adds or removes a check, and say which it was',
-    ).toBe(2);
+    ).toBe(3);
   });
 });

@@ -19,9 +19,17 @@ export function callerFrom(headers: Record<string, unknown>): Caller {
     actorId: get('x-kf-actor'),
     actingRoleId: get('x-kf-acting-role'),
     organizationId: get('x-kf-organization'),
-    // Defaults to the LOWEST tier, never the highest. A caller who does not state a
-    // clearance gets the least, so a missing header narrows what is visible rather than
-    // widening it.
+    // Defaults to `internal`, the SECOND-lowest of four: `public` is rank 0, `internal` is 1.
+    //
+    // This comment previously read "Defaults to the LOWEST tier … gets the least", and that
+    // was wrong. A caller who states nothing sees everything classified `public` AND
+    // `internal`. Corrected rather than quietly reworded, because a comment that overstates a
+    // safety property in the auth path is how nobody reads it again.
+    //
+    // The value is deliberately unchanged here. Whether it should be `public`, and whether
+    // this field is a granted privilege at all, is ADR 0008's question: `resolveIn` passes it
+    // through UNVALIDATED to `core.set_access_context`, so the ceiling is caller-asserted
+    // while organization and acting role are both proven.
     maxClassification:
       typeof headers['x-kf-classification'] === 'string'
         ? (headers['x-kf-classification'] as string)
