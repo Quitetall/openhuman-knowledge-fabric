@@ -11,10 +11,14 @@
  * one document differently produce two addresses for one document. This box runs pandoc 3.10.2 and
  * CI runs 3.1.3, so that is not hypothetical here.
  *
- * The digest is REPORTED rather than asserted against a frozen golden, deliberately and for now.
- * Freezing it before knowing whether 3.1.3 and 3.10.2 agree would either pin a value that is
- * already host-dependent, or turn a discovery into a red build on a guess. Print it on both, read
- * both, then freeze — task #151.
+ * THE ORDER MATTERS AND IS THE POINT. Every digest here was REPORTED from both hosts first and
+ * frozen only after they agreed — eleven of them, all identical across the two versions. Freezing
+ * from one machine records that machine's output and calls it a contract, which is the same
+ * failure as a check that cannot fail, wearing different clothes.
+ *
+ * Digests are still printed on every run even though they are now asserted: when one moves, the
+ * first question is always what the other host produces, and having the line already in the log
+ * saves a re-run to find out. Resolved as task #151 — no pandoc pin required.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -33,18 +37,72 @@ const SOURCE = Buffer.from('# Heading\n\nOne fact, one owner.\n');
  * Same discipline as the golden above: REPORTED from both hosts first, frozen only once two
  * versions have agreed. A constant frozen from one machine is that machine's output, not the
  * parser's behaviour.
+ *
+ * FROZEN 2026-08-24. All ten digests are byte-identical on pandoc 3.1.3 (CI, ubuntu-24.04 apt)
+ * and 3.10.2 (workstation) — compared by diffing the two lists rather than by reading hex, which
+ * is not a thing anyone should check by eye. Roughly two years of pandoc releases separate them,
+ * and nothing here moved, so "no version pin required" (#151) now rests on the constructs that
+ * could actually have broken it rather than on a heading and a paragraph.
+ *
+ * A failure here is a FINDING, not a chore. Re-measure on a second pandoc before touching any
+ * constant: if both hosts moved together the projection changed, and if only one moved pandoc
+ * did.
  */
-const DRIFT_CASES: ReadonlyArray<{ readonly name: string; readonly source: string }> = [
-  { name: 'table', source: '| a | b |\n| - | - |\n| 1 | 2 |\n' },
-  { name: 'footnote', source: 'Text with a note.[^1]\n\n[^1]: The note body.\n' },
-  { name: 'raw-html', source: '<div class="x">\n\nInside.\n\n</div>\n' },
-  { name: 'typography', source: 'He said "quoted" -- and then... an em---dash.\n' },
-  { name: 'task-list', source: '- [x] done\n- [ ] not done\n' },
-  { name: 'strikethrough-autolink', source: '~~gone~~ and https://example.invalid/x\n' },
-  { name: 'fenced-code-attrs', source: '``` {.sql #q1}\nselect 1;\n```\n' },
-  { name: 'nested-list', source: '1. one\n   - inner\n     - deeper\n2. two\n' },
-  { name: 'blockquote-nested', source: '> outer\n>\n> > inner\n' },
-  { name: 'entity-and-escape', source: 'A &amp; B, 5 \\* 3, café, 中文.\n' },
+const DRIFT_CASES: ReadonlyArray<{
+  readonly name: string;
+  readonly source: string;
+  readonly digest: string;
+}> = [
+  {
+    name: 'table',
+    source: '| a | b |\n| - | - |\n| 1 | 2 |\n',
+    digest: '04c6f04199dcf997c1d9c13da98e1da37efee19dcd91a0e5f15edcdb0089a79a',
+  },
+  {
+    name: 'footnote',
+    source: 'Text with a note.[^1]\n\n[^1]: The note body.\n',
+    digest: '839879b61af4229f110ef55a45072b48f3192c51a118c0c7ddc56463f5bd0b82',
+  },
+  {
+    name: 'raw-html',
+    source: '<div class="x">\n\nInside.\n\n</div>\n',
+    digest: 'af41a99ea78570ef81b0e6b185700810715d07108e78385370ab2cc417f3fdb6',
+  },
+  {
+    name: 'typography',
+    source: 'He said "quoted" -- and then... an em---dash.\n',
+    digest: '4bdf2414ac8b47d6d24bb263a48ebfb5ab51826629d84030e9fe89a07fd20c89',
+  },
+  {
+    name: 'task-list',
+    source: '- [x] done\n- [ ] not done\n',
+    digest: '0193c8baecb646ab9be8fd9a7845aae0206dc4ef432f05e3f6183ba36429c37f',
+  },
+  {
+    name: 'strikethrough-autolink',
+    source: '~~gone~~ and https://example.invalid/x\n',
+    digest: '9957a975c2ef27047a899ec614bfdb246fb17a58dfe2f7fdad7872a9a42fffdf',
+  },
+  {
+    name: 'fenced-code-attrs',
+    source: '``` {.sql #q1}\nselect 1;\n```\n',
+    digest: '826341687a7e0136557914d00e5ea6945f474f1c249f9d782b8673fd3fa11898',
+  },
+  {
+    name: 'nested-list',
+    source: '1. one\n   - inner\n     - deeper\n2. two\n',
+    digest: '016e59fc5a6a13851decd6484a161c5e49bb2e7553ac51d254d20af5693e250f',
+  },
+  {
+    name: 'blockquote-nested',
+    source: '> outer\n>\n> > inner\n',
+    digest: '810e62a530d5919a500b24f23c38bc47d648c3d3ebaafb900adbaedbea8b4456',
+  },
+  {
+    name: 'entity-and-escape',
+    source: 'A &amp; B, 5 \\* 3, café, 中文.\n',
+    digest: 'e800952dc48f05b859c0b6e4a51c0eb137551218996df0e99fcedadd288095b5',
+  },
 ];
 
 describe('the real pandoc parser', () => {
@@ -107,30 +165,38 @@ describe('the real pandoc parser', () => {
     expect(parsed!.atoms.map((atom) => atom.kind)).toEqual(['heading', 'paragraph']);
   });
 
-  it('reports a digest per drift-prone construct, for freezing once two hosts agree', async () => {
-    // Not yet asserted against constants, on purpose. Freezing these from this machine would
-    // record what pandoc 3.10.2 does and call it the contract; the whole point of the exercise
-    // above was that a golden is only worth having once a second version has agreed with it.
+  it('holds the frozen digest for every drift-prone construct', async () => {
     const parser = new PandocDocumentParser();
     const lines: string[] = [];
-    for (const { name, source } of DRIFT_CASES) {
+    const drifted: string[] = [];
+    const empty: string[] = [];
+
+    for (const { name, source, digest } of DRIFT_CASES) {
       const parsed = await parser.parse(Buffer.from(source), 'text/markdown');
       expect(parsed, `pandoc produced no parse for ${name}`).toBeDefined();
-      expect(parsed!.contentDigest, `${name} digest is not a sha256`).toMatch(/^[0-9a-f]{64}$/);
       lines.push(
         `[pandoc-drift] ${name.padEnd(24)} atoms=${String(parsed!.atoms.length).padStart(2)} ` +
           `loss=${String(parsed!.conversionLoss.length)} ${parsed!.contentDigest}`,
       );
+      // Zero atoms would be an empty projection, whose digest is identical everywhere —
+      // agreement that measures nothing. Checked apart from the digest so a failure says which
+      // of the two went wrong.
+      if (parsed!.atoms.length === 0) empty.push(name);
+      if (parsed!.contentDigest !== digest) {
+        drifted.push(
+          `${name}: frozen ${digest.slice(0, 12)} got ${parsed!.contentDigest.slice(0, 12)}`,
+        );
+      }
     }
+    // Printed on every run, not only on failure: when one of these moves the next question is
+    // always what the OTHER host produces, and the full line in the log saves a re-run.
     process.stdout.write(`\n${lines.join('\n')}\n`);
 
-    // The one thing worth asserting before the comparison: every case produced SOMETHING. A
-    // construct that silently yielded zero atoms would print a digest of an empty projection and
-    // look like agreement between hosts while measuring nothing.
-    const empty = DRIFT_CASES.filter((_, index) => lines[index]!.includes('atoms= 0'));
+    expect(empty, 'these constructs parsed to no atoms at all').toEqual([]);
     expect(
-      empty.map((c) => c.name),
-      'these constructs parsed to no atoms at all',
+      drifted,
+      'the parse moved — re-measure on a second pandoc BEFORE updating any constant: both hosts ' +
+        'moving means the projection changed, one host moving means pandoc did',
     ).toEqual([]);
   });
 
