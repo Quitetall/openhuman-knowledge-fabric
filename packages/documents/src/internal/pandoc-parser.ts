@@ -50,9 +50,14 @@ const MAX_PANDOC_JSON_BYTES = 64 * 1024 * 1024;
  * The pandoc BINARY version, which is not the same thing as `pandoc-api-version`.
  *
  * `pandoc-api-version` is the pandoc-types AST SCHEMA version. It moves only when the shape of
- * the AST changes, so a long run of pandoc releases share one value while differing in how they
- * parse the same bytes. This host runs pandoc 3.10.2 and CI runs 3.1.3 — dozens of releases
- * apart — and both stamped their parses `1.23.1.2`.
+ * the AST changes, so a run of pandoc releases can share one value while differing in how they
+ * parse the same bytes — the schema is not a proxy for the program.
+ *
+ * An earlier version of this comment claimed pandoc 3.1.3 (CI) and 3.10.2 (this workstation)
+ * "both stamped their parses 1.23.1.2". Measured, they do not: 3.1.3 emits `1.23.1` and 3.10.2
+ * emits `1.23.1.2`. The general point stands and the example was wrong, which is worth leaving
+ * written down — pandoc-types happened to move between those two releases, and picking a pair
+ * where it had not would have been luck rather than reasoning.
  *
  * That matters because `contentDigest` is derived from the atoms and used as a content address
  * (`compiled-views/sha256/<digest>`). If two hosts parse one document differently, the record

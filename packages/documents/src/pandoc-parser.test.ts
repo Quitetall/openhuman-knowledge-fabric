@@ -46,18 +46,31 @@ describe('the real pandoc parser', () => {
     ).not.toBe(api);
   });
 
-  it('reports the content digest so two hosts can be compared before one is frozen', async () => {
+  it('produces the frozen content digest, which two pandoc versions agreed on', async () => {
     const parsed = await new PandocDocumentParser().parse(SOURCE, 'text/markdown');
     expect(parsed).toBeDefined();
 
-    // Read this off CI and off a workstation. Equal means the parse is version-stable across the
-    // range we actually run and the digest can be frozen here; unequal is the answer to #151 and
-    // means a pinned pandoc is a correctness requirement, not housekeeping.
+    // FROZEN after measuring, not before. The digest was reported from both hosts first:
+    //
+    //   pandoc 3.1.3  (CI, ubuntu-24.04 apt)   api 1.23.1     69d199ac...
+    //   pandoc 3.10.2 (workstation)            api 1.23.1.2   69d199ac...
+    //
+    // Same digest across roughly two years of pandoc releases, so freezing it pins real
+    // behaviour rather than one machine's. `contentDigest` is a content ADDRESS in the compiler
+    // runtime (`compiled-views/sha256/<digest>`), so a silent change here means one document
+    // acquiring two addresses — this is the check that would notice.
+    //
+    // If a future pandoc breaks this, that is the finding, not a nuisance: re-measure both hosts
+    // before touching the constant, and see #151 for why the version alone will not tell you.
     process.stdout.write(
       `\n[pandoc-parse] version=${parsed!.parserVersion} contentDigest=${parsed!.contentDigest}\n`,
     );
 
     expect(parsed!.contentDigest, 'digest is not a sha256').toMatch(/^[0-9a-f]{64}$/);
+    expect(
+      parsed!.contentDigest,
+      'the parse changed — re-measure on a second pandoc before updating this constant',
+    ).toBe('69d199ac5ab1f209effe9642b606f18518c17265d3132baac0de983799b5599f');
     expect(parsed!.parser).toBe('pandoc');
     expect(parsed!.atoms.length, 'a heading and a paragraph should be two atoms').toBe(2);
     // `text`, not `textContent` — the latter is the COLUMN name on content.document_atom, and
