@@ -23,11 +23,39 @@ import { PandocDocumentParser } from './internal/pandoc-parser.js';
 /** Deliberately dull constructs: a heading and a paragraph, whose parse should be stable. */
 const SOURCE = Buffer.from('# Heading\n\nOne fact, one owner.\n');
 
+/**
+ * The constructs that actually drift, which the dull one above says nothing about.
+ *
+ * A heading and a paragraph agreeing across two pandocs is weak evidence — those are the parts
+ * of Markdown nobody changes. Tables, footnotes, raw HTML and typography are where pandoc
+ * releases move, and where a content digest would change under a document that had not.
+ *
+ * Same discipline as the golden above: REPORTED from both hosts first, frozen only once two
+ * versions have agreed. A constant frozen from one machine is that machine's output, not the
+ * parser's behaviour.
+ */
+const DRIFT_CASES: ReadonlyArray<{ readonly name: string; readonly source: string }> = [
+  { name: 'table', source: '| a | b |\n| - | - |\n| 1 | 2 |\n' },
+  { name: 'footnote', source: 'Text with a note.[^1]\n\n[^1]: The note body.\n' },
+  { name: 'raw-html', source: '<div class="x">\n\nInside.\n\n</div>\n' },
+  { name: 'typography', source: 'He said "quoted" -- and then... an em---dash.\n' },
+  { name: 'task-list', source: '- [x] done\n- [ ] not done\n' },
+  { name: 'strikethrough-autolink', source: '~~gone~~ and https://example.invalid/x\n' },
+  { name: 'fenced-code-attrs', source: '``` {.sql #q1}\nselect 1;\n```\n' },
+  { name: 'nested-list', source: '1. one\n   - inner\n     - deeper\n2. two\n' },
+  { name: 'blockquote-nested', source: '> outer\n>\n> > inner\n' },
+  { name: 'entity-and-escape', source: 'A &amp; B, 5 \\* 3, café, 中文.\n' },
+];
+
 describe('the real pandoc parser', () => {
   it('records the pandoc BINARY version, not only the AST schema version', async () => {
     // The defect this was written for: `parserVersion` carried `pandoc-api-version`, the
-    // pandoc-types AST SCHEMA version. That moves only when the AST shape changes, so a long run
-    // of pandoc releases share one value — 3.1.3 and 3.10.2 both stamp `1.23.1.2`. The column
+    // pandoc-types AST SCHEMA version, which tracks pandoc-types rather than pandoc and so can
+    // stay put across releases that parse differently.
+    //
+    // This comment previously offered 3.1.3 and 3.10.2 as a pair that "both stamp 1.23.1.2".
+    // Measured, they do not — 1.23.1 and 1.23.1.2 — so for that pair the schema version happens
+    // to distinguish the binaries. Wrong example, intact principle. The column
     // comment on content.document_parse already claimed the field "identifies only upstream
     // Pandoc"; it did not, and three rows on the dev database say `1.23.1.2` with nothing to say
     // which pandoc wrote them.
@@ -77,6 +105,33 @@ describe('the real pandoc parser', () => {
     // guessing it here produced two `undefined`s that compared unequal for the right reason.
     expect(parsed!.atoms.map((atom) => atom.text)).toEqual(['Heading', 'One fact, one owner.']);
     expect(parsed!.atoms.map((atom) => atom.kind)).toEqual(['heading', 'paragraph']);
+  });
+
+  it('reports a digest per drift-prone construct, for freezing once two hosts agree', async () => {
+    // Not yet asserted against constants, on purpose. Freezing these from this machine would
+    // record what pandoc 3.10.2 does and call it the contract; the whole point of the exercise
+    // above was that a golden is only worth having once a second version has agreed with it.
+    const parser = new PandocDocumentParser();
+    const lines: string[] = [];
+    for (const { name, source } of DRIFT_CASES) {
+      const parsed = await parser.parse(Buffer.from(source), 'text/markdown');
+      expect(parsed, `pandoc produced no parse for ${name}`).toBeDefined();
+      expect(parsed!.contentDigest, `${name} digest is not a sha256`).toMatch(/^[0-9a-f]{64}$/);
+      lines.push(
+        `[pandoc-drift] ${name.padEnd(24)} atoms=${String(parsed!.atoms.length).padStart(2)} ` +
+          `loss=${String(parsed!.conversionLoss.length)} ${parsed!.contentDigest}`,
+      );
+    }
+    process.stdout.write(`\n${lines.join('\n')}\n`);
+
+    // The one thing worth asserting before the comparison: every case produced SOMETHING. A
+    // construct that silently yielded zero atoms would print a digest of an empty projection and
+    // look like agreement between hosts while measuring nothing.
+    const empty = DRIFT_CASES.filter((_, index) => lines[index]!.includes('atoms= 0'));
+    expect(
+      empty.map((c) => c.name),
+      'these constructs parsed to no atoms at all',
+    ).toEqual([]);
   });
 
   it('is deterministic within one host, which the cross-host question presumes', async () => {
