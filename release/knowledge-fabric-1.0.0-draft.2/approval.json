@@ -1,0 +1,16 @@
+{
+  "manifest_sha256": "99b647fac448863b9c383bdd084cd5b1ce072b130c9ecc4dc7a3035ec509df54",
+  "approved_at": "2026-08-19T09:29:52.172Z",
+  "approver": {
+    "name": "Brian Lam",
+    "role": "Technical Authority",
+    "statement": "Approved as the normative R01 release package under spec §5, accepting the two recorded gaps: validate_graph.py enforces 4 of 10 invariants with the remaining six enforced as Gate 3 database constraints rather than in the script, and relation endpoints remain untyped pending ONT-012 in Gate 6."
+  },
+  "signing_key_id": "release-1",
+  "accepted_gaps": [
+    "validate_graph.py implements 4 of 10 invariants (KF-FIN-001, KF-FIN-003 partially, plus invoice line totals). The remaining six exist only in prose, which §27.1 calls nonconforming. Gate 3 enforces all ten as database constraints and action preconditions.",
+    "Relation types declare no source_types/target_types, so nothing constrains which object types an edge may connect. Tracked as ONT-012; typing lands in Gate 6.",
+    "The manifest is unsigned. §5 requires a signed or approved release manifest before the package is normative."
+  ],
+  "signature": "yhCpCz3QXJPTLCldK/hmOywtVO7burDEoFa4wTDMNc/tpDM68cYEiuvn1D8yaQvmTUMIjrIv4uUQ3htRtW9bCg=="
+}

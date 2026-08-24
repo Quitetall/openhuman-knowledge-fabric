@@ -1,0 +1,18 @@
+{
+  "manifest_sha256": "3a2b133bd84886af4df63db36934131003153e332e1b0652b0658b964c538bbe",
+  "approved_at": "2026-08-20T00:26:34.418Z",
+  "approver": {
+    "name": "Brian Lam",
+    "role": "Technical Authority",
+    "statement": "Approved as the normative machine-readable companion to OH-DOC-000001-3 R01, accepting the five recorded gaps: no atomic allocator exists yet (R6, §17 Phase 1); R13 and R14 are not machine-enforceable; the §9.4 record grammar embeds the creation year against §10.2's rationale; R01 does not carry the I/O/Q rule and allocates REQ; and the source document's control block still reads pending."
+  },
+  "signing_key_id": "release-1",
+  "accepted_gaps": [
+    "R6 requires enterprise sequences to be \"atomically allocated\". No sequence table or allocation service exists yet; allocation is a reviewed seed file in openhuman-quality. Tracked as R01 §17 Phase 1.",
+    "R13 (\"a named human reviewer decides whether an acronym creates material confusion\") and R14 (no PHI/PII/secrets in identifiers) are not machine-enforceable. R13 is unenforced by the document's own wording; R14 is partially covered by gitleaks, which finds credential shapes and cannot recognise PHI.",
+    "The §9.4 record grammar embeds the creation year in the identifier, while §10.2 forbids exactly that for lots and work orders with a rationale that applies equally. Raised as an amendment question; no OH-RCD identifiers have been issued.",
+    "This package is compiled from a document whose control block reads \"Draft for approval / Approval record: Pending\". Nothing here is normative until OH-DOC-000001-3 R01 is approved and the §15.2 bootstrap is executed.",
+    "R01 does not carry OH-DOC-REG-SYS-001-R2 rule R3, which forbade the letters I, O and Q adjacent to a numeric field, and §4.2 then allocates REQ — whose Q sits directly against the sequence in OH-REQ-000123-4. Q/0 and I/1 are the classic transcription confusions, and the Damm digit detects a misread but cannot prevent one. Reported as a warning by registry-check, since refusing an allocation R01 made deliberately is not this toolchain's call. Raised as an amendment question."
+  ],
+  "signature": "JVJTHGUcieAg2gNDl/0WO6NFM0SSZ548aWc054afOq3b51nMuBM5o/4CafCK21wOJsYW2rP9q+ADslpMa55RAg=="
+}
