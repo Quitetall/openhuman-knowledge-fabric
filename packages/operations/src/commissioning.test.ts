@@ -630,6 +630,17 @@ describe('liminal runtime inventory', () => {
         runtimeClosureDigest: '0'.repeat(64),
       }),
     );
+    // ADR 0010: a release declares whether it carries a Liminal compiler. This one does, so
+    // every assertion below still exercises the sealed path rather than the deferred one.
+    await writeFile(join(root, 'BUILD-METADATA'), 'git_commit=deadbeef\nliminal=sealed\n');
+    return root;
+  }
+
+  /** A release built the ordinary v1.0 way: native compiler, no Liminal payload. */
+  async function releaseWithoutLiminal(declaration = 'liminal=none\n'): Promise<string> {
+    const root = await mkdtemp(join(tmpdir(), 'kf-release-native-'));
+    directories.push(root);
+    await writeFile(join(root, 'BUILD-METADATA'), `git_commit=deadbeef\n${declaration}`);
     return root;
   }
 
@@ -655,6 +666,44 @@ describe('liminal runtime inventory', () => {
   it('is unverifiable when no release directory is supplied', async () => {
     const result = await assess(undefined);
     expect(result.status).toBe('unverifiable');
+  });
+
+  // ADR 0010. The v1.0 release carries no Liminal compiler, and the danger in allowing that is
+  // a check that passes because its subject is absent. These four hold the line: the check's
+  // subject became "the declaration matches what is installed", which fails both ways.
+
+  it('is satisfied when a release declares no Liminal compiler and ships none', async () => {
+    const result = await assess(await releaseWithoutLiminal());
+    expect(result.status).toBe('satisfied');
+    expect(result.detail).toContain('declares no Liminal compiler');
+  });
+
+  it('FAILS when a release declares none and ships one anyway', async () => {
+    // The reason the `none` branch is a check rather than a shrug. An unreviewed compiler
+    // inside a release is worse than a mislabelled release, so the declaration is not trusted.
+    const root = await releaseWithoutLiminal();
+    await mkdir(join(root, 'vendor', 'liminal'), { recursive: true });
+    await writeFile(join(root, 'vendor', 'liminal', 'liminal-document-compiler'), 'not reviewed');
+    const result = await assess(root);
+    expect(result.status).toBe('unsatisfied');
+    expect(result.detail).toContain('ships a Liminal runtime directory anyway');
+  });
+
+  it('is unverifiable when a release declares nothing, rather than assuming none', async () => {
+    // Every release built before ADR 0010 is in this state. Defaulting them to `none` would
+    // make a release that DOES carry a compiler silently claim it does not — fail-open, and
+    // invisible.
+    const result = await assess(await releaseWithoutLiminal(''));
+    expect(result.status).toBe('unverifiable');
+    expect(result.detail).toContain('does not state whether');
+  });
+
+  it('is unverifiable when the release has no BUILD-METADATA at all', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'kf-release-bare-'));
+    directories.push(root);
+    const result = await assess(root);
+    expect(result.status).toBe('unverifiable');
+    expect(result.detail).toContain('BUILD-METADATA');
   });
 
   it('is unverifiable, and names them, when the LIMINAL_* values are absent', async () => {

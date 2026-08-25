@@ -185,32 +185,51 @@ dbmate_binary="$(node --input-type=module -e \
 install -d "$release_root/tools"
 install -m 0755 "$dbmate_binary" "$release_root/tools/dbmate"
 
-# Supply a reviewed native compiler artifact produced from the recorded Liminal commit and its
-# exact Cargo.lock. Runtime paths are the target's immutable ELF interpreter/library closure;
-# they stay external because the ELF records their absolute paths, but their ordered paths and
+# A release MAY carry a reviewed Liminal compiler, and must say which. ADR 0010 defers the
+# Liminal-backed compiler: v1.0 ships the native one, so `liminal=none` is the ordinary case
+# and this block was previously an unconditional `exit 1`.
+#
+# All three values, or none of the three. A partial set is refused rather than resolved,
+# because guessing which half was meant is how a release seals an artifact nobody reviewed.
+# When supplied: runtime paths are the target's immutable ELF interpreter/library closure, and
+# stay external because the ELF records their absolute paths, but their ordered paths and
 # content digests are sealed into the release. Empty or placeholder artifacts are refused.
-test -n "${LIMINAL_COMPILER_ARTIFACT:-}" \
-  && test -n "${LIMINAL_CARGO_LOCK_ARTIFACT:-}" \
-  && test -n "${LIMINAL_RUNTIME_FILE_PATHS:-}" || {
-  echo 'Liminal compiler, Cargo.lock and runtime closure must be supplied' >&2
-  exit 1
-}
-IFS=: read -r -a liminal_runtime_files <<< "$LIMINAL_RUNTIME_FILE_PATHS"
-scripts/deploy/assemble-liminal-runtime.sh \
-  "$release_root" \
-  "$LIMINAL_COMPILER_ARTIFACT" \
-  "$LIMINAL_CARGO_LOCK_ARTIFACT" \
-  "${liminal_runtime_files[@]}"
+liminal_supplied=0
+for value in "${LIMINAL_COMPILER_ARTIFACT:-}" "${LIMINAL_CARGO_LOCK_ARTIFACT:-}" \
+             "${LIMINAL_RUNTIME_FILE_PATHS:-}"; do
+  test -n "$value" && liminal_supplied=$((liminal_supplied + 1))
+done
+case "$liminal_supplied" in
+  3) liminal_declaration=sealed ;;
+  0) liminal_declaration=none ;;
+  *) echo 'supply all of LIMINAL_COMPILER_ARTIFACT, LIMINAL_CARGO_LOCK_ARTIFACT and' \
+          'LIMINAL_RUNTIME_FILE_PATHS, or none of them' >&2
+     exit 1 ;;
+esac
+
+if [ "$liminal_declaration" = sealed ]; then
+  IFS=: read -r -a liminal_runtime_files <<< "$LIMINAL_RUNTIME_FILE_PATHS"
+  scripts/deploy/assemble-liminal-runtime.sh \
+    "$release_root" \
+    "$LIMINAL_COMPILER_ARTIFACT" \
+    "$LIMINAL_CARGO_LOCK_ARTIFACT" \
+    "${liminal_runtime_files[@]}"
+fi
 
 # Next may write runtime cache data. Unit bind-mounts this exact directory from /var/cache;
 # no other path inside immutable release becomes writable.
 install -d "$release_root/apps/web/.next/cache"
 
-printf 'git_commit=%s\nnode=%s\npnpm=%s\ndbmate=%s\n' \
+# `liminal=` is what `liminal_runtime_inventory` reads. BUILD-METADATA is covered by
+# SHA256SUMS, so the declaration is sealed with everything else and cannot be edited on the
+# host without failing `migrate-release.sh check`.
+printf 'git_commit=%s\nnode=%s\npnpm=%s\ndbmate=%s\nliminal=%s\n' \
   "$(git rev-parse HEAD)" "$(node --version)" "$(pnpm --version)" \
-  "$("$release_root/tools/dbmate" --version)" \
+  "$("$release_root/tools/dbmate" --version)" "$liminal_declaration" \
   > "$release_root/BUILD-METADATA"
-cat "$release_root/vendor/liminal/RUNTIME.env" >> "$release_root/BUILD-METADATA"
+if [ "$liminal_declaration" = sealed ]; then
+  cat "$release_root/vendor/liminal/RUNTIME.env" >> "$release_root/BUILD-METADATA"
+fi
 (
   cd "$release_root"
   find -P . -mindepth 1 -type d -printf '%P\n' | LC_ALL=C sort > DIRECTORIES

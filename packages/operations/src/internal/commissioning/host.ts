@@ -484,6 +484,53 @@ const LIMINAL_RUNTIME_VARIABLES = [
   'LIMINAL_RUNTIME_CLOSURE_SHA256',
 ] as const;
 
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * What a release says about whether it carries a Liminal compiler.
+ *
+ * Read from `BUILD-METADATA`, which the build already writes and which `SHA256SUMS` already
+ * covers — so the declaration is sealed by the same digest as everything else in the release
+ * and cannot be edited on the host without failing `migrate-release.sh check`.
+ *
+ * A release that says nothing is `unverifiable`, deliberately. Defaulting an absent declaration
+ * to `none` would mean every release built before this existed silently claims to ship no
+ * compiler, including one that ships a real one — the version of this that fails open.
+ */
+async function liminalDeclaration(
+  release: string,
+): Promise<{ value?: 'none' | 'sealed'; detail: string }> {
+  const metadataPath = join(release, 'BUILD-METADATA');
+  let body: string;
+  try {
+    body = await readFile(metadataPath, 'utf8');
+  } catch (error) {
+    return {
+      detail:
+        `Cannot read ${metadataPath}: ${message(error)}. Without it this release does not say ` +
+        'whether it carries a Liminal compiler, so nothing here can check the answer.',
+    };
+  }
+
+  const declared = /^liminal=(none|sealed)$/m.exec(body)?.[1];
+  if (declared === undefined) {
+    return {
+      detail:
+        'BUILD-METADATA carries no `liminal=none` or `liminal=sealed` line, so this release ' +
+        'does not state whether it ships a Liminal compiler. Releases built before ADR 0010 do ' +
+        'not carry the line; rebuild, rather than assuming which one it meant.',
+    };
+  }
+  return { value: declared === 'none' ? 'none' : 'sealed', detail: `declared ${declared}` };
+}
+
 /**
  * The reviewed Liminal artifact and its external runtime closure are the reviewed ones.
  *
@@ -520,6 +567,51 @@ export const liminalRuntimeInventory: CommissioningCheckFn = async (
         'No release directory was supplied, so nothing here can say the compiler and runtime ' +
         'closure on this host are the reviewed ones.',
       observed: { releaseDirectory: null },
+    };
+  }
+
+  // What does this release SAY it contains? Added 2026-08-25 with ADR 0010, which defers the
+  // Liminal-backed compiler and ships the native one.
+  //
+  // The check could not simply be relaxed. Until that decision a release with no Liminal
+  // compiler could not be assembled at all — the build refuses without an artifact — so the
+  // only reachable states were "sealed and verified" and "unverifiable". Deferring Liminal
+  // makes a third state real, and the obvious handling of it is the dangerous one: treat an
+  // absent compiler as nothing to check, and pass. That is a check reporting success for the
+  // absence of its own subject, which is the shape `unverifiable` exists to prevent.
+  //
+  // So the subject changes rather than weakens. This asks whether the release's DECLARATION
+  // matches what is installed, which has a real failure in both directions: a release that
+  // declares no compiler and ships one contains an unreviewed binary, and a release that
+  // declares one still has to produce it.
+  const declaration = await liminalDeclaration(release);
+  if (declaration.value === undefined) {
+    return {
+      status: 'unverifiable',
+      detail: declaration.detail,
+      observed: { releaseDirectory: release, liminal: null },
+    };
+  }
+
+  if (declaration.value === 'none') {
+    const vendored = join(release, 'vendor', 'liminal');
+    if (await pathExists(vendored)) {
+      return {
+        status: 'unsatisfied',
+        detail:
+          'This release declares `liminal=none` and ships a Liminal runtime directory anyway. ' +
+          'One of the two is wrong, and an unreviewed compiler inside a release is the worse ' +
+          'possibility, so this fails rather than believing the declaration.',
+        observed: { releaseDirectory: release, liminal: 'none', vendoredRuntime: vendored },
+      };
+    }
+    return {
+      status: 'satisfied',
+      detail:
+        'This release declares no Liminal compiler and ships none, so there is no external ' +
+        'compiler or library closure on this host to review. Documents compile with the native ' +
+        'compiler, which is inside the release and covered by its SHA256SUMS. See ADR 0010.',
+      observed: { releaseDirectory: release, liminal: 'none', vendoredRuntime: null },
     };
   }
 
