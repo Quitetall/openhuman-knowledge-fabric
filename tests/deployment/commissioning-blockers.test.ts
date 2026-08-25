@@ -32,6 +32,7 @@ import { COMMISSIONING_CHECKS } from '@kf/operations';
 
 const ROOT = join(import.meta.dirname, '..', '..');
 const DOCUMENT = join(ROOT, 'docs', 'deployment', 'private-host.md');
+const RELEASE_DECISION = join(ROOT, 'docs', 'decisions', '0004-production-release.md');
 
 /** The `## Known blockers` section, as a list of bullets. */
 function blockerBullets(): readonly string[] {
@@ -164,5 +165,44 @@ describe('the blockers list and the commissioning checks describe the same set',
       'the count of blockers with no automated check changed; update this number in the same ' +
         'commit that adds or removes a check, and say which it was',
     ).toBe(3);
+  });
+});
+
+/**
+ * The release decision counts the same blockers, and nothing held it to them.
+ *
+ * `docs/decisions/0004-production-release.md` opens with a measured block, and one line of it
+ * restates this list: how many blockers there are and how many have no check. On 2026-08-24 it
+ * read "7, of which 4 have no automated check" — right about the 7, a week stale about the 4,
+ * because `reverse_proxy_posture` and `liminal_runtime_inventory` had shipped on 2026-08-17 and
+ * the ADR was not part of that commit.
+ *
+ * That is the third hand-maintained mirror of this one list to drift, after the document's own
+ * check-summary table and the marker count above. The pattern is stable enough to act on rather
+ * than to keep fixing: a number about measurable state, restated in prose, with nothing
+ * comparing it to the state.
+ *
+ * So this reads the ADR's number and computes the same thing from the document. It deliberately
+ * does NOT hardcode 7 and 3 — those live in the assertions above, which is where a deliberate
+ * change belongs. This one only insists the two agree, so the ADR cannot fall behind a commit
+ * that moves them.
+ */
+describe('the release decision counts the same blockers this document lists', () => {
+  it('restates the blocker counts without drifting from them', () => {
+    const decision = readFileSync(RELEASE_DECISION, 'utf8');
+    const line = /known blockers\s+(\d+), of which (\d+) have no automated check/.exec(decision);
+    expect(
+      line,
+      'the measured block in 0004-production-release.md no longer states the blocker counts in ' +
+        'the form this test reads. If the line was reworded, reword this pattern with it; if it ' +
+        'was deleted, delete this test in the same commit and say why.',
+    ).not.toBeNull();
+
+    const bullets = blockerBullets();
+    expect(
+      [Number(line![1]), Number(line![2])],
+      'the release decision states blocker counts that private-host.md does not support, so the ' +
+        'record defining the v1.0 gate is describing an older repository than the one it gates',
+    ).toEqual([bullets.length, bullets.filter((b) => b.includes('**no check**')).length]);
   });
 });

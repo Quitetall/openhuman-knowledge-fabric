@@ -55,11 +55,14 @@ and nothing has ever been deployed", and nothing in a version number distinguish
 pnpm gate                    exit 0 — 112 files, 1120 passed, 4 skipped
 gh run list (2026-08-17)     38 runs, 38 failed, 0 succeeded — no job ever started
 gh run 32146924053           SUCCESS, 4/4 jobs, 6.8 min — first green run, 2026-08-18
+gh run list --workflow=release.yml  7 runs on tags, 5 green — 2026-08-21
+gh run 32460755092           SUCCESS, 2/2 jobs — tag v0.9.0-rc1, since deleted
+gh run 32523164046           SUCCESS, 2/2 jobs — tag v0.9.0, sbom.cdx.json 694202 B attached
 pnpm ontology:verify (2026-08-17)  release/knowledge-fabric-1.0.0-draft.2 → DRAFT, exit 1
 pnpm ontology:verify --key         same package → APPROVED, signed 2026-08-19
 kf-commissioning             never run against a host
 deployment profiles          development | dogfood        (no `production`)
-known blockers               7, of which 4 have no automated check
+known blockers               7, of which 3 have no automated check
 ```
 
 The second and third lines are the ones that changed what this record says. The 38 failures were
@@ -69,9 +72,14 @@ that day. A workflow that cannot start is indistinguishable, in a repository's o
 from one that starts and passes — which is why both lines are measured here rather than assumed
 anywhere.
 
-The third line does NOT discharge criterion 5, which asks for a green run on the TAGGED commit;
-nothing is tagged. What it establishes is narrower and was previously unknown: that these gates
+The third line does NOT discharge criterion 5, which asks for a green run on the commit being
+TAGGED FOR RELEASE. What it establishes is narrower and was previously unknown: that these gates
 CAN pass on a machine nobody configured by hand.
+
+**It used to end "nothing is tagged", and lines four through six are why that sentence is gone.**
+`v0.9.0` was tagged on 2026-08-21 and the release path ran green on it. The blocker-count line
+moved for the same reason: the count of blockers with no check is 3, not 4, and has been since
+`reverse_proxy_posture` and `liminal_runtime_inventory` shipped on 2026-08-17.
 
 Nothing has been commissioned on any host. Every deployment artifact in this repository — units,
 templates, verifiers, the migration runner, the rollback contract — is an input to
@@ -132,21 +140,35 @@ commissioning, not evidence of it.
    run history was checked for the first time and found to be 38 failures out of 38, none of which
    started a job. The workflow existing is not the gate; a green run is.
 
-   **Still open, and no longer for the reason it was written.** Billing was restored on
-   2026-08-18 and CI now passes on `main` (run `32146924053`). That answers the question the
+   **Still open, and twice over no longer for the reason it was written.** Billing was restored
+   on 2026-08-18 and CI now passes on `main` (run `32146924053`). That answers the question the
    criterion was really asking — whether these gates can pass anywhere but the workstation — and
-   it does not satisfy the criterion, which says _tagged commit_. Nothing is tagged.
+   it does not satisfy the criterion, which says _the commit being tagged for release_.
 
-   It is a v1.0 criterion rather than a nice-to-have because of what the other criteria rest on.
-   The secret scan cannot be run locally by everyone and is CI-only by design; the SBOM is
-   produced by `release.yml` on tag, and **`release.yml` has still never run**, because it
-   triggers on `v*` tags only. The first tag is therefore the first execution of the release
-   path: the SBOM step, the create-if-absent release and the `--verify-tag` refusal are all
-   unproven on a runner, exercised only locally against a bare repository.
+   **This paragraph said `release.yml` had still never run, and on 2026-08-24 that was three
+   days out of date.** It has run seven times, all on tags, and the last five were green. The
+   advice it ended with — prefer finding it on a tag that can be deleted — was not a suggestion
+   for the future; it had already been taken. `v0.9.0-rc1` was pushed, went green in both jobs
+   (`32460755092`), and was deleted; the tag is absent from the remote today. Then `v0.9.0`
+   itself went green (`32523164046`) and CI created the release and attached a 694 KB
+   `sbom.cdx.json` to it.
 
-   Six runs on 2026-08-18 turned up five unsatisfied host requirements, four documented and
-   unchecked, one undocumented entirely. Expect the first tag to find something too, and prefer
-   finding it on a tag that can be deleted over one that has been published.
+   So the three things this record called unproven on a runner are proven on one. The SBOM step
+   produced a bill with licence data; the create-if-absent branch created a release that did not
+   exist; the tag passed the same `pnpm gate` every other commit passes. Only the `--verify-tag`
+   _refusal_ is still unexercised, and it can only fire on a ref that does not exist, which a tag
+   push cannot produce.
+
+   The two red runs before those are the ones worth keeping: a shared composite action read the
+   caller's environment, and three of six runner-image guards could not fail. Both were found by
+   the rehearsal rather than by `v0.9.0`, which is the whole argument for rehearsing.
+
+   **What remains is narrow and nearly tautological, and saying so is the point.** The criterion
+   asks for a green run on the commit tagged `v1.0.0`. The release path has not changed since
+   `v0.9.0` — `git diff v0.9.0..HEAD -- .github/workflows/release.yml .github/actions/` is empty —
+   so it is a proven mechanism awaiting a tag, not an unknown. A second rehearsal tag would
+   re-prove an unchanged file against an unchanged runner. Criterion 5 will be satisfied by the
+   act of tagging v1.0.0, or it will fail loudly at that moment, and either is a result.
 
 ## What v1.0 does not claim
 
