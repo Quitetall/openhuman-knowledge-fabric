@@ -149,10 +149,30 @@ risk this document exists to remove, and it went undetected for the life of the 
 there was never a second machine to detect it.
 
 After those gates pass, assemble runnable package directories from those already-built bytes.
-`--legacy` is required by repository's current non-injected pnpm workspace layout.
-`--deploy-all-files` is required because root `.gitignore` excludes `dist/` and `.next/` from
-package packlists; without it release silently omits runtime. These are packaging modes, not
-permission to change lockfile.
+`--legacy` is required by repository's current non-injected pnpm workspace layout. It is a
+packaging mode, not permission to change the lockfile.
+
+**These six lines carried `--deploy-all-files` until 2026-08-25, and on the pinned pnpm that
+flag does not exist.** `packageManager` pins `pnpm@11.21.0`; `pnpm deploy --help` lists
+`--legacy` and `--prod` and no such option, so the documented command exits immediately with
+`Unknown option: 'deploy-all-files'`. Every release built by following this section verbatim
+would have stopped here, and none ever was — this was found by running it for the first time.
+
+Removing it needed care, because the sentence it replaced named a real hazard: root
+`.gitignore` excludes `dist/` and `.next/`, and a deploy that honours the packlist ships a
+package with no runtime in it. So the question is not whether the flag is gone but whether its
+BEHAVIOUR is, and that was measured rather than assumed on pnpm 11.21.0:
+
+| deploy of               | `dist/` | `.next/`                                   |
+| ----------------------- | ------- | ------------------------------------------ |
+| `@kf/operations`, plain | present | n/a                                        |
+| `@kf/web`, plain        | n/a     | present — `BUILD_ID`, `server/`, 365 files |
+
+and `--config.deploy-all-files=true` produced a tree byte-identical to plain. The flag became
+the default. Its removal is therefore safe here and the old warning is now false, but the
+hazard it described is not imaginary: if a future pnpm reverts this, a release will ship
+without runtime and nothing in the tarball will look wrong. `tests/deployment/deploy-flags.test.ts`
+holds these commands to the flags the pinned pnpm actually accepts.
 
 ```sh
 release_id="$(git rev-parse --short=12 HEAD)"
@@ -163,12 +183,12 @@ test ! -e "$release_root" || {
 }
 install -d "$release_root/apps" "$release_root/packages"
 
-pnpm --filter @kf/api deploy --prod --legacy --deploy-all-files "$release_root/apps/api"
-pnpm --filter @kf/web deploy --prod --legacy --deploy-all-files "$release_root/apps/web"
-pnpm --filter @kf/worker deploy --prod --legacy --deploy-all-files "$release_root/apps/worker"
-pnpm --filter @kf/checkpoint deploy --prod --legacy --deploy-all-files "$release_root/apps/checkpoint"
-pnpm --filter @kf/operations deploy --prod --legacy --deploy-all-files "$release_root/packages/operations"
-pnpm --filter @kf/export deploy --prod --legacy --deploy-all-files "$release_root/packages/export"
+pnpm --filter @kf/api deploy --prod --legacy "$release_root/apps/api"
+pnpm --filter @kf/web deploy --prod --legacy "$release_root/apps/web"
+pnpm --filter @kf/worker deploy --prod --legacy "$release_root/apps/worker"
+pnpm --filter @kf/checkpoint deploy --prod --legacy "$release_root/apps/checkpoint"
+pnpm --filter @kf/operations deploy --prod --legacy "$release_root/packages/operations"
+pnpm --filter @kf/export deploy --prod --legacy "$release_root/packages/export"
 
 cp -a scripts deploy "$release_root/"
 install -d "$release_root/docs"
@@ -488,7 +508,7 @@ KF_REVERSE_PROXY_CONFIG=/etc/nginx/sites-enabled/kf \
 KF_RELEASE_DIR=/opt/kf/release \
 KF_EVIDENCE_DIR=/var/lib/kf/commissioning \
 KF_RELEASE_ID=<release this host is running> \
-KF_EXPECTED_NODE_VERSION=24.18.1 \
+KF_EXPECTED_NODE_VERSION="$(sed -n 's/^node=v//p' "$KF_RELEASE_DIR/BUILD-METADATA")" \
   kf-commissioning            # add --json for an evidence record
 ```
 
