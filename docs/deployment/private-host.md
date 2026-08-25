@@ -494,7 +494,23 @@ Before any shared user is admitted:
 Everything below used to be a prose list of things nobody had done — a checklist a reader can
 agree with and move past. It is now a program.
 
+The Node version comes out of the release's own sealed metadata rather than a literal, because
+a literal goes stale against the release it is meant to describe. It is a function so that an
+absent, empty or duplicated line fails HERE, loudly, instead of passing an empty string to
+`kf-commissioning` — which would report "no tested Node version was supplied" about a value
+the operator believes they supplied.
+
 ```sh
+kf_release_node_version() {
+  local version
+  version="$(sed -n 's/^node=v//p' "$KF_RELEASE_DIR/BUILD-METADATA")"
+  test "$(printf '%s' "$version" | grep -c .)" -eq 1 || {
+    echo "BUILD-METADATA in $KF_RELEASE_DIR has no single node= line" >&2
+    return 1
+  }
+  printf '%s' "$version"
+}
+
 KF_SYSTEMD_DIR=/etc/systemd/system \
 KF_SHIPPED_UNIT_DIR=/opt/kf/deploy/systemd \
 KF_PUBLIC_HOSTNAME=fabric.example.org \
@@ -508,7 +524,7 @@ KF_REVERSE_PROXY_CONFIG=/etc/nginx/sites-enabled/kf \
 KF_RELEASE_DIR=/opt/kf/release \
 KF_EVIDENCE_DIR=/var/lib/kf/commissioning \
 KF_RELEASE_ID=<release this host is running> \
-KF_EXPECTED_NODE_VERSION="$(sed -n 's/^node=v//p' "$KF_RELEASE_DIR/BUILD-METADATA")" \
+KF_EXPECTED_NODE_VERSION="$(kf_release_node_version)" \
   kf-commissioning            # add --json for an evidence record
 ```
 

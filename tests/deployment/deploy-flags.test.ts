@@ -56,13 +56,35 @@ function documentedDeployFlags(): readonly string[] {
   return [...flags].sort();
 }
 
+function pnpm(args: readonly string[]): string {
+  return execFileSync('pnpm', [...args], {
+    cwd: ROOT,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+}
+
 describe('the documented release commands can actually run', () => {
+  it('is asking the pnpm this repository pins, not whichever is on PATH', () => {
+    // Without this the test's own premise is unverified. It claims to check the flags "the
+    // pinned pnpm accepts" while invoking a bare `pnpm`, which resolves through PATH — so on a
+    // machine where corepack is not active it would happily qualify the release recipe against
+    // a pnpm nobody deploys with, and pass. A guard whose subject is not the thing it names is
+    // the failure this file exists to catch, so it should not be one.
+    const pinned = /^pnpm@(.+)$/.exec(
+      (JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as { packageManager?: string })
+        .packageManager ?? '',
+    )?.[1];
+    expect(pinned, 'package.json no longer pins pnpm via packageManager').toBeDefined();
+    expect(
+      pnpm(['--version']).trim(),
+      `this test resolved a different pnpm than package.json pins (${pinned!}). Enable corepack ` +
+        'so the version under test is the version the deployment contract targets.',
+    ).toBe(pinned);
+  });
+
   it('names only pnpm deploy options that the pinned pnpm accepts', () => {
-    const help = execFileSync('pnpm', ['deploy', '--help'], {
-      cwd: ROOT,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    const help = pnpm(['deploy', '--help']);
 
     const supported = new Set(
       [...help.matchAll(/(?:^|\s)(--[a-z][a-z0-9-]*)/g)].map((match) => match[1]!),
