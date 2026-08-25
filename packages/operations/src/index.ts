@@ -34,6 +34,11 @@ export {
 } from './internal/commissioning/assess.js';
 export { parseUnit, type UnitFacts } from './internal/commissioning/units.js';
 export {
+  COMMISSIONING_ENVIRONMENT,
+  usage as commissioningUsage,
+  type CommissioningVariable,
+} from './internal/commissioning/environment.js';
+export {
   COMMISSIONING_DEFAULTS,
   type CommissioningCheck,
   type CommissioningInputs,

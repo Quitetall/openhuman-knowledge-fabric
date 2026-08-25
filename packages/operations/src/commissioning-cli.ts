@@ -1,23 +1,22 @@
 /**
  * Commissioning, from a terminal on the host.
  *
- *   kf-commissioning                    show every check
- *   kf-commissioning --json             the same, as JSON, for an evidence record
- *   kf-commissioning --send-test-alert  send one real alert, then ask a person if it arrived
+ * Run `kf-commissioning --help` for the invocations and every variable it reads. That text is
+ * GENERATED from `internal/commissioning/environment.ts` and used to live here as a comment,
+ * where an operator on a host could not see it and where it was free to describe a different
+ * program than the one below.
  *
  * Exit status is 0 only when every check is satisfied. `unverifiable` exits non-zero exactly
  * as `unsatisfied` does: "we could not look" is not a pass, and the whole reason this program
  * exists is that `docs/deployment/private-host.md` must not be citable as proof of something
  * nobody checked.
- *
- * Configuration comes from the environment because that is what a systemd unit and an
- * operator's shell both have. Nothing is inferred: a value nobody supplied makes its check
- * `unverifiable` and says which value was missing.
  */
 
 import { spawn } from 'node:child_process';
 import { assessCommissioning, formatCommissioning } from './index.js';
 import type { CommissioningInputs } from './index.js';
+import { stringInputs, usage } from './internal/commissioning/environment.js';
+import type { StringInputKey } from './internal/commissioning/environment.js';
 
 function optional(name: string): string | undefined {
   const value = process.env[name];
@@ -88,56 +87,48 @@ async function sendTestAlert(): Promise<number> {
   return 0;
 }
 
+const FLAGS = ['--json', '--send-test-alert', '--help'] as const;
+
 async function main(): Promise<number> {
-  if (process.argv.includes('--send-test-alert')) return sendTestAlert();
+  const args = process.argv.slice(2);
+
+  // An unrecognised flag must not be ignored. `--jsn` would otherwise print the human report,
+  // exit as usual, and leave somebody believing they had captured an evidence record.
+  const unknown = args.filter((arg) => !FLAGS.includes(arg as (typeof FLAGS)[number]));
+  if (unknown.length > 0) {
+    console.error(`unknown argument${unknown.length === 1 ? '' : 's'}: ${unknown.join(', ')}\n`);
+    console.error(usage());
+    return 2;
+  }
+
+  // Before this existed, `--help` ran the full assessment and printed NOT COMMISSIONED at
+  // somebody who had asked what the program does. It is also the only place the required
+  // variables are visible from a terminal, which is where an operator commissioning a host is.
+  if (args.includes('--help')) {
+    console.warn(usage());
+    return 0;
+  }
+
+  if (args.includes('--send-test-alert')) return sendTestAlert();
+
+  // Built from the declared table rather than restated here. Fourteen near-identical spreads
+  // used to sit in this function, and a variable could be added to one of them and to no
+  // document without anything noticing — which is exactly what happened to
+  // KF_REVERSE_PROXY_CONFIG and KF_RELEASE_DIR.
+  const supplied: Partial<Record<StringInputKey, string>> = {};
+  for (const variable of stringInputs()) {
+    const value = optional(variable.env);
+    if (value !== undefined) supplied[variable.key] = value;
+  }
 
   const inputs: Partial<CommissioningInputs> = {
-    ...(optional('KF_SYSTEMD_DIR') === undefined
-      ? {}
-      : { systemdDirectory: optional('KF_SYSTEMD_DIR')! }),
-    ...(optional('KF_SHIPPED_UNIT_DIR') === undefined
-      ? {}
-      : { shippedUnitDirectory: optional('KF_SHIPPED_UNIT_DIR')! }),
-    ...(optional('KF_PUBLIC_HOSTNAME') === undefined
-      ? {}
-      : { publicHostname: optional('KF_PUBLIC_HOSTNAME')! }),
-    ...(optional('KF_TLS_CERTIFICATE') === undefined
-      ? {}
-      : { tlsCertificatePath: optional('KF_TLS_CERTIFICATE')! }),
-    ...(optional('KF_TLS_PRIVATE_KEY') === undefined
-      ? {}
-      : { tlsPrivateKeyPath: optional('KF_TLS_PRIVATE_KEY')! }),
-    ...(optional('KF_IDENTITY_ISSUER') === undefined
-      ? {}
-      : { identityIssuer: optional('KF_IDENTITY_ISSUER')! }),
-    ...(optional('KF_IDENTITY_CLIENT_ID') === undefined
-      ? {}
-      : { identityClientId: optional('KF_IDENTITY_CLIENT_ID')! }),
-    ...(optional('KF_IDENTITY_POLICY') === undefined
-      ? {}
-      : { identityPolicyPath: optional('KF_IDENTITY_POLICY')! }),
-    ...(optional('KF_IDENTITY_POLICY_SHA256') === undefined
-      ? {}
-      : { identityPolicyDigest: optional('KF_IDENTITY_POLICY_SHA256')! }),
-    ...(optional('KF_EVIDENCE_DIR') === undefined
-      ? {}
-      : { evidenceDirectory: optional('KF_EVIDENCE_DIR')! }),
-    ...(optional('KF_RELEASE_ID') === undefined ? {} : { releaseId: optional('KF_RELEASE_ID')! }),
-    ...(optional('KF_EXPECTED_NODE_VERSION') === undefined
-      ? {}
-      : { expectedNodeVersion: optional('KF_EXPECTED_NODE_VERSION')! }),
-    ...(optional('KF_REVERSE_PROXY_CONFIG') === undefined
-      ? {}
-      : { reverseProxyConfigPath: optional('KF_REVERSE_PROXY_CONFIG')! }),
-    ...(optional('KF_RELEASE_DIR') === undefined
-      ? {}
-      : { releaseDirectory: optional('KF_RELEASE_DIR')! }),
+    ...supplied,
     certificateRenewalDays: positiveDays('KF_CERTIFICATE_RENEWAL_DAYS', 21),
     rollbackRehearsalDays: positiveDays('KF_ROLLBACK_REHEARSAL_DAYS', 180),
   };
 
   const report = await assessCommissioning(inputs);
-  if (process.argv.includes('--json')) {
+  if (args.includes('--json')) {
     console.warn(JSON.stringify(report, null, 2));
   } else {
     console.warn(formatCommissioning(report));

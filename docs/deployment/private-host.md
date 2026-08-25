@@ -465,11 +465,33 @@ KF_IDENTITY_ISSUER=https://sso.example.org/realms/kf \
 KF_IDENTITY_CLIENT_ID=knowledge-fabric \
 KF_IDENTITY_POLICY=/etc/kf/realm-policy.json \
 KF_IDENTITY_POLICY_SHA256=<digest recorded at review> \
+KF_REVERSE_PROXY_CONFIG=/etc/nginx/sites-enabled/kf \
+KF_RELEASE_DIR=/opt/kf/release \
 KF_EVIDENCE_DIR=/var/lib/kf/commissioning \
 KF_RELEASE_ID=<release this host is running> \
 KF_EXPECTED_NODE_VERSION=24.18.1 \
   kf-commissioning            # add --json for an evidence record
 ```
+
+**`KF_REVERSE_PROXY_CONFIG` and `KF_RELEASE_DIR` were missing from this block until
+2026-08-24, and that was not cosmetic.** `reverse_proxy_posture` and
+`liminal_runtime_inventory` are two of the eight checks, both read one of those paths, and a
+check with no input reports `unverifiable` — which fails. So an operator following this
+document exactly could not reach 8/8 satisfied, and the two failures would name variables
+this document had never mentioned. It was found by running `kf-commissioning` on a
+workstation, which had also never been done.
+
+Three more have defaults and are therefore easy to miss, and two of them decide verdicts:
+
+| variable                      | default                             | what it changes                                         |
+| ----------------------------- | ----------------------------------- | ------------------------------------------------------- |
+| `KF_CERTIFICATE_RENEWAL_DAYS` | `21`                                | how close to expiry a certificate may be and still pass |
+| `KF_ROLLBACK_REHEARSAL_DAYS`  | `180`                               | how old a rollback rehearsal receipt may be             |
+| `KF_ALERT_DISPATCH`           | `/opt/kf/scripts/alert-dispatch.sh` | the script `--send-test-alert` runs                     |
+
+`kf-commissioning --help` prints all of this from the same table the program reads, so it
+cannot describe a different program than the one on the host. Prefer it to this section when
+the two disagree, and then fix this section.
 
 Exit status is 0 only when every check is **satisfied**. There are three states, and the third
 is the point:
