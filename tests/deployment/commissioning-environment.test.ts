@@ -28,7 +28,11 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { COMMISSIONING_ENVIRONMENT, commissioningUsage } from '@kf/operations';
+import {
+  COMMISSIONING_DEFAULTS,
+  COMMISSIONING_ENVIRONMENT,
+  commissioningUsage,
+} from '@kf/operations';
 
 const ROOT = join(import.meta.dirname, '..', '..');
 const DOCUMENT = join(ROOT, 'docs', 'deployment', 'private-host.md');
@@ -66,6 +70,34 @@ describe('private-host.md names every variable kf-commissioning reads', () => {
       'two variables supply the same CommissioningInputs field, so whichever is read last wins ' +
         'and the other is silently ignored',
     ).toBe(keys.length);
+  });
+
+  it('states defaults the code would actually use', () => {
+    // The first version of the table wrote its defaults out by hand and one was already wrong:
+    // it said KF_SHIPPED_UNIT_DIR defaults to `/opt/kf/deploy/systemd` when the default is
+    // `deploy/systemd`. The wrong value was not nonsense — it is where the deployment installs
+    // the units, which is what an operator should SET. A true fact in the field for a different
+    // fact reads as correct to anyone checking casually, which is what makes it worth a test.
+    //
+    // Every tunable that a check reads must therefore point at COMMISSIONING_DEFAULTS rather
+    // than restate it. KF_ALERT_DISPATCH is the one exception and is asserted below: no check
+    // reads it, so there is no defaults entry to point at.
+    for (const variable of COMMISSIONING_ENVIRONMENT) {
+      if (variable.kind !== 'tunable') continue;
+      if (variable.env === 'KF_ALERT_DISPATCH') {
+        expect(variable.defaultsTo, 'the alert script must still declare a default').toBeTruthy();
+        continue;
+      }
+      expect(
+        variable.defaultKey,
+        `${variable.env} restates its default instead of pointing at COMMISSIONING_DEFAULTS, ` +
+          'so --help can state a value the code does not use',
+      ).toBeDefined();
+      expect(
+        COMMISSIONING_DEFAULTS[variable.defaultKey!],
+        `${variable.env} points at a COMMISSIONING_DEFAULTS entry that does not exist`,
+      ).toBeDefined();
+    }
   });
 
   it('renders usage that names every variable and both kinds', () => {

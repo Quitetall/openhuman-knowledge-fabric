@@ -18,6 +18,7 @@
  * `tests/deployment/commissioning-environment.test.ts` holds the document to it.
  */
 
+import { COMMISSIONING_DEFAULTS } from './contracts.js';
 import type { CommissioningInputs } from './contracts.js';
 
 /**
@@ -47,7 +48,25 @@ export interface CommissioningVariable {
    * `tunable` — has a default, and the default decides verdicts, so it is worth knowing about.
    */
   readonly kind: 'required' | 'tunable';
-  /** What happens when it is unset. Stated for tunables, whose defaults are not obvious. */
+  /**
+   * Where the value comes from when nobody sets it, READ FROM THE CODE that applies it.
+   *
+   * This is a key into `COMMISSIONING_DEFAULTS` rather than a copy of the value, and the
+   * distinction is not fussiness — the first version of this table wrote the defaults out by
+   * hand and one of them was already wrong. It said `KF_SHIPPED_UNIT_DIR` defaults to
+   * `/opt/kf/deploy/systemd`; the default is `deploy/systemd`. `/opt/kf/deploy/systemd` is
+   * where the deployment INSTALLS the units, which is what an operator should set — a
+   * different fact that happens to be true, sitting in the field for a fact that was not.
+   *
+   * A table written to stop three copies of a list from drifting is a poor place to start a
+   * fourth copy of the defaults.
+   */
+  readonly defaultKey?: keyof typeof COMMISSIONING_DEFAULTS;
+  /**
+   * The default, for variables the CLI applies itself and that no check reads — so there is
+   * no `COMMISSIONING_DEFAULTS` entry to point at. `KF_ALERT_DISPATCH` is the only one, and
+   * `sendTestAlert` reads it from here rather than repeating the path.
+   */
   readonly defaultsTo?: string;
 }
 
@@ -56,14 +75,14 @@ export const COMMISSIONING_ENVIRONMENT: readonly CommissioningVariable[] = [
     env: 'KF_SYSTEMD_DIR',
     key: 'systemdDirectory',
     kind: 'tunable',
-    defaultsTo: '/etc/systemd/system',
+    defaultKey: 'systemdDirectory',
     summary: 'where installed units live — unit_provenance, secret_posture',
   },
   {
     env: 'KF_SHIPPED_UNIT_DIR',
     key: 'shippedUnitDirectory',
     kind: 'tunable',
-    defaultsTo: '/opt/kf/deploy/systemd',
+    defaultKey: 'shippedUnitDirectory',
     summary: "this release's own units, to compare the installed ones against",
   },
   {
@@ -141,13 +160,13 @@ export const COMMISSIONING_ENVIRONMENT: readonly CommissioningVariable[] = [
   {
     env: 'KF_CERTIFICATE_RENEWAL_DAYS',
     kind: 'tunable',
-    defaultsTo: '21',
+    defaultKey: 'certificateRenewalDays',
     summary: 'how close to expiry a certificate may be and still satisfy tls_termination',
   },
   {
     env: 'KF_ROLLBACK_REHEARSAL_DAYS',
     kind: 'tunable',
-    defaultsTo: '180',
+    defaultKey: 'rollbackRehearsalDays',
     summary: 'how old a rollback rehearsal receipt may be and still satisfy evidence_receipts',
   },
   {
@@ -167,6 +186,29 @@ export function stringInputs(): readonly (CommissioningVariable & { key: StringI
 }
 
 /**
+ * What a variable falls back to, as the code that applies it would.
+ *
+ * Undefined for the required ones, which have no fallback — that is what makes them required.
+ */
+export function defaultOf(variable: CommissioningVariable): string | undefined {
+  if (variable.defaultKey !== undefined) return String(COMMISSIONING_DEFAULTS[variable.defaultKey]);
+  return variable.defaultsTo;
+}
+
+/** The alert script `--send-test-alert` runs when nobody names one. */
+export function alertDispatchDefault(): string {
+  const declared = COMMISSIONING_ENVIRONMENT.find((v) => v.env === 'KF_ALERT_DISPATCH');
+  const value = declared === undefined ? undefined : defaultOf(declared);
+  if (value === undefined) {
+    // Fail loudly rather than reaching for a path nobody declared. A commissioning tool that
+    // silently invents where the alert script lives is the sort of thing this file exists to
+    // prevent.
+    throw new Error('KF_ALERT_DISPATCH has no declared default in COMMISSIONING_ENVIRONMENT');
+  }
+  return value;
+}
+
+/**
  * Usage text, generated from the table above so it cannot describe a different program.
  *
  * A hand-written usage block is one more copy of this list, and the reason this file exists is
@@ -174,8 +216,10 @@ export function stringInputs(): readonly (CommissioningVariable & { key: StringI
  */
 export function usage(): string {
   const width = Math.max(...COMMISSIONING_ENVIRONMENT.map((v) => v.env.length));
-  const line = (v: CommissioningVariable): string =>
-    `  ${v.env.padEnd(width)}  ${v.summary}${v.defaultsTo === undefined ? '' : ` [${v.defaultsTo}]`}`;
+  const line = (v: CommissioningVariable): string => {
+    const fallback = defaultOf(v);
+    return `  ${v.env.padEnd(width)}  ${v.summary}${fallback === undefined ? '' : ` [${fallback}]`}`;
+  };
 
   return [
     'kf-commissioning — is this host installed the way the deployment says it must be?',

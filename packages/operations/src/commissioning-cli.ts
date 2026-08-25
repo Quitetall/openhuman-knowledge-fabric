@@ -15,7 +15,8 @@
 import { spawn } from 'node:child_process';
 import { assessCommissioning, formatCommissioning } from './index.js';
 import type { CommissioningInputs } from './index.js';
-import { stringInputs, usage } from './internal/commissioning/environment.js';
+import { alertDispatchDefault, stringInputs, usage } from './internal/commissioning/environment.js';
+import { COMMISSIONING_DEFAULTS } from './index.js';
 import type { StringInputKey } from './internal/commissioning/environment.js';
 
 function optional(name: string): string | undefined {
@@ -52,7 +53,7 @@ function positiveDays(name: string, fallback: number): number {
  * endpoint, and then tells the operator what they have to do next, which is ask a person.
  */
 async function sendTestAlert(): Promise<number> {
-  const script = optional('KF_ALERT_DISPATCH') ?? '/opt/kf/scripts/alert-dispatch.sh';
+  const script = optional('KF_ALERT_DISPATCH') ?? alertDispatchDefault();
   console.warn(`Sending one test alert via ${script} ...\n`);
 
   const code = await new Promise<number>((resolve) => {
@@ -123,8 +124,17 @@ async function main(): Promise<number> {
 
   const inputs: Partial<CommissioningInputs> = {
     ...supplied,
-    certificateRenewalDays: positiveDays('KF_CERTIFICATE_RENEWAL_DAYS', 21),
-    rollbackRehearsalDays: positiveDays('KF_ROLLBACK_REHEARSAL_DAYS', 180),
+    // The fallbacks come from COMMISSIONING_DEFAULTS, which is also what `--help` renders.
+    // They were written out as 21 and 180 here, in a second place, which is how `--help` came
+    // to state a default for KF_SHIPPED_UNIT_DIR that the code did not use.
+    certificateRenewalDays: positiveDays(
+      'KF_CERTIFICATE_RENEWAL_DAYS',
+      COMMISSIONING_DEFAULTS.certificateRenewalDays,
+    ),
+    rollbackRehearsalDays: positiveDays(
+      'KF_ROLLBACK_REHEARSAL_DAYS',
+      COMMISSIONING_DEFAULTS.rollbackRehearsalDays,
+    ),
   };
 
   const report = await assessCommissioning(inputs);
