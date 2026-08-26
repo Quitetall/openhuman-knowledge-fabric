@@ -284,24 +284,34 @@ export const unitProvenance: CommissioningCheckFn = async (inputs: Commissioning
  * deployment creates. Reading both files is therefore not belt-and-braces — `/etc/group` alone
  * would report that `kf-api` cannot read its own group's files.
  */
-async function groupReaders(gid: number): Promise<readonly string[]> {
+async function readerIndex(): Promise<ReadonlyMap<number, readonly string[]>> {
   const [groupFile, passwdFile] = await Promise.all([
     readFile('/etc/group', 'utf8'),
     readFile('/etc/passwd', 'utf8'),
   ]);
 
-  const readers = new Set<string>();
+  const byGid = new Map<number, Set<string>>();
+  const add = (gid: number, name: string): void => {
+    const readers = byGid.get(gid) ?? new Set<string>();
+    readers.add(name);
+    byGid.set(gid, readers);
+  };
+
   for (const line of groupFile.split('\n')) {
     const [, , id, members] = line.split(':');
-    if (id === undefined || Number(id) !== gid) continue;
-    for (const member of (members ?? '').split(',')) if (member !== '') readers.add(member);
+    if (id === undefined) continue;
+    const gid = Number(id);
+    if (!Number.isInteger(gid)) continue;
+    for (const member of (members ?? '').split(',')) if (member !== '') add(gid, member);
   }
   for (const line of passwdFile.split('\n')) {
     const [name, , , primary] = line.split(':');
     if (name === undefined || primary === undefined) continue;
-    if (Number(primary) === gid) readers.add(name);
+    const gid = Number(primary);
+    if (Number.isInteger(gid)) add(gid, name);
   }
-  return [...readers].sort();
+
+  return new Map([...byGid].map(([gid, readers]) => [gid, [...readers].sort()]));
 }
 
 /**
@@ -356,6 +366,14 @@ export const secretPosture: CommissioningCheckFn = async (inputs: CommissioningI
   }
 
   // Which identities legitimately read each path — the `User=` of every unit that names it.
+  //
+  // THE UNIT FILES DECIDE THIS, so whoever controls them controls the verdict: a unit planted
+  // with `User=mallory` would entitle mallory to read mallory's group's files. That is not a
+  // hole so much as the boundary this check sits inside, and it is held by `unit_provenance`,
+  // which refuses to pass unless every installed unit is byte-identical to the one this
+  // release ships. The two checks are only jointly meaningful — a host where
+  // `unit_provenance` fails has no business reading a `secret_posture` pass as reassurance,
+  // which is why `assessCommissioning` requires all eight rather than counting them.
   const entitled = new Map<string, Set<string>>();
   for (const unit of installed) {
     for (const path of unit.secretPaths) {
@@ -364,6 +382,11 @@ export const secretPosture: CommissioningCheckFn = async (inputs: CommissioningI
       entitled.set(path, users);
     }
   }
+
+  // Read /etc/group and /etc/passwd ONCE. Five of the eighteen secret paths on a real host are
+  // group-readable, so the previous shape re-read both files five times to answer five
+  // questions about the same unchanging tables.
+  const readersByGid = await readerIndex();
 
   const absent: string[] = [];
   const exposed: string[] = [];
@@ -382,7 +405,12 @@ export const secretPosture: CommissioningCheckFn = async (inputs: CommissioningI
         continue;
       }
       if ((info.mode & 0o070) !== 0) {
-        const readers = await groupReaders(info.gid);
+        const readers = readersByGid.get(info.gid) ?? [];
+        // A unit with no `User=` runs as root and contributes no entitled identity, so every
+        // group reader of its secrets reads as extra and the check fails. That is the right
+        // direction to be wrong in — a root service whose secret is group-readable is a real
+        // finding — and all eleven shipped units declare `User=`, so it is latent rather than
+        // live. Left fail-closed deliberately.
         const allowed = entitled.get(path) ?? new Set<string>();
         const extra = readers.filter((reader) => !allowed.has(reader));
         if (extra.length > 0) {
