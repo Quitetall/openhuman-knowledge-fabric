@@ -29,6 +29,27 @@ const SECRET_ASSIGNMENT = /\b([A-Z0-9_]*(?:_FILE|_KEY_PATH))=(\/[^\s'"]+)/g;
  * directory that has to be traversable.
  */
 const SECRET_PRESENCE_TEST = /\btest\s+-s\s+(\/[^\s'"]+)/g;
+/**
+ * Assignments that name a path but not a secret.
+ *
+ * `SECRET_ASSIGNMENT` matches on the SUFFIX `_FILE`, which is a good default — the deployment
+ * passes secrets as paths, and a new secret named `*_FILE` gets checked without anyone
+ * remembering to add it. It also catches things that are merely files.
+ *
+ * `KF_MIGRATION_LOCK_FILE=/run/kf-migrate/migration.lock` is the one in the shipped units, and
+ * it made `secret_posture` impossible to satisfy. A lock exists only while `kf-migrate` is
+ * running; at rest `stat` returns ENOENT, the path lands in `absent`, and the check reports
+ * `unverifiable` — permanently, on a correctly built host. Measured on the first real host
+ * install 2026-08-26: "1 secret file(s) a unit depends on cannot be inspected", the sole
+ * entry being that lock. A check that cannot pass is one of the shapes this repository keeps
+ * removing, and it would have blocked 8/8 and therefore ADR 0004's criterion 3 forever.
+ *
+ * ENUMERATED, NOT INFERRED. The rule stays fail-closed: an unrecognised `*_FILE` is still
+ * treated as a secret. Excluding by path instead — anything under `/run`, say — would have
+ * been the tempting version and is the wrong one, because systemd delivers real credentials
+ * under `/run/credentials`, and a rule written today would silently stop inspecting them.
+ */
+const NOT_A_SECRET = /_LOCK_FILE$/;
 
 export function parseUnit(name: string, text: string): UnitFacts {
   let user: string | null = null;
@@ -49,8 +70,10 @@ export function parseUnit(name: string, text: string): UnitFacts {
     // Scanning the whole line rather than a fixed directive list means a secret moved from
     // `Environment=` into the command still gets checked.
     for (const match of value.matchAll(SECRET_ASSIGNMENT)) {
-      const path = match[2];
-      if (path !== undefined) secretPaths.add(path);
+      const [, name, path] = match;
+      if (name === undefined || path === undefined) continue;
+      if (NOT_A_SECRET.test(name)) continue;
+      secretPaths.add(path);
     }
     for (const match of value.matchAll(SECRET_PRESENCE_TEST)) {
       const path = match[1];

@@ -421,6 +421,41 @@ describe('unit parsing', () => {
     const facts = parseUnit('x.service', '[Service]\nEnvironmentFile=-/etc/kf/optional.env\n');
     expect(facts.secretPaths).toEqual(['/etc/kf/optional.env']);
   });
+
+  it('does not treat a lock path as a secret, and still sweeps everything beside it', () => {
+    // `kf-migrate.service` carries both on ONE ExecStart line:
+    //
+    //   DATABASE_URL_FILE=/etc/kf/migrator/database-url   a real secret
+    //   KF_MIGRATION_LOCK_FILE=/run/kf-migrate/migration.lock   a lock
+    //
+    // The lock exists only while the migration runs, so at rest it made `secret_posture`
+    // report `unverifiable` on a correctly built host — a check that could never pass, which
+    // in turn made 8/8 and ADR 0004's criterion 3 unreachable.
+    //
+    // Both halves are asserted deliberately. Dropping the lock is only correct if the secret
+    // sharing the same line is still collected; a rule that quietly stopped inspecting
+    // `database-url` would be a far worse defect than the one it replaced.
+    const facts = parseUnit(
+      'kf-migrate.service',
+      [
+        '[Service]',
+        'User=kf-migrator',
+        'ExecStart=/usr/bin/env DATABASE_URL_FILE=/etc/kf/migrator/database-url' +
+          ' KF_MIGRATION_LOCK_FILE=/run/kf-migrate/migration.lock /opt/kf/migrate.sh apply',
+      ].join('\n'),
+    );
+    expect(facts.secretPaths).toEqual(['/etc/kf/migrator/database-url']);
+  });
+
+  it('still treats an unrecognised *_FILE as a secret, so the rule stays fail-closed', () => {
+    // The exclusion is an enumerated exception, not a licence to guess. Anything that is not
+    // explicitly a lock keeps being inspected, including a name nobody has seen before.
+    const facts = parseUnit(
+      'x.service',
+      '[Service]\nEnvironment=SOME_BRAND_NEW_FILE=/etc/kf/unknown-secret\n',
+    );
+    expect(facts.secretPaths).toEqual(['/etc/kf/unknown-secret']);
+  });
 });
 
 describe('the shipped units', () => {
