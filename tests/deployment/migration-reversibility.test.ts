@@ -209,10 +209,25 @@ describe('the runbook describes the floor that actually exists', () => {
       'nothing declares itself forward-only, so there is no floor to name',
     ).toBeDefined();
     const floor = (highest ?? '').replace(/\.sql$/, '');
+    // Anchored to the sentence that makes the CLAIM, not to the document. A bare
+    // `document.includes(floor)` passed even with the prose naming a different migration,
+    // because the measured-rehearsal table below it also contains the correct name — the guard
+    // was satisfied by a different sentence than the one it was written to check.
+    // `\s+` between words, not a literal space: prettier rewraps this paragraph, and the
+    // sentence is currently split across a line break mid-phrase. A guard that only matches
+    // one wrapping goes blind the next time the paragraph grows by a word.
+    const claim =
+      /rollback\s+stops\s+at\s+the\s+highest\s+such\s+migration\s+\(currently\s+`([^`]+)`\)/;
+    const named = claim.exec(document)?.[1];
     expect(
-      document.includes(floor),
-      `private-host.md does not name ${floor}, which is the migration rollback now stops at`,
-    ).toBe(true);
+      named,
+      'the sentence naming the forward-only floor moved or was reworded; this guard is now blind',
+    ).toBeDefined();
+    expect(
+      named,
+      `private-host.md tells the operator rollback stops at ${named}, but the highest migration ` +
+        `declaring itself forward-only is ${floor}`,
+    ).toBe(floor);
   });
 });
 

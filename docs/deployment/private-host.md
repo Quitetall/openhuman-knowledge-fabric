@@ -373,9 +373,17 @@ services never applies schema changes.
 
 Before migration, stop API, web and worker; take pre-migration backup, copy it off host, and
 restore it into isolated target. Then provision separate disposable PostgreSQL 18 cluster with
-no non-system schemas. Its credential must differ from production migrator credential. Run:
+no non-system schemas. Its credential must differ from production migrator credential.
+
+Run it from a directory `kf-migrator` can read — hence the `cd /`. `sudo -u` keeps the invoking
+user's working directory, the script runs `find` from inside a subshell that `cd`s away, and
+`find` refuses to finish when it cannot return to where it started. Launched from an admin home
+directory at 0700 the rehearsal dies before touching the database on `find: Failed to restore
+initial working directory: /home/<admin>: Permission denied` — which names neither the release
+nor the rehearsal and reads like a release-tree fault. Measured on this host, 2026-08-26.
 
 ```sh
+cd /
 sudo -u kf-migrator env \
   KF_DBMATE_BIN=/path/to/extracted-release/tools/dbmate \
   KF_EXPECTED_DBMATE_VERSION=2.35.0 \
@@ -418,6 +426,20 @@ safe way to guess which.
 Receipts are `format=kf-migration-rollback-rehearsal-v2`. The version moved rather than the
 fields being added quietly, because reading a v2 as a v1 would read "reversible to a floor" as
 "reversible" — the overclaim this exists to remove.
+
+**First passing rehearsal**, release `3054582c84a1` on this host, 2026-08-26 — a historical
+record, not a claim about the current tree:
+
+| field                 | value                                               |
+| --------------------- | --------------------------------------------------- |
+| `migrations_total`    | 67                                                  |
+| `migrations_reverted` | 7                                                   |
+| `forward_only_floor`  | `20260816000600_external_identity_reader_grant.sql` |
+| database afterwards   | 60 applied, highest version `20260816000600`        |
+
+67 − 7 = 60, and the floor is the 60th migration, so the receipt and the database agree without
+either being derived from the other. Every prior attempt failed; the run before this one died on
+`cannot drop column organization_id of table core.action because other objects depend on it`.
 
 Set exact receipt path and manifest digest in `/etc/kf/migrator.env`; point `/opt/kf` at
 verified release; run `systemctl start kf-migrate.service`. Any failure stops deployment.
