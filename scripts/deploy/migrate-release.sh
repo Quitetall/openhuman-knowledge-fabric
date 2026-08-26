@@ -144,11 +144,26 @@ verify_release_tree() {
   while IFS=$'\t' read -r link target || [ -n "$link$target" ]; do
     [ -n "$link" ] && [ -n "$target" ] || fail 'SYMLINKS has a malformed line'
     case "$link" in /*|..|../*|*/..|*/../*) fail "unsafe link path in SYMLINKS: $link" ;; esac
-    resolved_target="$(readlink -f -- "$release_root/$link")"
+    # `readlink -m`, NOT `-f`. This check refused an escaping symlink SILENTLY until
+    # 2026-08-26, and the reason is one letter.
+    #
+    # `-f` requires every component but the last to exist. An escaping link resolves through
+    # directories that are absent on the host, so `readlink -f` exits non-zero — and under
+    # `set -e` an assignment from a failed command substitution ends the script right here,
+    # one line before the `case` that was written to explain the problem. The operator got
+    # exit 1 and an empty log for precisely the fault this loop exists to catch. Measured on
+    # the first real host install: `.pnpm/node_modules/@kf/api -> ../../../../../../../../apps/api`
+    # ended the run with no output at all.
+    #
+    # `-m` canonicalises without requiring existence, so the two distinct faults can be told
+    # apart and both can be named.
+    resolved_target="$(readlink -m -- "$release_root/$link")"
     case "$resolved_target" in
       "$release_root"/*) ;;
-      *) fail "symlink leaves or is broken outside release: $link -> $target" ;;
+      *) fail "symlink leaves release: $link -> $target (resolves to $resolved_target)" ;;
     esac
+    [ -e "$resolved_target" ] ||
+      fail "symlink is broken: $link -> $target (nothing at $resolved_target)"
   done < "$symlink_inventory"
 
   (

@@ -1,6 +1,31 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+
+# Workspace dependencies are COPIED into their dependents, not symlinked.
+#
+# This is what makes a release tree self-contained, and it was turned on because the first
+# real host install proved the tree was not. `pnpm deploy --legacy` writes workspace links
+# whose relative depth only holds inside this monorepo:
+#
+#   packages/operations/node_modules/@kf/database -> ../../../../../../packages/database
+#
+# Six levels up from the deploy tree at /opt/kf/knowledge-fabric-<id>/ lands on
+# /opt/packages/database, which does not exist — and `@kf/database`'s code was never copied
+# into the release at all, so the dangling link was the only reference to it. Every process
+# depending on a workspace package therefore died at import on the host, including
+# `kf-commissioning`, which is the program the whole commissioning procedure runs on.
+#
+# `docs/deployment/private-host.md` used to call `--legacy` "a packaging mode, not permission
+# to change lockfile", declining injection precisely because it moves the lockfile. That
+# trade was reasonable while nothing had been installed anywhere; it stopped being reasonable
+# when it turned out to be the thing preventing a host from existing. Decided 2026-08-26.
+#
+# The cost is real and is accepted: injected packages appear in `pnpm-lock.yaml` with their
+# own resolution entries, so the lockfile is larger and a workspace package's dependency
+# change now touches every dependent's entry.
+injectWorkspacePackages: true
+
 allowBuilds:
   cpu-features: true
   esbuild: true

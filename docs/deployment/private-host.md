@@ -149,8 +149,26 @@ risk this document exists to remove, and it went undetected for the life of the 
 there was never a second machine to detect it.
 
 After those gates pass, assemble runnable package directories from those already-built bytes.
-`--legacy` is required by repository's current non-injected pnpm workspace layout. It is a
-packaging mode, not permission to change the lockfile.
+
+**`--legacy` is gone as of 2026-08-26, and with it the sentence that said this was "a packaging
+mode, not permission to change the lockfile".** That sentence declined
+`injectWorkspacePackages`, and declining it is what made the release tree unusable. `pnpm deploy
+--legacy` writes workspace links whose relative depth only holds inside this monorepo:
+
+```
+packages/operations/node_modules/@kf/database -> ../../../../../../packages/database
+```
+
+Six levels up from `/opt/kf/knowledge-fabric-<id>/` is `/opt/packages/database`. The link
+escapes the release, and `@kf/database`'s code was never copied in, so the dangling link was
+the only reference to it. Every process importing a workspace package died on the host —
+including `kf-commissioning`, the program this whole section exists to make runnable.
+
+`pnpm-workspace.yaml` now sets `injectWorkspacePackages: true` and the deploys below are plain
+`--prod`. Measured on the resulting tree: `@kf/database` and `@kf/domain` resolve inside the
+deploy's own `.pnpm/` store, carry their `dist/`, and **no symlink resolves outside the deploy
+root**. The cost is a larger lockfile, accepted deliberately — see the note in
+`pnpm-workspace.yaml`.
 
 **These six lines carried `--deploy-all-files` until 2026-08-25, and on the pinned pnpm that
 flag does not exist.** `packageManager` pins `pnpm@11.21.0`; `pnpm deploy --help` lists
@@ -183,12 +201,12 @@ test ! -e "$release_root" || {
 }
 install -d "$release_root/apps" "$release_root/packages"
 
-pnpm --filter @kf/api deploy --prod --legacy "$release_root/apps/api"
-pnpm --filter @kf/web deploy --prod --legacy "$release_root/apps/web"
-pnpm --filter @kf/worker deploy --prod --legacy "$release_root/apps/worker"
-pnpm --filter @kf/checkpoint deploy --prod --legacy "$release_root/apps/checkpoint"
-pnpm --filter @kf/operations deploy --prod --legacy "$release_root/packages/operations"
-pnpm --filter @kf/export deploy --prod --legacy "$release_root/packages/export"
+pnpm --filter @kf/api deploy --prod "$release_root/apps/api"
+pnpm --filter @kf/web deploy --prod "$release_root/apps/web"
+pnpm --filter @kf/worker deploy --prod "$release_root/apps/worker"
+pnpm --filter @kf/checkpoint deploy --prod "$release_root/apps/checkpoint"
+pnpm --filter @kf/operations deploy --prod "$release_root/packages/operations"
+pnpm --filter @kf/export deploy --prod "$release_root/packages/export"
 
 cp -a scripts deploy "$release_root/"
 install -d "$release_root/docs"
@@ -250,6 +268,16 @@ printf 'git_commit=%s\nnode=%s\npnpm=%s\ndbmate=%s\nliminal=%s\n' \
 if [ "$liminal_declaration" = sealed ]; then
   cat "$release_root/vendor/liminal/RUNTIME.env" >> "$release_root/BUILD-METADATA"
 fi
+# Normalise modes BEFORE sealing. The build machine's umask is not part of the release, and
+# on 2026-08-26 it turned out to be: the first host install carried 650 group/other-writable
+# files, and `migrate-release.sh check` refused on the first one it reached. SHA256SUMS covers
+# content, not modes, so nothing downstream would have noticed the difference — only the
+# verifier, at install time, on somebody else's evening.
+#
+# Symlinks are skipped: their mode bits are `lrwxrwxrwx` on Linux and cannot be changed.
+find "$release_root" -type d -exec chmod go-w,go+rx {} +
+find "$release_root" -type f -exec chmod go-w {} +
+
 (
   cd "$release_root"
   find -P . -mindepth 1 -type d -printf '%P\n' | LC_ALL=C sort > DIRECTORIES
@@ -260,7 +288,14 @@ fi
 )
 sha256sum "$release_root/SHA256SUMS" \
   > "release/knowledge-fabric-$release_id.manifest.sha256"
-tar -C release -czf "release/knowledge-fabric-$release_id.tar.gz" \
+
+# `--owner=root --group=root --numeric-owner`: the release is root-owned ON THE HOST, and
+# `migrate-release.sh check` enforces that with KF_EXPECTED_RELEASE_OWNER_UID=0. Without
+# these, tar records whoever ran the build — uid 1000 on this workstation — and `sudo tar -x`
+# faithfully restores it, so the documented verification fails on a release that is otherwise
+# perfect and the operator's only recourse is an undocumented `chown -R`.
+tar -C release --owner=root --group=root --numeric-owner \
+  -czf "release/knowledge-fabric-$release_id.tar.gz" \
   "knowledge-fabric-$release_id"
 (
   cd release
