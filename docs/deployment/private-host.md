@@ -375,12 +375,8 @@ Before migration, stop API, web and worker; take pre-migration backup, copy it o
 restore it into isolated target. Then provision separate disposable PostgreSQL 18 cluster with
 no non-system schemas. Its credential must differ from production migrator credential.
 
-Run it from a directory `kf-migrator` can read — hence the `cd /`. `sudo -u` keeps the invoking
-user's working directory, the script runs `find` from inside a subshell that `cd`s away, and
-`find` refuses to finish when it cannot return to where it started. Launched from an admin home
-directory at 0700 the rehearsal dies before touching the database on `find: Failed to restore
-initial working directory: /home/<admin>: Permission denied` — which names neither the release
-nor the rehearsal and reads like a release-tree fault. Measured on this host, 2026-08-26.
+**Run it from a directory `kf-migrator` can read** — the `cd /` below is load-bearing, not
+tidiness.
 
 ```sh
 cd /
@@ -397,6 +393,15 @@ sudo -u kf-migrator env \
   /path/to/extracted-release \
   /var/lib/kf-migrator/rollback-rehearsal-<release-id>.receipt
 ```
+
+On the `cd /`: `sudo -u` keeps the invoking user's working directory, the script runs `find`
+from inside a subshell that `cd`s away, and `find` refuses to finish when it cannot return to
+where it started. Launched from an admin home directory at 0700 the rehearsal dies before
+touching the database on `find: Failed to restore initial working directory: /home/<admin>:
+Permission denied`, which names neither the release nor the rehearsal and reads like a
+release-tree fault. It does not widen any search — every `find` in the script is rooted at the
+release or migration directory explicitly — it only gives the process a cwd it can return to.
+Measured on this host, 2026-08-26.
 
 Rehearsal refuses reserved/nonempty databases, applies every migration, seeds exact generated
 ontology, then rolls back **to the forward-only floor** and verifies it stopped exactly there —
