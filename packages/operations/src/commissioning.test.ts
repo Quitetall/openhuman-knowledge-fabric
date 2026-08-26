@@ -447,6 +447,86 @@ describe('unit parsing', () => {
     expect(facts.secretPaths).toEqual(['/etc/kf/migrator/database-url']);
   });
 
+  describe('secret_posture judges identities, not mode bits', () => {
+    /**
+     * A unit plus the one file it names, in a throwaway directory.
+     *
+     * The file is left in the test user's own primary group, which is the only group this test
+     * can arrange without root — and it is exactly the shape under test: `root:kf-api` on a
+     * real host is "owned by one identity, group-readable by the one service that uses it".
+     */
+    async function fixture(mode: number, unitUser: string): Promise<string> {
+      const root = await scratch();
+      const secret = join(root, 'service.env');
+      await writeFile(secret, 'LOG_LEVEL=info\n');
+      await chmod(secret, mode);
+      await writeFile(
+        join(root, 'kf-fixture.service'),
+        `[Service]\nUser=${unitUser}\nEnvironmentFile=${secret}\n`,
+      );
+      return root;
+    }
+
+    const assess = async (root: string) => {
+      const { secretPosture } = await import('./internal/commissioning/units.js');
+      return secretPosture({
+        systemdDirectory: root,
+        shippedUnitDirectory: root,
+        certificateRenewalDays: 21,
+        rollbackRehearsalDays: 180,
+      });
+    };
+
+    /** Who can actually read files in the test user's primary group, computed from the host. */
+    async function ownGroupReaders(): Promise<readonly string[]> {
+      const gid = process.getgid?.() ?? 0;
+      const { readFile: read } = await import('node:fs/promises');
+      const readers = new Set<string>();
+      for (const line of (await read('/etc/group', 'utf8')).split('\n')) {
+        const [, , id, members] = line.split(':');
+        if (id === undefined || Number(id) !== gid) continue;
+        for (const m of (members ?? '').split(',')) if (m !== '') readers.add(m);
+      }
+      for (const line of (await read('/etc/passwd', 'utf8')).split('\n')) {
+        const [name, , , primary] = line.split(':');
+        if (name !== undefined && primary !== undefined && Number(primary) === gid) {
+          readers.add(name);
+        }
+      }
+      return [...readers].sort();
+    }
+
+    it('accepts group-read when the group holds only the unit’s own identity', async () => {
+      // The case that was wrongly refused. `api.env.example` says in its first line "Non-secret
+      // API routing ... owned root:kf-api, mode 0640", the README installs exactly that, and
+      // the old `mode & 0o077` test called it exposed on the first real host install.
+      const readers = await ownGroupReaders();
+      expect(
+        readers.length,
+        `this test needs a primary group with exactly one member to stand in for kf-api; ` +
+          `this one holds ${readers.join(', ')}. Run it as a user with their own group.`,
+      ).toBe(1);
+
+      const result = await assess(await fixture(0o640, readers[0]!));
+      expect(result.status, result.detail).toBe('satisfied');
+    });
+
+    it('refuses group-read when someone the unit does not name can read', async () => {
+      // Same file, same mode — only the declared identity differs. This is the security
+      // property the old check was reaching for and the new one states exactly.
+      const result = await assess(await fixture(0o640, 'kf-somebody-else'));
+      expect(result.status).toBe('unsatisfied');
+      expect(result.detail).toContain('does not name');
+    });
+
+    it('refuses world-read no matter whose file it is', async () => {
+      const readers = await ownGroupReaders();
+      const result = await assess(await fixture(0o644, readers[0] ?? 'root'));
+      expect(result.status).toBe('unsatisfied');
+      expect(String(result.observed?.['groupOrWorldReadable'])).toContain('world-readable');
+    });
+  });
+
   it('still treats an unrecognised *_FILE as a secret, so the rule stays fail-closed', () => {
     // The exclusion is an enumerated exception, not a licence to guess. Anything that is not
     // explicitly a lock keeps being inspected, including a name nobody has seen before.

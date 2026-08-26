@@ -277,12 +277,56 @@ export const unitProvenance: CommissioningCheckFn = async (inputs: Commissioning
 };
 
 /**
- * Every secret a unit names is a file the rest of the host cannot read.
+ * Who, besides root, can read a file owned by this group.
+ *
+ * `/etc/group` lists supplementary members only; a user whose PRIMARY group this is does not
+ * appear there, which is exactly the case for every `useradd --user-group` identity the
+ * deployment creates. Reading both files is therefore not belt-and-braces — `/etc/group` alone
+ * would report that `kf-api` cannot read its own group's files.
+ */
+async function groupReaders(gid: number): Promise<readonly string[]> {
+  const [groupFile, passwdFile] = await Promise.all([
+    readFile('/etc/group', 'utf8'),
+    readFile('/etc/passwd', 'utf8'),
+  ]);
+
+  const readers = new Set<string>();
+  for (const line of groupFile.split('\n')) {
+    const [, , id, members] = line.split(':');
+    if (id === undefined || Number(id) !== gid) continue;
+    for (const member of (members ?? '').split(',')) if (member !== '') readers.add(member);
+  }
+  for (const line of passwdFile.split('\n')) {
+    const [name, , , primary] = line.split(':');
+    if (name === undefined || primary === undefined) continue;
+    if (Number(primary) === gid) readers.add(name);
+  }
+  return [...readers].sort();
+}
+
+/**
+ * Every secret a unit names is a file no identity but that unit's own can read.
  *
  * The deployment passes secrets as PATHS rather than values on purpose — an environment
  * variable is readable from `/proc/<pid>/environ` by anything running as the same user. That
  * only buys anything if the file itself is closed, so this is the check that makes the choice
  * mean something.
+ *
+ * "CLOSED" IS ABOUT IDENTITIES, NOT MODE BITS. This tested `mode & 0o077` until 2026-08-26 and
+ * refused five files on the first real host install:
+ *
+ *   /etc/kf/api.env (mode 640)   root:kf-api
+ *
+ * `api.env.example` opens with "Non-secret API routing. Install as /etc/kf/api.env, owned
+ * root:kf-api, mode 0640", the README installs exactly that, and the check called it exposed.
+ * One of the three had to be wrong, and it was the check: `0640 root:kf-api` is BETTER than
+ * `0600 kf-api:kf-api`, because root owning it means the service cannot rewrite its own
+ * configuration, and the group holds exactly the one identity that reads it.
+ *
+ * So group-read is permitted when every reader of that group is the unit's own `User=`, and
+ * refused otherwise. World-read is still refused unconditionally — no argument reaches it.
+ * Adding a second member to `kf-api` makes these files fail again, which is the property that
+ * was actually wanted all along.
  */
 export const secretPosture: CommissioningCheckFn = async (inputs: CommissioningInputs) => {
   let installed: readonly UnitFacts[];
@@ -311,6 +355,16 @@ export const secretPosture: CommissioningCheckFn = async (inputs: CommissioningI
     };
   }
 
+  // Which identities legitimately read each path — the `User=` of every unit that names it.
+  const entitled = new Map<string, Set<string>>();
+  for (const unit of installed) {
+    for (const path of unit.secretPaths) {
+      const users = entitled.get(path) ?? new Set<string>();
+      if (unit.user !== null) users.add(unit.user);
+      entitled.set(path, users);
+    }
+  }
+
   const absent: string[] = [];
   const exposed: string[] = [];
   for (const path of referenced) {
@@ -320,10 +374,20 @@ export const secretPosture: CommissioningCheckFn = async (inputs: CommissioningI
         absent.push(`${path} (not a regular file)`);
         continue;
       }
-      // Group and other bits both. "Readable by the kf group" is not closed on a host where
-      // more than one service runs, and every host that matters runs more than one.
-      if ((info.mode & 0o077) !== 0) {
-        exposed.push(`${path} (mode ${(info.mode & 0o777).toString(8).padStart(3, '0')})`);
+      const mode = (info.mode & 0o777).toString(8).padStart(3, '0');
+      // World first, and unconditionally. Nothing about which service owns a file makes it
+      // acceptable for every account on the host to read it.
+      if ((info.mode & 0o007) !== 0) {
+        exposed.push(`${path} (mode ${mode}, world-readable)`);
+        continue;
+      }
+      if ((info.mode & 0o070) !== 0) {
+        const readers = await groupReaders(info.gid);
+        const allowed = entitled.get(path) ?? new Set<string>();
+        const extra = readers.filter((reader) => !allowed.has(reader));
+        if (extra.length > 0) {
+          exposed.push(`${path} (mode ${mode}, also readable by ${extra.join(', ')})`);
+        }
       }
     } catch (error: unknown) {
       absent.push(`${path} (${message(error)})`);
@@ -345,13 +409,13 @@ export const secretPosture: CommissioningCheckFn = async (inputs: CommissioningI
   if (exposed.length > 0) {
     return {
       status: 'unsatisfied',
-      detail: `${exposed.length} secret file(s) are readable beyond their owner, which is the whole reason for passing paths instead of values.`,
+      detail: `${exposed.length} secret file(s) are readable by an identity their unit does not name, which is the whole reason for passing paths instead of values.`,
       observed,
     };
   }
   return {
     status: 'satisfied',
-    detail: `All ${referenced.length} unit-referenced secret files exist and are closed to group and other.`,
+    detail: `All ${referenced.length} unit-referenced secret files exist and are readable by no identity beyond the unit that names them.`,
     observed,
   };
 };
