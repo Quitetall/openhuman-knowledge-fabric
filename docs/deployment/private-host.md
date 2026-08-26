@@ -72,6 +72,22 @@ hosts running different pandocs can produce different atoms for the same source.
 whose parity criterion is byte-identical compilation, that is worth a decision rather than a
 default. Recorded here so the decision is visible; not taken here.
 
+**A third version was measured on 2026-08-26, and it agrees.** The first host to exist runs
+pandoc 3.1.11.1 — a version between the two the drift digests were frozen against, which
+bracketed it without covering it. All ten drift-prone constructs were re-run there, using the
+parser out of the INSTALLED release rather than one rebuilt for the occasion:
+
+| pandoc   | where                | result |
+| -------- | -------------------- | ------ |
+| 3.1.3    | CI, ubuntu-24.04 apt | 10/10  |
+| 3.1.11.1 | this dogfood host    | 10/10  |
+| 3.10.2   | workstation          | 10/10  |
+
+So "no version pin required" now rests on three versions rather than two, and the host is no
+longer an assumption. The question stays open on purpose: three agreeing versions is evidence,
+not a guarantee, and the constructs are the ones thought most likely to drift rather than a
+proof that none can.
+
 Install **python3**, on `PATH`, for the LamQuant compatibility oracle.
 `packages/documents/src/lamquant-compat.ts` runs the source gates through
 `options.pythonExecutable ?? 'python3'`, and nothing in the codebase supplies that option — the
