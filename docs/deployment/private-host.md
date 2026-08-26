@@ -391,10 +391,33 @@ sudo -u kf-migrator env \
 ```
 
 Rehearsal refuses reserved/nonempty databases, applies every migration, seeds exact generated
-ontology, rolls back every migration, and verifies zero applied rows and zero remaining
-non-system schemas. Migrations deliberately retain cluster-global roles; destroy disposable
-cluster afterward. Receipt contains digests/version/label, no URL or credential. Receipt is
-execution evidence, not approval or commissioning record.
+ontology, then rolls back **to the forward-only floor** and verifies it stopped exactly there —
+both the number of migrations still applied and the version sitting on top. Migrations
+deliberately retain cluster-global roles; destroy disposable cluster afterward. Receipt contains
+digests/version/label/floor, no URL or credential. Receipt is execution evidence, not approval
+or commissioning record.
+
+**The floor, and why full rollback is not claimed.** Seven migrations are one-way security
+hardening and cannot be reverted — `20260816000300_typed_table_row_security` would return 29
+tables to unrestricted reads, `20260816000500` another 28. Each declares itself with
+`-- kf:forward-only <reason>` in its down section, and rollback stops at the highest such
+migration (currently `20260816000600_external_identity_reader_grant`). The earlier contract —
+roll back everything, expect an empty database — could never pass once staged RLS landed, and
+the first rehearsal ever run failed on `cannot drop column organization_id of table core.action
+because other objects depend on it`. The promise was narrowed rather than loosened: it is still
+an exact assertion, just about a named floor instead of about zero.
+
+A down section that is empty and does **not** declare itself is refused outright, in `check` as
+well as in the rehearsal. It is indistinguishable at run time from the deliberate case, and the
+difference only surfaces when a rollback is needed and quietly does nothing. The declaration
+requires a reason after it — a bare marker is not a declaration — because the reason is the only
+thing a reviewer reads to judge whether the irreversibility was intended. Declaring forward-only
+while also carrying down statements is likewise refused: one of the two is wrong and there is no
+safe way to guess which.
+
+Receipts are `format=kf-migration-rollback-rehearsal-v2`. The version moved rather than the
+fields being added quietly, because reading a v2 as a v1 would read "reversible to a floor" as
+"reversible" — the overclaim this exists to remove.
 
 Set exact receipt path and manifest digest in `/etc/kf/migrator.env`; point `/opt/kf` at
 verified release; run `systemctl start kf-migrate.service`. Any failure stops deployment.

@@ -466,6 +466,7 @@ create policy training_requirement_scoped_insert on quality.training_requirement
 create policy training_requirement_backup_read on quality.training_requirement for select to kf_backup using (true);
 
 -- migrate:down
+-- kf:forward-only reverting would return 29 tables holding the substance of every record to unrestricted reads
 
 -- Forward-only. Reverting would return 29 tables holding the substance of every record to
 -- unrestricted reads by any role that can connect.

@@ -65,6 +65,7 @@ comment on table search.document is
   'this table, and the explicit organization/classification predicate in @kf/search.';
 
 -- migrate:down
+-- kf:forward-only reverting would restore PUBLIC EXECUTE on four SECURITY DEFINER functions and an unrestricted derived projection of every record
 
 -- Forward-only. Reverting would restore PUBLIC EXECUTE on four SECURITY DEFINER functions and
 -- an unrestricted derived projection of every record in every organization.

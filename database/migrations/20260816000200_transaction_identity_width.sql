@@ -599,6 +599,7 @@ end
 $$;
 
 -- migrate:down
+-- kf:forward-only reverting would restore a comparison that stops working after the first transaction-id wraparound
 
 -- Forward-only. Reverting would restore a comparison that stops working after the first
 -- transaction-id wraparound.

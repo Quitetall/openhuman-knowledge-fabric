@@ -79,13 +79,19 @@ interface ReleaseFixture {
   manifestDigest: string;
 }
 
-function makeRelease(): ReleaseFixture {
+const EXAMPLE_MIGRATIONS: Record<string, string> = {
+  '20260814000100_example.sql': '-- migrate:up\nselect 1;\n-- migrate:down\nselect 1;\n',
+};
+
+function makeRelease(migrations: Record<string, string> = EXAMPLE_MIGRATIONS): ReleaseFixture {
   const release = temporaryDirectory('kf-release-');
-  const migration = join(release, 'database', 'migrations', '20260814000100_example.sql');
+  const migrationDirectory = join(release, 'database', 'migrations');
   const seed = join(release, 'generated', 'sql-registry', '001-ontology-seed.sql');
-  mkdirSync(dirname(migration), { recursive: true });
+  mkdirSync(migrationDirectory, { recursive: true });
   mkdirSync(dirname(seed), { recursive: true });
-  writeFileSync(migration, '-- migrate:up\nselect 1;\n-- migrate:down\nselect 1;\n');
+  for (const [name, body] of Object.entries(migrations)) {
+    writeFileSync(join(migrationDirectory, name), body);
+  }
   writeFileSync(seed, 'select 1;\n');
   return { release, manifestDigest: writeReleaseManifest(release) };
 }
@@ -103,7 +109,12 @@ function fakeDbmate(release: ReleaseFixture): { executable: string; log: string 
   return { executable, log };
 }
 
-function fakePsql(): { executable: string; log: string } {
+/**
+ * `state` is what the post-rollback probe reports: applied|schemas|relations|highest-version.
+ * The default is a database that came all the way back, which is what a release whose
+ * migrations are all reversible must produce. Pass a floor state to drive the other branch.
+ */
+function fakePsql(state = '0|0|0|none'): { executable: string; log: string } {
   const directory = temporaryDirectory('kf-psql-');
   const executable = join(directory, 'psql');
   const log = join(directory, 'calls.log');
@@ -113,7 +124,7 @@ function fakePsql(): { executable: string; log: string } {
 printf 'psql:%s\n' "$*" >> "$KF_TEST_PSQL_LOG"
 case "$*" in
   *"current_database()"*) printf 'kf_rehearsal|empty\n' ;;
-  *"public.schema_migrations"*) printf '0|0|0\n' ;;
+  *"public.schema_migrations"*) printf '${state}\n' ;;
 esac
 `,
   );
@@ -385,7 +396,7 @@ describe('release migration command', () => {
     expect(existsSync(dbmate.log)).toBe(false);
   });
 
-  it('rehearses every down migration only on an explicitly disposable empty target', () => {
+  it('rehearses down to the forward-only floor only on an explicitly disposable empty target', () => {
     const release = makeRelease();
     const dbmate = fakeDbmate(release);
     const psql = fakePsql();
@@ -411,10 +422,77 @@ describe('release migration command', () => {
     );
     expect(psqlCalls).not.toContain('scratch-secret');
     const receiptBody = readFileSync(receipt, 'utf8');
-    expect(receiptBody).toContain('format=kf-migration-rollback-rehearsal-v1');
+    expect(receiptBody).toContain('format=kf-migration-rollback-rehearsal-v2');
     expect(receiptBody).toContain(`manifest_sha256=${release.manifestDigest}`);
     expect(receiptBody).toContain('scratch_label=test-disposable-cluster');
+    // Every migration in this fixture is reversible, so the receipt must say so plainly rather
+    // than claim a floor it does not have.
+    expect(receiptBody).toContain('migrations_total=1');
+    expect(receiptBody).toContain('migrations_reverted=1');
+    expect(receiptBody).toContain('forward_only_floor=none');
     expect(receiptBody).not.toContain('database.invalid');
+  });
+
+  describe('rollback stops at the declared floor and proves where it stopped', () => {
+    // Two reversible migrations above one that declares itself irreversible. Rollback must run
+    // exactly two downs and leave the first migration applied.
+    const WITH_FLOOR: Record<string, string> = {
+      '20260814000100_first.sql': '-- migrate:up\nselect 1;\n-- migrate:down\nselect 1;\n',
+      '20260814000200_floor.sql':
+        '-- migrate:up\nselect 1;\n-- migrate:down\n-- kf:forward-only would restore open reads\n',
+      '20260814000300_last.sql': '-- migrate:up\nselect 1;\n-- migrate:down\nselect 1;\n',
+    };
+
+    function rehearse(state: string): { code: number; output: string; receipt: string } {
+      const release = makeRelease(WITH_FLOOR);
+      const dbmate = fakeDbmate(release);
+      const psql = fakePsql(state);
+      const secret = join(temporaryDirectory('kf-rehearsal-secret-'), 'database-url');
+      const receipt = join(temporaryDirectory('kf-rehearsal-receipt-'), 'receipt');
+      writeFileSync(secret, 'postgresql://kf_migrator:scratch-secret@database.invalid/scratch\n', {
+        mode: 0o600,
+      });
+      const result = runMigration(
+        ['rehearse-rollback', release.release, receipt],
+        release,
+        dbmate,
+        {
+          KF_PSQL_BIN: psql.executable,
+          KF_TEST_PSQL_LOG: psql.log,
+          KF_REHEARSAL_DATABASE_URL_FILE: secret,
+          KF_REHEARSAL_DISPOSABLE_CLUSTER_CONFIRMATION: 'dedicated-disposable-cluster',
+          KF_REHEARSAL_TARGET_LABEL: 'test-disposable-cluster',
+        },
+      );
+      return { ...result, receipt };
+    }
+
+    it('accepts a rollback that stopped exactly on the floor', () => {
+      // The floor is the SECOND of three migrations, so only the third can be reverted — one
+      // down, two still applied, 20260814000200 on top. Reversibility stops at the floor, it
+      // does not resume below it: reverting the first would have to pass through the second.
+      const result = rehearse('2|0|0|20260814000200');
+      expect(result.code, result.output).toBe(0);
+      const body = readFileSync(result.receipt, 'utf8');
+      expect(body).toContain('migrations_total=3');
+      expect(body).toContain('migrations_reverted=1');
+      expect(body).toContain('forward_only_floor=20260814000200_floor.sql');
+    });
+
+    it('refuses a rollback that stopped at the right COUNT but the wrong migration', () => {
+      // The count the script computes agrees with itself by construction. Only the version the
+      // database actually reports can catch a floor that moved underneath it.
+      const result = rehearse('2|0|0|20260814000100');
+      expect(result.code).not.toBe(0);
+      expect(result.output).toContain('20260814000100');
+      expect(result.output).toContain('20260814000200');
+    });
+
+    it('refuses a rollback that went past the floor', () => {
+      const result = rehearse('0|0|0|none');
+      expect(result.code).not.toBe(0);
+      expect(result.output).toContain('forward-only floor');
+    });
   });
 
   it('treats relations in public as nonempty rehearsal state', () => {
@@ -470,5 +548,60 @@ describe('release migration command', () => {
       `-f ${join(release.release, 'generated/sql-registry/001-ontology-seed.sql')}`,
     );
     expect(psqlCalls).not.toContain('production-secret');
+  });
+
+  it('refuses a v1 receipt, whose claim of full reversibility no longer holds', () => {
+    // The receipt format moved to v2 when rollback stopped promising an empty database. A v1
+    // receipt reaching `apply` means either a rehearsal from before the floor existed or one
+    // run against a different migration set — neither may authorise a production migration,
+    // and reading it as a v2 would read "reversible to a floor" as "reversible".
+    const release = makeRelease();
+    const dbmate = fakeDbmate(release);
+    const psql = fakePsql();
+    const rehearsalSecret = join(temporaryDirectory('kf-rehearsal-secret-'), 'database-url');
+    const receipt = join(temporaryDirectory('kf-rehearsal-receipt-'), 'receipt');
+    writeFileSync(rehearsalSecret, 'postgresql://kf_migrator@database.invalid/scratch\n', {
+      mode: 0o600,
+    });
+    const rehearsal = runMigration(
+      ['rehearse-rollback', release.release, receipt],
+      release,
+      dbmate,
+      {
+        KF_PSQL_BIN: psql.executable,
+        KF_TEST_PSQL_LOG: psql.log,
+        KF_REHEARSAL_DATABASE_URL_FILE: rehearsalSecret,
+        KF_REHEARSAL_DISPOSABLE_CLUSTER_CONFIRMATION: 'dedicated-disposable-cluster',
+        KF_REHEARSAL_TARGET_LABEL: 'test-disposable-cluster',
+      },
+    );
+    expect(rehearsal.code, rehearsal.output).toBe(0);
+
+    // Every other field stays valid — digests, dbmate version, mode. Only the claim regresses,
+    // so nothing but the format check can refuse this.
+    writeFileSync(
+      receipt,
+      readFileSync(receipt, 'utf8').replace(
+        'format=kf-migration-rollback-rehearsal-v2',
+        'format=kf-migration-rollback-rehearsal-v1',
+      ),
+      { mode: 0o600 },
+    );
+
+    const productionSecret = join(temporaryDirectory('kf-production-secret-'), 'database-url');
+    writeFileSync(productionSecret, 'postgresql://kf_migrator@database.invalid/kf\n', {
+      mode: 0o600,
+    });
+    const applied = runMigration(['apply', release.release], release, fakeDbmate(release), {
+      DATABASE_URL_FILE: productionSecret,
+      KF_PSQL_BIN: psql.executable,
+      KF_TEST_PSQL_LOG: psql.log,
+      KF_ROLLBACK_REHEARSAL_RECEIPT: receipt,
+      KF_MIGRATION_APPLY_CONFIRMATION: 'apply-reviewed-release',
+    });
+
+    expect(applied.code, applied.output).not.toBe(0);
+    expect(applied.output).toContain('v1');
+    expect(applied.output).toContain('re-run the rehearsal');
   });
 });

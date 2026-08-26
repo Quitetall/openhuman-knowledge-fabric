@@ -370,6 +370,7 @@ create policy work_order_scope_scoped_insert on work.work_order_scope for insert
 create policy work_order_scope_backup_read on work.work_order_scope for select to kf_backup using (true);
 
 -- migrate:down
+-- kf:forward-only reverting would return 28 tables including every action’s exact parameters to unrestricted reads
 
 -- Forward-only. Reverting would return 28 tables — including every action's exact parameters
 -- — to unrestricted reads by any role that can connect.

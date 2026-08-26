@@ -41,6 +41,7 @@ comment on table org.external_identity is
   'kf_worker resolve identities, kf_backup preserves them, and nothing else reads it directly.';
 
 -- migrate:down
+-- kf:forward-only reverting would return the whole issuer-to-person mapping, across every organization, to two roles
 
 -- Forward-only. Reverting would return the whole issuer-to-person mapping, across every
 -- organization, to two roles that reach the same information through the API with a verified

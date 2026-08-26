@@ -199,6 +199,7 @@ revoke execute on function secure_object.enforce_key_revocation_action() from pu
 revoke execute on function secure_object.enforce_erasure_tombstone_action() from public;
 
 -- migrate:down
+-- kf:forward-only restoring the prior trigger bodies would reintroduce arbitrary-signature admission and the revocation race
 
 -- Forward-only security hardening: restoring the prior trigger bodies would reintroduce
 -- arbitrary-signature admission and the revocation race.

@@ -37,6 +37,7 @@ comment on view engineering.verification_status is
   'what it aggregates, not the view owner''s.';
 
 -- migrate:down
+-- kf:forward-only reverting would return a view over four row-level-security-protected tables to resolving them as its owner
 
 -- Forward-only. Reverting would return a view over four row-level-security-protected tables
 -- to resolving them as its owner.

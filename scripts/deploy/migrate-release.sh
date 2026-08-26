@@ -171,7 +171,34 @@ verify_release_tree() {
     sha256sum --strict --check --quiet SHA256SUMS
   ) || fail 'release file checksum verification failed'
 
+  # THE FORWARD-ONLY FLOOR.
+  #
+  # `rehearse-rollback` used to roll back every migration and require the database to end
+  # completely empty. That could never succeed, and the first rehearsal ever run proved it:
+  #
+  #   Error: pq: cannot drop column organization_id of table core.action
+  #          because other objects depend on it (2BP01)
+  #
+  # `20260816000500_typed_table_row_security_stage_two.sql` creates 91 policies over 28 tables
+  # and its down section is a comment saying so — "Forward-only. Reverting would return 28
+  # tables ... to unrestricted reads by any role that can connect." That is a deliberate
+  # decision, not an oversight, and it collides with an equally deliberate one: that a release
+  # must be provably reversible. Both cannot hold, and a check that cannot pass is worth less
+  # than one that states something true.
+  #
+  # So a migration may DECLARE itself irreversible with `-- kf:forward-only <reason>` in its
+  # down section, and rollback runs down to the highest such migration rather than to zero.
+  # The receipt then attests what is actually promised: reversible to a named floor.
+  #
+  # FAIL-CLOSED, and this is the half that matters. A down section with no SQL and no
+  # declaration is a mistake — somebody wrote `-- migrate:down` and stopped — and it is
+  # indistinguishable at run time from the deliberate case until a rollback needs it. That is
+  # now refused outright. Declaring forward-only AND writing SQL is likewise refused: it means
+  # one of the two is a lie, and there is no safe way to guess which.
   migration_count=0
+  forward_only_floor=''
+  forward_only_index=0
+  forward_only_version=''
   while IFS= read -r migration; do
     migration_count=$((migration_count + 1))
     [ "$(grep -c '^-- migrate:up$' "$migration" || true)" -eq 1 ] ||
@@ -181,6 +208,31 @@ verify_release_tree() {
     up_line="$(grep -n '^-- migrate:up$' "$migration" | cut -d: -f1)"
     down_line="$(grep -n '^-- migrate:down$' "$migration" | cut -d: -f1)"
     [ "$up_line" -lt "$down_line" ] || fail "migration down marker precedes up: $migration"
+
+    down_body="$(tail -n "+$((down_line + 1))" "$migration")"
+    # A statement is a non-comment, non-blank line. Comments cannot alter a schema, so this
+    # distinguishes "reverts nothing" from "reverts something" without parsing SQL.
+    down_statements="$(printf '%s\n' "$down_body" | grep -cE '^[[:space:]]*[^-[:space:]]' || true)"
+    # The reason is not decoration. This declaration is the only way out of the fail-closed
+    # check below, so it has to cost something to write, and what it costs is stating why. A
+    # bare `-- kf:forward-only` with nothing after it is not a declaration.
+    declares_forward_only="$(printf '%s\n' "$down_body" | grep -c '^-- kf:forward-only [^[:space:]]' || true)"
+
+    if [ "$declares_forward_only" -gt 0 ] && [ "$down_statements" -gt 0 ]; then
+      fail "migration declares kf:forward-only and still has down statements: $migration"
+    fi
+    if [ "$declares_forward_only" -eq 0 ] && [ "$down_statements" -eq 0 ]; then
+      fail "migration down section is empty and does not declare '-- kf:forward-only <reason>': $migration"
+    fi
+    if [ "$declares_forward_only" -gt 0 ]; then
+      forward_only_floor="$(basename -- "$migration")"
+      forward_only_index="$migration_count"
+      # dbmate's version is the leading digits of the filename. Captured here so the rehearsal
+      # can name the floor it expects rather than infer it from a count.
+      forward_only_version="${forward_only_floor%%_*}"
+      [[ "$forward_only_version" =~ ^[0-9]{14}$ ]] ||
+        fail "forward-only migration has no 14-digit version prefix: $migration"
+    fi
   done < <(find -P "$migration_directory" -maxdepth 1 -type f -name '*.sql' | sort)
   [ "$migration_count" -gt 0 ] || fail 'release migration set is empty'
 
@@ -245,8 +297,15 @@ verify_receipt() {
   receipt_mode="$(stat -c '%a' "$receipt")"
   [ $((8#$receipt_mode & 8#022)) -eq 0 ] ||
     fail 'rollback rehearsal receipt must not be group/other writable'
-  [ "$(receipt_value format "$receipt")" = 'kf-migration-rollback-rehearsal-v1' ] ||
-    fail 'rollback rehearsal receipt format is unsupported'
+  receipt_format="$(receipt_value format "$receipt")"
+  # v1 is refused by name rather than through the generic message below. A v1 receipt asserts
+  # the database returned to empty; this migration set cannot do that, so a v1 receipt is
+  # either from before the floor existed or from a different set entirely. Either way it must
+  # not authorise an apply, and the operator needs to be told which of the two it is.
+  [ "$receipt_format" != 'kf-migration-rollback-rehearsal-v1' ] ||
+    fail 'rollback rehearsal receipt is v1, which claims full reversibility; re-run the rehearsal to produce a v2 receipt naming the forward-only floor'
+  [ "$receipt_format" = 'kf-migration-rollback-rehearsal-v2' ] ||
+    fail "rollback rehearsal receipt format is unsupported: $receipt_format"
   [ "$(receipt_value manifest_sha256 "$receipt")" = "$actual_manifest_digest" ] ||
     fail 'rollback rehearsal receipt belongs to another release manifest'
   [ "$(receipt_value migration_set_sha256 "$receipt")" = "$migration_set_digest" ] ||
@@ -290,15 +349,35 @@ case "$command_name" in
 
     run_dbmate up
     "$psql_bin" "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -q -f "$ontology_seed"
-    for ((index = 0; index < migration_count; index += 1)); do
+
+    # Down to the floor, not to zero. With no forward-only migration the floor is 0 and this
+    # is exactly the old behaviour.
+    reversible_count=$((migration_count - forward_only_index))
+    for ((index = 0; index < reversible_count; index += 1)); do
       run_dbmate down
     done
+
     remaining="$(
       "$psql_bin" "$DATABASE_URL" -X -A -t -v ON_ERROR_STOP=1 -c \
-        "select (select count(*) from public.schema_migrations)::text || '|' || (select count(*) from pg_namespace where nspname not in ('pg_catalog','information_schema','public') and nspname !~ '^pg_toast')::text || '|' || (select count(*) from pg_namespace n join pg_class c on c.relnamespace = n.oid where n.nspname = 'public' and c.relname <> 'schema_migrations')::text"
+        "select (select count(*) from public.schema_migrations)::text || '|' || (select count(*) from pg_namespace where nspname not in ('pg_catalog','information_schema','public') and nspname !~ '^pg_toast')::text || '|' || (select count(*) from pg_namespace n join pg_class c on c.relnamespace = n.oid where n.nspname = 'public' and c.relname <> 'schema_migrations')::text || '|' || coalesce((select max(version) from public.schema_migrations), 'none')"
     )"
-    [ "$remaining" = '0|0|0' ] ||
-      fail "rollback rehearsal left migration state, schemas or public relations: $remaining"
+    applied_after="${remaining%%|*}"
+    highest_after="${remaining##*|}"
+    if [ "$forward_only_index" -eq 0 ]; then
+      # Nothing declared itself irreversible, so the whole set must revert and leave nothing.
+      [ "$remaining" = '0|0|0|none' ] ||
+        fail "rollback rehearsal left migration state, schemas or public relations: $remaining"
+    else
+      # Exactly the floor set must remain — not "at most", not "roughly". One row too few
+      # means a down ran that should not have; one too many means a down silently failed.
+      [ "$applied_after" = "$forward_only_index" ] ||
+        fail "rollback rehearsal expected $forward_only_index migration(s) at the forward-only floor $forward_only_floor, found $applied_after (full state: $remaining)"
+      # And they must be the RIGHT ones. The count above is arithmetic on a number this script
+      # computed itself, so it agrees with a miscount; naming the version that must sit on top
+      # is checked against what the database actually holds.
+      [ "$highest_after" = "$forward_only_version" ] ||
+        fail "rollback rehearsal stopped at migration $highest_after, expected the forward-only floor $forward_only_version ($forward_only_floor)"
+    fi
 
     receipt_path="$3"
     [[ "$receipt_path" = /* ]] || fail 'rehearsal RECEIPT_PATH must be absolute'
@@ -309,13 +388,21 @@ case "$command_name" in
       fail 'KF_REHEARSAL_TARGET_LABEL must be 1..80 safe non-secret characters'
     receipt_temp="$(mktemp "$(dirname -- "$receipt_path")/.kf-rehearsal.XXXXXX")"
     chmod 0600 "$receipt_temp"
+    # v2 because the claim changed shape. A v1 receipt asserted the database returned to
+    # empty; a v2 receipt says how far back it went and what stopped it. Reading a v2 as a v1
+    # would be reading "reversible to a floor" as "reversible", which is the overclaim this
+    # whole change exists to remove — so the format string moves rather than the fields being
+    # added quietly.
     cat > "$receipt_temp" <<EOF
-format=kf-migration-rollback-rehearsal-v1
+format=kf-migration-rollback-rehearsal-v2
 manifest_sha256=$actual_manifest_digest
 migration_set_sha256=$migration_set_digest
 dbmate_version=$expected_dbmate_version
 rehearsed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 scratch_label=$target_label
+migrations_total=$migration_count
+migrations_reverted=$reversible_count
+forward_only_floor=${forward_only_floor:-none}
 EOF
     # Hard-link creation is atomic and refuses an existing destination. `mv -n` reports
     # success when it skips, which would let a race retain somebody else's receipt.
