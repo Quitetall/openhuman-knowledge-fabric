@@ -61,10 +61,11 @@ pnpm dogfood:load -- --source-dir /path/to/your/documents
 The loader uses the normal action dispatcher. The synthetic local operator and role are
 bootstrapped for development, but KF does **not** auto-grant that person an
 `org.person_clearance` row. An active, organization-scoped clearance must already exist before
-the first action can run. Without it, the loader refuses with `classification ceiling refused`
-before it records document actions. This is intentional: a bootstrap convenience must not become
-an unreviewed authority grant. Have a human authority create the clearance through the approved
-authority procedure, with its action and audit evidence, before rerunning the loader.
+the first action can run. Without it, the loader refuses with `dogfood identity is not ready`
+before it stages document bytes or records document actions. This is intentional: a bootstrap
+convenience must not become an unreviewed authority grant. Have a human authority create the
+clearance through the approved authority procedure, with its action and audit evidence, before
+rerunning the loader.
 
 The loader is idempotent by construction: staging is content-addressed with conditional create,
 so an unchanged rerun creates neither database duplicates nor new object-store versions. An
