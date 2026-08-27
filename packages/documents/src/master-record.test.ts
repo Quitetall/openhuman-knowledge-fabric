@@ -118,6 +118,39 @@ describe('relevance closure', () => {
     expect([...ids].sort()).toEqual(['a', 'b', 'person']);
   });
 
+  it('does not restart subject anchors after a cycle returns to the person', () => {
+    const ids = relevanceClosure(
+      'person',
+      [
+        { sourceId: 'person', targetId: 'allowed', relationType: 'assigned_to' },
+        { sourceId: 'person', targetId: 'denied', relationType: 'contains' },
+        { sourceId: 'allowed', targetId: 'person', relationType: 'derived_from' },
+      ],
+      [
+        {
+          relationType: 'assigned_to',
+          personAnchor: true,
+          propagationClass: 'composition_down',
+          anchorDepth: 1,
+        },
+        {
+          relationType: 'contains',
+          personAnchor: false,
+          propagationClass: 'composition_down',
+          anchorDepth: 8,
+        },
+        {
+          relationType: 'derived_from',
+          personAnchor: false,
+          propagationClass: 'provenance_backward',
+          anchorDepth: 8,
+        },
+      ],
+    );
+    expect(ids.has('allowed')).toBe(true);
+    expect(ids.has('denied')).toBe(false);
+  });
+
   it('walks full composition subtree after the bounded person anchor', () => {
     const edges = [
       { sourceId: 'person', targetId: 'root', relationType: 'assigned_to' },

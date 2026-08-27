@@ -248,6 +248,10 @@ export function relevanceClosureWithMetrics(
       // loss. Authority remains one hop by its propagation class.
       if (anchorHop && nextDepth > policy.anchorDepth) continue;
       const nextAnchorType = anchorHop ? policy.relationType : current.anchorType;
+      // A cycle may return to the subject through an already-anchored path. Treat that node as a
+      // terminal cycle edge; restarting the subject's outgoing relations would bypass their
+      // personAnchor declarations and turn an unrelated edge into relevance.
+      if (nextId === personId && current.anchorType !== undefined) continue;
       const nextNode: QueueNode = {
         id: nextId,
         depth: nextDepth,
