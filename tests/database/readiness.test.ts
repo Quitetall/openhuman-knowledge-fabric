@@ -283,6 +283,19 @@ describe('a system that is genuinely in order', () => {
 });
 
 describe('noticing things', () => {
+  it('reports a global outbox backlog through the unprivileged readiness role', async () => {
+    await doWork('An outbox row for readiness', 'readiness-outbox-role-0001');
+    try {
+      const report = await assessReadiness(h.pool, { outboxPending: 0, outboxAgeSeconds: 0 });
+      const outbox = serviceCheck(report, 'outbox_delivery');
+      expect(outbox?.status).toBe('degraded');
+      expect(Number(outbox?.measured?.['pending'] ?? 0)).toBeGreaterThan(0);
+      expect(Number(outbox?.measured?.['oldestSeconds'] ?? 0)).toBeGreaterThanOrEqual(0);
+    } finally {
+      await drainOutbox(h.adminPool);
+    }
+  });
+
   it('notices a dropped write guard', async () => {
     // Dropping a trigger is DDL and shows in the server log — but only if somebody reads it.
     await withTransaction(h.adminPool, async (tx) =>
@@ -580,5 +593,11 @@ describe('failing closed', () => {
     // create one organization, so a check that could not see any would report zero and look
     // identical to a healthy one.
     expect(Number(index?.measured?.['organizations'] ?? 0)).toBeGreaterThan(0);
+
+    const checkpoints = institutionalCheck(report, 'checkpoint_coverage');
+    expect(
+      checkpoints?.status,
+      `checkpoint coverage could not run as kf_app: ${checkpoints?.detail ?? 'no detail'}`,
+    ).not.toBe('unknown');
   });
 });

@@ -1,13 +1,16 @@
 import type { CheckFn } from './contracts.js';
 
 export const outboxHealth: CheckFn = async (tx, limits) => {
-  const row = await tx.one<{ pending: string; oldest: string | null }>(
-    `select count(*)::text as pending,
-            extract(epoch from (now() - min(created_at)))::text as oldest
-       from core.outbox where delivered_at is null`,
+  // `core.outbox` is organization-scoped for ordinary readers, but readiness has to report the
+  // queue globally and has no person context to bind. The database definer returns only count
+  // and age, so this check cannot become a cross-organization payload reader merely because it
+  // is monitoring delivery.
+  const row = await tx.one<{ pending: string; oldest_seconds: string }>(
+    `select pending::text, oldest_seconds::text
+       from core.readiness_outbox_backlog()`,
   );
   const pending = Number(row.pending);
-  const age = row.oldest === null ? 0 : Math.floor(Number(row.oldest));
+  const age = Number(row.oldest_seconds);
 
   const behind = pending > limits.outboxPending || age > limits.outboxAgeSeconds;
   return {

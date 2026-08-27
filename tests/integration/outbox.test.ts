@@ -14,7 +14,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDispatcher } from '@kf/actions';
 import { createPool, withTransaction } from '@kf/database';
 import { search } from '@kf/search';
-import { drainOutbox, outboxBacklog, type OutboxHandler } from '../../apps/worker/src/outbox.js';
+import {
+  drainOutbox,
+  outboxBacklog,
+  OUTBOX_HANDLERS,
+  type OutboxHandler,
+} from '../../apps/worker/src/outbox.js';
 import {
   createObject,
   seedFixtures,
@@ -60,6 +65,29 @@ afterAll(async () => {
 });
 
 describe('delivery', () => {
+  it('dedicated worker role can drain the queue without an RLS context', async () => {
+    await acceptSomething('Worker visibility probe', `outbox-worker-${randomUUID()}`);
+
+    const workerRole = `kf_worker_drain_${randomUUID().replaceAll('-', '')}`;
+    await withTransaction(h.adminPool, (tx) =>
+      tx.query(`create role ${workerRole} login password 'test-only-not-a-secret' inherit`),
+    );
+    await withTransaction(h.adminPool, (tx) => tx.query(`grant kf_worker to ${workerRole}`));
+    const workerUri = new URL(h.connectionString);
+    workerUri.username = workerRole;
+    workerUri.password = 'test-only-not-a-secret';
+    const workerPool = createPool({ connectionString: workerUri.toString() });
+    try {
+      const result = await drainOutbox(workerPool, { handlers: OUTBOX_HANDLERS });
+      expect(result.delivered).toBeGreaterThan(0);
+      expect(result.failed).toBe(0);
+      expect(result.unhandled).toEqual([]);
+    } finally {
+      await workerPool.end();
+      await withTransaction(h.adminPool, (tx) => tx.query(`drop role ${workerRole}`));
+    }
+  });
+
   it('records link delivery through the narrow worker definer path without worker RLS context', async () => {
     const recordDigest = randomUUID().replaceAll('-', '').padEnd(64, '0');
     const tokenDigest = randomUUID().replaceAll('-', '').padEnd(64, '1');

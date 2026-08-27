@@ -65,13 +65,12 @@ export const chainIntact: CheckFn = async (tx) => {
 };
 
 export const checkpointCoverage: CheckFn = async (tx, limits) => {
-  const row = await tx.one<{ uncovered: string; checkpoints: string; last_at: Date | null }>(
-    `select (select count(*) from core.audit_event e
-              where not exists (
-                select 1 from core.audit_checkpoint c
-                 where e.seq between c.from_seq and c.to_seq))::text as uncovered,
-            (select count(*) from core.audit_checkpoint)::text as checkpoints,
-            (select max(recorded_at) from core.audit_checkpoint) as last_at`,
+  // Checkpoints are cluster-global and intentionally not directly readable by kf_app. Ask the
+  // narrow database aggregate instead of granting the readiness process the signed rows or
+  // allowing a missing context to turn an absent checkpoint into a false green.
+  const row = await tx.one<{ uncovered: string; checkpoints: string; last_signed_at: Date | null }>(
+    `select uncovered::text, checkpoints::text, last_signed_at
+       from core.readiness_checkpoint_coverage()`,
   );
   const uncovered = Number(row.uncovered);
   const checkpoints = Number(row.checkpoints);
@@ -96,7 +95,7 @@ export const checkpointCoverage: CheckFn = async (tx, limits) => {
     measured: {
       uncovered,
       checkpoints,
-      lastSignedAt: row.last_at === null ? null : row.last_at.toISOString(),
+      lastSignedAt: row.last_signed_at === null ? null : row.last_signed_at.toISOString(),
     },
   };
 };
