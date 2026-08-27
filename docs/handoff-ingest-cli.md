@@ -46,15 +46,24 @@ all-or-nothing on purpose, and ADR 0012 explains why.
 **`--mode=reference`** — we do not hold the bytes. Dispatch `register_external_artifact`. Its
 payload, from the materializer and effect as written:
 
-- materializer: `source_system` (one of `git`, `cad_pdm`, `document_system`, `accounting`,
-  `external` — **never** `object_store`, which it refuses by name), `title`, `artifact_kind`
-- effect: `revision_label`, `authority` (one of `authoritative`, `evidence`, `mirror`, `lookup`),
-  `sha256`, `size_bytes`, `media_type`, `locator_system`, `external_id`, and optional `uri`
+- materializer requires: `source_system`, `title`, `artifact_kind`
+- effect requires: `revision_label`, `authority`, `sha256`, `size_bytes`, `media_type`,
+  `locator_system`, `external_id`; `uri` is optional
+
+The two enumerated fields, each checked against the code by
+`tests/deployment/handoff-brief.test.ts` so this cannot quietly go stale:
+
+- accepted source_system: `git`, `cad_pdm`, `document_system`, `accounting`, `external`
+- accepted authority: `authoritative`, `evidence`, `mirror`, `lookup`
+
+`object_store` is **not** in that first list and passing it is refused by name — that claim is
+`attach_evidence`, below.
 
 You still hash the file to fill `sha256` — the digest is the whole point of a reference. You just
 never write the bytes into the object store.
 
-**`--mode=copy`** — we hold the bytes. Use `attach_evidence`, unchanged. Note it hardcodes
+**`--mode=copy`** — we hold the bytes. Use `attach_evidence`
+(`packages/documents/src/internal/evidence-actions.ts`), unchanged. Note it hardcodes
 `source_system='object_store'` and requires a `storage_uri`; that is correct for this path and is
 the reason the other action had to exist.
 
@@ -92,9 +101,10 @@ swallow the second.
 ## Traps that have already cost time here
 
 **A test can pass for the wrong reason, and this file's own history proves it.** Deleting
-`plan.ts`'s missing-mode check left all 14 tests green, because an absent mode fell through to the
-unknown-mode branch and both messages contained `--mode`, which was all the assertion checked.
-Assert the specific guidance, and add a test that proves two branches are distinguishable.
+`plan.ts`'s missing-mode check left all 14 tests of the day green, because an absent mode fell
+through to the unknown-mode branch and both messages contained `--mode`, which was all the
+assertion checked. The fix tightened that assertion to the specific guidance and added a 15th test
+proving the two branches are distinguishable — which is why the table above says 15.
 
 **Do not report a gate result you piped.** `pnpm gate | tail` exits with `tail`'s status. It
 reported success over a real failure in this session. Redirect to a file and echo `$?`.
