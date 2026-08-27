@@ -977,6 +977,21 @@ describe('master-record runtime', () => {
       title: 'Organization view read probe',
       createdBy: fixtures.reviewerId,
     });
+    const anchoredProbe = await createObject(harness.adminPool, fixtures, {
+      type: 'decision_record',
+      domain: 'engineering',
+      state: 'draft',
+      title: 'Anchor fan-out persistence probe',
+      createdBy: fixtures.reviewerId,
+    });
+    await withTransaction(harness.adminPool, async (tx) => {
+      await bindContext(tx, fixtures, fixtures.reviewerId);
+      await tx.query(
+        `insert into core.relation (relation_type, source_id, target_id, created_by)
+         values ('produces', $1, $2, $3)`,
+        [fixtures.reviewerId, anchoredProbe, fixtures.reviewerId],
+      );
+    });
     const atoms = createDocumentActionAtoms({
       store: new InMemoryObjectStore(),
       parser: {
@@ -997,6 +1012,20 @@ describe('master-record runtime', () => {
       reason: 'compile organization-view access probe',
     });
     expect(compiled.status).toBe('applied');
+
+    const manifest = await withTransaction(harness.adminPool, (tx) =>
+      latestMasterRecord(tx, fixtures.reviewerId, fixtures.organizationId),
+    );
+    const measurements = (
+      manifest?.['manifest'] as {
+        measurements?: { relevanceFanoutByAnchorType?: Record<string, number> };
+      }
+    ).measurements;
+    expect(measurements).toEqual(
+      expect.objectContaining({
+        relevanceFanoutByAnchorType: expect.objectContaining({ produces: expect.any(Number) }),
+      }),
+    );
 
     const app = Fastify({ logger: false });
     registerMasterRecordRoute(app, {
