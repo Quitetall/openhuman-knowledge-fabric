@@ -410,11 +410,11 @@ deliberately retain cluster-global roles; destroy disposable cluster afterward. 
 digests/version/label/floor, no URL or credential. Receipt is execution evidence, not approval
 or commissioning record.
 
-**The floor, and why full rollback is not claimed.** Eighteen migrations are one-way security
+**The floor, and why full rollback is not claimed.** Nineteen migrations are one-way security
 hardening and cannot be reverted — `20260816000300_typed_table_row_security` would return 29
 tables to unrestricted reads, `20260816000500` another 28. Each declares itself with
 `-- kf:forward-only <reason>` in its down section, and rollback stops at the highest such
-migration (currently `20260827000300_checkpoint_runtime_visibility_count_fix`). The earlier contract —
+migration (currently `20260827000400_audit_chain_runtime_visibility`). The earlier contract —
 roll back everything, expect an empty database — could never pass once staged RLS landed, and
 the first rehearsal ever run failed on `cannot drop column organization_id of table core.action
 because other objects depend on it`. The promise was narrowed rather than loosened: it is still

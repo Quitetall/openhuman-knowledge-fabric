@@ -189,6 +189,7 @@ describe('the runbook describes the floor that actually exists', () => {
     sixteen: 16,
     seventeen: 17,
     eighteen: 18,
+    nineteen: 19,
   };
 
   it('states the right number of forward-only migrations', () => {

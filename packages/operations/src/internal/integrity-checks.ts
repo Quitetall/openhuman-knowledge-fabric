@@ -39,18 +39,12 @@ export const writeGuardsPresent: CheckFn = async (tx) => {
 };
 
 export const chainIntact: CheckFn = async (tx) => {
+  // The audit log is cluster-global, while ordinary audit reads are scoped to visible objects.
+  // Ask the narrow database aggregate so an absent organization context cannot turn hidden
+  // events into a false green chain check or expose the event rows themselves.
   const row = await tx.one<{ breaks: string; total: string }>(
-    `with linked as (
-       select seq, prev_digest,
-              lag(digest) over (order by seq) as expected_prev
-         from core.audit_event
-     )
-     select count(*) filter (
-              where (expected_prev is null and prev_digest <> repeat('0', 64))
-                 or (expected_prev is not null and prev_digest <> expected_prev)
-            )::text as breaks,
-            count(*)::text as total
-       from linked`,
+    `select breaks::text, total::text
+       from core.readiness_audit_chain()`,
   );
   const breaks = Number(row.breaks);
   return {

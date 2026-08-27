@@ -594,6 +594,13 @@ describe('failing closed', () => {
     // identical to a healthy one.
     expect(Number(index?.measured?.['organizations'] ?? 0)).toBeGreaterThan(0);
 
+    const chain = serviceCheck(report, 'audit_chain');
+    expect(
+      chain?.status,
+      `audit chain could not run as kf_app: ${chain?.detail ?? 'no detail'}`,
+    ).not.toBe('unknown');
+    expect(Number(chain?.measured?.['events'] ?? 0)).toBeGreaterThan(0);
+
     const checkpoints = institutionalCheck(report, 'checkpoint_coverage');
     expect(
       checkpoints?.status,
