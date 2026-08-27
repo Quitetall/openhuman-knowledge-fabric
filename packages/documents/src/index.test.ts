@@ -36,6 +36,7 @@ const REQUIRED_DOCUMENT_ACTIONS = [
   'compile_master_record',
   'publish_document_view',
   'record_document_proposal',
+  'release_person_entitlement_exclusion',
   'request_document_compilation',
   'retire_authored_fragment',
   'revise_authored_fragment',

@@ -22,7 +22,11 @@ export function registerMasterRecordLinkRoute(
     if (claims === undefined) return reply.code(404).send({ error: 'link_not_found' });
     const suppliedDigest = digestBytes(Buffer.from(request.params.token, 'utf8'));
 
-    return withTransaction(options.pool, async (tx) => {
+    // Keep reply handling outside transaction. Fastify may finish an injected response as soon
+    // as reply.send is called, while the transaction still has to commit its append-only access
+    // evidence. Returning a value and sending after withTransaction makes response completion
+    // happen after commit, so a caller never observes a delivered response before its audit row.
+    const result = await withTransaction(options.pool, async (tx) => {
       const link = await tx.maybeOne<{
         link_id: string;
         master_record_id: string;
@@ -44,7 +48,7 @@ export function registerMasterRecordLinkRoute(
         link.link_id !== claims.linkId ||
         link.master_record_id !== claims.masterRecordId
       ) {
-        return reply.code(404).send({ error: 'link_not_found' });
+        return { statusCode: 404, body: { error: 'link_not_found' } };
       }
 
       await setAccessContext(tx, {
@@ -61,15 +65,15 @@ export function registerMasterRecordLinkRoute(
       };
       if (link.revoked) {
         await log('revoked');
-        return reply.code(410).send({ error: 'link_revoked' });
+        return { statusCode: 410, body: { error: 'link_revoked' } };
       }
       if (Date.now() >= link.expires_at.getTime() || Date.now() >= Date.parse(claims.expiresAt)) {
         await log('expired');
-        return reply.code(410).send({ error: 'link_expired' });
+        return { statusCode: 410, body: { error: 'link_expired' } };
       }
       if (link.scope['kind'] !== 'master_record') {
         await log('invalid');
-        return reply.code(404).send({ error: 'link_not_found' });
+        return { statusCode: 404, body: { error: 'link_not_found' } };
       }
 
       const record = await tx.maybeOne<Record<string, unknown>>(
@@ -81,7 +85,7 @@ export function registerMasterRecordLinkRoute(
       );
       if (record === undefined || record['record_digest'] !== link.record_digest) {
         await log('invalid');
-        return reply.code(404).send({ error: 'link_not_found' });
+        return { statusCode: 404, body: { error: 'link_not_found' } };
       }
       const permitted = await enumeratePermittedSet(
         tx,
@@ -102,10 +106,14 @@ export function registerMasterRecordLinkRoute(
         );
       } catch {
         await log('stale');
-        return reply.code(409).send({ error: 'master_record_stale' });
+        return { statusCode: 409, body: { error: 'master_record_stale' } };
       }
       await log('served');
-      return reply.send({ record, items: await masterRecordItems(tx, link.master_record_id) });
+      return {
+        statusCode: 200,
+        body: { record, items: await masterRecordItems(tx, link.master_record_id) },
+      };
     });
+    return reply.code(result.statusCode).send(result.body);
   });
 }

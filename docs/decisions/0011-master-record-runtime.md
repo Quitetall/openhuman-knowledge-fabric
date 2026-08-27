@@ -50,6 +50,9 @@ values for provenance.
 
 - `compile_master_record` is a typed action. It enumerates through current RLS, records one
   append-only claim, and emits normal action/audit/outbox evidence.
+- `release_person_entitlement_exclusion` is the only path that can release a subtractive
+  exclusion. The database binds its one-time transition to the action target, exclusion id,
+  actor, organization and server-assigned effective time; direct rewrites remain refused.
 - `GET /master-record` exposes the authenticated person's latest claim, current permission digest,
   stale status, items, and withholding ledger.
 - `renderMasterRecord` projects one compilation deterministically to Markdown or escaped HTML;

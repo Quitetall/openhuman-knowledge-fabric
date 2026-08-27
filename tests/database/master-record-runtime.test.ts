@@ -349,6 +349,113 @@ describe('master-record runtime', () => {
     );
   });
 
+  it('releases an entitlement exclusion only through the typed action seam', async () => {
+    const actionId = await unrecordedAction();
+    const objectId = await withTransaction(harness.pool, async (tx) => {
+      await setAccessContext(tx, {
+        organizationId: fixtures.organizationId,
+        maxClassification: 'restricted',
+      });
+      const row = await tx.one<{ id: string }>(
+        `select id from core.object
+          where organization_id = $1 and object_type <> 'person'
+          order by id limit 1`,
+        [fixtures.organizationId],
+      );
+      return row.id;
+    });
+    expect(objectId).toBeDefined();
+    const clearanceDelay = await withTransaction(harness.adminPool, async (tx) => {
+      const row = await tx.one<{ milliseconds: number }>(
+        `select ceil(greatest(0, extract(epoch from max(valid_from) - clock_timestamp()) * 1000))::int
+           as milliseconds
+           from org.person_clearance
+          where subject_id = $1 and organization_id = $2`,
+        [fixtures.reviewerId, fixtures.organizationId],
+      );
+      return row.milliseconds;
+    });
+    if (clearanceDelay > 0) {
+      await new Promise((resolve) => setTimeout(resolve, clearanceDelay + 25));
+    }
+    const exclusionId = randomUUID();
+    await withTransaction(harness.adminPool, async (tx) => {
+      await setAccessContext(tx, {
+        organizationId: fixtures.organizationId,
+        maxClassification: 'restricted',
+      });
+      await tx.query(
+        `insert into content.person_entitlement_exclusion
+           (id, subject_id, organization_id, object_id, reason_class, reason, authorizer,
+            created_by_action)
+         values ($1,$2,$3,$4,'exclusion','temporary need-to-know', $2, $5)`,
+        [exclusionId, fixtures.reviewerId, fixtures.organizationId, objectId, actionId],
+      );
+    });
+
+    const atoms = createDocumentActionAtoms({
+      store: new InMemoryObjectStore(),
+      parser: {
+        async parse() {
+          return undefined;
+        },
+      },
+    });
+    const execute = createFabricDispatcher(harness.adminPool, atoms);
+    const released = await execute({
+      actionType: 'release_person_entitlement_exclusion',
+      actorId: fixtures.reviewerId,
+      actingRoleId: fixtures.reviewerRoleId,
+      targetIds: [objectId!],
+      organizationId: fixtures.organizationId,
+      maxClassification: 'restricted',
+      idempotencyKey: `release-exclusion-${exclusionId}`,
+      payload: { exclusion_id: exclusionId },
+      reason: 'need-to-know review complete',
+    });
+    expect(released.status).toBe('applied');
+
+    const row = await withTransaction(harness.adminPool, async (tx) => {
+      const exclusion = await tx.one<{ released_at: Date; released_by_action: string }>(
+        `select released_at, released_by_action
+           from content.person_entitlement_exclusion where id = $1`,
+        [exclusionId],
+      );
+      const action = await tx.one<{ effective_at: Date }>(
+        'select effective_at from core.action where id = $1',
+        [released.actionId],
+      );
+      return { exclusion, action };
+    });
+    expect(row.exclusion.released_at.toISOString()).toBe(row.action.effective_at.toISOString());
+    expect(row.exclusion.released_by_action).toBe(released.actionId);
+
+    await expect(
+      withTransaction(harness.adminPool, (tx) =>
+        tx.query(
+          `update content.person_entitlement_exclusion
+              set reason = 'rewritten'
+            where id = $1`,
+          [exclusionId],
+        ),
+      ),
+    ).rejects.toThrow(/append-only|permitted update/i);
+
+    await expect(
+      execute({
+        actionType: 'release_person_entitlement_exclusion',
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
+        targetIds: [objectId!],
+        organizationId: fixtures.organizationId,
+        maxClassification: 'restricted',
+        idempotencyKey: `release-exclusion-again-${exclusionId}`,
+        payload: { exclusion_id: exclusionId },
+        reason: 'duplicate release must refuse',
+      }),
+    ).rejects.toMatchObject({ failure: 'precondition_failed' });
+  });
+
   it('records a permission withdrawal with time and reason instead of silent absence', async () => {
     const actionId = await unrecordedAction();
     const latest = await withTransaction(harness.adminPool, (tx) =>

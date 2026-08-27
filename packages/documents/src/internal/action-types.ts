@@ -30,6 +30,7 @@ export const DOCUMENT_ACTION_IDS = [
   'publish_document_view',
   'record_document_proposal',
   'apply_document_proposal',
+  'release_person_entitlement_exclusion',
 ] as const;
 
 export const DOCUMENT_AUTHOR_ROLES = new Set([

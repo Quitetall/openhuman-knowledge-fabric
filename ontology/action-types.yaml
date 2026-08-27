@@ -248,6 +248,10 @@ action_types:
     audited: true
     transactional: true
     drives: []
+  - id: release_person_entitlement_exclusion
+    audited: true
+    transactional: true
+    drives: []
 
   # ── Federated Secure Object Authority ──────────────────────────────────────────────────
   # These actions target exactly one owning organization. Database triggers also require

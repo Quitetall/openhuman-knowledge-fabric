@@ -12,11 +12,11 @@
  * action the ontology does not know — is caught by `composeActionAtoms` throwing at startup,
  * which is better but still not at review time.
  *
- * Measured 104 = 104 exactly, in both directions, at the time this was written.
+ * Measured 105 = 105 exactly, in both directions, at the time this was written.
  *
  * The document group is included explicitly because `fabricDispatcherOptions()` takes its
  * atoms as an argument: they exist only when an object store and parser are configured, so
- * calling the composer with no arguments reports the 13 document actions as unowned. That is
+ * calling the composer with no arguments reports the 14 document actions as unowned. That is
  * correct behaviour and a trap for anyone measuring coverage — the first run of this check
  * "found" 13 orphans that were nothing of the kind.
  */

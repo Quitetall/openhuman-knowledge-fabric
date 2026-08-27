@@ -286,6 +286,7 @@ const DECLARED_ADDITIONS = {
     'register_ml_run_lineage',
     'register_secure_object_authority_key',
     'register_supplier',
+    'release_person_entitlement_exclusion',
     'remove_equipment_from_service',
     'remove_physical_binding',
     'request_document_compilation',
