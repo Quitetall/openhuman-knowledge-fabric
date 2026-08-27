@@ -1,14 +1,12 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import {
+  assertMasterRecordBoundaryComplete,
+  type MasterRecordBoundaryRegistry,
+} from '../../packages/documents/src/master-record-boundary.js';
 
 const ROOT = join(import.meta.dirname, '..', '..');
-
-interface BoundaryRegistry {
-  readonly materializedTables: readonly string[];
-  readonly derivedTables: readonly string[];
-  readonly liveExternalTables: readonly string[];
-}
 
 function rlsTables(): string[] {
   const directory = join(ROOT, 'database', 'migrations');
@@ -32,7 +30,9 @@ describe('master-record permission boundary', () => {
   it('has no live external permission tables and covers newly added RLS tables', () => {
     const registry = JSON.parse(
       readFileSync(join(ROOT, 'docs', 'architecture', 'master-record-boundary.json'), 'utf8'),
-    ) as BoundaryRegistry;
+    ) as MasterRecordBoundaryRegistry;
+    const observed = rlsTables();
+    assertMasterRecordBoundaryComplete(registry, observed);
     const all = new Set([
       ...registry.materializedTables,
       ...registry.derivedTables,
@@ -48,9 +48,23 @@ describe('master-record permission boundary', () => {
     expect(registry.materializedTables).toContain('content.master_record_item');
     expect(registry.materializedTables).toContain('content.master_record_link');
     expect(registry.materializedTables).toContain('org.person_clearance');
-    expect(rlsTables()).toEqual(
+    expect(observed).toEqual(
       expect.arrayContaining(['content.master_record', 'content.master_record_link']),
     );
-    for (const table of rlsTables()) expect(all.has(table), table).toBe(true);
+    for (const table of observed) expect(all.has(table), table).toBe(true);
+  });
+
+  it('refuses a classification with an unclassified observed table', () => {
+    const registry = JSON.parse(
+      readFileSync(join(ROOT, 'docs', 'architecture', 'master-record-boundary.json'), 'utf8'),
+    ) as MasterRecordBoundaryRegistry;
+    const observed = rlsTables();
+    const planted = {
+      ...registry,
+      materializedTables: registry.materializedTables.filter((table) => table !== 'core.object'),
+    };
+    expect(() => assertMasterRecordBoundaryComplete(planted, observed)).toThrow(
+      /unclassified observed table.*core\.object/,
+    );
   });
 });

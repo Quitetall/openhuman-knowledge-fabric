@@ -12,6 +12,7 @@ export * from './proposal.js';
 export * from './adr.js';
 export * from './workbench.js';
 export * from './master-record.js';
+export * from './master-record-boundary.js';
 export * from './master-record-renderer.js';
 export { verifyMasterRecordLinkToken, type MasterRecordLinkClaims } from './master-record-links.js';
 export {
