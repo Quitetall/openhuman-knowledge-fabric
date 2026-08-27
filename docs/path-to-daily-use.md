@@ -48,7 +48,9 @@ material is in it.
 does not. `apps/api/src/ingest/plan.ts` is a pure planner — no database, no filesystem — so its
 refusals are already tested and falsified.
 
-**Written down:** ADR 0012, and the planner's own module comment.
+**Written down:** ADR 0012, the planner's own module comment, and
+[`handoff-ingest-cli.md`](handoff-ingest-cli.md) — a task brief with the payload contracts, the
+spine to copy, and the acceptance criteria.
 **Blocked on:** nothing. Needs the CLI and files.
 
 ### 2 · A running service — blocked on a decision, not on work
@@ -149,5 +151,6 @@ all. Do that before building anything on top of it.
 | From a clone to running     | [`docs/onboarding.md`](onboarding.md)                                                     |
 | The master-record design    | [`docs/decisions/0011-master-record-runtime.md`](decisions/0011-master-record-runtime.md) |
 | How files enter             | [`docs/decisions/0012-file-ingestion.md`](decisions/0012-file-ingestion.md)               |
+| The next task, specified    | [`docs/handoff-ingest-cli.md`](handoff-ingest-cli.md)                                     |
 | Standing a host up          | [`docs/deployment/private-host.md`](deployment/private-host.md)                           |
 | The authority for all of it | `/mnt/4tb/OpenWarrant`, branch `warrants/master-record`, `OW-WAR-0054`                    |
