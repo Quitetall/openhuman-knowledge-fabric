@@ -66,8 +66,12 @@ values for provenance.
 
 ## Deferred boundary
 
-OW-WAR-0056 owns browser viewer, management UI, and browser proof. This ADR adds no web viewer and
-does not perform a real disclosure. M7/M8 disclosure decisions remain human authority actions.
+M4B has two deliberately separate readiness surfaces. KF machine readiness is the authenticated
+`GET /master-record` API: it must expose both `your_record` and `org_view` members, with full
+content for permitted org-view members and no second authorization. Browser navigation,
+management controls, and browser proof are not M4B evidence here; OW-WAR-0056 owns those surfaces.
+This ADR adds no web viewer and does not perform a real disclosure. M7/M8 disclosure decisions
+remain human authority actions.
 
 ## What was measured
 
