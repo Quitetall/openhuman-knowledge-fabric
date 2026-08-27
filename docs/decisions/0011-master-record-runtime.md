@@ -80,7 +80,7 @@ remain human authority actions.
   digest refuses serving.
 - `content.master_record_payload` captures the RLS-visible typed extensions and immutable
   artifact URI/version metadata for each member. The manifest records permission/relevance
-  cardinalities and propagation-class fan-out measurements.
+  cardinalities plus per-anchor and propagation-class fan-out measurements.
 - Relation traversal uses a visited set and current validity window; policy disagreement is a
   refusal rather than an implicit omission. Measurements record both relevance fan-out per
   person-anchoring relation type and aggregate fan-out per propagation class.

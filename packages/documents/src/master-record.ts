@@ -184,7 +184,7 @@ export function relevanceClosure(
   return relevanceClosureWithMetrics(personId, edges, policies).ids;
 }
 
-/** Traverse relevance once while recording fan-out by ontology propagation class. */
+/** Traverse relevance once while recording fan-out by person anchor and ontology class. */
 export function relevanceClosureWithMetrics(
   personId: string,
   edges: readonly RelevanceEdge[],
