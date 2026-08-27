@@ -165,8 +165,11 @@ Stated here so you do not go looking:
   allocation and no allocator exists. 68 identifiers sit `reserved` in the quality repository.
 - **No approval workflow.** Documents load as drafts. Approval, effective-state transition and
   publication are human acts performed outside the software.
-- **No commissioned host.** `docs/deployment/private-host.md` describes one; nobody has built it,
-  so there is no production evidence for anything here.
+- **No commissioned host.** `docs/deployment/private-host.md` describes one. One was built on
+  2026-08-26 and became unreachable on 2026-08-27 — its access key lived in a session scratchpad
+  that was cleared. It held no data. So there is still no production evidence for anything here,
+  but the reason is now "the host was lost", not "nobody has tried"; the runbook has been walked
+  once and corrected by the walking.
 - **No multi-tenancy, no PHI handling, not FDA-cleared, not for clinical use.**
 
 ## Where to go next
@@ -176,6 +179,7 @@ Stated here so you do not go looking:
 | Why it is built this way   | [`README.md`](../README.md) design laws                                   |
 | Contributing, and the gate | [`CONTRIBUTING.md`](../CONTRIBUTING.md)                                   |
 | Local stack detail         | [`docs/deployment/local-development.md`](deployment/local-development.md) |
+| Where this is all going    | [`docs/path-to-daily-use.md`](path-to-daily-use.md)                       |
 | Running it for real        | [`docs/deployment/private-host.md`](deployment/private-host.md)           |
 | Operating it               | [`docs/operating-model/runbook.md`](operating-model/runbook.md)           |
 | Decisions and why          | [`docs/decisions/`](decisions/)                                           |

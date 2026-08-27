@@ -126,6 +126,15 @@ architecture and reviewed runtime closure therefore have to match.
 
 ## Build once on the workstation
 
+**`scripts/deploy/build-release.sh` is this section, executable.** It is a transcript, not a
+substitute — every paragraph below explains why a step is what it is, and each of those is a
+defect somebody already hit. Read this; run that; change both together or they drift.
+
+It exists because the build had only ever been run from a copy in a session scratchpad, and that
+scratchpad was cleared overnight twice — the second time taking the host's SSH key with it. A
+procedure whose only executable form lives in `/tmp` gets reconstructed from memory the next
+time it is needed, which is how a release quietly stops matching its own runbook.
+
 Use Linux with the same architecture as the target and the pinned Node.js and pnpm versions.
 Build in a newly created disposable worktree at the exact commit intended for dogfood. Do not
 reuse an interactive checkout: Git's normal dirty check omits ignored `dist/`, `.next/` and
