@@ -10,6 +10,7 @@ import {
 import {
   compileAndRecordMasterRecord,
   enumeratePermissionSet,
+  enumeratePermittedSet,
 } from '../../packages/documents/src/master-record-repository.js';
 import {
   issueMasterRecordLink,
@@ -115,6 +116,104 @@ describe('master-record runtime', () => {
       latestMasterRecord(tx, fixtures.performerId, fixtures.organizationId),
     );
     expect(record?.['person_id']).toBe(fixtures.performerId);
+  });
+
+  it('keeps entitlement subtractive: one person is withheld while another remains open', async () => {
+    const objectId = await createObject(harness.adminPool, fixtures, {
+      type: 'decision_record',
+      domain: 'engineering',
+      state: 'draft',
+      title: 'Person-scoped entitlement probe',
+      createdBy: fixtures.reviewerId,
+    });
+    const actionId = await unrecordedAction();
+    await withTransaction(harness.adminPool, async (tx) => {
+      await setAccessContext(tx, {
+        organizationId: fixtures.organizationId,
+        maxClassification: 'restricted',
+      });
+      await tx.query(
+        `insert into content.person_entitlement_exclusion
+           (subject_id, organization_id, object_id, reason_class, reason, authorizer,
+            created_by_action)
+         values ($1, $2, $3, 'exclusion', 'person-specific need-to-know', $1, $4)`,
+        [fixtures.reviewerId, fixtures.organizationId, objectId, actionId],
+      );
+    });
+
+    const membersFor = async (personId: string): Promise<readonly string[]> =>
+      withTransaction(harness.pool, async (tx) => {
+        await setAccessContext(tx, {
+          organizationId: fixtures.organizationId,
+          maxClassification: 'restricted',
+        });
+        return (await enumeratePermittedSet(tx, personId, fixtures.organizationId)).map(
+          (member) => member.objectId,
+        );
+      });
+    const reviewerMembers = await membersFor(fixtures.reviewerId);
+    const performerMembers = await membersFor(fixtures.performerId);
+    expect(reviewerMembers).not.toContain(objectId);
+    expect(performerMembers).toContain(objectId);
+
+    const atoms = createDocumentActionAtoms({
+      store: new InMemoryObjectStore(),
+      parser: {
+        async parse() {
+          return undefined;
+        },
+      },
+    });
+    const execute = createFabricDispatcher(harness.pool, atoms);
+    const reviewerRecord = await execute({
+      actionType: 'compile_master_record',
+      actorId: fixtures.reviewerId,
+      actingRoleId: fixtures.reviewerRoleId,
+      targetIds: [fixtures.reviewerId],
+      organizationId: fixtures.organizationId,
+      maxClassification: 'restricted',
+      idempotencyKey: `entitlement-reviewer-${randomUUID()}`,
+      reason: 'compile person-scoped exclusion proof',
+    });
+    const performerRecord = await execute({
+      actionType: 'compile_master_record',
+      actorId: fixtures.performerId,
+      actingRoleId: fixtures.performerRoleId,
+      targetIds: [fixtures.performerId],
+      organizationId: fixtures.organizationId,
+      maxClassification: 'restricted',
+      idempotencyKey: `entitlement-performer-${randomUUID()}`,
+      reason: 'compile default-open entitlement proof',
+    });
+    expect(reviewerRecord.status).toBe('applied');
+    expect(performerRecord.status).toBe('applied');
+
+    const [reviewerManifest, performerManifest] = await Promise.all([
+      withTransaction(harness.adminPool, (tx) =>
+        latestMasterRecord(tx, fixtures.reviewerId, fixtures.organizationId),
+      ),
+      withTransaction(harness.adminPool, (tx) =>
+        latestMasterRecord(tx, fixtures.performerId, fixtures.organizationId),
+      ),
+    ]);
+    expect(
+      (reviewerManifest?.['manifest'] as { included: readonly { objectId: string }[] }).included,
+    ).not.toEqual(expect.arrayContaining([expect.objectContaining({ objectId })]));
+    expect(
+      (reviewerManifest?.['manifest'] as { withheld: { items: readonly unknown[] } }).withheld
+        .items,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          objectId,
+          reasonClass: 'exclusion',
+          reason: 'person-specific need-to-know',
+        }),
+      ]),
+    );
+    expect(
+      (performerManifest?.['manifest'] as { included: readonly { objectId: string }[] }).included,
+    ).toEqual(expect.arrayContaining([expect.objectContaining({ objectId })]));
   });
 
   it('includes immutable artifact versions referenced by a typed document row', async () => {
