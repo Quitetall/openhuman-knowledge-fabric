@@ -10,6 +10,8 @@ import { registerDocumentProjectionRoute } from './documents/projection-route.js
 import { registerDocumentSourceRoute } from './documents/source-route.js';
 import { registerDocumentWorkspaceRoute } from './documents/workspace-route.js';
 import { registerPublicProjectionRoute } from './documents/public-projection-route.js';
+import { registerMasterRecordRoute } from './documents/master-record-route.js';
+import { registerMasterRecordLinkRoute } from './documents/master-record-link-route.js';
 
 export type { DocumentRoutesOptions } from './documents/contracts.js';
 
@@ -18,6 +20,8 @@ export async function registerDocumentRoutes(
   options: DocumentRoutesOptions,
 ): Promise<void> {
   registerDocumentReadRoutes(app, options);
+  registerMasterRecordRoute(app, options);
+  registerMasterRecordLinkRoute(app, options);
   registerPublicProjectionRoute(app, options);
   registerDocumentSourceRoute(app, options);
   registerDocumentWorkspaceRoute(app, options);

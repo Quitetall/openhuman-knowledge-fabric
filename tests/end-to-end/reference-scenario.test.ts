@@ -167,6 +167,12 @@ beforeAll(async () => {
       [assignment.id, plannerId, 'project_owner', f.organizationId],
     );
     plannerRoleId = assignment.id;
+    await tx.query(
+      `insert into org.person_clearance
+         (subject_id, organization_id, max_classification, granted_by, granted_by_action, reason)
+       values ($1, $2, 'restricted', $3, $4, 'reference scenario planner clearance')`,
+      [plannerId, f.organizationId, f.reviewerId, f.clearanceActionId],
+    );
   });
 }, 180_000);
 

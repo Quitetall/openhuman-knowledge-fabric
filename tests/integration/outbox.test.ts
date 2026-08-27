@@ -9,9 +9,10 @@
  * derived, so losing the entire outbox costs nothing that `search.rebuild()` cannot restore.
  */
 
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDispatcher } from '@kf/actions';
-import { withTransaction } from '@kf/database';
+import { createPool, withTransaction } from '@kf/database';
 import { search } from '@kf/search';
 import { drainOutbox, outboxBacklog, type OutboxHandler } from '../../apps/worker/src/outbox.js';
 import {
@@ -59,6 +60,82 @@ afterAll(async () => {
 });
 
 describe('delivery', () => {
+  it('records link delivery through the narrow worker definer path without worker RLS context', async () => {
+    const recordDigest = randomUUID().replaceAll('-', '').padEnd(64, '0');
+    const tokenDigest = randomUUID().replaceAll('-', '').padEnd(64, '1');
+    const payloadDigest = randomUUID().replaceAll('-', '').padEnd(64, '2');
+    const { linkId, actionId } = await withTransaction(h.adminPool, async (tx) => {
+      const master = await tx.one<{ id: string }>(
+        `insert into content.master_record
+           (person_id, organization_id, effective_classification, permission_digest,
+            record_digest, manifest, compiled_at, recorded_by, recorded_by_action)
+         values ($1, $2, 'internal', $3, $4, '{}'::jsonb, now(), $1, $5)
+         returning id`,
+        [f.reviewerId, f.organizationId, 'a'.repeat(64), recordDigest, f.clearanceActionId],
+      );
+      const link = await tx.one<{ id: string }>(
+        `insert into content.master_record_link
+           (master_record_id, token_digest, scope, issued_at, expires_at, issued_by, issued_by_action)
+         values ($1, $2, '{}'::jsonb, now(), now() + interval '1 hour', $3, $4)
+         returning id`,
+        [master.id, tokenDigest, f.reviewerId, f.clearanceActionId],
+      );
+      await tx.query(
+        `insert into core.outbox (action_id, topic, payload)
+         values ($1, 'kf.master_record_link_issued', $2::jsonb)`,
+        [
+          f.clearanceActionId,
+          JSON.stringify({
+            link_id: link.id,
+            action_id: f.clearanceActionId,
+            payload_digest: payloadDigest,
+          }),
+        ],
+      );
+      return { linkId: link.id, actionId: f.clearanceActionId };
+    });
+
+    const workerRole = `kf_worker_test_${randomUUID().replaceAll('-', '')}`;
+    await withTransaction(h.adminPool, (tx) =>
+      tx.query(`create role ${workerRole} login password 'test-only-not-a-secret' inherit`),
+    );
+    await withTransaction(h.adminPool, (tx) => tx.query(`grant kf_worker to ${workerRole}`));
+    const workerUri = new URL(h.connectionString);
+    workerUri.username = workerRole;
+    workerUri.password = 'test-only-not-a-secret';
+    const workerPool = createPool({ connectionString: workerUri.toString() });
+    try {
+      await withTransaction(workerPool, (tx) =>
+        tx.query('select content.record_master_record_link_delivery($1, $2, $3)', [
+          linkId,
+          actionId,
+          payloadDigest,
+        ]),
+      );
+      const count = await withTransaction(h.adminPool, (tx) =>
+        tx.one<{ n: string }>(
+          `select count(*)::text as n
+             from content.master_record_delivery_receipt where link_id = $1`,
+          [linkId],
+        ),
+      );
+      expect(count.n).toBe('1');
+      await expect(
+        withTransaction(workerPool, (tx) =>
+          tx.query(
+            `insert into content.master_record_delivery_receipt
+               (link_id, action_id, delivery_status, payload_digest)
+             values ($1, $2, 'delivered', $3)`,
+            [linkId, actionId, payloadDigest],
+          ),
+        ),
+      ).rejects.toThrow();
+    } finally {
+      await workerPool.end();
+      await withTransaction(h.adminPool, (tx) => tx.query(`drop role ${workerRole}`));
+    }
+  });
+
   it('indexes what an action touched, so the record becomes findable', async () => {
     const id = await acceptSomething('Titanium enclosure fastener choice', 'outbox-first-0001');
 

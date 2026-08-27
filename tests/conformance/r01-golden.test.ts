@@ -244,6 +244,7 @@ const DECLARED_ADDITIONS = {
     'close_capa',
     'close_complaint',
     'close_nonconformity',
+    'compile_master_record',
     'consume_secure_object_capability',
     'contain_nonconformity',
     'define_test',
@@ -334,6 +335,21 @@ const WIDENABLE_ENUMS = [
   { def: 'Action', path: ['properties', 'action_type', 'enum'] },
 ] as const;
 
+// Relevance metadata is an additive contract on pre-existing relation types. It is deliberately
+// stripped only for the R01 byte-preservation comparison below; the ontology compiler and its
+// registry checks validate the metadata itself, so adding it cannot redefine the pinned edge
+// semantics while still letting the compiler read one authoritative policy.
+const RELATION_POLICY_FIELDS = new Set(['person_anchor', 'propagation_class', 'anchor_depth']);
+
+function withoutRelationPolicy(value: Json): Json {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, Json>)
+      .filter(([key]) => !RELATION_POLICY_FIELDS.has(key))
+      .map(([key, nested]) => [key, withoutRelationPolicy(nested)]),
+  );
+}
+
 /** The version stamp moves with the pack; every definition carries a copy of it. */
 const VERSION_CONST = '.properties.schema_version.const';
 
@@ -372,7 +388,10 @@ describe('the extended ontology preserves R01 exactly', () => {
       ).toBeGreaterThan(0);
       for (const [id, definition] of Object.entries(goldenSection)) {
         expect(builtSection, `${section}.${id} was removed`).toHaveProperty(id);
-        expect(diff(definition, builtSection[id]), `${section}.${id} was redefined`).toEqual([]);
+        const before = section === 'edge_types' ? withoutRelationPolicy(definition) : definition;
+        const after =
+          section === 'edge_types' ? withoutRelationPolicy(builtSection[id]) : builtSection[id];
+        expect(diff(before, after), `${section}.${id} was redefined`).toEqual([]);
       }
     }
     // The invariants are a list, not a map: all ten pinned entries remain byte-identical and
@@ -391,6 +410,23 @@ describe('the extended ontology preserves R01 exactly', () => {
     expect(currentInvariants.filter((item) => additions.has(String(item)))).toEqual([
       ...DECLARED_INVARIANT_ADDITIONS,
     ]);
+  });
+
+  it('declares relevance policy for every relation type', () => {
+    const builtSection = stripProvenance(
+      built('vocabulary/knowledge-fabric.vocabulary.json'),
+    ) as Record<string, Json>;
+    const edges = builtSection['edge_types'];
+    if (typeof edges !== 'object' || edges === null || Array.isArray(edges)) {
+      throw new Error('built vocabulary carries no edge_types map');
+    }
+    for (const [id, value] of Object.entries(edges as Record<string, Json>)) {
+      expect(value, `${id} has no relation policy`).toMatchObject({
+        person_anchor: expect.any(Boolean),
+        propagation_class: expect.any(String),
+        anchor_depth: expect.any(Number),
+      });
+    }
   });
 
   it('every R01 JSON Schema definition survives byte-identically', () => {

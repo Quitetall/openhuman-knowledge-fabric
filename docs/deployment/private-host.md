@@ -410,11 +410,11 @@ deliberately retain cluster-global roles; destroy disposable cluster afterward. 
 digests/version/label/floor, no URL or credential. Receipt is execution evidence, not approval
 or commissioning record.
 
-**The floor, and why full rollback is not claimed.** Seven migrations are one-way security
+**The floor, and why full rollback is not claimed.** Eleven migrations are one-way security
 hardening and cannot be reverted — `20260816000300_typed_table_row_security` would return 29
 tables to unrestricted reads, `20260816000500` another 28. Each declares itself with
 `-- kf:forward-only <reason>` in its down section, and rollback stops at the highest such
-migration (currently `20260816000600_external_identity_reader_grant`). The earlier contract —
+migration (currently `20260826000400_master_record_delivery`). The earlier contract —
 roll back everything, expect an empty database — could never pass once staged RLS landed, and
 the first rehearsal ever run failed on `cannot drop column organization_id of table core.action
 because other objects depend on it`. The promise was narrowed rather than loosened: it is still
@@ -433,7 +433,8 @@ fields being added quietly, because reading a v2 as a v1 would read "reversible 
 "reversible" — the overclaim this exists to remove.
 
 **First passing rehearsal**, release `3054582c84a1` on this host, 2026-08-26 — a historical
-record, not a claim about the current tree:
+record for the pre-master-record tree, not a claim about the current tree. The next release
+must generate a fresh receipt because the forward-only floor moved:
 
 | field                 | value                                               |
 | --------------------- | --------------------------------------------------- |
@@ -542,6 +543,8 @@ Credentials arrive through owner-only files:
 - `DATABASE_URL_FILE` for the constrained application role;
 - `S3_SECRET_ACCESS_KEY_FILE` plus the non-secret S3 endpoint, region, access-key ID and bucket;
 - a different worker database credential if its grants differ;
+- `KF_MASTER_RECORD_LINK_SECRET_FILE`, an owner-only random HMAC key (minimum 32 bytes) for
+  signed, expiring master-record links;
 - a migrator credential readable only by `kf-migrator`, never API/web/worker;
 - a 32-byte base64 web session key readable only by `kf-web`;
 - `CHECKPOINT_SIGNING_KEY_PATH`, readable only by the signer identity and never by the API.

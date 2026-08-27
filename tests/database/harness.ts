@@ -10,9 +10,11 @@
  * checkout without someone remembering to bring anything up first.
  */
 
+import { randomUUID } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { auditChainDigest, GENESIS_DIGEST } from '@kf/canonicalization';
 import { createPool, withTransaction, type Pool, type Tx } from '@kf/database';
 
 const ROOT = join(import.meta.dirname, '..', '..');
@@ -174,6 +176,8 @@ export interface Fixtures {
   /** Holds performer, and IS the creator — used to prove separation of duty bites. */
   readonly performerId: string;
   readonly performerRoleId: string;
+  /** Recorded bootstrap action that anchors fixture clearance grants. */
+  readonly clearanceActionId: string;
   readonly schemaVersion: string;
 }
 
@@ -260,7 +264,19 @@ async function newObject(
  * Recorded rather than hidden, because "who created the first record" is a question an
  * auditor asks.
  */
-export async function seedFixtures(pool: Pool): Promise<Fixtures> {
+export interface SeedFixtureOptions {
+  /**
+   * Record the fixture clearance grant in the global audit chain. Most integration tests want
+   * this production-shaped authority evidence; ledger/export tests that build their own chain
+   * can opt out so their first event still starts at genesis.
+   */
+  readonly auditClearance?: boolean;
+}
+
+export async function seedFixtures(
+  pool: Pool,
+  options: SeedFixtureOptions = {},
+): Promise<Fixtures> {
   return withTransaction(pool, async (tx) => {
     const { version } = await tx.one<{ version: string }>(
       'select version from registry.schema_release where is_current',
@@ -358,12 +374,78 @@ export async function seedFixtures(pool: Pool): Promise<Fixtures> {
       return id;
     };
 
+    const reviewerRoleId = await mkRole(reviewerId, 'technical_authority');
+    const performerRoleId = await mkRole(performerId, 'performer');
+    // One recorded bootstrap action anchors clearance facts in the same immutable action
+    // chain production uses. The fixture grants both people restricted clearance so identity
+    // tests exercise the resolver rather than failing for an unseeded policy.
+    const clearanceAction = randomUUID();
+    const clearanceEffectiveAt = new Date().toISOString();
+    const clearanceIdempotencyKey = `fixture-clearance-${orgObj}`;
+    await tx.query(
+      `insert into core.action
+         (id, organization_id, request_digest, action_type, actor_id, acting_role_id,
+          target_ids, parameters, preconditions, idempotency_key, effective_at,
+          reason, result_status, result)
+       values ($1, $2, encode(public.digest(convert_to('kf-fixture-clearance', 'UTF8'), 'sha256'), 'hex'),
+               'create_initiative', $3, $4, array[$2]::uuid[], '{}'::jsonb, '{}'::jsonb,
+               $5, $6,
+               'fixture clearance authority', 'applied', '{}'::jsonb)`,
+      [
+        clearanceAction,
+        orgObj,
+        reviewerId,
+        reviewerRoleId,
+        clearanceIdempotencyKey,
+        clearanceEffectiveAt,
+      ],
+    );
+    if (options.auditClearance ?? true) {
+      const previousAudit = await tx.maybeOne<{ digest: string }>(
+        'select digest from core.audit_event order by seq desc limit 1',
+      );
+      const previousDigest = previousAudit?.digest ?? GENESIS_DIGEST;
+      const clearanceAuditDigest = auditChainDigest(previousDigest, {
+        action_id: clearanceAction,
+        action_type: 'create_initiative',
+        actor_id: reviewerId,
+        acting_role_id: reviewerRoleId,
+        object_ids: [orgObj],
+        effective_at: clearanceEffectiveAt,
+        before_digest: null,
+        after_digest: null,
+      });
+      await tx.query(
+        `insert into core.audit_event
+           (action_id, actor_id, acting_role_id, action_type, object_id, effective_at, reason,
+            prev_digest, digest)
+         values ($1,$2,$3,'create_initiative',$4,$5,'fixture clearance authority',$6,$7)`,
+        [
+          clearanceAction,
+          reviewerId,
+          reviewerRoleId,
+          orgObj,
+          clearanceEffectiveAt,
+          previousDigest,
+          clearanceAuditDigest,
+        ],
+      );
+    }
+    await tx.query(
+      `insert into org.person_clearance
+         (subject_id, organization_id, max_classification, granted_by, granted_by_action, reason)
+       values ($1, $3, 'restricted', $2, $4, 'fixture clearance') ,
+              ($5, $3, 'restricted', $2, $4, 'fixture clearance')`,
+      [reviewerId, reviewerId, orgObj, clearanceAction, performerId],
+    );
+
     return {
       organizationId: orgObj,
       reviewerId,
-      reviewerRoleId: await mkRole(reviewerId, 'technical_authority'),
+      reviewerRoleId,
       performerId,
-      performerRoleId: await mkRole(performerId, 'performer'),
+      performerRoleId,
+      clearanceActionId: clearanceAction,
       schemaVersion: version,
     };
   });

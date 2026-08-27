@@ -253,12 +253,19 @@ export function emitSqlRegistry(o: Ontology): string {
   );
 
   out.push(
-    'insert into registry.relation_type (id, inverse_label, acyclic, is_symmetric) values',
+    'insert into registry.relation_type (id, inverse_label, acyclic, is_symmetric, person_anchor, propagation_class, anchor_depth) values',
     o.relationTypes
-      .map((r) => `  (${q(r.id)}, ${q(r.inverse)}, ${r.acyclic}, ${r.symmetric})`)
+      .map(
+        (r) =>
+          `  (${q(r.id)}, ${q(r.inverse)}, ${r.acyclic}, ${r.symmetric}, ` +
+          `${r.personAnchor ?? false}, ${r.propagationClass === undefined ? 'null' : q(r.propagationClass)}, ` +
+          `${r.anchorDepth ?? 0})`,
+      )
       .join(',\n') +
       '\non conflict (id) do update set inverse_label = excluded.inverse_label,\n' +
-      '  acyclic = excluded.acyclic, is_symmetric = excluded.is_symmetric;',
+      '  acyclic = excluded.acyclic, is_symmetric = excluded.is_symmetric,\n' +
+      '  person_anchor = excluded.person_anchor, propagation_class = excluded.propagation_class,\n' +
+      '  anchor_depth = excluded.anchor_depth;',
     '',
   );
 

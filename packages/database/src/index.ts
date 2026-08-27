@@ -298,6 +298,34 @@ export async function setAccessContext(
   ]);
 }
 
+/**
+ * Resolve effective clearance at point of use, then bind the requested (possibly narrower)
+ * ceiling. The caller never gets to bind an unverified classification directly.
+ */
+export async function setResolvedAccessContext(
+  tx: Tx,
+  ctx: {
+    readonly subjectId: string;
+    readonly assignmentId: string;
+    readonly organizationId: string;
+    readonly requestedClassification: string;
+  },
+): Promise<string> {
+  const resolved = await tx.maybeOne<{ requested_classification: string }>(
+    `select requested_classification
+       from org.resolve_effective_classification($1, $2, $3, $4)`,
+    [ctx.subjectId, ctx.organizationId, ctx.assignmentId, ctx.requestedClassification],
+  );
+  if (resolved === undefined || resolved.requested_classification.trim() === '') {
+    throw new DatabaseError('classification clearance resolver returned no decision');
+  }
+  await setAccessContext(tx, {
+    organizationId: ctx.organizationId,
+    maxClassification: resolved.requested_classification,
+  });
+  return resolved.requested_classification;
+}
+
 export const PACKAGE = {
   name: '@kf/database',
   role: 'PostgreSQL access boundary',

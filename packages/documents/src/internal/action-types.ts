@@ -25,6 +25,7 @@ export const DOCUMENT_ACTION_IDS = [
   'revise_document_composition',
   'change_document_source_holder',
   'request_document_compilation',
+  'compile_master_record',
   'accept_document_compilation',
   'publish_document_view',
   'record_document_proposal',

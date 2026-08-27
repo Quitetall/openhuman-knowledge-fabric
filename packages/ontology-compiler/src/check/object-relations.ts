@@ -16,6 +16,14 @@ const SCALAR_KINDS = new Set([
   'object',
 ]);
 
+const PROPAGATION_CLASSES = new Set([
+  'composition_down',
+  'version_both',
+  'provenance_backward',
+  'lateral_none',
+  'authority_one_hop_up',
+]);
+
 function unwrap(type: string): string {
   const m = /^array<(.+)>$/.exec(type);
   return m ? m[1]! : type;
@@ -76,6 +84,35 @@ function checkFields(context: CheckContext, typeId: string, fields: readonly Fie
 
 export function checkRelationTypes(context: CheckContext): void {
   for (const r of context.ontology.relationTypes) {
+    if (
+      r.personAnchor === undefined ||
+      r.propagationClass === undefined ||
+      r.anchorDepth === undefined
+    ) {
+      context.findings.push({
+        rule: 'ONT-013',
+        severity: 'warning',
+        path: `relation_types.${r.id}`,
+        message: 'relation does not declare person anchoring, propagation class, and anchor depth',
+        remediation: 'Declare person_anchor, propagation_class, and anchor_depth.',
+      });
+    }
+    if (r.propagationClass !== undefined && !PROPAGATION_CLASSES.has(r.propagationClass)) {
+      context.err(
+        'ONT-013',
+        `relation_types.${r.id}.propagation_class`,
+        `unknown propagation class '${r.propagationClass}'`,
+        `Use one of: ${[...PROPAGATION_CLASSES].join(', ')}.`,
+      );
+    }
+    if (r.anchorDepth !== undefined && (!Number.isInteger(r.anchorDepth) || r.anchorDepth < 0)) {
+      context.err(
+        'ONT-013',
+        `relation_types.${r.id}.anchor_depth`,
+        'anchor depth must be a non-negative integer',
+        'Use 0 for no traversal and a finite positive depth for an anchored closure.',
+      );
+    }
     if (r.symmetric && r.inverse !== r.id) {
       context.err(
         'ONT-004',

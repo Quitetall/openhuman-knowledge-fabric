@@ -3,7 +3,7 @@
   "info": {
     "title": "OpenHuman Knowledge Fabric API",
     "version": "1.1.0-draft.1",
-    "description": "Generated from ontology source digest 1f26b17f57be7c7a3fc9a70db2dfc102c0a53b0f0203759110cfd52cab32b59f."
+    "description": "Generated from ontology source digest d87782e47c89c2d79c4f36bd4ae0bb0d373ed51eaba960dec8b3727682832b1a."
   },
   "paths": {
     "/objects/organization/{id}": {
@@ -2828,6 +2828,36 @@
         }
       }
     },
+    "/actions/compile_master_record": {
+      "post": {
+        "summary": "Execute compile_master_record",
+        "operationId": "compile_master_record",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
     "/actions/accept_document_compilation": {
       "post": {
         "summary": "Execute accept_document_compilation",
@@ -4705,6 +4735,7 @@
               "revise_document_composition",
               "change_document_source_holder",
               "request_document_compilation",
+              "compile_master_record",
               "accept_document_compilation",
               "publish_document_view",
               "record_document_proposal",

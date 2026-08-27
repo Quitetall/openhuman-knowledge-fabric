@@ -33,6 +33,7 @@ const REQUIRED_DOCUMENT_ACTIONS = [
   'add_document_composition',
   'apply_document_proposal',
   'change_document_source_holder',
+  'compile_master_record',
   'publish_document_view',
   'record_document_proposal',
   'request_document_compilation',

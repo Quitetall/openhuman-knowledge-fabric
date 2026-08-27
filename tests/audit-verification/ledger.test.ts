@@ -52,7 +52,7 @@ async function doWork(n: number, tag: string): Promise<void> {
 
 beforeAll(async () => {
   h = await startHarness();
-  f = await seedFixtures(h.adminPool);
+  f = await seedFixtures(h.adminPool, { auditClearance: false });
 }, 180_000);
 
 afterAll(async () => {

@@ -35,6 +35,8 @@ export interface ApiConfig {
     { readonly issuer: string; readonly audience: string; readonly jwksUri: string } | undefined;
   /** Evidence vault. Absent only in tests or intentionally metadata-only development. */
   readonly artifactStore?: S3Config;
+  /** HMAC key used for short-lived master-record capability links. */
+  readonly masterRecordLinkSecret?: string;
 }
 
 class ConfigError extends Error {
@@ -209,6 +211,27 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     }
   }
 
+  let masterRecordLinkSecret: string | undefined;
+  if (
+    (env['KF_MASTER_RECORD_LINK_SECRET'] !== undefined &&
+      env['KF_MASTER_RECORD_LINK_SECRET'] !== '') ||
+    (env['KF_MASTER_RECORD_LINK_SECRET_FILE'] !== undefined &&
+      env['KF_MASTER_RECORD_LINK_SECRET_FILE'] !== '')
+  ) {
+    try {
+      masterRecordLinkSecret = loadSecret('KF_MASTER_RECORD_LINK_SECRET', env, {
+        allowInline: inlineAllowed,
+      });
+    } catch (error: unknown) {
+      throw new ConfigError(error instanceof Error ? error.message : String(error), {
+        cause: error,
+      });
+    }
+    if (masterRecordLinkSecret.length < 32) {
+      throw new ConfigError('KF_MASTER_RECORD_LINK_SECRET must be at least 32 bytes');
+    }
+  }
+
   return {
     host,
     port: readPort(env['PORT'], 4000),
@@ -219,6 +242,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     tlsTerminatedUpstream,
     identity,
     ...(artifactStore === undefined ? {} : { artifactStore }),
+    ...(masterRecordLinkSecret === undefined ? {} : { masterRecordLinkSecret }),
   };
 }
 

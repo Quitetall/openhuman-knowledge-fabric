@@ -100,6 +100,9 @@ function controlledDocumentRow(overrides: Record<string, unknown> = {}) {
 describe('POST /documents fabric-native source', () => {
   it('rejects unauthorized document authority before immutable object storage', async () => {
     const db = databaseBoundary((sql) => {
+      if (sql.includes('org.resolve_effective_classification')) {
+        return [{ requested_classification: 'internal' }];
+      }
       if (sql.includes('/* document.current-import-source */')) return [];
       if (sql.includes('registry.action_type')) {
         return [{ id: 'add_authored_fragment', transactional: true }];

@@ -75,6 +75,8 @@ export interface DocumentRoutesOptions {
   readonly pool: Pool;
   readonly identify: IdentifyCaller;
   readonly store: ObjectStore | undefined;
+  /** HMAC key for capability links. Missing key disables link serving and issuance. */
+  readonly masterRecordLinkSecret?: string;
   /** Independent read ceiling for legacy records, regardless of their recorded object size. */
   readonly maxSourceDownloadBytes?: number;
   /** Independent read ceiling for compiled projections, regardless of recorded object size. */

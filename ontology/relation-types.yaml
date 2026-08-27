@@ -5,45 +5,298 @@
 # an unusual one.
 
 relation_types:
-  - { id: contains, inverse: contained_by, acyclic: true }
-  - { id: decomposes_into, inverse: part_of, acyclic: true }
-  - { id: affects, inverse: affected_by }
-  - { id: authorizes, inverse: authorized_by }
-  - { id: executes, inverse: executed_by }
-  - { id: produces, inverse: produced_by }
-  - { id: consumes, inverse: consumed_by }
-  - { id: proposes, inverse: proposed_by }
-  - { id: governs, inverse: governed_by }
-  - { id: implements, inverse: implemented_by }
-  - { id: satisfies, inverse: satisfied_by }
-  - { id: verifies, inverse: verified_by }
-  - { id: mitigates, inverse: mitigated_by }
-  - { id: accepts, inverse: accepted_by }
-  - { id: bills, inverse: billed_by }
-  - { id: settles, inverse: settled_by }
-  - { id: allocates_to, inverse: allocated_from }
-  - { id: originated_from, inverse: originated }
-  - { id: supersedes, inverse: superseded_by, acyclic: true }
-  - { id: derived_from, inverse: source_of }
-  - { id: evidences, inverse: evidenced_by }
-  - { id: assigned_to, inverse: assignee_of }
-  - { id: scoped_to, inverse: scope_of }
-  - { id: depends_on, inverse: dependency_of, acyclic: true }
-  - { id: blocks, inverse: blocked_by }
-  - { id: released_by, inverse: releases }
-  - { id: baseline_contains, inverse: included_in_baseline }
-  - { id: performed_by, inverse: performed }
-  - { id: owned_by, inverse: owns }
-  - { id: linked_to, inverse: linked_to, symmetric: true }
-  - { id: amends, inverse: amended_by, acyclic: true }
-  - { id: extends, inverse: extended_by, acyclic: true }
-  - { id: generated_by, inverse: generated }
-  - { id: used, inverse: was_used_by }
-  - { id: was_associated_with, inverse: associated_with }
+  - {
+      id: contains,
+      inverse: contained_by,
+      acyclic: true,
+      person_anchor: false,
+      propagation_class: composition_down,
+      anchor_depth: 8,
+    }
+  - {
+      id: decomposes_into,
+      inverse: part_of,
+      acyclic: true,
+      person_anchor: false,
+      propagation_class: composition_down,
+      anchor_depth: 8,
+    }
+  - {
+      id: affects,
+      inverse: affected_by,
+      person_anchor: false,
+      propagation_class: lateral_none,
+      anchor_depth: 0,
+    }
+  - {
+      id: authorizes,
+      inverse: authorized_by,
+      person_anchor: true,
+      propagation_class: authority_one_hop_up,
+      anchor_depth: 1,
+    }
+  - {
+      id: executes,
+      inverse: executed_by,
+      person_anchor: true,
+      propagation_class: composition_down,
+      anchor_depth: 8,
+    }
+  - {
+      id: produces,
+      inverse: produced_by,
+      person_anchor: true,
+      propagation_class: composition_down,
+      anchor_depth: 8,
+    }
+  - {
+      id: consumes,
+      inverse: consumed_by,
+      person_anchor: true,
+      propagation_class: composition_down,
+      anchor_depth: 8,
+    }
+  - {
+      id: proposes,
+      inverse: proposed_by,
+      person_anchor: true,
+      propagation_class: authority_one_hop_up,
+      anchor_depth: 1,
+    }
+  - {
+      id: governs,
+      inverse: governed_by,
+      person_anchor: true,
+      propagation_class: authority_one_hop_up,
+      anchor_depth: 1,
+    }
+  - {
+      id: implements,
+      inverse: implemented_by,
+      person_anchor: true,
+      propagation_class: provenance_backward,
+      anchor_depth: 8,
+    }
+  - {
+      id: satisfies,
+      inverse: satisfied_by,
+      person_anchor: true,
+      propagation_class: provenance_backward,
+      anchor_depth: 8,
+    }
+  - {
+      id: verifies,
+      inverse: verified_by,
+      person_anchor: true,
+      propagation_class: authority_one_hop_up,
+      anchor_depth: 1,
+    }
+  - {
+      id: mitigates,
+      inverse: mitigated_by,
+      person_anchor: false,
+      propagation_class: lateral_none,
+      anchor_depth: 0,
+    }
+  - {
+      id: accepts,
+      inverse: accepted_by,
+      person_anchor: true,
+      propagation_class: authority_one_hop_up,
+      anchor_depth: 1,
+    }
+  - {
+      id: bills,
+      inverse: billed_by,
+      person_anchor: false,
+      propagation_class: composition_down,
+      anchor_depth: 8,
+    }
+  - {
+      id: settles,
+      inverse: settled_by,
+      person_anchor: false,
+      propagation_class: composition_down,
+      anchor_depth: 8,
+    }
+  - {
+      id: allocates_to,
+      inverse: allocated_from,
+      person_anchor: false,
+      propagation_class: composition_down,
+      anchor_depth: 8,
+    }
+  - {
+      id: originated_from,
+      inverse: originated,
+      person_anchor: true,
+      propagation_class: provenance_backward,
+      anchor_depth: 8,
+    }
+  - {
+      id: supersedes,
+      inverse: superseded_by,
+      acyclic: true,
+      person_anchor: false,
+      propagation_class: version_both,
+      anchor_depth: 8,
+    }
+  - {
+      id: derived_from,
+      inverse: source_of,
+      person_anchor: true,
+      propagation_class: provenance_backward,
+      anchor_depth: 8,
+    }
+  - {
+      id: evidences,
+      inverse: evidenced_by,
+      person_anchor: true,
+      propagation_class: provenance_backward,
+      anchor_depth: 8,
+    }
+  - {
+      id: assigned_to,
+      inverse: assignee_of,
+      person_anchor: true,
+      propagation_class: authority_one_hop_up,
+      anchor_depth: 1,
+    }
+  - {
+      id: scoped_to,
+      inverse: scope_of,
+      person_anchor: true,
+      propagation_class: authority_one_hop_up,
+      anchor_depth: 1,
+    }
+  - {
+      id: depends_on,
+      inverse: dependency_of,
+      acyclic: true,
+      person_anchor: false,
+      propagation_class: lateral_none,
+      anchor_depth: 0,
+    }
+  - {
+      id: blocks,
+      inverse: blocked_by,
+      person_anchor: false,
+      propagation_class: lateral_none,
+      anchor_depth: 0,
+    }
+  - {
+      id: released_by,
+      inverse: releases,
+      person_anchor: true,
+      propagation_class: authority_one_hop_up,
+      anchor_depth: 1,
+    }
+  - {
+      id: baseline_contains,
+      inverse: included_in_baseline,
+      person_anchor: false,
+      propagation_class: composition_down,
+      anchor_depth: 8,
+    }
+  - {
+      id: performed_by,
+      inverse: performed,
+      person_anchor: true,
+      propagation_class: authority_one_hop_up,
+      anchor_depth: 1,
+    }
+  - {
+      id: owned_by,
+      inverse: owns,
+      person_anchor: true,
+      propagation_class: authority_one_hop_up,
+      anchor_depth: 1,
+    }
+  - {
+      id: linked_to,
+      inverse: linked_to,
+      symmetric: true,
+      person_anchor: false,
+      propagation_class: lateral_none,
+      anchor_depth: 0,
+    }
+  - {
+      id: amends,
+      inverse: amended_by,
+      acyclic: true,
+      person_anchor: false,
+      propagation_class: version_both,
+      anchor_depth: 8,
+    }
+  - {
+      id: extends,
+      inverse: extended_by,
+      acyclic: true,
+      person_anchor: false,
+      propagation_class: version_both,
+      anchor_depth: 8,
+    }
+  - {
+      id: generated_by,
+      inverse: generated,
+      person_anchor: true,
+      propagation_class: provenance_backward,
+      anchor_depth: 8,
+    }
+  - {
+      id: used,
+      inverse: was_used_by,
+      person_anchor: true,
+      propagation_class: provenance_backward,
+      anchor_depth: 8,
+    }
+  - {
+      id: was_associated_with,
+      inverse: associated_with,
+      person_anchor: false,
+      propagation_class: lateral_none,
+      anchor_depth: 0,
+    }
   # ── Gate 6 ──────────────────────────────────────────────────────────────────────────────
-  - { id: conforms_to, inverse: conformed_to_by }
-  - { id: bound_to, inverse: binds }
-  - { id: supplied_by, inverse: supplies }
-  - { id: calibrated_with, inverse: calibrates }
-  - { id: raised_against, inverse: raised }
-  - { id: remediated_by, inverse: remediates }
+  - {
+      id: conforms_to,
+      inverse: conformed_to_by,
+      person_anchor: false,
+      propagation_class: lateral_none,
+      anchor_depth: 0,
+    }
+  - {
+      id: bound_to,
+      inverse: binds,
+      person_anchor: false,
+      propagation_class: lateral_none,
+      anchor_depth: 0,
+    }
+  - {
+      id: supplied_by,
+      inverse: supplies,
+      person_anchor: true,
+      propagation_class: composition_down,
+      anchor_depth: 8,
+    }
+  - {
+      id: calibrated_with,
+      inverse: calibrates,
+      person_anchor: false,
+      propagation_class: lateral_none,
+      anchor_depth: 0,
+    }
+  - {
+      id: raised_against,
+      inverse: raised,
+      person_anchor: true,
+      propagation_class: authority_one_hop_up,
+      anchor_depth: 1,
+    }
+  - {
+      id: remediated_by,
+      inverse: remediates,
+      person_anchor: true,
+      propagation_class: provenance_backward,
+      anchor_depth: 8,
+    }

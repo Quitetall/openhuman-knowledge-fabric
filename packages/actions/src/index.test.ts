@@ -43,6 +43,8 @@ function preflightTx(roleHeld: boolean) {
       statements.push(sql);
       if (sql.includes('registry.action_type'))
         return { id: REQUEST.actionType, transactional: true };
+      if (sql.includes('org.resolve_effective_classification'))
+        return { requested_classification: REQUEST.maxClassification };
       if (sql.includes('org.holds_role')) return { ok: roleHeld };
       return undefined;
     },
@@ -136,6 +138,9 @@ function dispatcherTx() {
       if (sql.includes('from core.action')) return undefined;
       if (sql.includes('registry.action_type')) {
         return { id: PURE_TRANSITION_REQUEST.actionType, transactional: true };
+      }
+      if (sql.includes('org.resolve_effective_classification')) {
+        return { requested_classification: PURE_TRANSITION_REQUEST.maxClassification };
       }
       if (sql.includes('org.holds_role')) return { ok: true };
       if (sql.includes('from core.audit_event')) return undefined;
@@ -277,6 +282,8 @@ describe('transactional action ownership', () => {
       query,
       one: vi.fn(),
       maybeOne: vi.fn(async (sql: string) => {
+        if (sql.includes('org.resolve_effective_classification'))
+          return { requested_classification: PURE_TRANSITION_REQUEST.maxClassification };
         if (sql.includes('from core.action')) {
           return {
             ...replayReceipt(),
@@ -302,7 +309,11 @@ describe('transactional action ownership', () => {
       query: vi.fn(async () => []),
       one: vi.fn(),
       maybeOne: vi.fn(async (sql: string) =>
-        sql.includes('from core.action') ? prior : undefined,
+        sql.includes('org.resolve_effective_classification')
+          ? { requested_classification: PURE_TRANSITION_REQUEST.maxClassification }
+          : sql.includes('from core.action')
+            ? prior
+            : undefined,
       ),
     } as unknown as Tx;
     const execute = createTransactionalDispatcher({
@@ -330,7 +341,11 @@ describe('transactional action ownership', () => {
       query: vi.fn(async () => []),
       one: vi.fn(),
       maybeOne: vi.fn(async (sql: string) =>
-        sql.includes('from core.action') ? replayReceipt() : undefined,
+        sql.includes('org.resolve_effective_classification')
+          ? { requested_classification: PURE_TRANSITION_REQUEST.maxClassification }
+          : sql.includes('from core.action')
+            ? replayReceipt()
+            : undefined,
       ),
     } as unknown as Tx;
     const execute = createTransactionalDispatcher({
@@ -352,7 +367,11 @@ describe('transactional action ownership', () => {
         query: vi.fn(async () => []),
         one: vi.fn(),
         maybeOne: vi.fn(async (sql: string) =>
-          sql.includes('from core.action') ? prior : undefined,
+          sql.includes('org.resolve_effective_classification')
+            ? { requested_classification: PURE_TRANSITION_REQUEST.maxClassification }
+            : sql.includes('from core.action')
+              ? prior
+              : undefined,
         ),
       } as unknown as Tx;
       const execute = createTransactionalDispatcher({
@@ -376,7 +395,11 @@ describe('transactional action ownership', () => {
       query: vi.fn(async () => []),
       one: vi.fn(),
       maybeOne: vi.fn(async (sql: string) =>
-        sql.includes('from core.action') ? prior : undefined,
+        sql.includes('org.resolve_effective_classification')
+          ? { requested_classification: PURE_TRANSITION_REQUEST.maxClassification }
+          : sql.includes('from core.action')
+            ? prior
+            : undefined,
       ),
     } as unknown as Tx;
     const execute = createTransactionalDispatcher({

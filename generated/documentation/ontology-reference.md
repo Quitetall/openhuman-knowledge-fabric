@@ -1,9 +1,9 @@
 <!-- GENERATED from ontology/ — do not edit. -->
-<!-- ontology_version: 1.1.0-draft.1 · source_digest: 1f26b17f57be7c7a3fc9a70db2dfc102c0a53b0f0203759110cfd52cab32b59f -->
+<!-- ontology_version: 1.1.0-draft.1 · source_digest: d87782e47c89c2d79c4f36bd4ae0bb0d373ed51eaba960dec8b3727682832b1a -->
 
 # Ontology reference
 
-Compiled from `ontology/`. 38 object types, 41 relation types, 104 action types, 21 state machines, 15 invariants.
+Compiled from `ontology/`. 38 object types, 41 relation types, 105 action types, 21 state machines, 15 invariants.
 
 ## Object types
 
@@ -149,6 +149,7 @@ Compiled from `ontology/`. 38 object types, 41 relation types, 104 action types,
 | `revise_document_composition` | — |
 | `change_document_source_holder` | — |
 | `request_document_compilation` | — |
+| `compile_master_record` | — |
 | `accept_document_compilation` | — |
 | `publish_document_view` | — |
 | `record_document_proposal` | — |

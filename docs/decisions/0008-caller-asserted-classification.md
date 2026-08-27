@@ -1,12 +1,21 @@
 # The classification ceiling is asserted by the caller, not granted to them
 
-**Status:** raised — needs a decision from the technical authority
+**Status:** superseded by ADR 0011
 **Date raised:** 2026-08-24
 **Decision owner:** technical authority
 **Scope:** how `maxClassification` reaches `core.set_access_context` on the application path,
 and whether it is a privilege the system grants or a limit the caller chooses
-**Decision:** none yet. Options and their consequences are below; the recommendation is
-option 2, and it is not taken here.
+**Decision:** The historical decision was left open in this record. ADR 0011 now accepts
+organization-scoped, effective-dated clearance and clamps every requested ceiling to the
+resolved effective ceiling at point of use. This record remains as the measured problem and
+options history; its recommendation to defer clamping no longer applies.
+
+## Correction
+
+The earlier recommendation said to wait until a host exists. That was a commissioning-risk
+judgment, not a permanent authority model. Production now seeds explicit clearance facts and
+refuses missing or excessive requests. Development-only header identity remains
+non-authoritative and is not a substitute for a clearance grant.
 
 ---
 

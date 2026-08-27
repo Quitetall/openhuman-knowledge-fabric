@@ -413,6 +413,18 @@ async function seedAuthorityFixture(
        values ($1,$2,$3,$4)`,
       [assignment.id, person.id, roleId, fixtures.organizationId],
     );
+    await tx.query(
+      `insert into org.person_clearance
+         (subject_id, organization_id, max_classification, granted_by, granted_by_action, reason)
+       values ($1, $2, 'restricted', $3, $4, $5)`,
+      [
+        person.id,
+        fixtures.organizationId,
+        fixtures.reviewerId,
+        fixtures.clearanceActionId,
+        `${roleId} fixture clearance`,
+      ],
+    );
     return { personId: person.id, roleAssignmentId: assignment.id };
   });
 }

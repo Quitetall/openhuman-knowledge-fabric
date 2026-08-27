@@ -11,6 +11,17 @@ export * from './liminal-adapter.js';
 export * from './proposal.js';
 export * from './adr.js';
 export * from './workbench.js';
+export * from './master-record.js';
+export * from './master-record-renderer.js';
+export { verifyMasterRecordLinkToken, type MasterRecordLinkClaims } from './master-record-links.js';
+export {
+  enumeratePermissionSet,
+  enumeratePermittedSet,
+  enumerateRelevanceGraph,
+  latestMasterRecord,
+  masterRecordItems,
+  masterRecordWithholdings,
+} from './master-record-repository.js';
 
 export { createDocumentActionAtoms } from './internal/action-atoms.js';
 export { DOCUMENT_ACTION_IDS, type DocumentActionAtoms } from './internal/action-types.js';

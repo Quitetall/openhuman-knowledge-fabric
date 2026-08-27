@@ -53,6 +53,26 @@ const reindexTargets: OutboxHandler = async (tx, payload) => {
   }
 };
 
+/** Record link delivery without ever moving token material into the worker or object store. */
+const recordMasterRecordLinkDelivery: OutboxHandler = async (tx, payload) => {
+  const linkId = payload['link_id'];
+  const actionId = payload['action_id'];
+  const payloadDigest = payload['payload_digest'];
+  if (
+    typeof linkId !== 'string' ||
+    typeof actionId !== 'string' ||
+    typeof payloadDigest !== 'string' ||
+    !/^[0-9a-f]{64}$/u.test(payloadDigest)
+  ) {
+    throw new Error('master-record link delivery payload is malformed');
+  }
+  await tx.query('select content.record_master_record_link_delivery($1, $2, $3)', [
+    linkId,
+    actionId,
+    payloadDigest,
+  ]);
+};
+
 /**
  * Which topics do what.
  *
@@ -63,6 +83,7 @@ const reindexTargets: OutboxHandler = async (tx, payload) => {
  */
 export const OUTBOX_HANDLERS: Readonly<Record<string, OutboxHandler>> = {
   '*': reindexTargets,
+  'kf.master_record_link_issued': recordMasterRecordLinkDelivery,
 };
 
 const DEFAULT_BATCH = 100;

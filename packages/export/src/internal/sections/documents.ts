@@ -142,6 +142,52 @@ export const DOCUMENT_SECTIONS = [
             from content.document_publication order by published_at, id`,
   },
   {
+    name: 'master-records',
+    sql: `select id, person_id, organization_id, compilation_run_id, effective_classification,
+                 permission_digest, record_digest, manifest, compiled_at, recorded_at,
+                 recorded_by, recorded_by_action
+            from content.master_record order by organization_id, person_id, compiled_at, id`,
+  },
+  {
+    name: 'person-entitlement-exclusions',
+    sql: `select id, subject_id, organization_id, object_id, reason_class, reason, authorizer,
+                 created_at, created_by_action, released_at, released_by_action
+            from content.person_entitlement_exclusion order by organization_id, subject_id, id`,
+  },
+  {
+    name: 'master-record-items',
+    sql: `select master_record_id, object_id, object_type, title, classification, content_digest,
+                 section, item_state, withdrawn_at, withdrawal_reason
+            from content.master_record_item order by master_record_id, section, object_id`,
+  },
+  {
+    name: 'master-record-withholdings',
+    sql: `select id, master_record_id, object_id, reason_class, reason, authorizer, withheld_at,
+                 item_count
+            from content.master_record_withholding order by master_record_id, id`,
+  },
+  {
+    name: 'master-record-links',
+    sql: `select id, master_record_id, token_digest, scope, issued_at, expires_at, issued_by,
+                 issued_by_action
+            from content.master_record_link order by issued_at, id`,
+  },
+  {
+    name: 'master-record-link-revocations',
+    sql: `select link_id, revoked_at, revoked_by, revoked_by_action, reason
+            from content.master_record_link_revocation order by revoked_at, link_id`,
+  },
+  {
+    name: 'master-record-delivery-receipts',
+    sql: `select id, link_id, action_id, delivery_status, payload_digest, recorded_at, detail
+            from content.master_record_delivery_receipt order by recorded_at, id`,
+  },
+  {
+    name: 'master-record-link-access',
+    sql: `select id, link_id, accessed_at, requester_hash, result, record_digest, detail
+            from content.master_record_link_access order by accessed_at, id`,
+  },
+  {
     name: 'proposal-overlays',
     sql: `select id, subject_id, base_fragment_revision_id, base_composition_revision_id,
                  basis_id, proposal_kind, proposed_by_kind, actor_id, model_provider,

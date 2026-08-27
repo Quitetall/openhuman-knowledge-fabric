@@ -29,6 +29,9 @@ export function emitVocabulary(o: Ontology): Json {
     // Emitted only once declared, so a consumer can tell "any type" from "not yet typed".
     if (r.sourceTypes !== undefined) entry['source_types'] = [...r.sourceTypes];
     if (r.targetTypes !== undefined) entry['target_types'] = [...r.targetTypes];
+    if (r.personAnchor !== undefined) entry['person_anchor'] = r.personAnchor;
+    if (r.propagationClass !== undefined) entry['propagation_class'] = r.propagationClass;
+    if (r.anchorDepth !== undefined) entry['anchor_depth'] = r.anchorDepth;
     edgeTypes[r.id] = entry;
   }
 

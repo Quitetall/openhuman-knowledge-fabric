@@ -92,6 +92,17 @@ export interface RelationType {
    */
   readonly sourceTypes?: readonly string[];
   readonly targetTypes?: readonly string[];
+  /** Whether this relation can seed relevance from a person anchor. */
+  readonly personAnchor?: boolean;
+  /** How relevance may propagate across this relation. */
+  readonly propagationClass?:
+    | 'composition_down'
+    | 'version_both'
+    | 'provenance_backward'
+    | 'lateral_none'
+    | 'authority_one_hop_up';
+  /** Maximum traversal depth from an anchor for this relation. */
+  readonly anchorDepth?: number;
 }
 
 export interface ActionType {
@@ -335,6 +346,28 @@ export function loadOntology(dir: string): Ontology {
     }
     if (r['target_types'] !== undefined) {
       rel['targetTypes'] = asStringList(r['target_types'], `relation_types[${i}].target_types`);
+    }
+    if (r['person_anchor'] !== undefined) {
+      if (typeof r['person_anchor'] !== 'boolean') {
+        throw new Error(`relation_types[${i}].person_anchor: expected boolean`);
+      }
+      rel['personAnchor'] = r['person_anchor'];
+    }
+    if (r['propagation_class'] !== undefined) {
+      rel['propagationClass'] = asString(
+        r['propagation_class'],
+        `relation_types[${i}].propagation_class`,
+      );
+    }
+    if (r['anchor_depth'] !== undefined) {
+      if (
+        typeof r['anchor_depth'] !== 'number' ||
+        !Number.isInteger(r['anchor_depth']) ||
+        r['anchor_depth'] < 0
+      ) {
+        throw new Error(`relation_types[${i}].anchor_depth: expected non-negative integer`);
+      }
+      rel['anchorDepth'] = r['anchor_depth'];
     }
     return rel as unknown as RelationType;
   });

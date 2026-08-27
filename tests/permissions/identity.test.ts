@@ -289,6 +289,46 @@ describe('classification narrows rather than widens', () => {
     const [atInternal, atRestricted] = counts as [number, number];
     expect(atInternal).toBeLessThanOrEqual(atRestricted);
   });
+
+  it('uses the narrower person clearance and assignment ceiling, and refuses widening', async () => {
+    await withTransaction(h.adminPool, async (tx) => {
+      await tx.query('update org.role_assignment set classification_ceiling = $1 where id = $2', [
+        'internal',
+        f.reviewerRoleId,
+      ]);
+    });
+    try {
+      const err = await resolveCaller(
+        h.adminPool,
+        verifier,
+        request({ token: await token(), maxClassification: 'confidential' }),
+      ).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(IdentityRejected);
+      expect((err as IdentityRejected).failure).toBe('classification_not_granted');
+    } finally {
+      await withTransaction(h.adminPool, async (tx) => {
+        await tx.query(
+          'update org.role_assignment set classification_ceiling = null where id = $1',
+          [f.reviewerRoleId],
+        );
+      });
+    }
+  });
+
+  it('fails closed when no organization-scoped person clearance exists', async () => {
+    const err = await withTransaction(h.adminPool, async (tx) =>
+      tx
+        .query(`select * from org.resolve_effective_classification($1, $2, $3, $4)`, [
+          '01930000-0000-7000-8000-00000000dead',
+          f.organizationId,
+          f.reviewerRoleId,
+          'public',
+        ])
+        .catch((e: unknown) => e),
+    );
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toMatch(/clearance/i);
+  });
 });
 
 describe('revocation', () => {

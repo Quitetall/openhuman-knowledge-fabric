@@ -13,6 +13,7 @@ import type { DocumentParser } from './parse-contract.js';
 import { createProposalApplyActions } from './proposal-apply-actions.js';
 import { createProposalRecordActions } from './proposal-record-actions.js';
 import { createPublicationActions } from './publication-actions.js';
+import { assertCompileMasterRecord, compileMasterRecordEffect } from './master-record-actions.js';
 
 export function createDocumentActionAtoms(options: {
   readonly store: ObjectStore;
@@ -49,6 +50,7 @@ export function createDocumentActionAtoms(options: {
       revise_document_composition: compositionRevision.reviseDocumentComposition,
       change_document_source_holder: holderChange.changeDocumentSourceHolder,
       request_document_compilation: compilationRequest.requestDocumentCompilation,
+      compile_master_record: compileMasterRecordEffect,
       accept_document_compilation: compilationAccept.acceptDocumentCompilation,
       publish_document_view: publication.publishDocumentView,
       record_document_proposal: proposalRecord.recordDocumentProposal,
@@ -62,6 +64,7 @@ export function createDocumentActionAtoms(options: {
       revise_document_composition: compositionRevision.assertReviseComposition,
       change_document_source_holder: holderChange.assertChangeHolder,
       request_document_compilation: compilationRequest.assertRequestCompilation,
+      compile_master_record: assertCompileMasterRecord,
       accept_document_compilation: compilationAccept.assertAcceptCompilation,
       publish_document_view: publication.assertPublishDocumentView,
       record_document_proposal: proposalRecord.assertRecordProposal,

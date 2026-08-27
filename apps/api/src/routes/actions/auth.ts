@@ -26,10 +26,10 @@ export function callerFrom(headers: Record<string, unknown>): Caller {
     // `internal`. Corrected rather than quietly reworded, because a comment that overstates a
     // safety property in the auth path is how nobody reads it again.
     //
-    // The value is deliberately unchanged here. Whether it should be `public`, and whether
-    // this field is a granted privilege at all, is ADR 0008's question: `resolveIn` passes it
-    // through UNVALIDATED to `core.set_access_context`, so the ceiling is caller-asserted
-    // while organization and acting role are both proven.
+    // The value is deliberately unchanged here. This header path exists only for the explicit
+    // development profile and is visibly non-authoritative. Token-backed requests take the
+    // same requested value through `resolveIn`, where the database clearance resolver narrows
+    // it before `core.set_access_context` sees it.
     maxClassification:
       typeof headers['x-kf-classification'] === 'string'
         ? (headers['x-kf-classification'] as string)

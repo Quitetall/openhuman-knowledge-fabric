@@ -8,6 +8,7 @@ import {
 import { applyAction } from './application.js';
 import {
   assertActionAvailable,
+  bindResolvedAccessContext,
   assertCanonicalEffectiveAt,
   assertReasonPresent,
   assertRoleHeld,
@@ -39,6 +40,9 @@ export function createTransactionalDispatcher(
   return async function executeAction(tx: Tx, request: ActionRequest): Promise<ActionResult> {
     assertActionAvailable(request.actionType, resolved.allowedActions);
     assertCanonicalEffectiveAt(request);
+    // Role lookup is RLS-scoped by organization/classification. Bind caller's requested
+    // view before loading action-owned records, then replace it with resolved ceiling
+    // after idempotent replay has been ruled out and assignment ownership is confirmed.
     await setAccessContext(tx, {
       organizationId: request.organizationId,
       maxClassification: request.maxClassification,
@@ -50,7 +54,10 @@ export function createTransactionalDispatcher(
     if (replay !== undefined) return replay;
 
     const definition = await loadDefinition(tx, request.actionType);
+    // Check role ownership before clearance resolution. A caller with an invalid
+    // assignment must receive role_not_held, not a misleading clearance failure.
     await assertRoleHeld(tx, request.actorId, request.actingRoleId);
+    await bindResolvedAccessContext(tx, request);
     assertReasonPresent(request, resolved.reasonRequired);
 
     const actionId = (await tx.one<{ id: string }>('select uuidv7() as id')).id;

@@ -5,6 +5,7 @@ import type { Tx } from '@kf/database';
 export type ActionFailure =
   | 'unknown_action'
   | 'actor_not_authorized'
+  | 'classification_not_granted'
   | 'role_not_held'
   | 'object_not_visible'
   | 'version_conflict'

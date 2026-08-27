@@ -2,7 +2,7 @@
   "schema_version": "1.1.0-draft.1",
   "x-generated-from": {
     "ontology_version": "1.1.0-draft.1",
-    "source_digest": "1f26b17f57be7c7a3fc9a70db2dfc102c0a53b0f0203759110cfd52cab32b59f"
+    "source_digest": "d87782e47c89c2d79c4f36bd4ae0bb0d373ed51eaba960dec8b3727682832b1a"
   },
   "node_types": {
     "organization": {
@@ -162,133 +162,256 @@
   "edge_types": {
     "contains": {
       "inverse": "contained_by",
-      "acyclic": true
+      "acyclic": true,
+      "person_anchor": false,
+      "propagation_class": "composition_down",
+      "anchor_depth": 8
     },
     "decomposes_into": {
       "inverse": "part_of",
-      "acyclic": true
+      "acyclic": true,
+      "person_anchor": false,
+      "propagation_class": "composition_down",
+      "anchor_depth": 8
     },
     "affects": {
-      "inverse": "affected_by"
+      "inverse": "affected_by",
+      "person_anchor": false,
+      "propagation_class": "lateral_none",
+      "anchor_depth": 0
     },
     "authorizes": {
-      "inverse": "authorized_by"
+      "inverse": "authorized_by",
+      "person_anchor": true,
+      "propagation_class": "authority_one_hop_up",
+      "anchor_depth": 1
     },
     "executes": {
-      "inverse": "executed_by"
+      "inverse": "executed_by",
+      "person_anchor": true,
+      "propagation_class": "composition_down",
+      "anchor_depth": 8
     },
     "produces": {
-      "inverse": "produced_by"
+      "inverse": "produced_by",
+      "person_anchor": true,
+      "propagation_class": "composition_down",
+      "anchor_depth": 8
     },
     "consumes": {
-      "inverse": "consumed_by"
+      "inverse": "consumed_by",
+      "person_anchor": true,
+      "propagation_class": "composition_down",
+      "anchor_depth": 8
     },
     "proposes": {
-      "inverse": "proposed_by"
+      "inverse": "proposed_by",
+      "person_anchor": true,
+      "propagation_class": "authority_one_hop_up",
+      "anchor_depth": 1
     },
     "governs": {
-      "inverse": "governed_by"
+      "inverse": "governed_by",
+      "person_anchor": true,
+      "propagation_class": "authority_one_hop_up",
+      "anchor_depth": 1
     },
     "implements": {
-      "inverse": "implemented_by"
+      "inverse": "implemented_by",
+      "person_anchor": true,
+      "propagation_class": "provenance_backward",
+      "anchor_depth": 8
     },
     "satisfies": {
-      "inverse": "satisfied_by"
+      "inverse": "satisfied_by",
+      "person_anchor": true,
+      "propagation_class": "provenance_backward",
+      "anchor_depth": 8
     },
     "verifies": {
-      "inverse": "verified_by"
+      "inverse": "verified_by",
+      "person_anchor": true,
+      "propagation_class": "authority_one_hop_up",
+      "anchor_depth": 1
     },
     "mitigates": {
-      "inverse": "mitigated_by"
+      "inverse": "mitigated_by",
+      "person_anchor": false,
+      "propagation_class": "lateral_none",
+      "anchor_depth": 0
     },
     "accepts": {
-      "inverse": "accepted_by"
+      "inverse": "accepted_by",
+      "person_anchor": true,
+      "propagation_class": "authority_one_hop_up",
+      "anchor_depth": 1
     },
     "bills": {
-      "inverse": "billed_by"
+      "inverse": "billed_by",
+      "person_anchor": false,
+      "propagation_class": "composition_down",
+      "anchor_depth": 8
     },
     "settles": {
-      "inverse": "settled_by"
+      "inverse": "settled_by",
+      "person_anchor": false,
+      "propagation_class": "composition_down",
+      "anchor_depth": 8
     },
     "allocates_to": {
-      "inverse": "allocated_from"
+      "inverse": "allocated_from",
+      "person_anchor": false,
+      "propagation_class": "composition_down",
+      "anchor_depth": 8
     },
     "originated_from": {
-      "inverse": "originated"
+      "inverse": "originated",
+      "person_anchor": true,
+      "propagation_class": "provenance_backward",
+      "anchor_depth": 8
     },
     "supersedes": {
       "inverse": "superseded_by",
-      "acyclic": true
+      "acyclic": true,
+      "person_anchor": false,
+      "propagation_class": "version_both",
+      "anchor_depth": 8
     },
     "derived_from": {
-      "inverse": "source_of"
+      "inverse": "source_of",
+      "person_anchor": true,
+      "propagation_class": "provenance_backward",
+      "anchor_depth": 8
     },
     "evidences": {
-      "inverse": "evidenced_by"
+      "inverse": "evidenced_by",
+      "person_anchor": true,
+      "propagation_class": "provenance_backward",
+      "anchor_depth": 8
     },
     "assigned_to": {
-      "inverse": "assignee_of"
+      "inverse": "assignee_of",
+      "person_anchor": true,
+      "propagation_class": "authority_one_hop_up",
+      "anchor_depth": 1
     },
     "scoped_to": {
-      "inverse": "scope_of"
+      "inverse": "scope_of",
+      "person_anchor": true,
+      "propagation_class": "authority_one_hop_up",
+      "anchor_depth": 1
     },
     "depends_on": {
       "inverse": "dependency_of",
-      "acyclic": true
+      "acyclic": true,
+      "person_anchor": false,
+      "propagation_class": "lateral_none",
+      "anchor_depth": 0
     },
     "blocks": {
-      "inverse": "blocked_by"
+      "inverse": "blocked_by",
+      "person_anchor": false,
+      "propagation_class": "lateral_none",
+      "anchor_depth": 0
     },
     "released_by": {
-      "inverse": "releases"
+      "inverse": "releases",
+      "person_anchor": true,
+      "propagation_class": "authority_one_hop_up",
+      "anchor_depth": 1
     },
     "baseline_contains": {
-      "inverse": "included_in_baseline"
+      "inverse": "included_in_baseline",
+      "person_anchor": false,
+      "propagation_class": "composition_down",
+      "anchor_depth": 8
     },
     "performed_by": {
-      "inverse": "performed"
+      "inverse": "performed",
+      "person_anchor": true,
+      "propagation_class": "authority_one_hop_up",
+      "anchor_depth": 1
     },
     "owned_by": {
-      "inverse": "owns"
+      "inverse": "owns",
+      "person_anchor": true,
+      "propagation_class": "authority_one_hop_up",
+      "anchor_depth": 1
     },
     "linked_to": {
       "inverse": "linked_to",
-      "symmetric": true
+      "symmetric": true,
+      "person_anchor": false,
+      "propagation_class": "lateral_none",
+      "anchor_depth": 0
     },
     "amends": {
       "inverse": "amended_by",
-      "acyclic": true
+      "acyclic": true,
+      "person_anchor": false,
+      "propagation_class": "version_both",
+      "anchor_depth": 8
     },
     "extends": {
       "inverse": "extended_by",
-      "acyclic": true
+      "acyclic": true,
+      "person_anchor": false,
+      "propagation_class": "version_both",
+      "anchor_depth": 8
     },
     "generated_by": {
-      "inverse": "generated"
+      "inverse": "generated",
+      "person_anchor": true,
+      "propagation_class": "provenance_backward",
+      "anchor_depth": 8
     },
     "used": {
-      "inverse": "was_used_by"
+      "inverse": "was_used_by",
+      "person_anchor": true,
+      "propagation_class": "provenance_backward",
+      "anchor_depth": 8
     },
     "was_associated_with": {
-      "inverse": "associated_with"
+      "inverse": "associated_with",
+      "person_anchor": false,
+      "propagation_class": "lateral_none",
+      "anchor_depth": 0
     },
     "conforms_to": {
-      "inverse": "conformed_to_by"
+      "inverse": "conformed_to_by",
+      "person_anchor": false,
+      "propagation_class": "lateral_none",
+      "anchor_depth": 0
     },
     "bound_to": {
-      "inverse": "binds"
+      "inverse": "binds",
+      "person_anchor": false,
+      "propagation_class": "lateral_none",
+      "anchor_depth": 0
     },
     "supplied_by": {
-      "inverse": "supplies"
+      "inverse": "supplies",
+      "person_anchor": true,
+      "propagation_class": "composition_down",
+      "anchor_depth": 8
     },
     "calibrated_with": {
-      "inverse": "calibrates"
+      "inverse": "calibrates",
+      "person_anchor": false,
+      "propagation_class": "lateral_none",
+      "anchor_depth": 0
     },
     "raised_against": {
-      "inverse": "raised"
+      "inverse": "raised",
+      "person_anchor": true,
+      "propagation_class": "authority_one_hop_up",
+      "anchor_depth": 1
     },
     "remediated_by": {
-      "inverse": "remediates"
+      "inverse": "remediates",
+      "person_anchor": true,
+      "propagation_class": "provenance_backward",
+      "anchor_depth": 8
     }
   },
   "action_types": {
@@ -493,6 +616,10 @@
       "transactional": true
     },
     "request_document_compilation": {
+      "audited": true,
+      "transactional": true
+    },
+    "compile_master_record": {
       "audited": true,
       "transactional": true
     },

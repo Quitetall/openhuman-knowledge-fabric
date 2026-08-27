@@ -191,6 +191,9 @@ export async function buildApp(
       preflightInTransaction,
       identify,
       store: objectStore,
+      ...(config.masterRecordLinkSecret === undefined
+        ? {}
+        : { masterRecordLinkSecret: config.masterRecordLinkSecret }),
     });
     await registerMlRoutes(app, { pool, identify, executeInTransaction });
     await registerSearchRoutes(app, { pool, identify });

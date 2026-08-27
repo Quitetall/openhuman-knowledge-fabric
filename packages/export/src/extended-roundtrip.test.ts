@@ -174,7 +174,7 @@ describe('extended preservation coverage', () => {
   it('round-trips document authority, ML receipts, operations evidence and secure-object receipts', async () => {
     const source = await startHarness();
     try {
-      const fixtures = await seedFixtures(source.adminPool);
+      const fixtures = await seedFixtures(source.adminPool, { auditClearance: false });
       const fragmentObjectId = await createObject(source.adminPool, fixtures, {
         type: 'authored_fragment',
         domain: 'qms',
@@ -1666,7 +1666,7 @@ describe('extended preservation coverage', () => {
       );
       expect(first.manifest.counts).toMatchObject({
         'legacy-action-provenance': 1,
-        'audit-events': 7,
+        'audit-events': 8,
         'audit-checkpoints': 1,
         'controlled-documents': 1,
         'document-subjects': 2,

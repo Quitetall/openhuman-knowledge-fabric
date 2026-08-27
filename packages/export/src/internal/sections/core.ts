@@ -95,8 +95,19 @@ export const CORE_SECTIONS = [
   },
   {
     name: 'role-assignments',
-    sql: `select id, subject_id, role_id, scope_id, valid_from, valid_to, delegated_by
+    sql: `select id, subject_id, role_id, scope_id, classification_ceiling, valid_from, valid_to, delegated_by
             from org.role_assignment order by id`,
+  },
+  {
+    name: 'person-clearances',
+    sql: `select id, subject_id, organization_id, max_classification, valid_from, valid_to,
+                 granted_by, granted_at, granted_by_action, reason
+            from org.person_clearance order by organization_id, subject_id, valid_from, id`,
+  },
+  {
+    name: 'person-clearance-retirements',
+    sql: `select clearance_id, retired_at, retired_by, retirement_reason, retired_by_action
+            from org.person_clearance_retirement order by retired_at, clearance_id`,
   },
   {
     name: 'recovery-objectives',

@@ -1,4 +1,4 @@
-import { setAccessContext, type Tx } from '@kf/database';
+import { setAccessContext, setResolvedAccessContext, type Tx } from '@kf/database';
 import {
   ActionRejected,
   resolveDispatcherOptions,
@@ -92,6 +92,27 @@ export function assertReasonPresent(request: ActionRequest, reasonRequired: Read
   }
 }
 
+export async function bindResolvedAccessContext(tx: Tx, request: ActionRequest): Promise<void> {
+  try {
+    await setResolvedAccessContext(tx, {
+      subjectId: request.actorId,
+      assignmentId: request.actingRoleId,
+      organizationId: request.organizationId,
+      requestedClassification: request.maxClassification,
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    const code =
+      typeof error === 'object' && error !== null && 'code' in error
+        ? String((error as { code?: unknown }).code ?? '')
+        : '';
+    if (code === '42501' || code === 'P0001' || /classification|clearance/i.test(message)) {
+      throw new ActionRejected('classification_not_granted', 'classification ceiling refused');
+    }
+    throw error;
+  }
+}
+
 /**
  * Build read-only, non-authoritative action preflight.
  *
@@ -116,6 +137,7 @@ export function createTransactionalPreflight(
     });
     await loadDefinition(tx, request.actionType);
     await assertRoleHeld(tx, request.actorId, request.actingRoleId);
+    await bindResolvedAccessContext(tx, request);
     assertReasonPresent(request, resolved.reasonRequired);
 
     if (prospectiveObjects.length > 0) {

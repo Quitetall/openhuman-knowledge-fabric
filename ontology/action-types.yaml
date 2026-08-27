@@ -228,6 +228,10 @@ action_types:
     audited: true
     transactional: true
     drives: []
+  - id: compile_master_record
+    audited: true
+    transactional: true
+    drives: []
   - id: accept_document_compilation
     audited: true
     transactional: true

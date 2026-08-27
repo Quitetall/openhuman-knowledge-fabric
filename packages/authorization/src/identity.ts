@@ -49,6 +49,7 @@ export type IdentityFailure =
   | 'unknown_subject'
   | 'revoked_identity'
   | 'role_not_held'
+  | 'classification_not_granted'
   | 'no_role_requested';
 
 export class IdentityRejected extends Error {
@@ -128,6 +129,7 @@ export interface CallerRequest {
   /** Which of the actor's roles they are acting under, for this request. */
   readonly actingRoleId: string;
   readonly organizationId: string;
+  /** Requested ceiling; database clearance may narrow it, never widen it. */
   readonly maxClassification: string;
 }
 
@@ -164,12 +166,14 @@ export async function resolveCaller(
   const authentication = authenticationEvent(payload);
 
   return withTransaction(pool, async (tx) => {
-    // Scope first, as every read in this system does.
+    const caller = await resolveIn(tx, { issuer, subject, authentication, ...request });
+    // Only the database-derived effective ceiling reaches RLS. The request header may narrow
+    // that ceiling, but can never widen it or become the value bound to the transaction.
     await tx.query('select core.set_access_context($1, $2)', [
       request.organizationId,
-      request.maxClassification,
+      caller.maxClassification,
     ]);
-    return resolveIn(tx, { issuer, subject, authentication, ...request });
+    return caller;
   });
 }
 
@@ -185,21 +189,17 @@ export async function resolveIn(
     readonly authentication?: AuthenticationEvent;
   },
 ): Promise<Caller> {
-  const link = await tx.maybeOne<{ person_id: string; revoked_at: Date | null }>(
-    `select person_id, revoked_at from org.external_identity
-      where issuer = $1 and subject = $2
-      -- A live link wins over a revoked one whatever the insertion order. Ordering on
-      -- linked_at alone would let a revoked row inserted later mask a live one, refusing
-      -- somebody who is perfectly entitled to sign in.
-      --
-      -- Revoked rows are still SELECTED rather than filtered out, so a revoked identity is
-      -- told it was revoked instead of being told it never existed.
-      order by (revoked_at is null) desc, linked_at desc
-      limit 1`,
-    [request.issuer, request.subject],
+  const identity = await tx.maybeOne<{
+    person_id: string;
+    identity_revoked: boolean;
+    role_held: boolean;
+  }>(
+    `select person_id, identity_revoked, role_held
+       from org.resolve_identity_role($1, $2, $3, $4)`,
+    [request.issuer, request.subject, request.organizationId, request.actingRoleId],
   );
 
-  if (link === undefined) {
+  if (identity === undefined) {
     // A valid token for somebody this system has never heard of. Refused rather than
     // auto-provisioned: creating a person on first sign-in would let anyone the provider
     // accepts become an actor here, and the actor list is who can be held responsible.
@@ -208,46 +208,45 @@ export async function resolveIn(
       'this identity is not linked to a person in this system',
     );
   }
-  if (link.revoked_at !== null) {
+  if (identity.identity_revoked) {
     throw new IdentityRejected('revoked_identity', 'this identity link has been revoked');
   }
-
-  const holds = await tx.maybeOne<{ id: string }>(
-    `select ra.id
-       from org.role_assignment ra
-       join core.object o on o.id = ra.id
-      where ra.id = $1
-        and ra.subject_id = $2
-        and o.lifecycle_state = 'active'
-        -- The role must belong to the ORGANIZATION the caller claims to be acting within.
-        --
-        -- This clause is the organization boundary, and it is written here rather than left
-        -- to row-level security on purpose. Without it the check still passed on the
-        -- application role — RLS hides another organization's role assignment — and FAILED on
-        -- a superuser connection, which bypasses RLS even with FORCE ROW LEVEL SECURITY. So
-        -- the boundary held only for callers connecting as exactly the right role, and any
-        -- worker, migration tool or admin script resolving a caller would silently have lost
-        -- it. An authorization property that depends on which database role happens to be
-        -- connected is not a property.
-        and o.organization_id = $3
-        -- Checked at the moment of use, not at sign-in. A role that expired mid-session is
-        -- expired; a token minted an hour ago cannot outlive the authority behind it.
-        and ra.valid_from <= now()
-        and (ra.valid_to is null or ra.valid_to > now())`,
-    [request.actingRoleId, link.person_id, request.organizationId],
-  );
-  if (holds === undefined) {
+  if (!identity.role_held) {
     throw new IdentityRejected(
       'role_not_held',
       'the acting role is not held by this person, or is not currently valid',
     );
   }
 
+  const classification = await tx
+    .maybeOne<{
+      effective_classification: string;
+      requested_classification: string;
+    }>(
+      `select effective_classification, requested_classification
+       from org.resolve_effective_classification($1, $2, $3, $4)`,
+      [identity.person_id, request.organizationId, request.actingRoleId, request.maxClassification],
+    )
+    .catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      const code =
+        typeof error === 'object' && error !== null && 'code' in error
+          ? String((error as { code?: unknown }).code ?? '')
+          : '';
+      if (code === '42501' || code === 'P0001' || /classification|clearance/i.test(message)) {
+        throw new IdentityRejected('classification_not_granted', 'classification ceiling refused');
+      }
+      throw error;
+    });
+  if (classification === undefined) {
+    throw new IdentityRejected('classification_not_granted', 'classification ceiling refused');
+  }
+
   return {
-    actorId: link.person_id,
+    actorId: identity.person_id,
     actingRoleId: request.actingRoleId,
     organizationId: request.organizationId,
-    maxClassification: request.maxClassification,
+    maxClassification: classification.requested_classification,
     subject: request.subject,
     // Absent when resolveIn is called directly without a token. Every field inside is
     // undefined, which every step-up policy treats as a failure — the fail-closed direction.
