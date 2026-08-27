@@ -260,9 +260,9 @@ export function relevanceClosureWithMetrics(
           (policy.propagationClass === 'authority_one_hop_up' && isIncoming ? 1 : 0),
         ...(nextAnchorType === undefined ? {} : { anchorType: nextAnchorType }),
       };
-      const nextState = stateKey(nextNode);
-      if (visitedStates.has(nextState)) continue;
-      visitedStates.add(nextState);
+      // Metrics describe every reachable edge path, not only states that still need traversal.
+      // Record them before state deduplication so one anchor reaching a node through two classes
+      // appears in both class fan-outs while the queue remains finite.
       if (nextAnchorType !== undefined) {
         const reachedByAnchor = fanoutByAnchorType.get(nextAnchorType) ?? new Set<string>();
         reachedByAnchor.add(nextId);
@@ -275,6 +275,9 @@ export function relevanceClosureWithMetrics(
         fanoutByPropagationClass.get(policy.propagationClass) ?? new Set<string>();
       reachedByClass.add(nextId);
       fanoutByPropagationClass.set(policy.propagationClass, reachedByClass);
+      const nextState = stateKey(nextNode);
+      if (visitedStates.has(nextState)) continue;
+      visitedStates.add(nextState);
       if (!relevant.has(nextId)) {
         relevant.add(nextId);
       }

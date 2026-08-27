@@ -270,6 +270,42 @@ describe('relevance closure', () => {
     });
   });
 
+  it('counts same-anchor paths across propagation classes', () => {
+    const metrics = relevanceClosureWithMetrics(
+      'person',
+      [
+        { sourceId: 'person', targetId: 'root', relationType: 'assigned_to' },
+        { sourceId: 'root', targetId: 'shared', relationType: 'contains' },
+        { sourceId: 'root', targetId: 'shared', relationType: 'derived_from' },
+      ],
+      [
+        {
+          relationType: 'assigned_to',
+          personAnchor: true,
+          propagationClass: 'composition_down',
+          anchorDepth: 1,
+        },
+        {
+          relationType: 'contains',
+          personAnchor: false,
+          propagationClass: 'composition_down',
+          anchorDepth: 8,
+        },
+        {
+          relationType: 'derived_from',
+          personAnchor: false,
+          propagationClass: 'provenance_backward',
+          anchorDepth: 8,
+        },
+      ],
+    );
+    expect(metrics.ids).toEqual(new Set(['person', 'root', 'shared']));
+    expect(metrics.fanoutByPropagationClass).toEqual({
+      composition_down: 2,
+      provenance_backward: 1,
+    });
+  });
+
   it('refuses an edge whose relation policy is missing', () => {
     expect(() =>
       relevanceClosure(
