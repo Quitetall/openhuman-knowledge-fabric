@@ -1,4 +1,4 @@
-import { setAccessContext, setResolvedAccessContext, type Tx } from '@kf/database';
+import { setResolvedAccessContext, type Tx } from '@kf/database';
 import {
   ActionRejected,
   resolveDispatcherOptions,
@@ -131,11 +131,9 @@ export function createTransactionalPreflight(
   ): Promise<void> {
     assertActionAvailable(request.actionType, resolved.allowedActions);
     assertCanonicalEffectiveAt(request);
-    await setAccessContext(tx, {
-      organizationId: request.organizationId,
-      maxClassification: request.maxClassification,
-    });
     await loadDefinition(tx, request.actionType);
+    // Role ownership is an authority fact, not a classified record. The database helper is
+    // SECURITY DEFINER so this check remains independent of the later reader ceiling.
     await assertRoleHeld(tx, request.actorId, request.actingRoleId);
     await bindResolvedAccessContext(tx, request);
     assertReasonPresent(request, resolved.reasonRequired);
