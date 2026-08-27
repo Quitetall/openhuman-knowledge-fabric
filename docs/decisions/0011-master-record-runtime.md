@@ -87,6 +87,8 @@ remain human authority actions.
 - Runtime tests cover action dispatch, third-party count-only withholding, stale claims,
   deterministic renderings with bounded inline payloads, token tamper rejection, worker delivery
   under a non-superuser login, boundary coverage, and fresh-install migration application.
+- The boundary registry is checked as an exact partition of observed RLS tables; duplicate,
+  stale, or unclassified declarations refuse, with a planted unclassified-table conformance case.
 
 These measurements cover governed typed-row payloads and immutable object-store references. Raw
 external bytes remain outside the JSON manifest and require digest/version verification at read
