@@ -1,24 +1,45 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import Fastify from 'fastify';
-import { randomUUID } from 'node:crypto';
+import { generateKeyPairSync, randomUUID, sign as edSign } from 'node:crypto';
 import {
   createDocumentActionAtoms,
   latestMasterRecord,
   masterRecordItems,
   masterRecordWithholdings,
 } from '@kf/documents';
-import { compileAndRecordMasterRecord } from '../../packages/documents/src/master-record-repository.js';
+import {
+  compileAndRecordMasterRecord,
+  enumeratePermissionSet,
+} from '../../packages/documents/src/master-record-repository.js';
 import {
   issueMasterRecordLink,
   revokeMasterRecordLink,
   verifyMasterRecordLinkToken,
 } from '../../packages/documents/src/master-record-links.js';
+import { registerMasterRecordRoute } from '../../apps/api/src/routes/documents/master-record-route.js';
 import { registerMasterRecordLinkRoute } from '../../apps/api/src/routes/documents/master-record-link-route.js';
 import type { DocumentRoutesOptions } from '../../apps/api/src/routes/documents/contracts.js';
 import { InMemoryObjectStore } from '@kf/artifacts';
+import {
+  authoritySigningKeyMaterial,
+  contentSha256,
+  createSecureObjectActionAtoms,
+  externalAuthorityRef,
+  externalRevisionRef,
+  policyDecisionRef,
+  workloadIdentityRef,
+} from '@kf/integration';
 import { createFabricDispatcher } from '@kf/orchestrator';
+import { drainOutbox } from '../../apps/worker/src/outbox.js';
 import { setAccessContext, setTransactionContext, withTransaction } from '@kf/database';
-import { seedFixtures, startHarness, type Fixtures, type Harness } from './harness.js';
+import {
+  createObject,
+  bindContext,
+  seedFixtures,
+  startHarness,
+  type Fixtures,
+  type Harness,
+} from './harness.js';
 
 let harness: Harness;
 let fixtures: Fixtures;
@@ -94,6 +115,72 @@ describe('master-record runtime', () => {
       latestMasterRecord(tx, fixtures.performerId, fixtures.organizationId),
     );
     expect(record?.['person_id']).toBe(fixtures.performerId);
+  });
+
+  it('includes immutable artifact versions referenced by a typed document row', async () => {
+    const artifactId = await createObject(harness.adminPool, fixtures, {
+      type: 'artifact',
+      domain: 'content',
+      state: 'draft',
+      title: 'Master-record payload artifact',
+      createdBy: fixtures.reviewerId,
+    });
+    const documentId = await createObject(harness.adminPool, fixtures, {
+      type: 'controlled_document',
+      domain: 'quality',
+      state: 'draft',
+      title: 'Document with immutable bytes',
+      createdBy: fixtures.reviewerId,
+    });
+    const actionId = await unrecordedAction();
+    const versionId = randomUUID();
+    const sha256 = 'a'.repeat(64);
+    await withTransaction(harness.adminPool, async (tx) => {
+      await setAccessContext(tx, {
+        organizationId: fixtures.organizationId,
+        maxClassification: 'restricted',
+      });
+      await setTransactionContext(tx, {
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
+        actionId,
+        requestId: 'master-record-artifact-payload',
+      });
+      await tx.query(
+        `insert into content.artifact (id, artifact_kind, source_system)
+         values ($1, 'report', 'object_store')`,
+        [artifactId],
+      );
+      await tx.query(
+        `insert into content.artifact_version
+           (id, artifact_id, version_no, revision_label, sha256, size_bytes, media_type,
+            storage_uri, storage_version, created_by, created_by_action)
+         values ($1, $2, 1, 'R01', $3, 12, 'text/plain',
+                 's3://kf/master-record-artifact', 'object-version-1', $4, $5)`,
+        [versionId, artifactId, sha256, fixtures.reviewerId, actionId],
+      );
+      await tx.query(
+        `insert into quality.controlled_document
+           (id, document_class, document_number, revision, owning_role, content_version)
+         values ($1, 'report', 'OH-MR-PAYLOAD-001', 'R01', 'technical_authority', $2)`,
+        [documentId, versionId],
+      );
+    });
+
+    const members = await withTransaction(harness.pool, async (tx) => {
+      await setAccessContext(tx, {
+        organizationId: fixtures.organizationId,
+        maxClassification: 'restricted',
+      });
+      return enumeratePermissionSet(tx, fixtures.organizationId);
+    });
+    const document = members.find((member) => member.objectId === documentId);
+    expect(document?.content).toMatchObject({
+      'quality.controlled_document': expect.objectContaining({ content_version: versionId }),
+      'content.artifact_version': expect.arrayContaining([
+        expect.objectContaining({ id: versionId, sha256, storage_version: 'object-version-1' }),
+      ]),
+    });
   });
 
   it('enumerates permission, persists sectioned claim, and reports third-party withholding by count', async () => {
@@ -280,6 +367,19 @@ describe('master-record runtime', () => {
         expiresAt: new Date(Date.now() + 60_000).toISOString(),
       }),
     );
+    const delivery = await drainOutbox(harness.adminPool);
+    expect(delivery.failed).toBe(0);
+    const receipt = await withTransaction(harness.adminPool, (tx) =>
+      tx.one<{ delivery_status: string; payload_digest: string; recorded_at: Date }>(
+        `select delivery_status, payload_digest, recorded_at
+           from content.master_record_delivery_receipt
+          where link_id = $1 and action_id = $2`,
+        [issued.id, actionId],
+      ),
+    );
+    expect(receipt.delivery_status).toBe('delivered');
+    expect(receipt.payload_digest).toMatch(/^[0-9a-f]{64}$/);
+    expect(receipt.recorded_at).toBeInstanceOf(Date);
     const expired = await withTransaction(harness.adminPool, async (tx) =>
       issueMasterRecordLink(tx, {
         secret,
@@ -463,11 +563,13 @@ describe('master-record runtime', () => {
     );
     expect(latest).toBeDefined();
     const manifest = latest!['manifest'] as {
-      included: readonly { objectId: string }[];
+      included: readonly { objectId: string; objectType: string }[];
     };
     const candidate = manifest.included.find(
       (member) =>
-        member.objectId !== fixtures.reviewerId && member.objectId !== fixtures.performerId,
+        member.objectId !== fixtures.reviewerId &&
+        member.objectId !== fixtures.performerId &&
+        !['organization', 'person', 'role_assignment'].includes(member.objectType),
     );
     expect(candidate).toBeDefined();
 
@@ -515,5 +617,325 @@ describe('master-record runtime', () => {
       withdrawalReason: 'permission set no longer admits this object',
     });
     expect(removed?.withdrawnAt).toBe('2026-08-26T01:00:00.000Z');
+  });
+
+  it('uses a signed secure-object tombstone reason when withdrawn content leaves the set', async () => {
+    const subjectId = await createObject(harness.adminPool, fixtures, {
+      type: 'person',
+      domain: 'organization',
+      state: 'active',
+      title: 'Tombstone subject',
+      createdBy: fixtures.reviewerId,
+    });
+    await withTransaction(harness.adminPool, async (tx) => {
+      await bindContext(tx, fixtures);
+      await tx.query(
+        `insert into org.person (id, display_name, organization)
+         values ($1, 'Tombstone subject', $2)`,
+        [subjectId, fixtures.organizationId],
+      );
+    });
+
+    const artifactId = await createObject(harness.adminPool, fixtures, {
+      type: 'artifact',
+      domain: 'content',
+      state: 'draft',
+      title: 'Tombstone artifact',
+      createdBy: fixtures.reviewerId,
+    });
+    const documentId = await createObject(harness.adminPool, fixtures, {
+      type: 'controlled_document',
+      domain: 'quality',
+      state: 'draft',
+      title: 'Tombstone document',
+      createdBy: fixtures.reviewerId,
+    });
+    const contentDigest = contentSha256('b'.repeat(64));
+    const versionId = randomUUID();
+    const setupAction = await unrecordedAction();
+    await withTransaction(harness.adminPool, async (tx) => {
+      await bindContext(tx, fixtures);
+      await tx.query(
+        `insert into content.artifact (id, artifact_kind, source_system)
+         values ($1, 'report', 'object_store')`,
+        [artifactId],
+      );
+      await tx.query(
+        `insert into content.artifact_version
+           (id, artifact_id, version_no, revision_label, sha256, size_bytes, media_type,
+            storage_uri, storage_version, created_by, created_by_action)
+         values ($1, $2, 1, 'R01', $3, 9, 'text/plain',
+                 's3://kf/tombstone-document', 'object-version-1', $4, $5)`,
+        [versionId, artifactId, contentDigest, fixtures.reviewerId, setupAction],
+      );
+      await tx.query(
+        `insert into quality.controlled_document
+           (id, document_class, document_number, revision, owning_role, content_version)
+         values ($1, 'report', 'OH-MR-TOMBSTONE-001', 'R01', 'technical_authority', $2)`,
+        [documentId, versionId],
+      );
+    });
+
+    const documentAtoms = createDocumentActionAtoms({
+      store: new InMemoryObjectStore(),
+      parser: {
+        async parse() {
+          return undefined;
+        },
+      },
+    });
+    const compile = createFabricDispatcher(harness.pool, documentAtoms);
+    const first = await compile({
+      actionType: 'compile_master_record',
+      actorId: fixtures.reviewerId,
+      actingRoleId: fixtures.reviewerRoleId,
+      targetIds: [subjectId],
+      organizationId: fixtures.organizationId,
+      maxClassification: 'restricted',
+      idempotencyKey: `tombstone-compile-before-${randomUUID()}`,
+      reason: 'compile before secure-object withdrawal',
+    });
+    expect(first.status).toBe('applied');
+    const prior = await withTransaction(harness.adminPool, (tx) =>
+      latestMasterRecord(tx, subjectId, fixtures.organizationId),
+    );
+    expect(
+      (prior?.['manifest'] as { included: readonly { objectId: string }[] }).included.some(
+        (member) => member.objectId === documentId,
+      ),
+    ).toBe(true);
+
+    const qualityRoleId = await createObject(harness.adminPool, fixtures, {
+      type: 'role_assignment',
+      domain: 'organization',
+      state: 'active',
+      title: 'Tombstone quality authority assignment',
+      createdBy: fixtures.reviewerId,
+    });
+    const systemRoleId = await createObject(harness.adminPool, fixtures, {
+      type: 'role_assignment',
+      domain: 'organization',
+      state: 'active',
+      title: 'Tombstone system administrator assignment',
+      createdBy: fixtures.reviewerId,
+    });
+    await withTransaction(harness.adminPool, async (tx) => {
+      await bindContext(tx, fixtures);
+      await tx.query(
+        `insert into org.role_assignment (id, subject_id, role_id, scope_id)
+         values ($1, $3, 'quality_authority', $2),
+                ($4, $3, 'system_administrator', $2)`,
+        [qualityRoleId, fixtures.organizationId, fixtures.reviewerId, systemRoleId],
+      );
+    });
+
+    const authorityRef = externalAuthorityRef('authority:master-record-tombstone');
+    const revisionRef = externalRevisionRef(`revision:master-record-${randomUUID()}`);
+    const workloadIdentity = workloadIdentityRef('workload:master-record-test');
+    const policyDecision = policyDecisionRef('policy-decision:master-record-test');
+    const keyPair = generateKeyPairSync('ed25519');
+    const keyMaterial = authoritySigningKeyMaterial(keyPair.publicKey);
+    const keyId = `master-record-tombstone-${randomUUID()}`;
+    const secure = createFabricDispatcher(
+      harness.pool,
+      undefined,
+      createSecureObjectActionAtoms({
+        authoritySigner: {
+          sign: ({ canonicalTombstoneBytes }) =>
+            edSign(null, canonicalTombstoneBytes, keyPair.privateKey),
+        },
+      }),
+    );
+    await secure({
+      actionType: 'register_secure_object_authority_key',
+      actorId: fixtures.reviewerId,
+      actingRoleId: systemRoleId,
+      targetIds: [fixtures.organizationId],
+      organizationId: fixtures.organizationId,
+      maxClassification: 'restricted',
+      idempotencyKey: `tombstone-key-${randomUUID()}`,
+      reason: 'register tombstone verification key',
+      payload: {
+        organizationId: fixtures.organizationId,
+        authorityRef,
+        keyId,
+        publicKeySpkiDerBase64: keyMaterial.publicKeySpkiDerBase64,
+        publicKeySha256: keyMaterial.publicKeySha256,
+        rotatesKeyRegistryId: null,
+        validUntil: null,
+      },
+    });
+    const key = await withTransaction(harness.adminPool, (tx) =>
+      tx.one<{ id: string }>(
+        `select id from secure_object.authority_signing_key
+          where organization_id = $1 and key_id = $2`,
+        [fixtures.organizationId, keyId],
+      ),
+    );
+    await secure({
+      actionType: 'request_secure_object_erasure',
+      actorId: fixtures.reviewerId,
+      actingRoleId: qualityRoleId,
+      targetIds: [fixtures.organizationId],
+      organizationId: fixtures.organizationId,
+      maxClassification: 'restricted',
+      idempotencyKey: `tombstone-request-${randomUUID()}`,
+      reason: 'request exact artifact erasure',
+      payload: {
+        organizationId: fixtures.organizationId,
+        classificationId: 'restricted',
+        authorityRef,
+        revisionRef,
+        externalContentSha256: contentDigest,
+        purpose: 'authorized_erasure',
+        workloadIdentityRef: workloadIdentity,
+        policyDecisionRef: policyDecision,
+      },
+    });
+    const request = await withTransaction(harness.adminPool, (tx) =>
+      tx.one<{ id: string }>(
+        `select id from secure_object.erasure_request
+          where organization_id = $1 and external_revision_ref = $2`,
+        [fixtures.organizationId, revisionRef],
+      ),
+    );
+    await secure({
+      actionType: 'record_secure_object_erasure',
+      actorId: fixtures.reviewerId,
+      actingRoleId: qualityRoleId,
+      targetIds: [fixtures.organizationId],
+      organizationId: fixtures.organizationId,
+      maxClassification: 'restricted',
+      idempotencyKey: `tombstone-record-${randomUUID()}`,
+      reason: 'record externally signed exact erasure',
+      payload: {
+        requestId: request.id,
+        authorityRef,
+        revisionRef,
+        externalContentSha256: contentDigest,
+        purpose: 'authorized_erasure',
+        workloadIdentityRef: workloadIdentity,
+        policyDecisionRef: policyDecision,
+        signingKeyRegistryId: key.id,
+      },
+    });
+
+    const moveAction = await unrecordedAction();
+    await withTransaction(harness.adminPool, async (tx) => {
+      await setAccessContext(tx, {
+        organizationId: fixtures.organizationId,
+        maxClassification: 'restricted',
+      });
+      await setTransactionContext(tx, {
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
+        actionId: moveAction,
+        requestId: 'master-record-tombstone-withdraw',
+      });
+      await tx.query(
+        `update core.object
+            set organization_id = $2, row_version = row_version + 1,
+                updated_at = now(), updated_by = $3
+          where id = $1`,
+        [documentId, randomUUID(), fixtures.reviewerId],
+      );
+    });
+
+    const second = await compile({
+      actionType: 'compile_master_record',
+      actorId: fixtures.reviewerId,
+      actingRoleId: fixtures.reviewerRoleId,
+      targetIds: [subjectId],
+      organizationId: fixtures.organizationId,
+      maxClassification: 'restricted',
+      idempotencyKey: `tombstone-compile-after-${randomUUID()}`,
+      reason: 'compile after secure-object withdrawal',
+    });
+    expect(second.status).toBe('applied');
+    const record = await withTransaction(harness.adminPool, (tx) =>
+      latestMasterRecord(tx, subjectId, fixtures.organizationId),
+    );
+    const withdrawn = (
+      record?.['manifest'] as {
+        withdrawn: readonly { objectId: string; withdrawalReason?: string }[];
+      }
+    ).withdrawn.find((member) => member.objectId === documentId);
+    expect(withdrawn).toMatchObject({
+      objectId: documentId,
+      withdrawalReason: 'secure-object erasure (policy-decision:master-record-test)',
+    });
+  });
+
+  it('opens organization-view members from one authorized master-record read', async () => {
+    const probe = await createObject(harness.adminPool, fixtures, {
+      type: 'decision_record',
+      domain: 'engineering',
+      state: 'draft',
+      title: 'Organization view read probe',
+      createdBy: fixtures.reviewerId,
+    });
+    const atoms = createDocumentActionAtoms({
+      store: new InMemoryObjectStore(),
+      parser: {
+        async parse() {
+          return undefined;
+        },
+      },
+    });
+    const execute = createFabricDispatcher(harness.pool, atoms);
+    const compiled = await execute({
+      actionType: 'compile_master_record',
+      actorId: fixtures.reviewerId,
+      actingRoleId: fixtures.reviewerRoleId,
+      targetIds: [fixtures.reviewerId],
+      organizationId: fixtures.organizationId,
+      maxClassification: 'restricted',
+      idempotencyKey: `org-view-compile-${randomUUID()}`,
+      reason: 'compile organization-view access probe',
+    });
+    expect(compiled.status).toBe('applied');
+
+    const app = Fastify({ logger: false });
+    registerMasterRecordRoute(app, {
+      pool: harness.pool,
+      identify: async () => ({
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
+        organizationId: fixtures.organizationId,
+        maxClassification: 'restricted',
+        authentication: {
+          authenticatedAt: undefined,
+          assuranceLevel: undefined,
+          methods: [],
+        },
+      }),
+      store: undefined,
+      preflightInTransaction: async () => undefined,
+      executeInTransaction: async () => {
+        throw new Error('organization-view read does not execute an action');
+      },
+    });
+    await app.ready();
+    try {
+      const response = await app.inject({ method: 'GET', url: '/master-record' });
+      expect(response.statusCode, response.body).toBe(200);
+      const body = response.json() as {
+        items: readonly {
+          object_id: string;
+          section: string;
+          content_payload: Record<string, unknown>;
+        }[];
+      };
+      const organizationItem = body.items.find(
+        (item) => item.object_id === probe && item.section === 'org_view',
+      );
+      expect(organizationItem).toMatchObject({
+        object_id: probe,
+        section: 'org_view',
+        content_payload: expect.any(Object),
+      });
+    } finally {
+      await app.close();
+    }
   });
 });

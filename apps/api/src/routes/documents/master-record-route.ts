@@ -41,7 +41,7 @@ export function registerMasterRecordRoute(
     }
     const idempotencyKey = body.idempotencyKey;
     try {
-      return withTransaction(options.pool, async (tx) => {
+      const result = await withTransaction(options.pool, async (tx) => {
         const result = await options.executeInTransaction(tx, {
           actionType: 'compile_master_record',
           actorId: identity.actorId,
@@ -56,8 +56,11 @@ export function registerMasterRecordRoute(
             : {}),
         });
         const record = await latestMasterRecord(tx, identity.actorId, identity.organizationId);
-        return reply.code(result.replayed ? 200 : 201).send({ ...result, record });
+        return { result, record };
       });
+      return reply
+        .code(result.result.replayed ? 200 : 201)
+        .send({ ...result.result, record: result.record });
     } catch (error: unknown) {
       const refusal = actionRejectionBody(error);
       if (refusal !== undefined) return reply.code(refusal.status).send(refusal.body);
