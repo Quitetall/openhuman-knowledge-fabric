@@ -1,11 +1,41 @@
 import { S3ObjectStore } from '@kf/artifacts';
-import { createPool, type Pool } from '@kf/database';
+import { createPool, withTransaction, type Pool } from '@kf/database';
 import { createDocumentActionAtoms, PandocDocumentParser } from '@kf/documents';
 import { createFabricTransactionalDispatcher } from '@kf/orchestrator';
 import { bootstrapIdentity, createAppLogin } from './bootstrap.js';
 import { APP_LOGIN, APP_PASSWORD, requiredOwnerUrl, sourceDirectory } from './config.js';
 import { loadDocumentConstitution } from './load.js';
 import { stageDocumentConstitution } from './manifest.js';
+
+async function assertDogfoodIdentityReady(
+  owner: Pool,
+  identity: {
+    readonly organizationId: string;
+    readonly actorId: string;
+    readonly actingRoleId: string;
+  },
+): Promise<void> {
+  try {
+    await withTransaction(owner, async (tx) => {
+      const decision = await tx.maybeOne<{ requested_classification: string }>(
+        `select requested_classification
+           from org.resolve_effective_classification($1, $2, $3, $4)`,
+        [identity.actorId, identity.organizationId, identity.actingRoleId, 'restricted'],
+      );
+      if (decision?.requested_classification !== 'restricted') {
+        throw new Error('classification resolver returned no restricted dogfood decision');
+      }
+    });
+  } catch (error: unknown) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `dogfood identity is not ready: actor ${identity.actorId} in organization ` +
+        `${identity.organizationId} needs a human-authorized restricted clearance before ` +
+        `document loading (${detail})`,
+      { cause: error },
+    );
+  }
+}
 
 export async function runDocumentConstitutionDogfood(): Promise<void> {
   const directory = sourceDirectory();
@@ -15,6 +45,9 @@ export async function runDocumentConstitutionDogfood(): Promise<void> {
   try {
     const database = await createAppLogin(owner);
     const identity = await bootstrapIdentity(owner);
+    // Validate authority before staging bytes. A missing clearance is an expected fail-closed
+    // operator state, not a reason to write unreferenced object-store data first.
+    await assertDogfoodIdentityReady(owner, identity);
     const appUrl = new URL(ownerUrl);
     appUrl.username = APP_LOGIN;
     appUrl.password = APP_PASSWORD;
