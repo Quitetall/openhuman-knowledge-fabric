@@ -268,12 +268,15 @@ export function relevanceClosureWithMetrics(
         reachedByAnchor.add(nextId);
         fanoutByAnchorType.set(nextAnchorType, reachedByAnchor);
       }
+      // Class measurements are independent of global membership. A shared node reached through
+      // composition and provenance belongs in both class fan-outs even though the returned
+      // closure stores it once.
+      const reachedByClass =
+        fanoutByPropagationClass.get(policy.propagationClass) ?? new Set<string>();
+      reachedByClass.add(nextId);
+      fanoutByPropagationClass.set(policy.propagationClass, reachedByClass);
       if (!relevant.has(nextId)) {
         relevant.add(nextId);
-        const reachedByClass =
-          fanoutByPropagationClass.get(policy.propagationClass) ?? new Set<string>();
-        reachedByClass.add(nextId);
-        fanoutByPropagationClass.set(policy.propagationClass, reachedByClass);
       }
       queue.push(nextNode);
     }

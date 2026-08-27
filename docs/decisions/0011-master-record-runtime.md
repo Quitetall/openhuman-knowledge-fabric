@@ -83,7 +83,8 @@ remain human authority actions.
   cardinalities plus per-anchor and propagation-class fan-out measurements.
 - Relation traversal uses a visited set and current validity window; policy disagreement is a
   refusal rather than an implicit omission. Measurements record both relevance fan-out per
-  person-anchoring relation type and aggregate fan-out per propagation class.
+  person-anchoring relation type and aggregate fan-out per propagation class. A node reached by
+  multiple classes is counted in each class while global membership remains deduplicated.
 - Runtime tests cover action dispatch, third-party count-only withholding, stale claims,
   deterministic renderings with bounded inline payloads, token tamper rejection, worker delivery
   under a non-superuser login, boundary coverage, and fresh-install migration application.

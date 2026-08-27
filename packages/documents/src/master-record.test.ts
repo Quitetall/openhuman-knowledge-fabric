@@ -233,6 +233,43 @@ describe('relevance closure', () => {
     });
   });
 
+  it('counts a shared node in every propagation class that reaches it', () => {
+    const metrics = relevanceClosureWithMetrics(
+      'person',
+      [
+        { sourceId: 'person', targetId: 'project', relationType: 'assigned_to' },
+        { sourceId: 'project', targetId: 'shared', relationType: 'contains' },
+        { sourceId: 'person', targetId: 'derived', relationType: 'derived_from' },
+        { sourceId: 'derived', targetId: 'shared', relationType: 'derived_from' },
+      ],
+      [
+        {
+          relationType: 'assigned_to',
+          personAnchor: true,
+          propagationClass: 'composition_down',
+          anchorDepth: 1,
+        },
+        {
+          relationType: 'contains',
+          personAnchor: false,
+          propagationClass: 'composition_down',
+          anchorDepth: 8,
+        },
+        {
+          relationType: 'derived_from',
+          personAnchor: true,
+          propagationClass: 'provenance_backward',
+          anchorDepth: 8,
+        },
+      ],
+    );
+    expect(metrics.ids).toEqual(new Set(['person', 'project', 'derived', 'shared']));
+    expect(metrics.fanoutByPropagationClass).toEqual({
+      composition_down: 2,
+      provenance_backward: 2,
+    });
+  });
+
   it('refuses an edge whose relation policy is missing', () => {
     expect(() =>
       relevanceClosure(
