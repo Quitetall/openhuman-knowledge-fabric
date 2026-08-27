@@ -470,6 +470,31 @@ describe('master-record runtime', () => {
         expiresAt: new Date(Date.now() + 60_000).toISOString(),
       }),
     );
+    const subsetObjectId = await withTransaction(harness.adminPool, async (tx) =>
+      tx.one<{ object_id: string }>(
+        `select object_id
+           from content.master_record_item
+          where master_record_id = $1 and item_state = 'included'
+          order by object_id limit 1`,
+        [record.id],
+      ),
+    );
+    const derived = await withTransaction(harness.adminPool, async (tx) =>
+      issueMasterRecordLink(tx, {
+        secret,
+        masterRecordId: record.id,
+        issuedBy: fixtures.reviewerId,
+        issuedByAction: actionId,
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        scope: {
+          kind: 'derived_subset',
+          subjectId: fixtures.reviewerId,
+          recipientId: fixtures.reviewerId,
+          objectIds: [subsetObjectId.object_id],
+          purpose: 'M8 bounded self subset',
+        },
+      }),
+    );
     const delivery = await drainOutbox(harness.adminPool);
     expect(delivery.failed).toBe(0);
     const receipt = await withTransaction(harness.adminPool, (tx) =>
@@ -493,7 +518,7 @@ describe('master-record runtime', () => {
         expiresAt: '2026-08-25T00:01:00.000Z',
       }),
     );
-    const app = Fastify({ routerOptions: { maxParamLength: 512 } });
+    const app = Fastify({ routerOptions: { maxParamLength: 2048 } });
     const options = {
       pool: harness.pool,
       identify: async () => {
@@ -515,6 +540,21 @@ describe('master-record runtime', () => {
       });
       expect(served.statusCode).toBe(200);
       expect(served.json().items.length).toBeGreaterThan(0);
+
+      const subset = await app.inject({
+        method: 'GET',
+        url: `/master-record-links/${encodeURIComponent(derived.token)}`,
+      });
+      expect(subset.statusCode, subset.body).toBe(200);
+      expect(subset.json()).toMatchObject({
+        subset: true,
+        scope: expect.objectContaining({
+          kind: 'derived_subset',
+          objectIds: [subsetObjectId.object_id],
+        }),
+        items: [expect.objectContaining({ object_id: subsetObjectId.object_id })],
+      });
+      expect(subset.json().record.manifest).toBeUndefined();
 
       await withTransaction(harness.adminPool, (tx) =>
         revokeMasterRecordLink(tx, {

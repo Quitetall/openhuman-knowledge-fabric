@@ -17,6 +17,35 @@ export interface IssuedMasterRecordLink {
   readonly claims: MasterRecordLinkClaims;
 }
 
+interface DerivedSubsetScope {
+  readonly kind: 'derived_subset';
+  readonly subjectId: string;
+  readonly recipientId: string;
+  readonly objectIds: readonly string[];
+}
+
+function derivedSubsetScope(
+  scope: Readonly<Record<string, unknown>>,
+): DerivedSubsetScope | undefined {
+  if (scope['kind'] !== 'derived_subset') return undefined;
+  const subjectId = scope['subjectId'];
+  const recipientId = scope['recipientId'];
+  const objectIds = scope['objectIds'];
+  if (
+    typeof subjectId !== 'string' ||
+    subjectId.trim() === '' ||
+    typeof recipientId !== 'string' ||
+    recipientId.trim() === '' ||
+    !Array.isArray(objectIds) ||
+    objectIds.length === 0 ||
+    objectIds.some((objectId) => typeof objectId !== 'string' || objectId.trim() === '') ||
+    new Set(objectIds).size !== objectIds.length
+  ) {
+    return undefined;
+  }
+  return { kind: 'derived_subset', subjectId, recipientId, objectIds };
+}
+
 export async function revokeMasterRecordLink(
   tx: Tx,
   options: {
@@ -79,6 +108,32 @@ export async function issueMasterRecordLink(
   }
   if (Date.parse(options.expiresAt) <= Date.parse(issuedAt)) {
     throw new Error('master-record link expiresAt must be after issuedAt');
+  }
+  const subset = derivedSubsetScope(claims.scope);
+  if (claims.scope['kind'] === 'derived_subset' && subset === undefined) {
+    throw new Error(
+      'derived master-record link scope requires subjectId, recipientId, and unique objectIds',
+    );
+  }
+  if (subset !== undefined) {
+    const master = await tx.one<{ person_id: string }>(
+      `select person_id from content.master_record where id = $1`,
+      [options.masterRecordId],
+    );
+    if (master.person_id !== subset.subjectId) {
+      throw new Error('derived master-record link subject does not match the master record');
+    }
+    const members = await tx.query<{ object_id: string }>(
+      `select object_id
+         from content.master_record_item
+        where master_record_id = $1
+          and item_state = 'included'
+          and object_id = any($2::uuid[])`,
+      [options.masterRecordId, subset.objectIds],
+    );
+    if (members.length !== subset.objectIds.length) {
+      throw new Error('derived master-record link scope contains a non-member object');
+    }
   }
   const encoded = payload(claims);
   const token = `${encoded}.${sign(options.secret, encoded)}`;

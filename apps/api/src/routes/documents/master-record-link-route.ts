@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { digestBytes } from '@kf/canonicalization';
+import { digest, digestBytes } from '@kf/canonicalization';
 import { setAccessContext, withTransaction } from '@kf/database';
 import {
   assertPermissionSetInvariant,
@@ -46,7 +46,8 @@ export function registerMasterRecordLinkRoute(
       if (
         link === undefined ||
         link.link_id !== claims.linkId ||
-        link.master_record_id !== claims.masterRecordId
+        link.master_record_id !== claims.masterRecordId ||
+        digest(link.scope) !== digest(claims.scope)
       ) {
         return { statusCode: 404, body: { error: 'link_not_found' } };
       }
@@ -71,7 +72,7 @@ export function registerMasterRecordLinkRoute(
         await log('expired');
         return { statusCode: 410, body: { error: 'link_expired' } };
       }
-      if (link.scope['kind'] !== 'master_record') {
+      if (link.scope['kind'] !== 'master_record' && link.scope['kind'] !== 'derived_subset') {
         await log('invalid');
         return { statusCode: 404, body: { error: 'link_not_found' } };
       }
@@ -108,10 +109,57 @@ export function registerMasterRecordLinkRoute(
         await log('stale');
         return { statusCode: 409, body: { error: 'master_record_stale' } };
       }
+      const items = await masterRecordItems(tx, link.master_record_id);
+      if (link.scope['kind'] === 'derived_subset') {
+        const subjectId = link.scope['subjectId'];
+        const recipientId = link.scope['recipientId'];
+        const objectIds = link.scope['objectIds'];
+        if (
+          typeof subjectId !== 'string' ||
+          typeof recipientId !== 'string' ||
+          !Array.isArray(objectIds) ||
+          objectIds.length === 0 ||
+          objectIds.some((objectId) => typeof objectId !== 'string') ||
+          new Set(objectIds).size !== objectIds.length ||
+          subjectId !== String(record['person_id'])
+        ) {
+          await log('invalid');
+          return { statusCode: 404, body: { error: 'link_not_found' } };
+        }
+        const selected = new Set(objectIds);
+        const subsetItems = items.filter((item) => selected.has(String(item['object_id'])));
+        if (subsetItems.length !== objectIds.length) {
+          await log('invalid');
+          return { statusCode: 404, body: { error: 'link_not_found' } };
+        }
+        await log('served');
+        return {
+          statusCode: 200,
+          body: {
+            subset: true,
+            scope: link.scope,
+            sourceRecordId: record['id'],
+            sourceRecordDigest: record['record_digest'],
+            record: {
+              id: record['id'],
+              person_id: record['person_id'],
+              organization_id: record['organization_id'],
+              effective_classification: record['effective_classification'],
+              permission_digest: record['permission_digest'],
+              record_digest: record['record_digest'],
+              compiled_at: record['compiled_at'],
+              recorded_at: record['recorded_at'],
+              recorded_by: record['recorded_by'],
+              recorded_by_action: record['recorded_by_action'],
+            },
+            items: subsetItems,
+          },
+        };
+      }
       await log('served');
       return {
         statusCode: 200,
-        body: { record, items: await masterRecordItems(tx, link.master_record_id) },
+        body: { record, items },
       };
     });
     return reply.code(result.statusCode).send(result.body);
