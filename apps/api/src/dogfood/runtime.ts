@@ -44,11 +44,11 @@ export async function runDocumentConstitutionDogfood(): Promise<void> {
   const owner = createPool({ connectionString: ownerUrl, maxConnections: 2 });
   let app: Pool | undefined;
   try {
-    const database = await createAppLogin(owner);
     const identity = await bootstrapIdentity(owner);
     // Validate authority before staging bytes. A missing clearance is an expected fail-closed
     // operator state, not a reason to write unreferenced object-store data first.
     await assertDogfoodIdentityReady(owner, identity);
+    const database = await createAppLogin(owner);
     const appUrl = new URL(ownerUrl);
     appUrl.username = APP_LOGIN;
     appUrl.password = APP_PASSWORD;
