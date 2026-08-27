@@ -275,6 +275,13 @@ const DECLARED_ADDITIONS = {
     'record_secure_object_erasure',
     'record_test_result',
     'register_equipment',
+    // Records that bytes exist somewhere we do NOT hold. R01 has `attach_evidence`, which
+    // asserts possession — it writes `source_system='object_store'` and requires a
+    // `storage_uri`, so third-party material could only enter by copying it. A vendor
+    // datasheet is somebody else's copyright and is referenced by document number, revision
+    // and digest instead. Widening `attach_evidence` was rejected: an audit log that uses one
+    // verb for "we hold this" and "this exists elsewhere" can no longer answer which is true.
+    'register_external_artifact',
     // ML lineage registration (docs/architecture/federated-ml-secure-object-contract.md).
     // Four separate actions rather than one `register_ml_thing` with a kind, because each
     // binds a different tuple and each is audited independently — a run's lineage, a metric's

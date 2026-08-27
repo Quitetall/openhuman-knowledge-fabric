@@ -120,6 +120,13 @@ action_types:
     audited: true
     transactional: true
     drives: []
+  # Records that bytes exist somewhere we do NOT hold. Separate from attach_evidence on
+  # purpose: "we have this" and "this exists elsewhere" are different claims, and an audit log
+  # that conflates them cannot answer whether the organization actually possesses something.
+  - id: register_external_artifact
+    audited: true
+    transactional: true
+    drives: []
   - id: correct_record
     audited: true
     transactional: true

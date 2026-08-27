@@ -2,7 +2,7 @@
   "schema_version": "1.1.0-draft.1",
   "x-generated-from": {
     "ontology_version": "1.1.0-draft.1",
-    "source_digest": "a8de5c47ccd96d8bd6f9799ad23236aea351fc19dc6a7d35cc9ca3c2c95b69e1"
+    "source_digest": "1d889b9e78d74b2cb1f1edee2b59dfe866cebadc952b44f825c3e38f88a4032d"
   },
   "node_types": {
     "organization": {
@@ -528,6 +528,10 @@
       "transactional": true
     },
     "attach_evidence": {
+      "audited": true,
+      "transactional": true
+    },
+    "register_external_artifact": {
       "audited": true,
       "transactional": true
     },

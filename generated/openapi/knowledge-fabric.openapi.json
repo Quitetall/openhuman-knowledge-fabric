@@ -3,7 +3,7 @@
   "info": {
     "title": "OpenHuman Knowledge Fabric API",
     "version": "1.1.0-draft.1",
-    "description": "Generated from ontology source digest a8de5c47ccd96d8bd6f9799ad23236aea351fc19dc6a7d35cc9ca3c2c95b69e1."
+    "description": "Generated from ontology source digest 1d889b9e78d74b2cb1f1edee2b59dfe866cebadc952b44f825c3e38f88a4032d."
   },
   "paths": {
     "/objects/organization/{id}": {
@@ -2142,6 +2142,36 @@
       "post": {
         "summary": "Execute attach_evidence",
         "operationId": "attach_evidence",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/register_external_artifact": {
+      "post": {
+        "summary": "Execute register_external_artifact",
+        "operationId": "register_external_artifact",
         "requestBody": {
           "required": true,
           "content": {
@@ -4743,6 +4773,7 @@
               "complete_project_technical",
               "close_project_administrative",
               "attach_evidence",
+              "register_external_artifact",
               "correct_record",
               "promote_configuration_item",
               "supersede_configuration_item",

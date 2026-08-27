@@ -15,6 +15,7 @@ import { createProposalRecordActions } from './proposal-record-actions.js';
 import { createPublicationActions } from './publication-actions.js';
 import { assertCompileMasterRecord, compileMasterRecordEffect } from './master-record-actions.js';
 import { createEntitlementActions } from './entitlement-actions.js';
+import { createExternalArtifactActions } from './external-artifact-actions.js';
 
 export function createDocumentActionAtoms(options: {
   readonly store: ObjectStore;
@@ -33,18 +34,21 @@ export function createDocumentActionAtoms(options: {
   const proposalRecord = createProposalRecordActions();
   const proposalApply = createProposalApplyActions();
   const entitlement = createEntitlementActions();
+  const externalArtifact = createExternalArtifactActions();
 
   return {
     name: 'documents',
     ownedActions: DOCUMENT_ACTION_IDS,
     materializers: {
       attach_evidence: evidence.attachEvidence,
+      register_external_artifact: externalArtifact.registerExternalArtifact,
       add_controlled_document: controlled.addControlledDocument,
       add_authored_fragment: fragmentAdd.addAuthoredFragment,
       add_document_composition: compositionAdd.addDocumentComposition,
     },
     effects: {
       attach_evidence: evidence.recordEvidence,
+      register_external_artifact: externalArtifact.recordExternalArtifact,
       add_authored_fragment: fragmentAdd.materializeAuthoredFragment,
       revise_authored_fragment: fragmentRevision.reviseAuthoredFragment,
       retire_authored_fragment: fragmentRevision.retireAuthoredFragment,
