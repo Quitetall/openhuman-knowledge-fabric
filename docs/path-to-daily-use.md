@@ -61,18 +61,27 @@ requirements each discovered only by running it somewhere new, and
 `scripts/deploy/build-release.sh`, which is that document executable.
 **Blocked on:** a human deciding to create the production database and migrator credential.
 
-### 3 · A working login — **the hinge, and the thinnest**
+### 3 · A working login — **walked, and it completes**
 
-No human has ever completed OIDC against a real Keycloak realm here. `docs/onboarding.md` §3 is
-marked NOT VERIFIED. `private-host.md` states the web unit is blocked from shared use until the
-host's realm, audience mapper, subject links and role assignments pass preflight.
+OIDC against the local Keycloak now works end to end: `docker compose up -d keycloak` imports the
+committed realm, `scripts/deploy/create-dev-user.sh` supplies the account that cannot be
+committed, and an authorization-code + PKCE flow issues a token the API verifies. It carries
+`knowledge-fabric-api` in `aud`, which is what `config.ts` checks.
 
-**Everything user-facing queues behind this**, and it is the only step never attempted rather
-than merely undone.
+It stops at one designed place. `GET /master-record` with that token returns
+`401 unknown_subject` — "this identity is not linked to a person in this system". That is the
+refusal working, not a fault.
 
-**Written down:** `docs/deployment/identity-and-login.md` — read its status line first; it
-records whether the walk succeeded and where it stopped.
-**Blocked on:** nothing but doing it.
+What is left is three deliberate human acts, none yet performed: link the subject to a person
+with `linkIdentity`, assign a role, grant a clearance. The link is "deliberately not automatic"
+and has no CLI.
+
+This step is no longer the hinge. **Step 2 is** — the remaining acts want a real person record
+and a running service, not more identity plumbing.
+
+**Written down:** `docs/deployment/identity-and-login.md`, walked, with what walking found that
+reading would not have.
+**Blocked on:** nothing but doing the three acts.
 
 ### 4 · The button — small, once 2 and 3 land
 

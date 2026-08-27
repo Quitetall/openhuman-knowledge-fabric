@@ -121,7 +121,12 @@ services:
     container_name: kf-keycloak
     restart: unless-stopped
     labels: *kf-profile-labels
-    command: ['start-dev', '--http-port=8080']
+    # `--import-realm` reads /opt/keycloak/data/import on startup. Without it the stack came up
+    # healthy with NO realm at all: `/realms/knowledge-fabric/.well-known/openid-configuration`
+    # returned 404 while every OIDC setting in .env pointed at it, so the login could never be
+    # attempted and the failure looked like an application problem. Keycloak skips a realm that
+    # already exists, so this is safe on every subsequent start.
+    command: ['start-dev', '--http-port=8080', '--import-realm']
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME:?Set the local Keycloak bootstrap username}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD:?Set the local Keycloak bootstrap password}
@@ -131,6 +136,10 @@ services:
       - '127.0.0.1:8080:8080'
     volumes:
       - keycloak-data:/opt/keycloak/data
+      # Read-only: the realm definition is a committed artifact, and a container that could
+      # rewrite it would let local drift silently become the checked-in truth. Re-export
+      # deliberately (see docs/deployment/identity-and-login.md) rather than by accident.
+      - ./deploy/keycloak:/opt/keycloak/data/import:ro
     # Port 9000 is deliberate and is NOT MinIO's. Since Keycloak 25 the health and metrics
     # endpoints live on a separate MANAGEMENT interface listening on 9000; localhost:8080
     # /health/ready returns 404. This runs inside the Keycloak container, so localhost:9000

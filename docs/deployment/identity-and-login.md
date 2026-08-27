@@ -1,118 +1,163 @@
 # Identity and login
 
-**Status: WALKED 2026-08-27. The login DID NOT COMPLETE.** It stopped at a precise, named
-place, recorded below.
+**Status: WALKED 2026-08-27. The login COMPLETES.** A browser-shaped authorization-code + PKCE
+flow against the local Keycloak now issues an access token, and the API verifies that token and
+refuses it at exactly one designed place: the subject is not linked to a person. Everything up to
+that point is measured, not derived.
 
 This document follows `docs/onboarding.md`'s discipline: every step is marked **verified** — it
 was run and its output observed — or **derived**, meaning it was read out of code and
-configuration and has never been executed. A runbook nobody has followed is the same failure as
-a test that has never failed, so the two are not mixed.
+configuration and has never been executed. A runbook nobody has followed is the same failure as a
+test that has never failed, so the two are not mixed.
 
-No human has ever completed OIDC against a Keycloak realm in this project. That was true before
-this walk and it is still true after it. What changed is that the reason is now specific.
+An earlier revision of this file recorded three findings that blocked the walk. All three are
+gone, and how each was removed is recorded below rather than deleted — a document that quietly
+stops mentioning a problem cannot be distinguished from one where the problem was never real.
 
 ---
 
-## Where it stops
+## Bring identity up — verified
 
-**Three findings, all verified, and they compound.**
+Two commands from a clean clone.
 
-### 1. The realm does not exist
-
-```
-GET http://localhost:8080/realms/knowledge-fabric/.well-known/openid-configuration  ->  404
-GET http://localhost:8080/realms/master/.well-known/openid-configuration            ->  200
+```sh
+docker compose up -d keycloak
+KF_DEV_USER_PASSWORD=<choose one> scripts/deploy/create-dev-user.sh
 ```
 
-Keycloak is running and healthy. It serves `master` and nothing else. The realm every piece of
-configuration in this repository refers to has never been created.
+The first imports the realm. The second creates a local account and prints the subject claim its
+tokens will carry.
 
-### 2. Nothing in the repository would create it
+### Why the user is a separate step
 
-`find . -iname '*realm*'` outside `node_modules` returns **nothing**. There is no realm export,
-no import JSON, no provisioning script.
+`deploy/keycloak/knowledge-fabric-realm.json` is a partial export taken with users **excluded**,
+and the export asserts they are absent. A realm export carrying users carries their credential
+representations, and a credential in git is disclosed permanently — reverting the commit does not
+undo it. So the realm ships complete except for the one thing that cannot be committed.
 
-And `docker-compose.yml` runs Keycloak as:
+The consequence is deliberate: **a fresh clone gets a realm with no users and cannot log in until
+`create-dev-user.sh` runs.** That is the correct failure. The alternative is a shipped account
+whose password is public, on the service every deployment profile points at.
 
-```yaml
-command: ['start-dev', '--http-port=8080']
-```
-
-No `--import-realm`, and no volume mounting a realm file into `/opt/keycloak/data/import`. So
-bringing the stack up cannot produce the realm, and never could have. `docs/onboarding.md` §1 is
-correct that the stack comes up — it does — but a healthy Keycloak with no realm is not a
-working identity provider, and the step that would notice is §3, which is marked NOT VERIFIED.
-
-### 3. The client configuration is commented out
-
-Every OIDC line in `.env` is commented:
-
-```
-# OIDC_ISSUER=http://localhost:8080/realms/knowledge-fabric
-# OIDC_AUDIENCE=knowledge-fabric-api
-# OIDC_JWKS_URI=.../protocol/openid-connect/certs
-# KF_WEB_OIDC_ISSUER=...
-# KF_WEB_OIDC_CLIENT_ID=knowledge-fabric-web
-# KF_WEB_OIDC_REDIRECT_URI=http://localhost:3000/auth/callback
-```
-
-`.env.example` ships them commented, so a fresh clone starts with identity disabled. That is a
-defensible default — it is also why nobody has tripped over finding 1 before now.
+`create-dev-user.sh` refuses a non-loopback `KEYCLOAK_BASE_URL` and refuses to default
+`KF_DEV_USER_PASSWORD`. Both refusals were falsified — invoked and observed to refuse.
 
 ---
 
 ## What is verified working
 
-Measured 2026-08-27, `docker compose ps`:
+Measured 2026-08-27 against Keycloak 26.4, pinned by digest.
 
-| service    | state           |
-| ---------- | --------------- |
-| `postgres` | up 22h, healthy |
-| `minio`    | up 22h, healthy |
-| `keycloak` | up 22h, healthy |
+### The realm is created by the repository
 
-Keycloak 26.4, pinned by digest. Its health check runs against the **management** interface on
-port 9000 inside the container, not 8080 — `localhost:8080/health/ready` returns 404 and that is
-not a fault. The compose file already says so; repeated here because it looks like a failure.
+Not asserted — demonstrated by destroying it:
+
+| step                                             | observed |
+| ------------------------------------------------ | -------- |
+| `DELETE /admin/realms/knowledge-fabric`          | `204`    |
+| discovery immediately after                      | `404`    |
+| `docker compose up -d --force-recreate keycloak` | —        |
+| discovery, 10 seconds later                      | `200`    |
+
+The realm came back from the committed file and nothing else. Keycloak skips a realm that already
+exists, so `--import-realm` is safe on every subsequent start; it is not a reset.
+
+After the round trip, `knowledge-fabric-api` is present and confidential, and
+`knowledge-fabric-web` is public with redirect URI exactly `http://localhost:3000/auth/callback`
+and one `oidc-audience-mapper`. The mapper is the load-bearing part — see the token below.
+
+### The login completes
+
+Authorization-code with PKCE `S256`, driven by curl against the real login form:
+
+| step                                    | observed                               |
+| --------------------------------------- | -------------------------------------- |
+| `GET .../protocol/openid-connect/auth`  | `200`, login form                      |
+| form POST with the dev credential       | `302` to `/auth/callback?...&code=...` |
+| `POST .../token` with the code verifier | `200`, access token and `id_token`     |
+
+The issued access token carries `iss` of the realm, `sub` equal to the subject
+`create-dev-user.sh` printed, `azp: knowledge-fabric-web`, and:
+
+```
+aud: ["knowledge-fabric-api", "account"]
+```
+
+That first entry is produced by the audience mapper and is exactly what `apps/api/src/config.ts`
+validates. It was the single most likely thing to be silently wrong, and it is right.
+
+**PKCE is enforced, not merely offered.** Falsified on a fresh, unused code: presenting the wrong
+verifier returns `400 invalid_grant — PKCE verification failed: Code mismatch`.
+
+### The API verifies the token
+
+Run with `KF_DEPLOYMENT_PROFILE=dogfood`, `HOST=127.0.0.1`, and the three `OIDC_*` variables set.
+`GET /master-record`, with `x-kf-acting-role` and `x-kf-organization` supplied:
+
+| token presented                         | status | body                                                          |
+| --------------------------------------- | ------ | ------------------------------------------------------------- |
+| none                                    | `401`  | `no_token`                                                    |
+| `not-a-jwt`                             | `401`  | `invalid_token` — "token rejected"                            |
+| valid token from the **`master`** realm | `401`  | `invalid_token` — "token rejected"                            |
+| the real `knowledge-fabric` token       | `401`  | `unknown_subject` — "this identity is not linked to a person" |
+
+The third row matters as much as the fourth: a correctly signed token from the wrong issuer is
+refused, so the check is not "is this a JWT".
+
+The fourth row is the designed stopping point, and it is where the walk ends.
 
 ---
 
-## What would unblock it — DERIVED, not walked
+## The three findings from the previous revision
 
-Everything in this section was read out of code and configuration. **None of it has been
-executed.** Treat it as a starting hypothesis for whoever performs the walk, and correct it in
-place from what actually happens.
+**1. "The realm does not exist."** Removed. It is created by `docker compose up`, demonstrated by
+destroying it first.
 
-A realm named `knowledge-fabric` needs to exist, with:
+**2. "Nothing in the repository would create it."** Removed. `deploy/keycloak/knowledge-fabric-realm.json`
+is committed and `docker-compose.yml` passes `--import-realm` with the directory mounted
+read-only. Read-only on purpose: a container able to rewrite the realm file would let local drift
+silently become the checked-in truth.
 
-- **An API audience.** `apps/api/src/config.ts` requires `OIDC_ISSUER`, `OIDC_AUDIENCE` and
-  `OIDC_JWKS_URI`, and validates the token's `aud`. So the realm needs a client or scope that
-  puts `knowledge-fabric-api` into the audience claim — the "audience mapper" `private-host.md`
-  refers to.
-- **A web client.** `knowledge-fabric-web`, public, authorization-code with PKCE, redirect URI
-  exactly `http://localhost:3000/auth/callback`. `apps/web` reads `KF_WEB_OIDC_ISSUER`,
-  `KF_WEB_OIDC_CLIENT_ID` and `KF_WEB_OIDC_REDIRECT_URI`.
-- **A user, linked to a person.** The identity provider proves the subject only; KF resolves
-  everything else. `packages/authorization/src/identity.ts` states it plainly in its header
-  comment — the token subject must map to a live person through `org.external_identity`, keyed on
-  `(issuer, subject)` because a subject is unique only within its issuer.
-- **A role assignment and a clearance**, per ADR 0011: organization-scoped, effective-dated. A
-  linked person with no clearance is refused, by design.
+**3. "The client configuration is commented out."** Still true in `.env.example`, and still
+correct. The `OIDC_*` block is required only under `KF_DEPLOYMENT_PROFILE=dogfood`; the default
+`development` profile is a fixed-identity workspace that does not want it. What was wrong was the
+comment above it, which claimed "merely starting the container does not provision either one".
+That has been false since the realm was committed, and it has been corrected.
 
-Whoever does this should **export the realm afterwards and commit it**, with a compose
-`--import-realm`. Otherwise the next person meets finding 1 again, and this document will have
-recorded a problem without removing it.
+## What walking found that reading would not have
+
+**A user without a profile authenticates and still does not get a code.** The first version of
+`create-dev-user.sh` created the account with only a username. The password was accepted and the
+flow ended at `/login-actions/required-action?execution=VERIFY_PROFILE` with no `code` parameter.
+That is indistinguishable from a rejected credential if you are only looking at whether you got a
+code back. The realm's user profile marks `email`, `firstName` and `lastName` required, so the
+script now sets them, and re-applies them on the already-exists path — "already exists" must not
+mean "still broken".
+
+**The acting-role check runs before token verification.** Without `x-kf-acting-role`, a garbage
+token and a valid token both return `no_role_requested`. Neither is admitted, so nothing leaks —
+but an operator debugging a login sees a message about roles when their real problem is the
+token. Worth knowing before you spend an hour on it.
 
 ---
 
-## What remains unknown
+## What remains — DERIVED, not walked
 
-Nothing past realm creation has been exercised. The audience mapper, the subject link, the role
-assignment, the clearance resolution and the browser round trip have never run together, and no
-claim about them should be made from this document. `docs/onboarding.md` §3 also records an
-unrelated hazard on the authoring machine: `pnpm dev` died on `ENOSPC` with 522,885 of 524,199
-file watchers held by an unrelated desktop application. Find the consumer before raising any
-limit.
+Three things stand between `unknown_subject` and a usable session. None has been executed.
 
-This is step 3 of [`docs/path-to-daily-use.md`](../path-to-daily-use.md) — the hinge. Everything
-user-facing queues behind it.
+- **Link the subject to a person.** `linkIdentity` in `packages/authorization/src/identity.ts` is
+  "deliberately not automatic. Somebody decides that this account is that person, and that
+  decision is recorded with who made it." It takes `{ issuer, subject, personId, linkedBy }` and
+  is keyed on `(issuer, subject)` because a subject is unique only within its issuer. There is no
+  CLI for it; `create-dev-user.sh` prints the call it needs.
+- **Assign a role**, organization-scoped and effective-dated.
+- **Grant a clearance.** Per ADR 0011 a linked person with no clearance is refused, by design;
+  effective rank is the minimum of the person's clearance and any assignment ceiling.
+
+Nothing past the subject link has been exercised. The browser round trip through `apps/web` has
+not been run either — the flow above was driven by curl, which proves the protocol but not the
+front end. `docs/onboarding.md` §3 records the hazard there: `pnpm dev` died on `ENOSPC` with
+522,885 of 524,199 file watchers held by an unrelated desktop application. Find the consumer
+before raising any limit.
+
+This is step 3 of [`docs/path-to-daily-use.md`](../path-to-daily-use.md).

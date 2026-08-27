@@ -127,6 +127,13 @@ in use**, 99.7% of the budget, leaving nothing for `tsx watch` or `next dev`.
 Steps 1 and 2 were verified on the same machine, so the substrate is known good; only the
 watch-mode dev servers were blocked.
 
+The **built** API does run. On 2026-08-27 `node apps/api/dist/server.js` was started under
+`KF_DEPLOYMENT_PROFILE=dogfood` with real OIDC against the local Keycloak, served `/health`, and
+verified a genuine Keycloak access token — see
+[`docs/deployment/identity-and-login.md`](deployment/identity-and-login.md). So `pnpm dev` is
+blocked by the watcher budget, not by anything in the application. `pnpm --filter @kf/api build`
+then `node apps/api/dist/server.js` sidesteps it entirely.
+
 If you hit `ENOSPC`, do not raise the limit reflexively — find the consumer first:
 
 ```sh
@@ -174,12 +181,13 @@ Stated here so you do not go looking:
 
 ## Where to go next
 
-|                            |                                                                           |
-| -------------------------- | ------------------------------------------------------------------------- |
-| Why it is built this way   | [`README.md`](../README.md) design laws                                   |
-| Contributing, and the gate | [`CONTRIBUTING.md`](../CONTRIBUTING.md)                                   |
-| Local stack detail         | [`docs/deployment/local-development.md`](deployment/local-development.md) |
-| Where this is all going    | [`docs/path-to-daily-use.md`](path-to-daily-use.md)                       |
-| Running it for real        | [`docs/deployment/private-host.md`](deployment/private-host.md)           |
-| Operating it               | [`docs/operating-model/runbook.md`](operating-model/runbook.md)           |
-| Decisions and why          | [`docs/decisions/`](decisions/)                                           |
+|                            |                                                                             |
+| -------------------------- | --------------------------------------------------------------------------- |
+| Why it is built this way   | [`README.md`](../README.md) design laws                                     |
+| Contributing, and the gate | [`CONTRIBUTING.md`](../CONTRIBUTING.md)                                     |
+| Local stack detail         | [`docs/deployment/local-development.md`](deployment/local-development.md)   |
+| Logging in                 | [`docs/deployment/identity-and-login.md`](deployment/identity-and-login.md) |
+| Where this is all going    | [`docs/path-to-daily-use.md`](path-to-daily-use.md)                         |
+| Running it for real        | [`docs/deployment/private-host.md`](deployment/private-host.md)             |
+| Operating it               | [`docs/operating-model/runbook.md`](operating-model/runbook.md)             |
+| Decisions and why          | [`docs/decisions/`](decisions/)                                             |

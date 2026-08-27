@@ -567,6 +567,16 @@ client redirect origins, API audience mapper, token lifetime, MFA policy, admini
 and key-rotation procedure. Link each allowed token `sub` to a person through the recorded
 operating procedure; never auto-provision a person from a successful login.
 
+[`deploy/keycloak/knowledge-fabric-realm.json`](../../deploy/keycloak/knowledge-fabric-realm.json)
+is that reproducible configuration **for the workstation**, and it is a starting point for a host
+rather than something to import unchanged: its redirect URI is `http://localhost:3000/...` and its
+issuer is plaintext HTTP, both of which `identity_provider_policy` preflight refuses. Take it as
+the shape to review — client posture, PKCE method, audience mapper — and re-derive the host's own.
+`scripts/deploy/create-dev-user.sh` is explicitly not part of this path; it refuses any
+non-loopback Keycloak, because an account created from a shell variable has no approval record
+and no owner. See [`identity-and-login.md`](identity-and-login.md) for what has actually been
+walked against the workstation realm, including the parts that stop short of a usable session.
+
 Tracked service units and non-secret environment templates live in
 [`../../deploy/systemd/`](../../deploy/systemd/). API and web bind only `127.0.0.1`; command
 arguments override environment-file attempts to widen them. Worker and migrator have separate
