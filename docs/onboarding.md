@@ -52,11 +52,19 @@ error you get is `connection to server on socket "/run/postgresql/.s.PGSQL.5432"
 reads as "PostgreSQL is broken" and means "you have no environment". This is the single easiest
 step to get wrong and the hardest to diagnose.
 
-## 2. Load your documents — verified
+## 2. Load your documents — requires an authorized clearance
 
 ```sh
 pnpm dogfood:load -- --source-dir /path/to/your/documents
 ```
+
+The loader uses the normal action dispatcher. The synthetic local operator and role are
+bootstrapped for development, but KF does **not** auto-grant that person an
+`org.person_clearance` row. An active, organization-scoped clearance must already exist before
+the first action can run. Without it, the loader refuses with `classification ceiling refused`
+before it records document actions. This is intentional: a bootstrap convenience must not become
+an unreviewed authority grant. Have a human authority create the clearance through the approved
+authority procedure, with its action and audit evidence, before rerunning the loader.
 
 The loader is idempotent by construction: staging is content-addressed with conditional create,
 so an unchanged rerun creates neither database duplicates nor new object-store versions. An
@@ -68,7 +76,7 @@ It finishes by printing a paste-ready block:
 # Paste into .env before `pnpm dev` — the web app requires all three.
 KF_DEV_ORGANIZATION=019ff405-2ec7-736e-898a-1f5687a80a48
 KF_DEV_ACTOR=019ff405-2eca-7e77-96cb-00990ac6f24b
-KF_DEV_ACTING_ROLE=system_administrator
+KF_DEV_ACTING_ROLE=019ff405-2ecb-7e77-96cb-00990ac6f24b
 ```
 
 Paste those three into `.env`. The web app calls `required()` on each and throws if any is blank.
@@ -86,8 +94,20 @@ If you are recovering an older database whose loader predates the print, the sam
 ```sh
 psql "$DATABASE_OWNER_URL" -tAc "select id from core.object where object_type='organization' limit 1;"
 psql "$DATABASE_OWNER_URL" -tAc "select id from core.object where object_type='person' limit 1;"
-psql "$DATABASE_OWNER_URL" -tAc "select role_id from org.role_assignment;"   # pick one
+psql "$DATABASE_OWNER_URL" -tAc "select id from org.role_assignment;"   # pick one assignment id
 ```
+
+If an older database has the operator and role but no clearance, confirm the blocker explicitly:
+
+```sh
+psql "$DATABASE_OWNER_URL" -c \
+  "select subject_id, organization_id, max_classification, valid_from, valid_to
+     from org.person_clearance;"
+```
+
+An empty result is not permission to insert a development grant from the loader. It means the
+human authority step is still outstanding; the action path remains fail-closed until that record
+exists.
 
 ## 3. Run it — NOT VERIFIED on the machine this was written on
 
