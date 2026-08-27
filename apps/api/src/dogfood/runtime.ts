@@ -29,6 +29,13 @@ async function assertDogfoodIdentityReady(
     });
   } catch (error: unknown) {
     const detail = error instanceof Error ? error.message : String(error);
+    const code =
+      typeof error === 'object' && error !== null && 'code' in error
+        ? String((error as { readonly code?: unknown }).code ?? '')
+        : '';
+    if (code !== '42501' && code !== 'P0001' && !/classification|clearance/i.test(detail)) {
+      throw error;
+    }
     throw new Error(
       `dogfood identity is not ready: actor ${identity.actorId} in organization ` +
         `${identity.organizationId} needs a human-authorized restricted clearance before ` +
