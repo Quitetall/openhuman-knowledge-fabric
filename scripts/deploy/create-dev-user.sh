@@ -45,20 +45,46 @@ base_url="${KEYCLOAK_BASE_URL:-http://localhost:8080}"
 # it would create exactly the kind of account a private host is supposed to refuse: no approval
 # recorded, no owner, and a secret whose lifetime is a shell history file. Standing up identity
 # on a host is `docs/deployment/private-host.md`'s job, and it goes through preflight.
-case "$base_url" in
-  http://localhost:* | http://127.0.0.1:*) ;;
-  *)
-    echo "refusing to create a development account against a non-loopback Keycloak: $base_url" >&2
-    echo "stand up host identity through docs/deployment/private-host.md instead" >&2
+#
+# Parsed, not prefix-matched. A shell glob on the URL text is bypassable through the userinfo
+# field: `http://localhost:8080@example.org/` matches `http://localhost:*` while curl sends the
+# request to example.org, with "localhost" as the username. Only the parsed hostname decides.
+if ! KF_BASE_URL="$base_url" python3 -c '
+import os, sys, urllib.parse
+url = urllib.parse.urlparse(os.environ["KF_BASE_URL"])
+sys.exit(0 if url.scheme in ("http", "https") and url.hostname in ("localhost", "127.0.0.1", "::1") else 1)
+'; then
+  echo "refusing to create a development account against a non-loopback Keycloak: $base_url" >&2
+  echo "stand up host identity through docs/deployment/private-host.md instead" >&2
+  exit 1
+fi
+
+# The username reaches Keycloak through JSON and through a URL-encoded query, so this is not
+# guarding against injection — it is keeping the account itself sane, and keeping the `exact=true`
+# lookup below unambiguous.
+case "$username" in
+  '' | *[!A-Za-z0-9._-]*)
+    echo "username must be non-empty and only [A-Za-z0-9._-]: $username" >&2
     exit 1
     ;;
 esac
 
+# Both passwords are handed to curl as a request BODY ON STDIN (`-d @-`), never as arguments.
+# `--data-urlencode "password=$P"` would place the credential in curl's argv, and an argv is
+# world-readable through /proc for the life of the process. The bearer token below is still an
+# argument: it is short-lived, and threading it through a curl config file would trade a real
+# quoting hazard for a marginal gain. The loopback guard above remains the actual boundary.
 admin_token() {
-  curl -sS --fail-with-body --max-time 10 \
-    -d 'client_id=admin-cli' -d 'grant_type=password' \
-    --data-urlencode "username=$KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME" \
-    --data-urlencode "password=$KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD" \
+  KF_ADMIN_USER="$KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME" \
+    KF_ADMIN_PASS="$KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD" python3 -c '
+import os, urllib.parse
+print(urllib.parse.urlencode({
+    "client_id": "admin-cli",
+    "grant_type": "password",
+    "username": os.environ["KF_ADMIN_USER"],
+    "password": os.environ["KF_ADMIN_PASS"],
+}), end="")
+' | curl -sS --fail-with-body --max-time 10 -d @- \
     "$base_url/realms/master/protocol/openid-connect/token" |
     python3 -c 'import sys,json; print(json.load(sys.stdin)["access_token"])'
 }
@@ -129,16 +155,12 @@ curl -sS --fail-with-body --max-time 10 -o /dev/null \
   -d "$user_json" "$base_url/admin/realms/$realm/users/$subject"
 
 token="$(admin_token)"
-curl -sS --fail-with-body --max-time 10 -o /dev/null \
-  -X PUT -H "Authorization: Bearer $token" -H 'Content-Type: application/json' \
-  -d "$(KF_DEV_USER_PASSWORD="$KF_DEV_USER_PASSWORD" python3 -c '
+python3 -c '
 import json, os
-print(json.dumps({"type": "password", "value": os.environ["KF_DEV_USER_PASSWORD"], "temporary": False}))
-')" \
-  "$base_url/admin/realms/$realm/users/$subject/reset-password"
-
-# The password is passed through the environment into python, never through the command line:
-# an argv is world-readable in /proc for the life of the process.
+print(json.dumps({"type": "password", "value": os.environ["KF_DEV_USER_PASSWORD"], "temporary": False}), end="")
+' | curl -sS --fail-with-body --max-time 10 -o /dev/null \
+  -X PUT -H "Authorization: Bearer $token" -H 'Content-Type: application/json' \
+  -d @- "$base_url/admin/realms/$realm/users/$subject/reset-password"
 
 cat <<EOF
 

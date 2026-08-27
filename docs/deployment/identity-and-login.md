@@ -40,7 +40,35 @@ The consequence is deliberate: **a fresh clone gets a realm with no users and ca
 whose password is public, on the service every deployment profile points at.
 
 `create-dev-user.sh` refuses a non-loopback `KEYCLOAK_BASE_URL` and refuses to default
-`KF_DEV_USER_PASSWORD`. Both refusals were falsified — invoked and observed to refuse.
+`KF_DEV_USER_PASSWORD`. Both refusals were falsified — invoked and observed to refuse. The
+loopback check parses the URL and tests the hostname rather than matching the text: a glob on the
+string is bypassable through the userinfo field, since `http://localhost:8080@example.org/` starts
+with `http://localhost:` while curl sends the request to `example.org`.
+
+### Changing the realm, and re-exporting it
+
+The realm file is 2,400 lines of Keycloak's own state, including a generated UUID for every flow,
+client and role. Edit it through Keycloak — admin console or admin API — and then re-export;
+hand-editing the JSON is how those identifiers stop agreeing with each other.
+
+```sh
+# obtain an admin token first (see create-dev-user.sh for the request shape)
+curl -sS -H "Authorization: Bearer $TOKEN" \
+  'http://localhost:8080/admin/realms/knowledge-fabric/partial-export?exportGroupsAndRoles=true&exportClients=true' \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); assert not d.get("users"), "users must not be exported"; print(json.dumps(d, indent=2, sort_keys=True))' \
+  > deploy/keycloak/knowledge-fabric-realm.json
+pnpm exec prettier --write deploy/keycloak/knowledge-fabric-realm.json
+```
+
+`partial-export` omits users by default, and the assertion above makes that a checked property
+rather than a remembered one — `tests/deployment/keycloak-realm.test.ts` checks it again at commit
+time. Sort the keys so the diff is reviewable: without it, an unordered re-export churns most of
+the file and hides the two lines that actually changed. **Read the diff before committing** — a
+Keycloak upgrade moves `keycloakVersion` and can rewrite defaults you did not intend to adopt.
+
+Note that `docker compose down` then `up` does **not** re-import: the realm persists in the
+`keycloak-data` volume and Keycloak skips a realm that already exists. To prove an import works you
+must first remove the realm (or the volume), which is what the demonstration below does.
 
 ---
 
