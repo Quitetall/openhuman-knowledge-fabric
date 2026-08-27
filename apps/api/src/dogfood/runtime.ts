@@ -1,5 +1,5 @@
 import { S3ObjectStore } from '@kf/artifacts';
-import { createPool, withTransaction, type Pool } from '@kf/database';
+import { createPool, setResolvedAccessContext, withTransaction, type Pool } from '@kf/database';
 import { createDocumentActionAtoms, PandocDocumentParser } from '@kf/documents';
 import { createFabricTransactionalDispatcher } from '@kf/orchestrator';
 import { bootstrapIdentity, createAppLogin } from './bootstrap.js';
@@ -17,12 +17,13 @@ async function assertDogfoodIdentityReady(
 ): Promise<void> {
   try {
     await withTransaction(owner, async (tx) => {
-      const decision = await tx.maybeOne<{ requested_classification: string }>(
-        `select requested_classification
-           from org.resolve_effective_classification($1, $2, $3, $4)`,
-        [identity.actorId, identity.organizationId, identity.actingRoleId, 'restricted'],
-      );
-      if (decision?.requested_classification !== 'restricted') {
+      const decision = await setResolvedAccessContext(tx, {
+        subjectId: identity.actorId,
+        assignmentId: identity.actingRoleId,
+        organizationId: identity.organizationId,
+        requestedClassification: 'restricted',
+      });
+      if (decision !== 'restricted') {
         throw new Error('classification resolver returned no restricted dogfood decision');
       }
     });
