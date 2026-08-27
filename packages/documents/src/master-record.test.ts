@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   assertPermissionDigest,
+  assertPermissionSetInvariant,
   buildWithheldLedger,
   comparePermissionSet,
   compileMasterRecord,
@@ -45,6 +46,28 @@ describe('master-record permission invariant', () => {
       compiledAt: '2026-08-26T00:00:00.000Z',
     });
     expect(() => assertPermissionDigest(compiled.manifest, [member('b')])).toThrow(/stale/);
+  });
+
+  it('proves the invariant gate refuses over-disclosure and under-disclosure', () => {
+    const compiled = compileMasterRecord({
+      personId: 'person-a',
+      organizationId: 'org-a',
+      permitted: [member('a'), member('b')],
+      relevantIds: new Set(['a']),
+      compiledAt: '2026-08-26T00:00:00.000Z',
+    });
+    expect(() =>
+      assertPermissionSetInvariant(compiled.manifest, [member('a'), member('b'), member('c')]),
+    ).toThrow(/under-disclosure.*c/);
+    expect(() =>
+      assertPermissionSetInvariant(
+        { ...compiled.manifest, included: [member('a'), member('b'), member('c')] },
+        [member('a'), member('b')],
+      ),
+    ).toThrow(/over-disclosure.*c/);
+    expect(assertPermissionSetInvariant(compiled.manifest, [member('b'), member('a')])).toEqual(
+      expect.objectContaining({ equal: true }),
+    );
   });
 });
 
@@ -193,7 +216,13 @@ describe('master-record renderings', () => {
       { ...member('a'), title: 'Own *document*' },
     ],
     relevantIds: new Set(['person-a', 'a']),
-    withdrawn: [member('withdrawn')],
+    withdrawn: [
+      {
+        ...member('withdrawn'),
+        withdrawnAt: '2026-08-26T00:00:00.000Z',
+        withdrawalReason: 'secure-object erasure (decision-1)',
+      },
+    ],
     withheld: buildWithheldLedger(
       [
         {
@@ -214,6 +243,7 @@ describe('master-record renderings', () => {
     expect(markdown).toContain('## Your record');
     expect(markdown).toContain('## Organization view');
     expect(markdown).toContain('## Withdrawn');
+    expect(markdown).toContain('secure-object erasure');
     expect(markdown).toContain('third\\_party');
     expect(markdown.indexOf('Own \\*document\\*')).toBeGreaterThan(-1);
   });
@@ -228,6 +258,26 @@ describe('master-record renderings', () => {
   it('refuses a rendering that silently drops an included member', () => {
     expect(() => renderMasterRecordMarkdown({ ...compilation, relevant: [] })).toThrow(
       /sections do not cover every included member/,
+    );
+  });
+
+  it('references oversized payloads without removing them from the master record', () => {
+    const oversized = compileMasterRecord({
+      personId: 'person-a',
+      organizationId: 'org-a',
+      permitted: [
+        { ...member('a'), content: { 'quality.controlled_document': { revision: 'R01' } } },
+        { ...member('b'), content: { 'work.work_order': { scope: 'large' } } },
+      ],
+      relevantIds: new Set(['a']),
+    });
+    const markdown = renderMasterRecordMarkdown(oversized, { maxInlineMembers: 1 });
+    expect(markdown).toContain('Inline content ceiling: `1`');
+    expect(markdown).toContain('Referenced content');
+    expect(markdown).toContain('full typed payload remains in the manifest');
+    expect(oversized.manifest.included).toHaveLength(2);
+    expect(renderMasterRecordHtml(oversized, { maxInlineMembers: 1 })).toContain(
+      'referenced because inline ceiling 1 was reached',
     );
   });
 

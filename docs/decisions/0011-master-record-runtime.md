@@ -26,12 +26,12 @@ records remain outside the claim.
 
 The permission set is intentionally closed over KF-governed materialized records:
 
-| Surface                                                                           | Classification         | Entry rule                                                                                                           |
-| --------------------------------------------------------------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `core.object` envelopes and `core.relation` graph                                 | materialized           | Enumerated under current organization/classification RLS; relation policy controls sectioning only.                  |
-| Typed rows keyed by a `core.object` (documents, work, quality, ML and operations) | materialized           | Enter through existing action/typed-table guards; the master record carries envelope identity and digest.            |
-| Object-store bytes and compiled artifacts                                         | materialized reference | Bytes stay in governed object store; manifest members carry content digests and readers verify bytes before serving. |
-| Live Google Drive, PHI or other external records                                  | live external          | Not members of this invariant. They require explicit ingestion/materialization decision before entering KF.          |
+| Surface                                                                           | Classification         | Entry rule                                                                                                                                     |
+| --------------------------------------------------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `core.object` envelopes and `core.relation` graph                                 | materialized           | Enumerated under current organization/classification RLS; relation policy controls sectioning only.                                            |
+| Typed rows keyed by a `core.object` (documents, work, quality, ML and operations) | materialized           | `content.master_record_payload` captures every RLS-visible typed row attached to the object; the manifest binds its canonical payload digest.  |
+| Object-store bytes and compiled artifacts                                         | materialized reference | Bytes stay in governed object store; manifest payload carries immutable URI/version, size and digest, and readers verify bytes before serving. |
+| Live Google Drive, PHI or other external records                                  | live external          | Not members of this invariant. They require explicit ingestion/materialization decision before entering KF.                                    |
 
 This is a closed boundary, not an assumption that an unlisted source is safe to include. The
 compiler refuses to treat live external records as permission members, and no release claims
@@ -53,8 +53,8 @@ values for provenance.
 - `GET /master-record` exposes the authenticated person's latest claim, current permission digest,
   stale status, items, and withholding ledger.
 - `renderMasterRecord` projects one compilation deterministically to Markdown or escaped HTML;
-  bounded Pandoc conversion derives PDF and DOCX from that same Markdown. Rendering never drops
-  members and is not a browser or management surface.
+  bounded Pandoc conversion derives PDF and DOCX from that same Markdown. An inline ceiling may
+  reference payloads, but never drops members; rendering is not a browser or management surface.
 - Signed HMAC capability links store only token digest and immutable scope. Expiry, revocation,
   stale claims, invalid claims, and successful serving all append access evidence.
 - Outbox delivery records are append-only and at-least-once. The worker has no direct receipt
@@ -69,15 +69,20 @@ does not perform a real disclosure. M7/M8 disclosure decisions remain human auth
 ## What was measured
 
 - Permission membership is enumerated from the current RLS-visible envelope set and compared
-  in both directions; a changed digest refuses serving.
+  in both directions; planted over/under-disclosure cases refuse by direction, and a changed
+  digest refuses serving.
+- `content.master_record_payload` captures the RLS-visible typed extensions and immutable
+  artifact URI/version metadata for each member. The manifest records permission/relevance
+  cardinalities and propagation-class fan-out measurements.
 - Relation traversal uses a visited set and current validity window; policy disagreement is a
   refusal rather than an implicit omission.
 - Runtime tests cover action dispatch, third-party count-only withholding, stale claims,
-  deterministic renderings, token tamper rejection, worker delivery under a non-superuser login,
-  and fresh-install migration application.
+  deterministic renderings with bounded inline payloads, token tamper rejection, worker delivery
+  under a non-superuser login, boundary coverage, and fresh-install migration application.
 
-These measurements cover envelope membership and runtime wiring. They do not prove that every
-typed content byte is materialized in the manifest, or that a live external source is complete.
+These measurements cover governed typed-row payloads and immutable object-store references. Raw
+external bytes remain outside the JSON manifest and require digest/version verification at read
+time; no live external source is claimed complete.
 
 ## Options considered
 
@@ -93,8 +98,8 @@ typed content byte is materialized in the manifest, or that a live external sour
 - OW-WAR-0056 browser viewer, management UI, and browser proof.
 - Human M7/M8 disclosure, approval, signing, identifier allocation, or cutover authority.
 - Source-specific ingestion contracts for PHI, Google Drive, or other live external stores.
-- The future materialization shape for full typed-row/content-byte manifests beyond the current
-  governed envelope and digest reference.
+- Raw object-store bytes remain referenced rather than duplicated in JSON manifests; readers must
+  verify the immutable URI/version and digest before serving them.
 
 ## Consequences
 

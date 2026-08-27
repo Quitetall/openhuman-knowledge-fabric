@@ -11,6 +11,12 @@ export interface PermissionMember {
   readonly classification: MasterRecordClassification;
   readonly contentDigest: string;
   readonly title?: string;
+  /** Canonical, RLS-visible typed-row payload. Empty when no typed extension exists. */
+  readonly content?: Readonly<Record<string, unknown>>;
+  /** Present only for members carried forward from a prior compilation after withdrawal. */
+  readonly withdrawnAt?: string;
+  /** Machine-recorded reason for withdrawal; never used to decide membership. */
+  readonly withdrawalReason?: string;
 }
 
 export interface RelevanceEdge {
@@ -58,6 +64,13 @@ export interface MasterRecordManifest {
   readonly sections: Readonly<{
     readonly yourRecord: readonly string[];
     readonly organizationView: readonly string[];
+  }>;
+  /** Measured cardinalities used for storage/rendering budgets; never membership filters. */
+  readonly measurements?: Readonly<{
+    readonly permissionMemberCount: number;
+    readonly relevantMemberCount: number;
+    readonly organizationViewMemberCount: number;
+    readonly relevanceFanoutByPropagationClass: Readonly<Record<string, number>>;
   }>;
   readonly withdrawn: readonly PermissionMember[];
   readonly withheld: MasterRecordWithheldLedger;
@@ -128,6 +141,34 @@ export function assertPermissionDigest(
 }
 
 /**
+ * Enforce both directions of the master-record invariant against a fresh enumeration.
+ * Over-disclosure and under-disclosure are reported separately because they have different
+ * operational consequences and must not collapse into a generic digest mismatch.
+ */
+export function assertPermissionSetInvariant(
+  manifest: Pick<MasterRecordManifest, 'permissionDigest' | 'included'>,
+  currentPermitted: readonly PermissionMember[],
+): PermissionComparison {
+  const comparison = comparePermissionSet(currentPermitted, manifest.included);
+  if (comparison.overDisclosure.length > 0) {
+    throw new Error(
+      `master record over-disclosure: ${comparison.overDisclosure
+        .map((member) => member.objectId)
+        .join(',')}`,
+    );
+  }
+  if (comparison.underDisclosure.length > 0) {
+    throw new Error(
+      `master record under-disclosure: ${comparison.underDisclosure
+        .map((member) => member.objectId)
+        .join(',')}`,
+    );
+  }
+  assertPermissionDigest(manifest, currentPermitted);
+  return comparison;
+}
+
+/**
  * Compute relevance from relation metadata. The visited set is the termination guard: relation
  * declarations may say a type is acyclic, but provenance data is still allowed to contain a
  * cycle and the traversal must remain total.
@@ -137,6 +178,18 @@ export function relevanceClosure(
   edges: readonly RelevanceEdge[],
   policies: readonly RelationPolicy[],
 ): ReadonlySet<string> {
+  return relevanceClosureWithMetrics(personId, edges, policies).ids;
+}
+
+/** Traverse relevance once while recording fan-out by ontology propagation class. */
+export function relevanceClosureWithMetrics(
+  personId: string,
+  edges: readonly RelevanceEdge[],
+  policies: readonly RelationPolicy[],
+): {
+  readonly ids: ReadonlySet<string>;
+  readonly fanoutByPropagationClass: Readonly<Record<string, number>>;
+} {
   const policyByType = new Map(policies.map((policy) => [policy.relationType, policy]));
   const outgoing = new Map<string, RelevanceEdge[]>();
   const incoming = new Map<string, RelevanceEdge[]>();
@@ -146,6 +199,7 @@ export function relevanceClosure(
   }
 
   const relevant = new Set<string>([personId]);
+  const fanout = new Map<string, Set<string>>();
   const queue: Array<{ id: string; depth: number; authorityHops: number }> = [
     { id: personId, depth: 0, authorityHops: 0 },
   ];
@@ -185,6 +239,9 @@ export function relevanceClosure(
       if (anchorHop && nextDepth > policy.anchorDepth) continue;
       if (relevant.has(nextId)) continue;
       relevant.add(nextId);
+      const reachedByClass = fanout.get(policy.propagationClass) ?? new Set<string>();
+      reachedByClass.add(nextId);
+      fanout.set(policy.propagationClass, reachedByClass);
       queue.push({
         id: nextId,
         depth: nextDepth,
@@ -194,7 +251,14 @@ export function relevanceClosure(
       });
     }
   }
-  return relevant;
+  return {
+    ids: relevant,
+    fanoutByPropagationClass: Object.fromEntries(
+      [...fanout.entries()]
+        .sort(([left], [right]) => left.localeCompare(right, 'en', { sensitivity: 'variant' }))
+        .map(([propagationClass, ids]) => [propagationClass, ids.size]),
+    ),
+  };
 }
 
 /** Apply explicit withholding policy without leaking third-party object identity. */
@@ -220,6 +284,7 @@ export function compileMasterRecord(options: {
   readonly relevantIds: ReadonlySet<string>;
   readonly withdrawn?: readonly PermissionMember[];
   readonly withheld?: MasterRecordWithheldLedger;
+  readonly relevanceFanoutByPropagationClass?: Readonly<Record<string, number>>;
   readonly compiledAt?: string;
 }): MasterRecordCompilation {
   const foreign = options.permitted.find(
@@ -244,6 +309,12 @@ export function compileMasterRecord(options: {
     sections: {
       yourRecord: relevant.map((member) => member.objectId),
       organizationView: organizationView.map((member) => member.objectId),
+    },
+    measurements: {
+      permissionMemberCount: included.length,
+      relevantMemberCount: relevant.length,
+      organizationViewMemberCount: organizationView.length,
+      relevanceFanoutByPropagationClass: options.relevanceFanoutByPropagationClass ?? {},
     },
     withdrawn: sortedMembers(options.withdrawn ?? []),
     withheld: options.withheld ?? { items: [], thirdPartyCounts: {} },

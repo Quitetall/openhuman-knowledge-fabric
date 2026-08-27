@@ -8,7 +8,11 @@ import type {
   RelevanceEdge,
   RelationPolicy,
 } from './master-record.js';
-import { buildWithheldLedger, compileMasterRecord, relevanceClosure } from './master-record.js';
+import {
+  buildWithheldLedger,
+  compileMasterRecord,
+  relevanceClosureWithMetrics,
+} from './master-record.js';
 
 interface ObjectRow extends Record<string, unknown> {
   readonly id: string;
@@ -18,6 +22,7 @@ interface ObjectRow extends Record<string, unknown> {
   readonly title: string;
   readonly lifecycle_state: string;
   readonly row_version: string;
+  readonly content_payload: Record<string, unknown>;
 }
 
 interface RelationRow extends Record<string, unknown> {
@@ -48,6 +53,12 @@ interface RetentionHoldRow extends Record<string, unknown> {
   readonly placed_at: Date;
 }
 
+interface ErasureTombstoneRow extends Record<string, unknown> {
+  readonly external_content_sha256: string;
+  readonly erased_at: Date;
+  readonly policy_decision_ref: string;
+}
+
 const CLASSIFICATIONS = new Set<MasterRecordClassification>([
   'public',
   'internal',
@@ -62,6 +73,25 @@ function classification(value: string): MasterRecordClassification {
   return value as MasterRecordClassification;
 }
 
+function contentDigests(value: unknown, result = new Set<string>()): Set<string> {
+  if (Array.isArray(value)) {
+    for (const item of value) contentDigests(item, result);
+    return result;
+  }
+  if (typeof value !== 'object' || value === null) return result;
+  for (const [key, nested] of Object.entries(value)) {
+    if (
+      (key === 'sha256' || key === 'external_content_sha256') &&
+      typeof nested === 'string' &&
+      /^[0-9a-f]{64}$/.test(nested)
+    ) {
+      result.add(nested);
+    }
+    contentDigests(nested, result);
+  }
+  return result;
+}
+
 /**
  * Enumerate exactly what current RLS admits. Caller must bind organization and ceiling first;
  * this function never widens context or substitutes an application-side filter.
@@ -73,7 +103,7 @@ export async function enumeratePermissionSet(
   const rows = await tx.query<ObjectRow>(
     `select /* master-record.permission-set */
             id, object_type, organization_id, classification, title, lifecycle_state,
-            row_version::text
+            row_version::text, content.master_record_payload(id) as content_payload
        from core.object
       where organization_id = $1
       order by id`,
@@ -88,6 +118,7 @@ export async function enumeratePermissionSet(
     // Core object has no content bytes. Include every visible envelope field and row version so
     // an update changes the permission-set identity rather than serving an old completeness
     // claim as if it were current.
+    content: row.content_payload,
     contentDigest: digest({
       id: row.id,
       objectType: row.object_type,
@@ -96,6 +127,7 @@ export async function enumeratePermissionSet(
       title: row.title,
       lifecycleState: row.lifecycle_state,
       rowVersion: row.row_version,
+      content: row.content_payload,
     }),
   }));
 }
@@ -181,7 +213,7 @@ export async function masterRecordItems(
   return tx.query(
     `select /* master-record.items */
             object_id, object_type, title, classification, content_digest, section, item_state,
-            withdrawn_at, withdrawal_reason
+            withdrawn_at, withdrawal_reason, content_payload
        from content.master_record_item
       where master_record_id = $1
       order by section, object_type, object_id`,
@@ -291,9 +323,37 @@ export async function compileAndRecordMasterRecord(
     return false;
   });
 
-  const relevantIds = relevanceClosure(options.personId, graph.edges, graph.policies);
+  const relevance = relevanceClosureWithMetrics(options.personId, graph.edges, graph.policies);
+  const compilationTimestamp = options.compiledAt ?? new Date().toISOString();
   const previousItems =
     previous === undefined ? [] : await masterRecordItems(tx, String(previous['id']));
+  const previousContentDigests = [
+    ...new Set(previousItems.flatMap((item) => [...contentDigests(item['content_payload'])])),
+  ];
+  const tombstones =
+    previousContentDigests.length === 0
+      ? []
+      : await tx.query<ErasureTombstoneRow>(
+          `select tombstone.external_content_sha256, tombstone.erased_at,
+                  request.policy_decision_ref
+             from secure_object.erasure_tombstone tombstone
+             join secure_object.erasure_request request
+               on request.id = tombstone.erasure_request_id
+            where request.organization_id = $1
+              and tombstone.external_content_sha256 = any($2::text[])
+            order by tombstone.erased_at, tombstone.id`,
+          [options.organizationId, previousContentDigests],
+        );
+  const tombstoneByDigest = new Map<string, ErasureTombstoneRow>();
+  for (const tombstone of tombstones) {
+    if (!tombstoneByDigest.has(tombstone.external_content_sha256)) {
+      tombstoneByDigest.set(tombstone.external_content_sha256, tombstone);
+    }
+  }
+  const tombstoneFor = (item: Record<string, unknown>): ErasureTombstoneRow | undefined =>
+    [...contentDigests(item['content_payload'])]
+      .map((sha256) => tombstoneByDigest.get(sha256))
+      .find((candidate): candidate is ErasureTombstoneRow => candidate !== undefined);
   // Withholding is still a visible permission member whose content is intentionally
   // subtracted. Only an object absent from the RLS enumeration is withdrawn; otherwise one
   // exclusion would be reported twice as both withdrawn and withheld.
@@ -302,22 +362,35 @@ export async function compileAndRecordMasterRecord(
     .filter(
       (item) => item['item_state'] === 'included' && !visibleIds.has(String(item['object_id'])),
     )
-    .map((item) => ({
-      objectId: String(item['object_id']),
-      objectType: String(item['object_type']),
-      organizationId: options.organizationId,
-      classification: classification(String(item['classification'])),
-      contentDigest: String(item['content_digest']),
-      ...(item['title'] === undefined ? {} : { title: String(item['title']) }),
-    }));
+    .map((item) => {
+      const tombstone = tombstoneFor(item);
+      return {
+        objectId: String(item['object_id']),
+        objectType: String(item['object_type']),
+        organizationId: options.organizationId,
+        classification: classification(String(item['classification'])),
+        contentDigest: String(item['content_digest']),
+        content:
+          typeof item['content_payload'] === 'object' && item['content_payload'] !== null
+            ? (item['content_payload'] as Record<string, unknown>)
+            : {},
+        withdrawnAt: (tombstone?.erased_at ?? new Date(compilationTimestamp)).toISOString(),
+        withdrawalReason:
+          tombstone === undefined
+            ? 'permission set no longer admits this object'
+            : `secure-object erasure (${tombstone.policy_decision_ref})`,
+        ...(item['title'] === undefined ? {} : { title: String(item['title']) }),
+      };
+    });
   const compilation = compileMasterRecord({
     personId: options.personId,
     organizationId: options.organizationId,
     permitted,
-    relevantIds,
+    relevantIds: relevance.ids,
     withdrawn,
     withheld: buildWithheldLedger(withheldItems, thirdPartyReasons),
-    ...(options.compiledAt === undefined ? {} : { compiledAt: options.compiledAt }),
+    relevanceFanoutByPropagationClass: relevance.fanoutByPropagationClass,
+    compiledAt: compilationTimestamp,
   });
 
   const master = await tx.one<{ id: string }>(
@@ -345,8 +418,8 @@ export async function compileAndRecordMasterRecord(
     await tx.query(
       `insert into content.master_record_item
          (master_record_id, object_id, object_type, title, classification, content_digest,
-          section, item_state)
-       values ($1,$2,$3,$4,$5,$6,$7,'included')`,
+          section, item_state, content_payload)
+       values ($1,$2,$3,$4,$5,$6,$7,'included',$8::jsonb)`,
       [
         master.id,
         member.objectId,
@@ -355,6 +428,7 @@ export async function compileAndRecordMasterRecord(
         member.classification,
         member.contentDigest,
         relevant.has(member.objectId) ? 'your_record' : 'org_view',
+        JSON.stringify(member.content ?? {}),
       ],
     );
   }
@@ -362,8 +436,8 @@ export async function compileAndRecordMasterRecord(
     await tx.query(
       `insert into content.master_record_item
          (master_record_id, object_id, object_type, title, classification, content_digest,
-          section, item_state, withdrawn_at, withdrawal_reason)
-       values ($1,$2,$3,$4,$5,$6,'withdrawn','withdrawn',now(),$7)`,
+          section, item_state, withdrawn_at, withdrawal_reason, content_payload)
+       values ($1,$2,$3,$4,$5,$6,'withdrawn','withdrawn',now(),$7,$8::jsonb)`,
       [
         master.id,
         member.objectId,
@@ -371,7 +445,8 @@ export async function compileAndRecordMasterRecord(
         member.title ?? member.objectType,
         member.classification,
         member.contentDigest,
-        'permission set no longer admits this object',
+        member.withdrawalReason ?? 'permission set no longer admits this object',
+        JSON.stringify(member.content ?? {}),
       ],
     );
   }

@@ -157,7 +157,7 @@ export const DOCUMENT_SECTIONS = [
   {
     name: 'master-record-items',
     sql: `select master_record_id, object_id, object_type, title, classification, content_digest,
-                 section, item_state, withdrawn_at, withdrawal_reason
+                 section, item_state, withdrawn_at, withdrawal_reason, content_payload
             from content.master_record_item order by master_record_id, section, object_id`,
   },
   {

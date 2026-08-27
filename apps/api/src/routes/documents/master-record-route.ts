@@ -1,12 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { setResolvedAccessContext, withTransaction } from '@kf/database';
 import {
-  assertPermissionDigest,
+  assertPermissionSetInvariant,
   enumeratePermittedSet,
   latestMasterRecord,
   masterRecordItems,
   masterRecordWithholdings,
   permissionDigest,
+  type PermissionMember,
 } from '@kf/documents';
 import { unidentified } from '../actions.js';
 import { actionRejectionBody } from '../actions/errors.js';
@@ -94,13 +95,22 @@ export function registerMasterRecordRoute(
         const manifest = record['manifest'];
         const currentPermissionDigest = permissionDigest(permitted);
         let stale = true;
-        if (typeof manifest === 'object' && manifest !== null && 'permissionDigest' in manifest) {
+        if (
+          typeof manifest === 'object' &&
+          manifest !== null &&
+          'permissionDigest' in manifest &&
+          'included' in manifest &&
+          Array.isArray((manifest as { included?: unknown }).included)
+        ) {
+          const candidate = manifest as {
+            permissionDigest: unknown;
+            included: unknown[];
+          };
           try {
-            assertPermissionDigest(
+            assertPermissionSetInvariant(
               {
-                permissionDigest: String(
-                  (manifest as { permissionDigest: unknown }).permissionDigest,
-                ),
+                permissionDigest: String(candidate.permissionDigest),
+                included: candidate.included as PermissionMember[],
               },
               permitted,
             );

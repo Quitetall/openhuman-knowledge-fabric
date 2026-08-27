@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { digestBytes } from '@kf/canonicalization';
+import { canonicalize, digestBytes } from '@kf/canonicalization';
 import type {
   MasterRecordCompilation,
   MasterRecordManifest,
@@ -20,6 +20,22 @@ export interface MasterRecordRenderOptions {
   readonly pandocExecutable?: string;
   readonly timeoutMs?: number;
   readonly maxOutputBytes?: number;
+  /** Maximum number of members whose full payload is inlined. Membership is never reduced. */
+  readonly maxInlineMembers?: number;
+}
+
+function manifestMeasurements(
+  manifest: MasterRecordManifest,
+  input: MasterRecordCompilation,
+): NonNullable<MasterRecordManifest['measurements']> {
+  return (
+    manifest.measurements ?? {
+      permissionMemberCount: manifest.included.length,
+      relevantMemberCount: input.relevant.length,
+      organizationViewMemberCount: input.organizationView.length,
+      relevanceFanoutByPropagationClass: {},
+    }
+  );
 }
 
 const MEDIA_TYPES: Readonly<Record<MasterRecordRenderTarget, string>> = {
@@ -63,19 +79,47 @@ function classificationLine(member: PermissionMember): string {
   return `${markdownText(member.objectType)} — ${markdownText(member.classification)} — ${markdownText(member.objectId)} (${markdownText(member.contentDigest)})`;
 }
 
-function renderMemberMarkdown(member: PermissionMember): string {
+function renderMemberMarkdown(member: PermissionMember, inlineContent: boolean): string[] {
   const title = member.title === undefined ? member.objectType : member.title;
-  return `- **${markdownText(title)}** — ${classificationLine(member)}`;
+  const lines = [`- **${markdownText(title)}** — ${classificationLine(member)}`];
+  if (member.withdrawnAt !== undefined || member.withdrawalReason !== undefined) {
+    lines.push(
+      `  - Withdrawal: ${markdownText(member.withdrawnAt ?? 'time not recorded')} — ${markdownText(member.withdrawalReason ?? 'reason not recorded')}`,
+    );
+  }
+  if (inlineContent && member.content !== undefined && Object.keys(member.content).length > 0) {
+    lines.push('  ```json', `  ${canonicalize(member.content)}`, '  ```');
+  }
+  return lines;
 }
 
-function renderMembersMarkdown(title: string, members: readonly PermissionMember[]): string[] {
+function renderMembersMarkdown(
+  title: string,
+  members: readonly PermissionMember[],
+  budget: { remaining: number; readonly limit: number },
+): { readonly lines: string[]; readonly referenced: PermissionMember[] } {
   const sorted = [...members].sort(memberSort);
-  return [
-    `## ${title}`,
-    '',
-    ...(sorted.length === 0 ? ['_None._'] : sorted.map(renderMemberMarkdown)),
-    '',
-  ];
+  const lines = [`## ${title}`, ''];
+  const referenced: PermissionMember[] = [];
+  if (sorted.length === 0) {
+    lines.push('_None._');
+  } else {
+    for (const member of sorted) {
+      const inline = budget.remaining > 0;
+      if (inline) budget.remaining -= 1;
+      else referenced.push(member);
+      if (inline) {
+        lines.push(...renderMemberMarkdown(member, true));
+      } else {
+        lines.push(
+          `- **${markdownText(member.title ?? member.objectType)}** — referenced because inline ` +
+            `ceiling ${String(budget.limit)} was reached — ${classificationLine(member)}`,
+        );
+      }
+    }
+  }
+  lines.push('');
+  return { lines, referenced };
 }
 
 function assertRenderingCompleteness(input: MasterRecordCompilation): void {
@@ -94,9 +138,33 @@ function assertRenderingCompleteness(input: MasterRecordCompilation): void {
 }
 
 /** Deterministic human-readable projection. Membership is never reduced for presentation. */
-export function renderMasterRecordMarkdown(input: MasterRecordCompilation): string {
+export function renderMasterRecordMarkdown(
+  input: MasterRecordCompilation,
+  options: Pick<MasterRecordRenderOptions, 'maxInlineMembers'> = {},
+): string {
   assertRenderingCompleteness(input);
+  const maxInlineMembers = options.maxInlineMembers ?? Number.POSITIVE_INFINITY;
+  if (
+    maxInlineMembers !== Number.POSITIVE_INFINITY &&
+    (!Number.isSafeInteger(maxInlineMembers) || maxInlineMembers < 0)
+  ) {
+    throw new Error('master-record inline member ceiling must be a non-negative integer');
+  }
+  const budget = { remaining: maxInlineMembers, limit: maxInlineMembers };
+  const yourRecord = renderMembersMarkdown('Your record', input.relevant, budget);
+  const organizationView = renderMembersMarkdown(
+    'Organization view',
+    input.organizationView,
+    budget,
+  );
+  const withdrawn = renderMembersMarkdown('Withdrawn', input.manifest.withdrawn, budget);
+  const referenced = [
+    ...yourRecord.referenced,
+    ...organizationView.referenced,
+    ...withdrawn.referenced,
+  ];
   const { manifest } = input;
+  const measurements = manifestMeasurements(manifest, input);
   const lines = [
     `# Master record for ${markdownText(manifest.personId)}`,
     '',
@@ -104,10 +172,28 @@ export function renderMasterRecordMarkdown(input: MasterRecordCompilation): stri
     `- Organization: \`${markdownText(manifest.organizationId)}\``,
     `- Compiled at: \`${markdownText(manifest.compiledAt)}\``,
     `- Permission digest: \`${manifest.permissionDigest}\``,
+    `- Permission members: \`${String(measurements.permissionMemberCount)}\``,
+    `- Relevance members: \`${String(measurements.relevantMemberCount)}\``,
+    ...(Number.isFinite(maxInlineMembers)
+      ? [
+          `- Inline content ceiling: \`${String(maxInlineMembers)}\`; referenced members retain full content in the manifest.`,
+        ]
+      : []),
     '',
-    ...renderMembersMarkdown('Your record', input.relevant),
-    ...renderMembersMarkdown('Organization view', input.organizationView),
-    ...renderMembersMarkdown('Withdrawn', manifest.withdrawn),
+    ...yourRecord.lines,
+    ...organizationView.lines,
+    ...withdrawn.lines,
+    ...(referenced.length > 0
+      ? [
+          '## Referenced content',
+          '',
+          ...referenced.map(
+            (member) =>
+              `- ${classificationLine(member)} — full typed payload remains in the manifest`,
+          ),
+          '',
+        ]
+      : []),
     '## Withheld',
     '',
   ];
@@ -132,20 +218,66 @@ export function renderMasterRecordMarkdown(input: MasterRecordCompilation): stri
   return `${lines.join('\n').trimEnd()}\n`;
 }
 
-function htmlMember(member: PermissionMember): string {
+function htmlMember(member: PermissionMember, inlineContent: boolean): string {
   const title = member.title === undefined ? member.objectType : member.title;
-  return `<li><strong>${htmlText(title)}</strong> — ${htmlText(member.objectType)} — ${htmlText(member.classification)} — <code>${htmlText(member.objectId)}</code> <small>${htmlText(member.contentDigest)}</small></li>`;
+  const content =
+    inlineContent && member.content !== undefined && Object.keys(member.content).length > 0
+      ? `<details><summary>Full typed payload</summary><pre>${htmlText(canonicalize(member.content))}</pre></details>`
+      : '';
+  const withdrawal =
+    member.withdrawnAt !== undefined || member.withdrawalReason !== undefined
+      ? `<div>Withdrawal: ${htmlText(member.withdrawnAt ?? 'time not recorded')} — ${htmlText(member.withdrawalReason ?? 'reason not recorded')}</div>`
+      : '';
+  return `<li><strong>${htmlText(title)}</strong> — ${htmlText(member.objectType)} — ${htmlText(member.classification)} — <code>${htmlText(member.objectId)}</code> <small>${htmlText(member.contentDigest)}</small>${withdrawal}${content}</li>`;
 }
 
-function htmlSection(title: string, members: readonly PermissionMember[]): string {
-  const body = [...members].sort(memberSort).map(htmlMember).join('');
-  return `<section><h2>${htmlText(title)}</h2>${body === '' ? '<p><em>None.</em></p>' : `<ul>${body}</ul>`}</section>`;
+function htmlSection(
+  title: string,
+  members: readonly PermissionMember[],
+  budget: { remaining: number; readonly limit: number },
+): { readonly html: string; readonly referenced: PermissionMember[] } {
+  const referenced: PermissionMember[] = [];
+  const body = [...members]
+    .sort(memberSort)
+    .map((member) => {
+      const inline = budget.remaining > 0;
+      if (inline) budget.remaining -= 1;
+      else referenced.push(member);
+      return inline
+        ? htmlMember(member, true)
+        : `<li><strong>${htmlText(member.title ?? member.objectType)}</strong> — referenced because inline ceiling ${String(budget.limit)} was reached — ${htmlText(member.objectType)} — <code>${htmlText(member.objectId)}</code> <small>${htmlText(member.contentDigest)}</small></li>`;
+    })
+    .join('');
+  return {
+    html: `<section><h2>${htmlText(title)}</h2>${body === '' ? '<p><em>None.</em></p>' : `<ul>${body}</ul>`}</section>`,
+    referenced,
+  };
 }
 
 /** Escaped HTML projection. No caller-controlled value is emitted as markup. */
-export function renderMasterRecordHtml(input: MasterRecordCompilation): string {
+export function renderMasterRecordHtml(
+  input: MasterRecordCompilation,
+  options: Pick<MasterRecordRenderOptions, 'maxInlineMembers'> = {},
+): string {
   assertRenderingCompleteness(input);
+  const maxInlineMembers = options.maxInlineMembers ?? Number.POSITIVE_INFINITY;
+  if (
+    maxInlineMembers !== Number.POSITIVE_INFINITY &&
+    (!Number.isSafeInteger(maxInlineMembers) || maxInlineMembers < 0)
+  ) {
+    throw new Error('master-record inline member ceiling must be a non-negative integer');
+  }
+  const budget = { remaining: maxInlineMembers, limit: maxInlineMembers };
+  const yourRecord = htmlSection('Your record', input.relevant, budget);
+  const organizationView = htmlSection('Organization view', input.organizationView, budget);
+  const withdrawn = htmlSection('Withdrawn', input.manifest.withdrawn, budget);
+  const referenced = [
+    ...yourRecord.referenced,
+    ...organizationView.referenced,
+    ...withdrawn.referenced,
+  ];
   const manifest = input.manifest;
+  const measurements = manifestMeasurements(manifest, input);
   const withheldItems = manifest.withheld.items
     .map(
       (item) =>
@@ -160,10 +292,22 @@ export function renderMasterRecordHtml(input: MasterRecordCompilation): string {
     )
     .join('');
   const withheld =
-    withheldItems || thirdParty
+    withheldItems.length > 0 || thirdParty !== ''
       ? `<ul>${withheldItems}${thirdParty}</ul>`
       : '<p><em>None.</em></p>';
-  return `<!doctype html><html><head><meta charset="utf-8"><title>Master record ${htmlText(manifest.personId)}</title></head><body><main><h1>Master record for ${htmlText(manifest.personId)}</h1><dl><dt>Format</dt><dd><code>${htmlText(manifest.format)}</code></dd><dt>Organization</dt><dd><code>${htmlText(manifest.organizationId)}</code></dd><dt>Compiled at</dt><dd><code>${htmlText(manifest.compiledAt)}</code></dd><dt>Permission digest</dt><dd><code>${htmlText(manifest.permissionDigest)}</code></dd></dl>${htmlSection('Your record', input.relevant)}${htmlSection('Organization view', input.organizationView)}${htmlSection('Withdrawn', manifest.withdrawn)}<section><h2>Withheld</h2>${withheld}</section></main></body></html>\n`;
+  const referencedHtml =
+    referenced.length === 0
+      ? ''
+      : `<section><h2>Referenced content</h2><ul>${referenced
+          .map(
+            (member) =>
+              `<li>${htmlText(member.objectType)} — <code>${htmlText(member.objectId)}</code> — full typed payload remains in the manifest</li>`,
+          )
+          .join('')}</ul></section>`;
+  const ceiling = Number.isFinite(maxInlineMembers)
+    ? `<dt>Inline content ceiling</dt><dd>${String(maxInlineMembers)}; referenced members retain full content in the manifest</dd>`
+    : '';
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Master record ${htmlText(manifest.personId)}</title></head><body><main><h1>Master record for ${htmlText(manifest.personId)}</h1><dl><dt>Format</dt><dd><code>${htmlText(manifest.format)}</code></dd><dt>Organization</dt><dd><code>${htmlText(manifest.organizationId)}</code></dd><dt>Compiled at</dt><dd><code>${htmlText(manifest.compiledAt)}</code></dd><dt>Permission digest</dt><dd><code>${htmlText(manifest.permissionDigest)}</code></dd><dt>Permission members</dt><dd>${String(measurements.permissionMemberCount)}</dd><dt>Relevance members</dt><dd>${String(measurements.relevantMemberCount)}</dd>${ceiling}</dl>${yourRecord.html}${organizationView.html}${withdrawn.html}${referencedHtml}<section><h2>Withheld</h2>${withheld}</section></main></body></html>\n`;
 }
 
 function pandocOutput(
@@ -235,12 +379,12 @@ export async function renderMasterRecord(
   target: MasterRecordRenderTarget,
   options: MasterRecordRenderOptions = {},
 ): Promise<RenderedMasterRecord> {
-  const markdown = renderMasterRecordMarkdown(input);
+  const markdown = renderMasterRecordMarkdown(input, options);
   const bytes =
     target === 'markdown'
       ? Buffer.from(markdown, 'utf8')
       : target === 'html'
-        ? Buffer.from(renderMasterRecordHtml(input), 'utf8')
+        ? Buffer.from(renderMasterRecordHtml(input, options), 'utf8')
         : await pandocOutput(markdown, target, options);
   return { target, mediaType: MEDIA_TYPES[target], bytes, contentDigest: digestBytes(bytes) };
 }

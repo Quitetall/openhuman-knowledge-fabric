@@ -54,6 +54,9 @@ export async function buildApp(
     },
     // Every request carries a correlation id; actions record it in the audit event.
     genReqId: () => crypto.randomUUID(),
+    // Signed master-record links carry compact claims plus an HMAC in one path segment. Fastify
+    // defaults to 100 bytes, which rejects valid capabilities before route code can verify them.
+    routerOptions: { maxParamLength: 512 },
   });
 
   // Return the correlation id to the caller. An id that only appears in server logs cannot

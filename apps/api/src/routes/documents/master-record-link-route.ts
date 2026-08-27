@@ -2,9 +2,10 @@ import type { FastifyInstance } from 'fastify';
 import { digestBytes } from '@kf/canonicalization';
 import { setAccessContext, withTransaction } from '@kf/database';
 import {
-  assertPermissionDigest,
+  assertPermissionSetInvariant,
   enumeratePermittedSet,
   masterRecordItems,
+  type PermissionMember,
   verifyMasterRecordLinkToken,
 } from '@kf/documents';
 import type { DocumentRoutesOptions } from './contracts.js';
@@ -88,8 +89,15 @@ export function registerMasterRecordLinkRoute(
         link.organization_id,
       );
       try {
-        assertPermissionDigest(
-          { permissionDigest: String(record['permission_digest']) },
+        const manifest = record['manifest'];
+        if (typeof manifest !== 'object' || manifest === null) throw new Error('manifest missing');
+        const included = (manifest as { included?: unknown }).included;
+        if (!Array.isArray(included)) throw new Error('manifest members missing');
+        assertPermissionSetInvariant(
+          {
+            permissionDigest: String(record['permission_digest']),
+            included: included as PermissionMember[],
+          },
           permitted,
         );
       } catch {
