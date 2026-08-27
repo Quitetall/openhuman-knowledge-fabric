@@ -70,6 +70,9 @@ export interface MasterRecordManifest {
     readonly permissionMemberCount: number;
     readonly relevantMemberCount: number;
     readonly organizationViewMemberCount: number;
+    /** Relevance closure cardinality attributed to each person-anchoring relation type. */
+    readonly relevanceFanoutByAnchorType: Readonly<Record<string, number>>;
+    /** Aggregate closure cardinality by ontology propagation class. */
     readonly relevanceFanoutByPropagationClass: Readonly<Record<string, number>>;
   }>;
   readonly withdrawn: readonly PermissionMember[];
@@ -188,6 +191,7 @@ export function relevanceClosureWithMetrics(
   policies: readonly RelationPolicy[],
 ): {
   readonly ids: ReadonlySet<string>;
+  readonly fanoutByAnchorType: Readonly<Record<string, number>>;
   readonly fanoutByPropagationClass: Readonly<Record<string, number>>;
 } {
   const policyByType = new Map(policies.map((policy) => [policy.relationType, policy]));
@@ -199,10 +203,16 @@ export function relevanceClosureWithMetrics(
   }
 
   const relevant = new Set<string>([personId]);
-  const fanout = new Map<string, Set<string>>();
-  const queue: Array<{ id: string; depth: number; authorityHops: number }> = [
-    { id: personId, depth: 0, authorityHops: 0 },
-  ];
+  const fanoutByAnchorType = new Map<string, Set<string>>();
+  const fanoutByPropagationClass = new Map<string, Set<string>>();
+  type QueueNode = { id: string; depth: number; authorityHops: number; anchorType?: string };
+  const queue: QueueNode[] = [{ id: personId, depth: 0, authorityHops: 0 }];
+  // Global membership keeps the returned closure compact. Per-anchor state keeps measurements
+  // honest when two person anchors reach the same object: each anchor gets its own closure count,
+  // while cycles still terminate even when the ontology deliberately permits them.
+  const stateKey = (node: QueueNode): string =>
+    `${node.anchorType ?? ''}\u0000${node.id}\u0000${String(node.authorityHops)}`;
+  const visitedStates = new Set<string>([stateKey(queue[0]!)]);
   let queueIndex = 0;
   while (queueIndex < queue.length) {
     const current = queue[queueIndex++]!;
@@ -213,7 +223,7 @@ export function relevanceClosureWithMetrics(
         throw new Error(`missing relevance policy for relation type '${edge.relationType}'`);
       }
       if (policy.propagationClass === 'lateral_none') continue;
-      const anchorHop = current.id === personId;
+      const anchorHop = current.id === personId && current.anchorType === undefined;
       // `personAnchor` governs only the first hop. Once a record is reached, the ontology's
       // propagation class decides whether its descendants, versions, provenance, or authority
       // links are relevant; composition types such as `contains` are intentionally not anchors
@@ -237,24 +247,42 @@ export function relevanceClosureWithMetrics(
       // stance toward a person; no rendering/storage budget is allowed to turn into membership
       // loss. Authority remains one hop by its propagation class.
       if (anchorHop && nextDepth > policy.anchorDepth) continue;
-      if (relevant.has(nextId)) continue;
-      relevant.add(nextId);
-      const reachedByClass = fanout.get(policy.propagationClass) ?? new Set<string>();
-      reachedByClass.add(nextId);
-      fanout.set(policy.propagationClass, reachedByClass);
-      queue.push({
+      const nextAnchorType = anchorHop ? policy.relationType : current.anchorType;
+      const nextNode: QueueNode = {
         id: nextId,
         depth: nextDepth,
         authorityHops:
           current.authorityHops +
           (policy.propagationClass === 'authority_one_hop_up' && isIncoming ? 1 : 0),
-      });
+        ...(nextAnchorType === undefined ? {} : { anchorType: nextAnchorType }),
+      };
+      const nextState = stateKey(nextNode);
+      if (visitedStates.has(nextState)) continue;
+      visitedStates.add(nextState);
+      if (nextAnchorType !== undefined) {
+        const reachedByAnchor = fanoutByAnchorType.get(nextAnchorType) ?? new Set<string>();
+        reachedByAnchor.add(nextId);
+        fanoutByAnchorType.set(nextAnchorType, reachedByAnchor);
+      }
+      if (!relevant.has(nextId)) {
+        relevant.add(nextId);
+        const reachedByClass =
+          fanoutByPropagationClass.get(policy.propagationClass) ?? new Set<string>();
+        reachedByClass.add(nextId);
+        fanoutByPropagationClass.set(policy.propagationClass, reachedByClass);
+      }
+      queue.push(nextNode);
     }
   }
   return {
     ids: relevant,
+    fanoutByAnchorType: Object.fromEntries(
+      [...fanoutByAnchorType.entries()]
+        .sort(([left], [right]) => left.localeCompare(right, 'en', { sensitivity: 'variant' }))
+        .map(([anchorType, ids]) => [anchorType, ids.size]),
+    ),
     fanoutByPropagationClass: Object.fromEntries(
-      [...fanout.entries()]
+      [...fanoutByPropagationClass.entries()]
         .sort(([left], [right]) => left.localeCompare(right, 'en', { sensitivity: 'variant' }))
         .map(([propagationClass, ids]) => [propagationClass, ids.size]),
     ),
@@ -284,6 +312,7 @@ export function compileMasterRecord(options: {
   readonly relevantIds: ReadonlySet<string>;
   readonly withdrawn?: readonly PermissionMember[];
   readonly withheld?: MasterRecordWithheldLedger;
+  readonly relevanceFanoutByAnchorType?: Readonly<Record<string, number>>;
   readonly relevanceFanoutByPropagationClass?: Readonly<Record<string, number>>;
   readonly compiledAt?: string;
 }): MasterRecordCompilation {
@@ -314,6 +343,7 @@ export function compileMasterRecord(options: {
       permissionMemberCount: included.length,
       relevantMemberCount: relevant.length,
       organizationViewMemberCount: organizationView.length,
+      relevanceFanoutByAnchorType: options.relevanceFanoutByAnchorType ?? {},
       relevanceFanoutByPropagationClass: options.relevanceFanoutByPropagationClass ?? {},
     },
     withdrawn: sortedMembers(options.withdrawn ?? []),

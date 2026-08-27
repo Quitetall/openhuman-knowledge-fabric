@@ -317,6 +317,10 @@ describe('master-record runtime', () => {
     expect(first.manifest.measurements?.organizationViewMemberCount).toBe(
       first.organizationView.length,
     );
+    expect(first.manifest.measurements?.relevanceFanoutByAnchorType).toEqual(expect.any(Object));
+    expect(first.manifest.measurements?.relevanceFanoutByPropagationClass).toEqual(
+      expect.any(Object),
+    );
     expect(first.relevant.length + first.organizationView.length).toBe(
       first.manifest.included.length,
     );

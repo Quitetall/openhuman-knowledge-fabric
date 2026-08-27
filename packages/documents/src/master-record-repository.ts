@@ -390,6 +390,7 @@ export async function compileAndRecordMasterRecord(
     withdrawn,
     withheld: buildWithheldLedger(withheldItems, thirdPartyReasons),
     relevanceFanoutByPropagationClass: relevance.fanoutByPropagationClass,
+    relevanceFanoutByAnchorType: relevance.fanoutByAnchorType,
     compiledAt: compilationTimestamp,
   });
 

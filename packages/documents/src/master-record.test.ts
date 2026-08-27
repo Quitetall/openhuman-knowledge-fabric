@@ -6,6 +6,7 @@ import {
   comparePermissionSet,
   compileMasterRecord,
   relevanceClosure,
+  relevanceClosureWithMetrics,
   type PermissionMember,
 } from './master-record.js';
 import {
@@ -160,6 +161,43 @@ describe('relevance closure', () => {
       ],
     );
     expect([...ids].sort()).toEqual(['derived', 'person', 'source']);
+  });
+
+  it('measures fan-out independently for each person anchor and propagation class', () => {
+    const metrics = relevanceClosureWithMetrics(
+      'person',
+      [
+        { sourceId: 'person', targetId: 'project', relationType: 'assigned_to' },
+        { sourceId: 'project', targetId: 'part', relationType: 'contains' },
+        { sourceId: 'person', targetId: 'derived', relationType: 'derived_from' },
+        { sourceId: 'derived', targetId: 'source', relationType: 'derived_from' },
+      ],
+      [
+        {
+          relationType: 'assigned_to',
+          personAnchor: true,
+          propagationClass: 'composition_down',
+          anchorDepth: 1,
+        },
+        {
+          relationType: 'contains',
+          personAnchor: false,
+          propagationClass: 'composition_down',
+          anchorDepth: 8,
+        },
+        {
+          relationType: 'derived_from',
+          personAnchor: true,
+          propagationClass: 'provenance_backward',
+          anchorDepth: 8,
+        },
+      ],
+    );
+    expect(metrics.fanoutByAnchorType).toEqual({ assigned_to: 2, derived_from: 2 });
+    expect(metrics.fanoutByPropagationClass).toEqual({
+      composition_down: 2,
+      provenance_backward: 2,
+    });
   });
 
   it('refuses an edge whose relation policy is missing', () => {

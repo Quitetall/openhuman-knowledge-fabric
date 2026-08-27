@@ -82,7 +82,8 @@ remain human authority actions.
   artifact URI/version metadata for each member. The manifest records permission/relevance
   cardinalities and propagation-class fan-out measurements.
 - Relation traversal uses a visited set and current validity window; policy disagreement is a
-  refusal rather than an implicit omission.
+  refusal rather than an implicit omission. Measurements record both relevance fan-out per
+  person-anchoring relation type and aggregate fan-out per propagation class.
 - Runtime tests cover action dispatch, third-party count-only withholding, stale claims,
   deterministic renderings with bounded inline payloads, token tamper rejection, worker delivery
   under a non-superuser login, boundary coverage, and fresh-install migration application.

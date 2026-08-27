@@ -33,6 +33,7 @@ function manifestMeasurements(
       permissionMemberCount: manifest.included.length,
       relevantMemberCount: input.relevant.length,
       organizationViewMemberCount: input.organizationView.length,
+      relevanceFanoutByAnchorType: {},
       relevanceFanoutByPropagationClass: {},
     }
   );
