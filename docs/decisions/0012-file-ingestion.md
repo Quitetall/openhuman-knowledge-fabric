@@ -9,9 +9,9 @@ Fabric holds its bytes or points at them, and what an ingest run refuses
 
 ## The problem, measured
 
-The Knowledge Fabric is meant to be the sole source of all information. It had no way to admit
-an arbitrary file. The only `ingest` in the tree was ML metric events; everything else came in
-through a dogfood loader wired to the constitution corpus.
+The Knowledge Fabric is meant to be the sole source of all information. At decision time it had
+no way to admit an arbitrary file. The only `ingest` in the tree was ML metric events; everything
+else came in through a dogfood loader wired to the constitution corpus.
 
 Worse than absent — the one available path was the wrong one for a whole class of material.
 `packages/documents/src/internal/evidence-actions.ts` hardcodes:
@@ -60,7 +60,8 @@ first question asked when a rights holder or a regulator writes in. The action r
 **Mode and classification are stated per batch; neither is defaulted.**
 
 ```
-kf ingest --mode=copy|reference --classification=<id> [--revision=<label>] <paths...>
+kf ingest --mode=copy|reference --classification=<id> --identity=dev|oidc \
+  [--revision=<label>] [--kind=<artifact-kind>] [--reference-manifest=<file>] <paths...>
 ```
 
 A run that omits either is refused. A default mode is how third-party material enters because
@@ -84,10 +85,15 @@ copied.
 safe — being wrong about whether something is a `drawing` or a `specification` misfiles it, it
 does not reproduce anybody's copyright.
 
+The executable implementation is `apps/api/src/ingest/cli.ts`, exposed from the repository root
+as `pnpm kf ingest`. It adds explicit `--identity=dev|oidc` selection, permission-checked OIDC
+token files, exact reference manifests, content-derived idempotency keys, and one constrained
+application transaction per batch. Development fixed identity is limited to the development
+profile; both identity paths perform owner-side clearance preflight before source bytes are
+staged. The command is a delivery of this decision, not a new authority boundary.
+
 ## What this does not decide
 
-- **The CLI surface.** `apps/api/src/ingest/plan.ts` is a pure planner with no database or
-  filesystem access; the command that drives it is not yet written.
 - **A watched folder.** Drop-a-file-in ingestion is wanted and is a thin layer over this, but it
   is deferred with the rest of the filesystem surface to `OW-WAR-0056`.
 - **Whether the reference-only rule list belongs in the ontology.** It is currently a short,
@@ -96,8 +102,11 @@ does not reproduce anybody's copyright.
 
 ## How this is held
 
-`apps/api/src/ingest/plan.test.ts` asserts each refusal, and every guard was falsified — the
-check removed, the test watched go red, the check restored.
+`apps/api/src/ingest/plan.test.ts` asserts each planner refusal, and every planner guard was
+falsified — the check removed, the test watched go red, the check restored. The CLI parser and
+manifest seam tests live in `apps/api/src/ingest/cli.test.ts`; live local dogfood has exercised
+copy/replay and reference-without-storage paths. Runtime integration still depends on the
+database and object-store harness rather than a fake database.
 
 That process found a test passing for the wrong reason: deleting the missing-mode check left all
 tests green, because an absent mode fell through to the unknown-mode branch and both messages

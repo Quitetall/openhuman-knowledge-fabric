@@ -51,9 +51,13 @@ content-derived idempotency keys.
 
 ## Why this task and not another
 
-The Fabric holds **14 objects, all fixtures**. The compiled master record contains **one item in
+At initial measurement the Fabric held **14 objects, all fixtures**. The compiled master record contains **one item in
 `your_record`, and it is the person's own node**; the other 13 are `org_view`, and every refusal
 path — withholdings, entitlement exclusions, link revocations — has zero rows.
+
+After implementation dogfood, the local database has 17 core objects, 7 artifacts, 7 artifact
+versions, and 1 external locator. That proves copy and reference writes are reachable; it does
+not yet prove relevance closure or a complete master record.
 
 That is exactly what a correct empty database looks like. It is also exactly what a **broken
 relevance closure** looks like, and the current data cannot tell the two apart. Ingesting real

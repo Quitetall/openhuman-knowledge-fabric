@@ -41,8 +41,10 @@ narrow but never widen.
 
 ### 1 · A corpus — mostly unblocked
 
-The Fabric holds **14 objects, all fixtures**. It is the sole source of nothing until real
-material is in it.
+At initial measurement the Fabric held **14 objects, all fixtures**. The ingest dogfood has now
+added real local records: current workstation counts are 17 `core.object` rows, 7 artifacts, 7
+artifact versions, and 1 external locator. The dogfood corpus is still deliberately small and
+non-PHI; it proves the write path, not relevance completeness.
 
 `register_external_artifact` and the ingest policy exist (ADR 0012). `kf ingest` now drives both
 that reference action and `attach_evidence` copy action. `apps/api/src/ingest/plan.ts` remains a

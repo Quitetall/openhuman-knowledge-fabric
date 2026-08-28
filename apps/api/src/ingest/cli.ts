@@ -207,6 +207,9 @@ export function parseReferenceManifest(
   if (!Array.isArray(entries))
     throw new IngestCliError('reference manifest entries must be an array');
   const expected = new Set(paths.map((path) => resolve(cwd, path)));
+  if (expected.size !== paths.length) {
+    throw new IngestCliError('reference manifest entries must match CLI paths exactly');
+  }
   const result = new Map<string, ReferenceManifestEntry>();
   for (const raw of entries) {
     if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
@@ -452,7 +455,7 @@ export async function runIngest(
   const manifest =
     planned.mode === 'reference'
       ? parseReferenceManifest(
-          (await read(args.referenceManifest!)).toString('utf8'),
+          (await read(resolve(cwd, args.referenceManifest!))).toString('utf8'),
           args.paths,
           cwd,
         )
