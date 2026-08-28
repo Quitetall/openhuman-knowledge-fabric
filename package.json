@@ -20,6 +20,7 @@
     "db:up": "docker compose up -d postgres minio keycloak",
     "dev": "pnpm --parallel --filter \"./apps/**\" dev",
     "dogfood:load": "pnpm --filter @kf/api... build && NODE_ENV=development pnpm --filter @kf/api dogfood",
+    "kf:grant-authority": "pnpm --filter @kf/api... build && node apps/api/dist/grant-authority.js",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "gate": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm audit --audit-level=high && pnpm ontology:check && pnpm ontology:registry-check && pnpm ontology:build && git diff --exit-code -- generated/ && pnpm build",

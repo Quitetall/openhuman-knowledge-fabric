@@ -259,6 +259,23 @@ action_types:
     audited: true
     transactional: true
     drives: []
+  # Grants a person an organization-scoped, effective-dated clearance (ADR 0011).
+  #
+  # This type exists because `org.person_clearance.granted_by_action` is a NOT NULL foreign key
+  # to `core.action`: a clearance that cannot name the recorded act that granted it is refused by
+  # the database. Nothing in the ontology named that act, so the only way to satisfy the
+  # constraint was to cite an unrelated type — which writes a false statement into the audit log
+  # of a system whose entire purpose is a truthful record.
+  #
+  # It is NOT reachable through the normal dispatcher, and that is not an oversight. Dispatch
+  # binds authoritative clearance before effects run, so granting the FIRST clearance in an
+  # organization through a dispatched action is circular. It is applied by an owner-credential
+  # bootstrap act instead — `apps/api/src/admin/grant-authority.ts` — which still records this
+  # action and still extends the audit chain through the same helper the dispatcher uses.
+  - id: grant_person_clearance
+    audited: true
+    transactional: true
+    drives: []
 
   # ── Federated Secure Object Authority ──────────────────────────────────────────────────
   # These actions target exactly one owning organization. Database triggers also require

@@ -35,3 +35,11 @@ export {
   type StepUpPolicy,
   type StepUpResult,
 } from './step-up.js';
+
+export {
+  AUTHORITY_ACTION_IDS,
+  AUTHORITY_EFFECTS,
+  grantPersonClearanceEffect,
+  insertPersonClearance,
+  type PersonClearanceGrant,
+} from './clearance-actions.js';

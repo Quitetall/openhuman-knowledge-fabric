@@ -313,6 +313,9 @@ importers:
 
   packages/authorization:
     dependencies:
+      '@kf/actions':
+        specifier: workspace:*
+        version: link:../actions
       '@kf/database':
         specifier: workspace:*
         version: link:../database
@@ -450,6 +453,9 @@ importers:
       '@kf/actions':
         specifier: workspace:*
         version: link:../actions
+      '@kf/authorization':
+        specifier: workspace:*
+        version: link:../authorization
       '@kf/database':
         specifier: workspace:*
         version: link:../database

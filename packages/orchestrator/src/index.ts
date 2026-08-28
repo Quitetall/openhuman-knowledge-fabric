@@ -14,6 +14,7 @@ import {
   type DispatcherOptions,
   type PreconditionCheck,
 } from '@kf/actions';
+import { AUTHORITY_ACTION_IDS, AUTHORITY_EFFECTS } from '@kf/authorization';
 import type { Pool } from '@kf/database';
 import type { DocumentActionAtoms } from '@kf/documents';
 import {
@@ -99,6 +100,15 @@ export function composeActionAtoms(
 }
 
 const BUILT_IN_ATOMS: readonly ActionAtoms[] = [
+  {
+    // Granting a clearance is dispatchable once SOMEBODY in the organization already holds one.
+    // The first grant cannot be — dispatch binds authoritative clearance before effects — and is
+    // made by `apps/api/src/admin/grant-authority.ts`, which shares this package's single
+    // `insertPersonClearance` rather than writing its own.
+    name: 'authority',
+    ownedActions: AUTHORITY_ACTION_IDS,
+    effects: AUTHORITY_EFFECTS,
+  },
   {
     name: 'work-control',
     ownedActions: WORK_CONTROL_ACTION_IDS,

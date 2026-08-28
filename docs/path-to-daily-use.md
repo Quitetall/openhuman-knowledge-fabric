@@ -74,16 +74,21 @@ It stops at one designed place. `GET /master-record` with that token returns
 `401 unknown_subject` — "this identity is not linked to a person in this system". That is the
 refusal working, not a fault.
 
-What is left is three deliberate human acts, none yet performed: link the subject to a person
-with `linkIdentity`, assign a role, grant a clearance. The link is "deliberately not automatic"
-and has no CLI.
+The three human acts that used to stand between that refusal and a session — link the subject to
+a person, assign a role, grant a clearance — are now one command, `pnpm kf:grant-authority`. It
+records a real `grant_person_clearance` action and extends the audit chain, because
+`org.person_clearance.granted_by_action` requires a recorded act and no action type named this
+one until 2026-08-27.
 
-This step is no longer the hinge. **Step 2 is** — the remaining acts want a real person record
-and a running service, not more identity plumbing.
+Run against the workstation database, it moved `GET /master-record` from `401 unknown_subject` to
+`404 master_record_not_found` — identity resolved, clearance held, request reaching a domain
+answer rather than an authority refusal.
+
+This step is no longer the hinge. **Step 2 is.**
 
 **Written down:** `docs/deployment/identity-and-login.md`, walked, with what walking found that
 reading would not have.
-**Blocked on:** nothing but doing the three acts.
+**Blocked on:** nothing. What remains is compiling a record (step 4) and the browser round trip.
 
 ### 4 · The button — small, once 2 and 3 land
 

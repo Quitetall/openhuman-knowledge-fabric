@@ -3,7 +3,7 @@
   "info": {
     "title": "OpenHuman Knowledge Fabric API",
     "version": "1.1.0-draft.1",
-    "description": "Generated from ontology source digest 1d889b9e78d74b2cb1f1edee2b59dfe866cebadc952b44f825c3e38f88a4032d."
+    "description": "Generated from ontology source digest f6cb47b34c251067301c35868123c12dd6b6aabafeff9cbdd309cd18a9584790."
   },
   "paths": {
     "/objects/organization/{id}": {
@@ -3038,6 +3038,36 @@
         }
       }
     },
+    "/actions/grant_person_clearance": {
+      "post": {
+        "summary": "Execute grant_person_clearance",
+        "operationId": "grant_person_clearance",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
     "/actions/request_secure_object_access": {
       "post": {
         "summary": "Execute request_secure_object_access",
@@ -4802,6 +4832,7 @@
               "record_document_proposal",
               "apply_document_proposal",
               "release_person_entitlement_exclusion",
+              "grant_person_clearance",
               "request_secure_object_access",
               "issue_secure_object_capability",
               "revoke_secure_object_capability",

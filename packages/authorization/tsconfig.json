@@ -9,6 +9,9 @@
   "exclude": ["src/**/*.test.ts", "dist", "node_modules"],
   "references": [
     {
+      "path": "../actions"
+    },
+    {
       "path": "../domain"
     },
     {

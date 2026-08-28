@@ -252,6 +252,17 @@ const DECLARED_ADDITIONS = {
     'disposition_nonconformity',
     'disqualify_supplier',
     'execute_test',
+    // Names the act that grants a person a clearance. R01 has no such type, yet
+    // `org.person_clearance.granted_by_action` is a NOT NULL foreign key to `core.action` — so
+    // the schema requires a recorded act that the vocabulary could not name. The only way to
+    // satisfy the constraint was to cite an unrelated type, which is what the test harness does
+    // for fixtures and which would be a false statement in a real audit log.
+    //
+    // Deliberately not dispatchable: dispatch binds authoritative clearance before effects, so
+    // the first clearance in an organization cannot be granted by a dispatched action without
+    // circularity. It is an owner-credential bootstrap act that still records this type and
+    // still extends the audit chain.
+    'grant_person_clearance',
     'implement_capa',
     'implement_risk_control',
     'invalidate_test_execution',

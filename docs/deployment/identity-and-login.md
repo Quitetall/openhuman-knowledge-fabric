@@ -169,23 +169,67 @@ token. Worth knowing before you spend an hour on it.
 
 ---
 
-## What remains — DERIVED, not walked
+## Granting the authority — verified
 
-Three things stand between `unknown_subject` and a usable session. None has been executed.
+The three acts between `unknown_subject` and a usable session are one command:
 
-- **Link the subject to a person.** `linkIdentity` in `packages/authorization/src/identity.ts` is
-  "deliberately not automatic. Somebody decides that this account is that person, and that
-  decision is recorded with who made it." It takes `{ issuer, subject, personId, linkedBy }` and
-  is keyed on `(issuer, subject)` because a subject is unique only within its issuer. There is no
-  CLI for it; `create-dev-user.sh` prints the call it needs.
-- **Assign a role**, organization-scoped and effective-dated.
-- **Grant a clearance.** Per ADR 0011 a linked person with no clearance is refused, by design;
-  effective rank is the minimum of the person's clearance and any assignment ceiling.
+```sh
+DATABASE_OWNER_URL=postgresql://kf_owner:...@127.0.0.1:5432/kf \
+pnpm kf:grant-authority \
+  --person       <org.person id> \
+  --organization <org.organization id> \
+  --role         performer \
+  --clearance    restricted \
+  --granted-by   <the person who decided> \
+  --issuer       http://localhost:8080/realms/knowledge-fabric \
+  --subject      <the sub printed by create-dev-user.sh> \
+  --reason       'why this authority was granted, and on whose say-so'
+```
 
-Nothing past the subject link has been exercised. The browser round trip through `apps/web` has
-not been run either — the flow above was driven by curl, which proves the protocol but not the
-front end. `docs/onboarding.md` §3 records the hazard there: `pnpm dev` died on `ENOSPC` with
-522,885 of 524,199 file watchers held by an unrelated desktop application. Find the consumer
-before raising any limit.
+It links the identity, assigns the role and grants the clearance in **one transaction**, recording
+a real `grant_person_clearance` action and extending the audit chain. Nothing is defaulted: a run
+missing any flag prints every refusal at once and writes nothing.
+
+**Run it before the ontology seed and it will fail**, because `grant_person_clearance` is a new
+action type and `core.action.action_type` is a foreign key into `registry.action_type`:
+
+```sh
+psql "$DATABASE_OWNER_URL" -v ON_ERROR_STOP=1 -f generated/sql-registry/001-ontology-seed.sql
+```
+
+Measured on 2026-08-27 against the workstation `kf` database:
+
+| after                      | `GET /master-record` with a real token |
+| -------------------------- | -------------------------------------- |
+| realm + user only          | `401 unknown_subject`                  |
+| after `kf:grant-authority` | `404 master_record_not_found`          |
+
+The second row is the whole point: identity resolved, clearance held, and the request reached a
+**domain** answer instead of an authority refusal. The record itself is compiled by
+`compile_master_record`, which is step 4.
+
+Also verified: the audit event landed at `seq=14` chained from the previous head, and
+`core.audit_chain_head` matches the last event — the bootstrap writer and the dispatcher share
+`appendAuditEvent`, so there is one implementation of that arithmetic. And a second identical run
+reported "nothing to do", wrote nothing, and did **not** mint a second action: re-running a setup
+command must not record a decision nobody made.
+
+### Why this is not a dispatched action
+
+Because it cannot be. Dispatch binds authoritative clearance before effects run, so granting the
+FIRST clearance in an organization through the dispatcher is circular — the clearance would have
+to already exist. It runs on the owner connection instead, which is also why it is a command a
+human types and not an HTTP route: `linkIdentity` says "somebody decides that this account is that
+person, and that decision is recorded with who made it."
+
+## What remains
+
+The browser round trip through `apps/web` has not been run — the flow above was driven by curl,
+which proves the protocol but not the front end. `docs/onboarding.md` §3 records the hazard:
+`pnpm dev` died on `ENOSPC` with 522,885 of 524,199 file watchers held by an unrelated desktop
+application. Find the consumer before raising any limit.
+
+Compiling a master record has not been exercised through an authenticated session either. That is
+step 4.
 
 This is step 3 of [`docs/path-to-daily-use.md`](../path-to-daily-use.md).
