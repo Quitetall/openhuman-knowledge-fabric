@@ -1,15 +1,18 @@
 /**
  * Grant one person the authority to act: link their identity, assign a role, grant a clearance.
  *
- * WHY THIS IS A BOOTSTRAP ACT AND NOT A DISPATCHED ACTION
+ * WHY THIS IS A BOOTSTRAP ACT
  *
- * `org.person_clearance.granted_by_action` is a NOT NULL foreign key to `core.action`, so a
- * clearance must name the recorded act that granted it. The obvious way to satisfy that is to
- * dispatch a typed action — and it cannot be done, because dispatch binds authoritative
- * clearance before effects run. The first clearance in an organization would have to already
- * exist in order to be granted. So this runs on the OWNER connection, outside the dispatcher,
- * and still records a real `grant_person_clearance` action and still extends the audit chain
- * through `appendAuditEvent` — the same function the dispatcher uses, for the same chain.
+ * `grant_person_clearance` IS dispatchable in the ordinary case — an already-cleared person
+ * clearing a colleague — and `@kf/authorization` owns that effect. What cannot be dispatched is
+ * the FIRST grant in an organization: dispatch binds authoritative clearance before effects run,
+ * so there would have to be a clearance already in order to grant one. That is the case this
+ * command exists for.
+ *
+ * It runs on the OWNER connection, outside the dispatcher, and still records a real
+ * `grant_person_clearance` action, still extends the audit chain through `appendAuditEvent`, and
+ * still writes the clearance row through `insertPersonClearance` — the same three things the
+ * dispatched path does, by the same code.
  *
  * It is deliberately not an HTTP route and never will be. `linkIdentity` says it plainly:
  * "somebody decides that this account is that person, and that decision is recorded with who
@@ -224,13 +227,32 @@ export async function runGrantAuthority(
       };
     }
 
+    // The role the GRANTOR exercises, resolved rather than assumed. `core.action.acting_role_id`
+    // is "the role EXERCISED, not every role held" — passing the grantor's person id would put a
+    // person where every dispatched action puts a role assignment, and an auditor comparing
+    // bootstrap-written and dispatcher-written events would find the column means two things.
+    const grantorRole = await tx.maybeOne<{ id: string }>(
+      `select id from org.role_assignment
+        where subject_id = $1 and scope_id = $2
+          and valid_from <= now() and (valid_to is null or valid_to > now())
+        order by valid_from limit 1`,
+      [grant.grantedBy, grant.organizationId],
+    );
+    if (grantorRole === undefined) {
+      throw new Error(
+        `--granted-by ${grant.grantedBy} holds no active role assignment in organization ` +
+          `${grant.organizationId}. The record has to say which authority was exercised, and ` +
+          'somebody with no role in this organization exercised none.',
+      );
+    }
+
     const actionId = randomUUID();
     const effectiveAt = new Date();
     const day = effectiveAt.toISOString().slice(0, 10);
 
     await setTransactionContext(tx, {
       actorId: grant.grantedBy,
-      actingRoleId: grant.grantedBy,
+      actingRoleId: grantorRole.id,
       actionId,
       requestId: 'kf-grant-authority',
     });
@@ -244,6 +266,8 @@ export async function runGrantAuthority(
           grant.roleId,
           grant.classification,
           grant.grantedBy,
+          grant.identity?.issuer ?? null,
+          grant.identity?.subject ?? null,
         ]),
       )
       .digest('hex');
@@ -276,11 +300,14 @@ export async function runGrantAuthority(
       actionId,
       actionType: 'grant_person_clearance',
       actorId: grant.grantedBy,
-      actingRoleId: grant.grantedBy,
+      actingRoleId: grantorRole.id,
       objectIds: [grant.personId],
       effectiveAt,
       requestId: 'kf-grant-authority',
       reason: grant.reason,
+      // Null on purpose: this path materializes no object state, so there is no before/after to
+      // record. The dispatcher computes them from PreparedActionState; claiming a digest here
+      // would assert evidence that was never gathered.
       beforeDigest: null,
       afterDigest: null,
     });
@@ -366,6 +393,31 @@ async function currentAuthority(tx: Tx, grant: GrantAuthorityGrant): Promise<Cur
       order by valid_from limit 1`,
     [grant.personId, grant.roleId, grant.organizationId],
   );
+
+  // A clearance at a DIFFERENT classification is not "already held" — but neither can it simply
+  // be added. `person_clearance_no_overlap` is a GiST exclusion constraint on
+  // (subject_id, organization_id, tstzrange(valid_from, valid_to)), so inserting a second live
+  // clearance fails, and it fails as a raw constraint violation an operator has to decode.
+  // Changing somebody's ceiling means retiring the old grant deliberately, which is what
+  // org.person_clearance_retirement is for.
+  if (clearance === undefined) {
+    const conflicting = await tx.maybeOne<{ max_classification: string }>(
+      `select max_classification from org.person_clearance
+        where subject_id = $1 and organization_id = $2
+          and valid_from <= now() and (valid_to is null or valid_to > now())
+        limit 1`,
+      [grant.personId, grant.organizationId],
+    );
+    if (conflicting !== undefined) {
+      throw new Error(
+        `person ${grant.personId} already holds an active ${conflicting.max_classification} ` +
+          `clearance in organization ${grant.organizationId}. Retire it deliberately before ` +
+          `granting ${grant.classification}: two live clearances are refused by ` +
+          'person_clearance_no_overlap, and silently replacing one would change what somebody ' +
+          'can see without a record of the change.',
+      );
+    }
+  }
 
   let identity: { id: string; person_id: string } | undefined;
   if (grant.identity !== undefined) {

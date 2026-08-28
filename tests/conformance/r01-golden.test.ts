@@ -258,10 +258,10 @@ const DECLARED_ADDITIONS = {
     // satisfy the constraint was to cite an unrelated type, which is what the test harness does
     // for fixtures and which would be a false statement in a real audit log.
     //
-    // Deliberately not dispatchable: dispatch binds authoritative clearance before effects, so
-    // the first clearance in an organization cannot be granted by a dispatched action without
-    // circularity. It is an owner-credential bootstrap act that still records this type and
-    // still extends the audit chain.
+    // Dispatched normally — an already-cleared person clears a colleague. Only the FIRST grant
+    // in an organization cannot be, because dispatch binds authoritative clearance before
+    // effects run and there is none yet to bind; that one is an owner-credential bootstrap act
+    // recording this same type.
     'grant_person_clearance',
     'implement_capa',
     'implement_risk_control',

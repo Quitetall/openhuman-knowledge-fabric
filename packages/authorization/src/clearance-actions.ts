@@ -93,7 +93,7 @@ export const grantPersonClearanceEffect: ActionEffect = async (tx, request, obje
 };
 
 /** Action types this package owns, for the composition root. */
-export const AUTHORITY_ACTION_IDS: readonly string[] = ['grant_person_clearance'];
+export const AUTHORITY_ACTION_IDS = ['grant_person_clearance'] as const;
 
 export const AUTHORITY_EFFECTS: Readonly<Record<string, ActionEffect>> = {
   grant_person_clearance: grantPersonClearanceEffect,

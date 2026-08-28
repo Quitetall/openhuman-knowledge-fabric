@@ -88,8 +88,8 @@ export async function finalizeAction(
     actingRoleId: request.actingRoleId,
     objectIds: state.targetIds,
     effectiveAt: ctx.effectiveAt,
-    requestId: request.requestId ?? undefined,
-    reason: request.reason ?? undefined,
+    requestId: request.requestId,
+    reason: request.reason,
     beforeDigest: state.beforeDigest,
     afterDigest: state.afterDigest,
   });

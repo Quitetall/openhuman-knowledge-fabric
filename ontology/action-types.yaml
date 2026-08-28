@@ -267,11 +267,15 @@ action_types:
   # constraint was to cite an unrelated type — which writes a false statement into the audit log
   # of a system whose entire purpose is a truthful record.
   #
-  # It is NOT reachable through the normal dispatcher, and that is not an oversight. Dispatch
-  # binds authoritative clearance before effects run, so granting the FIRST clearance in an
-  # organization through a dispatched action is circular. It is applied by an owner-credential
-  # bootstrap act instead — `apps/api/src/admin/grant-authority.ts` — which still records this
-  # action and still extends the audit chain through the same helper the dispatcher uses.
+  # Dispatched normally in the ordinary case: an already-cleared person clears a colleague. The
+  # effect lives in @kf/authorization and is registered as the `authority` group.
+  #
+  # The one case that CANNOT be dispatched is the FIRST grant in an organization, because
+  # dispatch binds authoritative clearance before effects run and there is no clearance yet to
+  # bind. That one is made by an owner-credential bootstrap act —
+  # `apps/api/src/admin/grant-authority.ts` — which records this same action type, extends the
+  # audit chain through the same helper, and writes the row through the same
+  # `insertPersonClearance` the effect uses.
   - id: grant_person_clearance
     audited: true
     transactional: true
