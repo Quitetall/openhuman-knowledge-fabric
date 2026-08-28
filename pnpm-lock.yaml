@@ -123,6 +123,9 @@ importers:
       '@kf/authorization':
         specifier: workspace:*
         version: link:../../packages/authorization
+      '@kf/canonicalization':
+        specifier: workspace:*
+        version: link:../../packages/canonicalization
       '@kf/database':
         specifier: workspace:*
         version: link:../../packages/database

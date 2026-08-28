@@ -44,14 +44,16 @@ narrow but never widen.
 The Fabric holds **14 objects, all fixtures**. It is the sole source of nothing until real
 material is in it.
 
-`register_external_artifact` and the ingest policy exist (ADR 0012); the CLI that drives them
-does not. `apps/api/src/ingest/plan.ts` is a pure planner — no database, no filesystem — so its
-refusals are already tested and falsified.
+`register_external_artifact` and the ingest policy exist (ADR 0012). `kf ingest` now drives both
+that reference action and `attach_evidence` copy action. `apps/api/src/ingest/plan.ts` remains a
+pure planner — no database, no filesystem — so its refusals happen before any side effect and
+are tested and falsified.
 
-**Written down:** ADR 0012, the planner's own module comment, and
-[`handoff-ingest-cli.md`](handoff-ingest-cli.md) — a task brief with the payload contracts, the
-spine to copy, and the acceptance criteria.
-**Blocked on:** nothing. Needs the CLI and files.
+**Written down:** ADR 0012, the planner and CLI module contracts, and
+[`handoff-ingest-cli.md`](handoff-ingest-cli.md) — payload contracts, identity modes, manifest
+shape, acceptance criteria, and traps.
+**Blocked on:** nothing for local ingest. A safe dogfood batch still needs an operator-selected,
+non-PHI corpus and the usual authority clearance.
 
 ### 2 · A running service — blocked on a decision, not on work
 

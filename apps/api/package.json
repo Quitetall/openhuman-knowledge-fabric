@@ -5,6 +5,9 @@
   "type": "module",
   "description": "Knowledge Fabric HTTP API \u2014 typed reads and typed actions",
   "main": "./dist/server.js",
+  "bin": {
+    "kf": "./dist/cli.js"
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
@@ -17,6 +20,7 @@
     "@kf/agent-tools": "workspace:*",
     "@kf/artifacts": "workspace:*",
     "@kf/authorization": "workspace:*",
+    "@kf/canonicalization": "workspace:*",
     "@kf/database": "workspace:*",
     "@kf/documents": "workspace:*",
     "@kf/domain": "workspace:*",

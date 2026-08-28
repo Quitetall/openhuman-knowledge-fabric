@@ -8,11 +8,46 @@ failure this document exists to prevent.
 
 ## The job in one sentence
 
-Write the command that drives `planIngest` — the planner exists and is tested, nothing calls it.
+`kf ingest` now drives `planIngest` and the typed document actions. The planner remains the first
+boundary: refusal happens before database pools, source files, or object storage are touched.
 
 ```
-kf ingest --mode=copy|reference --classification=<id> [--revision=<label>] [--kind=<k>] <paths...>
+kf ingest --mode=copy|reference --classification=<id> --identity=dev|oidc \
+  [--revision=<label>] [--kind=<k>] [--reference-manifest=<file>] \
+  [--organization=<uuid> --acting-role=<uuid> --token-file=<file>] [--reason=<text>] \
+  [--json] <paths...>
 ```
+
+Run `pnpm kf ingest ...` from repository root (or build and invoke the API package bin as
+`kf ingest ...`). The root script builds API dependencies before dispatching the command.
+Development identity requires `NODE_ENV=development`, `KF_ALLOW_FIXED_IDENTITY=1`, and the
+three explicit `KF_DEV_*` UUIDs. OIDC requires the existing `TokenVerifier` configuration,
+`--organization`, `--acting-role`, and a permission-checked `--token-file`; bearer values are
+never accepted inline or printed.
+
+Reference metadata is a JSON object with exactly one entry per CLI path:
+
+```json
+{
+  "entries": [
+    {
+      "path": "vendor/part.pdf",
+      "source_system": "document_system",
+      "authority": "evidence",
+      "locator_system": "vendor-portal",
+      "external_id": "ADS-1",
+      "title": "Part datasheet",
+      "uri": "https://vendor.example/ADS-1"
+    }
+  ]
+}
+```
+
+Paths are matched after lexical `resolve()` from invocation cwd. `title` and `uri` are optional;
+`--revision` and `--kind` apply to the whole batch. Reference mode hashes files but makes no
+object-store call; copy mode stores under `ingest/<organization>/<sha256>` with conditional
+create and exact upload verification. All action rows share one transaction and deterministic
+content-derived idempotency keys.
 
 ## Why this task and not another
 
@@ -30,6 +65,7 @@ available test of whether relevance works at all. Do this before building anythi
 | thing                        | where                                                          | state                                      |
 | ---------------------------- | -------------------------------------------------------------- | ------------------------------------------ |
 | The planner                  | `apps/api/src/ingest/plan.ts`                                  | done, pure, 15 tests, all guards falsified |
+| The CLI                      | `apps/api/src/ingest/cli.ts`, `apps/api/src/cli.ts`            | done, copy/reference paths and identities  |
 | The policy and its reasoning | `docs/decisions/0012-file-ingestion.md`                        | accepted                                   |
 | The reference-mode action    | `packages/documents/src/internal/external-artifact-actions.ts` | done, wired                                |
 | The copy-mode action         | `attach_evidence`, same package                                | pre-existing                               |
@@ -72,7 +108,7 @@ the reason the other action had to exist.
 `apps/api/src/dogfood/runtime.ts` is the working model for a command that mutates the Fabric.
 Take its shape:
 
-1. `createPool` on the owner URL, `withTransaction`.
+1. `createPool` on owner and constrained application URLs, `withTransaction`.
 2. `setResolvedAccessContext(tx, {subjectId, assignmentId, organizationId, requestedClassification})`
    and **check the returned decision** before staging any bytes.
 3. Dispatch through `createFabricTransactionalDispatcher` with
@@ -95,6 +131,9 @@ swallow the second.
   non-null `revision_label`, plus one `content.external_locator` row.
 - Re-running the same batch does not duplicate objects. `attach_evidence` staging is already
   content-addressed with conditional create; match that property rather than assuming it.
+- A reference manifest has exactly one entry per path and records no object-store write.
+- Development fixed identity and OIDC identity both reach the same owner preflight and action
+  transaction; OIDC tokens are read from a permission-checked file.
 - `pnpm gate` green, and **every new guard falsified** — remove the check, watch the specific
   test go red, restore. See below.
 
@@ -134,3 +173,11 @@ findings you skipped, and why, in the follow-up commit message.
   source of truth.
 - Moving the reference-only rule list into the ontology. It is a short, deliberately readable list
   in code; revisit only if it grows.
+
+## Walked implementation surface
+
+Public parser and manifest seams are covered by `apps/api/src/ingest/cli.test.ts`. Runtime action
+coverage belongs to the existing database/end-to-end harness; a live run should use only
+non-PHI, organization-owned files after `pnpm gate` passes. The CLI deliberately adds no watched
+folder, web viewer, or cleanup API; those remain outside this handoff and under the Warrant's
+deferred work.
