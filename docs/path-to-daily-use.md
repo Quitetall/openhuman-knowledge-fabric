@@ -102,8 +102,14 @@ Markdown or HTML, with PDF and DOCX derived through pinned pandoc.
 
 The runtime does the work. The button is thin.
 
-**Written down:** ADR 0011, "Runtime surfaces".
-**Blocked on:** steps 2 and 3.
+Compilation has now been driven end to end through an authenticated session — `POST
+/master-record/compile` returned `201` with an audit digest, and `GET /master-record` returned the
+compiled claim. But see "the one measurement" below: recompiling after a **relevance-only** change
+returns `500`, and the read surface reports `stale: false` while serving the older sectioning. Both
+need deciding before this is a button anybody presses twice.
+
+**Written down:** ADR 0011, "Runtime surfaces"; the defect and its reproducer below.
+**Blocked on:** steps 2 and 3, plus the recompilation defect.
 
 ### 5 · Filesystem presence — deferred with a reason that expires
 
@@ -139,19 +145,59 @@ what actually hurt.
 
 ---
 
-## The one measurement that would change the most
+## The one measurement that would change the most — RUN 2026-08-28, and it did
 
-The compiled master record contains **1 item in `your_record`, and it is the person's own node**;
-the other 13 are `org_view`. Every refusal path has zero rows — no withholdings, no entitlement
-exclusions, no link revocations.
+This section used to say: ingest real material, and if `your_record` stops being a single
+self-reference, relevance works. **That test cannot fire, and the reason matters more than the
+result.**
 
-That is expected for a fixture database where the operator authored nothing. It is **also**
-exactly what a broken relevance closure would produce, and the current data cannot tell the two
-apart.
+It was run properly for the first time on 2026-08-28: a record compiled through a real
+authenticated OIDC session (`POST /master-record/compile` → `201`), against a database holding
+real ingested artifacts rather than only fixtures. The result was **18 items, 17 `org_view`, 1
+`your_record` — still just the person's own node.**
 
-So step 1 is worth more than a corpus: ingesting real material and seeing whether `your_record`
-stops being a single self-reference is the cheapest available test of whether relevance works at
-all. Do that before building anything on top of it.
+**`core.relation` is empty. Zero edges, in the whole fabric.** Relevance is a graph closure that
+starts at the person and walks `core.relation`; with no edges it cannot reach anything, so one
+item is arithmetically correct and would stay correct after ingesting a thousand files. Ingest
+creates artifacts and creates no relations. `registry.relation_type` declares **23 types with
+`person_anchor`**, each with a propagation class and depth — a careful policy with no input.
+
+Exactly **one production path writes `core.relation`**:
+`packages/work-control/src/internal/decision-materializers.ts`. Every other writer in the tree is
+a test.
+
+So the real gap under "one button to your master record" is not the corpus and not the closure —
+it is that **nothing anchors records to people**. Until something does, every person's master
+record is the org view plus themselves.
+
+### And the experiment found a defect
+
+Inserting one `performed_by` edge (artifact → person, the direction
+`authority_one_hop_up` actually follows) and recompiling returns **`500 internal_error`**:
+
+```
+duplicate key value violates unique constraint
+  "master_record_person_id_organization_id_permission_digest_key"
+```
+
+`content.master_record` is `unique (person_id, organization_id, permission_digest)` — one record
+per person per **permission set**. But a record's content also depends on the relevance closure,
+which is not in that digest. So a change that alters what is in `your_record` without altering
+what the person may see **cannot be recompiled at all**, and the failure surfaces as an
+unexplained 500.
+
+The worse half is quieter: `stale` is computed only by comparing the stored manifest's permission
+set against the current one, so `GET /master-record` went on returning the old sectioning with
+**`stale: false`** — reporting the record current while a relevance change sat unrepresentable
+behind it.
+
+Confirmed by the data: the two compilations on this workstation carry **different** permission
+digests (the ingest grew the permitted set), which is why the first succeeded. The second changed
+only relevance, reused the digest, and collided.
+
+No test covers this: every existing test compiles for a different person, or once per person.
+That is how it survived 1396 passing tests. The experiment edge was removed afterwards — a false
+`performed_by` claim must not stay in a records system.
 
 ## Where to go next
 
