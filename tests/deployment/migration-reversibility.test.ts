@@ -190,11 +190,17 @@ describe('the runbook describes the floor that actually exists', () => {
     seventeen: 17,
     eighteen: 18,
     nineteen: 19,
+    twenty: 20,
+    'twenty-one': 21,
+    'twenty-two': 22,
+    'twenty-three': 23,
+    'twenty-four': 24,
+    'twenty-five': 25,
   };
 
   it('states the right number of forward-only migrations', () => {
     const document = readFileSync(join(ROOT, 'docs', 'deployment', 'private-host.md'), 'utf8');
-    const word = /\*\*The floor[^]*?(\w+) migrations are one-way/.exec(document)?.[1];
+    const word = /\*\*The floor[^]*?([\w-]+) migrations are one-way/.exec(document)?.[1];
     expect(
       word,
       'the forward-only paragraph moved or was reworded; this guard is now blind',

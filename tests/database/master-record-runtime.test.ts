@@ -3,9 +3,11 @@ import Fastify from 'fastify';
 import { generateKeyPairSync, randomUUID, sign as edSign } from 'node:crypto';
 import {
   createDocumentActionAtoms,
+  deriveMasterRecordSections,
   latestMasterRecord,
   masterRecordItems,
   masterRecordWithholdings,
+  type MasterRecordManifest,
 } from '@kf/documents';
 import {
   compileAndRecordMasterRecord,
@@ -303,7 +305,7 @@ describe('master-record runtime', () => {
         recordedByAction: actionId,
       });
     });
-    expect(first.manifest.format).toBe('kf-master-record-v1');
+    expect(first.manifest.format).toBe('kf-master-record-v2');
     expect(first.manifest.included.length).toBeGreaterThan(0);
     const subjectMember = first.manifest.included.find(
       (member) => member.objectId === fixtures.reviewerId,
@@ -313,17 +315,16 @@ describe('master-record runtime', () => {
       'org.person': expect.objectContaining({ id: fixtures.reviewerId }),
     });
     expect(first.manifest.measurements?.permissionMemberCount).toBe(first.manifest.included.length);
-    expect(first.manifest.measurements?.relevantMemberCount).toBe(first.relevant.length);
-    expect(first.manifest.measurements?.organizationViewMemberCount).toBe(
-      first.organizationView.length,
-    );
-    expect(first.manifest.measurements?.relevanceFanoutByAnchorType).toEqual(expect.any(Object));
-    expect(first.manifest.measurements?.relevanceFanoutByPropagationClass).toEqual(
-      expect.any(Object),
-    );
-    expect(first.relevant.length + first.organizationView.length).toBe(
+    // Sectioning is derived (ADR 0013): it lives beside the manifest, never inside it.
+    expect(first.sections.relevantMemberCount).toBe(first.sections.relevant.length);
+    expect(first.sections.organizationViewMemberCount).toBe(first.sections.organizationView.length);
+    expect(first.sections.relevanceFanoutByAnchorType).toEqual(expect.any(Object));
+    expect(first.sections.relevanceFanoutByPropagationClass).toEqual(expect.any(Object));
+    expect(first.sections.relevant.length + first.sections.organizationView.length).toBe(
       first.manifest.included.length,
     );
+    expect('sections' in first.manifest).toBe(false);
+    expect(first.manifest.corpusDigest).toMatch(/^[0-9a-f]{64}$/);
 
     const withheldObject = first.manifest.included[0]!;
     await withTransaction(harness.adminPool, async (tx) => {
@@ -1053,18 +1054,14 @@ describe('master-record runtime', () => {
     });
     expect(compiled.status).toBe('applied');
 
-    const manifest = await withTransaction(harness.adminPool, (tx) =>
-      latestMasterRecord(tx, fixtures.reviewerId, fixtures.organizationId),
-    );
-    const measurements = (
-      manifest?.['manifest'] as {
-        measurements?: { relevanceFanoutByAnchorType?: Record<string, number> };
-      }
-    ).measurements;
-    expect(measurements).toEqual(
-      expect.objectContaining({
-        relevanceFanoutByAnchorType: expect.objectContaining({ produces: expect.any(Number) }),
-      }),
+    // Fan-out is a property of the sectioning, which is derived from the current graph
+    // (ADR 0013) — it is measured on the same persisted claim, not stored inside it.
+    const sections = await withTransaction(harness.adminPool, async (tx) => {
+      const record = await latestMasterRecord(tx, fixtures.reviewerId, fixtures.organizationId);
+      return deriveMasterRecordSections(tx, record?.['manifest'] as MasterRecordManifest);
+    });
+    expect(sections.relevanceFanoutByAnchorType).toEqual(
+      expect.objectContaining({ produces: expect.any(Number) }),
     );
 
     const app = Fastify({ logger: false });

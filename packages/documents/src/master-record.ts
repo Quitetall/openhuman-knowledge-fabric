@@ -1,4 +1,4 @@
-import { canonicalize, digest } from '@kf/canonicalization';
+import { canonicalize, digestBytes } from '@kf/canonicalization';
 
 export type MasterRecordClassification = 'public' | 'internal' | 'confidential' | 'restricted';
 
@@ -54,35 +54,58 @@ export interface MasterRecordWithheldLedger {
   readonly thirdPartyCounts: Readonly<Record<string, number>>;
 }
 
+export type MasterRecordFormat = 'kf-master-record-v1' | 'kf-master-record-v2';
+
+/**
+ * The claim. Its identity is `corpusDigest` — the exact authorized corpus — and nothing else
+ * (ADR 0013). Sections are NOT here: which members are "yours" is decided by the relevance
+ * closure over the current relation graph, at read time, and ADR 0011 already said sections
+ * are presentation partitions rather than membership. A `sections` field appears only on v1
+ * manifests written before this was true, and is never read as authoritative.
+ */
 export interface MasterRecordManifest {
-  readonly format: 'kf-master-record-v1';
+  readonly format: MasterRecordFormat;
   readonly personId: string;
   readonly organizationId: string;
   readonly compiledAt: string;
+  /** Identity: sorted (object, type, content digest, classification, state) over included ∪ withdrawn. */
+  readonly corpusDigest: string;
+  /** The access fact behind the corpus: object ids under the effective ceiling. Not identity. */
   readonly permissionDigest: string;
+  readonly effectiveClassification: MasterRecordClassification;
   readonly included: readonly PermissionMember[];
-  readonly sections: Readonly<{
-    readonly yourRecord: readonly string[];
-    readonly organizationView: readonly string[];
-  }>;
-  /** Measured cardinalities used for storage/rendering budgets; never membership filters. */
+  /** Cardinalities used for storage/rendering budgets; never membership filters. */
   readonly measurements?: Readonly<{
     readonly permissionMemberCount: number;
-    readonly relevantMemberCount: number;
-    readonly organizationViewMemberCount: number;
-    /** Relevance closure cardinality attributed to each person-anchoring relation type. */
-    readonly relevanceFanoutByAnchorType: Readonly<Record<string, number>>;
-    /** Aggregate closure cardinality by ontology propagation class. */
-    readonly relevanceFanoutByPropagationClass: Readonly<Record<string, number>>;
   }>;
   readonly withdrawn: readonly PermissionMember[];
   readonly withheld: MasterRecordWithheldLedger;
+  /** v1 only. Present on rows written before ADR 0013; ignored. */
+  readonly sections?: Readonly<{
+    readonly yourRecord: readonly string[];
+    readonly organizationView: readonly string[];
+  }>;
+}
+
+/**
+ * A sectioning of one manifest by the relevance closure. Derived, dated by whoever asked, and
+ * never stored as part of the claim — the same manifest sections differently as the relation
+ * graph changes, and that is the point.
+ */
+export interface MasterRecordSections {
+  readonly relevant: readonly PermissionMember[];
+  readonly organizationView: readonly PermissionMember[];
+  readonly relevantMemberCount: number;
+  readonly organizationViewMemberCount: number;
+  /** Relevance closure cardinality attributed to each person-anchoring relation type. */
+  readonly relevanceFanoutByAnchorType: Readonly<Record<string, number>>;
+  /** Aggregate closure cardinality by ontology propagation class. */
+  readonly relevanceFanoutByPropagationClass: Readonly<Record<string, number>>;
 }
 
 export interface MasterRecordCompilation {
   readonly manifest: MasterRecordManifest;
-  readonly relevant: readonly PermissionMember[];
-  readonly organizationView: readonly PermissionMember[];
+  readonly sections: MasterRecordSections;
 }
 
 export interface PermissionComparison {
@@ -104,9 +127,54 @@ function memberMap(members: readonly PermissionMember[]): Map<string, Permission
   return new Map(sortedMembers(members).map((member) => [memberKey(member), member]));
 }
 
-/** Canonical digest of the exact permitted set, independent of database row order. */
-export function permissionDigest(members: readonly PermissionMember[]): string {
-  return digest(sortedMembers(members));
+/**
+ * Line-canonical digests, reproducible by PostgreSQL. Fields are joined with the unit
+ * separator (0x1F; text cannot carry NUL), lines with a newline, and sorted in code-unit
+ * order — which is "C" collation for the ASCII ids, hex digests and type names these carry.
+ * `content.master_record_corpus_digest` and `content.master_record_permission_digest` compute
+ * the same values and the table CHECKs a stored identity against its manifest.
+ */
+const FIELD = '\u001f';
+
+// SAFETY: code-unit comparison equals PostgreSQL "C" collation only for ASCII. Every field
+// these digests carry — uuids, hex digests, registry ids, the two state words — is ASCII by
+// schema. A non-ASCII object_type or classification id would have to get past
+// registry.classification / core.object CHECKs first, and would then need this to become a
+// byte-wise comparison on UTF-8 to keep agreeing with the database.
+function byteOrder(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function lineDigest(lines: readonly string[]): string {
+  return digestBytes(Buffer.from([...lines].sort(byteOrder).join('\n'), 'utf8'));
+}
+
+/** Identity of a claim: the exact authorized corpus, including what was withdrawn from it. */
+export function corpusDigest(
+  included: readonly PermissionMember[],
+  // Required, not defaulted: withdrawal is identity (ADR 0013), and a caller that forgets the
+  // withdrawn members would compute a different claim without noticing.
+  withdrawn: readonly PermissionMember[],
+): string {
+  const line = (member: PermissionMember, state: 'included' | 'withdrawn'): string =>
+    [member.objectId, member.objectType, member.contentDigest, member.classification, state].join(
+      FIELD,
+    );
+  return lineDigest([
+    ...included.map((member) => line(member, 'included')),
+    ...withdrawn.map((member) => line(member, 'withdrawn')),
+  ]);
+}
+
+/** The access fact: which objects, under which ceiling. Explains a corpus change; is not identity. */
+export function permissionDigest(
+  members: readonly PermissionMember[],
+  effectiveClassification: MasterRecordClassification,
+): string {
+  return lineDigest([
+    `ceiling${FIELD}${effectiveClassification}`,
+    ...members.map((member) => `object${FIELD}${member.objectId}`),
+  ]);
 }
 
 /** Compare both directions. Equality requires no over- or under-disclosure. */
@@ -129,15 +197,15 @@ export function comparePermissionSet(
   };
 }
 
-/** Refuse serving a record whose permission set changed after compilation. */
-export function assertPermissionDigest(
-  manifest: Pick<MasterRecordManifest, 'permissionDigest'>,
+/** Refuse serving a record whose corpus changed after compilation. */
+export function assertCorpusDigest(
+  manifest: Pick<MasterRecordManifest, 'corpusDigest' | 'withdrawn'>,
   currentPermitted: readonly PermissionMember[],
 ): void {
-  const actual = permissionDigest(currentPermitted);
-  if (actual !== manifest.permissionDigest) {
+  const actual = corpusDigest(currentPermitted, manifest.withdrawn);
+  if (actual !== manifest.corpusDigest) {
     throw new Error(
-      `master record is stale: manifest permission digest ${manifest.permissionDigest} ` +
+      `master record is stale: manifest corpus digest ${manifest.corpusDigest} ` +
         `does not match current ${actual}`,
     );
   }
@@ -149,7 +217,7 @@ export function assertPermissionDigest(
  * operational consequences and must not collapse into a generic digest mismatch.
  */
 export function assertPermissionSetInvariant(
-  manifest: Pick<MasterRecordManifest, 'permissionDigest' | 'included'>,
+  manifest: Pick<MasterRecordManifest, 'corpusDigest' | 'included' | 'withdrawn'>,
   currentPermitted: readonly PermissionMember[],
 ): PermissionComparison {
   const comparison = comparePermissionSet(currentPermitted, manifest.included);
@@ -167,7 +235,7 @@ export function assertPermissionSetInvariant(
         .join(',')}`,
     );
   }
-  assertPermissionDigest(manifest, currentPermitted);
+  assertCorpusDigest(manifest, currentPermitted);
   return comparison;
 }
 
@@ -314,10 +382,36 @@ export function buildWithheldLedger(
   return { items: sortedItems, thirdPartyCounts };
 }
 
+/**
+ * Section one manifest by a relevance closure. Pure: the closure is whatever the caller
+ * enumerated, so the same claim can be sectioned again tomorrow against tomorrow's graph.
+ */
+export function sectionMasterRecord(
+  manifest: Pick<MasterRecordManifest, 'included'>,
+  relevance: {
+    readonly ids: ReadonlySet<string>;
+    readonly fanoutByAnchorType?: Readonly<Record<string, number>>;
+    readonly fanoutByPropagationClass?: Readonly<Record<string, number>>;
+  },
+): MasterRecordSections {
+  const included = sortedMembers(manifest.included);
+  const relevant = included.filter((member) => relevance.ids.has(member.objectId));
+  const organizationView = included.filter((member) => !relevance.ids.has(member.objectId));
+  return {
+    relevant,
+    organizationView,
+    relevantMemberCount: relevant.length,
+    organizationViewMemberCount: organizationView.length,
+    relevanceFanoutByAnchorType: relevance.fanoutByAnchorType ?? {},
+    relevanceFanoutByPropagationClass: relevance.fanoutByPropagationClass ?? {},
+  };
+}
+
 /** Build one organization-scoped record; cross-organization members are rejected. */
 export function compileMasterRecord(options: {
   readonly personId: string;
   readonly organizationId: string;
+  readonly effectiveClassification: MasterRecordClassification;
   readonly permitted: readonly PermissionMember[];
   readonly relevantIds: ReadonlySet<string>;
   readonly withdrawn?: readonly PermissionMember[];
@@ -336,31 +430,33 @@ export function compileMasterRecord(options: {
     );
   }
   const included = sortedMembers(options.permitted);
-  const relevant = included.filter((member) => options.relevantIds.has(member.objectId));
-  const organizationView = included.filter((member) => !options.relevantIds.has(member.objectId));
+  const withdrawn = sortedMembers(options.withdrawn ?? []);
   const manifest: MasterRecordManifest = {
-    format: 'kf-master-record-v1',
+    format: 'kf-master-record-v2',
     personId: options.personId,
     organizationId: options.organizationId,
     compiledAt: options.compiledAt ?? new Date().toISOString(),
-    permissionDigest: permissionDigest(included),
+    corpusDigest: corpusDigest(included, withdrawn),
+    permissionDigest: permissionDigest(included, options.effectiveClassification),
+    effectiveClassification: options.effectiveClassification,
     included,
-    sections: {
-      yourRecord: relevant.map((member) => member.objectId),
-      organizationView: organizationView.map((member) => member.objectId),
-    },
-    measurements: {
-      permissionMemberCount: included.length,
-      relevantMemberCount: relevant.length,
-      organizationViewMemberCount: organizationView.length,
-      relevanceFanoutByAnchorType: options.relevanceFanoutByAnchorType ?? {},
-      relevanceFanoutByPropagationClass: options.relevanceFanoutByPropagationClass ?? {},
-    },
-    withdrawn: sortedMembers(options.withdrawn ?? []),
+    measurements: { permissionMemberCount: included.length },
+    withdrawn,
     withheld: options.withheld ?? { items: [], thirdPartyCounts: {} },
   };
   // Keep a cheap canonicalization assertion beside the constructor. It catches accidental
   // addition of non-serializable fields before the manifest becomes a persisted claim.
   canonicalize(manifest);
-  return { manifest, relevant, organizationView };
+  return {
+    manifest,
+    sections: sectionMasterRecord(manifest, {
+      ids: options.relevantIds,
+      ...(options.relevanceFanoutByAnchorType === undefined
+        ? {}
+        : { fanoutByAnchorType: options.relevanceFanoutByAnchorType }),
+      ...(options.relevanceFanoutByPropagationClass === undefined
+        ? {}
+        : { fanoutByPropagationClass: options.relevanceFanoutByPropagationClass }),
+    }),
+  };
 }

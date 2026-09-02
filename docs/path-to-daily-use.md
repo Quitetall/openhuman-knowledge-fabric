@@ -104,12 +104,12 @@ The runtime does the work. The button is thin.
 
 Compilation has now been driven end to end through an authenticated session — `POST
 /master-record/compile` returned `201` with an audit digest, and `GET /master-record` returned the
-compiled claim. But see "the one measurement" below: recompiling after a **relevance-only** change
-returns `500`, and the read surface reports `stale: false` while serving the older sectioning. Both
-need deciding before this is a button anybody presses twice.
+compiled claim. The recompilation defect found below is **fixed by ADR 0013** (2026-09-01): a
+master record's identity is its corpus, an unchanged corpus compiles to the same record, and
+sections are derived from the current relation graph on every read rather than stored.
 
-**Written down:** ADR 0011, "Runtime surfaces"; the defect and its reproducer below.
-**Blocked on:** steps 2 and 3, plus the recompilation defect.
+**Written down:** ADR 0011, "Runtime surfaces"; ADR 0013 for identity.
+**Blocked on:** steps 2 and 3.
 
 ### 5 · Filesystem presence — deferred with a reason that expires
 
@@ -195,9 +195,15 @@ Confirmed by the data: the two compilations on this workstation carry **differen
 digests (the ingest grew the permitted set), which is why the first succeeded. The second changed
 only relevance, reused the digest, and collided.
 
-No test covers this: every existing test compiles for a different person, or once per person.
+No test covered this: every existing test compiled for a different person, or once per person.
 That is how it survived 1396 passing tests. The experiment edge was removed afterwards — a false
 `performed_by` claim must not stay in a records system.
+
+**Resolved 2026-09-01 by ADR 0013.** The key is now `(person, organization, corpus_digest)`; an
+unchanged corpus replays the existing record; sections are derived at read time, so the edge
+above now moves the artifact into `your_record` against the same claim with no recompilation;
+and the database CHECKs both digests against the manifest. Pinned by
+`tests/database/master-record-recompilation.test.ts`.
 
 ## Where to go next
 

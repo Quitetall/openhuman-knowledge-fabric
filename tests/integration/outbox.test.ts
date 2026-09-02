@@ -94,12 +94,24 @@ describe('delivery', () => {
     const payloadDigest = randomUUID().replaceAll('-', '').padEnd(64, '2');
     const { linkId, actionId } = await withTransaction(h.adminPool, async (tx) => {
       const master = await tx.one<{ id: string }>(
+        // A synthetic legacy (v1-shaped) claim. The identity columns are CHECKed against the
+        // manifest (ADR 0013), so they are computed by the same functions the check uses.
         `insert into content.master_record
-           (person_id, organization_id, effective_classification, permission_digest,
-            record_digest, manifest, compiled_at, recorded_by, recorded_by_action)
-         values ($1, $2, 'internal', $3, $4, '{}'::jsonb, now(), $1, $5)
+           (person_id, organization_id, effective_classification, corpus_digest,
+            permission_digest, record_digest, manifest, compiled_at, recorded_by,
+            recorded_by_action)
+         values ($1, $2, 'internal',
+                 content.master_record_corpus_digest($3::jsonb),
+                 content.master_record_permission_digest($3::jsonb, 'internal'),
+                 $4, $3::jsonb, now(), $1, $5)
          returning id`,
-        [f.reviewerId, f.organizationId, 'a'.repeat(64), recordDigest, f.clearanceActionId],
+        [
+          f.reviewerId,
+          f.organizationId,
+          JSON.stringify({ format: 'kf-master-record-v1' }),
+          recordDigest,
+          f.clearanceActionId,
+        ],
       );
       const link = await tx.one<{ id: string }>(
         `insert into content.master_record_link

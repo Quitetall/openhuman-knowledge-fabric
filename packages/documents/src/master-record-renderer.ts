@@ -1,9 +1,11 @@
 import { spawn } from 'node:child_process';
 import { canonicalize, digestBytes } from '@kf/canonicalization';
-import type {
-  MasterRecordCompilation,
-  MasterRecordManifest,
-  PermissionMember,
+import {
+  sectionMasterRecord,
+  type MasterRecordCompilation,
+  type MasterRecordManifest,
+  type MasterRecordSections,
+  type PermissionMember,
 } from './master-record.js';
 
 export type MasterRecordRenderTarget = 'markdown' | 'html' | 'pdf' | 'docx';
@@ -24,19 +26,14 @@ export interface MasterRecordRenderOptions {
   readonly maxInlineMembers?: number;
 }
 
-function manifestMeasurements(
+function measurements(
   manifest: MasterRecordManifest,
-  input: MasterRecordCompilation,
-): NonNullable<MasterRecordManifest['measurements']> {
-  return (
-    manifest.measurements ?? {
-      permissionMemberCount: manifest.included.length,
-      relevantMemberCount: input.relevant.length,
-      organizationViewMemberCount: input.organizationView.length,
-      relevanceFanoutByAnchorType: {},
-      relevanceFanoutByPropagationClass: {},
-    }
-  );
+  sections: MasterRecordSections,
+): { readonly permissionMemberCount: number; readonly relevantMemberCount: number } {
+  return {
+    permissionMemberCount: manifest.measurements?.permissionMemberCount ?? manifest.included.length,
+    relevantMemberCount: sections.relevantMemberCount,
+  };
 }
 
 const MEDIA_TYPES: Readonly<Record<MasterRecordRenderTarget, string>> = {
@@ -126,8 +123,8 @@ function renderMembersMarkdown(
 function assertRenderingCompleteness(input: MasterRecordCompilation): void {
   const included = new Set(input.manifest.included.map((member) => member.objectId));
   const rendered = new Set([
-    ...input.relevant.map((member) => member.objectId),
-    ...input.organizationView.map((member) => member.objectId),
+    ...input.sections.relevant.map((member) => member.objectId),
+    ...input.sections.organizationView.map((member) => member.objectId),
   ]);
   if (
     rendered.size !== included.size ||
@@ -152,10 +149,10 @@ export function renderMasterRecordMarkdown(
     throw new Error('master-record inline member ceiling must be a non-negative integer');
   }
   const budget = { remaining: maxInlineMembers, limit: maxInlineMembers };
-  const yourRecord = renderMembersMarkdown('Your record', input.relevant, budget);
+  const yourRecord = renderMembersMarkdown('Your record', input.sections.relevant, budget);
   const organizationView = renderMembersMarkdown(
     'Organization view',
-    input.organizationView,
+    input.sections.organizationView,
     budget,
   );
   const withdrawn = renderMembersMarkdown('Withdrawn', input.manifest.withdrawn, budget);
@@ -165,16 +162,17 @@ export function renderMasterRecordMarkdown(
     ...withdrawn.referenced,
   ];
   const { manifest } = input;
-  const measurements = manifestMeasurements(manifest, input);
+  const counts = measurements(manifest, input.sections);
   const lines = [
     `# Master record for ${markdownText(manifest.personId)}`,
     '',
     `- Format: \`${manifest.format}\``,
     `- Organization: \`${markdownText(manifest.organizationId)}\``,
     `- Compiled at: \`${markdownText(manifest.compiledAt)}\``,
+    `- Corpus digest: \`${manifest.corpusDigest}\``,
     `- Permission digest: \`${manifest.permissionDigest}\``,
-    `- Permission members: \`${String(measurements.permissionMemberCount)}\``,
-    `- Relevance members: \`${String(measurements.relevantMemberCount)}\``,
+    `- Permission members: \`${String(counts.permissionMemberCount)}\``,
+    `- Relevance members: \`${String(counts.relevantMemberCount)}\``,
     ...(Number.isFinite(maxInlineMembers)
       ? [
           `- Inline content ceiling: \`${String(maxInlineMembers)}\`; referenced members retain full content in the manifest.`,
@@ -269,8 +267,12 @@ export function renderMasterRecordHtml(
     throw new Error('master-record inline member ceiling must be a non-negative integer');
   }
   const budget = { remaining: maxInlineMembers, limit: maxInlineMembers };
-  const yourRecord = htmlSection('Your record', input.relevant, budget);
-  const organizationView = htmlSection('Organization view', input.organizationView, budget);
+  const yourRecord = htmlSection('Your record', input.sections.relevant, budget);
+  const organizationView = htmlSection(
+    'Organization view',
+    input.sections.organizationView,
+    budget,
+  );
   const withdrawn = htmlSection('Withdrawn', input.manifest.withdrawn, budget);
   const referenced = [
     ...yourRecord.referenced,
@@ -278,7 +280,7 @@ export function renderMasterRecordHtml(
     ...withdrawn.referenced,
   ];
   const manifest = input.manifest;
-  const measurements = manifestMeasurements(manifest, input);
+  const counts = measurements(manifest, input.sections);
   const withheldItems = manifest.withheld.items
     .map(
       (item) =>
@@ -308,7 +310,7 @@ export function renderMasterRecordHtml(
   const ceiling = Number.isFinite(maxInlineMembers)
     ? `<dt>Inline content ceiling</dt><dd>${String(maxInlineMembers)}; referenced members retain full content in the manifest</dd>`
     : '';
-  return `<!doctype html><html><head><meta charset="utf-8"><title>Master record ${htmlText(manifest.personId)}</title></head><body><main><h1>Master record for ${htmlText(manifest.personId)}</h1><dl><dt>Format</dt><dd><code>${htmlText(manifest.format)}</code></dd><dt>Organization</dt><dd><code>${htmlText(manifest.organizationId)}</code></dd><dt>Compiled at</dt><dd><code>${htmlText(manifest.compiledAt)}</code></dd><dt>Permission digest</dt><dd><code>${htmlText(manifest.permissionDigest)}</code></dd><dt>Permission members</dt><dd>${String(measurements.permissionMemberCount)}</dd><dt>Relevance members</dt><dd>${String(measurements.relevantMemberCount)}</dd>${ceiling}</dl>${yourRecord.html}${organizationView.html}${withdrawn.html}${referencedHtml}<section><h2>Withheld</h2>${withheld}</section></main></body></html>\n`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Master record ${htmlText(manifest.personId)}</title></head><body><main><h1>Master record for ${htmlText(manifest.personId)}</h1><dl><dt>Format</dt><dd><code>${htmlText(manifest.format)}</code></dd><dt>Organization</dt><dd><code>${htmlText(manifest.organizationId)}</code></dd><dt>Compiled at</dt><dd><code>${htmlText(manifest.compiledAt)}</code></dd><dt>Corpus digest</dt><dd><code>${htmlText(manifest.corpusDigest)}</code></dd><dt>Permission digest</dt><dd><code>${htmlText(manifest.permissionDigest)}</code></dd><dt>Permission members</dt><dd>${String(counts.permissionMemberCount)}</dd><dt>Relevance members</dt><dd>${String(counts.relevantMemberCount)}</dd>${ceiling}</dl>${yourRecord.html}${organizationView.html}${withdrawn.html}${referencedHtml}<section><h2>Withheld</h2>${withheld}</section></main></body></html>\n`;
 }
 
 function pandocOutput(
@@ -390,20 +392,14 @@ export async function renderMasterRecord(
   return { target, mediaType: MEDIA_TYPES[target], bytes, contentDigest: digestBytes(bytes) };
 }
 
-/** Build a compilation shell from a persisted manifest when a renderer runs outside compiler code. */
-export function compilationFromManifest(manifest: MasterRecordManifest): MasterRecordCompilation {
-  const yourRecord = new Set(manifest.sections.yourRecord);
-  const organizationView = new Set(manifest.sections.organizationView);
-  const assigned = new Set([...yourRecord, ...organizationView]);
-  if (
-    assigned.size !== manifest.included.length ||
-    manifest.included.some((member) => !assigned.has(member.objectId))
-  ) {
-    throw new Error('master-record manifest sections do not cover every included member');
-  }
-  return {
-    manifest,
-    relevant: manifest.included.filter((member) => yourRecord.has(member.objectId)),
-    organizationView: manifest.included.filter((member) => organizationView.has(member.objectId)),
-  };
+/**
+ * Build a renderable compilation from a persisted manifest and a relevance closure the caller
+ * enumerated against the CURRENT graph. Sections are never read back from the manifest — a v1
+ * manifest carries some, and they describe the graph as it was, not as it is.
+ */
+export function compilationFromManifest(
+  manifest: MasterRecordManifest,
+  relevance: Parameters<typeof sectionMasterRecord>[1],
+): MasterRecordCompilation {
+  return { manifest, sections: sectionMasterRecord(manifest, relevance) };
 }

@@ -2,11 +2,13 @@ import type { FastifyInstance } from 'fastify';
 import { setResolvedAccessContext, withTransaction } from '@kf/database';
 import {
   assertPermissionSetInvariant,
+  corpusDigest,
+  deriveMasterRecordSections,
   enumeratePermittedSet,
   latestMasterRecord,
   masterRecordItems,
   masterRecordWithholdings,
-  permissionDigest,
+  type MasterRecordManifest,
   type PermissionMember,
 } from '@kf/documents';
 import { unidentified } from '../actions.js';
@@ -58,9 +60,16 @@ export function registerMasterRecordRoute(
         const record = await latestMasterRecord(tx, identity.actorId, identity.organizationId);
         return { result, record };
       });
+      // 201 only when THIS action produced the claim. An unchanged corpus reuses the existing
+      // record (ADR 0013): the action is recorded, the claim is not new, and saying "created"
+      // would tell the caller a record exists that it already had.
+      const created =
+        !result.result.replayed &&
+        result.record !== undefined &&
+        String(result.record['recorded_by_action']) === String(result.result.actionId);
       return reply
-        .code(result.result.replayed ? 200 : 201)
-        .send({ ...result.result, record: result.record });
+        .code(created ? 201 : 200)
+        .send({ ...result.result, reused: !created, record: result.record });
     } catch (error: unknown) {
       const refusal = actionRejectionBody(error);
       if (refusal !== undefined) return reply.code(refusal.status).send(refusal.body);
@@ -95,42 +104,57 @@ export function registerMasterRecordRoute(
           identity.actorId,
           identity.organizationId,
         );
-        const manifest = record['manifest'];
-        const currentPermissionDigest = permissionDigest(permitted);
-        let stale = true;
-        if (
-          typeof manifest === 'object' &&
-          manifest !== null &&
-          'permissionDigest' in manifest &&
-          'included' in manifest &&
-          Array.isArray((manifest as { included?: unknown }).included)
-        ) {
-          const candidate = manifest as {
-            permissionDigest: unknown;
-            included: unknown[];
-          };
+        const manifest = record['manifest'] as Partial<MasterRecordManifest> | null;
+        const withdrawn = Array.isArray(manifest?.withdrawn) ? manifest.withdrawn : [];
+        const included = Array.isArray(manifest?.included) ? manifest.included : [];
+        // Staleness is a CORPUS question (ADR 0013): is the stored claim still the exact set the
+        // person is authorized to see? A change in sectioning is not staleness — sections are
+        // derived below against the graph as it is now, so a new edge is visible immediately.
+        const currentCorpusDigest = corpusDigest(permitted, withdrawn);
+        const stale = ((): boolean => {
           try {
             assertPermissionSetInvariant(
               {
-                permissionDigest: String(candidate.permissionDigest),
-                included: candidate.included as PermissionMember[],
+                corpusDigest: String(record['corpus_digest']),
+                included: included as PermissionMember[],
+                withdrawn,
               },
               permitted,
             );
-            stale = false;
+            return false;
           } catch {
-            stale = true;
+            return true;
           }
-        }
+        })();
         if (stale) {
-          return reply.code(409).send({ error: 'master_record_stale', currentPermissionDigest });
+          return reply.code(409).send({ error: 'master_record_stale', currentCorpusDigest });
         }
-        const items = await masterRecordItems(tx, String(record['id']));
+        const sections = await deriveMasterRecordSections(tx, {
+          personId: identity.actorId,
+          included: included as PermissionMember[],
+        });
+        const relevant = new Set(sections.relevant.map((member) => member.objectId));
+        const items = (await masterRecordItems(tx, String(record['id']))).map((item) => ({
+          ...item,
+          // Derived, not stored. `your_record` is what the relation graph says today.
+          section:
+            item['item_state'] === 'withdrawn'
+              ? 'withdrawn'
+              : relevant.has(String(item['object_id']))
+                ? 'your_record'
+                : 'org_view',
+        }));
         const withholdings = await masterRecordWithholdings(tx, String(record['id']));
         return reply.send({
           ...record,
           stale,
-          currentPermissionDigest,
+          currentCorpusDigest,
+          sections: {
+            relevantMemberCount: sections.relevantMemberCount,
+            organizationViewMemberCount: sections.organizationViewMemberCount,
+            relevanceFanoutByAnchorType: sections.relevanceFanoutByAnchorType,
+            relevanceFanoutByPropagationClass: sections.relevanceFanoutByPropagationClass,
+          },
           items,
           withholdings,
         });

@@ -144,8 +144,8 @@ export const DOCUMENT_SECTIONS = [
   {
     name: 'master-records',
     sql: `select id, person_id, organization_id, compilation_run_id, effective_classification,
-                 permission_digest, record_digest, manifest, compiled_at, recorded_at,
-                 recorded_by, recorded_by_action
+                 corpus_digest, permission_digest, record_digest, manifest, compiled_at,
+                 recorded_at, recorded_by, recorded_by_action
             from content.master_record order by organization_id, person_id, compiled_at, id`,
   },
   {
@@ -157,8 +157,8 @@ export const DOCUMENT_SECTIONS = [
   {
     name: 'master-record-items',
     sql: `select master_record_id, object_id, object_type, title, classification, content_digest,
-                 section, item_state, withdrawn_at, withdrawal_reason, content_payload
-            from content.master_record_item order by master_record_id, section, object_id`,
+                 item_state, withdrawn_at, withdrawal_reason, content_payload
+            from content.master_record_item order by master_record_id, item_state, object_id`,
   },
   {
     name: 'master-record-withholdings',

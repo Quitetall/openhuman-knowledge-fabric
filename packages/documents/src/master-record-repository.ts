@@ -1,3 +1,4 @@
+import { ActionRejected } from '@kf/actions';
 import { digest } from '@kf/canonicalization';
 import type { Tx } from '@kf/database';
 import type {
@@ -12,6 +13,9 @@ import {
   buildWithheldLedger,
   compileMasterRecord,
   relevanceClosureWithMetrics,
+  sectionMasterRecord,
+  type MasterRecordManifest,
+  type MasterRecordSections,
 } from './master-record.js';
 
 interface ObjectRow extends Record<string, unknown> {
@@ -196,8 +200,8 @@ export async function latestMasterRecord(
   return tx.maybeOne(
     `select /* master-record.latest */
             id, person_id, organization_id, compilation_run_id, effective_classification,
-            permission_digest, record_digest, manifest, compiled_at, recorded_at, recorded_by,
-            recorded_by_action
+            corpus_digest, permission_digest, record_digest, manifest, compiled_at, recorded_at,
+            recorded_by, recorded_by_action
        from content.master_record
       where person_id = $1 and organization_id = $2
       order by compiled_at desc, recorded_at desc, id desc
@@ -212,11 +216,11 @@ export async function masterRecordItems(
 ): Promise<readonly Record<string, unknown>[]> {
   return tx.query(
     `select /* master-record.items */
-            object_id, object_type, title, classification, content_digest, section, item_state,
+            object_id, object_type, title, classification, content_digest, item_state,
             withdrawn_at, withdrawal_reason, content_payload
        from content.master_record_item
       where master_record_id = $1
-      order by section, object_type, object_id`,
+      order by item_state, object_type, object_id`,
     [masterRecordId],
   );
 }
@@ -236,7 +240,24 @@ export async function masterRecordWithholdings(
 }
 
 /**
- * Compile and append one immutable master-record claim. All reads happen inside the caller's
+ * Section a stored claim against the relation graph as it is NOW. This is how a new
+ * `performed_by` edge reaches a person's record without a recompilation: the claim did not
+ * change, only the reading of it did (ADR 0013).
+ */
+export async function deriveMasterRecordSections(
+  tx: Tx,
+  manifest: Pick<MasterRecordManifest, 'personId' | 'included'>,
+): Promise<MasterRecordSections> {
+  const graph = await enumerateRelevanceGraph(tx);
+  const relevance = relevanceClosureWithMetrics(manifest.personId, graph.edges, graph.policies);
+  return sectionMasterRecord(manifest, relevance);
+}
+
+/**
+ * Compile and append one immutable master-record claim — or, when the corpus is already
+ * claimed, return that claim. Identity is the corpus (ADR 0013), so compiling twice against
+ * an unchanged corpus yields one record and a second action that recorded a decision to look,
+ * not a second row that would have collided. All reads happen inside the caller's
  * transaction after identity has bound RLS context; no caller-supplied object list is trusted.
  */
 export async function compileAndRecordMasterRecord(
@@ -250,7 +271,9 @@ export async function compileAndRecordMasterRecord(
     readonly compilationRunId?: string;
     readonly compiledAt?: string;
   },
-): Promise<MasterRecordCompilation & { readonly masterRecordId: string }> {
+): Promise<
+  MasterRecordCompilation & { readonly masterRecordId: string; readonly reused: boolean }
+> {
   const person = await tx.maybeOne<{ id: string }>(
     `select person.id
        from org.person person
@@ -385,6 +408,7 @@ export async function compileAndRecordMasterRecord(
   const compilation = compileMasterRecord({
     personId: options.personId,
     organizationId: options.organizationId,
+    effectiveClassification: options.effectiveClassification,
     permitted,
     relevantIds: relevance.ids,
     withdrawn,
@@ -394,17 +418,49 @@ export async function compileAndRecordMasterRecord(
     compiledAt: compilationTimestamp,
   });
 
+  // Same corpus, same claim. The lookup is by the identity the table enforces, so a repeat
+  // compilation can never reach the unique constraint and surface as a 500 — it finds the row
+  // the constraint exists to protect. Sections are still derived fresh below, because the
+  // graph may have moved even though the corpus did not.
+  const existing = await tx.maybeOne<{ id: string; effective_classification: string }>(
+    `select id, effective_classification from content.master_record
+      where person_id = $1 and organization_id = $2 and corpus_digest = $3`,
+    [options.personId, options.organizationId, compilation.manifest.corpusDigest],
+  );
+  if (existing !== undefined) {
+    // The ceiling is the one thing the corpus digest deliberately excludes: it is an access
+    // fact, recorded in permission_digest, not identity. So an identical corpus CAN be reached
+    // under two ceilings when every member sits at or below the lower one. Reusing the row
+    // would then hand back a claim whose recorded access fact belongs to a different request.
+    // That is refused loudly rather than papered over; it is an edge ADR 0013 names.
+    if (existing.effective_classification !== options.effectiveClassification) {
+      // A named refusal, not a bare Error: the route turns ActionRejected into a structured
+      // 4xx. A plain throw here would surface as 500 internal_error — the exact shape ADR 0013
+      // removed for the other collision.
+      throw new ActionRejected(
+        'precondition_failed',
+        `master record for this corpus already exists under ceiling ` +
+          `${existing.effective_classification}; compiling the same corpus under ` +
+          `${options.effectiveClassification} would reuse a claim whose recorded access fact ` +
+          'belongs to a different request (ADR 0013)',
+      );
+    }
+    return { ...compilation, masterRecordId: existing.id, reused: true };
+  }
+
   const master = await tx.one<{ id: string }>(
     `insert into content.master_record
        (person_id, organization_id, compilation_run_id, effective_classification,
-        permission_digest, record_digest, manifest, compiled_at, recorded_by, recorded_by_action)
-     values ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10)
+        corpus_digest, permission_digest, record_digest, manifest, compiled_at, recorded_by,
+        recorded_by_action)
+     values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11)
      returning id`,
     [
       options.personId,
       options.organizationId,
       options.compilationRunId ?? null,
       options.effectiveClassification,
+      compilation.manifest.corpusDigest,
       compilation.manifest.permissionDigest,
       digest(compilation.manifest),
       JSON.stringify(compilation.manifest),
@@ -414,13 +470,12 @@ export async function compileAndRecordMasterRecord(
     ],
   );
 
-  const relevant = new Set(compilation.relevant.map((member) => member.objectId));
   for (const member of compilation.manifest.included) {
     await tx.query(
       `insert into content.master_record_item
          (master_record_id, object_id, object_type, title, classification, content_digest,
-          section, item_state, content_payload)
-       values ($1,$2,$3,$4,$5,$6,$7,'included',$8::jsonb)`,
+          item_state, content_payload)
+       values ($1,$2,$3,$4,$5,$6,'included',$7::jsonb)`,
       [
         master.id,
         member.objectId,
@@ -428,7 +483,6 @@ export async function compileAndRecordMasterRecord(
         member.title ?? member.objectType,
         member.classification,
         member.contentDigest,
-        relevant.has(member.objectId) ? 'your_record' : 'org_view',
         JSON.stringify(member.content ?? {}),
       ],
     );
@@ -437,8 +491,8 @@ export async function compileAndRecordMasterRecord(
     await tx.query(
       `insert into content.master_record_item
          (master_record_id, object_id, object_type, title, classification, content_digest,
-          section, item_state, withdrawn_at, withdrawal_reason, content_payload)
-       values ($1,$2,$3,$4,$5,$6,'withdrawn','withdrawn',now(),$7,$8::jsonb)`,
+          item_state, withdrawn_at, withdrawal_reason, content_payload)
+       values ($1,$2,$3,$4,$5,$6,'withdrawn',now(),$7,$8::jsonb)`,
       [
         master.id,
         member.objectId,
@@ -467,5 +521,5 @@ export async function compileAndRecordMasterRecord(
       [master.id, options.recordedBy, count],
     );
   }
-  return { ...compilation, masterRecordId: master.id };
+  return { ...compilation, masterRecordId: master.id, reused: false };
 }

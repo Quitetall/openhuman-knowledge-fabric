@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
-  assertPermissionDigest,
+  assertCorpusDigest,
   assertPermissionSetInvariant,
   buildWithheldLedger,
   comparePermissionSet,
   compileMasterRecord,
+  corpusDigest,
+  permissionDigest,
   relevanceClosure,
   relevanceClosureWithMetrics,
+  sectionMasterRecord,
   type PermissionMember,
 } from './master-record.js';
 import {
@@ -42,17 +45,19 @@ describe('master-record permission invariant', () => {
     const compiled = compileMasterRecord({
       personId: 'person-a',
       organizationId: 'org-a',
+      effectiveClassification: 'restricted',
       permitted: [member('a')],
       relevantIds: new Set(['person-a', 'a']),
       compiledAt: '2026-08-26T00:00:00.000Z',
     });
-    expect(() => assertPermissionDigest(compiled.manifest, [member('b')])).toThrow(/stale/);
+    expect(() => assertCorpusDigest(compiled.manifest, [member('b')])).toThrow(/stale/);
   });
 
   it('proves the invariant gate refuses over-disclosure and under-disclosure', () => {
     const compiled = compileMasterRecord({
       personId: 'person-a',
       organizationId: 'org-a',
+      effectiveClassification: 'restricted',
       permitted: [member('a'), member('b')],
       relevantIds: new Set(['a']),
       compiledAt: '2026-08-26T00:00:00.000Z',
@@ -69,6 +74,72 @@ describe('master-record permission invariant', () => {
     expect(assertPermissionSetInvariant(compiled.manifest, [member('b'), member('a')])).toEqual(
       expect.objectContaining({ equal: true }),
     );
+  });
+});
+
+describe('master-record identity (ADR 0013)', () => {
+  it('is the corpus: members, content, classification and withdrawal state — in any order', () => {
+    const a = member('a');
+    const b = member('b');
+    expect(corpusDigest([a, b], [])).toBe(corpusDigest([b, a], []));
+    expect(corpusDigest([a, b], [])).not.toBe(corpusDigest([a], []));
+    expect(corpusDigest([a, { ...b, classification: 'confidential' }], [])).not.toBe(
+      corpusDigest([a, b], []),
+    );
+    // Withdrawal is identity: the same member withdrawn is a different claim from that member
+    // absent. Compared against [a] alone, so ignoring `withdrawn` entirely is caught.
+    expect(corpusDigest([a], [b])).not.toBe(corpusDigest([a], []));
+    expect(corpusDigest([a, b], [])).not.toBe(corpusDigest([a], [b]));
+    expect(corpusDigest([a, { ...b, contentDigest: 'f'.repeat(64) }], [])).not.toBe(
+      corpusDigest([a, b], []),
+    );
+  });
+
+  it('does not change when only relevance changes', () => {
+    // The whole point: sectioning is presentation. Two compilations of the same corpus with
+    // different closures are the same claim.
+    const base = { personId: 'person-a', organizationId: 'org-a' } as const;
+    const first = compileMasterRecord({
+      ...base,
+      effectiveClassification: 'restricted',
+      permitted: [member('a'), member('b')],
+      relevantIds: new Set(['a']),
+      compiledAt: '2026-08-26T00:00:00.000Z',
+    });
+    const second = compileMasterRecord({
+      ...base,
+      effectiveClassification: 'restricted',
+      permitted: [member('a'), member('b')],
+      relevantIds: new Set(['a', 'b']),
+      compiledAt: '2026-08-27T00:00:00.000Z',
+    });
+    expect(first.manifest.corpusDigest).toBe(second.manifest.corpusDigest);
+    expect(first.sections.relevantMemberCount).toBe(1);
+    expect(second.sections.relevantMemberCount).toBe(2);
+    expect('sections' in first.manifest).toBe(false);
+  });
+
+  it('separates the access fact from the corpus', () => {
+    const a = member('a');
+    expect(permissionDigest([a], 'restricted')).not.toBe(permissionDigest([a], 'internal'));
+    expect(permissionDigest([a], 'restricted')).toBe(permissionDigest([a], 'restricted'));
+    // Content drift changes the corpus but not the access fact.
+    const drifted = { ...a, contentDigest: 'e'.repeat(64) };
+    expect(permissionDigest([drifted], 'restricted')).toBe(permissionDigest([a], 'restricted'));
+    expect(corpusDigest([drifted], [])).not.toBe(corpusDigest([a], []));
+  });
+
+  it('sections a stored manifest against whatever closure the reader has now', () => {
+    const compiled = compileMasterRecord({
+      personId: 'person-a',
+      organizationId: 'org-a',
+      effectiveClassification: 'restricted',
+      permitted: [member('a'), member('b')],
+      relevantIds: new Set(),
+    });
+    const later = sectionMasterRecord(compiled.manifest, { ids: new Set(['b']) });
+    expect(later.relevant.map((m) => m.objectId)).toEqual(['b']);
+    expect(later.organizationView.map((m) => m.objectId)).toEqual(['a']);
   });
 });
 
@@ -344,6 +415,7 @@ describe('organization boundary', () => {
       compileMasterRecord({
         personId: 'person-a',
         organizationId: 'org-a',
+        effectiveClassification: 'restricted',
         permitted: [member('a'), member('b', 'org-b')],
         relevantIds: new Set(['a', 'b']),
       }),
@@ -355,6 +427,7 @@ describe('master-record renderings', () => {
   const compilation = compileMasterRecord({
     personId: 'person-a',
     organizationId: 'org-a',
+    effectiveClassification: 'restricted',
     permitted: [
       { ...member('z'), title: 'Org <shared>' },
       { ...member('a'), title: 'Own *document*' },
@@ -400,15 +473,19 @@ describe('master-record renderings', () => {
   });
 
   it('refuses a rendering that silently drops an included member', () => {
-    expect(() => renderMasterRecordMarkdown({ ...compilation, relevant: [] })).toThrow(
-      /sections do not cover every included member/,
-    );
+    expect(() =>
+      renderMasterRecordMarkdown({
+        ...compilation,
+        sections: { ...compilation.sections, relevant: [] },
+      }),
+    ).toThrow(/sections do not cover every included member/);
   });
 
   it('references oversized payloads without removing them from the master record', () => {
     const oversized = compileMasterRecord({
       personId: 'person-a',
       organizationId: 'org-a',
+      effectiveClassification: 'restricted',
       permitted: [
         { ...member('a'), content: { 'quality.controlled_document': { revision: 'R01' } } },
         { ...member('b'), content: { 'work.work_order': { scope: 'large' } } },

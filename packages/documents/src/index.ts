@@ -16,6 +16,7 @@ export * from './master-record-boundary.js';
 export * from './master-record-renderer.js';
 export { verifyMasterRecordLinkToken, type MasterRecordLinkClaims } from './master-record-links.js';
 export {
+  deriveMasterRecordSections,
   enumeratePermissionSet,
   enumeratePermittedSet,
   enumerateRelevanceGraph,

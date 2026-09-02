@@ -1,6 +1,6 @@
 # Master-record runtime and disclosure boundary
 
-**Status:** accepted for OW-WAR-0054 implementation
+**Status:** accepted for OW-WAR-0054 implementation; identity key amended by ADR 0013 (corpus, not permission digest; sections derived, not stored)
 **Date:** 2026-08-26
 **Decision owner:** Knowledge Fabric technical authority
 **Scope:** permission enumeration, master-record compilation, withholding, withdrawal, and KF-only delivery

@@ -79,8 +79,8 @@ export function registerMasterRecordLinkRoute(
 
       const record = await tx.maybeOne<Record<string, unknown>>(
         `select id, person_id, organization_id, compilation_run_id, effective_classification,
-                permission_digest, record_digest, manifest, compiled_at, recorded_at,
-                recorded_by, recorded_by_action
+                corpus_digest, permission_digest, record_digest, manifest, compiled_at,
+                recorded_at, recorded_by, recorded_by_action
            from content.master_record where id = $1`,
         [link.master_record_id],
       );
@@ -98,10 +98,14 @@ export function registerMasterRecordLinkRoute(
         if (typeof manifest !== 'object' || manifest === null) throw new Error('manifest missing');
         const included = (manifest as { included?: unknown }).included;
         if (!Array.isArray(included)) throw new Error('manifest members missing');
+        const withdrawn = (manifest as { withdrawn?: unknown }).withdrawn;
+        // Staleness is a corpus question (ADR 0013): the delivered claim must still be the
+        // exact set the person is authorized to see. Sectioning is not part of that.
         assertPermissionSetInvariant(
           {
-            permissionDigest: String(record['permission_digest']),
+            corpusDigest: String(record['corpus_digest']),
             included: included as PermissionMember[],
+            withdrawn: Array.isArray(withdrawn) ? (withdrawn as PermissionMember[]) : [],
           },
           permitted,
         );
@@ -145,6 +149,7 @@ export function registerMasterRecordLinkRoute(
               person_id: record['person_id'],
               organization_id: record['organization_id'],
               effective_classification: record['effective_classification'],
+              corpus_digest: record['corpus_digest'],
               permission_digest: record['permission_digest'],
               record_digest: record['record_digest'],
               compiled_at: record['compiled_at'],
