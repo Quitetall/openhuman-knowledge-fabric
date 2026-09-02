@@ -74,6 +74,7 @@
     "ml.run_seal",
     "ml.run_seal_signing_key",
     "ml.run_seal_signing_key_revocation",
+    "org.access_grant",
     "org.engagement",
     "org.organization",
     "org.person",

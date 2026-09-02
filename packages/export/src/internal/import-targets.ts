@@ -15,6 +15,7 @@ export const PRESERVATION_IMPORT_TARGETS = {
   'person-clearances': 'org.person_clearance',
   'person-clearance-retirements': 'org.person_clearance_retirement',
   'person-entitlement-exclusions': 'content.person_entitlement_exclusion',
+  'access-grants': 'org.access_grant',
   artifacts: 'content.artifact',
   'artifact-versions': 'content.artifact_version',
   'artifact-relationships': 'content.artifact_relationship',

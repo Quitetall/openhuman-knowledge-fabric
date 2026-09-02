@@ -252,6 +252,8 @@ const DECLARED_ADDITIONS = {
     'disposition_nonconformity',
     'disqualify_supplier',
     'execute_test',
+    // Access grants (ADR 0016): the recorded act behind `org.access_grant.granted_by_action`.
+    'grant_access',
     // Names the act that grants a person a clearance. R01 has no such type, yet
     // `org.person_clearance.granted_by_action` is a NOT NULL foreign key to `core.action` — so
     // the schema requires a recorded act that the vocabulary could not name. The only way to
@@ -317,6 +319,8 @@ const DECLARED_ADDITIONS = {
     'retire_risk_control',
     'revise_authored_fragment',
     'revise_document_composition',
+    // Access grants (ADR 0016): revocation is an update naming this act, never a delete.
+    'revoke_access',
     'revoke_secure_object_authority_key',
     'revoke_secure_object_capability',
     'submit_document_for_review',

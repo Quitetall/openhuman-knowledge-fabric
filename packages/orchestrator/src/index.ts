@@ -14,7 +14,12 @@ import {
   type DispatcherOptions,
   type PreconditionCheck,
 } from '@kf/actions';
-import { AUTHORITY_ACTION_IDS, AUTHORITY_EFFECTS } from '@kf/authorization';
+import {
+  ACCESS_ACTION_IDS,
+  ACCESS_EFFECTS,
+  AUTHORITY_ACTION_IDS,
+  AUTHORITY_EFFECTS,
+} from '@kf/authorization';
 import type { Pool } from '@kf/database';
 import type { DocumentActionAtoms } from '@kf/documents';
 import {
@@ -106,8 +111,8 @@ const BUILT_IN_ATOMS: readonly ActionAtoms[] = [
     // made by `apps/api/src/admin/grant-authority.ts`, which shares this package's single
     // `insertPersonClearance` rather than writing its own.
     name: 'authority',
-    ownedActions: AUTHORITY_ACTION_IDS,
-    effects: AUTHORITY_EFFECTS,
+    ownedActions: [...AUTHORITY_ACTION_IDS, ...ACCESS_ACTION_IDS],
+    effects: { ...AUTHORITY_EFFECTS, ...ACCESS_EFFECTS },
   },
   {
     name: 'work-control',

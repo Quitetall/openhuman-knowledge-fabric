@@ -45,7 +45,8 @@ const KNOWN_DRIFT = new Map<string, string>([
     'knowledge-fabric-1.0.0-draft.2',
     'OW-WAR-0054 adds relation propagation metadata and the compile_master_record action; ' +
       'ADR 0013 adds grant_person_clearance and the corpus projection definitions ' +
-      '(ontology/projections.yaml). The existing approval remains a historical snapshot; ' +
+      '(ontology/projections.yaml); ADR 0016 adds grant_access and revoke_access. ' +
+      'The existing approval remains a historical snapshot; ' +
       're-cut and fresh human approval are required before release.',
   ],
   [

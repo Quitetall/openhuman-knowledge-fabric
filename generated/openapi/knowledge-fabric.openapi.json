@@ -3,7 +3,7 @@
   "info": {
     "title": "OpenHuman Knowledge Fabric API",
     "version": "1.1.0-draft.1",
-    "description": "Generated from ontology source digest f6c3c4c71d4d8645567f9965daf566b86e8b038d17d2920ad3f31d9ae1a68a70."
+    "description": "Generated from ontology source digest 3338de3715ed410256529320caf10115f5596a97ca57a3270b5a37f497e05c79."
   },
   "paths": {
     "/objects/organization/{id}": {
@@ -3068,6 +3068,66 @@
         }
       }
     },
+    "/actions/grant_access": {
+      "post": {
+        "summary": "Execute grant_access",
+        "operationId": "grant_access",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/revoke_access": {
+      "post": {
+        "summary": "Execute revoke_access",
+        "operationId": "revoke_access",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
     "/actions/request_secure_object_access": {
       "post": {
         "summary": "Execute request_secure_object_access",
@@ -4833,6 +4893,8 @@
               "apply_document_proposal",
               "release_person_entitlement_exclusion",
               "grant_person_clearance",
+              "grant_access",
+              "revoke_access",
               "request_secure_object_access",
               "issue_secure_object_capability",
               "revoke_secure_object_capability",

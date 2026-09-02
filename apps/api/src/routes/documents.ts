@@ -14,6 +14,7 @@ import { registerMasterRecordRoute } from './documents/master-record-route.js';
 import { registerMasterRecordLinkRoute } from './documents/master-record-link-route.js';
 import { registerMasterRecordProjectionRoute } from './documents/master-record-projection-route.js';
 import { registerObjectViewRoute } from './documents/object-view-route.js';
+import { registerAccessExplanationRoute } from './documents/access-explanation-route.js';
 
 export type { DocumentRoutesOptions } from './documents/contracts.js';
 
@@ -26,6 +27,7 @@ export async function registerDocumentRoutes(
   registerMasterRecordLinkRoute(app, options);
   registerMasterRecordProjectionRoute(app, options);
   registerObjectViewRoute(app, options);
+  registerAccessExplanationRoute(app, options);
   registerPublicProjectionRoute(app, options);
   registerDocumentSourceRoute(app, options);
   registerDocumentWorkspaceRoute(app, options);

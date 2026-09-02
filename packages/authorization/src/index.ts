@@ -43,3 +43,22 @@ export {
   insertPersonClearance,
   type PersonClearanceGrant,
 } from './clearance-actions.js';
+
+export {
+  ACCESS_ACTION_IDS,
+  ACCESS_EFFECTS,
+  coveringGrants,
+  enumerateAccessCoverage,
+  explainAccess,
+  grantAccessEffect,
+  insertAccessGrant,
+  revokeAccessEffect,
+  type AccessCapability,
+  type AccessCoverage,
+  type AccessExplanation,
+  type AccessGrantRef,
+  type AccessGrantWrite,
+  type AccessPrincipalKind,
+  type AccessStep,
+  type AccessStepOutcome,
+} from './access-grants.js';

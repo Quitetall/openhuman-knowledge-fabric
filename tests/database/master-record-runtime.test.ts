@@ -778,6 +778,15 @@ describe('master-record runtime', () => {
          values ($1, 'Tombstone subject', $2)`,
         [subjectId, fixtures.organizationId],
       );
+      // Access is a grant (ADR 0016): a person with no role and no grant has an empty corpus.
+      // The subject holds no role, so an organization-scoped read grant gives them one.
+      await tx.query(
+        `insert into org.access_grant
+           (organization_id, principal_kind, principal_id, capability, scope_object_id,
+            granted_by, granted_by_action, reason)
+         values ($1, 'person', $2, 'read', $1, $3, $4, 'fixture: organization-wide read')`,
+        [fixtures.organizationId, subjectId, fixtures.reviewerId, fixtures.clearanceActionId],
+      );
     });
 
     const artifactId = await createObject(harness.adminPool, fixtures, {

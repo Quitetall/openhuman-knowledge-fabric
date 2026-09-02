@@ -1,6 +1,7 @@
 import { ActionRejected } from '@kf/actions';
 import { digest } from '@kf/canonicalization';
 import type { Tx } from '@kf/database';
+import { coveringGrants, enumerateAccessCoverage } from '@kf/authorization';
 import type {
   MasterRecordCompilation,
   MasterRecordWithheldItem,
@@ -143,6 +144,7 @@ export async function enumeratePermittedSet(
   organizationId: string,
 ): Promise<readonly PermissionMember[]> {
   const visible = await enumeratePermissionSet(tx, organizationId);
+  const coverage = await enumerateAccessCoverage(tx, personId, organizationId);
   const excluded = await tx.query<{ object_id: string } & Record<string, unknown>>(
     `select object_id from content.person_entitlement_exclusion
       where subject_id = $1 and organization_id = $2 and released_at is null
@@ -154,7 +156,11 @@ export async function enumeratePermittedSet(
     [personId, organizationId],
   );
   const excludedIds = new Set(excluded.map((row) => row.object_id));
-  return visible.filter((member) => !excludedIds.has(member.objectId));
+  return visible.filter(
+    (member) =>
+      !excludedIds.has(member.objectId) &&
+      coveringGrants(coverage, member.objectId, member.classification).length > 0,
+  );
 }
 
 /** Read visible graph edges and compiler-owned propagation policy under the same RLS context. */
@@ -286,7 +292,14 @@ export async function compileAndRecordMasterRecord(
   if (person === undefined) {
     throw new Error('master record person is not a member of the requested organization');
   }
-  const allVisible = await enumeratePermissionSet(tx, options.organizationId);
+  // Visible under RLS, then reachable under a live grant (ADR 0016): an organization-scoped
+  // role covers everything, an object-scoped grant covers that object. Nothing ungranted
+  // enters the corpus, so nothing ungranted can be "withheld" — it was never permitted.
+  const visibleUnderRls = await enumeratePermissionSet(tx, options.organizationId);
+  const coverage = await enumerateAccessCoverage(tx, options.personId, options.organizationId);
+  const allVisible = visibleUnderRls.filter(
+    (member) => coveringGrants(coverage, member.objectId, member.classification).length > 0,
+  );
   const graph = await enumerateRelevanceGraph(tx);
   const exclusions = await tx.query<ExclusionRow>(
     `select /* master-record.entitlement-exclusions */ object_id, reason_class, reason,

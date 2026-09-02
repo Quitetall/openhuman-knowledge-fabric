@@ -24,6 +24,7 @@ export const IMPORT_ORDER = [
   'outbox-events',
   'retention-holds',
   'person-entitlement-exclusions',
+  'access-grants',
   'artifacts',
   'artifact-versions',
   'artifact-relationships',

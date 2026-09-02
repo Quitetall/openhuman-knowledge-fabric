@@ -10,6 +10,7 @@
   "references": [
     { "path": "../actions" },
     { "path": "../artifacts" },
+    { "path": "../authorization" },
     { "path": "../canonicalization" },
     { "path": "../database" },
     { "path": "../projections" },

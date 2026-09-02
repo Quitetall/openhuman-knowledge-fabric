@@ -110,6 +110,15 @@ export const CORE_SECTIONS = [
             from org.person_clearance_retirement order by retired_at, clearance_id`,
   },
   {
+    // Ordered by id (uuidv7, time-ordered) so a delegated grant follows the one it came from.
+    name: 'access-grants',
+    sql: `select id, organization_id, principal_kind, principal_id, capability, scope_object_id,
+                 classification_ceiling, valid_from, valid_to, granted_by, granted_at,
+                 granted_by_action, delegated_from, reason, revoked_at, revoked_by,
+                 revoked_by_action, revocation_reason
+            from org.access_grant order by id`,
+  },
+  {
     name: 'recovery-objectives',
     sql: `select id, rpo_seconds, restore_drill_days, requires_pitr, declared_by,
                  declared_at, rationale, rto_seconds

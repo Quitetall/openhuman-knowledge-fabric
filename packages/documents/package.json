@@ -19,6 +19,7 @@
   "dependencies": {
     "@kf/actions": "workspace:*",
     "@kf/artifacts": "workspace:*",
+    "@kf/authorization": "workspace:*",
     "@kf/canonicalization": "workspace:*",
     "@kf/database": "workspace:*",
     "@kf/projections": "workspace:*",

@@ -365,6 +365,9 @@ importers:
       '@kf/artifacts':
         specifier: workspace:*
         version: link:../artifacts
+      '@kf/authorization':
+        specifier: workspace:*
+        version: link:../authorization
       '@kf/canonicalization':
         specifier: workspace:*
         version: link:../canonicalization

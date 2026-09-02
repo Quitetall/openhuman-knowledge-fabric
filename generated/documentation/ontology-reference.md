@@ -1,9 +1,9 @@
 <!-- GENERATED from ontology/ — do not edit. -->
-<!-- ontology_version: 1.1.0-draft.1 · source_digest: f6c3c4c71d4d8645567f9965daf566b86e8b038d17d2920ad3f31d9ae1a68a70 -->
+<!-- ontology_version: 1.1.0-draft.1 · source_digest: 3338de3715ed410256529320caf10115f5596a97ca57a3270b5a37f497e05c79 -->
 
 # Ontology reference
 
-Compiled from `ontology/`. 38 object types, 41 relation types, 108 action types, 21 state machines, 15 invariants, 4 corpus projections.
+Compiled from `ontology/`. 38 object types, 41 relation types, 110 action types, 21 state machines, 15 invariants, 4 corpus projections.
 
 ## Object types
 
@@ -157,6 +157,8 @@ Compiled from `ontology/`. 38 object types, 41 relation types, 108 action types,
 | `apply_document_proposal` | — |
 | `release_person_entitlement_exclusion` | — |
 | `grant_person_clearance` | — |
+| `grant_access` | — |
+| `revoke_access` | — |
 | `request_secure_object_access` | — |
 | `issue_secure_object_capability` | — |
 | `revoke_secure_object_capability` | — |

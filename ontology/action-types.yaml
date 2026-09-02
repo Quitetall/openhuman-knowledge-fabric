@@ -281,6 +281,20 @@ action_types:
     transactional: true
     drives: []
 
+  # Access grants (ADR 0016). `grant_access` targets the object being made reachable and names
+  # the principal (a person or a role assignment), the capability (read | act) and an optional
+  # classification ceiling in its payload; `org.access_grant.granted_by_action` is a NOT NULL
+  # foreign key to the recorded act. `revoke_access` targets the same scope object and names
+  # the grant; the row is updated, never deleted — what was permitted remains evidence.
+  - id: grant_access
+    audited: true
+    transactional: true
+    drives: []
+  - id: revoke_access
+    audited: true
+    transactional: true
+    drives: []
+
   # ── Federated Secure Object Authority ──────────────────────────────────────────────────
   # These actions target exactly one owning organization. Database triggers also require
   # their parameters to bind the exact opaque authority, immutable revision, digest,
