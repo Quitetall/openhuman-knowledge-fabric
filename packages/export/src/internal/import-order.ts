@@ -27,6 +27,8 @@ export const IMPORT_ORDER = [
   'access-grants',
   'artifacts',
   'artifact-versions',
+  'artifact-stores',
+  'artifact-locations',
   'artifact-relationships',
   'external-identifiers',
   'document-parses',

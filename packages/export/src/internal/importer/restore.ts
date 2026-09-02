@@ -31,6 +31,9 @@ export async function importExport(
     if (pkg.manifest.format_version === EXPORT_FORMAT_VERSION) {
       await tx.query('delete from quality.federated_source');
       await tx.query('delete from org.role');
+      // Migration 20260902000200 seeds the `working` store; the package carries every store
+      // the source declared, including that one.
+      await tx.query('delete from content.artifact_store');
     }
 
     const restored = await restoreSections(tx, pkg, importOrder);
@@ -39,6 +42,20 @@ export async function importExport(
         `insert into core.action_migration019_legacy (action_id)
          select action_id from unnest($1::uuid[]) restored(action_id)`,
         [restored.legacyActionIds],
+      );
+    }
+    if (pkg.manifest.format_version === '1') {
+      // A format-1 package predates storage locations (ADR 0017) and triggers are off during
+      // restore, so the working location every addressed version would have had is recorded
+      // here, exactly as the migration backfilled it.
+      await tx.query(
+        `insert into content.artifact_location
+           (version_id, store_id, role, uri, store_version, recorded_at)
+         select v.id, 'working', 'working', v.storage_uri, v.storage_version, v.created_at
+           from content.artifact_version v
+          where v.storage_uri is not null
+            and not exists (select 1 from content.artifact_location l
+                             where l.version_id = v.id and l.role = 'working')`,
       );
     }
     await assertLegacyActionProvenance(tx);

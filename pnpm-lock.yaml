@@ -303,6 +303,9 @@ importers:
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.1107.0
         version: 3.1107.0
+      '@kf/actions':
+        specifier: workspace:*
+        version: link:../actions
       '@kf/database':
         specifier: workspace:*
         version: link:../database
@@ -468,6 +471,9 @@ importers:
       '@kf/actions':
         specifier: workspace:*
         version: link:../actions
+      '@kf/artifacts':
+        specifier: workspace:*
+        version: link:../artifacts
       '@kf/authorization':
         specifier: workspace:*
         version: link:../authorization

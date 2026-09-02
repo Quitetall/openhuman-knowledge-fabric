@@ -21,6 +21,7 @@ import {
   AUTHORITY_EFFECTS,
 } from '@kf/authorization';
 import type { Pool } from '@kf/database';
+import { StoreRegistry, createStorageActionAtoms, type StorageActionAtoms } from '@kf/artifacts';
 import type { DocumentActionAtoms } from '@kf/documents';
 import {
   createMlActionAtoms,
@@ -134,6 +135,9 @@ export function fabricDispatcherOptions(
   documentAtoms?: DocumentActionAtoms,
   secureObjectAtoms: SecureObjectActionAtoms = createSecureObjectActionAtoms(),
   mlAtoms: MlActionAtoms = createMlActionAtoms(),
+  // With no configured stores the storage actions exist and refuse honestly ("store 'x' is
+  // not configured") rather than being an action nobody owns.
+  storageAtoms: StorageActionAtoms = createStorageActionAtoms(new StoreRegistry({})),
 ): Required<
   Pick<DispatcherOptions, 'allowedActions' | 'materializers' | 'effects' | 'preconditions'>
 > {
@@ -142,6 +146,7 @@ export function fabricDispatcherOptions(
     secureObjectAtoms,
     mlAtoms,
     ...(documentAtoms === undefined ? [] : [documentAtoms]),
+    storageAtoms,
   ]);
 }
 
@@ -150,8 +155,12 @@ export function createFabricDispatcher(
   documentAtoms?: DocumentActionAtoms,
   secureObjectAtoms?: SecureObjectActionAtoms,
   mlAtoms?: MlActionAtoms,
+  storageAtoms?: StorageActionAtoms,
 ) {
-  return createDispatcher(pool, fabricDispatcherOptions(documentAtoms, secureObjectAtoms, mlAtoms));
+  return createDispatcher(
+    pool,
+    fabricDispatcherOptions(documentAtoms, secureObjectAtoms, mlAtoms, storageAtoms),
+  );
 }
 
 /** Compose several typed actions under one caller-owned transaction. */
@@ -159,9 +168,10 @@ export function createFabricTransactionalDispatcher(
   documentAtoms?: DocumentActionAtoms,
   secureObjectAtoms?: SecureObjectActionAtoms,
   mlAtoms?: MlActionAtoms,
+  storageAtoms?: StorageActionAtoms,
 ) {
   return createTransactionalDispatcher(
-    fabricDispatcherOptions(documentAtoms, secureObjectAtoms, mlAtoms),
+    fabricDispatcherOptions(documentAtoms, secureObjectAtoms, mlAtoms, storageAtoms),
   );
 }
 
@@ -170,9 +180,10 @@ export function createFabricTransactionalPreflight(
   documentAtoms?: DocumentActionAtoms,
   secureObjectAtoms?: SecureObjectActionAtoms,
   mlAtoms?: MlActionAtoms,
+  storageAtoms?: StorageActionAtoms,
 ) {
   return createTransactionalPreflight(
-    fabricDispatcherOptions(documentAtoms, secureObjectAtoms, mlAtoms),
+    fabricDispatcherOptions(documentAtoms, secureObjectAtoms, mlAtoms, storageAtoms),
   );
 }
 

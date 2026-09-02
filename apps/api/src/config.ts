@@ -36,6 +36,8 @@ export interface ApiConfig {
     { readonly issuer: string; readonly audience: string; readonly jwksUri: string } | undefined;
   /** Evidence vault. Absent only in tests or intentionally metadata-only development. */
   readonly artifactStore?: S3Config;
+  /** A second, durable store (ADR 0017): GCS via S3 interop, or any S3-wire bucket. */
+  readonly durableStore?: S3Config;
   /** HMAC key used for short-lived master-record capability links. */
   readonly masterRecordLinkSecret?: string;
   /**
@@ -217,6 +219,46 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     }
   }
 
+  // The durable store is optional and independent of the working store; it is named
+  // `durable` in content.artifact_store when the app declares it.
+  const durableParts = [
+    'S3_DURABLE_ENDPOINT',
+    'S3_DURABLE_REGION',
+    'S3_DURABLE_ACCESS_KEY_ID',
+    'S3_DURABLE_BUCKET',
+  ].map((name) => env[name]);
+  const durableSet = durableParts.filter((value) => value !== undefined && value !== '');
+  const durableSecret =
+    (env['S3_DURABLE_SECRET_ACCESS_KEY'] !== undefined &&
+      env['S3_DURABLE_SECRET_ACCESS_KEY'] !== '') ||
+    (env['S3_DURABLE_SECRET_ACCESS_KEY_FILE'] !== undefined &&
+      env['S3_DURABLE_SECRET_ACCESS_KEY_FILE'] !== '');
+  if ((durableSet.length > 0 || durableSecret) && (durableSet.length !== 4 || !durableSecret)) {
+    throw new ConfigError(
+      'S3_DURABLE_ENDPOINT, S3_DURABLE_REGION, S3_DURABLE_ACCESS_KEY_ID, S3_DURABLE_BUCKET and ' +
+        'S3_DURABLE_SECRET_ACCESS_KEY[_FILE] must all be set, or none of them.',
+    );
+  }
+  let durableStore: S3Config | undefined;
+  if (durableSet.length === 4 && durableSecret) {
+    try {
+      durableStore = {
+        endpoint: durableParts[0]!,
+        region: durableParts[1]!,
+        accessKeyId: durableParts[2]!,
+        secretAccessKey: loadSecret('S3_DURABLE_SECRET_ACCESS_KEY', env, {
+          allowInline: inlineAllowed,
+        }),
+        bucket: durableParts[3]!,
+        forcePathStyle: env['S3_DURABLE_FORCE_PATH_STYLE'] !== 'false',
+      };
+    } catch (error: unknown) {
+      throw new ConfigError(error instanceof Error ? error.message : String(error), {
+        cause: error,
+      });
+    }
+  }
+
   let masterRecordLinkSecret: string | undefined;
   if (
     (env['KF_MASTER_RECORD_LINK_SECRET'] !== undefined &&
@@ -254,6 +296,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     tlsTerminatedUpstream,
     identity,
     ...(artifactStore === undefined ? {} : { artifactStore }),
+    ...(durableStore === undefined ? {} : { durableStore }),
     ...(masterRecordLinkSecret === undefined ? {} : { masterRecordLinkSecret }),
   };
 }

@@ -5,7 +5,9 @@
   "materializedTables": [
     "content.adr_decision_body",
     "content.artifact",
+    "content.artifact_location",
     "content.artifact_relationship",
+    "content.artifact_store",
     "content.artifact_version",
     "content.authored_fragment",
     "content.authored_fragment_revision",

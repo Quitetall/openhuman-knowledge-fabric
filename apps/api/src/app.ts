@@ -7,7 +7,12 @@
 
 import { loadProjectionDefinitions } from '@kf/projections';
 import Fastify, { type FastifyInstance } from 'fastify';
-import { S3ObjectStore, type ObjectStore } from '@kf/artifacts';
+import {
+  S3ObjectStore,
+  StoreRegistry,
+  createStorageActionAtoms,
+  type ObjectStore,
+} from '@kf/artifacts';
 import { createPool, withTransaction, type Pool } from '@kf/database';
 import { TokenVerifier } from '@kf/authorization';
 import {
@@ -162,9 +167,32 @@ export async function buildApp(
       objectStore === undefined
         ? undefined
         : createDocumentActionAtoms({ store: objectStore, parser });
-    const execute = createFabricDispatcher(pool, documentAtoms);
-    const executeInTransaction = createFabricTransactionalDispatcher(documentAtoms);
-    const preflightInTransaction = createFabricTransactionalPreflight(documentAtoms);
+    // Storage locations (ADR 0017): the working store is `working` in content.artifact_store;
+    // a configured durable store is `durable`. Both are reachable by the same S3 client.
+    const storageAtoms =
+      objectStore === undefined
+        ? undefined
+        : createStorageActionAtoms(
+            new StoreRegistry({
+              working: objectStore,
+              ...(config.durableStore === undefined
+                ? {}
+                : { durable: new S3ObjectStore(config.durableStore) }),
+            }),
+          );
+    const execute = createFabricDispatcher(pool, documentAtoms, undefined, undefined, storageAtoms);
+    const executeInTransaction = createFabricTransactionalDispatcher(
+      documentAtoms,
+      undefined,
+      undefined,
+      storageAtoms,
+    );
+    const preflightInTransaction = createFabricTransactionalPreflight(
+      documentAtoms,
+      undefined,
+      undefined,
+      storageAtoms,
+    );
     const verifier = config.identity === undefined ? undefined : new TokenVerifier(config.identity);
     const identify = createCallerIdentifier(pool, verifier);
     await registerActionRoutes(app, {

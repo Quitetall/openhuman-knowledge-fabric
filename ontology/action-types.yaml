@@ -295,6 +295,20 @@ action_types:
     transactional: true
     drives: []
 
+  # Storage locations (ADR 0017). `replicate_artifact_version` targets the artifact and names
+  # the version, target store and role (hot_cache | durable_copy | evidence_copy — never
+  # public_copy, which is a publication act) in its payload; the copy is verified on arrival.
+  # `verify_artifact_location` re-hashes the bytes at one location and records the outcome
+  # either way; a failed verification is the finding.
+  - id: replicate_artifact_version
+    audited: true
+    transactional: true
+    drives: []
+  - id: verify_artifact_location
+    audited: true
+    transactional: true
+    drives: []
+
   # ── Federated Secure Object Authority ──────────────────────────────────────────────────
   # These actions target exactly one owning organization. Database triggers also require
   # their parameters to bind the exact opaque authority, immutable revision, digest,

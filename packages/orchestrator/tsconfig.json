@@ -9,6 +9,7 @@
   "exclude": ["src/**/*.test.ts", "dist", "node_modules"],
   "references": [
     { "path": "../actions" },
+    { "path": "../artifacts" },
     { "path": "../authorization" },
     { "path": "../database" },
     { "path": "../documents" },

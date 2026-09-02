@@ -18,6 +18,8 @@ export const PRESERVATION_IMPORT_TARGETS = {
   'access-grants': 'org.access_grant',
   artifacts: 'content.artifact',
   'artifact-versions': 'content.artifact_version',
+  'artifact-stores': 'content.artifact_store',
+  'artifact-locations': 'content.artifact_location',
   'artifact-relationships': 'content.artifact_relationship',
   'external-identifiers': 'content.external_locator',
   'recovery-objectives': 'ops.recovery_objective',

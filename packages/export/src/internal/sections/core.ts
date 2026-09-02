@@ -70,6 +70,18 @@ export const CORE_SECTIONS = [
             from content.artifact_version order by artifact_id, version_no`,
   },
   {
+    name: 'artifact-stores',
+    sql: `select id, kind, label, writable, declared_at, notes
+            from content.artifact_store order by id`,
+  },
+  {
+    name: 'artifact-locations',
+    sql: `select id, version_id, store_id, role, uri, store_version, recorded_at, recorded_by,
+                 recorded_by_action, verified_at, verified_sha256, verification_failure,
+                 verified_by_action
+            from content.artifact_location order by version_id, role, store_id, id`,
+  },
+  {
     name: 'artifact-relationships',
     sql: `select id, from_version, to_version, relationship, created_at
             from content.artifact_relationship order by id`,

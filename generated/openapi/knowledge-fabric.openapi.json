@@ -3,7 +3,7 @@
   "info": {
     "title": "OpenHuman Knowledge Fabric API",
     "version": "1.1.0-draft.1",
-    "description": "Generated from ontology source digest 3338de3715ed410256529320caf10115f5596a97ca57a3270b5a37f497e05c79."
+    "description": "Generated from ontology source digest f29954456677cdb2f15b7c89ce1c298597d49da0e35bb8f1c88dea4d45e0f0e0."
   },
   "paths": {
     "/objects/organization/{id}": {
@@ -3128,6 +3128,66 @@
         }
       }
     },
+    "/actions/replicate_artifact_version": {
+      "post": {
+        "summary": "Execute replicate_artifact_version",
+        "operationId": "replicate_artifact_version",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/verify_artifact_location": {
+      "post": {
+        "summary": "Execute verify_artifact_location",
+        "operationId": "verify_artifact_location",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
     "/actions/request_secure_object_access": {
       "post": {
         "summary": "Execute request_secure_object_access",
@@ -4895,6 +4955,8 @@
               "grant_person_clearance",
               "grant_access",
               "revoke_access",
+              "replicate_artifact_version",
+              "verify_artifact_location",
               "request_secure_object_access",
               "issue_secure_object_capability",
               "revoke_secure_object_capability",

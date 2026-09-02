@@ -309,6 +309,8 @@ const DECLARED_ADDITIONS = {
     'release_person_entitlement_exclusion',
     'remove_equipment_from_service',
     'remove_physical_binding',
+    // Storage locations (ADR 0017): a verified copy of a version into a second store.
+    'replicate_artifact_version',
     'request_document_compilation',
     'request_secure_object_access',
     'request_secure_object_erasure',
@@ -328,6 +330,8 @@ const DECLARED_ADDITIONS = {
     'supersede_controlled_document',
     'supersede_test_definition',
     'triage_complaint',
+    // Storage locations (ADR 0017): re-hash one location; the outcome is recorded either way.
+    'verify_artifact_location',
     'verify_risk_control',
     'withdraw_controlled_document',
     'withdraw_interface_contract',
