@@ -33,6 +33,9 @@
       "path": "../../packages/documents"
     },
     {
+      "path": "../../packages/projections"
+    },
+    {
       "path": "../../packages/ml-registry"
     },
     {

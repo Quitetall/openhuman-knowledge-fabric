@@ -1,9 +1,9 @@
 <!-- GENERATED from ontology/ — do not edit. -->
-<!-- ontology_version: 1.1.0-draft.1 · source_digest: f6cb47b34c251067301c35868123c12dd6b6aabafeff9cbdd309cd18a9584790 -->
+<!-- ontology_version: 1.1.0-draft.1 · source_digest: 927960fdc24c7990824b6829f9467df74542200d9ed1b7e0372f6236ea1d551e -->
 
 # Ontology reference
 
-Compiled from `ontology/`. 38 object types, 41 relation types, 108 action types, 21 state machines, 15 invariants.
+Compiled from `ontology/`. 38 object types, 41 relation types, 108 action types, 21 state machines, 15 invariants, 3 corpus projections.
 
 ## Object types
 
@@ -579,3 +579,11 @@ stateDiagram-v2
 | `KF-DOC-003` | database_constraint, action_precondition, validator | Each document subject has one immutable authoritative document policy that callers cannot weaken; Holder transfer, compilation acceptance and publication require scoped technical authority plus any quality authority required by that policy. |
 | `KF-DOC-004` | database_constraint, action_precondition, validator | A Proposal Overlay is append-only; applying one requires a human-authorized typed action, an applied fragment remains a live draft, and no result is official before controlled review, effectivity and publication. |
 | `KF-DOC-005` | database_constraint, action_precondition, validator | Every official document publication has one append-only receipt binding the exact accepted compiler result, effective controlled content revision and registered destination policy that authorized it. |
+
+## Corpus projections
+
+| Projection | Version | Traverse | Sections | Remainder |
+|---|---|---|---|---|
+| `master_sections` | 1 | person anchors ≤ 8 | `withdrawn` (withdrawn), `your_record` (reached), `org_view` (unreached) | `raw_corpus` |
+| `raw_corpus` | 1 | — | — | `raw_corpus` |
+| `agent_context` | 1 | person anchors ≤ 8 | `relevant` (reached), `organization` (unreached) | `raw_corpus` |

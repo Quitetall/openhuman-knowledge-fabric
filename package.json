@@ -56,6 +56,7 @@
     "@kf/operations": "workspace:*",
     "@kf/orchestrator": "workspace:*",
     "@kf/product-quality": "workspace:*",
+    "@kf/projections": "workspace:*",
     "@kf/record-atoms": "workspace:*",
     "@kf/search": "workspace:*",
     "@kf/work-control": "workspace:*",

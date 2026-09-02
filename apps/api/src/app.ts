@@ -5,6 +5,7 @@
  * binding a port.
  */
 
+import { loadProjectionDefinitions } from '@kf/projections';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { S3ObjectStore, type ObjectStore } from '@kf/artifacts';
 import { createPool, withTransaction, type Pool } from '@kf/database';
@@ -191,6 +192,10 @@ export async function buildApp(
     });
     await registerDocumentRoutes(app, {
       pool,
+      // Absent only for hand-built test configs; the projection routes then answer 503.
+      ...(config.projectionsArtifact === undefined
+        ? {}
+        : { projections: loadProjectionDefinitions(config.projectionsArtifact) }),
       executeInTransaction,
       preflightInTransaction,
       identify,

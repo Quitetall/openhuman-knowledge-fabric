@@ -136,6 +136,15 @@ export function emitTypeScript(o: Ontology): string {
     );
   }
   out.push('] as const;', '');
+
+  out.push(
+    '/** Corpus projection definitions — declared readings of a master record (ADR 0013). */',
+  );
+  out.push(
+    `export const PROJECTION_DEFINITIONS = ${JSON.stringify(o.projectionDefinitions, null, 2)} as const;`,
+    `export type ProjectionDefinitionId = (typeof PROJECTION_DEFINITIONS)[number]['id'];`,
+    '',
+  );
   return out.join('\n');
 }
 
@@ -360,7 +369,8 @@ export function emitDocumentation(o: Ontology): string {
     '',
     `Compiled from \`ontology/\`. ${o.objectTypes.length} object types, ` +
       `${o.relationTypes.length} relation types, ${o.actionTypes.length} action types, ` +
-      `${o.stateMachines.length} state machines, ${o.rules.length} invariants.`,
+      `${o.stateMachines.length} state machines, ${o.rules.length} invariants, ` +
+      `${o.projectionDefinitions.length} corpus projections.`,
     '',
     '## Object types',
     '',
@@ -402,6 +412,23 @@ export function emitDocumentation(o: Ontology): string {
   out.push('## Invariants', '', '| Rule | Enforced at | Statement |', '|---|---|---|');
   for (const r of o.rules) {
     out.push(`| \`${r.id}\` | ${r.implementation.join(', ')} | ${r.description} |`);
+  }
+
+  out.push(
+    '',
+    '## Corpus projections',
+    '',
+    '| Projection | Version | Traverse | Sections | Remainder |',
+    '|---|---|---|---|---|',
+  );
+  for (const d of o.projectionDefinitions) {
+    const traverse =
+      d.traverse === undefined
+        ? '—'
+        : `${d.traverse.relations === 'person_anchors' ? 'person anchors' : d.traverse.relations.join(', ')} ≤ ${d.traverse.maxDepth}`;
+    out.push(
+      `| \`${d.id}\` | ${d.version} | ${traverse} | ${d.sections.map((s) => `\`${s.id}\` (${s.select})`).join(', ') || '—'} | \`${d.remainder.id}\` |`,
+    );
   }
   out.push('');
   return out.join('\n');

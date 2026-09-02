@@ -1,0 +1,80 @@
+# Corpus projections — declarative readings of a master record.
+#
+# A Master is the exact authorized corpus (ADR 0013). Everything a person sees ON it — "your
+# record" versus the organization view, a project page, an agent's context bundle — is a
+# PROJECTION: a declared, versioned reading that can only partition and order what the corpus
+# already contains. `projection_members ⊆ master_members` is enforced by construction, and every
+# member lands in exactly one section, with `remainder` catching whatever no section claimed —
+# so a new object type can never disappear merely because no definition knows it yet.
+#
+# The grammar is a closed algebra over things the ontology already declares:
+#   anchor       what the traversal starts from: the person the corpus was compiled for
+#   traverse     which relation types to walk (person_anchors = every relation declaring
+#                person_anchor: true, following each type's propagation_class) and how deep
+#   sections     ordered; the FIRST whose `select` admits a member takes it
+#                  reached    in the traversal closure          unreached  not in it
+#                  withdrawn  carried forward after withdrawal   all        every member
+#                an optional `filter` narrows a section further (object_types, lifecycle_states,
+#                classification_max, item_states)
+#   remainder    the mandatory last section; named so its presence in output is a check
+#   sort         declared envelope fields only
+#   parameters   typed from meta.yaml kinds; bound at read time, part of the projection digest
+#   budgets      hard ceilings the engine refuses to exceed rather than silently truncate
+#
+# No expressions, no SQL. Anything this cannot say is a reason to add a primitive here, where
+# it is reviewed, rather than a reason to write a query somewhere it is not.
+
+projection_definitions:
+  # The reading the master record has always had. Sections used to be stored inside the claim;
+  # they are derived by this definition now, against the relation graph as it is when asked.
+  - id: master_sections
+    title: Master record sections
+    version: 1
+    anchor: person
+    parameters: []
+    traverse: { relations: person_anchors, max_depth: 8 }
+    sections:
+      - { id: withdrawn, title: Withdrawn, select: withdrawn }
+      - { id: your_record, title: Your record, select: reached }
+      - { id: org_view, title: Organization view, select: unreached }
+    remainder: { id: raw_corpus, title: Raw corpus }
+    sort: [object_type, title, object_id]
+    budgets: { max_members: 100000 }
+
+  # Everything, unsectioned. The identity projection: a reading that adds no reading.
+  - id: raw_corpus
+    title: Raw corpus
+    version: 1
+    anchor: person
+    parameters: []
+    sections: []
+    remainder: { id: raw_corpus, title: Raw corpus }
+    sort: [object_type, title, object_id]
+    budgets: { max_members: 100000 }
+
+  # What a model is handed. Not a render format: a definition family with its own digest, so
+  # "what did the agent actually see" is a projection result, exact source ids and digests
+  # included, that the model can summarize but cannot enlarge.
+  #
+  # token_budget is bound and carried into the projection digest today; it does not yet cut
+  # content — member budgets are the only ceiling the engine applies (ADR 0014, "budgets beyond
+  # member count"). Two bundles with different budgets are therefore distinguishable by digest
+  # while identical in membership, until the budget governs rendering.
+  - id: agent_context
+    title: Agent context bundle
+    version: 1
+    anchor: person
+    parameters:
+      - { name: token_budget, type: integer, required: true, minimum: 256, maximum: 1000000 }
+    traverse: { relations: person_anchors, max_depth: 8 }
+    sections:
+      - { id: relevant, title: Relevant to this person, select: reached }
+      - {
+          id: organization,
+          title: Organization context,
+          select: unreached,
+          filter: { item_states: [included] },
+        }
+    remainder: { id: raw_corpus, title: Everything else }
+    sort: [object_type, title, object_id]
+    budgets: { max_members: 20000 }

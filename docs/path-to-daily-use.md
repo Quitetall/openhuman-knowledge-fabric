@@ -108,7 +108,13 @@ compiled claim. The recompilation defect found below is **fixed by ADR 0013** (2
 master record's identity is its corpus, an unchanged corpus compiles to the same record, and
 sections are derived from the current relation graph on every read rather than stored.
 
-**Written down:** ADR 0011, "Runtime surfaces"; ADR 0013 for identity.
+Every reading of the record — sections, pages, exports, an agent's context — is now a
+**declared projection** over the corpus (ADR 0014): `ontology/projections.yaml`, one engine in
+`@kf/projections`, one canonical Result per reading, served by
+`GET /master-record/projections/:definitionId` in JSON, Markdown or HTML with one projection
+digest across all three.
+
+**Written down:** ADR 0011, "Runtime surfaces"; ADR 0013 for identity; ADR 0014 for projections.
 **Blocked on:** steps 2 and 3.
 
 ### 5 · Filesystem presence — deferred with a reason that expires

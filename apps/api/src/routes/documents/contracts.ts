@@ -2,6 +2,7 @@ import type { ActionRequest, ActionResult, ObjectRow } from '@kf/actions';
 import type { AiProvider, AiRoutingPolicy } from '@kf/agent-tools';
 import type { ObjectStore } from '@kf/artifacts';
 import type { Pool, Tx } from '@kf/database';
+import type { ProjectionDefinitionSet } from '@kf/projections';
 import type { IdentifyCaller } from '../actions.js';
 
 export const DOCUMENT_IMPORT_BODY_LIMIT_BYTES = 16 * 1024 * 1024;
@@ -77,6 +78,8 @@ export interface DocumentRoutesOptions {
   readonly store: ObjectStore | undefined;
   /** HMAC key for capability links. Missing key disables link serving and issuance. */
   readonly masterRecordLinkSecret?: string;
+  /** Compiled corpus-projection definitions. Absent = the projection routes answer 503. */
+  readonly projections?: ProjectionDefinitionSet;
   /** Independent read ceiling for legacy records, regardless of their recorded object size. */
   readonly maxSourceDownloadBytes?: number;
   /** Independent read ceiling for compiled projections, regardless of recorded object size. */

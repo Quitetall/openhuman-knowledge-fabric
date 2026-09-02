@@ -49,6 +49,14 @@ export function buildArtifacts(o: Ontology): Artifact[] {
     { path: 'typescript/ontology.ts', content: emitTypeScript(o) },
     { path: 'sql-registry/001-ontology-seed.sql', content: emitSqlRegistry(o) },
     { path: 'documentation/ontology-reference.md', content: emitDocumentation(o) },
+    {
+      path: 'projections/knowledge-fabric.projections.json',
+      content: json({
+        schema_version: o.schemaVersion,
+        'x-generated-from': { ontology_version: o.schemaVersion, source_digest: o.sourceDigest },
+        projection_definitions: o.projectionDefinitions,
+      }),
+    },
   ];
 }
 

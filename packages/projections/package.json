@@ -1,9 +1,9 @@
 {
-  "name": "@kf/documents",
+  "name": "@kf/projections",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Document parsing, composition, and controlled-document action atoms",
+  "description": "Corpus projections: declared readings of a master record, ⊆-master by construction",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -17,12 +17,8 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
-    "@kf/actions": "workspace:*",
-    "@kf/artifacts": "workspace:*",
     "@kf/canonicalization": "workspace:*",
-    "@kf/database": "workspace:*",
-    "@kf/projections": "workspace:*",
-    "@kf/record-atoms": "workspace:*"
+    "@kf/ontology-compiler": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.13.3"

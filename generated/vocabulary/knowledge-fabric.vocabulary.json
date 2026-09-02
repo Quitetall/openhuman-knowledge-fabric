@@ -2,7 +2,7 @@
   "schema_version": "1.1.0-draft.1",
   "x-generated-from": {
     "ontology_version": "1.1.0-draft.1",
-    "source_digest": "f6cb47b34c251067301c35868123c12dd6b6aabafeff9cbdd309cd18a9584790"
+    "source_digest": "927960fdc24c7990824b6829f9467df74542200d9ed1b7e0372f6236ea1d551e"
   },
   "node_types": {
     "organization": {

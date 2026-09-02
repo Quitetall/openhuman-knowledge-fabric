@@ -10,6 +10,7 @@ import type { Ontology } from './model.js';
 import { checkActions } from './check/actions.js';
 import { createCheckContext } from './check/context.js';
 import { checkObjectTypes, checkRelationTypes } from './check/object-relations.js';
+import { checkProjections } from './check/projections.js';
 import { checkRulesAndEnvelope } from './check/rules-envelope.js';
 import { checkStateMachines } from './check/state-machines.js';
 import { checkTokenUniqueness } from './check/tokens.js';
@@ -26,5 +27,6 @@ export function checkOntology(o: Ontology): Finding[] {
   checkStateMachines(context);
   checkActions(context);
   checkRulesAndEnvelope(context);
+  checkProjections(context);
   return context.findings;
 }

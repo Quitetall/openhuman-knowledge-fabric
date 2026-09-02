@@ -53,6 +53,77 @@ describe('the real ontology is clean', () => {
   });
 });
 
+type MutableProjection = Mutable<Ontology['projectionDefinitions'][number]>;
+const projection = (o: Ontology, id: string): MutableProjection =>
+  (o.projectionDefinitions as MutableProjection[]).find((d) => d.id === id)!;
+
+describe('corpus projection definitions are checked like everything else', () => {
+  it('ONT-013 a traversal over a relation type that does not exist', () => {
+    expect(
+      errorsFor((o) => {
+        projection(o, 'master_sections').traverse = { relations: ['not_a_relation'], maxDepth: 2 };
+        return o;
+      }),
+    ).toContain('ONT-013');
+  });
+
+  it('ONT-013 a section selecting on reachability with no traverse to reach anything', () => {
+    expect(
+      errorsFor((o) => {
+        delete (projection(o, 'master_sections') as { traverse?: unknown }).traverse;
+        return o;
+      }),
+    ).toContain('ONT-013');
+  });
+
+  it('ONT-014 a filter naming an object type nobody declared', () => {
+    expect(
+      errorsFor((o) => {
+        projection(o, 'agent_context').sections[1]!.filter = { objectTypes: ['unicorn'] };
+        return o;
+      }),
+    ).toContain('ONT-014');
+  });
+
+  it('ONT-014 a classification ceiling outside the controlled list', () => {
+    expect(
+      errorsFor((o) => {
+        projection(o, 'raw_corpus').filter = { classificationMax: 'top_secret' };
+        return o;
+      }),
+    ).toContain('ONT-014');
+  });
+
+  it('ONT-015 a section id colliding with the remainder', () => {
+    expect(
+      errorsFor((o) => {
+        projection(o, 'master_sections').sections[1]!.id = 'raw_corpus';
+        return o;
+      }),
+    ).toContain('ONT-015');
+  });
+
+  it('ONT-016 sorting by a field that is not a declared envelope field', () => {
+    expect(
+      errorsFor((o) => {
+        projection(o, 'master_sections').sort = ['favourite_colour'];
+        return o;
+      }),
+    ).toContain('ONT-016');
+  });
+
+  it('ONT-016 an enum parameter with no values, which can never bind', () => {
+    expect(
+      errorsFor((o) => {
+        projection(o, 'agent_context').parameters = [
+          { name: 'mode', type: 'enum', required: true },
+        ];
+        return o;
+      }),
+    ).toContain('ONT-016');
+  });
+});
+
 describe('planted violations are detected', () => {
   it('ONT-001 a token used as two different kinds', () => {
     expect(

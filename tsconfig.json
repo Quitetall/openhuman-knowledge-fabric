@@ -32,6 +32,9 @@
       "path": "./packages/artifacts"
     },
     {
+      "path": "./packages/projections"
+    },
+    {
       "path": "./packages/documents"
     },
     {

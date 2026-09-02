@@ -12,6 +12,7 @@ import { registerDocumentWorkspaceRoute } from './documents/workspace-route.js';
 import { registerPublicProjectionRoute } from './documents/public-projection-route.js';
 import { registerMasterRecordRoute } from './documents/master-record-route.js';
 import { registerMasterRecordLinkRoute } from './documents/master-record-link-route.js';
+import { registerMasterRecordProjectionRoute } from './documents/master-record-projection-route.js';
 
 export type { DocumentRoutesOptions } from './documents/contracts.js';
 
@@ -22,6 +23,7 @@ export async function registerDocumentRoutes(
   registerDocumentReadRoutes(app, options);
   registerMasterRecordRoute(app, options);
   registerMasterRecordLinkRoute(app, options);
+  registerMasterRecordProjectionRoute(app, options);
   registerPublicProjectionRoute(app, options);
   registerDocumentSourceRoute(app, options);
   registerDocumentWorkspaceRoute(app, options);

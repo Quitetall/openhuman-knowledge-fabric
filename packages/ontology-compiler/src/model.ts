@@ -105,6 +105,57 @@ export interface RelationType {
   readonly anchorDepth?: number;
 }
 
+// ── corpus projections (ADR 0013; ontology/projections.yaml) ────────────────────────────
+
+export type ProjectionSelect = 'reached' | 'unreached' | 'withdrawn' | 'all';
+
+/** A narrowing. Every field is optional; an absent field admits everything. */
+export interface ProjectionFilter {
+  readonly objectTypes?: readonly string[];
+  readonly lifecycleStates?: readonly string[];
+  /** Admit only members at or below this classification. Narrows; never widens. */
+  readonly classificationMax?: string;
+  readonly itemStates?: readonly ('included' | 'withdrawn')[];
+}
+
+export interface ProjectionSection {
+  readonly id: string;
+  readonly title: string;
+  readonly select: ProjectionSelect;
+  readonly filter?: ProjectionFilter;
+}
+
+export interface ProjectionParameter {
+  readonly name: string;
+  readonly type: 'uuid' | 'integer' | 'string' | 'enum' | 'boolean';
+  readonly required: boolean;
+  readonly values?: readonly string[];
+  readonly minimum?: number;
+  readonly maximum?: number;
+}
+
+export interface ProjectionTraverse {
+  /** `person_anchors` = every relation type declaring person_anchor: true; or an explicit list. */
+  readonly relations: 'person_anchors' | readonly string[];
+  readonly maxDepth: number;
+}
+
+export interface ProjectionDefinition {
+  readonly id: string;
+  readonly title: string;
+  readonly version: number;
+  readonly anchor: 'person';
+  readonly parameters: readonly ProjectionParameter[];
+  readonly filter?: ProjectionFilter;
+  readonly traverse?: ProjectionTraverse;
+  /** Ordered. The first section whose select admits a member takes it. */
+  readonly sections: readonly ProjectionSection[];
+  /** Mandatory last section: whatever no section claimed. Its presence is the coverage check. */
+  readonly remainder: { readonly id: string; readonly title: string };
+  readonly sort: readonly string[];
+  readonly budgets: { readonly maxMembers: number };
+}
+
 export interface ActionType {
   readonly id: string;
   readonly audited: boolean;
@@ -161,6 +212,7 @@ export interface Ontology {
   readonly actionTypes: readonly ActionType[];
   readonly stateMachines: readonly StateMachine[];
   readonly rules: readonly Rule[];
+  readonly projectionDefinitions: readonly ProjectionDefinition[];
   /**
    * SHA-256 over the canonicalized ontology. This is the identity of a generated artifact:
    * given the same digest, the compiler produces the same bytes.
@@ -288,6 +340,7 @@ export function loadOntology(dir: string): Ontology {
     'action-types.yaml',
     'state-machines.yaml',
     'rules.yaml',
+    'projections.yaml',
   ];
   const missing = expected.filter((f) => !present.has(f));
   if (missing.length > 0) {
@@ -432,6 +485,115 @@ export function loadOntology(dir: string): Ontology {
     };
   });
 
+  const projectionDefinitions: ProjectionDefinition[] = asArray(
+    asRecord(readYaml(dir, 'projections.yaml'), 'projections.yaml')['projection_definitions'],
+    'projection_definitions',
+  ).map((raw, i) => {
+    const r = asRecord(raw, `projection_definitions[${i}]`);
+    const id = asString(r['id'], `projection_definitions[${i}].id`);
+    const where = `projection_definitions.${id}`;
+    const filter = (value: unknown, at: string): ProjectionFilter | undefined => {
+      if (value === undefined) return undefined;
+      const f = asRecord(value, at);
+      const out: Record<string, unknown> = {};
+      if (f['object_types'] !== undefined) {
+        out['objectTypes'] = asStringList(f['object_types'], `${at}.object_types`);
+      }
+      if (f['lifecycle_states'] !== undefined) {
+        out['lifecycleStates'] = asStringList(f['lifecycle_states'], `${at}.lifecycle_states`);
+      }
+      if (f['classification_max'] !== undefined) {
+        out['classificationMax'] = asString(f['classification_max'], `${at}.classification_max`);
+      }
+      if (f['item_states'] !== undefined) {
+        out['itemStates'] = asStringList(f['item_states'], `${at}.item_states`);
+      }
+      return out as unknown as ProjectionFilter;
+    };
+    const version = r['version'];
+    if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) {
+      throw new OntologyError(`${where}.version: expected a positive integer`);
+    }
+    const anchor = asString(r['anchor'], `${where}.anchor`);
+    if (anchor !== 'person') throw new OntologyError(`${where}.anchor: only 'person' is defined`);
+    const remainderRaw = asRecord(r['remainder'], `${where}.remainder`);
+    const budgetsRaw = asRecord(r['budgets'], `${where}.budgets`);
+    const maxMembers = budgetsRaw['max_members'];
+    if (typeof maxMembers !== 'number' || !Number.isInteger(maxMembers) || maxMembers < 1) {
+      throw new OntologyError(`${where}.budgets.max_members: expected a positive integer`);
+    }
+    let traverse: ProjectionTraverse | undefined;
+    if (r['traverse'] !== undefined) {
+      const tr = asRecord(r['traverse'], `${where}.traverse`);
+      const relations = tr['relations'];
+      const maxDepth = tr['max_depth'];
+      if (typeof maxDepth !== 'number' || !Number.isInteger(maxDepth) || maxDepth < 0) {
+        throw new OntologyError(`${where}.traverse.max_depth: expected a non-negative integer`);
+      }
+      traverse = {
+        relations:
+          relations === 'person_anchors'
+            ? 'person_anchors'
+            : asStringList(relations, `${where}.traverse.relations`),
+        maxDepth,
+      };
+    }
+    const sections: ProjectionSection[] = asArray(r['sections'] ?? [], `${where}.sections`).map(
+      (s, j) => {
+        const sec = asRecord(s, `${where}.sections[${j}]`);
+        const select = asString(sec['select'], `${where}.sections[${j}].select`);
+        if (!['reached', 'unreached', 'withdrawn', 'all'].includes(select)) {
+          throw new OntologyError(`${where}.sections[${j}].select: unknown select '${select}'`);
+        }
+        const f = filter(sec['filter'], `${where}.sections[${j}].filter`);
+        return {
+          id: asString(sec['id'], `${where}.sections[${j}].id`),
+          title: asString(sec['title'], `${where}.sections[${j}].title`),
+          select: select as ProjectionSelect,
+          ...(f === undefined ? {} : { filter: f }),
+        };
+      },
+    );
+    const parameters: ProjectionParameter[] = asArray(
+      r['parameters'] ?? [],
+      `${where}.parameters`,
+    ).map((pr, j) => {
+      const param = asRecord(pr, `${where}.parameters[${j}]`);
+      const type = asString(param['type'], `${where}.parameters[${j}].type`);
+      if (!['uuid', 'integer', 'string', 'enum', 'boolean'].includes(type)) {
+        throw new OntologyError(`${where}.parameters[${j}].type: unknown parameter type '${type}'`);
+      }
+      const out: Record<string, unknown> = {
+        name: asString(param['name'], `${where}.parameters[${j}].name`),
+        type,
+        required: param['required'] === true,
+      };
+      if (param['values'] !== undefined) {
+        out['values'] = asStringList(param['values'], `${where}.parameters[${j}].values`);
+      }
+      if (typeof param['minimum'] === 'number') out['minimum'] = param['minimum'];
+      if (typeof param['maximum'] === 'number') out['maximum'] = param['maximum'];
+      return out as unknown as ProjectionParameter;
+    });
+    const topFilter = filter(r['filter'], `${where}.filter`);
+    return {
+      id,
+      title: asString(r['title'], `${where}.title`),
+      version,
+      anchor: 'person',
+      parameters,
+      ...(topFilter === undefined ? {} : { filter: topFilter }),
+      ...(traverse === undefined ? {} : { traverse }),
+      sections,
+      remainder: {
+        id: asString(remainderRaw['id'], `${where}.remainder.id`),
+        title: asString(remainderRaw['title'], `${where}.remainder.title`),
+      },
+      sort: asStringList(r['sort'] ?? [], `${where}.sort`),
+      budgets: { maxMembers },
+    };
+  });
+
   const ontology: Omit<Ontology, 'sourceDigest'> = {
     schemaVersion: asString(meta['schema_version'], 'meta.schema_version'),
     uuidPattern: asString(meta['uuid_pattern'], 'meta.uuid_pattern'),
@@ -452,6 +614,7 @@ export function loadOntology(dir: string): Ontology {
     actionTypes,
     stateMachines,
     rules,
+    projectionDefinitions,
   };
 
   // The digest is over the parsed model, not the file bytes: reformatting a YAML file or

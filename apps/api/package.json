@@ -26,8 +26,9 @@
     "@kf/domain": "workspace:*",
     "@kf/integration": "workspace:*",
     "@kf/ml-registry": "workspace:*",
-    "@kf/orchestrator": "workspace:*",
     "@kf/operations": "workspace:*",
+    "@kf/orchestrator": "workspace:*",
+    "@kf/projections": "workspace:*",
     "@kf/search": "workspace:*",
     "@kf/work-control": "workspace:*",
     "fastify": "^5.11.3"

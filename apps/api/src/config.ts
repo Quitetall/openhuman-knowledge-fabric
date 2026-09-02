@@ -5,6 +5,7 @@
  * at boot with a precise message rather than at the first request that happens to need it.
  */
 
+import { resolve } from 'node:path';
 import { loadSecret } from '@kf/operations';
 import type { S3Config } from '@kf/artifacts';
 
@@ -37,6 +38,11 @@ export interface ApiConfig {
   readonly artifactStore?: S3Config;
   /** HMAC key used for short-lived master-record capability links. */
   readonly masterRecordLinkSecret?: string;
+  /**
+   * The compiled corpus-projection definitions (ADR 0013). A release tree carries generated/,
+   * so the default resolves inside the checkout or release root the process runs from.
+   */
+  readonly projectionsArtifact?: string;
 }
 
 class ConfigError extends Error {
@@ -232,6 +238,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     }
   }
 
+  const projectionsArtifact =
+    env['KF_PROJECTIONS_ARTIFACT'] !== undefined && env['KF_PROJECTIONS_ARTIFACT'] !== ''
+      ? env['KF_PROJECTIONS_ARTIFACT']
+      : resolve(process.cwd(), 'generated/projections/knowledge-fabric.projections.json');
+
   return {
     host,
     port: readPort(env['PORT'], 4000),
@@ -239,6 +250,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     databaseUrl,
     environment,
     deploymentProfile,
+    projectionsArtifact,
     tlsTerminatedUpstream,
     identity,
     ...(artifactStore === undefined ? {} : { artifactStore }),

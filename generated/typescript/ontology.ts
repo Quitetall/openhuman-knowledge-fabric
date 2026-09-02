@@ -1,11 +1,11 @@
 // GENERATED from ontology/ — do not edit.
 // ontology_version: 1.1.0-draft.1
-// source_digest: f6cb47b34c251067301c35868123c12dd6b6aabafeff9cbdd309cd18a9584790
+// source_digest: 927960fdc24c7990824b6829f9467df74542200d9ed1b7e0372f6236ea1d551e
 
 /* eslint-disable */
 
 export const SCHEMA_VERSION = '1.1.0-draft.1' as const;
-export const ONTOLOGY_SOURCE_DIGEST = 'f6cb47b34c251067301c35868123c12dd6b6aabafeff9cbdd309cd18a9584790' as const;
+export const ONTOLOGY_SOURCE_DIGEST = '927960fdc24c7990824b6829f9467df74542200d9ed1b7e0372f6236ea1d551e' as const;
 
 export const CLASSIFICATIONS = ['public', 'internal', 'confidential', 'restricted'] as const;
 export type Classifications = (typeof CLASSIFICATIONS)[number];
@@ -719,3 +719,116 @@ export const RULES = [
   { id: 'KF-DOC-004', severity: 'error', implementation: ['database_constraint', 'action_precondition', 'validator'], description: "A Proposal Overlay is append-only; applying one requires a human-authorized typed action, an applied fragment remains a live draft, and no result is official before controlled review, effectivity and publication." },
   { id: 'KF-DOC-005', severity: 'error', implementation: ['database_constraint', 'action_precondition', 'validator'], description: "Every official document publication has one append-only receipt binding the exact accepted compiler result, effective controlled content revision and registered destination policy that authorized it." },
 ] as const;
+
+/** Corpus projection definitions — declared readings of a master record (ADR 0013). */
+export const PROJECTION_DEFINITIONS = [
+  {
+    "id": "master_sections",
+    "title": "Master record sections",
+    "version": 1,
+    "anchor": "person",
+    "parameters": [],
+    "traverse": {
+      "relations": "person_anchors",
+      "maxDepth": 8
+    },
+    "sections": [
+      {
+        "id": "withdrawn",
+        "title": "Withdrawn",
+        "select": "withdrawn"
+      },
+      {
+        "id": "your_record",
+        "title": "Your record",
+        "select": "reached"
+      },
+      {
+        "id": "org_view",
+        "title": "Organization view",
+        "select": "unreached"
+      }
+    ],
+    "remainder": {
+      "id": "raw_corpus",
+      "title": "Raw corpus"
+    },
+    "sort": [
+      "object_type",
+      "title",
+      "object_id"
+    ],
+    "budgets": {
+      "maxMembers": 100000
+    }
+  },
+  {
+    "id": "raw_corpus",
+    "title": "Raw corpus",
+    "version": 1,
+    "anchor": "person",
+    "parameters": [],
+    "sections": [],
+    "remainder": {
+      "id": "raw_corpus",
+      "title": "Raw corpus"
+    },
+    "sort": [
+      "object_type",
+      "title",
+      "object_id"
+    ],
+    "budgets": {
+      "maxMembers": 100000
+    }
+  },
+  {
+    "id": "agent_context",
+    "title": "Agent context bundle",
+    "version": 1,
+    "anchor": "person",
+    "parameters": [
+      {
+        "name": "token_budget",
+        "type": "integer",
+        "required": true,
+        "minimum": 256,
+        "maximum": 1000000
+      }
+    ],
+    "traverse": {
+      "relations": "person_anchors",
+      "maxDepth": 8
+    },
+    "sections": [
+      {
+        "id": "relevant",
+        "title": "Relevant to this person",
+        "select": "reached"
+      },
+      {
+        "id": "organization",
+        "title": "Organization context",
+        "select": "unreached",
+        "filter": {
+          "itemStates": [
+            "included"
+          ]
+        }
+      }
+    ],
+    "remainder": {
+      "id": "raw_corpus",
+      "title": "Everything else"
+    },
+    "sort": [
+      "object_type",
+      "title",
+      "object_id"
+    ],
+    "budgets": {
+      "maxMembers": 20000
+    }
+  }
+] as const;
+export type ProjectionDefinitionId = (typeof PROJECTION_DEFINITIONS)[number]['id'];

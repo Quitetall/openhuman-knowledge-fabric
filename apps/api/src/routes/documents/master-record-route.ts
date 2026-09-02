@@ -5,12 +5,15 @@ import {
   corpusDigest,
   deriveMasterRecordSections,
   enumeratePermittedSet,
+  enumerateRelevanceGraph,
   latestMasterRecord,
   masterRecordItems,
   masterRecordWithholdings,
   type MasterRecordManifest,
   type PermissionMember,
 } from '@kf/documents';
+import { project } from '@kf/projections';
+import { projectionMembersOf } from './master-record-projection-route.js';
 import { unidentified } from '../actions.js';
 import { actionRejectionBody } from '../actions/errors.js';
 import type { DocumentRoutesOptions } from './contracts.js';
@@ -129,32 +132,71 @@ export function registerMasterRecordRoute(
         if (stale) {
           return reply.code(409).send({ error: 'master_record_stale', currentCorpusDigest });
         }
-        const sections = await deriveMasterRecordSections(tx, {
-          personId: identity.actorId,
-          included: included as PermissionMember[],
-        });
-        const relevant = new Set(sections.relevant.map((member) => member.objectId));
+        // Sections come from ONE engine. The `master_sections` definition is the reading this
+        // record has always had, now declared in ontology/projections.yaml and evaluated against
+        // the relation graph as it is today. Without compiled definitions (a test harness that
+        // registers this route alone) the same closure is used directly — same arithmetic.
+        const sectionOf = new Map<string, string>();
+        let sectionsSummary: Record<string, unknown>;
+        const definition = options.projections?.byId('master_sections');
+        if (definition !== undefined) {
+          const result = project({
+            definition,
+            parameters: {},
+            corpus: {
+              personId: identity.actorId,
+              organizationId: identity.organizationId,
+              corpusDigest: String(record['corpus_digest']),
+              members: projectionMembersOf({
+                included: included as PermissionMember[],
+                withdrawn,
+              }),
+            },
+            graph: await enumerateRelevanceGraph(tx),
+          });
+          for (const section of result.sections) {
+            for (const member of section.members) sectionOf.set(member.objectId, section.id);
+          }
+          sectionsSummary = {
+            projection: result.definition,
+            projectionDigest: result.projectionDigest,
+            sectionCounts: result.measurements.sectionCounts,
+            relevantMemberCount: result.measurements.sectionCounts['your_record'] ?? 0,
+            organizationViewMemberCount: result.measurements.sectionCounts['org_view'] ?? 0,
+            relevanceFanoutByAnchorType: result.measurements.relevanceFanoutByAnchorType,
+            relevanceFanoutByPropagationClass:
+              result.measurements.relevanceFanoutByPropagationClass,
+          };
+        } else {
+          const sections = await deriveMasterRecordSections(tx, {
+            personId: identity.actorId,
+            included: included as PermissionMember[],
+          });
+          for (const member of sections.relevant) sectionOf.set(member.objectId, 'your_record');
+          for (const member of sections.organizationView) {
+            sectionOf.set(member.objectId, 'org_view');
+          }
+          sectionsSummary = {
+            relevantMemberCount: sections.relevantMemberCount,
+            organizationViewMemberCount: sections.organizationViewMemberCount,
+            relevanceFanoutByAnchorType: sections.relevanceFanoutByAnchorType,
+            relevanceFanoutByPropagationClass: sections.relevanceFanoutByPropagationClass,
+          };
+        }
         const items = (await masterRecordItems(tx, String(record['id']))).map((item) => ({
           ...item,
           // Derived, not stored. `your_record` is what the relation graph says today.
           section:
             item['item_state'] === 'withdrawn'
               ? 'withdrawn'
-              : relevant.has(String(item['object_id']))
-                ? 'your_record'
-                : 'org_view',
+              : (sectionOf.get(String(item['object_id'])) ?? 'org_view'),
         }));
         const withholdings = await masterRecordWithholdings(tx, String(record['id']));
         return reply.send({
           ...record,
           stale,
           currentCorpusDigest,
-          sections: {
-            relevantMemberCount: sections.relevantMemberCount,
-            organizationViewMemberCount: sections.organizationViewMemberCount,
-            relevanceFanoutByAnchorType: sections.relevanceFanoutByAnchorType,
-            relevanceFanoutByPropagationClass: sections.relevanceFanoutByPropagationClass,
-          },
+          sections: sectionsSummary,
           items,
           withholdings,
         });

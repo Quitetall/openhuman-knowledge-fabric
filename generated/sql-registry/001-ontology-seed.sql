@@ -1,6 +1,6 @@
 -- GENERATED from ontology/ — do not edit.
 -- ontology_version: 1.1.0-draft.1
--- source_digest: f6cb47b34c251067301c35868123c12dd6b6aabafeff9cbdd309cd18a9584790
+-- source_digest: 927960fdc24c7990824b6829f9467df74542200d9ed1b7e0372f6236ea1d551e
 
 -- Seed data for the registry schema. Generated; applied by `pnpm db:seed`.
 --
@@ -20,7 +20,7 @@ begin;
 update registry.schema_release set is_current = false where version <> '1.1.0-draft.1';
 
 insert into registry.schema_release (version, ontology_digest, is_current) values
-  ('1.1.0-draft.1', 'f6cb47b34c251067301c35868123c12dd6b6aabafeff9cbdd309cd18a9584790', true)
+  ('1.1.0-draft.1', '927960fdc24c7990824b6829f9467df74542200d9ed1b7e0372f6236ea1d551e', true)
 on conflict (version) do update set ontology_digest = excluded.ontology_digest,
   applied_at = now(), is_current = true;
 

@@ -7,12 +7,5 @@
   },
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts", "dist", "node_modules"],
-  "references": [
-    { "path": "../actions" },
-    { "path": "../artifacts" },
-    { "path": "../canonicalization" },
-    { "path": "../database" },
-    { "path": "../projections" },
-    { "path": "../record-atoms" }
-  ]
+  "references": [{ "path": "../canonicalization" }, { "path": "../ontology-compiler" }]
 }
