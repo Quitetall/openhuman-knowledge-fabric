@@ -13,6 +13,7 @@
     { "path": "../authorization" },
     { "path": "../database" },
     { "path": "../documents" },
+    { "path": "../identifiers" },
     { "path": "../integration" },
     { "path": "../product-quality" },
     { "path": "../work-control" }

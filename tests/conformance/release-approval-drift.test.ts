@@ -46,7 +46,8 @@ const KNOWN_DRIFT = new Map<string, string>([
     'OW-WAR-0054 adds relation propagation metadata and the compile_master_record action; ' +
       'ADR 0013 adds grant_person_clearance and the corpus projection definitions ' +
       '(ontology/projections.yaml); ADR 0016 adds grant_access and revoke_access; ADR 0017 adds ' +
-      'replicate_artifact_version and verify_artifact_location. ' +
+      'replicate_artifact_version and verify_artifact_location; ADR 0018 adds ' +
+      'allocate_enterprise_identifier. ' +
       'The existing approval remains a historical snapshot; ' +
       're-cut and fresh human approval are required before release.',
   ],

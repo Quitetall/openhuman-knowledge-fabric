@@ -31,6 +31,7 @@ import { createCallerIdentifier, registerActionRoutes } from './routes/actions.j
 import { registerDocumentRoutes } from './routes/documents.js';
 import { registerMlRoutes } from './routes/ml.js';
 import { registerSearchRoutes } from './routes/search.js';
+import { registerIdentifierRoutes } from './routes/identifiers.js';
 import { hasRequiredSchema } from './schema-contract.js';
 
 export const SERVICE_NAME = 'openhuman-knowledge-fabric-api';
@@ -234,6 +235,7 @@ export async function buildApp(
     });
     await registerMlRoutes(app, { pool, identify, executeInTransaction });
     await registerSearchRoutes(app, { pool, identify });
+    await registerIdentifierRoutes(app, { pool, identify });
   }
 
   return app;

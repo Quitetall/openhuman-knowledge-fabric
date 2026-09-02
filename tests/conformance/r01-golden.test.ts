@@ -232,6 +232,8 @@ const DECLARED_ADDITIONS = {
     'add_authored_fragment',
     'add_controlled_document',
     'add_document_composition',
+    // R6 allocation (ADR 0018): the act that attaches an enterprise identifier to an object.
+    'allocate_enterprise_identifier',
     'append_ml_metric_event',
     'apply_document_proposal',
     'approve_capa_plan',

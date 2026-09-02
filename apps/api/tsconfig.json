@@ -33,6 +33,9 @@
       "path": "../../packages/documents"
     },
     {
+      "path": "../../packages/identifiers"
+    },
+    {
       "path": "../../packages/projections"
     },
     {

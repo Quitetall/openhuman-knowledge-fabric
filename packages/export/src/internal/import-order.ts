@@ -13,6 +13,8 @@ export const IMPORT_ORDER = [
   'external-identities',
   'project-memberships',
   'actions',
+  'identifier-sequences',
+  'identifier-allocations',
   'person-clearances',
   'person-clearance-retirements',
   'legacy-action-provenance',

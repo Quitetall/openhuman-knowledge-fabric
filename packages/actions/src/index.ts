@@ -14,6 +14,7 @@ export {
   DEFAULT_REASON_REQUIRED,
   type ActionDispatcher,
   type ActionEffect,
+  type ActionReceiptReader,
   type ActionFailure,
   type ActionMaterializer,
   type ActionRequest,

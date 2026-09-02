@@ -41,6 +41,7 @@ export interface ActionRoutesOptions {
     replayed: boolean;
     objectIds: readonly string[];
     auditDigest: string;
+    receipt?: Readonly<Record<string, unknown>>;
   }>;
   /** True only in development. Header-based identity is refused otherwise. */
   readonly trustHeaders: boolean;

@@ -59,7 +59,22 @@ export interface ActionResult {
   readonly replayed: boolean;
   readonly objectIds: readonly string[];
   readonly auditDigest: string;
+  /**
+   * What the action produced, read back from durable state by the action's receipt reader
+   * after it applied — and again on replay, so a retry returns the same receipt. Absent for
+   * actions that declare no reader.
+   */
+  readonly receipt?: Readonly<Record<string, JsonValue>>;
 }
+
+/**
+ * Reads an action's receipt from what it durably wrote, keyed by action id. Never computes
+ * anything the database does not already hold: the receipt of an act is the record of it.
+ */
+export type ActionReceiptReader = (
+  tx: Tx,
+  actionId: string,
+) => Promise<Readonly<Record<string, JsonValue>>>;
 
 /** Public action execution seam over one caller-owned transaction. */
 export type TransactionalActionDispatcher = (
@@ -143,6 +158,8 @@ export interface DispatcherOptions {
   readonly materializers?: Readonly<Record<string, ActionMaterializer>>;
   /** Typed writes performed by action, keyed by action type. */
   readonly effects?: Readonly<Record<string, ActionEffect>>;
+  /** Receipt readers by action type; see ActionReceiptReader. */
+  readonly receipts?: Readonly<Record<string, ActionReceiptReader>>;
   /**
    * Action type to object types whose creator cannot perform that action. Empty type list
    * restricts every target; named types avoid over-restricting multi-target actions.
@@ -172,6 +189,7 @@ export interface ResolvedDispatcherOptions {
   readonly preconditions: Readonly<Record<string, PreconditionCheck>>;
   readonly materializers: Readonly<Record<string, ActionMaterializer>>;
   readonly effects: Readonly<Record<string, ActionEffect>>;
+  readonly receipts: Readonly<Record<string, ActionReceiptReader>>;
 }
 
 export function resolveDispatcherOptions(options: DispatcherOptions): ResolvedDispatcherOptions {
@@ -183,5 +201,6 @@ export function resolveDispatcherOptions(options: DispatcherOptions): ResolvedDi
     preconditions: options.preconditions ?? {},
     materializers: options.materializers ?? {},
     effects: options.effects ?? {},
+    receipts: options.receipts ?? {},
   };
 }

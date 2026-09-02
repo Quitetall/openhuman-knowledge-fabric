@@ -12,6 +12,8 @@ export const PRESERVATION_IMPORT_TARGETS = {
   people: 'org.person',
   engagements: 'org.engagement',
   'role-assignments': 'org.role_assignment',
+  'identifier-sequences': 'registry.identifier_sequence',
+  'identifier-allocations': 'registry.identifier_allocation',
   'person-clearances': 'org.person_clearance',
   'person-clearance-retirements': 'org.person_clearance_retirement',
   'person-entitlement-exclusions': 'content.person_entitlement_exclusion',

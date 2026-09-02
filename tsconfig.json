@@ -20,6 +20,9 @@
       "path": "./packages/authorization"
     },
     {
+      "path": "./packages/identifiers"
+    },
+    {
       "path": "./packages/ontology-compiler"
     },
     {

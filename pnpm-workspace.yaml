@@ -60,3 +60,12 @@ minimumReleaseAgeExclude:
 #
 # The list is exhaustive on purpose: a NEW package wanting to run a build script fails the
 # install until someone looks at it.
+
+# Transitive advisories with no direct upgrade path yet (2026-09-02): fast-uri is pulled in by
+# ajv (3.x) and by fastify's ajv-compiler (4.x). Remove an override once the dependent releases
+# a version that resolves past the patched floor on its own. Revisit no later than 2026-12-01:
+# `pnpm why fast-uri` / `pnpm why fastify` with the override removed says whether it is still needed.
+overrides:
+  'fast-uri@<3.1.6': '^3.1.6'
+  'fast-uri@>=4.0.0 <4.1.3': '^4.1.3'
+  'fastify@<5.12.1': '^5.12.1'

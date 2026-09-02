@@ -168,8 +168,13 @@ mocking it.
 
 Stated here so you do not go looking:
 
-- **No enterprise identifiers are allocated on demand.** R01 R6 requires atomic sequence
-  allocation and no allocator exists. 68 identifiers sit `reserved` in the quality repository.
+- **Enterprise identifiers are allocated by one typed action, `allocate_enterprise_identifier`
+  (ADR 0018, R01 R6)** — the next free sequence under the namespace the object's type
+  declares, returned in the action receipt. The 68 identifiers that sit `reserved` in the
+  quality repository keep their numbers: an occupied value is skipped, never reissued. What is
+  still not done: no namespace exists for OpenWarrant's Warrants (`OH-WAR` is a pack-owner
+  allocation, not a code change), and object types whose declared namespace this instance has
+  not allocated (`BND`, `IFC`, `CFG`, `CPA`, `NCR`) are refused by name.
 - **No approval workflow.** Documents load as drafts. Approval, effective-state transition and
   publication are human acts performed outside the software.
 - **No commissioned host.** `docs/deployment/private-host.md` describes one. One was built on

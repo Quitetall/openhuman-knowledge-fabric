@@ -47,7 +47,7 @@ export function createTransactionalDispatcher(
 
     // Replay is still an authorized action path: resolve clearance before reading its
     // receipt, rather than letting an idempotency retry bypass the authority boundary.
-    const replay = await replayPriorAction(tx, request, requestDigest);
+    const replay = await replayPriorAction(tx, request, requestDigest, resolved.receipts);
     if (replay !== undefined) return replay;
 
     const actionId = (await tx.one<{ id: string }>('select uuidv7() as id')).id;
@@ -63,12 +63,15 @@ export function createTransactionalDispatcher(
     const state = await prepareActionState(tx, request, definition, resolved, ctx);
     await applyAction(tx, request, requestDigest, state, ctx, resolved);
     const auditDigest = await finalizeAction(tx, request, state, ctx);
+    const readReceipt = resolved.receipts[request.actionType];
+    const receipt = readReceipt === undefined ? undefined : await readReceipt(tx, actionId);
     return {
       actionId,
       status: 'applied',
       replayed: false,
       objectIds: [...state.targetIds],
       auditDigest,
+      ...(receipt === undefined ? {} : { receipt }),
     };
   };
 }

@@ -111,6 +111,17 @@ export const CORE_SECTIONS = [
             from org.role_assignment order by id`,
   },
   {
+    name: 'identifier-sequences',
+    sql: `select qualified_code, next_sequence, allocated_count, updated_at
+            from registry.identifier_sequence order by qualified_code`,
+  },
+  {
+    name: 'identifier-allocations',
+    sql: `select enterprise_id, object_id, qualified_code, sequence, allocated_at, allocated_by,
+                 allocated_by_action
+            from registry.identifier_allocation order by qualified_code, sequence`,
+  },
+  {
     name: 'person-clearances',
     sql: `select id, subject_id, organization_id, max_classification, valid_from, valid_to,
                  granted_by, granted_at, granted_by_action, reason

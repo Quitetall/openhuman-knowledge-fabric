@@ -1,0 +1,23 @@
+{
+  "name": "@kf/identifiers",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Enterprise identifier allocation (OH-DOC-000001-3 R01 rule R6) as a typed action",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@kf/actions": "workspace:*",
+    "@kf/database": "workspace:*"
+  }
+}

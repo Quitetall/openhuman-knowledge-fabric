@@ -1,6 +1,11 @@
 import { auditChainDigest, compareCanonicalText, digest } from '@kf/canonicalization';
 import type { Tx } from '@kf/database';
-import { ActionRejected, type ActionRequest, type ActionResult } from './contracts.js';
+import {
+  ActionRejected,
+  type ActionReceiptReader,
+  type ActionRequest,
+  type ActionResult,
+} from './contracts.js';
 
 /**
  * Stable identity of mutation semantics for one logical action attempt.
@@ -40,6 +45,7 @@ export async function replayPriorAction(
   tx: Tx,
   request: ActionRequest,
   requestDigest: string,
+  receipts: Readonly<Record<string, ActionReceiptReader>> = {},
 ): Promise<ActionResult | undefined> {
   const prior = await tx.maybeOne<{
     id: string;
@@ -165,11 +171,16 @@ export async function replayPriorAction(
       { actionId: prior.id, actionType: request.actionType },
     );
   }
+  // The receipt is re-read from durable state, exactly as the first result read it: a
+  // replay that carried a different receipt would be a different act.
+  const readReceipt = receipts[request.actionType];
+  const receipt = readReceipt === undefined ? undefined : await readReceipt(tx, prior.id);
   return {
     actionId: prior.id,
     status: 'applied',
     replayed: true,
     objectIds: [...prior.target_ids],
     auditDigest: prior.audit_digest,
+    ...(receipt === undefined ? {} : { receipt }),
   };
 }

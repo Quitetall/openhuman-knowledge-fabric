@@ -52,11 +52,15 @@ rules:
 
   - id: R6
     text: Enterprise sequences are fixed width, zero padded and atomically allocated. Leading zeroes are required.
-    enforced_by: [registries/openhuman/grammars.yaml enterprise]
-    partially_unenforced: >-
-      Fixed width and zero padding are checked by the pattern. ATOMIC ALLOCATION IS NOT YET
-      IMPLEMENTED — there is no sequence table or allocator. Deferred with R01 §17 Phase 1;
-      until then allocation is a reviewed seed file, not a service.
+    enforced_by:
+      - registries/openhuman/grammars.yaml enterprise
+      - database/migrations core.allocate_enterprise_id and registry.identifier_sequence
+      - packages/identifiers/src/index.ts
+    note: >-
+      Fixed width and zero padding are checked by the pattern. Atomic allocation is a row lock
+      on registry.identifier_sequence inside the allocating action's transaction
+      (20260902000300, ADR 0018); values already occupied by reviewed seeds are skipped, never
+      reissued.
 
   - id: R7
     text: The final enterprise-ID digit is a Damm check digit. Invalid check digits shall be rejected at entry and import.

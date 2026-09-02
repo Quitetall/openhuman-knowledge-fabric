@@ -11,6 +11,7 @@ import {
   createTransactionalPreflight,
   type ActionEffect,
   type ActionMaterializer,
+  type ActionReceiptReader,
   type DispatcherOptions,
   type PreconditionCheck,
 } from '@kf/actions';
@@ -23,6 +24,7 @@ import {
 import type { Pool } from '@kf/database';
 import { StoreRegistry, createStorageActionAtoms, type StorageActionAtoms } from '@kf/artifacts';
 import type { DocumentActionAtoms } from '@kf/documents';
+import { IDENTIFIER_ACTION_IDS, IDENTIFIER_EFFECTS, IDENTIFIER_RECEIPTS } from '@kf/identifiers';
 import {
   createMlActionAtoms,
   createSecureObjectActionAtoms,
@@ -49,6 +51,7 @@ export interface ActionAtoms {
   readonly materializers?: Readonly<Record<string, ActionMaterializer>>;
   readonly effects?: Readonly<Record<string, ActionEffect>>;
   readonly preconditions?: Readonly<Record<string, PreconditionCheck>>;
+  readonly receipts?: Readonly<Record<string, ActionReceiptReader>>;
 }
 
 function collectOwners(groups: readonly ActionAtoms[]): Map<string, ActionAtoms> {
@@ -94,7 +97,10 @@ function mergeOwnedHandlers<T>(
 export function composeActionAtoms(
   groups: readonly ActionAtoms[],
 ): Required<
-  Pick<DispatcherOptions, 'allowedActions' | 'materializers' | 'effects' | 'preconditions'>
+  Pick<
+    DispatcherOptions,
+    'allowedActions' | 'materializers' | 'effects' | 'preconditions' | 'receipts'
+  >
 > {
   const owners = collectOwners(groups);
   return {
@@ -102,6 +108,7 @@ export function composeActionAtoms(
     materializers: mergeOwnedHandlers(groups, owners, (group) => group.materializers),
     effects: mergeOwnedHandlers(groups, owners, (group) => group.effects),
     preconditions: mergeOwnedHandlers(groups, owners, (group) => group.preconditions),
+    receipts: mergeOwnedHandlers(groups, owners, (group) => group.receipts),
   };
 }
 
@@ -114,6 +121,14 @@ const BUILT_IN_ATOMS: readonly ActionAtoms[] = [
     name: 'authority',
     ownedActions: [...AUTHORITY_ACTION_IDS, ...ACCESS_ACTION_IDS],
     effects: { ...AUTHORITY_EFFECTS, ...ACCESS_EFFECTS },
+  },
+  {
+    // R6 allocation (ADR 0018). The receipt reader is what puts the allocated identifier in
+    // the action result — and in a replay's.
+    name: 'identifiers',
+    ownedActions: IDENTIFIER_ACTION_IDS,
+    effects: IDENTIFIER_EFFECTS,
+    receipts: IDENTIFIER_RECEIPTS,
   },
   {
     name: 'work-control',
@@ -139,7 +154,10 @@ export function fabricDispatcherOptions(
   // not configured") rather than being an action nobody owns.
   storageAtoms: StorageActionAtoms = createStorageActionAtoms(new StoreRegistry({})),
 ): Required<
-  Pick<DispatcherOptions, 'allowedActions' | 'materializers' | 'effects' | 'preconditions'>
+  Pick<
+    DispatcherOptions,
+    'allowedActions' | 'materializers' | 'effects' | 'preconditions' | 'receipts'
+  >
 > {
   return composeActionAtoms([
     ...BUILT_IN_ATOMS,

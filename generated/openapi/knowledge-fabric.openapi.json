@@ -3,7 +3,7 @@
   "info": {
     "title": "OpenHuman Knowledge Fabric API",
     "version": "1.1.0-draft.1",
-    "description": "Generated from ontology source digest f29954456677cdb2f15b7c89ce1c298597d49da0e35bb8f1c88dea4d45e0f0e0."
+    "description": "Generated from ontology source digest 4c8f09d94fa4f452369572a08fc80bf8e3a406496f0535fd946ad81c512afd2a."
   },
   "paths": {
     "/objects/organization/{id}": {
@@ -3188,6 +3188,36 @@
         }
       }
     },
+    "/actions/allocate_enterprise_identifier": {
+      "post": {
+        "summary": "Execute allocate_enterprise_identifier",
+        "operationId": "allocate_enterprise_identifier",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
     "/actions/request_secure_object_access": {
       "post": {
         "summary": "Execute request_secure_object_access",
@@ -4957,6 +4987,7 @@
               "revoke_access",
               "replicate_artifact_version",
               "verify_artifact_location",
+              "allocate_enterprise_identifier",
               "request_secure_object_access",
               "issue_secure_object_capability",
               "revoke_secure_object_capability",

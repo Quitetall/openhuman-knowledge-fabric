@@ -309,6 +309,15 @@ action_types:
     transactional: true
     drives: []
 
+  # R6 allocation (ADR 0018). Targets exactly one object; the registry allocates the next free
+  # identifier under the namespace the object's TYPE declares. The request carries no
+  # identifier — there is no field for one — and the allocated value is returned in the
+  # action receipt, read from `registry.identifier_allocation` by the act that wrote it.
+  - id: allocate_enterprise_identifier
+    audited: true
+    transactional: true
+    drives: []
+
   # ── Federated Secure Object Authority ──────────────────────────────────────────────────
   # These actions target exactly one owning organization. Database triggers also require
   # their parameters to bind the exact opaque authority, immutable revision, digest,

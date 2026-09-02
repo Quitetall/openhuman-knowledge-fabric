@@ -104,6 +104,8 @@
     "quality.supplier_qualification",
     "quality.training_record",
     "quality.training_requirement",
+    "registry.identifier_allocation",
+    "registry.identifier_sequence",
     "secure_object.authority_signing_key",
     "secure_object.authority_signing_key_revocation",
     "secure_object.capability_consumption",
