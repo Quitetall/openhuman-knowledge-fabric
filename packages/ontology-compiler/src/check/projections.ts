@@ -83,7 +83,11 @@ export function checkProjections(context: CheckContext): void {
     }
     seen.add(d.id);
 
-    if (d.traverse !== undefined && d.traverse.relations !== 'person_anchors') {
+    if (
+      d.traverse !== undefined &&
+      d.traverse.relations !== 'person_anchors' &&
+      d.traverse.relations !== 'all'
+    ) {
       for (const relation of d.traverse.relations) {
         if (!relationIds.has(relation)) {
           context.err(
@@ -107,6 +111,41 @@ export function checkProjections(context: CheckContext): void {
       );
     }
 
+    if (d.anchor === 'object') {
+      const objectId = d.parameters.find((param) => param.name === 'object_id');
+      if (objectId === undefined || objectId.type !== 'uuid' || !objectId.required) {
+        context.err(
+          'ONT-017',
+          `${at}.parameters`,
+          'an object-anchored projection must declare a required uuid parameter object_id',
+          'Add { name: object_id, type: uuid, required: true } — the anchor is named by the reader.',
+        );
+      }
+      if (d.traverse === undefined) {
+        context.err(
+          'ONT-017',
+          `${at}.traverse`,
+          'an object-anchored projection declares no traverse, so it reaches nothing but the anchor',
+          'Add a traverse (relations: all for a structural neighbourhood).',
+        );
+      }
+    }
+    if (d.anchor === 'person' && d.sections.some((s) => s.select === 'anchor')) {
+      context.err(
+        'ONT-017',
+        `${at}.sections`,
+        'select: anchor names the anchored object; a person-anchored projection has no such member',
+        'Anchor at an object, or select on reachability.',
+      );
+    }
+    if (d.filter?.reachability !== undefined && d.traverse === undefined) {
+      context.err(
+        'ONT-013',
+        `${at}.filter.reachability`,
+        'a reachability filter with no traverse would exclude every member',
+        'Add a traverse, or drop the reachability filter.',
+      );
+    }
     checkFilter(d.filter, `${at}.filter`);
     const sectionIds = new Set<string>();
     for (const section of d.sections) {

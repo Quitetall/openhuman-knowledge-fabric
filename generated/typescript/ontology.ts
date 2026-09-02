@@ -1,11 +1,11 @@
 // GENERATED from ontology/ — do not edit.
 // ontology_version: 1.1.0-draft.1
-// source_digest: 927960fdc24c7990824b6829f9467df74542200d9ed1b7e0372f6236ea1d551e
+// source_digest: f6c3c4c71d4d8645567f9965daf566b86e8b038d17d2920ad3f31d9ae1a68a70
 
 /* eslint-disable */
 
 export const SCHEMA_VERSION = '1.1.0-draft.1' as const;
-export const ONTOLOGY_SOURCE_DIGEST = '927960fdc24c7990824b6829f9467df74542200d9ed1b7e0372f6236ea1d551e' as const;
+export const ONTOLOGY_SOURCE_DIGEST = 'f6c3c4c71d4d8645567f9965daf566b86e8b038d17d2920ad3f31d9ae1a68a70' as const;
 
 export const CLASSIFICATIONS = ['public', 'internal', 'confidential', 'restricted'] as const;
 export type Classifications = (typeof CLASSIFICATIONS)[number];
@@ -828,6 +828,50 @@ export const PROJECTION_DEFINITIONS = [
     ],
     "budgets": {
       "maxMembers": 20000
+    }
+  },
+  {
+    "id": "object_view",
+    "title": "Object view",
+    "version": 1,
+    "anchor": "object",
+    "parameters": [
+      {
+        "name": "object_id",
+        "type": "uuid",
+        "required": true
+      }
+    ],
+    "filter": {
+      "reachability": "reached"
+    },
+    "traverse": {
+      "relations": "all",
+      "maxDepth": 1
+    },
+    "sections": [
+      {
+        "id": "subject",
+        "title": "This record",
+        "select": "anchor"
+      },
+      {
+        "id": "relationships",
+        "title": "Relationships",
+        "select": "reached"
+      }
+    ],
+    "remainder": {
+      "id": "other",
+      "title": "Other"
+    },
+    "sort": [
+      "object_type",
+      "title",
+      "object_id"
+    ],
+    "budgets": {
+      "maxMembers": 5000
     }
   }
 ] as const;

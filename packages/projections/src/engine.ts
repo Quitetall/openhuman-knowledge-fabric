@@ -5,6 +5,7 @@ import type {
   ProjectionSection,
 } from '@kf/ontology-compiler';
 import { relevanceClosureWithMetrics } from './closure.js';
+import { neighbourhood } from './neighbourhood.js';
 import type {
   ProjectionClassification,
   ProjectionInput,
@@ -12,6 +13,7 @@ import type {
   ProjectionParameterValue,
   ProjectionResult,
   ProjectionResultSection,
+  RelevanceEdge,
 } from './types.js';
 
 /** Thrown for a definition or input the engine refuses to evaluate; never for an empty result. */
@@ -104,8 +106,16 @@ export function bindParameters(
   return bound;
 }
 
-function admits(filter: ProjectionFilter | undefined, member: ProjectionMember): boolean {
+function admits(
+  filter: ProjectionFilter | undefined,
+  member: ProjectionMember,
+  reached: ReadonlySet<string>,
+): boolean {
   if (filter === undefined) return true;
+  if (filter.reachability !== undefined) {
+    const isReached = reached.has(member.objectId);
+    if (filter.reachability === 'reached' ? !isReached : isReached) return false;
+  }
   if (filter.objectTypes !== undefined && !filter.objectTypes.includes(member.objectType)) {
     return false;
   }
@@ -185,15 +195,41 @@ export function project(input: ProjectionInput): ProjectionResult {
     );
   }
 
-  // Traversal. An explicit relation list is a whitelist of what may SEED relevance from the
-  // person; once a record is reached, the ontology's propagation classes still govern descent.
+  // The anchor. A person reading starts at the person; an object reading starts at the member
+  // the reader named — and it must BE a member: anchoring outside the corpus would let a
+  // projection reach things its reader was never authorized to see.
+  const anchorId =
+    definition.anchor === 'object' ? String(parameters['object_id']) : corpus.personId;
+  if (
+    definition.anchor === 'object' &&
+    !corpus.members.some((member) => member.objectId === anchorId)
+  ) {
+    throw new ProjectionRefused(
+      'foreign_member',
+      `object ${anchorId} is not in this reader's corpus; a reading cannot be anchored outside it`,
+    );
+  }
+
+  // Traversal. A person reading walks relevance: an explicit relation list is a whitelist of
+  // what may SEED relevance, and propagation classes govern descent. An object reading walks
+  // the structural neighbourhood: every named (or all) relation, both directions, to the depth
+  // ceiling — that is what "what touches this record" means, and it is where backlinks come from.
   let reached: ReadonlySet<string> = new Set<string>();
   let fanoutByAnchorType: Readonly<Record<string, number>> = {};
   let fanoutByPropagationClass: Readonly<Record<string, number>> = {};
+  let edges: readonly RelevanceEdge[] | undefined;
   const traverse = definition.traverse;
-  if (traverse !== undefined) {
+  if (traverse !== undefined && definition.anchor === 'object') {
     const allowed =
-      traverse.relations === 'person_anchors'
+      traverse.relations === 'all' || traverse.relations === 'person_anchors'
+        ? undefined
+        : new Set(traverse.relations);
+    const walk = neighbourhood(anchorId, graph.edges, traverse.maxDepth, allowed);
+    reached = walk.ids;
+    edges = walk.edges;
+  } else if (traverse !== undefined) {
+    const allowed =
+      traverse.relations === 'person_anchors' || traverse.relations === 'all'
         ? new Set(graph.policies.filter((p) => p.personAnchor).map((p) => p.relationType))
         : new Set(traverse.relations);
     const policies = graph.policies.map((policy) =>
@@ -212,10 +248,12 @@ export function project(input: ProjectionInput): ProjectionResult {
   // The definition-level filter is the ONE declared narrowing a projection may make. What it
   // excludes is not placed anywhere — that is what a narrowing means — but it is counted, so a
   // Result can never look complete while quietly omitting members.
-  const candidates = corpus.members.filter((member) => admits(definition.filter, member));
+  const candidates = corpus.members.filter((member) => admits(definition.filter, member, reached));
   const excludedByFilter = corpus.members.length - candidates.length;
   const selects = (section: ProjectionSection, member: ProjectionMember): boolean => {
     switch (section.select) {
+      case 'anchor':
+        return member.objectId === anchorId;
       case 'all':
         return true;
       case 'withdrawn':
@@ -231,7 +269,9 @@ export function project(input: ProjectionInput): ProjectionResult {
   for (const section of definition.sections) buckets.set(section.id, []);
   buckets.set(definition.remainder.id, []);
   for (const member of candidates) {
-    const home = definition.sections.find((s) => selects(s, member) && admits(s.filter, member));
+    const home = definition.sections.find(
+      (s) => selects(s, member) && admits(s.filter, member, reached),
+    );
     buckets.get(home === undefined ? definition.remainder.id : home.id)!.push(member);
   }
 
@@ -271,6 +311,17 @@ export function project(input: ProjectionInput): ProjectionResult {
   }
 
   const sectionCounts = Object.fromEntries(sections.map((s) => [s.id, s.members.length]));
+  const placedIds = new Set(sections.flatMap((s) => s.members.map((m) => m.objectId)));
+  const resultEdges =
+    edges === undefined
+      ? undefined
+      : [...edges]
+          .filter((e) => placedIds.has(e.sourceId) && placedIds.has(e.targetId))
+          .sort((a, b) => {
+            const ka = `${a.relationType} ${a.sourceId} ${a.targetId}`;
+            const kb = `${b.relationType} ${b.sourceId} ${b.targetId}`;
+            return ka < kb ? -1 : ka > kb ? 1 : 0;
+          });
   const body = {
     format: 'kf-projection-result-v1' as const,
     definition: { id: definition.id, version: definition.version },
@@ -281,6 +332,7 @@ export function project(input: ProjectionInput): ProjectionResult {
       corpusDigest: corpus.corpusDigest,
     },
     sections,
+    ...(resultEdges === undefined ? {} : { edges: resultEdges }),
     measurements: {
       memberCount: candidates.length,
       corpusMemberCount: corpus.members.length,
@@ -301,6 +353,9 @@ export function project(input: ProjectionInput): ProjectionResult {
       id: s.id,
       members: s.members.map((m) => [m.objectId, m.contentDigest, m.itemState]),
     })),
+    ...(resultEdges === undefined
+      ? {}
+      : { edges: resultEdges.map((e) => [e.relationType, e.sourceId, e.targetId]) }),
   });
   const result: ProjectionResult = { ...body, projectionDigest };
   canonicalize(result);

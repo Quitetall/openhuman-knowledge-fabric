@@ -114,7 +114,12 @@ Every reading of the record — sections, pages, exports, an agent's context —
 `GET /master-record/projections/:definitionId` in JSON, Markdown or HTML with one projection
 digest across all three.
 
-**Written down:** ADR 0011, "Runtime surfaces"; ADR 0013 for identity; ADR 0014 for projections.
+Every first-class object now has a page with no per-type code: `GET /objects/:id` and
+`apps/web/src/app/objects/[id]` render the `object_view` projection — the record, everything
+that links to or from it, actions from its state, and its audit history (ADR 0015).
+
+**Written down:** ADR 0011, "Runtime surfaces"; ADR 0013 for identity; ADR 0014 for projections;
+ADR 0015 for Object Views.
 **Blocked on:** steps 2 and 3.
 
 ### 5 · Filesystem presence — deferred with a reason that expires

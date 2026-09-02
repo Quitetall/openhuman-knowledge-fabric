@@ -107,7 +107,7 @@ export interface RelationType {
 
 // ── corpus projections (ADR 0013; ontology/projections.yaml) ────────────────────────────
 
-export type ProjectionSelect = 'reached' | 'unreached' | 'withdrawn' | 'all';
+export type ProjectionSelect = 'anchor' | 'reached' | 'unreached' | 'withdrawn' | 'all';
 
 /** A narrowing. Every field is optional; an absent field admits everything. */
 export interface ProjectionFilter {
@@ -116,6 +116,12 @@ export interface ProjectionFilter {
   /** Admit only members at or below this classification. Narrows; never widens. */
   readonly classificationMax?: string;
   readonly itemStates?: readonly ('included' | 'withdrawn')[];
+  /**
+   * Admit only members the traversal reached (or did not). At definition level this is the
+   * declared scope of a neighbourhood reading — an object view keeps the object and what
+   * touches it, not the whole corpus — and what it excludes is counted, never silent.
+   */
+  readonly reachability?: 'reached' | 'unreached';
 }
 
 export interface ProjectionSection {
@@ -135,8 +141,12 @@ export interface ProjectionParameter {
 }
 
 export interface ProjectionTraverse {
-  /** `person_anchors` = every relation type declaring person_anchor: true; or an explicit list. */
-  readonly relations: 'person_anchors' | readonly string[];
+  /**
+   * `person_anchors` = every relation type declaring person_anchor: true, walked by propagation
+   * class (a relevance reading); `all` = every relation type, both directions, as a structural
+   * neighbourhood (an object reading); or an explicit list.
+   */
+  readonly relations: 'person_anchors' | 'all' | readonly string[];
   readonly maxDepth: number;
 }
 
@@ -144,7 +154,11 @@ export interface ProjectionDefinition {
   readonly id: string;
   readonly title: string;
   readonly version: number;
-  readonly anchor: 'person';
+  /**
+   * `person`: the person the corpus was compiled for. `object`: a member named by the required
+   * `object_id` parameter — the reading is anchored inside the corpus, never outside it.
+   */
+  readonly anchor: 'person' | 'object';
   readonly parameters: readonly ProjectionParameter[];
   readonly filter?: ProjectionFilter;
   readonly traverse?: ProjectionTraverse;
@@ -508,6 +522,13 @@ export function loadOntology(dir: string): Ontology {
       if (f['item_states'] !== undefined) {
         out['itemStates'] = asStringList(f['item_states'], `${at}.item_states`);
       }
+      if (f['reachability'] !== undefined) {
+        const reach = asString(f['reachability'], `${at}.reachability`);
+        if (reach !== 'reached' && reach !== 'unreached') {
+          throw new OntologyError(`${at}.reachability: expected reached or unreached`);
+        }
+        out['reachability'] = reach;
+      }
       return out as unknown as ProjectionFilter;
     };
     const version = r['version'];
@@ -515,7 +536,9 @@ export function loadOntology(dir: string): Ontology {
       throw new OntologyError(`${where}.version: expected a positive integer`);
     }
     const anchor = asString(r['anchor'], `${where}.anchor`);
-    if (anchor !== 'person') throw new OntologyError(`${where}.anchor: only 'person' is defined`);
+    if (anchor !== 'person' && anchor !== 'object') {
+      throw new OntologyError(`${where}.anchor: expected person or object`);
+    }
     const remainderRaw = asRecord(r['remainder'], `${where}.remainder`);
     const budgetsRaw = asRecord(r['budgets'], `${where}.budgets`);
     const maxMembers = budgetsRaw['max_members'];
@@ -532,8 +555,8 @@ export function loadOntology(dir: string): Ontology {
       }
       traverse = {
         relations:
-          relations === 'person_anchors'
-            ? 'person_anchors'
+          relations === 'person_anchors' || relations === 'all'
+            ? relations
             : asStringList(relations, `${where}.traverse.relations`),
         maxDepth,
       };
@@ -542,7 +565,7 @@ export function loadOntology(dir: string): Ontology {
       (s, j) => {
         const sec = asRecord(s, `${where}.sections[${j}]`);
         const select = asString(sec['select'], `${where}.sections[${j}].select`);
-        if (!['reached', 'unreached', 'withdrawn', 'all'].includes(select)) {
+        if (!['anchor', 'reached', 'unreached', 'withdrawn', 'all'].includes(select)) {
           throw new OntologyError(`${where}.sections[${j}].select: unknown select '${select}'`);
         }
         const f = filter(sec['filter'], `${where}.sections[${j}].filter`);
@@ -580,7 +603,7 @@ export function loadOntology(dir: string): Ontology {
       id,
       title: asString(r['title'], `${where}.title`),
       version,
-      anchor: 'person',
+      anchor,
       parameters,
       ...(topFilter === undefined ? {} : { filter: topFilter }),
       ...(traverse === undefined ? {} : { traverse }),

@@ -425,7 +425,7 @@ export function emitDocumentation(o: Ontology): string {
     const traverse =
       d.traverse === undefined
         ? '—'
-        : `${d.traverse.relations === 'person_anchors' ? 'person anchors' : d.traverse.relations.join(', ')} ≤ ${d.traverse.maxDepth}`;
+        : `${d.traverse.relations === 'person_anchors' ? 'person anchors' : d.traverse.relations === 'all' ? 'all relations' : d.traverse.relations.join(', ')} ≤ ${d.traverse.maxDepth}`;
     out.push(
       `| \`${d.id}\` | ${d.version} | ${traverse} | ${d.sections.map((s) => `\`${s.id}\` (${s.select})`).join(', ') || '—'} | \`${d.remainder.id}\` |`,
     );

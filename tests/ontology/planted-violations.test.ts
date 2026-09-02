@@ -103,6 +103,24 @@ describe('corpus projection definitions are checked like everything else', () =>
     ).toContain('ONT-015');
   });
 
+  it('ONT-017 an object-anchored projection with no object_id parameter', () => {
+    expect(
+      errorsFor((o) => {
+        projection(o, 'object_view').parameters = [];
+        return o;
+      }),
+    ).toContain('ONT-017');
+  });
+
+  it('ONT-017 a person-anchored projection selecting the anchor, which it does not have', () => {
+    expect(
+      errorsFor((o) => {
+        projection(o, 'master_sections').sections[0]!.select = 'anchor';
+        return o;
+      }),
+    ).toContain('ONT-017');
+  });
+
   it('ONT-016 sorting by a field that is not a declared envelope field', () => {
     expect(
       errorsFor((o) => {

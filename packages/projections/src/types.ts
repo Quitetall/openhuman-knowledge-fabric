@@ -83,6 +83,13 @@ export interface ProjectionResult {
     readonly corpusDigest: string;
   };
   readonly sections: readonly ProjectionResultSection[];
+  /**
+   * For an object-anchored reading: the active edges among the Result's members that the
+   * neighbourhood walk crossed, both directions. This IS the reading's outcome for a
+   * neighbourhood — a relationship page without its edges is a list — so it is part of the
+   * projection digest. Absent for person-anchored readings, whose outcome is membership.
+   */
+  readonly edges?: readonly RelevanceEdge[];
   readonly measurements: {
     /** Members admitted by the definition filter and placed in sections. */
     readonly memberCount: number;

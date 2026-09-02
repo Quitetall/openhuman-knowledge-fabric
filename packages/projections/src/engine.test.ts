@@ -183,6 +183,118 @@ describe('project', () => {
   });
 });
 
+describe('object-anchored readings', () => {
+  const objectView: ProjectionDefinition = {
+    id: 'object_view',
+    title: 'Object view',
+    version: 1,
+    anchor: 'object',
+    parameters: [{ name: 'object_id', type: 'uuid', required: true }],
+    traverse: { relations: 'all', maxDepth: 1 },
+    filter: { reachability: 'reached' },
+    sections: [
+      { id: 'subject', title: 'This record', select: 'anchor' },
+      { id: 'relationships', title: 'Relationships', select: 'reached' },
+    ],
+    remainder: { id: 'other', title: 'Other' },
+    sort: ['object_type', 'title', 'object_id'],
+    budgets: { maxMembers: 5000 },
+  };
+  const A = '019ff405-2eca-7e77-96cb-00990ac6f24a';
+  const B = '019ff405-2eca-7e77-96cb-00990ac6f24b';
+  const C = '019ff405-2eca-7e77-96cb-00990ac6f24c';
+  const D = '019ff405-2eca-7e77-96cb-00990ac6f24d';
+  const neighbourhoodCorpus: ProjectionCorpus = {
+    ...corpus,
+    members: [member(A), member(B), member(C), member(D)],
+  };
+  // B -> A (backlink for A), A -> C (forward), C -> D (two hops away), and a lateral edge type.
+  const neighbourhoodGraph: ProjectionGraph = {
+    edges: [
+      { sourceId: B, targetId: A, relationType: 'affects' },
+      { sourceId: A, targetId: C, relationType: 'produces' },
+      { sourceId: C, targetId: D, relationType: 'produces' },
+    ],
+    policies: graph.policies,
+  };
+
+  it('keeps the anchor and what touches it, in both directions, and nothing further', () => {
+    const result = project({
+      definition: objectView,
+      parameters: { object_id: A },
+      corpus: neighbourhoodCorpus,
+      graph: neighbourhoodGraph,
+    });
+    expect(result.sections.map((s) => s.id)).toEqual(['subject', 'relationships', 'other']);
+    expect(result.sections[0]!.members.map((m) => m.objectId)).toEqual([A]);
+    // The backlink B and the forward link C; the lateral relation counts, policy notwithstanding.
+    expect(result.sections[1]!.members.map((m) => m.objectId).sort()).toEqual([B, C]);
+    expect(result.sections[2]!.members).toEqual([]);
+    // D is two hops away: excluded by the reachability scope, and counted, not dropped.
+    expect(result.measurements.excludedByFilter).toBe(1);
+    expect(result.edges?.map((e) => e.relationType).sort()).toEqual(['affects', 'produces']);
+  });
+
+  it('refuses an anchor outside the reader corpus', () => {
+    expect(() =>
+      project({
+        definition: objectView,
+        parameters: { object_id: '019ff405-2eca-7e77-96cb-00990ac6f24e' },
+        corpus: neighbourhoodCorpus,
+        graph: neighbourhoodGraph,
+      }),
+    ).toThrow(/not in this reader's corpus/);
+  });
+
+  it('puts the crossed edges into the digest, so a new relation between existing members is a new reading', () => {
+    // A -> B alongside the existing B -> A: membership is identical, only the edge set grows.
+    // If edges were not in the digest this would be indistinguishable from the previous reading.
+    const before = project({
+      definition: objectView,
+      parameters: { object_id: A },
+      corpus: neighbourhoodCorpus,
+      graph: neighbourhoodGraph,
+    });
+    const after = project({
+      definition: objectView,
+      parameters: { object_id: A },
+      corpus: neighbourhoodCorpus,
+      graph: {
+        ...neighbourhoodGraph,
+        edges: [
+          ...neighbourhoodGraph.edges,
+          { sourceId: A, targetId: B, relationType: 'produces' },
+        ],
+      },
+    });
+    expect(after.sections[1]!.members.map((m) => m.objectId).sort()).toEqual(
+      before.sections[1]!.members.map((m) => m.objectId).sort(),
+    );
+    expect(after.edges?.length).toBe((before.edges?.length ?? 0) + 1);
+    expect(after.projectionDigest).not.toBe(before.projectionDigest);
+  });
+
+  it('a new backlink is a new reading', () => {
+    const before = project({
+      definition: objectView,
+      parameters: { object_id: A },
+      corpus: neighbourhoodCorpus,
+      graph: neighbourhoodGraph,
+    });
+    const after = project({
+      definition: objectView,
+      parameters: { object_id: A },
+      corpus: neighbourhoodCorpus,
+      graph: {
+        ...neighbourhoodGraph,
+        edges: [...neighbourhoodGraph.edges, { sourceId: D, targetId: A, relationType: 'affects' }],
+      },
+    });
+    expect(after.sections[1]!.members.map((m) => m.objectId).sort()).toEqual([B, C, D]);
+    expect(after.projectionDigest).not.toBe(before.projectionDigest);
+  });
+});
+
 describe('bindParameters', () => {
   const withParam: ProjectionDefinition = {
     ...definition,

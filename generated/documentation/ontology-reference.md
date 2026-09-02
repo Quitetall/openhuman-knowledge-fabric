@@ -1,9 +1,9 @@
 <!-- GENERATED from ontology/ — do not edit. -->
-<!-- ontology_version: 1.1.0-draft.1 · source_digest: 927960fdc24c7990824b6829f9467df74542200d9ed1b7e0372f6236ea1d551e -->
+<!-- ontology_version: 1.1.0-draft.1 · source_digest: f6c3c4c71d4d8645567f9965daf566b86e8b038d17d2920ad3f31d9ae1a68a70 -->
 
 # Ontology reference
 
-Compiled from `ontology/`. 38 object types, 41 relation types, 108 action types, 21 state machines, 15 invariants, 3 corpus projections.
+Compiled from `ontology/`. 38 object types, 41 relation types, 108 action types, 21 state machines, 15 invariants, 4 corpus projections.
 
 ## Object types
 
@@ -587,3 +587,4 @@ stateDiagram-v2
 | `master_sections` | 1 | person anchors ≤ 8 | `withdrawn` (withdrawn), `your_record` (reached), `org_view` (unreached) | `raw_corpus` |
 | `raw_corpus` | 1 | — | — | `raw_corpus` |
 | `agent_context` | 1 | person anchors ≤ 8 | `relevant` (reached), `organization` (unreached) | `raw_corpus` |
+| `object_view` | 1 | all relations ≤ 1 | `subject` (anchor), `relationships` (reached) | `other` |

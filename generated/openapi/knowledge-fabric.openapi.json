@@ -3,7 +3,7 @@
   "info": {
     "title": "OpenHuman Knowledge Fabric API",
     "version": "1.1.0-draft.1",
-    "description": "Generated from ontology source digest 927960fdc24c7990824b6829f9467df74542200d9ed1b7e0372f6236ea1d551e."
+    "description": "Generated from ontology source digest f6c3c4c71d4d8645567f9965daf566b86e8b038d17d2920ad3f31d9ae1a68a70."
   },
   "paths": {
     "/objects/organization/{id}": {

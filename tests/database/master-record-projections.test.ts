@@ -8,6 +8,7 @@ import { createDocumentActionAtoms, latestMasterRecord } from '@kf/documents';
 import { createFabricDispatcher } from '@kf/orchestrator';
 import { loadProjectionDefinitions, type ProjectionResult } from '@kf/projections';
 import { registerMasterRecordProjectionRoute } from '../../apps/api/src/routes/documents/master-record-projection-route.js';
+import { registerObjectViewRoute } from '../../apps/api/src/routes/documents/object-view-route.js';
 import { registerMasterRecordRoute } from '../../apps/api/src/routes/documents/master-record-route.js';
 import type { DocumentRoutesOptions } from '../../apps/api/src/routes/documents/contracts.js';
 import {
@@ -225,6 +226,59 @@ describe('corpus projections over a real master record', () => {
       expect(body.sections.sectionCounts['your_record']).toBe(
         body.items.filter((i) => i.section === 'your_record').length,
       );
+    } finally {
+      await app.close();
+    }
+  }, 60_000);
+
+  it('serves an Object View: the anchor, its neighbourhood in both directions, plus facets', async () => {
+    const app = Fastify({ logger: false });
+    registerObjectViewRoute(app, routeOptions());
+    await app.ready();
+    try {
+      // The probe is the TARGET of the edge inserted above (person -> probe), so from the
+      // probe's side the person is a backlink. Anchored at the probe, the person must appear.
+      const response = await app.inject({ method: 'GET', url: `/objects/${probe}` });
+      expect(response.statusCode, response.body).toBe(200);
+      const body = response.json() as {
+        result: ProjectionResult;
+        facets: {
+          history: { events: readonly { action_type: string }[] };
+          availableActions: readonly { actionType: string }[];
+        };
+      };
+      expect(body.result.definition.id).toBe('object_view');
+      expect(body.result.sections.map((s) => s.id)).toEqual(['subject', 'relationships', 'other']);
+      expect(body.result.sections[0]!.members.map((m) => m.objectId)).toEqual([probe]);
+      expect(body.result.sections[1]!.members.map((m) => m.objectId)).toContain(
+        fixtures.performerId,
+      );
+      expect(body.result.edges?.some((e) => e.relationType === 'produces')).toBe(true);
+      // Members beyond one hop are scoped out and COUNTED, never silently absent.
+      const placed = body.result.sections.reduce((n, s) => n + s.members.length, 0);
+      expect(placed + body.result.measurements.excludedByFilter).toBe(
+        body.result.measurements.corpusMemberCount,
+      );
+      // The probe was seeded by direct insert, so its own history is honestly empty; the facet
+      // is proven on the person, whose compile_master_record action targets them.
+      expect(Array.isArray(body.facets.history.events)).toBe(true);
+      expect(Array.isArray(body.facets.availableActions)).toBe(true);
+      const person = await app.inject({ method: 'GET', url: `/objects/${fixtures.performerId}` });
+      expect(person.statusCode, person.body).toBe(200);
+      const personView = person.json() as {
+        facets: { history: { events: readonly { action_type: string }[] } };
+      };
+      expect(
+        personView.facets.history.events.some((e) => e.action_type === 'compile_master_record'),
+      ).toBe(true);
+      expect(response.headers['x-kf-projection-digest']).toBe(body.result.projectionDigest);
+
+      // An object outside the reader's corpus reads as not found — never as "exists elsewhere".
+      const outside = await app.inject({
+        method: 'GET',
+        url: '/objects/019ff405-2eca-7e77-96cb-00990ac6f2ff',
+      });
+      expect(outside.statusCode).toBe(404);
     } finally {
       await app.close();
     }

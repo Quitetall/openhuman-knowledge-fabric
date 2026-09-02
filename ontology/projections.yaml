@@ -78,3 +78,22 @@ projection_definitions:
     remainder: { id: raw_corpus, title: Everything else }
     sort: [object_type, title, object_id]
     budgets: { max_members: 20000 }
+
+  # The Object View. One definition serves every object type: anchor at the member the reader
+  # names, walk every relation both directions one hop (backlinks come free), keep only the
+  # anchor and what touches it. History and available actions are facets the API attaches from
+  # the audit chain and the state machines; they are not corpus members, so they are not here.
+  - id: object_view
+    title: Object view
+    version: 1
+    anchor: object
+    parameters:
+      - { name: object_id, type: uuid, required: true }
+    traverse: { relations: all, max_depth: 1 }
+    filter: { reachability: reached }
+    sections:
+      - { id: subject, title: This record, select: anchor }
+      - { id: relationships, title: Relationships, select: reached }
+    remainder: { id: other, title: Other }
+    sort: [object_type, title, object_id]
+    budgets: { max_members: 5000 }
