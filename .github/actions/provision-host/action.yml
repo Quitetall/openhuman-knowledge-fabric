@@ -46,6 +46,22 @@ runs:
         sudo apt-get install --yes pandoc
         pandoc --version | head -1
 
+    # A PDF is pandoc plus a LaTeX engine, and the engine is a SEPARATE package that the
+    # hosted image does not ship. `renderMasterRecord(…, 'pdf')` died on every CI run from
+    # 2026-08-27 with "pdflatex not found" while the same test passed on a workstation that
+    # had TeX Live for other reasons — the pandoc story of 2026-08-20 repeating one layer
+    # down. The probe below renders a one-line document so a missing package fails HERE, with
+    # its own message, not inside a test that reads like the renderer broke.
+    - name: Provision the PDF engine pandoc renders through
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo apt-get install --yes --no-install-recommends \
+          texlive-latex-base texlive-latex-recommended texlive-fonts-recommended lmodern
+        pdflatex --version | head -1
+        printf '# probe\n\nOne paragraph.\n' | pandoc --from=gfm --to=pdf --standalone -o /tmp/provision-probe.pdf
+        head -c 5 /tmp/provision-probe.pdf | grep -q '%PDF-'
+
     # The compiler sandbox creates a user namespace and then disables further ones
     # (`--unshare-all --unshare-user --disable-userns`, packages/documents/src/liminal-adapter
     # /sandbox.ts). Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor by

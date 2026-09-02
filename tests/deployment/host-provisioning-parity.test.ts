@@ -45,13 +45,15 @@ describe('every workflow that runs the gate provisions the same host contract', 
     }
   });
 
-  it('the shared action still provisions all six requirements', () => {
+  it('the shared action still provisions all seven requirements', () => {
     // Named individually rather than counted. A count passes when one is swapped for another,
     // and each of these cost a failed run to discover.
     const action = readFileSync(join(ROOT, ACTION, 'action.yml'), 'utf8');
     for (const required of [
       'bubblewrap',
       'pandoc',
+      // The PDF engine pandoc renders through; a separate package the hosted image lacks.
+      'pdflatex',
       'python3',
       'postgresql-client-18',
       '/usr/bin/node',

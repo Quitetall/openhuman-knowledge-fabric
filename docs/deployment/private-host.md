@@ -56,6 +56,11 @@ userland behavior such as `readlink -f`, `realpath -ms`, `stat -Lc`, `find -prin
 `/usr/bin`.
 
 Install **pandoc**, on `PATH`, for the process that serves document import.
+Install a **LaTeX engine** beside it — `pdflatex`, from `texlive-latex-base
+texlive-latex-recommended texlive-fonts-recommended lmodern` on Debian/Ubuntu — for the process
+that renders master records to PDF: pandoc produces a PDF only through an engine, and it is a
+separate package. Prove both exactly as CI does:
+`printf '# probe\n\nOne paragraph.\n' | pandoc --from=gfm --to=pdf --standalone -o /tmp/probe.pdf`.
 `packages/documents/src/internal/pandoc-parser.ts` runs `pandoc --from=<format> --to=json` as a
 child process, so a host without it answers every document import with HTTP 500 and logs
 `spawn pandoc ENOENT` — the API deliberately does not tell the caller more than a request id.

@@ -92,3 +92,19 @@ then remove it.
 """
 regexes = ['''[A-Z0-9_]*SHA256[A-Z0-9_]*:\s*[0-9a-f]{64}''']
 regexTarget = "match"
+
+[[allowlists]]
+description = """
+The master-record link-secret fixture in `tests/database/master-record-runtime.test.ts`: the
+hexadecimal alphabet written out in order, twice. It is 32 hex characters assigned to a field
+called `secret`, which is exactly the shape generic-api-key hunts for, and it is the one 32-hex
+string on earth that discloses nothing. Pinned to the ASCENDING alphabet exactly twice, quotes
+included — a real secret is not `0123456789abcdef` twice, and a value with anything before or
+after it does not match, so a real one in the same field is still reported.
+
+Tripped on 2026-08-27 (three findings, one fixture) and left CI red for a week because the
+scan is CI-only; falsified by planting an AWS-shaped key beside the fixture and confirming it
+was REPORTED before this allowlist was committed.
+"""
+regexes = ["""'(0123456789abcdef){2}'"""]
+regexTarget = "match"
