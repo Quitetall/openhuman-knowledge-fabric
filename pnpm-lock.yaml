@@ -71,6 +71,9 @@ importers:
       '@kf/search':
         specifier: workspace:*
         version: link:packages/search
+      '@kf/warrants':
+        specifier: workspace:*
+        version: link:packages/warrants
       '@kf/work-control':
         specifier: workspace:*
         version: link:packages/work-control
@@ -512,6 +515,9 @@ importers:
       '@kf/product-quality':
         specifier: workspace:*
         version: link:../product-quality
+      '@kf/warrants':
+        specifier: workspace:*
+        version: link:../warrants
       '@kf/work-control':
         specifier: workspace:*
         version: link:../work-control
@@ -592,6 +598,15 @@ importers:
       '@types/node':
         specifier: ^24.13.3
         version: 24.13.3
+
+  packages/warrants:
+    dependencies:
+      '@kf/actions':
+        specifier: workspace:*
+        version: link:../actions
+      '@kf/database':
+        specifier: workspace:*
+        version: link:../database
 
   packages/work-control:
     dependencies:

@@ -23,6 +23,7 @@
     "@kf/database": "workspace:*",
     "@kf/documents": "workspace:*",
     "@kf/identifiers": "workspace:*",
+    "@kf/warrants": "workspace:*",
     "@kf/integration": "workspace:*",
     "@kf/product-quality": "workspace:*",
     "@kf/work-control": "workspace:*"

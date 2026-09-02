@@ -15,6 +15,8 @@ export const IMPORT_ORDER = [
   'actions',
   'identifier-sequences',
   'identifier-allocations',
+  'warrants',
+  'warrant-contract-revisions',
   'person-clearances',
   'person-clearance-retirements',
   'legacy-action-provenance',

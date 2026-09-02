@@ -527,3 +527,141 @@ action_types:
     audited: true
     transactional: true
     drives: [test_execution]
+
+  # ── OpenWarrant SAS §67 controlled actions (ADR 0019) ─────────────────────────────────
+  # Thirty-two names, in §67's four groups, exactly as OpenWarrant's seam spells them. Phase
+  # transitions (§24.7) drive the `warrant` machine; condition, outcome, currency and standing
+  # are typed writes on work.warrant. The evidence group and part of the execution group are
+  # accepted and audited with no typed projection yet — ADR 0019 lists them.
+  # Contract
+  - id: create_warrant_draft
+    audited: true
+    transactional: true
+    drives: []
+  - id: revise_warrant_draft
+    audited: true
+    transactional: true
+    drives: []
+  - id: submit_warrant
+    audited: true
+    transactional: true
+    drives: [warrant]
+  - id: authorize_warrant_contract
+    audited: true
+    transactional: true
+    drives: [warrant]
+  - id: withdraw_warrant_proposal
+    audited: true
+    transactional: true
+    drives: [warrant]
+  - id: propose_warrant_amendment
+    audited: true
+    transactional: true
+    drives: []
+  - id: authorize_warrant_amendment
+    audited: true
+    transactional: true
+    drives: [warrant]
+  - id: reject_warrant_amendment
+    audited: true
+    transactional: true
+    drives: []
+  # Execution
+  - id: record_warrant_preflight
+    audited: true
+    transactional: true
+    drives: [warrant]
+  - id: authorize_warrant_dispatch
+    audited: true
+    transactional: true
+    drives: [warrant]
+  - id: attach_warrant_runtime_receipt
+    audited: true
+    transactional: true
+    drives: []
+  - id: register_warrant_submission
+    audited: true
+    transactional: true
+    drives: [warrant]
+  - id: open_warrant_blocker
+    audited: true
+    transactional: true
+    drives: []
+  - id: resolve_warrant_blocker
+    audited: true
+    transactional: true
+    drives: []
+  - id: pause_warrant
+    audited: true
+    transactional: true
+    drives: []
+  - id: resume_warrant
+    audited: true
+    transactional: true
+    drives: []
+  - id: propose_warrant_deviation
+    audited: true
+    transactional: true
+    drives: []
+  - id: approve_warrant_deviation
+    audited: true
+    transactional: true
+    drives: []
+  - id: reject_warrant_deviation
+    audited: true
+    transactional: true
+    drives: []
+  - id: record_warrant_discovered_gap
+    audited: true
+    transactional: true
+    drives: []
+  # Evidence
+  - id: register_warrant_artifact
+    audited: true
+    transactional: true
+    drives: []
+  - id: register_warrant_evidence
+    audited: true
+    transactional: true
+    drives: []
+  - id: attach_warrant_gate_run
+    audited: true
+    transactional: true
+    drives: []
+  - id: record_warrant_inference
+    audited: true
+    transactional: true
+    drives: []
+  - id: record_warrant_judgment
+    audited: true
+    transactional: true
+    drives: []
+  - id: request_warrant_resolution
+    audited: true
+    transactional: true
+    drives: []
+  # Terminal and administrative
+  - id: resolve_warrant
+    audited: true
+    transactional: true
+    drives: [warrant]
+  - id: dispute_warrant_resolution
+    audited: true
+    transactional: true
+    drives: []
+  - id: resolve_warrant_dispute
+    audited: true
+    transactional: true
+    drives: []
+  - id: annul_warrant_resolution
+    audited: true
+    transactional: true
+    drives: []
+  - id: supersede_warrant
+    audited: true
+    transactional: true
+    drives: []
+  - id: deprecate_warrant
+    audited: true
+    transactional: true
+    drives: []

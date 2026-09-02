@@ -2,7 +2,7 @@
   "schema_version": "1.1.0-draft.1",
   "x-generated-from": {
     "ontology_version": "1.1.0-draft.1",
-    "source_digest": "4c8f09d94fa4f452369572a08fc80bf8e3a406496f0535fd946ad81c512afd2a"
+    "source_digest": "b6b322c1392676a52dc8fc76e0866354aaa438b0f2bff24f1735dfaeaa780a5e"
   },
   "node_types": {
     "organization": {
@@ -157,6 +157,10 @@
     "work_order_amendment": {
       "authority_domain": "commercial",
       "enterprise_namespace": "AMD"
+    },
+    "warrant": {
+      "authority_domain": "project",
+      "enterprise_namespace": "WAR"
     }
   },
   "edge_types": {
@@ -864,6 +868,134 @@
       "transactional": true
     },
     "invalidate_test_execution": {
+      "audited": true,
+      "transactional": true
+    },
+    "create_warrant_draft": {
+      "audited": true,
+      "transactional": true
+    },
+    "revise_warrant_draft": {
+      "audited": true,
+      "transactional": true
+    },
+    "submit_warrant": {
+      "audited": true,
+      "transactional": true
+    },
+    "authorize_warrant_contract": {
+      "audited": true,
+      "transactional": true
+    },
+    "withdraw_warrant_proposal": {
+      "audited": true,
+      "transactional": true
+    },
+    "propose_warrant_amendment": {
+      "audited": true,
+      "transactional": true
+    },
+    "authorize_warrant_amendment": {
+      "audited": true,
+      "transactional": true
+    },
+    "reject_warrant_amendment": {
+      "audited": true,
+      "transactional": true
+    },
+    "record_warrant_preflight": {
+      "audited": true,
+      "transactional": true
+    },
+    "authorize_warrant_dispatch": {
+      "audited": true,
+      "transactional": true
+    },
+    "attach_warrant_runtime_receipt": {
+      "audited": true,
+      "transactional": true
+    },
+    "register_warrant_submission": {
+      "audited": true,
+      "transactional": true
+    },
+    "open_warrant_blocker": {
+      "audited": true,
+      "transactional": true
+    },
+    "resolve_warrant_blocker": {
+      "audited": true,
+      "transactional": true
+    },
+    "pause_warrant": {
+      "audited": true,
+      "transactional": true
+    },
+    "resume_warrant": {
+      "audited": true,
+      "transactional": true
+    },
+    "propose_warrant_deviation": {
+      "audited": true,
+      "transactional": true
+    },
+    "approve_warrant_deviation": {
+      "audited": true,
+      "transactional": true
+    },
+    "reject_warrant_deviation": {
+      "audited": true,
+      "transactional": true
+    },
+    "record_warrant_discovered_gap": {
+      "audited": true,
+      "transactional": true
+    },
+    "register_warrant_artifact": {
+      "audited": true,
+      "transactional": true
+    },
+    "register_warrant_evidence": {
+      "audited": true,
+      "transactional": true
+    },
+    "attach_warrant_gate_run": {
+      "audited": true,
+      "transactional": true
+    },
+    "record_warrant_inference": {
+      "audited": true,
+      "transactional": true
+    },
+    "record_warrant_judgment": {
+      "audited": true,
+      "transactional": true
+    },
+    "request_warrant_resolution": {
+      "audited": true,
+      "transactional": true
+    },
+    "resolve_warrant": {
+      "audited": true,
+      "transactional": true
+    },
+    "dispute_warrant_resolution": {
+      "audited": true,
+      "transactional": true
+    },
+    "resolve_warrant_dispute": {
+      "audited": true,
+      "transactional": true
+    },
+    "annul_warrant_resolution": {
+      "audited": true,
+      "transactional": true
+    },
+    "supersede_warrant": {
+      "audited": true,
+      "transactional": true
+    },
+    "deprecate_warrant": {
       "audited": true,
       "transactional": true
     }

@@ -121,6 +121,8 @@
     "work.initiative_project",
     "work.milestone",
     "work.project_event",
+    "work.warrant",
+    "work.warrant_contract_revision",
     "work.work_execution",
     "work.work_order",
     "work.work_order_amendment",

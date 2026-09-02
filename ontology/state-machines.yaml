@@ -282,3 +282,22 @@ state_machines:
       - { from: passed, to: invalidated, action: invalidate_test_execution }
       - { from: failed, to: invalidated, action: invalidate_test_execution }
       - { from: executed, to: invalidated, action: invalidate_test_execution }
+
+  # SAS §24.7 core transitions, §24.8 amendment return, and the proposal withdrawal. Blocking
+  # and pausing overlay the phase (§24.2) and are fields, not transitions.
+  - id: warrant
+    initial: draft
+    terminal: [resolved]
+    transitions:
+      - { from: draft, to: proposed, action: submit_warrant }
+      - { from: proposed, to: draft, action: withdraw_warrant_proposal }
+      - { from: proposed, to: authorized, action: authorize_warrant_contract }
+      - { from: authorized, to: ready, action: record_warrant_preflight }
+      - { from: ready, to: executing, action: authorize_warrant_dispatch }
+      - { from: executing, to: verifying, action: register_warrant_submission }
+      - { from: verifying, to: resolved, action: resolve_warrant }
+      # §24.8: an authorized material amendment returns the WAR to authorized, and affected
+      # stages are re-preflighted.
+      - { from: ready, to: authorized, action: authorize_warrant_amendment }
+      - { from: executing, to: authorized, action: authorize_warrant_amendment }
+      - { from: verifying, to: authorized, action: authorize_warrant_amendment }

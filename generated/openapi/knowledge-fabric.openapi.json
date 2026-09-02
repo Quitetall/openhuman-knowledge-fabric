@@ -3,7 +3,7 @@
   "info": {
     "title": "OpenHuman Knowledge Fabric API",
     "version": "1.1.0-draft.1",
-    "description": "Generated from ontology source digest 4c8f09d94fa4f452369572a08fc80bf8e3a406496f0535fd946ad81c512afd2a."
+    "description": "Generated from ontology source digest b6b322c1392676a52dc8fc76e0866354aaa438b0f2bff24f1735dfaeaa780a5e."
   },
   "paths": {
     "/objects/organization/{id}": {
@@ -1285,6 +1285,40 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/WorkOrderAmendmentNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/warrant/{id}": {
+      "get": {
+        "summary": "Read a Warrant",
+        "operationId": "get_warrant",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Warrant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WarrantNode"
                 }
               }
             }
@@ -4687,6 +4721,966 @@
           }
         }
       }
+    },
+    "/actions/create_warrant_draft": {
+      "post": {
+        "summary": "Execute create_warrant_draft",
+        "operationId": "create_warrant_draft",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/revise_warrant_draft": {
+      "post": {
+        "summary": "Execute revise_warrant_draft",
+        "operationId": "revise_warrant_draft",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/submit_warrant": {
+      "post": {
+        "summary": "Execute submit_warrant",
+        "operationId": "submit_warrant",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/authorize_warrant_contract": {
+      "post": {
+        "summary": "Execute authorize_warrant_contract",
+        "operationId": "authorize_warrant_contract",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/withdraw_warrant_proposal": {
+      "post": {
+        "summary": "Execute withdraw_warrant_proposal",
+        "operationId": "withdraw_warrant_proposal",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/propose_warrant_amendment": {
+      "post": {
+        "summary": "Execute propose_warrant_amendment",
+        "operationId": "propose_warrant_amendment",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/authorize_warrant_amendment": {
+      "post": {
+        "summary": "Execute authorize_warrant_amendment",
+        "operationId": "authorize_warrant_amendment",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/reject_warrant_amendment": {
+      "post": {
+        "summary": "Execute reject_warrant_amendment",
+        "operationId": "reject_warrant_amendment",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/record_warrant_preflight": {
+      "post": {
+        "summary": "Execute record_warrant_preflight",
+        "operationId": "record_warrant_preflight",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/authorize_warrant_dispatch": {
+      "post": {
+        "summary": "Execute authorize_warrant_dispatch",
+        "operationId": "authorize_warrant_dispatch",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/attach_warrant_runtime_receipt": {
+      "post": {
+        "summary": "Execute attach_warrant_runtime_receipt",
+        "operationId": "attach_warrant_runtime_receipt",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/register_warrant_submission": {
+      "post": {
+        "summary": "Execute register_warrant_submission",
+        "operationId": "register_warrant_submission",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/open_warrant_blocker": {
+      "post": {
+        "summary": "Execute open_warrant_blocker",
+        "operationId": "open_warrant_blocker",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/resolve_warrant_blocker": {
+      "post": {
+        "summary": "Execute resolve_warrant_blocker",
+        "operationId": "resolve_warrant_blocker",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/pause_warrant": {
+      "post": {
+        "summary": "Execute pause_warrant",
+        "operationId": "pause_warrant",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/resume_warrant": {
+      "post": {
+        "summary": "Execute resume_warrant",
+        "operationId": "resume_warrant",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/propose_warrant_deviation": {
+      "post": {
+        "summary": "Execute propose_warrant_deviation",
+        "operationId": "propose_warrant_deviation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/approve_warrant_deviation": {
+      "post": {
+        "summary": "Execute approve_warrant_deviation",
+        "operationId": "approve_warrant_deviation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/reject_warrant_deviation": {
+      "post": {
+        "summary": "Execute reject_warrant_deviation",
+        "operationId": "reject_warrant_deviation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/record_warrant_discovered_gap": {
+      "post": {
+        "summary": "Execute record_warrant_discovered_gap",
+        "operationId": "record_warrant_discovered_gap",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/register_warrant_artifact": {
+      "post": {
+        "summary": "Execute register_warrant_artifact",
+        "operationId": "register_warrant_artifact",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/register_warrant_evidence": {
+      "post": {
+        "summary": "Execute register_warrant_evidence",
+        "operationId": "register_warrant_evidence",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/attach_warrant_gate_run": {
+      "post": {
+        "summary": "Execute attach_warrant_gate_run",
+        "operationId": "attach_warrant_gate_run",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/record_warrant_inference": {
+      "post": {
+        "summary": "Execute record_warrant_inference",
+        "operationId": "record_warrant_inference",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/record_warrant_judgment": {
+      "post": {
+        "summary": "Execute record_warrant_judgment",
+        "operationId": "record_warrant_judgment",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/request_warrant_resolution": {
+      "post": {
+        "summary": "Execute request_warrant_resolution",
+        "operationId": "request_warrant_resolution",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/resolve_warrant": {
+      "post": {
+        "summary": "Execute resolve_warrant",
+        "operationId": "resolve_warrant",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/dispute_warrant_resolution": {
+      "post": {
+        "summary": "Execute dispute_warrant_resolution",
+        "operationId": "dispute_warrant_resolution",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/resolve_warrant_dispute": {
+      "post": {
+        "summary": "Execute resolve_warrant_dispute",
+        "operationId": "resolve_warrant_dispute",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/annul_warrant_resolution": {
+      "post": {
+        "summary": "Execute annul_warrant_resolution",
+        "operationId": "annul_warrant_resolution",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/supersede_warrant": {
+      "post": {
+        "summary": "Execute supersede_warrant",
+        "operationId": "supersede_warrant",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/deprecate_warrant": {
+      "post": {
+        "summary": "Execute deprecate_warrant",
+        "operationId": "deprecate_warrant",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5036,7 +6030,39 @@
               "plan_test_execution",
               "execute_test",
               "record_test_result",
-              "invalidate_test_execution"
+              "invalidate_test_execution",
+              "create_warrant_draft",
+              "revise_warrant_draft",
+              "submit_warrant",
+              "authorize_warrant_contract",
+              "withdraw_warrant_proposal",
+              "propose_warrant_amendment",
+              "authorize_warrant_amendment",
+              "reject_warrant_amendment",
+              "record_warrant_preflight",
+              "authorize_warrant_dispatch",
+              "attach_warrant_runtime_receipt",
+              "register_warrant_submission",
+              "open_warrant_blocker",
+              "resolve_warrant_blocker",
+              "pause_warrant",
+              "resume_warrant",
+              "propose_warrant_deviation",
+              "approve_warrant_deviation",
+              "reject_warrant_deviation",
+              "record_warrant_discovered_gap",
+              "register_warrant_artifact",
+              "register_warrant_evidence",
+              "attach_warrant_gate_run",
+              "record_warrant_inference",
+              "record_warrant_judgment",
+              "request_warrant_resolution",
+              "resolve_warrant",
+              "dispute_warrant_resolution",
+              "resolve_warrant_dispute",
+              "annul_warrant_resolution",
+              "supersede_warrant",
+              "deprecate_warrant"
             ]
           },
           "actor": {
@@ -11870,6 +12896,231 @@
               "work_order",
               "amendment_no",
               "rationale"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "WarrantNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.1.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "warrant"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "proposed",
+              "authorized",
+              "ready",
+              "executing",
+              "verifying",
+              "resolved"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "warrant_uuid": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "repository": {
+                "type": "string",
+                "minLength": 1
+              },
+              "local_alias": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9]*-WAR-[0-9]{4,}$"
+              },
+              "profile": {
+                "type": "string",
+                "enum": [
+                  "delivery",
+                  "research",
+                  "operations",
+                  "governance"
+                ]
+              },
+              "assurance_level": {
+                "type": "string",
+                "enum": [
+                  "basic",
+                  "controlled",
+                  "high_assurance"
+                ]
+              },
+              "execution_condition": {
+                "type": "string",
+                "enum": [
+                  "clear",
+                  "blocked",
+                  "paused"
+                ]
+              },
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "satisfied",
+                  "not_satisfied",
+                  "falsified",
+                  "rejected",
+                  "withdrawn",
+                  "cancelled",
+                  "inconclusive"
+                ]
+              },
+              "currency": {
+                "type": "string",
+                "enum": [
+                  "current",
+                  "superseded",
+                  "deprecated"
+                ]
+              },
+              "standing": {
+                "type": "string",
+                "enum": [
+                  "valid",
+                  "disputed",
+                  "annulled"
+                ]
+              },
+              "current_revision_no": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "authorized_revision_no": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "warrant_uuid",
+              "repository",
+              "profile",
+              "assurance_level",
+              "execution_condition",
+              "outcome",
+              "currency",
+              "standing"
             ],
             "additionalProperties": false
           }

@@ -122,6 +122,21 @@ export const CORE_SECTIONS = [
             from registry.identifier_allocation order by qualified_code, sequence`,
   },
   {
+    name: 'warrants',
+    sql: `select id, warrant_uuid, repository, local_alias, profile, assurance_level,
+                 execution_condition, outcome, currency, standing, current_revision_no,
+                 authorized_revision_no, superseded_by
+            from work.warrant order by id`,
+  },
+  {
+    name: 'warrant-contract-revisions',
+    sql: `select warrant_id, revision_no, kind, contract_digest, compilation_basis, canonical_ir,
+                 predecessor_no, structured_difference, recorded_at, recorded_by,
+                 recorded_by_action, authorizer, acting_role, authorization_meaning,
+                 policy_basis, effective_at
+            from work.warrant_contract_revision order by warrant_id, revision_no`,
+  },
+  {
     name: 'person-clearances',
     sql: `select id, subject_id, organization_id, max_classification, valid_from, valid_to,
                  granted_by, granted_at, granted_by_action, reason

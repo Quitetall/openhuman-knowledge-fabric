@@ -5,7 +5,7 @@
   "description": "Normative machine-readable graph envelope for the organizational graph and work-control specification.",
   "x-generated-from": {
     "ontology_version": "1.1.0-draft.1",
-    "source_digest": "4c8f09d94fa4f452369572a08fc80bf8e3a406496f0535fd946ad81c512afd2a"
+    "source_digest": "b6b322c1392676a52dc8fc76e0866354aaa438b0f2bff24f1735dfaeaa780a5e"
   },
   "type": "object",
   "properties": {
@@ -142,6 +142,9 @@
           },
           {
             "$ref": "#/$defs/WorkOrderAmendmentNode"
+          },
+          {
+            "$ref": "#/$defs/WarrantNode"
           }
         ]
       }
@@ -532,7 +535,39 @@
             "plan_test_execution",
             "execute_test",
             "record_test_result",
-            "invalidate_test_execution"
+            "invalidate_test_execution",
+            "create_warrant_draft",
+            "revise_warrant_draft",
+            "submit_warrant",
+            "authorize_warrant_contract",
+            "withdraw_warrant_proposal",
+            "propose_warrant_amendment",
+            "authorize_warrant_amendment",
+            "reject_warrant_amendment",
+            "record_warrant_preflight",
+            "authorize_warrant_dispatch",
+            "attach_warrant_runtime_receipt",
+            "register_warrant_submission",
+            "open_warrant_blocker",
+            "resolve_warrant_blocker",
+            "pause_warrant",
+            "resume_warrant",
+            "propose_warrant_deviation",
+            "approve_warrant_deviation",
+            "reject_warrant_deviation",
+            "record_warrant_discovered_gap",
+            "register_warrant_artifact",
+            "register_warrant_evidence",
+            "attach_warrant_gate_run",
+            "record_warrant_inference",
+            "record_warrant_judgment",
+            "request_warrant_resolution",
+            "resolve_warrant",
+            "dispute_warrant_resolution",
+            "resolve_warrant_dispute",
+            "annul_warrant_resolution",
+            "supersede_warrant",
+            "deprecate_warrant"
           ]
         },
         "actor": {
@@ -7366,6 +7401,231 @@
             "work_order",
             "amendment_no",
             "rationale"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "node_id",
+        "node_type",
+        "title",
+        "state",
+        "classification",
+        "owner",
+        "created_at",
+        "created_by",
+        "updated_at",
+        "updated_by",
+        "source_authority",
+        "attributes"
+      ],
+      "additionalProperties": false
+    },
+    "WarrantNode": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "const": "1.1.0-draft.1"
+        },
+        "node_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "node_type": {
+          "const": "warrant"
+        },
+        "enterprise_id": {
+          "type": "string",
+          "anyOf": [
+            {
+              "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+            },
+            {
+              "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+            }
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "proposed",
+            "authorized",
+            "ready",
+            "executing",
+            "verifying",
+            "resolved"
+          ]
+        },
+        "classification": {
+          "type": "string",
+          "enum": [
+            "public",
+            "internal",
+            "confidential",
+            "restricted"
+          ]
+        },
+        "owner": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "created_by": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_by": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "source_authority": {
+          "type": "string",
+          "enum": [
+            "knowledge_fabric",
+            "plm",
+            "qms",
+            "finance",
+            "hr",
+            "git",
+            "external"
+          ]
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "uniqueItems": true,
+          "default": []
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+          },
+          "uniqueItems": true,
+          "default": []
+        },
+        "external_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ExternalReference"
+          },
+          "default": []
+        },
+        "extensions": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+          },
+          "additionalProperties": true,
+          "default": {}
+        },
+        "attributes": {
+          "type": "object",
+          "properties": {
+            "warrant_uuid": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "repository": {
+              "type": "string",
+              "minLength": 1
+            },
+            "local_alias": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9]*-WAR-[0-9]{4,}$"
+            },
+            "profile": {
+              "type": "string",
+              "enum": [
+                "delivery",
+                "research",
+                "operations",
+                "governance"
+              ]
+            },
+            "assurance_level": {
+              "type": "string",
+              "enum": [
+                "basic",
+                "controlled",
+                "high_assurance"
+              ]
+            },
+            "execution_condition": {
+              "type": "string",
+              "enum": [
+                "clear",
+                "blocked",
+                "paused"
+              ]
+            },
+            "outcome": {
+              "type": "string",
+              "enum": [
+                "none",
+                "satisfied",
+                "not_satisfied",
+                "falsified",
+                "rejected",
+                "withdrawn",
+                "cancelled",
+                "inconclusive"
+              ]
+            },
+            "currency": {
+              "type": "string",
+              "enum": [
+                "current",
+                "superseded",
+                "deprecated"
+              ]
+            },
+            "standing": {
+              "type": "string",
+              "enum": [
+                "valid",
+                "disputed",
+                "annulled"
+              ]
+            },
+            "current_revision_no": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "authorized_revision_no": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "warrant_uuid",
+            "repository",
+            "profile",
+            "assurance_level",
+            "execution_condition",
+            "outcome",
+            "currency",
+            "standing"
           ],
           "additionalProperties": false
         }

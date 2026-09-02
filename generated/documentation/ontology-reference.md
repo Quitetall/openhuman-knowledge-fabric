@@ -1,9 +1,9 @@
 <!-- GENERATED from ontology/ — do not edit. -->
-<!-- ontology_version: 1.1.0-draft.1 · source_digest: 4c8f09d94fa4f452369572a08fc80bf8e3a406496f0535fd946ad81c512afd2a -->
+<!-- ontology_version: 1.1.0-draft.1 · source_digest: b6b322c1392676a52dc8fc76e0866354aaa438b0f2bff24f1735dfaeaa780a5e -->
 
 # Ontology reference
 
-Compiled from `ontology/`. 38 object types, 41 relation types, 113 action types, 21 state machines, 15 invariants, 4 corpus projections.
+Compiled from `ontology/`. 39 object types, 41 relation types, 145 action types, 22 state machines, 15 invariants, 4 corpus projections.
 
 ## Object types
 
@@ -47,6 +47,7 @@ Compiled from `ontology/`. 38 object types, 41 relation types, 113 action types,
 | `test_execution` | engineering | TSX | test_execution | 5 |
 | `milestone` | project | MST | — | 4 |
 | `work_order_amendment` | commercial | AMD | — | 3 |
+| `warrant` | project | WAR | warrant | 7 |
 
 ## Relation types
 
@@ -211,6 +212,38 @@ Compiled from `ontology/`. 38 object types, 41 relation types, 113 action types,
 | `execute_test` | test_execution |
 | `record_test_result` | test_execution |
 | `invalidate_test_execution` | test_execution |
+| `create_warrant_draft` | — |
+| `revise_warrant_draft` | — |
+| `submit_warrant` | warrant |
+| `authorize_warrant_contract` | warrant |
+| `withdraw_warrant_proposal` | warrant |
+| `propose_warrant_amendment` | — |
+| `authorize_warrant_amendment` | warrant |
+| `reject_warrant_amendment` | — |
+| `record_warrant_preflight` | warrant |
+| `authorize_warrant_dispatch` | warrant |
+| `attach_warrant_runtime_receipt` | — |
+| `register_warrant_submission` | warrant |
+| `open_warrant_blocker` | — |
+| `resolve_warrant_blocker` | — |
+| `pause_warrant` | — |
+| `resume_warrant` | — |
+| `propose_warrant_deviation` | — |
+| `approve_warrant_deviation` | — |
+| `reject_warrant_deviation` | — |
+| `record_warrant_discovered_gap` | — |
+| `register_warrant_artifact` | — |
+| `register_warrant_evidence` | — |
+| `attach_warrant_gate_run` | — |
+| `record_warrant_inference` | — |
+| `record_warrant_judgment` | — |
+| `request_warrant_resolution` | — |
+| `resolve_warrant` | warrant |
+| `dispute_warrant_resolution` | — |
+| `resolve_warrant_dispute` | — |
+| `annul_warrant_resolution` | — |
+| `supersede_warrant` | — |
+| `deprecate_warrant` | — |
 
 ## Lifecycles
 
@@ -563,6 +596,26 @@ stateDiagram-v2
     failed --> invalidated: invalidate_test_execution
     executed --> invalidated: invalidate_test_execution
     invalidated --> [*]
+```
+
+### `warrant`
+
+Initial: `draft` · Terminal: `resolved`
+
+```mermaid
+stateDiagram-v2
+    [*] --> draft
+    draft --> proposed: submit_warrant
+    proposed --> draft: withdraw_warrant_proposal
+    proposed --> authorized: authorize_warrant_contract
+    authorized --> ready: record_warrant_preflight
+    ready --> executing: authorize_warrant_dispatch
+    executing --> verifying: register_warrant_submission
+    verifying --> resolved: resolve_warrant
+    ready --> authorized: authorize_warrant_amendment
+    executing --> authorized: authorize_warrant_amendment
+    verifying --> authorized: authorize_warrant_amendment
+    resolved --> [*]
 ```
 
 ## Invariants

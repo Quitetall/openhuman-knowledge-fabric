@@ -1156,3 +1156,59 @@ object_types:
         }
       - { name: amendment_no, type: integer, required: true, minimum: 1 }
       - { name: rationale, type: string, required: true, min_length: 1 }
+
+  # OpenWarrant Warrant (SAS §12, §24, §84; ADR 0019). KF is institutional authority, Git the
+  # Source Holder: the record holds identity, the five state dimensions and contract revision
+  # snapshots — never the authored atoms. Phase (§24.1) is the lifecycle state; condition,
+  # outcome, currency and standing are fields. `WAR` is the namespace the SAS example uses
+  # (OH-WAR-000042); the registry has not allocated it, so allocation refuses by name until the
+  # pack owner does.
+  - id: warrant
+    title: Warrant
+    authority_domain: project
+    enterprise_namespace: WAR
+    first_class: true
+    state_machine: warrant
+    states: [draft, proposed, authorized, ready, executing, verifying, resolved]
+    fields:
+      - {
+          name: warrant_uuid,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - { name: repository, type: string, required: true, min_length: 1 }
+      - { name: local_alias, type: string, pattern: '^[A-Z][A-Z0-9]*-WAR-[0-9]{4,}$' }
+      - {
+          name: profile,
+          type: enum,
+          required: true,
+          values: [delivery, research, operations, governance],
+        }
+      - {
+          name: assurance_level,
+          type: enum,
+          required: true,
+          values: [basic, controlled, high_assurance],
+        }
+      - { name: execution_condition, type: enum, required: true, values: [clear, blocked, paused] }
+      - {
+          name: outcome,
+          type: enum,
+          required: true,
+          values:
+            [
+              none,
+              satisfied,
+              not_satisfied,
+              falsified,
+              rejected,
+              withdrawn,
+              cancelled,
+              inconclusive,
+            ],
+        }
+      - { name: currency, type: enum, required: true, values: [current, superseded, deprecated] }
+      - { name: standing, type: enum, required: true, values: [valid, disputed, annulled] }
+      - { name: current_revision_no, type: integer, minimum: 1 }
+      - { name: authorized_revision_no, type: integer, minimum: 1 }

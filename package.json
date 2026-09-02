@@ -47,6 +47,7 @@
     "@kf/artifacts": "workspace:*",
     "@kf/authorization": "workspace:*",
     "@kf/identifiers": "workspace:*",
+    "@kf/warrants": "workspace:*",
     "@kf/canonicalization": "workspace:*",
     "@kf/database": "workspace:*",
     "@kf/documents": "workspace:*",

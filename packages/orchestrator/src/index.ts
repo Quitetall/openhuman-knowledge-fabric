@@ -25,6 +25,7 @@ import type { Pool } from '@kf/database';
 import { StoreRegistry, createStorageActionAtoms, type StorageActionAtoms } from '@kf/artifacts';
 import type { DocumentActionAtoms } from '@kf/documents';
 import { IDENTIFIER_ACTION_IDS, IDENTIFIER_EFFECTS, IDENTIFIER_RECEIPTS } from '@kf/identifiers';
+import { WARRANT_ACTION_IDS, WARRANT_EFFECTS, WARRANT_MATERIALIZERS } from '@kf/warrants';
 import {
   createMlActionAtoms,
   createSecureObjectActionAtoms,
@@ -129,6 +130,14 @@ const BUILT_IN_ATOMS: readonly ActionAtoms[] = [
     ownedActions: IDENTIFIER_ACTION_IDS,
     effects: IDENTIFIER_EFFECTS,
     receipts: IDENTIFIER_RECEIPTS,
+  },
+  {
+    // OpenWarrant SAS §67 (ADR 0019): all thirty-two names owned here, so the vocabulary is
+    // complete on the wire; the ADR lists which write nothing typed yet.
+    name: 'warrants',
+    ownedActions: WARRANT_ACTION_IDS,
+    materializers: WARRANT_MATERIALIZERS,
+    effects: WARRANT_EFFECTS,
   },
   {
     name: 'work-control',

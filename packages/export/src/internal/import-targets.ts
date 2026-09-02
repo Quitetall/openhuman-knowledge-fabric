@@ -14,6 +14,8 @@ export const PRESERVATION_IMPORT_TARGETS = {
   'role-assignments': 'org.role_assignment',
   'identifier-sequences': 'registry.identifier_sequence',
   'identifier-allocations': 'registry.identifier_allocation',
+  warrants: 'work.warrant',
+  'warrant-contract-revisions': 'work.warrant_contract_revision',
   'person-clearances': 'org.person_clearance',
   'person-clearance-retirements': 'org.person_clearance_retirement',
   'person-entitlement-exclusions': 'content.person_entitlement_exclusion',
