@@ -6,7 +6,11 @@ import {
   type DocumentRoutesOptions,
 } from './contracts.js';
 import { documentProjectionBytes } from './projection-bytes.js';
-import { DocumentBytesUnavailable, readVerifiedDocumentBytes } from './source-bytes.js';
+import {
+  DocumentBytesUnavailable,
+  degradedReadFrom,
+  readVerifiedDocumentBytes,
+} from './source-bytes.js';
 import { resolveWorkspaceTarget } from './workspace-repository.js';
 
 const MEDIA_TYPE = /^[A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]+$/;
@@ -72,7 +76,21 @@ export function registerDocumentProjectionRoute(
       if (projection === undefined) return reply.code(404).send({ error: 'not_found' });
       let bytes: Buffer;
       try {
-        bytes = await readVerifiedDocumentBytes(options.store, projection);
+        const stores = options.stores;
+        const served = await readVerifiedDocumentBytes(
+          options.store,
+          projection,
+          stores === undefined
+            ? undefined
+            : degradedReadFrom(options.pool, identity, stores, projection.versionId),
+        );
+        if (served.servedFrom !== 'working') {
+          request.log.warn(
+            { documentId: request.params.id, servedFrom: served.servedFrom },
+            'projection served from a copy: the working object is missing or corrupt',
+          );
+        }
+        bytes = served.bytes;
       } catch (error: unknown) {
         if (error instanceof DocumentBytesUnavailable) {
           return reply.code(409).send({ error: 'projection_digest_mismatch' });

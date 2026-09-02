@@ -8,6 +8,7 @@ import {
 import {
   DocumentBytesUnavailable,
   documentSourceBytes,
+  degradedReadFrom,
   readVerifiedDocumentBytes,
 } from './source-bytes.js';
 
@@ -69,7 +70,21 @@ export function registerDocumentSourceRoute(
     if (source === undefined) return reply.code(404).send({ error: 'not_found' });
     let bytes: Buffer;
     try {
-      bytes = await readVerifiedDocumentBytes(options.store, source);
+      const stores = options.stores;
+      const served = await readVerifiedDocumentBytes(
+        options.store,
+        source,
+        stores === undefined
+          ? undefined
+          : degradedReadFrom(options.pool, identity, stores, source.versionId),
+      );
+      if (served.servedFrom !== 'working') {
+        request.log.warn(
+          { documentId: request.params.id, servedFrom: served.servedFrom },
+          'document source served from a copy: the working object is missing or corrupt',
+        );
+      }
+      bytes = served.bytes;
     } catch (error: unknown) {
       if (error instanceof DocumentBytesUnavailable) {
         return reply.code(409).send({

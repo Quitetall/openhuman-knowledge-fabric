@@ -18,10 +18,11 @@ export async function documentProjectionBytes(
     sha256: string;
     storage_uri: string | null;
     storage_version: string | null;
+    version_id: string;
   }>(
     `select /* document.projection-bytes */
             view.target, view.media_type, version.size_bytes, version.sha256,
-            version.storage_uri, version.storage_version
+            version.storage_uri, version.storage_version, version.id as version_id
        from content.compiled_view view
        join content.compilation_run run
          on run.id = view.compilation_run_id and run.run_status = 'succeeded'
@@ -55,5 +56,6 @@ export async function documentProjectionBytes(
     sha256: row.sha256,
     storageUri: row.storage_uri,
     storageVersion: row.storage_version,
+    versionId: row.version_id,
   };
 }

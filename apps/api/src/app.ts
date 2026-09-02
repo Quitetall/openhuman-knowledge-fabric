@@ -170,17 +170,16 @@ export async function buildApp(
         : createDocumentActionAtoms({ store: objectStore, parser });
     // Storage locations (ADR 0017): the working store is `working` in content.artifact_store;
     // a configured durable store is `durable`. Both are reachable by the same S3 client.
-    const storageAtoms =
+    const stores =
       objectStore === undefined
         ? undefined
-        : createStorageActionAtoms(
-            new StoreRegistry({
-              working: objectStore,
-              ...(config.durableStore === undefined
-                ? {}
-                : { durable: new S3ObjectStore(config.durableStore) }),
-            }),
-          );
+        : new StoreRegistry({
+            working: objectStore,
+            ...(config.durableStore === undefined
+              ? {}
+              : { durable: new S3ObjectStore(config.durableStore) }),
+          });
+    const storageAtoms = stores === undefined ? undefined : createStorageActionAtoms(stores);
     const execute = createFabricDispatcher(pool, documentAtoms, undefined, undefined, storageAtoms);
     const executeInTransaction = createFabricTransactionalDispatcher(
       documentAtoms,
@@ -229,6 +228,7 @@ export async function buildApp(
       preflightInTransaction,
       identify,
       store: objectStore,
+      ...(stores === undefined ? {} : { stores }),
       ...(config.masterRecordLinkSecret === undefined
         ? {}
         : { masterRecordLinkSecret: config.masterRecordLinkSecret }),

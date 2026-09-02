@@ -13,6 +13,9 @@ import {
 } from '@kf/artifacts';
 import { withTransaction } from '@kf/database';
 import { createFabricDispatcher } from '@kf/orchestrator';
+import Fastify from 'fastify';
+import { registerDocumentSourceRoute } from '../../apps/api/src/routes/documents/source-route.js';
+import type { DocumentRoutesOptions } from '../../apps/api/src/routes/documents/contracts.js';
 import {
   bindContext,
   createObject,
@@ -288,3 +291,87 @@ async function artifactOf(versionId: string): Promise<string> {
   );
   return row.artifact_id;
 }
+
+describe('serving a document from a copy', () => {
+  function routeOptions(
+    store: InMemoryObjectStore,
+    stores: StoreRegistry | undefined,
+  ): DocumentRoutesOptions {
+    return {
+      pool: harness.pool,
+      store,
+      ...(stores === undefined ? {} : { stores }),
+      identify: async () => ({
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
+        organizationId: fixtures.organizationId,
+        maxClassification: 'restricted',
+        authentication: { authenticatedAt: undefined, assuranceLevel: undefined, methods: [] },
+      }),
+      preflightInTransaction: async () => undefined,
+      executeInTransaction: async () => {
+        throw new Error('a source read does not execute an action');
+      },
+    };
+  }
+
+  it('serves the durable copy when the working store lost the object, and refuses without one', async () => {
+    const body = Buffer.from('# a controlled document\n\nwhose working copy will be lost\n');
+    const { versionId } = await recordVersion(body);
+    const documentId = await createObject(harness.adminPool, fixtures, {
+      type: 'controlled_document',
+      domain: 'quality',
+      state: 'draft',
+      title: 'Served from a copy',
+      createdBy: fixtures.reviewerId,
+    });
+    await withTransaction(harness.adminPool, async (tx) => {
+      await bindContext(tx, fixtures, fixtures.reviewerId);
+      await tx.query(
+        `insert into quality.controlled_document
+           (id, document_class, document_number, revision, owning_role, content_version)
+         values ($1, 'report', 'OH-MR-COPY-001', 'R01', 'technical_authority', $2)`,
+        [documentId, versionId],
+      );
+      await replicateVersion(tx, registry, {
+        versionId,
+        toStoreId: 'durable',
+        role: 'durable_copy',
+        recordedBy: fixtures.reviewerId,
+      });
+    });
+
+    const lostWorking = new InMemoryObjectStore();
+    const withCopies = Fastify({ logger: false });
+    registerDocumentSourceRoute(
+      withCopies,
+      routeOptions(lostWorking, new StoreRegistry({ working: lostWorking, durable })),
+    );
+    await withCopies.ready();
+    try {
+      const served = await withCopies.inject({
+        method: 'GET',
+        url: `/documents/${documentId}/source`,
+      });
+      expect(served.statusCode, served.body).toBe(200);
+      expect(Buffer.from(served.rawPayload).equals(body)).toBe(true);
+      expect(served.headers['etag']).toBe(`"sha256:${digestOf(body)}"`);
+    } finally {
+      await withCopies.close();
+    }
+
+    const withoutCopies = Fastify({ logger: false });
+    registerDocumentSourceRoute(withoutCopies, routeOptions(lostWorking, undefined));
+    await withoutCopies.ready();
+    try {
+      const refused = await withoutCopies.inject({
+        method: 'GET',
+        url: `/documents/${documentId}/source`,
+      });
+      // No registry: a missing working object is the store's own failure, as it always was.
+      expect(refused.statusCode).toBe(503);
+    } finally {
+      await withoutCopies.close();
+    }
+  });
+});

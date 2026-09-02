@@ -61,8 +61,10 @@ publication boundary.
 
 - **Scheduling.** Replication and re-verification are acts; nothing yet runs them on a
   cadence. The checkpoint runner is the obvious host and is not wired.
-- **Routing reads through locations.** The existing byte routes still read `storage_uri`
-  directly; `readVersionBytes` is the path they should move to, one at a time.
+- **Routing every read through locations.** The two byte routes (`/documents/:id/source` and
+  the projection download) now fall back to `readVersionBytes` when the working copy is
+  missing or corrupt, and log that they served from a copy (2026-09-02). The checkpoint
+  runner and the ingest path still address the working store directly.
 - **Evidence and public copies' receipts.** `evidence_copy` records the digest an auditor was
   handed; what the auditor signs is outside the fabric.
 - **Orphaned objects.** A store cannot join the database transaction, so a replication whose

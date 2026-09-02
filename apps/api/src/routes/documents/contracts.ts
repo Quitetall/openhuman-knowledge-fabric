@@ -1,6 +1,6 @@
 import type { ActionRequest, ActionResult, ObjectRow } from '@kf/actions';
 import type { AiProvider, AiRoutingPolicy } from '@kf/agent-tools';
-import type { ObjectStore } from '@kf/artifacts';
+import type { ObjectStore, StoreRegistry } from '@kf/artifacts';
 import type { Pool, Tx } from '@kf/database';
 import type { ProjectionDefinitionSet } from '@kf/projections';
 import type { IdentifyCaller } from '../actions.js';
@@ -76,6 +76,8 @@ export interface DocumentRoutesOptions {
   readonly pool: Pool;
   readonly identify: IdentifyCaller;
   readonly store: ObjectStore | undefined;
+  /** Every store this instance can reach (ADR 0017). Absent = no degraded read from a copy. */
+  readonly stores?: StoreRegistry;
   /** HMAC key for capability links. Missing key disables link serving and issuance. */
   readonly masterRecordLinkSecret?: string;
   /** Compiled corpus-projection definitions. Absent = the projection routes answer 503. */
