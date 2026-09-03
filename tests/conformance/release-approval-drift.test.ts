@@ -52,6 +52,14 @@ const KNOWN_DRIFT = new Map<string, string>([
       're-cut and fresh human approval are required before release.',
   ],
   [
+    'knowledge-fabric-1.0.0-draft.3',
+    'Cut at 917d9b6d and signed 2026-09-03, but ADR 0016 (`requires: act` — the ' +
+      'requires_capability column on 43 action types, f89fbf6f) and ADR 0020 (service actors, ' +
+      '4424cc49) moved the ontology between the cut and the signature. The approval is a ' +
+      'historical snapshot of draft.3 as cut; draft.4 is cut from current source and awaits ' +
+      'the pack owner.',
+  ],
+  [
     'openhuman-registry-1.0.0-draft.1',
     'ADR 0006 moved the registry to registries/openhuman and repointed rules.yaml `enforced_by` ' +
       'paths, which would otherwise have named files that no longer exist. Approved manifest ' +
@@ -112,6 +120,16 @@ function rebuiltDigests(): ReadonlyMap<string, string> {
         ),
       ),
     ],
+    [
+      'knowledge-fabric-1.0.0-draft.4',
+      manifestDigest(
+        buildReleasePack(
+          loadOntology(resolve(root, 'ontology')),
+          resolve(root, 'tests/conformance/r01-golden'),
+          '1.0.0-draft.4',
+        ),
+      ),
+    ],
   ]);
 }
 
@@ -138,7 +156,9 @@ describe('approved packages against the source they claim to represent', () => {
     const signed = signedPackages();
     expect(signed.map((p) => p.name).sort(), 'no signed package found under release/').toEqual([
       'knowledge-fabric-1.0.0-draft.2',
+      'knowledge-fabric-1.0.0-draft.3',
       'openhuman-registry-1.0.0-draft.1',
+      'openhuman-registry-1.0.0-draft.2',
     ]);
     for (const { approved } of signed) expect(approved).toMatch(/^[0-9a-f]{64}$/);
   });
@@ -162,12 +182,12 @@ describe('approved packages against the source they claim to represent', () => {
       }
     }
 
-    // At least one package must be IN SYNC unless every package is explicitly acknowledged as
-    // drift. This keeps the check non-vacuous while allowing a coordinated source evolution to
-    // move both signed snapshots at once.
-    if (drifted.every((name) => KNOWN_DRIFT.has(name))) {
-      expect(inSync).toHaveLength(0);
-    } else {
+    // At least one package must be IN SYNC unless every drifted package is explicitly
+    // acknowledged. This keeps the check non-vacuous while allowing a coordinated source
+    // evolution to move every signed snapshot at once. (Until 2026-09-03 the acknowledged
+    // branch asserted the OPPOSITE — that nothing was in sync — which failed the first time a
+    // freshly signed pack matched its source while an older one was admitted as drift.)
+    if (!drifted.every((name) => KNOWN_DRIFT.has(name))) {
       expect(
         inSync,
         'every signed package has drifted — the check no longer proves anything',
