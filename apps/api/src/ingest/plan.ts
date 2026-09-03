@@ -251,6 +251,8 @@ export function planIngest(request: IngestRequest): IngestPlan {
       })),
       ...driveItems.map((item) => ({
         path: `drive:${item.ref}`,
+        // Not artifactKindFor: a Drive name carries no extension worth trusting, and
+        // 'document' is not a valid artifact_kind. 'other' is the honest default.
         artifactKind: request.artifactKind ?? 'other',
         mediaType: 'application/octet-stream',
         drive: {

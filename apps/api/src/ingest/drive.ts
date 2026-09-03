@@ -135,7 +135,8 @@ export class GoogleDriveClient implements DriveClient {
       throw new Error('Drive token exchange returned no token');
     this.#token = {
       value: body.access_token,
-      expiresAt: Date.now() + (body.expires_in ?? 3600) * 1000,
+      // A zero or negative lifetime would re-exchange on every request; floor it.
+      expiresAt: Date.now() + Math.max(body.expires_in ?? 3600, 60) * 1000,
     };
     return this.#token.value;
   }
