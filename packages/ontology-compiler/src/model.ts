@@ -176,6 +176,11 @@ export interface ActionType {
   readonly transactional: boolean;
   /** State machines this action can drive. Empty means it drives no lifecycle. */
   readonly drives: readonly string[];
+  /**
+   * ADR 0016: `act` means the dispatcher requires a live act grant reaching the target's scope
+   * (or the organization). Absent means the action is role-only.
+   */
+  readonly requires?: 'act';
 }
 
 export interface Transition {
@@ -449,6 +454,16 @@ export function loadOntology(dir: string): Ontology {
       audited: r['audited'] === true,
       transactional: r['transactional'] === true,
       drives: asStringList(r['drives'] ?? [], `action_types[${i}].drives`),
+      ...(r['requires'] === undefined
+        ? {}
+        : {
+            requires: (() => {
+              if (r['requires'] !== 'act') {
+                throw new Error(`action_types[${i}].requires must be 'act' when present`);
+              }
+              return 'act' as const;
+            })(),
+          }),
     };
   });
 

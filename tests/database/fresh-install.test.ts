@@ -777,7 +777,7 @@ describe('a completely fresh database', () => {
     const next = first
       .replaceAll('1.2.0-draft.1', '1.2.0-draft.2')
       .replaceAll(
-        '814483bf6d1ae38bf10c662b77c9503c2aec92eb1005d9bb9f0a21e8a69f72ce',
+        '0d3dd10bb5f1a04f7e4cf40dc8b85938551d5bf441f1131d4875793dede0577e',
         'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
       );
     await withTransaction(pool!, async (tx) => {

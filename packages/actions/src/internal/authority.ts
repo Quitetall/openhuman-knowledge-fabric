@@ -45,10 +45,13 @@ export function assertCanonicalEffectiveAt(request: ActionRequest): void {
 }
 
 export async function loadDefinition(tx: Tx, actionType: string): Promise<ActionDefinition> {
-  const row = await tx.maybeOne<{ id: string; transactional: boolean }>(
-    'select id, transactional from registry.action_type where id = $1',
-    [actionType],
-  );
+  const row = await tx.maybeOne<{
+    id: string;
+    transactional: boolean;
+    requires_capability: 'act' | null;
+  }>('select id, transactional, requires_capability from registry.action_type where id = $1', [
+    actionType,
+  ]);
   if (row === undefined) {
     throw new ActionRejected('unknown_action', `no such action type '${actionType}'`, {
       actionType,
@@ -63,6 +66,7 @@ export async function loadDefinition(tx: Tx, actionType: string): Promise<Action
   return {
     id: row.id,
     transactional: row.transactional,
+    requiresCapability: row.requires_capability,
     transitions: transitions.map((transition) => ({
       machine: transition.machine,
       from: transition.from_state,
@@ -81,6 +85,33 @@ export async function assertRoleHeld(tx: Tx, actorId: string, roleId: string): P
       actorId,
       roleId,
     });
+  }
+}
+
+/**
+ * ADR 0016: an action that declares `requires: act` needs a live act grant reaching every
+ * target — directly, or through a role assignment the actor holds — or the organization.
+ * Checked AFTER the targets are locked, under the bound access context, through the same view
+ * the read side uses, so a refusal here and an explanation elsewhere cannot disagree.
+ */
+export async function assertActCovered(
+  tx: Tx,
+  request: ActionRequest,
+  definition: ActionDefinition,
+  targetIds: readonly string[],
+): Promise<void> {
+  if (definition.requiresCapability !== 'act') return;
+  const covered = await tx.one<{ ok: boolean }>(
+    'select org.act_grant_reaches($1, $2, $3::uuid[]) as ok',
+    [request.actorId, request.organizationId, [...targetIds]],
+  );
+  if (!covered.ok) {
+    throw new ActionRejected(
+      'act_not_granted',
+      `${request.actionType} requires act authority at the target's scope, and no live act ` +
+        'grant reaches this actor there',
+      { actionType: request.actionType, targetIds: [...targetIds] },
+    );
   }
 }
 
@@ -131,12 +162,16 @@ export function createTransactionalPreflight(
   ): Promise<void> {
     assertActionAvailable(request.actionType, resolved.allowedActions);
     assertCanonicalEffectiveAt(request);
-    await loadDefinition(tx, request.actionType);
+    const definition = await loadDefinition(tx, request.actionType);
     // Role ownership is an authority fact, not a classified record. The database helper is
     // SECURITY DEFINER so this check remains independent of the later reader ceiling.
     await assertRoleHeld(tx, request.actorId, request.actingRoleId);
     await bindResolvedAccessContext(tx, request);
     assertReasonPresent(request, resolved.reasonRequired);
+    await assertActCovered(tx, request, definition, [
+      ...request.targetIds,
+      ...prospectiveObjects.map((object) => object.id),
+    ]);
 
     if (prospectiveObjects.length > 0) {
       if (

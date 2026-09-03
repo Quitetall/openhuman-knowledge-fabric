@@ -230,13 +230,14 @@ export async function enumerateAccessCoverage(
   tx: Tx,
   personId: string,
   organizationId: string,
+  capability: AccessCapability = 'read',
 ): Promise<AccessCoverage> {
   const rows = await tx.query<CoverageRow>(
     `select /* access-grants.coverage */
             g.source, g.source_id, g.scope_object_id, g.classification_ceiling, g.reason
        from org.effective_access_grant g
       where g.organization_id = $2
-        and g.capability = 'read'
+        and g.capability = $3
         -- Secure-object capabilities are read grants on EXTERNAL references (scope_object_id
         -- is null, scope_external_ref is set). They never cover a core.object, so they are
         -- deliberately outside this coverage; they are still listed by the view.
@@ -252,7 +253,7 @@ export async function enumerateAccessCoverage(
                    and (ra.valid_to is null or ra.valid_to > now())))
         )
       order by g.source, g.source_id`,
-    [personId, organizationId],
+    [personId, organizationId, capability],
   );
   const organizationWide: AccessGrantRef[] = [];
   const byObject = new Map<string, AccessGrantRef[]>();
@@ -305,6 +306,7 @@ export interface AccessStep {
 
 export interface AccessExplanation {
   readonly format: 'kf-access-explanation-v1';
+  readonly capability: AccessCapability;
   readonly personId: string;
   readonly organizationId: string;
   readonly objectId: string;
@@ -325,8 +327,15 @@ export interface AccessExplanation {
  */
 export async function explainAccess(
   tx: Tx,
-  input: { readonly personId: string; readonly organizationId: string; readonly objectId: string },
+  input: {
+    readonly personId: string;
+    readonly organizationId: string;
+    readonly objectId: string;
+    /** `read` (the corpus) or `act` (ADR 0016 dispatch authority); default read. */
+    readonly capability?: AccessCapability;
+  },
 ): Promise<AccessExplanation> {
+  const capability = input.capability ?? 'read';
   const steps: AccessStep[] = [];
   const person = await tx.maybeOne<{ organization: string | null } & Record<string, unknown>>(
     `select p.organization from org.person p where p.id = $1`,
@@ -393,7 +402,12 @@ export async function explainAccess(
     });
   }
 
-  const coverage = await enumerateAccessCoverage(tx, input.personId, input.organizationId);
+  const coverage = await enumerateAccessCoverage(
+    tx,
+    input.personId,
+    input.organizationId,
+    capability,
+  );
   const covering =
     object === undefined ? [] : coveringGrants(coverage, input.objectId, object.classification);
   steps.push({
@@ -447,6 +461,7 @@ export async function explainAccess(
   const explainedAt = new Date().toISOString();
   const body = {
     format: 'kf-access-explanation-v1' as const,
+    capability,
     personId: input.personId,
     organizationId: input.organizationId,
     objectId: input.objectId,

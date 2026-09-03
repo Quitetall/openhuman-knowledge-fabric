@@ -78,9 +78,15 @@ the `authority` group beside `grant_person_clearance`, and both are declared add
 - **Bootstrap.** The first grant in an organization is an organization-scoped role assignment,
   made by the owner-credential path of ADR 0011. There is no `kf:grant-access` command yet; one
   is not needed until an instance has a person who should hold access without holding a role.
-- **`act` in the dispatcher.** The dispatcher still proves authority through
-  `org.holds_role`; an `act` grant is recorded and explained but not yet honoured as a way to
-  act. That is the seam the OpenWarrant §67 work needs, and it is deferred with it.
+- ~~`act` in the dispatcher.~~ Decided 2026-09-02: an action type may declare `requires: act`
+  in the ontology (carried to `registry.action_type.requires_capability`). For those — the
+  institutional acts: authorize, approve, grant, revoke, allocate, issue, publish, supersede,
+  deprecate, annul, make-effective, resolve — the dispatcher requires a live `act` grant
+  reaching every target or the organization (`org.act_grant_reaches`, over the same view the
+  read side uses), refused as `act_not_granted` (403). An organization-scoped role assignment
+  is organization-wide `act`, so every existing flow keeps working; a project-scoped role acts
+  only on its project. `explainAccess` takes `capability: 'act'`;
+  `GET /objects/:id/access?capability=act` explains it. Other actions stay role-only.
 - **Expiry of role assignments and memberships** stays where it was; the view reads their
   windows as they are.
 - **Delegation depth and re-delegation policy.** `delegated_from` is recorded; no rule yet

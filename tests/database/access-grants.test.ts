@@ -335,6 +335,99 @@ describe('access is a grant', () => {
     }
   });
 
+  it('honours act: an institutional act needs an act grant reaching the target (ADR 0016)', async () => {
+    // A project-scoped role for the outsider: read and act on the PROJECT object only.
+    const project = await createObject(harness.adminPool, fixtures, {
+      type: 'initiative_project',
+      domain: 'project',
+      state: 'captured',
+      title: 'Scoped project',
+      createdBy: fixtures.reviewerId,
+    });
+    const roleObject = await createObject(harness.adminPool, fixtures, {
+      type: 'role_assignment',
+      domain: 'organization',
+      state: 'active',
+      title: 'performer on one project',
+      createdBy: fixtures.reviewerId,
+    });
+    await withTransaction(harness.adminPool, async (tx) => {
+      await bindContext(tx, fixtures, fixtures.reviewerId);
+      await tx.query(
+        'insert into org.role_assignment (id, subject_id, role_id, scope_id) values ($1,$2,$3,$4)',
+        [roleObject, outsider, 'performer', project],
+      );
+    });
+    // The outsider can SEE the probe through a read grant, but holds no act authority there.
+    const target = await createObject(harness.adminPool, fixtures, {
+      type: 'controlled_document',
+      domain: 'quality',
+      state: 'draft',
+      title: 'Numbered by whom',
+      createdBy: fixtures.performerId,
+    });
+    const execute = dispatcher();
+    await execute({
+      actionType: 'grant_access',
+      actorId: fixtures.performerId,
+      actingRoleId: fixtures.performerRoleId,
+      targetIds: [target],
+      organizationId: fixtures.organizationId,
+      maxClassification: 'restricted',
+      idempotencyKey: `grant-${randomUUID()}`,
+      reason: 'the outsider may read the document',
+      payload: { principal_kind: 'person', principal_id: outsider, capability: 'read' },
+    });
+    const asOutsider = () =>
+      execute({
+        actionType: 'allocate_enterprise_identifier',
+        actorId: outsider,
+        actingRoleId: roleObject,
+        targetIds: [target],
+        organizationId: fixtures.organizationId,
+        maxClassification: 'restricted',
+        idempotencyKey: `allocate-${randomUUID()}`,
+        reason: 'numbering from a project-scoped role',
+      });
+    await expect(asOutsider()).rejects.toMatchObject({
+      name: 'ActionRejected',
+      failure: 'act_not_granted',
+    });
+    const before = await explainFor(outsider, target);
+    expect(before.decision).toBe('visible');
+    const actBefore = await withTransaction(harness.pool, async (tx) => {
+      await tx.query('select core.set_access_context($1, $2)', [
+        fixtures.organizationId,
+        'restricted',
+      ]);
+      return explainAccess(tx, {
+        personId: outsider,
+        organizationId: fixtures.organizationId,
+        objectId: target,
+        capability: 'act',
+      });
+    });
+    expect(actBefore.capability).toBe('act');
+    expect(actBefore.deniedBy).toBe('grant_coverage');
+
+    await execute({
+      actionType: 'grant_access',
+      actorId: fixtures.performerId,
+      actingRoleId: fixtures.performerRoleId,
+      targetIds: [target],
+      organizationId: fixtures.organizationId,
+      maxClassification: 'restricted',
+      idempotencyKey: `grant-${randomUUID()}`,
+      reason: 'the outsider may number the document',
+      payload: { principal_kind: 'person', principal_id: outsider, capability: 'act' },
+    });
+    const numbered = await asOutsider();
+    expect(numbered.status).toBe('applied');
+    expect((numbered.receipt as Record<string, unknown>)['enterprise_id']).toMatch(
+      /^OH-DOC-[0-9]{6}-[0-9]$/,
+    );
+  });
+
   it('serves the explanation and hides objects the asker cannot see', async () => {
     const app = Fastify({ logger: false });
     registerAccessExplanationRoute(

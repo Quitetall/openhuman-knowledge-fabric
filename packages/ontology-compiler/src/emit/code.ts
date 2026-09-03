@@ -279,10 +279,16 @@ export function emitSqlRegistry(o: Ontology): string {
   );
 
   out.push(
-    'insert into registry.action_type (id, audited, transactional) values',
-    o.actionTypes.map((a) => `  (${q(a.id)}, ${a.audited}, ${a.transactional})`).join(',\n') +
+    'insert into registry.action_type (id, audited, transactional, requires_capability) values',
+    o.actionTypes
+      .map(
+        (a) =>
+          `  (${q(a.id)}, ${a.audited}, ${a.transactional}, ${a.requires === undefined ? 'null' : q(a.requires)})`,
+      )
+      .join(',\n') +
       '\non conflict (id) do update set audited = excluded.audited,\n' +
-      '  transactional = excluded.transactional;',
+      '  transactional = excluded.transactional,\n' +
+      '  requires_capability = excluded.requires_capability;',
     '',
   );
 
@@ -390,9 +396,11 @@ export function emitDocumentation(o: Ontology): string {
     out.push(`| \`${r.id}\` | ${r.inverse} | ${r.acyclic ? 'yes' : ''} |`);
   }
 
-  out.push('', '## Actions', '', '| Action | Drives |', '|---|---|');
+  out.push('', '## Actions', '', '| Action | Drives | Requires |', '|---|---|---|');
   for (const a of o.actionTypes) {
-    out.push(`| \`${a.id}\` | ${a.drives.length > 0 ? a.drives.join(', ') : '—'} |`);
+    out.push(
+      `| \`${a.id}\` | ${a.drives.length > 0 ? a.drives.join(', ') : '—'} | ${a.requires ?? 'role only'} |`,
+    );
   }
 
   out.push('', '## Lifecycles', '');

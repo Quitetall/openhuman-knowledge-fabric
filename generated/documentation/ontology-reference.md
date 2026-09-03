@@ -1,5 +1,5 @@
 <!-- GENERATED from ontology/ — do not edit. -->
-<!-- ontology_version: 1.2.0-draft.1 · source_digest: 814483bf6d1ae38bf10c662b77c9503c2aec92eb1005d9bb9f0a21e8a69f72ce -->
+<!-- ontology_version: 1.2.0-draft.1 · source_digest: 0d3dd10bb5f1a04f7e4cf40dc8b85938551d5bf441f1131d4875793dede0577e -->
 
 # Ontology reference
 
@@ -97,153 +97,153 @@ Compiled from `ontology/`. 39 object types, 41 relation types, 145 action types,
 
 ## Actions
 
-| Action | Drives |
-|---|---|
-| `create_initiative` | — |
-| `triage_initiative` | initiative_project |
-| `authorize_project` | initiative_project |
-| `activate_project` | initiative_project |
-| `create_work_package` | work_package |
-| `start_work_package` | work_package |
-| `accept_work_package` | work_package |
-| `issue_work_order` | work_order |
-| `accept_work_order` | work_order |
-| `amend_work_order` | — |
-| `submit_work_execution` | work_execution, work_package |
-| `review_work_execution` | work_execution, work_package |
-| `issue_acceptance` | work_execution, work_order |
-| `propose_decision` | decision_record |
-| `accept_decision` | decision_record |
-| `reject_decision` | decision_record |
-| `supersede_decision` | decision_record |
-| `open_change` | change_record |
-| `approve_change` | change_record |
-| `verify_change` | change_record |
-| `make_change_effective` | change_record |
-| `submit_invoice` | invoice |
-| `approve_invoice` | invoice |
-| `authorize_payment` | payment |
-| `record_payment_settlement` | invoice, payment |
-| `reconcile_payment` | payment |
-| `complete_project_technical` | initiative_project |
-| `close_project_administrative` | initiative_project |
-| `attach_evidence` | — |
-| `register_external_artifact` | — |
-| `correct_record` | capa, change_record, decision_record, initiative_project, invoice, payment, work_execution, work_order, work_package |
-| `promote_configuration_item` | configuration_item |
-| `supersede_configuration_item` | configuration_item |
-| `retire_configuration_item` | configuration_item |
-| `publish_interface_contract` | interface_contract |
-| `deprecate_interface_contract` | interface_contract |
-| `withdraw_interface_contract` | interface_contract |
-| `record_physical_binding` | physical_binding |
-| `remove_physical_binding` | physical_binding |
-| `add_controlled_document` | — |
-| `submit_document_for_review` | controlled_document |
-| `approve_controlled_document` | controlled_document |
-| `make_document_effective` | controlled_document |
-| `supersede_controlled_document` | controlled_document |
-| `withdraw_controlled_document` | controlled_document |
-| `add_authored_fragment` | — |
-| `revise_authored_fragment` | — |
-| `retire_authored_fragment` | authored_fragment |
-| `add_document_composition` | — |
-| `revise_document_composition` | — |
-| `change_document_source_holder` | — |
-| `request_document_compilation` | — |
-| `compile_master_record` | — |
-| `accept_document_compilation` | — |
-| `publish_document_view` | — |
-| `record_document_proposal` | — |
-| `apply_document_proposal` | — |
-| `release_person_entitlement_exclusion` | — |
-| `grant_person_clearance` | — |
-| `grant_access` | — |
-| `revoke_access` | — |
-| `replicate_artifact_version` | — |
-| `verify_artifact_location` | — |
-| `allocate_enterprise_identifier` | — |
-| `request_secure_object_access` | — |
-| `issue_secure_object_capability` | — |
-| `revoke_secure_object_capability` | — |
-| `consume_secure_object_capability` | — |
-| `request_secure_object_erasure` | — |
-| `record_secure_object_erasure` | — |
-| `register_secure_object_authority_key` | — |
-| `revoke_secure_object_authority_key` | — |
-| `register_ml_aggregate_reference` | — |
-| `register_ml_run_lineage` | — |
-| `register_ml_metric_definition` | — |
-| `register_ml_metric_segment` | — |
-| `authorize_ml_metric_stream` | — |
-| `append_ml_metric_event` | — |
-| `authorize_ml_promotion` | — |
-| `raise_nonconformity` | — |
-| `contain_nonconformity` | nonconformity |
-| `investigate_nonconformity` | nonconformity |
-| `disposition_nonconformity` | nonconformity |
-| `close_nonconformity` | nonconformity |
-| `open_capa` | — |
-| `approve_capa_plan` | capa |
-| `implement_capa` | capa |
-| `check_capa_effectiveness` | capa |
-| `close_capa` | capa |
-| `register_supplier` | — |
-| `qualify_supplier` | supplier |
-| `restrict_supplier` | supplier |
-| `disqualify_supplier` | supplier |
-| `register_equipment` | — |
-| `place_equipment_in_service` | equipment |
-| `remove_equipment_from_service` | equipment |
-| `quarantine_equipment` | equipment |
-| `retire_equipment` | equipment |
-| `receive_complaint` | — |
-| `triage_complaint` | complaint |
-| `investigate_complaint` | complaint |
-| `close_complaint` | complaint |
-| `propose_risk_control` | — |
-| `implement_risk_control` | risk_control |
-| `verify_risk_control` | risk_control |
-| `retire_risk_control` | risk_control |
-| `define_test` | — |
-| `approve_test_definition` | test_definition |
-| `supersede_test_definition` | test_definition |
-| `plan_test_execution` | — |
-| `execute_test` | test_execution |
-| `record_test_result` | test_execution |
-| `invalidate_test_execution` | test_execution |
-| `create_warrant_draft` | — |
-| `revise_warrant_draft` | — |
-| `submit_warrant` | warrant |
-| `authorize_warrant_contract` | warrant |
-| `withdraw_warrant_proposal` | warrant |
-| `propose_warrant_amendment` | — |
-| `authorize_warrant_amendment` | warrant |
-| `reject_warrant_amendment` | — |
-| `record_warrant_preflight` | warrant |
-| `authorize_warrant_dispatch` | warrant |
-| `attach_warrant_runtime_receipt` | — |
-| `register_warrant_submission` | warrant |
-| `open_warrant_blocker` | — |
-| `resolve_warrant_blocker` | — |
-| `pause_warrant` | — |
-| `resume_warrant` | — |
-| `propose_warrant_deviation` | — |
-| `approve_warrant_deviation` | — |
-| `reject_warrant_deviation` | — |
-| `record_warrant_discovered_gap` | — |
-| `register_warrant_artifact` | — |
-| `register_warrant_evidence` | — |
-| `attach_warrant_gate_run` | — |
-| `record_warrant_inference` | — |
-| `record_warrant_judgment` | — |
-| `request_warrant_resolution` | — |
-| `resolve_warrant` | warrant |
-| `dispute_warrant_resolution` | — |
-| `resolve_warrant_dispute` | — |
-| `annul_warrant_resolution` | — |
-| `supersede_warrant` | — |
-| `deprecate_warrant` | — |
+| Action | Drives | Requires |
+|---|---|---|
+| `create_initiative` | — | role only |
+| `triage_initiative` | initiative_project | role only |
+| `authorize_project` | initiative_project | act |
+| `activate_project` | initiative_project | role only |
+| `create_work_package` | work_package | role only |
+| `start_work_package` | work_package | role only |
+| `accept_work_package` | work_package | role only |
+| `issue_work_order` | work_order | act |
+| `accept_work_order` | work_order | role only |
+| `amend_work_order` | — | role only |
+| `submit_work_execution` | work_execution, work_package | role only |
+| `review_work_execution` | work_execution, work_package | role only |
+| `issue_acceptance` | work_execution, work_order | act |
+| `propose_decision` | decision_record | role only |
+| `accept_decision` | decision_record | act |
+| `reject_decision` | decision_record | act |
+| `supersede_decision` | decision_record | act |
+| `open_change` | change_record | role only |
+| `approve_change` | change_record | act |
+| `verify_change` | change_record | role only |
+| `make_change_effective` | change_record | act |
+| `submit_invoice` | invoice | role only |
+| `approve_invoice` | invoice | act |
+| `authorize_payment` | payment | act |
+| `record_payment_settlement` | invoice, payment | role only |
+| `reconcile_payment` | payment | role only |
+| `complete_project_technical` | initiative_project | role only |
+| `close_project_administrative` | initiative_project | role only |
+| `attach_evidence` | — | role only |
+| `register_external_artifact` | — | role only |
+| `correct_record` | capa, change_record, decision_record, initiative_project, invoice, payment, work_execution, work_order, work_package | role only |
+| `promote_configuration_item` | configuration_item | role only |
+| `supersede_configuration_item` | configuration_item | act |
+| `retire_configuration_item` | configuration_item | role only |
+| `publish_interface_contract` | interface_contract | act |
+| `deprecate_interface_contract` | interface_contract | act |
+| `withdraw_interface_contract` | interface_contract | role only |
+| `record_physical_binding` | physical_binding | role only |
+| `remove_physical_binding` | physical_binding | role only |
+| `add_controlled_document` | — | role only |
+| `submit_document_for_review` | controlled_document | role only |
+| `approve_controlled_document` | controlled_document | act |
+| `make_document_effective` | controlled_document | act |
+| `supersede_controlled_document` | controlled_document | act |
+| `withdraw_controlled_document` | controlled_document | role only |
+| `add_authored_fragment` | — | role only |
+| `revise_authored_fragment` | — | role only |
+| `retire_authored_fragment` | authored_fragment | role only |
+| `add_document_composition` | — | role only |
+| `revise_document_composition` | — | role only |
+| `change_document_source_holder` | — | role only |
+| `request_document_compilation` | — | role only |
+| `compile_master_record` | — | role only |
+| `accept_document_compilation` | — | act |
+| `publish_document_view` | — | act |
+| `record_document_proposal` | — | role only |
+| `apply_document_proposal` | — | role only |
+| `release_person_entitlement_exclusion` | — | role only |
+| `grant_person_clearance` | — | act |
+| `grant_access` | — | act |
+| `revoke_access` | — | act |
+| `replicate_artifact_version` | — | role only |
+| `verify_artifact_location` | — | role only |
+| `allocate_enterprise_identifier` | — | act |
+| `request_secure_object_access` | — | role only |
+| `issue_secure_object_capability` | — | act |
+| `revoke_secure_object_capability` | — | act |
+| `consume_secure_object_capability` | — | role only |
+| `request_secure_object_erasure` | — | role only |
+| `record_secure_object_erasure` | — | act |
+| `register_secure_object_authority_key` | — | act |
+| `revoke_secure_object_authority_key` | — | act |
+| `register_ml_aggregate_reference` | — | role only |
+| `register_ml_run_lineage` | — | role only |
+| `register_ml_metric_definition` | — | role only |
+| `register_ml_metric_segment` | — | role only |
+| `authorize_ml_metric_stream` | — | act |
+| `append_ml_metric_event` | — | role only |
+| `authorize_ml_promotion` | — | act |
+| `raise_nonconformity` | — | role only |
+| `contain_nonconformity` | nonconformity | role only |
+| `investigate_nonconformity` | nonconformity | role only |
+| `disposition_nonconformity` | nonconformity | role only |
+| `close_nonconformity` | nonconformity | role only |
+| `open_capa` | — | role only |
+| `approve_capa_plan` | capa | act |
+| `implement_capa` | capa | role only |
+| `check_capa_effectiveness` | capa | role only |
+| `close_capa` | capa | role only |
+| `register_supplier` | — | role only |
+| `qualify_supplier` | supplier | role only |
+| `restrict_supplier` | supplier | role only |
+| `disqualify_supplier` | supplier | act |
+| `register_equipment` | — | role only |
+| `place_equipment_in_service` | equipment | role only |
+| `remove_equipment_from_service` | equipment | role only |
+| `quarantine_equipment` | equipment | role only |
+| `retire_equipment` | equipment | role only |
+| `receive_complaint` | — | role only |
+| `triage_complaint` | complaint | role only |
+| `investigate_complaint` | complaint | role only |
+| `close_complaint` | complaint | role only |
+| `propose_risk_control` | — | role only |
+| `implement_risk_control` | risk_control | role only |
+| `verify_risk_control` | risk_control | role only |
+| `retire_risk_control` | risk_control | role only |
+| `define_test` | — | role only |
+| `approve_test_definition` | test_definition | act |
+| `supersede_test_definition` | test_definition | act |
+| `plan_test_execution` | — | role only |
+| `execute_test` | test_execution | role only |
+| `record_test_result` | test_execution | role only |
+| `invalidate_test_execution` | test_execution | act |
+| `create_warrant_draft` | — | role only |
+| `revise_warrant_draft` | — | role only |
+| `submit_warrant` | warrant | role only |
+| `authorize_warrant_contract` | warrant | act |
+| `withdraw_warrant_proposal` | warrant | role only |
+| `propose_warrant_amendment` | — | role only |
+| `authorize_warrant_amendment` | warrant | act |
+| `reject_warrant_amendment` | — | role only |
+| `record_warrant_preflight` | warrant | role only |
+| `authorize_warrant_dispatch` | warrant | act |
+| `attach_warrant_runtime_receipt` | — | role only |
+| `register_warrant_submission` | warrant | role only |
+| `open_warrant_blocker` | — | role only |
+| `resolve_warrant_blocker` | — | role only |
+| `pause_warrant` | — | role only |
+| `resume_warrant` | — | role only |
+| `propose_warrant_deviation` | — | role only |
+| `approve_warrant_deviation` | — | act |
+| `reject_warrant_deviation` | — | role only |
+| `record_warrant_discovered_gap` | — | role only |
+| `register_warrant_artifact` | — | role only |
+| `register_warrant_evidence` | — | role only |
+| `attach_warrant_gate_run` | — | role only |
+| `record_warrant_inference` | — | role only |
+| `record_warrant_judgment` | — | role only |
+| `request_warrant_resolution` | — | role only |
+| `resolve_warrant` | warrant | act |
+| `dispute_warrant_resolution` | — | role only |
+| `resolve_warrant_dispute` | — | act |
+| `annul_warrant_resolution` | — | act |
+| `supersede_warrant` | — | act |
+| `deprecate_warrant` | — | act |
 
 ## Lifecycles
 

@@ -5,6 +5,7 @@ import {
   bindResolvedAccessContext,
   assertCanonicalEffectiveAt,
   assertReasonPresent,
+  assertActCovered,
   assertRoleHeld,
   loadDefinition,
 } from './authority.js';
@@ -61,6 +62,7 @@ export function createTransactionalDispatcher(
     });
 
     const state = await prepareActionState(tx, request, definition, resolved, ctx);
+    await assertActCovered(tx, request, definition, state.targetIds);
     await applyAction(tx, request, requestDigest, state, ctx, resolved);
     const auditDigest = await finalizeAction(tx, request, state, ctx);
     const readReceipt = resolved.receipts[request.actionType];

@@ -16,6 +16,7 @@ action_types:
     audited: true
     transactional: true
     drives: [initiative_project]
+    requires: act
   - id: activate_project
     audited: true
     transactional: true
@@ -36,6 +37,7 @@ action_types:
     audited: true
     transactional: true
     drives: [work_order]
+    requires: act
   - id: accept_work_order
     audited: true
     transactional: true
@@ -56,6 +58,7 @@ action_types:
     audited: true
     transactional: true
     drives: [work_execution, work_order]
+    requires: act
   - id: propose_decision
     audited: true
     transactional: true
@@ -64,14 +67,17 @@ action_types:
     audited: true
     transactional: true
     drives: [decision_record]
+    requires: act
   - id: reject_decision
     audited: true
     transactional: true
     drives: [decision_record]
+    requires: act
   - id: supersede_decision
     audited: true
     transactional: true
     drives: [decision_record]
+    requires: act
   - id: open_change
     audited: true
     transactional: true
@@ -80,6 +86,7 @@ action_types:
     audited: true
     transactional: true
     drives: [change_record]
+    requires: act
   - id: verify_change
     audited: true
     transactional: true
@@ -88,6 +95,7 @@ action_types:
     audited: true
     transactional: true
     drives: [change_record]
+    requires: act
   - id: submit_invoice
     audited: true
     transactional: true
@@ -96,10 +104,12 @@ action_types:
     audited: true
     transactional: true
     drives: [invoice]
+    requires: act
   - id: authorize_payment
     audited: true
     transactional: true
     drives: [payment]
+    requires: act
   - id: record_payment_settlement
     audited: true
     transactional: true
@@ -152,6 +162,7 @@ action_types:
     audited: true
     transactional: true
     drives: [configuration_item]
+    requires: act
   - id: retire_configuration_item
     audited: true
     transactional: true
@@ -160,10 +171,12 @@ action_types:
     audited: true
     transactional: true
     drives: [interface_contract]
+    requires: act
   - id: deprecate_interface_contract
     audited: true
     transactional: true
     drives: [interface_contract]
+    requires: act
   - id: withdraw_interface_contract
     audited: true
     transactional: true
@@ -190,14 +203,17 @@ action_types:
     audited: true
     transactional: true
     drives: [controlled_document]
+    requires: act
   - id: make_document_effective
     audited: true
     transactional: true
     drives: [controlled_document]
+    requires: act
   - id: supersede_controlled_document
     audited: true
     transactional: true
     drives: [controlled_document]
+    requires: act
   - id: withdraw_controlled_document
     audited: true
     transactional: true
@@ -243,10 +259,12 @@ action_types:
     audited: true
     transactional: true
     drives: []
+    requires: act
   - id: publish_document_view
     audited: true
     transactional: true
     drives: []
+    requires: act
   - id: record_document_proposal
     audited: true
     transactional: true
@@ -280,6 +298,7 @@ action_types:
     audited: true
     transactional: true
     drives: []
+    requires: act
 
   # Access grants (ADR 0016). `grant_access` targets the object being made reachable and names
   # the principal (a person or a role assignment), the capability (read | act) and an optional
@@ -290,10 +309,12 @@ action_types:
     audited: true
     transactional: true
     drives: []
+    requires: act
   - id: revoke_access
     audited: true
     transactional: true
     drives: []
+    requires: act
 
   # Storage locations (ADR 0017). `replicate_artifact_version` targets the artifact and names
   # the version, target store and role (hot_cache | durable_copy | evidence_copy — never
@@ -317,6 +338,7 @@ action_types:
     audited: true
     transactional: true
     drives: []
+    requires: act
 
   # ── Federated Secure Object Authority ──────────────────────────────────────────────────
   # These actions target exactly one owning organization. Database triggers also require
@@ -330,10 +352,12 @@ action_types:
     audited: true
     transactional: true
     drives: []
+    requires: act
   - id: revoke_secure_object_capability
     audited: true
     transactional: true
     drives: []
+    requires: act
   - id: consume_secure_object_capability
     audited: true
     transactional: true
@@ -346,14 +370,17 @@ action_types:
     audited: true
     transactional: true
     drives: []
+    requires: act
   - id: register_secure_object_authority_key
     audited: true
     transactional: true
     drives: []
+    requires: act
   - id: revoke_secure_object_authority_key
     audited: true
     transactional: true
     drives: []
+    requires: act
 
   # ── ML registry and metric-stream authority ─────────────────────────────────────────────
   # Registration actions capture privacy-minimal exact provenance and never qualify, seal,
@@ -381,6 +408,7 @@ action_types:
     audited: true
     transactional: true
     drives: []
+    requires: act
   - id: append_ml_metric_event
     audited: true
     transactional: true
@@ -391,6 +419,7 @@ action_types:
     audited: true
     transactional: true
     drives: []
+    requires: act
   - id: raise_nonconformity
     audited: true
     transactional: true
@@ -419,6 +448,7 @@ action_types:
     audited: true
     transactional: true
     drives: [capa]
+    requires: act
   - id: implement_capa
     audited: true
     transactional: true
@@ -447,6 +477,7 @@ action_types:
     audited: true
     transactional: true
     drives: [supplier]
+    requires: act
   - id: register_equipment
     audited: true
     transactional: true
@@ -507,10 +538,12 @@ action_types:
     audited: true
     transactional: true
     drives: [test_definition]
+    requires: act
   - id: supersede_test_definition
     audited: true
     transactional: true
     drives: [test_definition]
+    requires: act
   - id: plan_test_execution
     audited: true
     transactional: true
@@ -527,6 +560,7 @@ action_types:
     audited: true
     transactional: true
     drives: [test_execution]
+    requires: act
 
   # ── OpenWarrant SAS §67 controlled actions (ADR 0019) ─────────────────────────────────
   # Thirty-two names, in §67's four groups, exactly as OpenWarrant's seam spells them. Phase
@@ -550,6 +584,7 @@ action_types:
     audited: true
     transactional: true
     drives: [warrant]
+    requires: act
   - id: withdraw_warrant_proposal
     audited: true
     transactional: true
@@ -562,6 +597,7 @@ action_types:
     audited: true
     transactional: true
     drives: [warrant]
+    requires: act
   - id: reject_warrant_amendment
     audited: true
     transactional: true
@@ -575,6 +611,7 @@ action_types:
     audited: true
     transactional: true
     drives: [warrant]
+    requires: act
   - id: attach_warrant_runtime_receipt
     audited: true
     transactional: true
@@ -607,6 +644,7 @@ action_types:
     audited: true
     transactional: true
     drives: []
+    requires: act
   - id: reject_warrant_deviation
     audited: true
     transactional: true
@@ -645,6 +683,7 @@ action_types:
     audited: true
     transactional: true
     drives: [warrant]
+    requires: act
   - id: dispute_warrant_resolution
     audited: true
     transactional: true
@@ -653,15 +692,19 @@ action_types:
     audited: true
     transactional: true
     drives: []
+    requires: act
   - id: annul_warrant_resolution
     audited: true
     transactional: true
     drives: []
+    requires: act
   - id: supersede_warrant
     audited: true
     transactional: true
     drives: []
+    requires: act
   - id: deprecate_warrant
     audited: true
     transactional: true
     drives: []
+    requires: act

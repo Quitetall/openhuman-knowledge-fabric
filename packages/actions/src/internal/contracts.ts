@@ -7,6 +7,7 @@ export type ActionFailure =
   | 'actor_not_authorized'
   | 'classification_not_granted'
   | 'role_not_held'
+  | 'act_not_granted'
   | 'object_not_visible'
   | 'version_conflict'
   | 'illegal_transition'
@@ -96,6 +97,8 @@ export interface ActionDefinition {
   readonly id: string;
   readonly transactional: boolean;
   readonly transitions: readonly { machine: string; from: string; to: string }[];
+  /** ADR 0016: 'act' — a live act grant must reach every target (or the organization). */
+  readonly requiresCapability: 'act' | null;
 }
 
 /** Action-specific check beyond registry transition and authority. */

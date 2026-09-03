@@ -6,6 +6,7 @@ const STATUS: Record<ActionFailure, number> = {
   actor_not_authorized: 403,
   classification_not_granted: 403,
   role_not_held: 403,
+  act_not_granted: 403,
   separation_of_duty: 403,
   object_not_visible: 404,
   version_conflict: 409,

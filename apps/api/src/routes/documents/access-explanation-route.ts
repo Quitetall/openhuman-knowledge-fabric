@@ -20,13 +20,19 @@ export function registerAccessExplanationRoute(
   app: FastifyInstance,
   options: DocumentRoutesOptions,
 ): void {
-  app.get<{ Params: { id: string }; Querystring: { person?: string } }>(
+  app.get<{ Params: { id: string }; Querystring: { person?: string; capability?: string } }>(
     '/objects/:id/access',
     async (request, reply) => {
       if (!UUID.test(request.params.id)) {
         return reply.code(404).send({ error: 'not_found' });
       }
       const person = request.query.person;
+      const capability = request.query.capability ?? 'read';
+      if (capability !== 'read' && capability !== 'act') {
+        return reply
+          .code(400)
+          .send({ error: 'invalid_parameter', message: 'capability must be read or act' });
+      }
       if (person !== undefined && !UUID.test(person)) {
         return reply
           .code(400)
@@ -60,6 +66,7 @@ export function registerAccessExplanationRoute(
           personId: person ?? identity.actorId,
           organizationId: identity.organizationId,
           objectId: request.params.id,
+          capability,
         });
         return reply
           .header('x-kf-explanation-digest', explanation.explanationDigest)
