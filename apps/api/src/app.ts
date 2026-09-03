@@ -163,11 +163,6 @@ export async function buildApp(
     const objectStore =
       dependencies.objectStore ??
       (config.artifactStore === undefined ? undefined : new S3ObjectStore(config.artifactStore));
-    const parser = dependencies.documentParser ?? new PandocDocumentParser();
-    const documentAtoms =
-      objectStore === undefined
-        ? undefined
-        : createDocumentActionAtoms({ store: objectStore, parser });
     // Storage locations (ADR 0017): the working store is `working` in content.artifact_store;
     // a configured durable store is `durable`. Both are reachable by the same S3 client.
     const stores =
@@ -180,6 +175,15 @@ export async function buildApp(
               : { durable: new S3ObjectStore(config.durableStore) }),
           });
     const storageAtoms = stores === undefined ? undefined : createStorageActionAtoms(stores);
+    const parser = dependencies.documentParser ?? new PandocDocumentParser();
+    const documentAtoms =
+      objectStore === undefined
+        ? undefined
+        : createDocumentActionAtoms({
+            store: objectStore,
+            parser,
+            ...(stores === undefined ? {} : { stores }),
+          });
     const execute = createFabricDispatcher(pool, documentAtoms, undefined, undefined, storageAtoms);
     const executeInTransaction = createFabricTransactionalDispatcher(
       documentAtoms,

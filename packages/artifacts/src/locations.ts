@@ -266,6 +266,63 @@ export async function replicateVersion(
 }
 
 /**
+ * Write the ONE public copy of a version into a store declared public (ADR 0021). Only the
+ * publication act calls this — the database refuses a `public_copy` row recorded by any other
+ * act or into any other store — so this function neither checks the act nor could it: it
+ * copies verified bytes and records the location under the act it was given.
+ */
+export async function publishVersionCopy(
+  tx: Tx,
+  registry: StoreRegistry,
+  input: {
+    readonly versionId: string;
+    readonly toStoreId: string;
+    readonly recordedBy: string;
+    readonly actionId: string;
+  },
+): Promise<{ readonly locationId: string; readonly verification: LocationVerification }> {
+  const version = await loadVersion(tx, input.versionId);
+  if (version === undefined) throw new Error(`artifact version ${input.versionId} is not visible`);
+  const working = await tx.maybeOne<ArtifactLocationRow>(
+    `select id, version_id, store_id, role, uri, store_version, verified_at, verified_sha256,
+            verification_failure, verified_by_action
+       from content.artifact_location where version_id = $1 and role = 'working'`,
+    [input.versionId],
+  );
+  if (working === undefined)
+    throw new Error(`artifact version ${input.versionId} has no working location`);
+  const source = registry.get(working.store_id);
+  const target = registry.get(input.toStoreId);
+  if (source === undefined) throw new Error(`store '${working.store_id}' is not configured`);
+  if (target === undefined)
+    throw new Error(`public store '${input.toStoreId}' is not configured on this instance`);
+  const sizeBytes = Number(version.size_bytes);
+  const bytes = await source.read(working.uri, working.store_version ?? undefined, sizeBytes);
+  if (digestOf(bytes) !== version.sha256) {
+    throw new Error(
+      `working copy of ${input.versionId} does not match its recorded sha256; refusing to publish it`,
+    );
+  }
+  const stored = await target.putIfAbsent(working.uri, bytes, version.media_type);
+  const row = await tx.one<{ id: string }>(
+    `insert into content.artifact_location
+       (version_id, store_id, role, uri, store_version, recorded_by, recorded_by_action)
+     values ($1, $2, 'public_copy', $3, $4, $5, $6)
+     returning id`,
+    [
+      input.versionId,
+      input.toStoreId,
+      stored.key,
+      stored.versionId ?? null,
+      input.recordedBy,
+      input.actionId,
+    ],
+  );
+  const verification = await verifyLocation(tx, registry, row.id, input.actionId);
+  return { locationId: row.id, verification };
+}
+
+/**
  * The bytes of a version from wherever they still are: the working copy first, then every
  * location whose last verification passed, in role order. Undefined when no location can
  * serve them — which is a finding, not an exception.

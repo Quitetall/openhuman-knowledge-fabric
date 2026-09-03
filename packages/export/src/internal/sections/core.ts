@@ -71,7 +71,7 @@ export const CORE_SECTIONS = [
   },
   {
     name: 'artifact-stores',
-    sql: `select id, kind, label, writable, declared_at, notes
+    sql: `select id, kind, label, writable, public, declared_at, notes
             from content.artifact_store order by id`,
   },
   {

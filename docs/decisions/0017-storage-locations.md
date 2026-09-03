@@ -49,10 +49,10 @@ every location whose last verification matched the version's digest, and hashes 
 before serving it. Losing the working store is a degraded read from the durable copy; a
 tampered durable copy is never served.
 
-**`public_copy` exists and nothing writes it.** The schema allows the role so that a
-publication act has a row to make. Replication refuses it, and no other code path produces
-it: publishing is a boundary crossing (ADR 0006) with its own act, deferred with the
-publication boundary.
+**`public_copy` is written only by the publication act.** Replication refuses the role; the
+database refuses a public copy recorded by any act but `publish_document_view` or into any
+store not declared public (ADR 0021, 2026-09-02). Publishing remains a boundary crossing
+(ADR 0006) with its own act — the one that already existed.
 
 **The second store is configuration.** `S3_DURABLE_*` declares it; the app registers it as
 `durable` beside `working`. GCS via S3 interop is the same client with a different endpoint.

@@ -124,7 +124,7 @@ export const DOCUMENT_SECTIONS = [
   {
     name: 'document-publication-targets',
     sql: `select id, organization_id, target_key, max_classification, policy_digest,
-                 registered_at, registered_by
+                 registered_at, registered_by, public_store_id
             from content.document_publication_target order by organization_id, target_key, id`,
   },
   {

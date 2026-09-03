@@ -1,4 +1,4 @@
-import type { ObjectStore } from '@kf/artifacts';
+import type { ObjectStore, StoreRegistry } from '@kf/artifacts';
 import { DOCUMENT_ACTION_IDS, type DocumentActionAtoms } from './action-types.js';
 import { createCompilationAcceptActions } from './compilation-accept-actions.js';
 import { createCompilationRequestActions } from './compilation-request-actions.js';
@@ -20,6 +20,8 @@ import { createExternalArtifactActions } from './external-artifact-actions.js';
 export function createDocumentActionAtoms(options: {
   readonly store: ObjectStore;
   readonly parser: DocumentParser;
+  /** Every store this instance can reach (ADR 0017); needed to publish bytes (ADR 0021). */
+  readonly stores?: StoreRegistry;
 }): DocumentActionAtoms {
   const evidence = createEvidenceActions(options);
   const controlled = createControlledDocumentActions();
@@ -30,7 +32,9 @@ export function createDocumentActionAtoms(options: {
   const holderChange = createHolderChangeActions();
   const compilationRequest = createCompilationRequestActions();
   const compilationAccept = createCompilationAcceptActions();
-  const publication = createPublicationActions();
+  const publication = createPublicationActions(
+    options.stores === undefined ? {} : { stores: options.stores },
+  );
   const proposalRecord = createProposalRecordActions();
   const proposalApply = createProposalApplyActions();
   const entitlement = createEntitlementActions();

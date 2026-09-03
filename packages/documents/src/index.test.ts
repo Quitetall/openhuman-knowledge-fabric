@@ -1,6 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { type ActionRequest, type ObjectRow } from '@kf/actions';
-import { digestOf, InMemoryObjectStore } from '@kf/artifacts';
+import {
+  declareStore,
+  digestOf,
+  InMemoryObjectStore,
+  locationsOf,
+  StoreRegistry,
+} from '@kf/artifacts';
 import { canonicalize, digest } from '@kf/canonicalization';
 import { setAccessContext, setTransactionContext, withTransaction, type Tx } from '@kf/database';
 import { createFabricDispatcher } from '@kf/orchestrator';
@@ -525,6 +531,7 @@ describe('document action chain', () => {
   let harness: Harness;
   let fixtures: Fixtures;
   let store: InMemoryObjectStore;
+  let publicStore: InMemoryObjectStore;
   let execute: ReturnType<typeof createFabricDispatcher>;
   let qualityRoleAssignmentId: string;
   let sequence = 0;
@@ -580,6 +587,7 @@ describe('document action chain', () => {
     harness = await startHarness();
     fixtures = await seedFixtures(harness.adminPool);
     store = new InMemoryObjectStore();
+    publicStore = new InMemoryObjectStore();
     execute = createFabricDispatcher(
       harness.pool,
       createDocumentActionAtoms({
@@ -589,6 +597,8 @@ describe('document action chain', () => {
             return undefined;
           },
         },
+        // ADR 0021: a publication target may name a public store; `public` is one.
+        stores: new StoreRegistry({ working: store, public: publicStore }),
       }),
     );
     qualityRoleAssignmentId = await createObject(harness.adminPool, fixtures, {
@@ -1983,6 +1993,63 @@ describe('document action chain', () => {
       ...publicationPayload,
       publication_target_id: publicationTargetId,
     });
+    // ADR 0021: a target that names a public store gets exactly one public copy of the view's
+    // bytes, written by the publication act; a target naming a store that is not public is
+    // refused; and when the document leaves `effective` the copy is marked unpublished, not
+    // deleted.
+    const publicStoreTargetId = uuid();
+    await withTransaction(harness.adminPool, async (tx) => {
+      await bindContext(tx, fixtures, fixtures.reviewerId);
+      await declareStore(tx, { id: 'public', kind: 'memory', label: 'The public site' });
+      await tx.query(`update content.artifact_store set public = true where id = 'public'`);
+    });
+    // A target naming a store that is not public is refused — in its own transaction, so the
+    // refusal does not roll back the declaration above.
+    await withTransaction(harness.adminPool, async (tx) => {
+      await bindContext(tx, fixtures, fixtures.reviewerId);
+      await expect(
+        tx.query(
+          `insert into content.document_publication_target
+             (id, organization_id, target_key, max_classification, policy_digest, registered_by, public_store_id)
+           values ($1,$2,'not-public-store-site','internal',$3,$4,'working')`,
+          [uuid(), fixtures.organizationId, hexDigest('9'), fixtures.reviewerId],
+        ),
+      ).rejects.toThrow(/not declared public/);
+    });
+    await withTransaction(harness.adminPool, async (tx) => {
+      await bindContext(tx, fixtures, fixtures.reviewerId);
+      await tx.query(
+        `insert into content.document_publication_target
+           (id, organization_id, target_key, max_classification, policy_digest, registered_by, public_store_id)
+         values ($1,$2,'public-store-site','internal',$3,$4,'public')`,
+        [publicStoreTargetId, fixtures.organizationId, hexDigest('a'), fixtures.reviewerId],
+      );
+    });
+    const publishedWithBytes = await call('publish_document_view', [compositionId], {
+      ...publicationPayload,
+      publication_target_id: publicStoreTargetId,
+    });
+    const publicCopies = (
+      await withTransaction(harness.adminPool, (tx) => locationsOf(tx, artifactVersionId))
+    ).filter((location) => location.role === 'public_copy');
+    expect(publicCopies).toHaveLength(1);
+    expect(publicCopies[0]!.store_id).toBe('public');
+    expect(publicCopies[0]!.verified_sha256).not.toBeNull();
+    expect(publicCopies[0]!.verified_by_action).toBe(publishedWithBytes.actionId);
+    expect(
+      await publicStore.head(publicCopies[0]!.uri, publicCopies[0]!.store_version ?? undefined),
+    ).toBeDefined();
+    // Only the publication act may write a public copy: a direct insert under any other act is refused.
+    await expect(
+      withTransaction(harness.adminPool, async (tx) => {
+        await bindContext(tx, fixtures, fixtures.reviewerId);
+        await tx.query(
+          `insert into content.artifact_location (version_id, store_id, role, uri, recorded_by_action)
+           values ($1, 'public', 'public_copy', 'smuggled', $2)`,
+          [artifactVersionId, accepted.actionId],
+        );
+      }),
+    ).rejects.toThrow(/written only by publish_document_view/);
 
     // Migration 007 must re-audit historical runs at acceptance. Simulate a pre-007
     // partial-provenance row by extending its immutable Basis behind legacy trigger bypass:
@@ -2322,7 +2389,21 @@ describe('document action chain', () => {
       requests: '1',
       proposals: '1',
       proposal_revision_state: 'draft',
-      publications: '1',
+      // Two: the signed-route publication and the public-store one (ADR 0021).
+      publications: '2',
     });
+
+    // ADR 0021: unpublish is the document leaving `effective`. The public copy is marked as
+    // no longer verifiable-as-public by the act that moved it; the bytes stay as evidence.
+    await call('supersede_controlled_document', [controlledDocumentId], {});
+    const afterSupersede = (
+      await withTransaction(harness.adminPool, (tx) => locationsOf(tx, artifactVersionId))
+    ).filter((location) => location.role === 'public_copy');
+    expect(afterSupersede).toHaveLength(1);
+    expect(afterSupersede[0]!.verified_sha256).toBeNull();
+    expect(afterSupersede[0]!.verification_failure).toMatch(/^unpublished: /);
+    expect(
+      await publicStore.head(afterSupersede[0]!.uri, afterSupersede[0]!.store_version ?? undefined),
+    ).toBeDefined();
   }, 180_000);
 });

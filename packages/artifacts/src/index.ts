@@ -16,6 +16,7 @@ export {
   declareStore,
   hashLocation,
   locationsOf,
+  publishVersionCopy,
   readVersionBytes,
   replicateVersion,
   verifyLocation,

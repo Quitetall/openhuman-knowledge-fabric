@@ -1,4 +1,5 @@
 import type { ActionEffect, PreconditionCheck } from '@kf/actions';
+import { publishVersionCopy, type StoreRegistry } from '@kf/artifacts';
 import { requireString } from '@kf/record-atoms';
 import type { DocumentClassification } from '../compiler.js';
 import { refuseDocument } from './action-payload.js';
@@ -17,7 +18,9 @@ interface PublicationActions {
   readonly publishDocumentView: ActionEffect;
 }
 
-export function createPublicationActions(): PublicationActions {
+export function createPublicationActions(
+  options: { readonly stores?: StoreRegistry } = {},
+): PublicationActions {
   interface CompiledViewReceipt
     extends
       Record<string, unknown>,
@@ -240,6 +243,44 @@ export function createPublicationActions(): PublicationActions {
         requireString(request.payload, 'compiled_view_id'),
       ],
     );
+    // ADR 0021: a target that names a public store gets exactly one public copy of the view's
+    // bytes, written by THIS act. A target without one publishes through the signed route only.
+    const destination = await tx.one<{
+      public_store_id: string | null;
+      artifact_version_id: string;
+    }>(
+      `select target.public_store_id, view.artifact_version_id
+         from content.document_publication_target target
+         join content.compiled_view view on view.id = $2
+        where target.id = $1`,
+      [
+        requireString(request.payload, 'publication_target_id'),
+        requireString(request.payload, 'compiled_view_id'),
+      ],
+    );
+    if (destination.public_store_id !== null) {
+      const stores = options.stores;
+      if (stores === undefined || stores.get(destination.public_store_id) === undefined) {
+        refuseDocument(
+          'KF-DOC-PUBLISH-007',
+          `the publication target names public store '${destination.public_store_id}', which ` +
+            'this instance cannot reach; bytes cannot be published',
+          { publicStoreId: destination.public_store_id },
+        );
+      }
+      const copy = await publishVersionCopy(tx, stores, {
+        versionId: destination.artifact_version_id,
+        toStoreId: destination.public_store_id,
+        recordedBy: request.actorId,
+        actionId: ctx.actionId,
+      });
+      if (!copy.verification.ok) {
+        refuseDocument('KF-DOC-PUBLISH-008', 'the public copy did not verify after writing', {
+          locationId: copy.locationId,
+          failure: copy.verification.failure,
+        });
+      }
+    }
     await touchDocumentObject(tx, request, object.id);
   };
 
