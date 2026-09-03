@@ -32,7 +32,8 @@ Control Specification_, with its `1.0.0-draft.1` schema pack.
 > ladder, and it says which phases are delivered and which are not. This block used to carry a
 > summary of that, and a summary of a moving system is a summary that goes quietly stale.
 >
-> Phases 0 through 8 are delivered and exercised by the test suite. Phase 9 — a commissioned
+> **Phase 9 is not started.** Phases 0 through 8 — nine of the eleven — are delivered and
+> exercised by the test suite. Phase 9 — a commissioned
 > host and its operating evidence — is **not started**, and four of the five v1.0 criteria in
 > `docs/decisions/0004-production-release.md` queue behind it. Phase 10 is v1.0 itself.
 > §100 of the specification enumerates every known gap, including the two schema packs that

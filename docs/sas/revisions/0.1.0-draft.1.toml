@@ -1,7 +1,7 @@
 schema = "oh.war/sas-revision/v1"
 version = "0.1.0-draft.1"
 source = "docs/sas/KF_Software_Architecture_Specification.md"
-sha256 = "d416cf08d1c43f2d8fca5c7c10eeb76005876da9b97fcbbf18f0168abe223bfb"
+sha256 = "1a1c6f26c84f79493e7e4a30eb7199d2f0974bb0c7a3244d45f4561cf15a562b"
 state = "proposed"
 architecture_changing = false
 
@@ -137,3 +137,4 @@ KF-SAS-RQ-182 = "Decisions record measurement and rejected options; superseded r
 KF-SAS-RQ-183 = "Requirement identifiers are append-only; status is derived from evidence"
 KF-SAS-RQ-184 = "A cross-repository requirement citation is unverified until a tool resolves it"
 KF-SAS-RQ-185 = "KF duplicates no neighbouring program's authority and records who owns each fact"
+KF-SAS-RQ-186 = "The forced-RLS set is derivable from migrations and reconciled with the database"

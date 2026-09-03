@@ -23,7 +23,7 @@
 | Canonical portable representation | RFC 8785 canonical JSON |
 | Content address | SHA-256 over exact bytes |
 | Document class authority | OpenWarrant WAR SAS §6, §34, §101 |
-| Generated artifact rule | the YAML sources under `ontology/` is canonical; everything under `generated/` is compiled and never hand-edited |
+| Generated artifact rule | the YAML sources under `ontology/` are canonical; everything under `generated/` is compiled and never hand-edited |
 
 > **Normative summary.** The Knowledge Fabric is a records system that refuses writes it cannot
 > attribute. Every controlled state change crosses one typed seam, in one transaction, as a
@@ -280,7 +280,7 @@ format tag, and the tag SHALL be part of the preimage.
 
 ### Law 8 — Generated artifacts are never hand-edited
 
-the YAML sources under `ontology/` is canonical. Everything under `generated/` is compiled from it, and CI
+the YAML sources under `ontology/` are canonical. Everything under `generated/` is compiled from it, and CI
 regenerates and fails on any difference, because a hand-edited generated file is an ontology
 change nobody reviewed. The same rule governs composed documents and the pack.
 
@@ -1000,12 +1000,19 @@ application role SHALL NOT hold it.
 
 ## 38. Row-level security
 
-RLS is enabled on 141 tables. It is **forced** — so that even a table's owner is subject to it —
-on the great majority: 72 statements do it literally and one `format()` loop does it across
-`ml.*`. The live database reports 113 of 139, measured on the running instance and recorded in
-`deploy/postgres/planner.conf`.
+RLS is **enabled** on 139 distinct tables by literal statement, and **forced** — so that even a
+table's owner is subject to it — on 66 of them, with one `format()` loop covering `ml.*`
+dynamically. The live database reports 113 of 139 forced, measured on the running instance and
+recorded in `deploy/postgres/planner.conf`.
 
-Two counts appear in this document because two things are being counted: statements in
+Those two figures do not reconcile from the migrations alone, and §100.15 records that as an
+open item rather than assuming the difference away. **73 tables are enabled by a literal
+statement and forced by none**, and enabled-without-forced means the table's owner bypasses the
+policy. The owner is `kf_migrator`, which the application does not run as (§37), so this is not
+an application-visible hole — but it is not the guarantee KF-SAS-RQ-073 states either, and it is
+recorded here rather than left to be discovered.
+
+Two kinds of count appear in this document because two things are being counted: statements in
 migrations, and tables in a running database. §103.3 says which to cite for what.
 
 The policies scope every read to the bound organization and classification rank. ADR 0003
@@ -2377,8 +2384,17 @@ recorded rather than quietly corrected.
 with one agent. Role separation by one person is not organizational independence, and an absent
 field would read as unexamined where `false` reads as examined and absent.
 
+**100.15 Seventy-three tables are enabled for row-level security and forced by no literal
+statement.** The live database reports more tables forced than the migrations statically force,
+and the difference is not reconciled. Until it is, KF-SAS-RQ-073 is not evidenced for those
+tables. §38 states what is known. Found by the review of this revision, which is the reason it
+appears in the first revision rather than a later one.
+
 **KF-SAS-RQ-184.** A requirement cited from another repository SHOULD be resolvable against this
 document by a tool, and until it is, such a citation SHALL be treated as an unverified claim.
+
+**KF-SAS-RQ-186.** The set of tables forced under row-level security SHALL be derivable from the
+migrations, and any difference between that set and the running database SHALL be reconciled.
 
 ## 101. Refusal vocabulary
 
@@ -2464,7 +2480,7 @@ record which program owns each federated fact.
 
 | Revision | Date | Change |
 |---|---|---|
-| `0.1.0-draft.1` | 2026-09-03 | First revision. Establishes the Knowledge Fabric as a program with its own specification, 131 requirements and an eleven-phase ladder. No predecessor. |
+| `0.1.0-draft.1` | 2026-09-03 | First revision. Establishes the Knowledge Fabric as a program with its own specification, 132 requirements and an eleven-phase ladder. No predecessor. |
 
 ## 106. Architecture requirements index
 
@@ -2656,3 +2672,4 @@ from evidence, never recorded here (§97.3).
 | KF-SAS-RQ-183 | Requirement identifiers are append-only; status is derived from evidence |
 | KF-SAS-RQ-184 | A cross-repository requirement citation is unverified until a tool resolves it |
 | KF-SAS-RQ-185 | KF duplicates no neighbouring program's authority and records who owns each fact |
+| KF-SAS-RQ-186 | The forced-RLS set is derivable from migrations and reconciled with the database |
