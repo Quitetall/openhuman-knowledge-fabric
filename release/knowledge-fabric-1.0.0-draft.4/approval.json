@@ -1,0 +1,16 @@
+{
+  "manifest_sha256": "113a3c67f1e2540bf421b23431ddafcc29a0a60dd8b9649c4aeadc13dbeb77cd",
+  "approved_at": "2026-09-03T18:57:13.861Z",
+  "approver": {
+    "name": "Brian Lam",
+    "role": "Owner",
+    "statement": "I accept knowledge-fabric 1.0.0-draft.4: schema 1.2.0-draft.1 with requires_capability on institutional acts and the ADR 0013-0022 additions declared against R01."
+  },
+  "signing_key_id": "release-1",
+  "accepted_gaps": [
+    "validate_graph.py implements 4 of 10 invariants (KF-FIN-001, KF-FIN-003 partially, plus invoice line totals). The remaining six exist only in prose, which §27.1 calls nonconforming. Gate 3 enforces all ten as database constraints and action preconditions.",
+    "Relation types declare no source_types/target_types, so nothing constrains which object types an edge may connect. Tracked as ONT-012; typing lands in Gate 6.",
+    "The manifest is unsigned. §5 requires a signed or approved release manifest before the package is normative."
+  ],
+  "signature": "bCJ+uEUZa2Ch3gADiQmzA1suZ63Io41Tcs5CLlXg7SoMN6eiMNZygQdYJZbjjTv9OfkbOfqtYbWfJyAwshruAA=="
+}

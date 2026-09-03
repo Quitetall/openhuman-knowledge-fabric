@@ -157,6 +157,7 @@ describe('approved packages against the source they claim to represent', () => {
     expect(signed.map((p) => p.name).sort(), 'no signed package found under release/').toEqual([
       'knowledge-fabric-1.0.0-draft.2',
       'knowledge-fabric-1.0.0-draft.3',
+      'knowledge-fabric-1.0.0-draft.4',
       'openhuman-registry-1.0.0-draft.1',
       'openhuman-registry-1.0.0-draft.2',
     ]);
