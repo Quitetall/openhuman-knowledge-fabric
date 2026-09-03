@@ -28,6 +28,7 @@ import { createFabricTransactionalDispatcher } from '@kf/orchestrator';
 import { loadSecret, readSecretFile } from '@kf/operations';
 import type { ActionResult, TransactionalActionDispatcher } from '@kf/actions';
 import { planIngest, type IngestMode, type IngestPlan } from './plan.js';
+import { driveClientFromEnv, type DriveClient, type DriveFetched } from './drive.js';
 
 export type IngestIdentity = 'dev' | 'oidc';
 
@@ -42,6 +43,10 @@ export interface IngestCliArgs {
   readonly actingRoleId?: string;
   readonly tokenFile?: string;
   readonly reason?: string;
+  /** Google Drive sources (ADR 0022), repeatable. */
+  readonly driveRefs?: readonly string[];
+  /** Export MIME type for Google-native documents; defaults per type. */
+  readonly exportMimeType?: string;
   readonly json: boolean;
   readonly paths: readonly string[];
 }
@@ -64,6 +69,12 @@ export interface IngestItemResult {
   readonly artifactId: string;
   readonly versionId: string;
   readonly replayed: boolean;
+  /** For a Drive source: the id, the revision the bytes were read at, and the exporter. */
+  readonly drive?: {
+    readonly fileId: string;
+    readonly revisionId: string;
+    readonly exporter: string;
+  };
 }
 
 export interface IngestResult {
@@ -94,12 +105,15 @@ const OPTION_NAMES = new Set([
   'acting-role',
   'token-file',
   'reason',
+  'drive',
+  'export-mime',
 ]);
 
 /** Parse only CLI shape. Policy validation remains in planIngest. */
 export function parseIngestArgs(argv: readonly string[]): IngestCliArgs {
   const values: Record<string, string> = {};
   const paths: string[] = [];
+  const driveRefs: string[] = [];
   let json = false;
   let positionalOnly = false;
 
@@ -131,12 +145,16 @@ export function parseIngestArgs(argv: readonly string[]): IngestCliArgs {
         name === 'token' ? 'unknown option --token; use --token-file' : `unknown option --${name}`,
       );
     }
-    if (values[name] !== undefined) throw new IngestCliError(`duplicate option --${name}`);
     const inline = match[2];
     const value = inline ?? argv[++index];
     if (value === undefined || value === '' || value.startsWith('--')) {
       throw new IngestCliError(`option --${name} needs a non-empty value`);
     }
+    if (name === 'drive') {
+      driveRefs.push(value);
+      continue;
+    }
+    if (values[name] !== undefined) throw new IngestCliError(`duplicate option --${name}`);
     values[name] = value;
   }
 
@@ -157,6 +175,8 @@ export function parseIngestArgs(argv: readonly string[]): IngestCliArgs {
     ...(values['acting-role'] === undefined ? {} : { actingRoleId: values['acting-role'] }),
     ...(values['token-file'] === undefined ? {} : { tokenFile: values['token-file'] }),
     ...(values['reason'] === undefined ? {} : { reason: values['reason'] }),
+    ...(driveRefs.length === 0 ? {} : { driveRefs }),
+    ...(values['export-mime'] === undefined ? {} : { exportMimeType: values['export-mime'] }),
     json,
     paths,
   };
@@ -255,6 +275,8 @@ interface IngestRuntimeDeps {
   readonly parser?: DocumentParser;
   readonly executeInTransaction?: TransactionalActionDispatcher;
   readonly readFile?: (path: string) => Promise<Buffer>;
+  /** Drive client (ADR 0022); defaults to a service-account client from KF_DRIVE_SERVICE_ACCOUNT_FILE. */
+  readonly drive?: DriveClient;
   readonly stat?: (path: string) => Promise<{ isFile(): boolean }>;
 }
 
@@ -382,6 +404,7 @@ function actionPayload(
   reference: ReferenceManifestEntry | undefined,
   storeKey: string | undefined,
   organizationId: string,
+  drive?: DriveFetched,
 ): Readonly<Record<string, JsonValue>> {
   if (mode === 'reference') {
     if (reference === undefined) throw new IngestCliError(`no manifest entry for ${item.path}`);
@@ -401,13 +424,28 @@ function actionPayload(
   }
   if (storeKey === undefined) throw new IngestCliError(`no storage key for ${item.path}`);
   return {
-    title: basename(item.path),
+    title: drive === undefined ? basename(item.path) : drive.name,
     artifact_kind: item.artifactKind,
     sha256: digestBytes(bytes),
     size_bytes: bytes.length,
     media_type: item.mediaType,
     storage_uri: storeKey,
     ...(revisionLabel === undefined ? {} : { revision_label: revisionLabel }),
+    ...(drive === undefined
+      ? {}
+      : {
+          // ADR 0022: Drive holds the source; we hold a copy read at exactly this revision,
+          // produced by exactly this exporter. Both are recorded on the act.
+          source_locator: {
+            system: 'google-drive',
+            external_id: `${drive.fileId}@${drive.revisionId}`,
+            authority: 'authoritative',
+            ...(drive.webViewLink === undefined ? {} : { uri: drive.webViewLink }),
+          },
+          exporter: drive.exporter,
+          source_media_type: drive.sourceMimeType,
+          source_modified_at: drive.modifiedTime,
+        }),
     // Kept in payload so idempotency digest remains bound to organization even if a caller
     // accidentally reuses a path and digest across tenants.
     organization_id: organizationId,
@@ -438,6 +476,7 @@ export async function runIngest(
     ...(args.classification === undefined ? {} : { classification: args.classification }),
     ...(args.artifactKind === undefined ? {} : { artifactKind: args.artifactKind }),
     ...(args.revisionLabel === undefined ? {} : { revisionLabel: args.revisionLabel }),
+    ...(args.driveRefs === undefined ? {} : { driveRefs: args.driveRefs }),
   });
   if (!planned.ok) throw new IngestCliError(planned.refusals.join('\n'), planned.refusals);
   const classification = planned.classification;
@@ -491,8 +530,35 @@ export async function runIngest(
       readonly sha256: string;
       readonly storeKey?: string;
       readonly reference?: ReferenceManifestEntry;
+      readonly drive?: DriveFetched;
     }> = [];
+    const drive =
+      deps.drive ??
+      (planned.items.some((i) => i.drive !== undefined) ? driveClientFromEnv(env) : undefined);
     for (const item of planned.items) {
+      if (item.drive !== undefined) {
+        if (drive === undefined) {
+          throw new IngestCliError(
+            'a Drive source needs KF_DRIVE_SERVICE_ACCOUNT_FILE (a permission-checked service-account key)',
+          );
+        }
+        const fetched = await drive.fetch(item.drive.fileId, {
+          ...(item.drive.revisionId === undefined ? {} : { revisionId: item.drive.revisionId }),
+          ...(args.exportMimeType === undefined ? {} : { exportMimeType: args.exportMimeType }),
+        });
+        if (fetched.bytes.length === 0) {
+          throw new IngestCliError(`Drive source is empty: ${item.path}`);
+        }
+        const sha256 = digestBytes(fetched.bytes);
+        staged.push({
+          item: { ...item, mediaType: fetched.mediaType },
+          bytes: fetched.bytes,
+          sha256,
+          storeKey: `ingest/${identity.organizationId}/${sha256}`,
+          drive: fetched,
+        });
+        continue;
+      }
       const absolutePath = resolve(cwd, item.path);
       if (!(await stat(absolutePath)).isFile()) {
         throw new IngestCliError(`ingest path is not a regular file: ${item.path}`);
@@ -547,10 +613,11 @@ export async function runIngest(
           planned.mode,
           source.item,
           source.bytes,
-          args.revisionLabel,
+          source.drive === undefined ? args.revisionLabel : source.drive.revisionId,
           reference,
           source.storeKey,
           identity.organizationId,
+          source.drive,
         );
         const idempotencyKey = `kf-ingest-v1-${digest({
           mode: planned.mode,
@@ -581,6 +648,15 @@ export async function runIngest(
           artifactId,
           versionId: await versionForAction(tx, artifactId, action.actionId),
           replayed: action.replayed,
+          ...(source.drive === undefined
+            ? {}
+            : {
+                drive: {
+                  fileId: source.drive.fileId,
+                  revisionId: source.drive.revisionId,
+                  exporter: source.drive.exporter,
+                },
+              }),
         });
       }
       return results;

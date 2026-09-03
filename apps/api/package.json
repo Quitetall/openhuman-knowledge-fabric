@@ -23,8 +23,8 @@
     "@kf/canonicalization": "workspace:*",
     "@kf/database": "workspace:*",
     "@kf/documents": "workspace:*",
-    "@kf/identifiers": "workspace:*",
     "@kf/domain": "workspace:*",
+    "@kf/identifiers": "workspace:*",
     "@kf/integration": "workspace:*",
     "@kf/ml-registry": "workspace:*",
     "@kf/operations": "workspace:*",
@@ -32,7 +32,8 @@
     "@kf/projections": "workspace:*",
     "@kf/search": "workspace:*",
     "@kf/work-control": "workspace:*",
-    "fastify": "^5.12.1"
+    "fastify": "^5.12.1",
+    "jose": "^6.2.8"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

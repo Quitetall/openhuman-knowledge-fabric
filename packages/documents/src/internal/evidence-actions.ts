@@ -61,6 +61,29 @@ export function createEvidenceActions(options: {
       ...(revisionLabel === null ? {} : { revisionLabel }),
     });
 
+    // ADR 0022: a copy of something whose authority is elsewhere records where, at which
+    // revision. Optional; when present it is a locator row like register_external_artifact's.
+    const locator = request.payload?.['source_locator'];
+    if (locator !== undefined) {
+      if (typeof locator !== 'object' || locator === null || Array.isArray(locator)) {
+        throw new Error('source_locator must be an object');
+      }
+      const l = locator as Record<string, unknown>;
+      const system = requireString(l, 'system');
+      const externalId = requireString(l, 'external_id');
+      const authority = requireString(l, 'authority');
+      if (!['authoritative', 'evidence', 'mirror', 'lookup'].includes(authority)) {
+        throw new Error(
+          'source_locator.authority must be authoritative | evidence | mirror | lookup',
+        );
+      }
+      await tx.query(
+        `insert into content.external_locator (version_id, system, external_id, uri, authority, synced_at)
+         values ($1, $2, $3, $4, $5, now())`,
+        [version.id, system, externalId, optionalString(l, 'uri'), authority],
+      );
+    }
+
     const sourceBytes = await options.store.read(
       verified.key,
       verified.storageVersion,

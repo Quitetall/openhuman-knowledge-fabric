@@ -135,3 +135,54 @@ describe('descriptive metadata', () => {
     expect(mediaTypeFor('/a/thing.weird')).toBe('application/octet-stream');
   });
 });
+
+describe('a Drive source is a copy with its origin recorded (ADR 0022)', () => {
+  it('plans a Drive-only batch as copy items with the file id and revision carried', () => {
+    const plan = planIngest({
+      mode: 'copy',
+      classification: 'internal',
+      paths: [],
+      driveRefs: ['F1234567890@r7', 'G1234567890'],
+    });
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    expect(plan.items).toEqual([
+      {
+        path: 'drive:F1234567890@r7',
+        artifactKind: 'other',
+        mediaType: 'application/octet-stream',
+        drive: { fileId: 'F1234567890', revisionId: 'r7' },
+      },
+      {
+        path: 'drive:G1234567890',
+        artifactKind: 'other',
+        mediaType: 'application/octet-stream',
+        drive: { fileId: 'G1234567890' },
+      },
+    ]);
+  });
+
+  it('refuses a malformed Drive reference by name', () => {
+    const plan = planIngest({
+      mode: 'copy',
+      classification: 'internal',
+      paths: [],
+      driveRefs: ['https://docs.google.com/document/d/F1234567890/edit'],
+    });
+    expect(plan.ok).toBe(false);
+    if (plan.ok) return;
+    expect(plan.refusals.join('\n')).toContain('not a Drive reference');
+  });
+
+  it('refuses reference mode for a Drive source: we hold the copy or nothing', () => {
+    const plan = planIngest({
+      mode: 'reference',
+      classification: 'internal',
+      paths: [],
+      driveRefs: ['F1234567890'],
+    });
+    expect(plan.ok).toBe(false);
+    if (plan.ok) return;
+    expect(plan.refusals.join('\n')).toContain('--mode=reference cannot take --drive');
+  });
+});

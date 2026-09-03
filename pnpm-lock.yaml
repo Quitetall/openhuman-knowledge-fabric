@@ -176,6 +176,9 @@ importers:
       fastify:
         specifier: ^5.12.1
         version: 5.12.1
+      jose:
+        specifier: ^6.2.8
+        version: 6.2.8
     devDependencies:
       '@types/node':
         specifier: ^24.13.3

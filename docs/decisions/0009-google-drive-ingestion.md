@@ -1,6 +1,6 @@
 # Google Drive ingestion is deferred until after v1.0
 
-**Status:** accepted — deferred, with the design recorded so it is not re-derived
+**Status:** superseded by [ADR 0022](0022-drive-as-external-source-holder.md) on 2026-09-02 — ingestion was built as a per-file copy with the revision and exporter recorded, NOT as a federated source; the measurement below is why that seam was not built
 **Date raised:** 2026-08-24
 **Date decided:** 2026-08-24
 **Decision owner:** technical authority

@@ -643,6 +643,62 @@ describe('document action chain', () => {
     } as ActionRequest);
   }
 
+  it('records where a copied source lives when attach_evidence names a source locator (ADR 0022)', async () => {
+    const source = Buffer.from('# From Drive\n');
+    const sourceDigest = digestOf(source);
+    const key = `drive-copy/${sourceDigest}`;
+    await store.put(key, source, 'text/markdown');
+    const result = await call('attach_evidence', [], {
+      title: 'Spec.gdoc',
+      artifact_kind: 'other',
+      sha256: sourceDigest,
+      size_bytes: source.length,
+      media_type: 'text/markdown',
+      storage_uri: key,
+      revision_label: 'head9',
+      source_locator: {
+        system: 'google-drive',
+        external_id: 'F1234567890@head9',
+        authority: 'authoritative',
+        uri: 'https://docs.google.com/d/F1234567890',
+      },
+      exporter: 'google-drive-api-v3 files.export mimeType=text/markdown',
+    });
+    const locators = await withTransaction(harness.pool, async (tx) => {
+      await setAccessContext(tx, {
+        organizationId: fixtures.organizationId,
+        maxClassification: 'restricted',
+      });
+      return tx.query<{ system: string; external_id: string; authority: string; uri: string }>(
+        `select l.system, l.external_id, l.authority, l.uri
+           from content.artifact_version v
+           join content.external_locator l on l.version_id = v.id
+          where v.artifact_id = $1`,
+        [result.objectIds[0]],
+      );
+    });
+    expect(locators).toEqual([
+      {
+        system: 'google-drive',
+        external_id: 'F1234567890@head9',
+        authority: 'authoritative',
+        uri: 'https://docs.google.com/d/F1234567890',
+      },
+    ]);
+    // The copy is still a copy: the bytes are ours and the version records them as such.
+    await expect(
+      call('attach_evidence', [], {
+        title: 'Spec.gdoc',
+        artifact_kind: 'other',
+        sha256: sourceDigest,
+        size_bytes: source.length,
+        media_type: 'text/markdown',
+        storage_uri: key,
+        source_locator: { system: 'google-drive', external_id: 'x', authority: 'owner' },
+      }),
+    ).rejects.toThrow('source_locator.authority must be');
+  });
+
   it('fails attach_evidence closed before parser-authored digests can persist', async () => {
     const source = Buffer.from('# Title\n');
     const sourceDigest = digestOf(source);
@@ -2395,13 +2451,15 @@ describe('document action chain', () => {
 
     // ADR 0021: unpublish is the document leaving `effective`. The public copy is marked as
     // no longer verifiable-as-public by the act that moved it; the bytes stay as evidence.
-    await call('supersede_controlled_document', [controlledDocumentId], {});
+    const superseded = await call('supersede_controlled_document', [controlledDocumentId], {});
     const afterSupersede = (
       await withTransaction(harness.adminPool, (tx) => locationsOf(tx, artifactVersionId))
     ).filter((location) => location.role === 'public_copy');
     expect(afterSupersede).toHaveLength(1);
     expect(afterSupersede[0]!.verified_sha256).toBeNull();
     expect(afterSupersede[0]!.verification_failure).toMatch(/^unpublished: /);
+    // The act on the copy is the superseding act, not the original publication.
+    expect(afterSupersede[0]!.verified_by_action).toBe(superseded.actionId);
     expect(
       await publicStore.head(afterSupersede[0]!.uri, afterSupersede[0]!.store_version ?? undefined),
     ).toBeDefined();

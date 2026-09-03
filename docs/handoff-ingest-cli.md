@@ -15,8 +15,17 @@ boundary: refusal happens before database pools, source files, or object storage
 kf ingest --mode=copy|reference --classification=<id> --identity=dev|oidc \
   [--revision=<label>] [--kind=<k>] [--reference-manifest=<file>] \
   [--organization=<uuid> --acting-role=<uuid> --token-file=<file>] [--reason=<text>] \
+  [--drive=<fileId>[@<revisionId>] ...] [--export-mime=<type>] \
   [--json] <paths...>
 ```
+
+A Drive source (ADR 0022) is copy-mode only. `--drive` is repeatable and names one file — never
+a folder. The bytes are fetched read-only as the service account in
+`KF_DRIVE_SERVICE_ACCOUNT_FILE` (a permission-checked key file, host state per
+`deploy/systemd/README.md`), hashed, stored, and attached exactly like a local file, with the
+file id, the revision read, and the exporter recorded on the act and as an `external_locator`
+row. A Google-native document (Docs, Sheets, Slides) is exported at its head revision only;
+`--export-mime` overrides the pinned default target.
 
 Run `pnpm kf ingest ...` from repository root (or build and invoke the API package bin as
 `kf ingest ...`). The root script builds API dependencies before dispatching the command.

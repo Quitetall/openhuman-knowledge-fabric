@@ -22,6 +22,7 @@
  * be proven without a harness and cannot be excused by "the environment was odd".
  */
 
+import { parseDriveRef } from './drive.js';
 import { basename, extname, sep } from 'node:path';
 
 export type IngestMode = 'copy' | 'reference';
@@ -150,6 +151,8 @@ export interface IngestRequest {
   readonly mode?: string;
   readonly classification?: string;
   readonly paths: readonly string[];
+  /** Google Drive sources, `<fileId>` or `<fileId>@<revisionId>` (ADR 0022). Copy mode only. */
+  readonly driveRefs?: readonly string[];
   readonly artifactKind?: string;
   /** Required in reference mode: which revision of the external thing this digest describes. */
   readonly revisionLabel?: string;
@@ -159,6 +162,8 @@ export interface PlannedItem {
   readonly path: string;
   readonly artifactKind: string;
   readonly mediaType: string;
+  /** Present for a Drive source; the media type above is settled when the bytes are fetched. */
+  readonly drive?: { readonly fileId: string; readonly revisionId?: string };
 }
 
 export type IngestPlan =
@@ -193,7 +198,22 @@ export function planIngest(request: IngestRequest): IngestPlan {
     );
   }
 
-  if (request.paths.length === 0) refusals.push('no paths given');
+  const driveRefs = request.driveRefs ?? [];
+  if (request.paths.length === 0 && driveRefs.length === 0) refusals.push('no paths given');
+  const driveItems: { ref: string; fileId: string; revisionId?: string }[] = [];
+  for (const ref of driveRefs) {
+    try {
+      driveItems.push({ ref, ...parseDriveRef(ref) });
+    } catch (error: unknown) {
+      refusals.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+  if (driveRefs.length > 0 && request.mode === 'reference') {
+    refusals.push(
+      'a Drive source is copied, never referenced without bytes: --mode=reference cannot take ' +
+        '--drive (ADR 0022 records the file id and revision beside the copy it holds)',
+    );
+  }
 
   if (request.mode === 'reference' && request.revisionLabel === undefined) {
     refusals.push(
@@ -223,10 +243,21 @@ export function planIngest(request: IngestRequest): IngestPlan {
     ok: true,
     mode,
     classification,
-    items: request.paths.map((path) => ({
-      path,
-      artifactKind: artifactKindFor(path, request.artifactKind),
-      mediaType: mediaTypeFor(path),
-    })),
+    items: [
+      ...request.paths.map((path) => ({
+        path,
+        artifactKind: artifactKindFor(path, request.artifactKind),
+        mediaType: mediaTypeFor(path),
+      })),
+      ...driveItems.map((item) => ({
+        path: `drive:${item.ref}`,
+        artifactKind: request.artifactKind ?? 'other',
+        mediaType: 'application/octet-stream',
+        drive: {
+          fileId: item.fileId,
+          ...(item.revisionId === undefined ? {} : { revisionId: item.revisionId }),
+        },
+      })),
+    ],
   };
 }

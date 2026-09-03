@@ -29,6 +29,24 @@ describe('kf ingest argument boundary', () => {
     });
   });
 
+  it('accepts repeated --drive references and one export MIME type', () => {
+    const args = parseIngestArgs([
+      '--mode=copy',
+      '--classification=internal',
+      '--identity=dev',
+      '--drive=F1234567890@r7',
+      '--drive',
+      'G1234567890',
+      '--export-mime=application/pdf',
+    ]);
+    expect(args.driveRefs).toEqual(['F1234567890@r7', 'G1234567890']);
+    expect(args.exportMimeType).toBe('application/pdf');
+    expect(args.paths).toEqual([]);
+    expect(() => parseIngestArgs(['--export-mime=a/b', '--export-mime=c/d', 'x'])).toThrow(
+      'duplicate option --export-mime',
+    );
+  });
+
   it('does not accept inline bearer tokens', () => {
     expect(() => parseIngestArgs(['--identity=oidc', '--token=secret', '/tmp/a.md'])).toThrow(
       'unknown option --token; use --token-file',
