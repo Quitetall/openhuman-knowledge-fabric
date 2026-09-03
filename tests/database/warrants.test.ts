@@ -15,8 +15,8 @@ import { seedFixtures, startHarness, type Fixtures, type Harness } from './harne
  *   3. §67.3: a stale `expected_version` fails rather than overwrites.
  *   4. §67.4: an identical retry replays; the same key with a different payload is refused.
  *   5. Authorizing a digest other than the proposed one is refused; a revision is immutable.
- *   6. The allocator refuses a Warrant BY NAME: `WAR` is not a namespace this registry has
- *      allocated — the contrast §12.4 asks for, recorded rather than faked.
+ *   6. A Warrant is numbered OH-WAR-NNNNNN-C by the allocator (registry 1.0.0-draft.2), and a
+ *      caller-proposed identifier is still refused — the contrast §12.4 asks for.
  *   7. Withdrawal returns to draft; amendment, condition, outcome and standing move the other
  *      dimensions and leave the phase where §24 says.
  */
@@ -225,20 +225,24 @@ describe('SAS §67 through typed actions', () => {
     ).rejects.toThrow(/immutable/);
   });
 
-  it('refuses to number a Warrant by name: WAR is not an allocated namespace here', async () => {
+  it('numbers a Warrant under OH-WAR through the allocator (OW-WAR-0044 M2)', async () => {
     const id = await draft('OW-WAR-9006');
-    await expect(act('allocate_enterprise_identifier', [id], {})).rejects.toMatchObject({
-      name: 'ActionRejected',
-      failure: 'precondition_failed',
-      message: expect.stringContaining('WAR'),
-    });
+    const allocated = await act('allocate_enterprise_identifier', [id], {});
+    const enterpriseId = (allocated.receipt as Record<string, unknown>)['enterprise_id'];
+    expect(enterpriseId).toMatch(/^OH-WAR-[0-9]{6}-[0-9]$/);
     const row = await withTransaction(harness.adminPool, (tx) =>
-      tx.one<{ enterprise_id: string | null }>(
-        'select enterprise_id from core.object where id = $1',
+      tx.one<{ enterprise_id: string | null; ok: boolean }>(
+        'select enterprise_id, core.valid_enterprise_id(enterprise_id) as ok from core.object where id = $1',
         [id],
       ),
     );
-    expect(row.enterprise_id).toBeNull();
+    expect(row.enterprise_id).toBe(enterpriseId);
+    expect(row.ok).toBe(true);
+    // The identifier is returned by KF, never proposed: a payload naming one is refused.
+    const other = await draft('OW-WAR-9016');
+    await expect(
+      act('allocate_enterprise_identifier', [other], { enterprise_id: 'OH-WAR-000042-7' }),
+    ).rejects.toMatchObject({ name: 'ActionRejected', failure: 'precondition_failed' });
   });
 
   it('withdrawal, amendment, condition, outcome and standing move only their own dimension', async () => {

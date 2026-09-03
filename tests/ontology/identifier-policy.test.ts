@@ -180,8 +180,10 @@ describe('the namespace list', () => {
     expect([...ENTERPRISE_NAMESPACES].sort()).toEqual([...declared].sort());
   });
 
-  it('has 19 enterprise namespaces and excludes RCD', () => {
-    expect(ENTERPRISE_NAMESPACES).toHaveLength(19);
+  it('has 21 enterprise namespaces and excludes RCD', () => {
+    // R01's nineteen, plus WAR and CONF allocated in registry 1.0.0-draft.2 (2026-09-02).
+    expect(ENTERPRISE_NAMESPACES).toHaveLength(21);
+    expect(ENTERPRISE_NAMESPACES).toEqual(expect.arrayContaining(['WAR', 'CONF']));
     expect(ENTERPRISE_NAMESPACES).not.toContain('RCD');
   });
 });

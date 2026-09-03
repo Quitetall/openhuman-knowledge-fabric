@@ -169,21 +169,46 @@ describe('R6 allocation', () => {
     expect(new Set([await enterpriseIdOf(a), await enterpriseIdOf(b)]).size).toBe(2);
   });
 
-  it('refuses, by name, a type whose namespace this instance has not allocated', async () => {
-    // `capa` declares CPA; the registry allocates no OH-CPA.
+  it('refuses, by name, a type with no namespace and a namespace that is not active', async () => {
+    // A person declares no enterprise namespace: nothing can be allocated to it.
+    await expect(allocate(fixtures.performerId)).rejects.toMatchObject({
+      name: 'ActionRejected',
+      failure: 'precondition_failed',
+      message: expect.stringContaining('no enterprise namespace'),
+    });
+
+    // R01 §13.3: a retired namespace accepts no NEW allocation; what it issued stays valid.
+    // `capa` numbers under QEV (registry 1.0.0-draft.2); retire OH-QEV for the duration.
     const capa = await createObject(harness.adminPool, fixtures, {
       type: 'capa',
       domain: 'qms',
       state: 'open',
-      title: 'Unallocated namespace',
+      title: 'Retired namespace',
       createdBy: fixtures.reviewerId,
     });
-    await expect(allocate(capa)).rejects.toMatchObject({
-      name: 'ActionRejected',
-      failure: 'precondition_failed',
-      message: expect.stringContaining('CPA'),
-    });
-    expect(await enterpriseIdOf(capa)).toBeNull();
+    await withTransaction(harness.adminPool, (tx) =>
+      tx.query(
+        `update registry.identifier_namespace set state = 'retired' where qualified_code = 'OH-QEV'`,
+      ),
+    );
+    try {
+      await expect(allocate(capa)).rejects.toMatchObject({
+        name: 'ActionRejected',
+        failure: 'precondition_failed',
+        message: expect.stringContaining('retired'),
+      });
+      expect(await enterpriseIdOf(capa)).toBeNull();
+    } finally {
+      await withTransaction(harness.adminPool, (tx) =>
+        tx.query(
+          `update registry.identifier_namespace set state = 'active' where qualified_code = 'OH-QEV'`,
+        ),
+      );
+    }
+    const numbered = await allocate(capa);
+    expect((numbered.receipt as Record<string, unknown>)['enterprise_id']).toMatch(
+      /^OH-QEV-[0-9]{6}-[0-9]$/,
+    );
   });
 
   it('serves the receipt and hides what was never allocated', async () => {

@@ -55,13 +55,12 @@ whose object the caller cannot see, is _not found_.
 
 ## What this does not decide
 
-- **A namespace for Warrants.** The SAS example is `OH-WAR-000042`; the registry allocates
-  nineteen namespaces and `WAR` is not one. Allocating a namespace is a pack-owner act on
-  OH-DOC-000001-3, not a code change. Until it is made, a Warrant can be registered as an
-  object but not numbered — and the allocator will say so by name.
-- **Reconciling object-type namespaces with the registry.** Five declared namespaces have no
-  registry allocation. Whether the types change or the registry grows is the same pack-owner
-  question.
+- ~~A namespace for Warrants; reconciling the five object-type namespaces.~~ Decided
+  2026-09-02 by the pack owner: registry 1.0.0-draft.2 allocates `WAR` and `CONF` (`CFG` is
+  one edit from `CHG`, which R13 refuses), and the five types now declare the registry's own
+  codes (`INTF`, `BIND`, `QEV` for nonconformity and CAPA, `CONF`). An instance that has not
+  re-seeded `registry.identifier_namespace` from that revision is still refused by name for
+  the two new codes.
 - **The §67 vocabulary.** This is the allocator OW-WAR-0044's milestone M2 needs; the warrant
   object types and the thirty-two actions of §67 are the next step, not this one.
 

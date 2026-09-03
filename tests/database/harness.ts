@@ -309,7 +309,8 @@ export async function seedFixtures(
          ('OH-TST','enterprise'),  ('OH-CHG','enterprise'),  ('OH-ADR','enterprise'),
          ('OH-BSL','enterprise'),  ('OH-RLS','enterprise'),  ('OH-QEV','enterprise'),
          ('OH-EQP','enterprise'),  ('OH-SUP','enterprise'),  ('OH-LOT','enterprise'),
-         ('OH-WRK','enterprise'),  ('OH-RCD','record'),      ('OH-SN','serial')
+         ('OH-WRK','enterprise'),  ('OH-WAR','enterprise'),  ('OH-CONF','enterprise'),
+         ('OH-RCD','record'),      ('OH-SN','serial')
        on conflict (qualified_code) do nothing`,
     );
 

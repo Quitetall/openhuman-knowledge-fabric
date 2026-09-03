@@ -63,10 +63,9 @@ kernel's behaviour for every action; the tests here prove them for a Warrant.
 
 ## What this does not decide
 
-- **Numbering.** `warrant` declares namespace `WAR` because the SAS example is
-  `OH-WAR-000042`; the registry has not allocated `WAR`, so `allocate_enterprise_identifier`
-  refuses a Warrant by name. That refusal is the recorded contrast §12.4 asks for. Allocating
-  the namespace is a pack-owner act on OH-DOC-000001-3.
+- ~~Numbering.~~ Decided 2026-09-02: registry 1.0.0-draft.2 allocates `WAR`, so a Warrant is
+  numbered `OH-WAR-NNNNNN-C` by `allocate_enterprise_identifier` on any instance seeded from
+  that revision. The recorded refusal before it is the contrast §12.4 asked for.
 - **Relations.** Superseding names its successor in a column; `supersedes` as a
   `core.relation` and Warrant-to-project links wait for a reader who needs them.
 - **§68 round trip.** The preservation export carries both tables; the OpenWarrant-side

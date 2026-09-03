@@ -60,7 +60,9 @@ const RECORDED_DIVERGENCES = [
   {
     id: 'GATE-6-EXTENSION',
     path: '.schema_version',
-    summary: 'extended to 1.1.0-draft.1 by the Gate 6 configuration and quality types',
+    summary:
+      'extended to 1.1.0-draft.1 by the Gate 6 configuration and quality types, and to ' +
+      '1.2.0-draft.1 by the warrant type and the 2026-09 namespace reconciliation',
   },
   {
     id: 'GATE-6-EXTENSION',

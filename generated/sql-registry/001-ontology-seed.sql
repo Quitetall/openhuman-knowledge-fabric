@@ -1,6 +1,6 @@
 -- GENERATED from ontology/ — do not edit.
--- ontology_version: 1.1.0-draft.1
--- source_digest: b6b322c1392676a52dc8fc76e0866354aaa438b0f2bff24f1735dfaeaa780a5e
+-- ontology_version: 1.2.0-draft.1
+-- source_digest: 814483bf6d1ae38bf10c662b77c9503c2aec92eb1005d9bb9f0a21e8a69f72ce
 
 -- Seed data for the registry schema. Generated; applied by `pnpm db:seed`.
 --
@@ -17,10 +17,10 @@ begin;
 
 -- Retire the previous current release BEFORE inserting the new current row. The unique
 -- partial index rejects two current rows even within one transaction.
-update registry.schema_release set is_current = false where version <> '1.1.0-draft.1';
+update registry.schema_release set is_current = false where version <> '1.2.0-draft.1';
 
 insert into registry.schema_release (version, ontology_digest, is_current) values
-  ('1.1.0-draft.1', 'b6b322c1392676a52dc8fc76e0866354aaa438b0f2bff24f1735dfaeaa780a5e', true)
+  ('1.2.0-draft.1', '814483bf6d1ae38bf10c662b77c9503c2aec92eb1005d9bb9f0a21e8a69f72ce', true)
 on conflict (version) do update set ontology_digest = excluded.ontology_digest,
   applied_at = now(), is_current = true;
 
@@ -46,15 +46,15 @@ insert into registry.object_type (id, title, authority_domain, enterprise_namesp
   ('test', 'Test', 'qms', 'TST', true),
   ('release', 'Release', 'configuration', 'RLS', true),
   ('baseline', 'Baseline', 'configuration', 'BSL', true),
-  ('configuration_item', 'Configuration Item', 'configuration', 'CFG', true),
-  ('interface_contract', 'Interface Contract', 'configuration', 'IFC', true),
-  ('physical_binding', 'Physical Binding', 'configuration', 'BND', true),
+  ('configuration_item', 'Configuration Item', 'configuration', 'CONF', true),
+  ('interface_contract', 'Interface Contract', 'configuration', 'INTF', true),
+  ('physical_binding', 'Physical Binding', 'configuration', 'BIND', true),
   ('controlled_document', 'Controlled Document', 'qms', 'DOC', true),
   ('authored_fragment', 'Authored Fragment', 'qms', null, true),
   ('document_composition', 'Document Composition', 'qms', null, true),
   ('ml_promotion_decision', 'ML Promotion Decision', 'qms', null, true),
-  ('nonconformity', 'Nonconformity', 'qms', 'NCR', true),
-  ('capa', 'Corrective and Preventive Action', 'qms', 'CPA', true),
+  ('nonconformity', 'Nonconformity', 'qms', 'QEV', true),
+  ('capa', 'Corrective and Preventive Action', 'qms', 'QEV', true),
   ('supplier', 'Supplier', 'qms', 'SUP', true),
   ('equipment', 'Equipment', 'qms', 'EQP', true),
   ('complaint', 'Complaint', 'qms', 'CMP', true),

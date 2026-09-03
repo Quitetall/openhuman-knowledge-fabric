@@ -816,6 +816,14 @@ object_types:
 
   # ── Gate 6: product configuration and quality ──────────────────────────────────────────
   #
+  # Namespaces reconciled 2026-09-02 (registry 1.0.0-draft.2): the codes below are the
+  # registry's own — INTF and BIND exist under those names, nonconformity and capa are
+  # "quality events" (QEV, which R01 §4.2 defines as complaint, nonconformance, CAPA, recall,
+  # audit finding), and CONF was allocated (CFG is one edit from CHG, which R13 refuses).
+  # Before this the five declared codes the registry never had, so the allocator refused
+  # each by name. nonconformity and capa therefore SHARE the QEV sequence: a nonconformity
+  # and a CAPA can hold adjacent numbers, which is what one namespace for quality events
+  # means, not a copy-paste error.
   # Twelve types added to schema_version 1.1.0-draft.1. Every R01 type above is untouched:
   # the conformance suite asserts each survives byte-identically, and that every addition
   # below is declared. An approved semantic must never be quietly redefined by an extension.
@@ -823,7 +831,7 @@ object_types:
   - id: configuration_item
     title: Configuration Item
     authority_domain: configuration
-    enterprise_namespace: CFG
+    enterprise_namespace: CONF
     first_class: true
     state_machine: configuration_item
     states: [proposed, active, superseded, retired]
@@ -849,7 +857,7 @@ object_types:
     # R4 allocates OH-IFC- as a top-level category for interface contracts, with conformance
     # scoped to a GENERATION rather than a revision: a revision changes without renegotiating
     # the interface, and conformance that named one would expire on every rework.
-    enterprise_namespace: IFC
+    enterprise_namespace: INTF
     first_class: true
     state_machine: interface_contract
     states: [draft, published, deprecated, withdrawn]
@@ -876,7 +884,7 @@ object_types:
   - id: physical_binding
     title: Physical Binding
     authority_domain: configuration
-    enterprise_namespace: BND
+    enterprise_namespace: BIND
     first_class: true
     state_machine: physical_binding
     states: [planned, installed, removed]
@@ -971,7 +979,7 @@ object_types:
   - id: nonconformity
     title: Nonconformity
     authority_domain: qms
-    enterprise_namespace: NCR
+    enterprise_namespace: QEV
     first_class: true
     state_machine: nonconformity
     states: [open, contained, investigated, dispositioned, closed]
@@ -988,7 +996,7 @@ object_types:
   - id: capa
     title: Corrective and Preventive Action
     authority_domain: qms
-    enterprise_namespace: CPA
+    enterprise_namespace: QEV
     first_class: true
     state_machine: capa
     states: [open, plan_approved, implementing, effectiveness_check, closed, cancelled]

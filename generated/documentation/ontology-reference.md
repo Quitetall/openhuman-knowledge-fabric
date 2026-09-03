@@ -1,5 +1,5 @@
 <!-- GENERATED from ontology/ — do not edit. -->
-<!-- ontology_version: 1.1.0-draft.1 · source_digest: b6b322c1392676a52dc8fc76e0866354aaa438b0f2bff24f1735dfaeaa780a5e -->
+<!-- ontology_version: 1.2.0-draft.1 · source_digest: 814483bf6d1ae38bf10c662b77c9503c2aec92eb1005d9bb9f0a21e8a69f72ce -->
 
 # Ontology reference
 
@@ -30,15 +30,15 @@ Compiled from `ontology/`. 39 object types, 41 relation types, 145 action types,
 | `test` | qms | TST | — | 6 |
 | `release` | configuration | RLS | — | 4 |
 | `baseline` | configuration | BSL | — | 4 |
-| `configuration_item` | configuration | CFG | configuration_item | 4 |
-| `interface_contract` | configuration | IFC | interface_contract | 4 |
-| `physical_binding` | configuration | BND | physical_binding | 3 |
+| `configuration_item` | configuration | CONF | configuration_item | 4 |
+| `interface_contract` | configuration | INTF | interface_contract | 4 |
+| `physical_binding` | configuration | BIND | physical_binding | 3 |
 | `controlled_document` | qms | DOC | controlled_document | 6 |
 | `authored_fragment` | qms | — | authored_fragment | 2 |
 | `document_composition` | qms | — | — | 1 |
 | `ml_promotion_decision` | qms | — | — | 1 |
-| `nonconformity` | qms | NCR | nonconformity | 5 |
-| `capa` | qms | CPA | capa | 6 |
+| `nonconformity` | qms | QEV | nonconformity | 5 |
+| `capa` | qms | QEV | capa | 6 |
 | `supplier` | qms | SUP | supplier | 4 |
 | `equipment` | qms | EQP | equipment | 4 |
 | `complaint` | qms | CMP | complaint | 4 |

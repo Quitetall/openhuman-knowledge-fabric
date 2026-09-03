@@ -775,9 +775,9 @@ describe('a completely fresh database', () => {
   it('re-seeds a new ontology release without violating one-current-release', async () => {
     const first = readFileSync(SEED, 'utf8');
     const next = first
-      .replaceAll('1.1.0-draft.1', '1.1.0-draft.2')
+      .replaceAll('1.2.0-draft.1', '1.2.0-draft.2')
       .replaceAll(
-        'e2e0283906bed576d89acee4e409cb14e475f04d4aad94bd80178f3f26b5afb9',
+        '814483bf6d1ae38bf10c662b77c9503c2aec92eb1005d9bb9f0a21e8a69f72ce',
         'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
       );
     await withTransaction(pool!, async (tx) => {
@@ -791,7 +791,7 @@ describe('a completely fresh database', () => {
         'select version from registry.schema_release where is_current = true',
       ),
     );
-    expect(current.version).toBe('1.1.0-draft.2');
+    expect(current.version).toBe('1.2.0-draft.2');
   });
 
   it('keeps migration-019 legacy provenance outside application write authority', async () => {

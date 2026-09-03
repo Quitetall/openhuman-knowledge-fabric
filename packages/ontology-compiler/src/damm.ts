@@ -59,6 +59,8 @@ export const ENTERPRISE_NAMESPACES = [
   'SUP',
   'LOT',
   'WRK',
+  'WAR',
+  'CONF',
 ] as const;
 
 const ENTERPRISE_RE = new RegExp(`^OH-(${ENTERPRISE_NAMESPACES.join('|')})-([0-9]{6})-([0-9])$`);

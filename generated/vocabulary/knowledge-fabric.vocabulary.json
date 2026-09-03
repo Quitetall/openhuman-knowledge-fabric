@@ -1,8 +1,8 @@
 {
-  "schema_version": "1.1.0-draft.1",
+  "schema_version": "1.2.0-draft.1",
   "x-generated-from": {
-    "ontology_version": "1.1.0-draft.1",
-    "source_digest": "b6b322c1392676a52dc8fc76e0866354aaa438b0f2bff24f1735dfaeaa780a5e"
+    "ontology_version": "1.2.0-draft.1",
+    "source_digest": "814483bf6d1ae38bf10c662b77c9503c2aec92eb1005d9bb9f0a21e8a69f72ce"
   },
   "node_types": {
     "organization": {
@@ -92,15 +92,15 @@
     },
     "configuration_item": {
       "authority_domain": "configuration",
-      "enterprise_namespace": "CFG"
+      "enterprise_namespace": "CONF"
     },
     "interface_contract": {
       "authority_domain": "configuration",
-      "enterprise_namespace": "IFC"
+      "enterprise_namespace": "INTF"
     },
     "physical_binding": {
       "authority_domain": "configuration",
-      "enterprise_namespace": "BND"
+      "enterprise_namespace": "BIND"
     },
     "controlled_document": {
       "authority_domain": "qms",
@@ -120,11 +120,11 @@
     },
     "nonconformity": {
       "authority_domain": "qms",
-      "enterprise_namespace": "NCR"
+      "enterprise_namespace": "QEV"
     },
     "capa": {
       "authority_domain": "qms",
-      "enterprise_namespace": "CPA"
+      "enterprise_namespace": "QEV"
     },
     "supplier": {
       "authority_domain": "qms",

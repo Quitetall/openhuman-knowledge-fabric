@@ -26,7 +26,7 @@ grammars:
   # exactly what §8's "an identifier that does not appear in the registry does not exist"
   # forbids. RCD is absent here by design — see namespaces.yaml.
   enterprise:
-    pattern: '^OH-(ITM|DOC|INTF|BIND|SWC|DAT|MDL|REQ|RSK|TST|CHG|ADR|BSL|RLS|QEV|EQP|SUP|LOT|WRK)-[0-9]{6}-[0-9]$'
+    pattern: '^OH-(ITM|DOC|INTF|BIND|SWC|DAT|MDL|REQ|RSK|TST|CHG|ADR|BSL|RLS|QEV|EQP|SUP|LOT|WRK|WAR|CONF)-[0-9]{6}-[0-9]$'
     damm_required: true
     damm_payload: sequence # the six digits only, not the namespace
     examples:
@@ -36,6 +36,8 @@ grammars:
       - OH-SWC-000019-6
       - OH-DOC-000001-3 # this registry
       - OH-DOC-000002-1 # Knowledge Fabric OGWCS
+      - OH-WAR-000001-3 # allocated 1.0.0-draft.2
+      - OH-CONF-000001-3 # allocated 1.0.0-draft.2
 
   # §9.4. YYYY is the record-creation year; NNNNNN is a global annual sequence; the Damm digit
   # covers YYYYNNNNNN — ten digits, not six.

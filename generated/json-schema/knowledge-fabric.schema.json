@@ -1,17 +1,17 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:oh:kf:schema:1.1.0-draft.1",
+  "$id": "urn:oh:kf:schema:1.2.0-draft.1",
   "title": "OpenHuman Knowledge Fabric Organizational Graph Exchange",
   "description": "Normative machine-readable graph envelope for the organizational graph and work-control specification.",
   "x-generated-from": {
-    "ontology_version": "1.1.0-draft.1",
-    "source_digest": "b6b322c1392676a52dc8fc76e0866354aaa438b0f2bff24f1735dfaeaa780a5e"
+    "ontology_version": "1.2.0-draft.1",
+    "source_digest": "814483bf6d1ae38bf10c662b77c9503c2aec92eb1005d9bb9f0a21e8a69f72ce"
   },
   "type": "object",
   "properties": {
     "schema_version": {
       "type": "string",
-      "const": "1.1.0-draft.1"
+      "const": "1.2.0-draft.1"
     },
     "export_id": {
       "type": "string",
@@ -271,7 +271,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "edge_id": {
           "type": "string",
@@ -414,7 +414,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "action_id": {
           "type": "string",
@@ -685,7 +685,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -844,7 +844,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -995,7 +995,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -1173,7 +1173,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -1352,7 +1352,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -1513,7 +1513,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -1736,7 +1736,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -1929,7 +1929,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -2155,7 +2155,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -2384,7 +2384,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -2628,7 +2628,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -2834,7 +2834,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -3010,7 +3010,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -3201,7 +3201,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -3425,7 +3425,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -3634,7 +3634,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -3864,7 +3864,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -4025,7 +4025,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -4197,7 +4197,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -4362,7 +4362,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -4526,7 +4526,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -4691,7 +4691,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -4859,7 +4859,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -5026,7 +5026,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -5179,7 +5179,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -5361,7 +5361,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -5505,7 +5505,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -5648,7 +5648,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -5831,7 +5831,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -6001,7 +6001,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -6165,7 +6165,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -6323,7 +6323,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -6483,7 +6483,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -6639,7 +6639,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -6798,7 +6798,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -6957,7 +6957,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -7118,7 +7118,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -7273,7 +7273,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",
@@ -7427,7 +7427,7 @@
       "properties": {
         "schema_version": {
           "type": "string",
-          "const": "1.1.0-draft.1"
+          "const": "1.2.0-draft.1"
         },
         "node_id": {
           "type": "string",

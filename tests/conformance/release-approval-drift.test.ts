@@ -93,6 +93,25 @@ function rebuiltDigests(): ReadonlyMap<string, string> {
         ),
       ),
     ],
+    [
+      'openhuman-registry-1.0.0-draft.2',
+      manifestDigest(
+        buildRegistryPack(
+          loadRegistryPolicy(resolve(root, 'registries/openhuman')),
+          '1.0.0-draft.2',
+        ),
+      ),
+    ],
+    [
+      'knowledge-fabric-1.0.0-draft.3',
+      manifestDigest(
+        buildReleasePack(
+          loadOntology(resolve(root, 'ontology')),
+          resolve(root, 'tests/conformance/r01-golden'),
+          '1.0.0-draft.3',
+        ),
+      ),
+    ],
   ]);
 }
 

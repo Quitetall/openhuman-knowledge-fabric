@@ -76,6 +76,18 @@ namespaces:
       grammar: enterprise,
       name: 'Work order, build order or controlled manufacturing run',
     }
+  # Allocated in revision 1.0.0-draft.2 (2026-09-02), the first allocations after R01's
+  # nineteen. Both are pack-owner acts recorded here so the diff is the allocation.
+  - {
+      code: WAR,
+      grammar: enterprise,
+      name: 'OpenWarrant Warrant: an authorized, evidenced unit of work (SAS §12.4)',
+    }
+  - {
+      code: CONF,
+      grammar: enterprise,
+      name: 'Configuration item: a controlled, baselined element of a product configuration',
+    }
 
 # §13.3. An enterprise master ID moves through these; `active` is the only state in which a
 # namespace accepts new allocations. Retired and deprecated codes stay permanently resolvable

@@ -418,9 +418,9 @@ export function checkRegistryPolicy(p: RegistryPolicy, ontologyDir: string): Che
 /** Known gaps that travel with the package, so approving it is an informed act. */
 export function registryPackGaps(): readonly string[] {
   return [
-    'R6 requires enterprise sequences to be "atomically allocated". No sequence table or ' +
-      'allocation service exists yet; allocation is a reviewed seed file in openhuman-quality. ' +
-      'Tracked as R01 §17 Phase 1.',
+    'R6 atomic allocation is implemented (registry.identifier_sequence, ' +
+      'core.allocate_enterprise_id, ADR 0018); the 68 identifiers seeded in openhuman-quality ' +
+      'before it existed keep their numbers by being skipped, never reissued.',
     'R13 ("a named human reviewer decides whether an acronym creates material confusion") and ' +
       'R14 (no PHI/PII/secrets in identifiers) are not machine-enforceable. R13 is unenforced ' +
       "by the document's own wording; R14 is partially covered by gitleaks, which finds " +

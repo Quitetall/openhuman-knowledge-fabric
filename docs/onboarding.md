@@ -171,10 +171,11 @@ Stated here so you do not go looking:
 - **Enterprise identifiers are allocated by one typed action, `allocate_enterprise_identifier`
   (ADR 0018, R01 R6)** — the next free sequence under the namespace the object's type
   declares, returned in the action receipt. The 68 identifiers that sit `reserved` in the
-  quality repository keep their numbers: an occupied value is skipped, never reissued. What is
-  still not done: no namespace exists for OpenWarrant's Warrants (`OH-WAR` is a pack-owner
-  allocation, not a code change), and object types whose declared namespace this instance has
-  not allocated (`BND`, `IFC`, `CFG`, `CPA`, `NCR`) are refused by name.
+  quality repository keep their numbers: an occupied value is skipped, never reissued.
+  Registry 1.0.0-draft.2 allocates `WAR` (Warrants) and `CONF` (configuration items; `CFG` is one edit from `CHG`, which R13 refuses) and every
+  object type now declares a namespace the registry has; a deployment seeds
+  `registry.identifier_namespace` from that registry, so an instance that has not re-seeded
+  since is refused by name for the two new codes.
 - **No approval workflow.** Documents load as drafts. Approval, effective-state transition and
   publication are human acts performed outside the software.
 - **No commissioned host.** `docs/deployment/private-host.md` describes one. One was built on
