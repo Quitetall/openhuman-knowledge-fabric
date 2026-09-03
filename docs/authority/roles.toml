@@ -1,0 +1,38 @@
+# Actor role assignments for the Knowledge Fabric program (WAR SAS §27.4).
+#
+# WHY NO TOOL WROTE THIS FILE
+#
+# Authority has to come from outside the system it governs. A command that wrote this file
+# would let an agent assign itself the roles §27.2 exists to withhold, through the same tool
+# that later checks whether the assignment is valid. So it is written by a human in an editor,
+# and by nothing else. Every tool here reads it; none write it. An absent register grants
+# nobody anything, which is the fail-closed direction and the correct default.
+#
+# ROLES
+#   performer      executes stages, produces artifacts          (§27.1)
+#   verifier       reviews artifacts independently              (§46)
+#   authorizer     authorizes a proposed contract revision      (§28.4)
+#   resolver       records a resolution                         (§56)
+#   risk_acceptor  accepts organizational residual risk         (§27.2)
+#   judge          records a judgment                           (§42)
+#
+# `actor_kind` changes what an actor may do, and a granted role does not override it:
+#   human           anything the granted roles allow, except acting on their own work
+#   agent           never authorizes, accepts residual risk, resolves, or records a judgment
+#   policy_service  resolves only under all five §27.3 conditions together
+
+[[assignment]]
+actor = "Brian Lam"
+actor_kind = "human"
+roles = ["authorizer", "resolver", "risk_acceptor", "judge"]
+assigned_by = "Brian Lam"
+effective_time = "2026-01-01T00:00:00Z"
+note = "Repository owner. Names themselves as the source of their own authority, which is the honest record of how a sole-owner project works."
+
+[[assignment]]
+actor = "claude"
+actor_kind = "agent"
+roles = ["performer"]
+assigned_by = "Brian Lam"
+effective_time = "2026-01-01T00:00:00Z"
+note = "Drafts and executes. Authorizes nothing, resolves nothing (§27.2). Proposed 0.1.0-draft.1 and cannot accept it."

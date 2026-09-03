@@ -1,0 +1,14 @@
+schema = "oh.war/sas-acceptance-request/v1"
+version = "0.1.0-draft.1"
+source = "docs/sas/KF_Software_Architecture_Specification.md"
+sha256 = "1a1c6f26c84f79493e7e4a30eb7199d2f0974bb0c7a3244d45f4561cf15a562b"
+architecture_changing = false
+adr_required = false
+requirement_count = 132
+eligible_acceptors = ["Brian Lam"]
+
+[diff]
+added = []
+removed = []
+retitled = []
+

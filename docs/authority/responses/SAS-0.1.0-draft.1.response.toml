@@ -1,0 +1,23 @@
+schema = "oh.war/sas-acceptance-response/v1"
+version = "0.1.0-draft.1"
+sha256 = "1a1c6f26c84f79493e7e4a30eb7199d2f0974bb0c7a3244d45f4561cf15a562b"
+accepted_by = "Brian Lam"
+acting_role = "authorizer"
+effective_time = "2026-09-03T21:58:41Z"
+
+# YOUR STATEMENT. Say what you are accepting, in your own words. The wording below was drafted
+# by the agent that proposed the revision; the decision is yours and so is the final text.
+# Replace it, edit it, or keep it — but read §100 first: accepting commits you to the fifteen
+# known gaps as well as to the content, and §100.14 records that this program has no
+# verification independence at all.
+meaning = """
+Accepting 0.1.0-draft.1 makes this document, at this digest, the Knowledge Fabric program's
+architecture contract. Its 132 KF-SAS-RQ identifiers become append-only: a row may be added or
+retitled and never removed or renumbered, so work in any repository may cite one and expect it
+to still mean what it meant. Its eleven phases become the program's objectives, and the answer
+to how far along the Knowledge Fabric is comes from the phase ladder rather than from a README.
+I accept the fifteen gaps recorded in §100 as stated, including that no host has been
+commissioned, that seventy-three tables are enabled for row-level security and forced by no
+static statement, and that this program's nine verification-independence dimensions are all
+false.
+"""
