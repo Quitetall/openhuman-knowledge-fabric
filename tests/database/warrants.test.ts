@@ -101,6 +101,31 @@ const proposal = (n: number) => ({
   canonical_ir: { schema: 'oh.war/ir/v1', intent: { problem: `problem ${n}` } },
 });
 
+const preflight = (n: number, readiness: 'ready' | 'not_ready') => ({
+  receipt_digest: sha(`preflight-${n}`),
+  outcomes: { 'contract.authorized': 'passed', 'runtime.pinned': 'passed' },
+  readiness,
+  performed_at: new Date().toISOString(),
+});
+const dispatch = (n: number) => ({
+  dispatch_digest: sha(`dispatch-${n}`),
+  performer_ref: 'katana://performer-1',
+});
+const submission = (ref: string) => ({
+  submission_ref: ref,
+  artifact_refs: ['A-1'],
+  blocker_refs: [],
+  deviation_refs: [],
+  requested_next_action: 'verify',
+});
+const blocker = (ref: string, reason: string) => ({
+  blocker_ref: ref,
+  condition_ref: 'PRE-002',
+  reason,
+  owner_ref: 'role://fixture-owner',
+  required_to_unblock: 'restore the host',
+});
+
 describe('SAS §67 through typed actions', () => {
   it('registers a Warrant: draft, proposal snapshot, authorized revision, server time', async () => {
     const id = await draft('OW-WAR-9001');
@@ -245,6 +270,168 @@ describe('SAS §67 through typed actions', () => {
     ).rejects.toMatchObject({ name: 'ActionRejected', failure: 'precondition_failed' });
   });
 
+  it('projects the execution and evidence groups into typed rows (§84)', async () => {
+    const id = await draft('OW-WAR-9020');
+    await act('submit_warrant', [id], proposal(20));
+    await act('authorize_warrant_contract', [id], {
+      contract_digest: sha('contract-20'),
+      authorization_meaning: 'authorized',
+      policy_basis: 'SAS §28.4',
+    });
+    await act('record_warrant_preflight', [id], preflight(20, 'ready'));
+    await act('authorize_warrant_dispatch', [id], dispatch(20));
+    // A receipt must answer a recorded dispatch.
+    await expect(
+      act('attach_warrant_runtime_receipt', [id], {
+        adapter: 'oh.war/katana-receipt/v1',
+        dispatch_digest: sha('never-dispatched'),
+        receipt_digest: sha('r-x'),
+        terminal_status: 'completed',
+        receipt: {},
+      }),
+    ).rejects.toMatchObject({ failure: 'precondition_failed' });
+    await act('attach_warrant_runtime_receipt', [id], {
+      adapter: 'oh.war/katana-receipt/v1',
+      dispatch_digest: sha('dispatch-20'),
+      receipt_digest: sha('receipt-20'),
+      terminal_status: 'completed',
+      artifact_refs: ['A-1'],
+      receipt: { session_id: 's-1', provider_model_identity: 'm' },
+    });
+    await act('register_warrant_submission', [id], submission('S-20'));
+    expect((await phaseAndVersion(id)).phase).toBe('verifying');
+
+    await act('propose_warrant_deviation', [id], {
+      deviation_ref: 'D-1',
+      affected_contract_path: '/execution/network',
+      proposed_change: { policy: 'allowlisted' },
+      reason: 'dependency absent from cache',
+      impact: { reproducibility: 'reduced', security: 'egress_added' },
+    });
+    await act('approve_warrant_deviation', [id], {
+      deviation_ref: 'D-1',
+      decision_reason: 'bounded egress',
+    });
+    await expect(
+      act('reject_warrant_deviation', [id], { deviation_ref: 'D-1', decision_reason: 'twice' }),
+    ).rejects.toMatchObject({ failure: 'precondition_failed' });
+    await expect(
+      act('record_warrant_discovered_gap', [id], {
+        gap_ref: 'G-1',
+        statement: 'the gate under-specified the fixture',
+        under_specified: 'gate',
+        repaired_in_place: true,
+      }),
+    ).rejects.toMatchObject({ failure: 'precondition_failed' });
+    await act('record_warrant_discovered_gap', [id], {
+      gap_ref: 'G-1',
+      statement: 'the gate under-specified the fixture',
+      under_specified: 'gate',
+      disposition: 'amendment',
+    });
+
+    await act('register_warrant_artifact', [id], {
+      artifact_ref: 'A-1',
+      producer_ref: 'katana://performer-1',
+      producing_attempt: 'attempt-1',
+      contract_digest: sha('contract-20'),
+      input_digests: [sha('in-1')],
+      tool_identity: 'katana 0.4.1',
+      creation_method: 'generated',
+      content_digest: sha('bytes-1'),
+      media_type: 'text/markdown',
+      classification: 'internal',
+      retention_class: 'project_record',
+      source_holder: 'git',
+    });
+    await act('register_warrant_evidence', [id], {
+      evidence_ref: 'E-1',
+      kind: 'external_tool_verdict',
+      origin: 'knowledge_fabric',
+      admissibility: 'authoritative_external',
+      content_digest: sha('ev-1'),
+      collection_method: 'war kf health',
+      occurred_at: '2026-08-23T00:00:00.000Z',
+    });
+    await act('attach_warrant_gate_run', [id], {
+      gate_run_ref: 'GR-1',
+      gate_ref: 'gate://software.repo.war-check@1.0.0',
+      definition_digest: sha('gate-def'),
+      binding_digest: sha('gate-bind'),
+      execution_status: 'completed',
+      verdict: 'pass',
+      receipt_digest: sha('gate-receipt'),
+      receipt: { runner: 'ci', exit: 0 },
+    });
+    await act('record_warrant_inference', [id], {
+      inference_ref: 'I-1',
+      kind: 'deductive',
+      statement: 'the obligation is met',
+      premise_refs: ['E-1', 'GR-1'],
+      claim_ref: 'OBL-001',
+    });
+    await act('record_warrant_judgment', [id], {
+      judgment_ref: 'J-1',
+      kind: 'acceptance',
+      statement: 'accepted on the evidence',
+      meaning: 'the obligation is discharged',
+      basis_refs: ['I-1'],
+      authority: 'technical_authority',
+    });
+    await act('request_warrant_resolution', [id], {
+      requested_outcome: 'satisfied',
+      basis_refs: ['J-1'],
+    });
+
+    // Duplicate refs are refused; rows are immutable.
+    await expect(
+      act('register_warrant_evidence', [id], {
+        evidence_ref: 'E-1',
+        kind: 'x',
+        origin: 'y',
+        admissibility: 'z',
+      }),
+    ).rejects.toMatchObject({ failure: 'precondition_failed' });
+    await expect(
+      withTransaction(harness.adminPool, (tx) =>
+        tx.query(`update work.warrant_evidence set kind = 'tampered' where warrant_id = $1`, [id]),
+      ),
+    ).rejects.toThrow(/append-only/);
+
+    const counts = await withTransaction(harness.adminPool, (tx) =>
+      tx.one<Record<string, string>>(
+        `select
+           (select count(*) from work.warrant_preflight where warrant_id = $1)::text as preflights,
+           (select count(*) from work.warrant_dispatch where warrant_id = $1)::text as dispatches,
+           (select count(*) from work.warrant_runtime_receipt where warrant_id = $1)::text as receipts,
+           (select count(*) from work.warrant_submission where warrant_id = $1)::text as submissions,
+           (select count(*) from work.warrant_deviation where warrant_id = $1 and disposition = 'approved')::text as approved,
+           (select count(*) from work.warrant_discovered_gap where warrant_id = $1)::text as gaps,
+           (select count(*) from work.warrant_artifact where warrant_id = $1)::text as artifacts,
+           (select count(*) from work.warrant_evidence where warrant_id = $1)::text as evidence,
+           (select count(*) from work.warrant_gate_run where warrant_id = $1)::text as gate_runs,
+           (select count(*) from work.warrant_inference where warrant_id = $1)::text as inferences,
+           (select count(*) from work.warrant_judgment where warrant_id = $1 and actor = $2)::text as judgments,
+           (select count(*) from work.warrant_resolution_request where warrant_id = $1)::text as requests`,
+        [id, fixtures.reviewerId],
+      ),
+    );
+    expect(counts).toEqual({
+      preflights: '1',
+      dispatches: '1',
+      receipts: '1',
+      submissions: '1',
+      approved: '1',
+      gaps: '1',
+      artifacts: '1',
+      evidence: '1',
+      gate_runs: '1',
+      inferences: '1',
+      judgments: '1',
+      requests: '1',
+    });
+  });
+
   it('withdrawal, amendment, condition, outcome and standing move only their own dimension', async () => {
     const id = await draft('OW-WAR-9007');
     await act('submit_warrant', [id], proposal(7));
@@ -257,7 +444,7 @@ describe('SAS §67 through typed actions', () => {
       authorization_meaning: 'authorized',
       policy_basis: 'SAS §28.4',
     });
-    await act('record_warrant_preflight', [id], { basis: sha('basis-8') });
+    await act('record_warrant_preflight', [id], preflight(8, 'ready'));
     expect((await phaseAndVersion(id)).phase).toBe('ready');
 
     await act('propose_warrant_amendment', [id], {
@@ -275,20 +462,20 @@ describe('SAS §67 through typed actions', () => {
 
     const draftOnly = await draft('OW-WAR-9008');
     await expect(
-      act('open_warrant_blocker', [draftOnly], { blocker: 'too early' }),
+      act('open_warrant_blocker', [draftOnly], blocker('B-0', 'too early')),
     ).rejects.toMatchObject({ failure: 'precondition_failed' });
-    await act('open_warrant_blocker', [id], { blocker: 'host unreachable' });
+    await act('open_warrant_blocker', [id], blocker('B-1', 'host unreachable'));
     expect((await warrantRow(id))['execution_condition']).toBe('blocked');
     expect((await phaseAndVersion(id)).phase).toBe('authorized');
     await expect(act('pause_warrant', [id], {})).rejects.toMatchObject({
       failure: 'precondition_failed',
     });
-    await act('resolve_warrant_blocker', [id], {});
+    await act('resolve_warrant_blocker', [id], { blocker_ref: 'B-1', resolution: 'host restored' });
     expect((await warrantRow(id))['execution_condition']).toBe('clear');
 
-    await act('record_warrant_preflight', [id], {});
-    await act('authorize_warrant_dispatch', [id], {});
-    await act('register_warrant_submission', [id], {});
+    await act('record_warrant_preflight', [id], preflight(9, 'ready'));
+    await act('authorize_warrant_dispatch', [id], dispatch(9));
+    await act('register_warrant_submission', [id], submission('S-1'));
     expect((await phaseAndVersion(id)).phase).toBe('verifying');
     await act('resolve_warrant', [id], { outcome: 'satisfied' });
     expect((await phaseAndVersion(id)).phase).toBe('resolved');

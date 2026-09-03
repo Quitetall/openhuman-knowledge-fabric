@@ -41,21 +41,20 @@ Authorization must name the digest it authorizes and is refused when that is not
 proposed; blocking and pausing are refused outside the phases §24.7 overlays them on; a
 superseding successor must itself be current.
 
-**All thirty-two names are owned.** The `warrants` group owns every §67 action, spelled as
-OpenWarrant's seam spells them, so a client cannot be refused for a reason that reads like its
-mistake. Seventeen write something typed: the eight contract actions, the four condition
-actions (open/resolve blocker, pause/resume), and five terminal ones (resolve, dispute, resolve
-dispute, annul, supersede, deprecate — supersede also names its successor). Phase transitions
-are registry transitions and need no handler.
-
-**What is accepted, audited, and not yet projected.** `record_warrant_preflight`,
-`authorize_warrant_dispatch`, `attach_warrant_runtime_receipt`, `register_warrant_submission`,
-the three deviation actions, `record_warrant_discovered_gap`, and the six evidence actions
-carry their payload into the action record and the audit chain, drive the phase where §24 says,
-and write no typed row. §84 lists the records they should project (`warrant_submission`,
-`warrant_blocker`, `warrant_deviation`, `warrant_evidence`, `warrant_runtime_receipt_reference`,
-…); each is a table with its own constraints and its own act, and lands when its shape is
-decided against a real OpenWarrant payload rather than guessed here.
+**All thirty-two names are owned, and every one writes something typed (§84, landed the same
+day).** The `warrants` group owns every §67 action, spelled as OpenWarrant's seam spells them.
+The contract group writes the warrant and its revisions; blocking and pausing move the
+condition and open/resolve `work.warrant_blocker` rows (the condition clears with the last
+open blocker); the terminal group moves outcome, standing and currency. The execution and
+evidence groups project into thirteen tables shaped from OpenWarrant's own structs and the
+SAS clause each serves: `warrant_preflight` (§32), `warrant_dispatch`, `warrant_runtime_receipt`
+(§85, bound to a recorded dispatch), `warrant_submission` (§37.4), `warrant_blocker` (§53.1),
+`warrant_deviation` (§53.2, dispositioned once), `warrant_discovered_gap` (§53.4, refused when
+"repaired in place"), `warrant_artifact` (§37.2, every provenance field), `warrant_evidence`
+(§40.2/§41, occurred_at is the actor's and recorded_at ours), `warrant_gate_run` (§44.6),
+`warrant_inference` (§40.4), `warrant_judgment` (§40.5, the judge is the act's actor and role),
+`warrant_resolution_request`. All are append-only except the two dispositions. Phase
+transitions are registry transitions and need no handler.
 
 **§67.1–67.4 are the dispatcher's.** The envelope, server-assigned `recorded_at`, optimistic
 concurrency on `expected_version`, and payload-equivalent idempotency were already the

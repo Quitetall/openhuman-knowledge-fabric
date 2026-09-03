@@ -137,6 +137,71 @@ export const CORE_SECTIONS = [
             from work.warrant_contract_revision order by warrant_id, revision_no`,
   },
   {
+    name: 'warrant-preflights',
+    sql: `select id, warrant_id, receipt_digest, outcomes, readiness, performed_at, recorded_by, recorded_by_action
+            from work.warrant_preflight order by warrant_id, performed_at, id`,
+  },
+  {
+    name: 'warrant-dispatches',
+    sql: `select id, warrant_id, dispatch_digest, performer_ref, authorized_revision, authorized_by, acting_role, recorded_by_action, recorded_at
+            from work.warrant_dispatch order by warrant_id, recorded_at, id`,
+  },
+  {
+    name: 'warrant-runtime-receipts',
+    sql: `select id, warrant_id, adapter, dispatch_digest, receipt_digest, terminal_status, artifact_refs, receipt, recorded_by, recorded_by_action, recorded_at
+            from work.warrant_runtime_receipt order by warrant_id, recorded_at, id`,
+  },
+  {
+    name: 'warrant-submissions',
+    sql: `select id, warrant_id, submission_ref, artifact_refs, blocker_refs, deviation_refs, requested_next_action, declared_as_deliverable, recorded_by, recorded_by_action, recorded_at
+            from work.warrant_submission order by warrant_id, recorded_at, id`,
+  },
+  {
+    name: 'warrant-blockers',
+    sql: `select id, warrant_id, blocker_ref, condition_ref, reason, owner_ref, required_to_unblock, opened_by, opened_by_action, opened_at, resolved_at, resolved_by, resolved_by_action, resolution, basis_changed
+            from work.warrant_blocker order by warrant_id, opened_at, id`,
+  },
+  {
+    name: 'warrant-deviations',
+    sql: `select id, warrant_id, deviation_ref, affected_contract_path, proposed_change, reason, impact, proposed_by, proposed_by_action, proposed_at, disposition, decided_by, decided_by_action, decided_at, decision_reason
+            from work.warrant_deviation order by warrant_id, proposed_at, id`,
+  },
+  {
+    name: 'warrant-discovered-gaps',
+    sql: `select id, warrant_id, gap_ref, statement, under_specified, disposition, repaired_in_place, recorded_by, recorded_by_action, recorded_at
+            from work.warrant_discovered_gap order by warrant_id, recorded_at, id`,
+  },
+  {
+    name: 'warrant-artifacts',
+    sql: `select id, warrant_id, artifact_ref, producer_ref, producing_attempt, contract_digest, input_digests, tool_identity, creation_method, content_digest, media_type, classification, retention_class, source_holder, artifact_version_id, recorded_by, recorded_by_action, recorded_at
+            from work.warrant_artifact order by warrant_id, recorded_at, id`,
+  },
+  {
+    name: 'warrant-evidence',
+    sql: `select id, warrant_id, evidence_ref, kind, origin, admissibility, content_digest, collection_method, occurred_at, recorded_by, recorded_by_action, recorded_at
+            from work.warrant_evidence order by warrant_id, recorded_at, id`,
+  },
+  {
+    name: 'warrant-gate-runs',
+    sql: `select id, warrant_id, gate_run_ref, gate_ref, definition_digest, binding_digest, execution_status, verdict, reason_code, receipt_digest, receipt, recorded_by, recorded_by_action, recorded_at
+            from work.warrant_gate_run order by warrant_id, recorded_at, id`,
+  },
+  {
+    name: 'warrant-inferences',
+    sql: `select id, warrant_id, inference_ref, kind, statement, premise_refs, claim_ref, recorded_by, recorded_by_action, recorded_at
+            from work.warrant_inference order by warrant_id, recorded_at, id`,
+  },
+  {
+    name: 'warrant-judgments',
+    sql: `select id, warrant_id, judgment_ref, kind, statement, meaning, basis_refs, authority, limitations, actor, acting_role, recorded_by_action, recorded_at
+            from work.warrant_judgment order by warrant_id, recorded_at, id`,
+  },
+  {
+    name: 'warrant-resolution-requests',
+    sql: `select id, warrant_id, requested_outcome, basis_refs, recorded_by, recorded_by_action, recorded_at
+            from work.warrant_resolution_request order by warrant_id, recorded_at, id`,
+  },
+  {
     name: 'person-clearances',
     sql: `select id, subject_id, organization_id, max_classification, valid_from, valid_to,
                  granted_by, granted_at, granted_by_action, reason

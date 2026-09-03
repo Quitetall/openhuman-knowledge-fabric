@@ -16,6 +16,7 @@
 
 import { ActionRejected, type ActionEffect, type ActionMaterializer } from '@kf/actions';
 import type { Tx } from '@kf/database';
+import { insertBlocker, resolveBlocker, WARRANT_PROJECTION_EFFECTS } from './projections.js';
 
 export const WARRANT_CONTRACT_ACTIONS = [
   'create_warrant_draft',
@@ -68,18 +69,8 @@ export const WARRANT_ACTION_IDS = [
   ...WARRANT_TERMINAL_ACTIONS,
 ] as const;
 
-/** Actions that write nothing typed yet: accepted, audited, replayed; projection pending (§84). */
-export const WARRANT_ACTIONS_WITHOUT_TYPED_WRITE = [
-  'record_warrant_preflight',
-  'authorize_warrant_dispatch',
-  'attach_warrant_runtime_receipt',
-  'register_warrant_submission',
-  'propose_warrant_deviation',
-  'approve_warrant_deviation',
-  'reject_warrant_deviation',
-  'record_warrant_discovered_gap',
-  ...WARRANT_EVIDENCE_ACTIONS,
-] as const;
+/** Every §67 action now writes something typed; kept so a reader can grep the claim. */
+export const WARRANT_ACTIONS_WITHOUT_TYPED_WRITE = [] as const;
 
 const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -463,16 +454,22 @@ const setOutcome = setColumn('outcome');
 const setCurrency = setColumn('currency');
 const setStanding = setColumn('standing');
 
-export const openWarrantBlocker: ActionEffect = async (tx, request, objects) => {
+export const openWarrantBlocker: ActionEffect = async (tx, request, objects, ctx) => {
   const warrant = await warrantOf(tx, objects);
   requireOverlayPhase(objects, warrant.id);
-  str(request.payload, 'blocker');
+  await insertBlocker(tx, warrant.id, request, ctx.actionId);
   await setCondition(tx, warrant.id, 'blocked');
 };
-export const resolveWarrantBlocker: ActionEffect = async (tx, _request, objects) => {
+export const resolveWarrantBlocker: ActionEffect = async (tx, request, objects, ctx) => {
   const warrant = await warrantOf(tx, objects);
   if (warrant.execution_condition !== 'blocked') refuse('the warrant is not blocked');
-  await setCondition(tx, warrant.id, 'clear');
+  await resolveBlocker(tx, warrant.id, request, ctx.actionId);
+  const open = await tx.one<{ count: string }>(
+    `select count(*)::text as count from work.warrant_blocker where warrant_id = $1 and resolved_at is null`,
+    [warrant.id],
+  );
+  // The condition clears when the LAST open blocker does.
+  if (Number(open.count) === 0) await setCondition(tx, warrant.id, 'clear');
 };
 export const pauseWarrant: ActionEffect = async (tx, _request, objects) => {
   const warrant = await warrantOf(tx, objects);
@@ -538,6 +535,7 @@ export const WARRANT_MATERIALIZERS: Readonly<Record<string, ActionMaterializer>>
 };
 
 export const WARRANT_EFFECTS: Readonly<Record<string, ActionEffect>> = {
+  ...WARRANT_PROJECTION_EFFECTS,
   revise_warrant_draft: reviseWarrantDraft,
   submit_warrant: submitWarrant,
   authorize_warrant_contract: authorizeWarrantContract,
