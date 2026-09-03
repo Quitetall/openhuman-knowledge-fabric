@@ -37,6 +37,9 @@ object_types:
           pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
         }
       - { name: email, type: email }
+      # ADR 0020's person_kind (human | service) is a column on org.person and NOT a field here:
+      # person is an approved R01 definition, and the golden gate holds it byte-identical. An
+      # approved semantic is extended around, never redefined.
 
   - id: role_assignment
     title: Role Assignment

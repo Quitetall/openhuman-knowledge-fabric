@@ -74,6 +74,9 @@
       "path": "./apps/checkpoint"
     },
     {
+      "path": "./apps/kf-storage"
+    },
+    {
       "path": "./packages/agent-tools"
     },
     {

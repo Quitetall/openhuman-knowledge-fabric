@@ -22,6 +22,7 @@
     "dogfood:load": "pnpm --filter @kf/api... build && NODE_ENV=development pnpm --filter @kf/api dogfood",
     "kf": "pnpm --reporter=silent --filter @kf/api... build && node apps/api/dist/cli.js",
     "kf:grant-authority": "pnpm --filter @kf/api... build && node apps/api/dist/grant-authority.js",
+    "kf:declare-service-actor": "pnpm --filter @kf/api... build && node apps/api/dist/declare-service-actor.js",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "gate": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm audit --audit-level=high && pnpm ontology:check && pnpm ontology:registry-check && pnpm ontology:build && git diff --exit-code -- generated/ && pnpm build",

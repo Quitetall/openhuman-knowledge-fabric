@@ -1,0 +1,39 @@
+[Unit]
+Description=Replicate and re-verify artifact copies as the storage service actor
+Documentation=file:///opt/kf/docs/decisions/0017-storage-locations.md
+After=network-online.target
+OnFailure=kf-alert@%n.service
+
+[Service]
+Type=oneshot
+# Its own identity (ADR 0020). It holds the working store's credentials and the durable
+# store's, and nothing else on this host needs both together.
+User=kf-storage
+Group=kf-storage
+WorkingDirectory=/opt/kf
+Environment=NODE_ENV=production
+Environment=DATABASE_URL_FILE=/etc/kf/storage/database-url
+Environment=S3_SECRET_ACCESS_KEY_FILE=/etc/kf/storage/s3-secret
+Environment=S3_DURABLE_SECRET_ACCESS_KEY_FILE=/etc/kf/storage/s3-durable-secret
+EnvironmentFile=/etc/kf/storage/storage.env
+ExecStartPre=/usr/bin/test -s /etc/kf/storage/database-url
+ExecStartPre=/usr/bin/test -s /etc/kf/storage/storage.env
+ExecStartPre=/usr/bin/test -s /etc/kf/storage/s3-secret
+ExecStartPre=/usr/bin/test -s /etc/kf/storage/s3-durable-secret
+# Replicate first so a fresh copy is verified in the same run it was made.
+ExecStart=/usr/bin/node /opt/kf/apps/kf-storage/dist/main.js --replicate --verify --older-than-days 30
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+UMask=0077

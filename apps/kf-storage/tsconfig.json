@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "dist", "node_modules"],
+  "references": [
+    { "path": "../../packages/actions" },
+    { "path": "../../packages/artifacts" },
+    { "path": "../../packages/database" },
+    { "path": "../../packages/operations" },
+    { "path": "../../packages/orchestrator" }
+  ]
+}

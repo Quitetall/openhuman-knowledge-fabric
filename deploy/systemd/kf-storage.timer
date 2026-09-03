@@ -1,0 +1,12 @@
+[Unit]
+Description=Replicate and re-verify artifact copies daily
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=600
+# A missed run copies on the next start; the window in which a version has one copy is the
+# thing being minimised.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -206,6 +206,28 @@ importers:
         specifier: ^24.13.3
         version: 24.13.3
 
+  apps/kf-storage:
+    dependencies:
+      '@kf/actions':
+        specifier: workspace:*
+        version: link:../../packages/actions
+      '@kf/artifacts':
+        specifier: workspace:*
+        version: link:../../packages/artifacts
+      '@kf/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@kf/operations':
+        specifier: workspace:*
+        version: link:../../packages/operations
+      '@kf/orchestrator':
+        specifier: workspace:*
+        version: link:../../packages/orchestrator
+    devDependencies:
+      '@types/node':
+        specifier: ^24.13.3
+        version: 24.13.3
+
   apps/web:
     dependencies:
       '@kf/ml-registry':

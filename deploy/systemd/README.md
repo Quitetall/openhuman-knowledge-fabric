@@ -56,6 +56,7 @@ Five things have to happen on a schedule, and until they are scheduled they are 
 | `kf-restore-drill.timer`    | monthly           | Nothing has proven the backups can be read.                                                |
 | `kf-readiness.timer`        | every 15 min      | Nothing notices when any of the above stops running.                                       |
 | `kf-alert-heartbeat.timer`  | daily             | Nothing notices when the thing that notices stops working.                                 |
+| `kf-storage.timer`          | daily 03:30       | Every artifact version has one copy, and nothing has re-hashed the copies that exist.      |
 
 The last two are what make the others real. A backup timer that silently stops is
 indistinguishable from a backup timer that is working, right up until the restore — unless
@@ -112,17 +113,26 @@ sudo useradd --system --user-group --home-dir /nonexistent --shell /usr/sbin/nol
 sudo useradd --system --user-group --home-dir /nonexistent --shell /usr/sbin/nologin kf-backup
 sudo useradd --system --user-group --home-dir /nonexistent --shell /usr/sbin/nologin kf-offsite
 sudo useradd --system --user-group --home-dir /nonexistent --shell /usr/sbin/nologin kf-readiness
+sudo useradd --system --user-group --home-dir /nonexistent --shell /usr/sbin/nologin kf-storage
 
 sudo install -d -m 0750 -o root -g kf-checkpoint /etc/kf/checkpoint
 sudo install -d -m 0750 -o root -g kf-backup /etc/kf/backup
 sudo install -d -m 0750 -o root -g kf-offsite /etc/kf/offsite
 sudo install -d -m 0750 -o root -g kf-readiness /etc/kf/readiness
+sudo install -d -m 0750 -o root -g kf-storage /etc/kf/storage
 
 sudo install -m 0600 -o kf-checkpoint -g kf-checkpoint /dev/null /etc/kf/checkpoint/database-url
 sudo install -m 0600 -o kf-checkpoint -g kf-checkpoint /dev/null /etc/kf/checkpoint/checkpoint-key
 sudo install -m 0600 -o kf-backup -g kf-backup /dev/null /etc/kf/backup/database-url
 sudo install -m 0600 -o kf-backup -g kf-backup /dev/null /etc/kf/backup/preservation-manifest-key
 sudo install -m 0600 -o kf-offsite -g kf-offsite /dev/null /etc/kf/offsite/database-url
+sudo install -m 0600 -o kf-storage -g kf-storage /dev/null /etc/kf/storage/database-url
+sudo install -m 0600 -o kf-storage -g kf-storage /dev/null /etc/kf/storage/s3-secret
+sudo install -m 0600 -o kf-storage -g kf-storage /dev/null /etc/kf/storage/s3-durable-secret
+# storage.env: S3_* for the working store, S3_DURABLE_* for the durable one (endpoints, regions,
+# access-key ids, buckets — secrets come from the two files above), KF_STORAGE_ORGANIZATION,
+# and KF_STORAGE_ACTOR / KF_STORAGE_ROLE as printed by `pnpm kf:declare-service-actor`.
+sudo install -m 0600 -o kf-storage -g kf-storage /dev/null /etc/kf/storage/storage.env
 sudo install -m 0600 -o kf-readiness -g kf-readiness /dev/null /etc/kf/readiness/database-url
 
 # The alerter. Its own identity holding exactly one secret — the webhook URL — and no key,

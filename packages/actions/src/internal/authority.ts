@@ -101,6 +101,19 @@ export async function assertActCovered(
   targetIds: readonly string[],
 ): Promise<void> {
   if (definition.requiresCapability !== 'act') return;
+  // ADR 0020: a service actor does routine work under authority somebody granted; it never
+  // authorizes, approves, grants, allocates or resolves, whatever grants reach it.
+  const kind = await tx.maybeOne<{ person_kind: string }>(
+    'select person_kind from org.person where id = $1',
+    [request.actorId],
+  );
+  if (kind?.person_kind === 'service') {
+    throw new ActionRejected(
+      'act_not_granted',
+      `${request.actionType} is an institutional act; a service actor cannot perform one (ADR 0020)`,
+      { actionType: request.actionType, actorId: request.actorId },
+    );
+  }
   const covered = await tx.one<{ ok: boolean }>(
     'select org.act_grant_reaches($1, $2, $3::uuid[]) as ok',
     [request.actorId, request.organizationId, [...targetIds]],
