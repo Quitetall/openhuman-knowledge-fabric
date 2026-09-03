@@ -6,6 +6,14 @@ This document exists so a successor does not have to reconstruct that path from 
 Written 2026-08-27. Every number below was measured on that date, not remembered. Re-measure
 before relying on any of them — several are host and database state and will move.
 
+**This document no longer states the program's state.** Since 2026-09-03 that is the Software
+Architecture Specification's §98 phase ladder and §100 gap list
+([`docs/sas/KF_Software_Architecture_Specification.md`](sas/KF_Software_Architecture_Specification.md)),
+which is governed by digest and accepted by a human. What is kept here is the part the ladder
+cannot carry: a walked, first-person account of what actually broke on the way, written by
+someone who ran each step rather than read it. Where the two disagree about how far along
+anything is, the specification is right and this page is a snapshot of 2026-08-27.
+
 ## Read this first, because it is not obvious
 
 **The engine is far ahead of the product.** 79 migrations, 106 registered action types, 1350

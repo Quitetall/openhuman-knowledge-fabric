@@ -1,0 +1,50 @@
+# The Knowledge Fabric as an OpenWarrant program (WAR SAS §6.10).
+#
+# KF is a program, so it has exactly one Software Architecture Specification, its own
+# requirement prefix, and its own Warrants trace to that one. This file is what makes the
+# `war` tool operate on this repository rather than on OpenWarrant's.
+#
+# KF itself is a pnpm/TypeScript workspace and gains no Rust dependency from this: `war` is
+# used to propose, accept and check the SAS, and `pnpm gate` never invokes it.
+
+schema = "oh.war/repository-config/v1"
+
+[project]
+name = "OpenHuman Knowledge Fabric"
+namespace = "KF"
+
+[paths]
+sas = "docs/sas"
+# NOT the scaffolded `docs/adr`: this repository's decision records have lived in
+# `docs/decisions/` since ADR 0001, and moving 22 accepted records to satisfy a default
+# would break every citation in every one of them.
+adrs = "docs/decisions"
+roadmap = "docs/roadmap"
+warrants = "docs/warrants"
+gates = "docs/gates"
+receipts = "docs/receipts"
+
+[generated]
+commit = true
+verify_drift = true
+
+[policy]
+allow_automated_resolution = false
+
+# WAR SAS §46.1's nine dimensions, for verification performed in this repository.
+#
+# Every value is false, and none of them is a placeholder. This repository is authored and
+# verified by one person working with one agent: there is no blind reviewer, no separate
+# workspace and no separate context compilation. §27.4 is explicit that role separation by one
+# person is not organizational independence. An absent field would read as unexamined; `false`
+# reads as examined and absent, which is the true state.
+[independence]
+performer_transcript_blind = false
+performer_rationale_blind = false
+separate_writable_workspace = false
+cannot_modify_subject_artifacts = false
+cannot_modify_gate_definition = false
+cannot_modify_gate_fixtures = false
+separate_context_compilation = false
+distinct_model_required = false
+distinct_human_required = false

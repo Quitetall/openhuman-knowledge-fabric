@@ -6,3 +6,9 @@ coverage/
 generated/
 pnpm-lock.yaml
 tests/conformance/r01-golden/
+
+# The Software Architecture Specification is governed by its byte digest (WAR SAS §101): an
+# accepted revision records sha256 over these exact bytes, and `war check` reports
+# `sas.digest-drift` if they move. A formatter that silently rewrites a digest-pinned normative
+# document is the thing this system refuses everywhere else, so it does not run here.
+docs/sas/

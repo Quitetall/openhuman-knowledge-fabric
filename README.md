@@ -25,17 +25,25 @@ Control Specification_, with its `1.0.0-draft.1` schema pack.
 > ## Status — read this first
 >
 > **Operational for local development and draft dogfood; not an authoritative service.**
-> Gates 1–8 are implemented and exercised by the test suite. `development` may explicitly
-> enable a fixed non-authoritative identity; `dogfood` refuses that path and requires verified
-> OIDC identity plus database-backed role assignment. Automated browser proof uses a controlled
-> OIDC fixture. Real identity-provider, TLS, key-custody, external-storage and alerting
-> commissioning still require operator evidence. First dogfood corpus remains draft-only: no
-> approval, effective-state transition or enterprise identifier is fabricated.
 >
-> The specification is also **not yet approved**: the schema pack is `draft_for_approval`
-> and its manifest is unsigned, so under §1.2 it is not normative. Five defects found in it
-> are recorded in `docs/decisions/0001-r01-schema-pack-defects.md`, with a corrected package
-> available from `pnpm ontology:pack`.
+> The single answer to "what is this, and how far along is it" is the Software Architecture
+> Specification at [`docs/sas/KF_Software_Architecture_Specification.md`](docs/sas/KF_Software_Architecture_Specification.md).
+> It states the architecture, the invariants, the boundaries, the requirements and the phase
+> ladder, and it says which phases are delivered and which are not. This block used to carry a
+> summary of that, and a summary of a moving system is a summary that goes quietly stale.
+>
+> Phases 0 through 8 are delivered and exercised by the test suite. Phase 9 — a commissioned
+> host and its operating evidence — is **not started**, and four of the five v1.0 criteria in
+> `docs/decisions/0004-production-release.md` queue behind it. Phase 10 is v1.0 itself.
+> §100 of the specification enumerates every known gap, including the two schema packs that
+> are signed snapshots of a source that has since moved.
+>
+> `development` may explicitly enable a fixed non-authoritative identity; `dogfood` refuses that
+> path and requires verified OIDC identity plus database-backed role assignment. Automated
+> browser proof uses a controlled OIDC fixture. Real identity-provider, TLS, key-custody,
+> external-storage and alerting commissioning still require operator evidence. The first
+> dogfood corpus remains draft-only: no approval, effective-state transition or enterprise
+> identifier is fabricated.
 
 ---
 
