@@ -1084,17 +1084,24 @@ application role SHALL NOT hold it.
 
 ## 38. Row-level security
 
-RLS is **enabled** on 139 distinct tables by literal statement, and **forced** — so that even a
-table's owner is subject to it — on 66 of them, with one `format()` loop covering `ml.*`
-dynamically. The live database reports 113 of 139 forced, measured on the running instance and
-recorded in `deploy/postgres/planner.conf`.
+RLS is **enabled** on 143 tables and **forced** — so that even a table's owner is subject to it —
+on 70 of them. Measured on 2026-09-04 against a fresh install of all 88 migrations on the dogfood
+host, which is the first time this schema had ever been installed anywhere but a test container.
 
-Those two figures do not reconcile from the migrations alone, and §100.15 records that as an
-open item rather than assuming the difference away. **73 tables are enabled by a literal
-statement and forced by none**, and enabled-without-forced means the table's owner bypasses the
-policy. The owner is `kf_migrator`, which the application does not run as (§37), so this is not
-an application-visible hole — but it is not the guarantee KF-SAS-RQ-073 states either, and it is
-recorded here rather than left to be discovered.
+**73 tables enable row-level security without forcing it**, and the static count of the
+migrations gives the same 73, so the two now reconcile exactly. They are the domain tables: work,
+quality, engineering, product and finance entirely, and parts of core, org and content. What is
+forced is content, `ml`, `secure_object` and parts of core, org and registry.
+
+Forcing matters only for a table's **owner**. The owner is `kf_migrator`, and the application
+runs as `kf_app` (§37), so row-level security applies to every application read regardless. This
+is therefore not an application-visible hole. It is a hole for anything connecting as the owner,
+and it is not the unqualified guarantee KF-SAS-RQ-073 states, so it is written here rather than
+left to be found.
+
+`deploy/postgres/planner.conf` said "113 of 139 force it" until that measurement. Both halves
+were wrong, and nothing had ever checked, because the number came from a workstation database
+that had accumulated state rather than from an install.
 
 Two kinds of count appear in this document because two things are being counted: statements in
 migrations, and tables in a running database. §103.3 says which to cite for what.
@@ -2471,11 +2478,12 @@ recorded rather than quietly corrected.
 with one agent. Role separation by one person is not organizational independence, and an absent
 field would read as unexamined where `false` reads as examined and absent.
 
-**100.15 Seventy-three tables are enabled for row-level security and forced by no literal
-statement.** The live database reports more tables forced than the migrations statically force,
-and the difference is not reconciled. Until it is, KF-SAS-RQ-073 is not evidenced for those
-tables. §38 states what is known. Found by the review of this revision, which is the reason it
-appears in the first revision rather than a later one.
+**100.15 Seventy-three tables enable row-level security without forcing it.** Reconciled on
+2026-09-04 against a fresh install on the dogfood host: static and live both give 73, and the
+earlier figure in `deploy/postgres/planner.conf` was simply wrong. Not an application-visible
+hole, because the application is not the owner, but not the unqualified guarantee
+KF-SAS-RQ-073 states either. §38 has the detail. What remains open is whether forcing should be
+extended to the domain tables, which is a decision and not a measurement.
 
 **KF-SAS-RQ-184.** A requirement cited from another repository SHOULD be resolvable against this
 document by a tool, and until it is, such a citation SHALL be treated as an unverified claim.
@@ -2586,7 +2594,7 @@ record which program owns each federated fact.
 
 | Revision | Date | Change |
 |---|---|---|
-| `0.1.0-draft.3` | 2026-09-04 | Adds §8A and five requirements making speed of capture and retrieval architectural rather than product polish, after the observation that a records system engineers skip records nothing ([ADR 0024](../decisions/0024-friction-is-an-architectural-property.md)). Records that capture is cheap and governance applies at promotion, that several surfaces share one act model, and that an agent may act for a named human. Five requirements appended, none removed or retitled; architecture-changing, carrying ADR 0024. |
+| `0.1.0-draft.3` | 2026-09-04 | Corrects §38's row-level security figures against the first ever install of this schema on a host — 143 enabled, 70 forced, the 73 unforced reconciling exactly with the migrations, and the previously cited 113 of 139 wrong in both halves. Adds §8A and five requirements making speed of capture and retrieval architectural rather than product polish, after the observation that a records system engineers skip records nothing ([ADR 0024](../decisions/0024-friction-is-an-architectural-property.md)). Records that capture is cheap and governance applies at promotion, that several surfaces share one act model, and that an agent may act for a named human. Five requirements appended, none removed or retitled; architecture-changing, carrying ADR 0024. |
 | `0.1.0-draft.2` | 2026-09-04 | Records two scope decisions that pull in opposite directions and were made together: business logic is an application above the Fabric (§8.10), and dataset, transform and lineage capability, if ever built, belongs in the core rather than above it (§8.11). Adds the organization-as-configuration requirement. Three requirements appended, none removed or retitled. Architecture-changing under §94.3 and carrying [ADR 0023](../decisions/0023-business-logic-above-data-primitives-within.md): the draft asserted it was not, and `war sas propose` derived otherwise from the §106 diff and required a decision record. The tool was right. |
 | `0.1.0-draft.1` | 2026-09-03 | First revision. Establishes the Knowledge Fabric as a program with its own specification, 132 requirements and an eleven-phase ladder. No predecessor. |
 

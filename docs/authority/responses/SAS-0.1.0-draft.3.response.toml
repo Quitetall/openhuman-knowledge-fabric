@@ -1,6 +1,6 @@
 schema = "oh.war/sas-acceptance-response/v1"
 version = "0.1.0-draft.3"
-sha256 = "b143de0b3dd5d1f7a134f8b5ec16fd7b5be9b86014ce7451fcc6bbde6467883c"
+sha256 = "ecb95a11e5c5e48316ef7bea1ebc7ccb0cea65fbed15547ddd993948c71b6c92"
 accepted_by = "Brian Lam"
 acting_role = "authorizer"
 adr_ref = "docs/decisions/0024-friction-is-an-architectural-property.md"

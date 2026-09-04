@@ -89,6 +89,36 @@ PostgreSQL 18.6 is installed and running with `jit = off` in a `conf.d` fragment
 about a hundredfold, JIT fires on the estimate, and the configuration was measured 8 to 14 times
 slower with it on.
 
+## The database, and what installing it found
+
+`kf` exists on the host, owned by `kf_migrator_login`, whose credential is a 0600 file at
+`/etc/kf/migrator/database-url` readable only by root. All 88 migrations applied.
+
+**The migrator does not need to be a superuser, and the deployment contract never said what it
+does need.** That gap cost four failed attempts, each with a different refusal, and the answer is
+worth writing down:
+
+| It needs                                     | Because                                                                                                                                            |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CREATEROLE`                                 | the first migration creates ten NOLOGIN group roles                                                                                                |
+| the group roles pre-created by the superuser | migration 1 creates them AND does `alter default privileges for role kf_migrator` in one transaction, so the running role must already be a member |
+| `ADMIN OPTION` on those roles                | `comment on role` requires it — PostgreSQL 18 says so by name                                                                                      |
+| the extensions pre-created by the superuser  | `btree_gist` and `pg_trgm` are untrusted; the migration's `create extension if not exists` then finds them                                         |
+
+It does **not** need superuser, and it is not one here. That matters: `kf_migrator` is described
+as the only role permitted DDL, and a superuser migrator would make that description decorative.
+
+**The install corrected a number that had never been checked.** Measured on the fresh database:
+169 tables, 14 schemas, 461 policies, 189 triggers, 143 tables with row-level security enabled
+and **70 forcing it**. `deploy/postgres/planner.conf` had said "113 of 139 force it", and both
+halves were wrong — the figure came from a workstation database that had accumulated state
+rather than from an install. The 73 tables that enable without forcing now reconcile exactly
+with a static count of the migrations, closing §100.15 of the specification.
+
+This is precisely what the deployment contract predicts: qualifying a machine that is not the
+workstation finds things the workstation hid. It found five host requirements the first time.
+This time it found a documentation gap and a wrong measurement.
+
 ## What this host is not
 
 **It is not commissioned.** It has no `kf` database, no promoted release, no TLS, no reverse
