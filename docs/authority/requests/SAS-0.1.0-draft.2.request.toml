@@ -1,0 +1,19 @@
+schema = "oh.war/sas-acceptance-request/v1"
+version = "0.1.0-draft.2"
+source = "docs/sas/KF_Software_Architecture_Specification.md"
+sha256 = "6a1ff588b3328b07e6d8bafc41e59386032059ab943a4ef9a817f34eb3e008e1"
+predecessor = "0.1.0-draft.1"
+architecture_changing = true
+adr_required = true
+requirement_count = 135
+eligible_acceptors = ["Brian Lam"]
+
+[diff]
+added = [
+    "KF-SAS-RQ-190",
+    "KF-SAS-RQ-191",
+    "KF-SAS-RQ-192",
+]
+removed = []
+retitled = []
+

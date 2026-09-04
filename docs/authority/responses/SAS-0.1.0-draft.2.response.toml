@@ -1,0 +1,25 @@
+schema = "oh.war/sas-acceptance-response/v1"
+version = "0.1.0-draft.2"
+sha256 = "6a1ff588b3328b07e6d8bafc41e59386032059ab943a4ef9a817f34eb3e008e1"
+accepted_by = "Brian Lam"
+acting_role = "authorizer"
+adr_ref = "docs/decisions/0023-business-logic-above-data-primitives-within.md"
+effective_time = "REPLACE-WITH-AN-RFC3339-INSTANT"
+
+# YOUR STATEMENT. The wording below was drafted by the agent that proposed the revision; the
+# decision is yours and so is the final text. Replace it, edit it, or keep it.
+#
+# NOTE: the tool does NOT validate effective_time. It ingested a literal placeholder into the
+# immutable draft.1 record, which you then corrected. Put a real instant above before running
+# the accept.
+meaning = """
+Accepting 0.1.0-draft.2 records two scope decisions that point in opposite directions and were
+made together, so that neither is later mistaken for the other. Business logic is an application
+above the Fabric: it computes what a value should be, and the Fabric holds only what was asserted
+and by whom. Dataset, transform and lineage capability, if it is ever built, belongs inside the
+core under the same act, audit and access model as every other record, because a derivation is a
+fact with an authority and provenance is this system's job. Neither is built today and neither is
+foreclosed. I also accept that the deploying organization's identity is configuration rather than
+compiled-in source, and that the phase ladder is full against a hard cap, which is recorded in
+§100.17 rather than worked around.
+"""

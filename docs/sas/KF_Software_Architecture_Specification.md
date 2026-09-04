@@ -7,8 +7,8 @@
 | Document class | Software Architecture Specification |
 | Short name | KF SAS |
 | Status | Draft for acceptance |
-| Version | `0.1.0-draft.1` |
-| Date | 2026-09-03 |
+| Version | `0.1.0-draft.2` |
+| Date | 2026-09-04 |
 | Enterprise identifier | Unallocated — this file name is not an official Identifier Registry allocation (§94.5) |
 | Program name | **OpenHuman Knowledge Fabric** |
 | Record name | **Object** |
@@ -339,6 +339,40 @@ which is not a control.
 
 **8.9 It is not portable to arbitrary platforms.** §84 states the single platform contract.
 Portability was traded for the ability to say precisely what a host must provide.
+
+**8.10 Business logic is an application above the Fabric, not a part of it.** Decided 2026-09-04.
+Invoicing arithmetic, stock movement, scheduling, order-to-cash, payroll: these are computed by
+callers, and they reach the Fabric the same way every other writer does, through the dispatcher,
+as attributed acts. The Fabric holds what happened and who authorised it. It does not decide
+what a total should be.
+
+This is stated positively rather than only as a non-goal because the negative form invites the
+reading that such a capability is merely absent and could be added by anyone in a hurry. It is
+absent by decision: an accounting engine inside the authority boundary would make the boundary
+answerable for arithmetic, and the first defect in that arithmetic would be a defect in the
+record rather than in an application over it.
+
+**8.11 Datasets, transforms and lineage are NOT an application, and are not built.** Also decided
+2026-09-04, and it points the other way from §8.10, which is why both are recorded together.
+
+If the Fabric ever gains the ability to hold a dataset, derive another from it, and answer what
+produced what, that capability belongs in the **core**, under the same act, audit, access and
+provenance model as every other record — not in an application above it, and not on a side path
+that reaches storage directly. The reason is Law 1: a derivation is a fact with an authority, and
+a derived dataset whose provenance lives outside the act model would be a second authority for
+its own history.
+
+None of it is built today. `ml.run_lineage`, with its input, output and parent-model tables, is
+the closest thing that exists and is the natural seed. This section exists so that a reader of
+§8's non-goals does not conclude the direction is foreclosed, and so that a near-term choice does
+not foreclose it by accident.
+
+**KF-SAS-RQ-190.** Business logic SHALL be computed by callers and SHALL reach the Fabric only as
+attributed acts through the dispatcher.
+
+**KF-SAS-RQ-191.** If dataset, transform or lineage capability is built, it SHALL be a core
+primitive governed by the same act, audit, access and provenance model as every other record, and
+SHALL NOT reach storage outside that model.
 
 **KF-SAS-RQ-020.** The system SHALL NOT provide a generic authenticated write path that accepts
 a caller-supplied action type outside the declared set.
@@ -1672,6 +1706,9 @@ it and does not redefine it.
 **KF-SAS-RQ-139.** The product SHALL be separable from any one deployment's identifier registry,
 and where that separation does not yet hold, the specific coupling SHALL be recorded.
 
+**KF-SAS-RQ-192.** The deploying organization's identity SHALL be configuration, and SHALL NOT be
+compiled into the product's source.
+
 ## 71. The ML registry
 
 `ml` holds append-only, privacy-minimal lineage: runs, typed metrics, run seals and signed
@@ -2393,6 +2430,15 @@ appears in the first revision rather than a later one.
 **KF-SAS-RQ-184.** A requirement cited from another repository SHOULD be resolvable against this
 document by a tool, and until it is, such a citation SHALL be treated as an unverified claim.
 
+**100.16 The organization's legal name is compiled in, not configured.** Three lines in the
+dogfood bootstrap name OpenHuman Technologies LLC. Bears on KF-SAS-RQ-192 and on §100.3, of which
+it is the remaining application-side half.
+
+**100.17 The phase ladder is full against a hard cap.** §98 uses phases 0 through 10, and the
+tooling that reads them caps a phase number at 10. A twelfth objective — a data-primitives phase,
+for instance — cannot be added without restructuring the ladder. Recorded rather than worked
+around, because renumbering objectives would break every reference to them.
+
 **KF-SAS-RQ-186.** The set of tables forced under row-level security SHALL be derivable from the
 migrations, and any difference between that set and the running database SHALL be reconciled.
 
@@ -2480,6 +2526,7 @@ record which program owns each federated fact.
 
 | Revision | Date | Change |
 |---|---|---|
+| `0.1.0-draft.2` | 2026-09-04 | Records two scope decisions that pull in opposite directions and were made together: business logic is an application above the Fabric (§8.10), and dataset, transform and lineage capability, if ever built, belongs in the core rather than above it (§8.11). Adds the organization-as-configuration requirement. Three requirements appended, none removed or retitled. Architecture-changing under §94.3 and carrying [ADR 0023](../decisions/0023-business-logic-above-data-primitives-within.md): the draft asserted it was not, and `war sas propose` derived otherwise from the §106 diff and required a decision record. The tool was right. |
 | `0.1.0-draft.1` | 2026-09-03 | First revision. Establishes the Knowledge Fabric as a program with its own specification, 132 requirements and an eleven-phase ladder. No predecessor. |
 
 ## 106. Architecture requirements index
@@ -2673,3 +2720,11 @@ from evidence, never recorded here (§97.3).
 | KF-SAS-RQ-184 | A cross-repository requirement citation is unverified until a tool resolves it |
 | KF-SAS-RQ-185 | KF duplicates no neighbouring program's authority and records who owns each fact |
 | KF-SAS-RQ-186 | The forced-RLS set is derivable from migrations and reconciled with the database |
+
+### Scope decisions of 2026-09-04
+
+| ID | Requirement |
+|---|---|
+| KF-SAS-RQ-190 | Business logic is computed by callers and reaches the Fabric only as acts |
+| KF-SAS-RQ-191 | Dataset, transform and lineage capability, if built, is a core primitive |
+| KF-SAS-RQ-192 | The deploying organization's identity is configuration, not compiled in |
