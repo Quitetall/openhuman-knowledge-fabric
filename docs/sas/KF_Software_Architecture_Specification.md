@@ -7,7 +7,7 @@
 | Document class | Software Architecture Specification |
 | Short name | KF SAS |
 | Status | Draft for acceptance |
-| Version | `0.1.0-draft.2` |
+| Version | `0.1.0-draft.3` |
 | Date | 2026-09-04 |
 | Enterprise identifier | Unallocated — this file name is not an official Identifier Registry allocation (§94.5) |
 | Program name | **OpenHuman Knowledge Fabric** |
@@ -373,6 +373,56 @@ attributed acts through the dispatcher.
 **KF-SAS-RQ-191.** If dataset, transform or lineage capability is built, it SHALL be a core
 primitive governed by the same act, audit, access and provenance model as every other record, and
 SHALL NOT reach storage outside that model.
+
+## 8A. Friction, and why it is in this part of the document
+
+§8 lists what the Fabric is not. This section says what it must not become, which is a system
+people work around.
+
+Every write here is an attributed act, and that is friction by design. Given only a web form, a
+system built this way loses to a chat window every time, and then holds a well-governed record of
+the small fraction of work somebody had the patience to enter. **A record that is expensive to
+write is a record that is not written, and an authority nobody writes to is not an authority.**
+
+So speed of capture and speed of retrieval are architectural requirements here, ranking with
+correctness rather than sitting below it as product polish (ADR 0024). Three consequences follow.
+
+**The friction is in the API contract, not in the experience.** Nothing in the act model requires
+a person to see an idempotency key. One gesture may dispatch a fully formed act.
+
+**Capture is cheap; governance is on promotion.** Recording that something happened is not an
+institutional act and must not cost like one. An observation enters as an ordinary object in a
+draft lifecycle state, attributed and audited from the first moment, and becomes a controlled
+record only when somebody makes it so. Approval, effective state, identifiers and act grants
+apply at promotion, which is rare — not at capture, which is constant. A draft is early, not
+second class: same row-level security, same corpus membership, same audit.
+
+**Several capture surfaces, one act model behind all of them.** An agent in natural language and
+a chat integration are first class; a command line and a web form are conventionally useful and
+included. Every one dispatches the same typed acts through the same seam. None gets a private
+path to storage and none gets its own record shape, because a corpus with four shapes for one
+kind of fact is the drift this system exists to prevent. §8.7's refusal of a general-purpose
+write path is unaffected.
+
+Retrieval carries equal weight. A record nobody reads back does not repay the cost of writing it.
+
+The bars are stated in ADR 0024 as numbers, because "fast" cannot fail and therefore is not a
+requirement. None of them is measured today; §100.18 records that.
+
+**KF-SAS-RQ-200.** Recording an observation SHALL be achievable without the actor supplying
+authority, concurrency or idempotency detail, and the system SHALL form those on their behalf.
+
+**KF-SAS-RQ-201.** Capture and retrieval latency SHALL be stated as measurable bars, measured,
+and treated as architectural requirements rather than product quality.
+
+**KF-SAS-RQ-202.** An observation SHALL be recordable as a draft object, attributed and audited
+from the moment it is written, and promotion to a controlled record SHALL be a separate act.
+
+**KF-SAS-RQ-203.** Every capture surface SHALL dispatch the same typed acts through the same
+seam, and SHALL NOT define its own record shape or reach storage directly.
+
+**KF-SAS-RQ-204.** An agent SHALL be able to form and dispatch an act on behalf of a named human,
+with the act attributed to that human and the agent's participation recorded.
 
 **KF-SAS-RQ-020.** The system SHALL NOT provide a generic authenticated write path that accepts
 a caller-supplied action type outside the declared set.
@@ -2439,6 +2489,16 @@ tooling that reads them caps a phase number at 10. A twelfth objective — a dat
 for instance — cannot be added without restructuring the ladder. Recorded rather than worked
 around, because renumbering objectives would break every reference to them.
 
+**100.18 None of ADR 0024's latency bars is measured, and two of its capture surfaces do not
+exist.** There is no chat integration and no cheap capture path; the command line writes through
+full acts and the web application has no capture form at all. The bars are stated so they can
+fail; today nothing evaluates them. Bears on KF-SAS-RQ-200 through RQ-203.
+
+**100.19 How an agent authenticates when acting for a named human is undecided.** ADR 0020's
+service actor acts for itself and is barred from institutional acts, which is a different case
+from an agent forming an act on a person's behalf. KF-SAS-RQ-204 states the requirement; nothing
+implements it.
+
 **KF-SAS-RQ-186.** The set of tables forced under row-level security SHALL be derivable from the
 migrations, and any difference between that set and the running database SHALL be reconciled.
 
@@ -2526,6 +2586,7 @@ record which program owns each federated fact.
 
 | Revision | Date | Change |
 |---|---|---|
+| `0.1.0-draft.3` | 2026-09-04 | Adds §8A and five requirements making speed of capture and retrieval architectural rather than product polish, after the observation that a records system engineers skip records nothing ([ADR 0024](../decisions/0024-friction-is-an-architectural-property.md)). Records that capture is cheap and governance applies at promotion, that several surfaces share one act model, and that an agent may act for a named human. Five requirements appended, none removed or retitled; architecture-changing, carrying ADR 0024. |
 | `0.1.0-draft.2` | 2026-09-04 | Records two scope decisions that pull in opposite directions and were made together: business logic is an application above the Fabric (§8.10), and dataset, transform and lineage capability, if ever built, belongs in the core rather than above it (§8.11). Adds the organization-as-configuration requirement. Three requirements appended, none removed or retitled. Architecture-changing under §94.3 and carrying [ADR 0023](../decisions/0023-business-logic-above-data-primitives-within.md): the draft asserted it was not, and `war sas propose` derived otherwise from the §106 diff and required a decision record. The tool was right. |
 | `0.1.0-draft.1` | 2026-09-03 | First revision. Establishes the Knowledge Fabric as a program with its own specification, 132 requirements and an eleven-phase ladder. No predecessor. |
 
@@ -2728,3 +2789,13 @@ from evidence, never recorded here (§97.3).
 | KF-SAS-RQ-190 | Business logic is computed by callers and reaches the Fabric only as acts |
 | KF-SAS-RQ-191 | Dataset, transform and lineage capability, if built, is a core primitive |
 | KF-SAS-RQ-192 | The deploying organization's identity is configuration, not compiled in |
+
+### Friction and use, 2026-09-04 (ADR 0024)
+
+| ID | Requirement |
+|---|---|
+| KF-SAS-RQ-200 | Recording an observation asks the actor for no authority, concurrency or idempotency detail |
+| KF-SAS-RQ-201 | Capture and retrieval latency are stated as bars, measured, and architectural |
+| KF-SAS-RQ-202 | An observation is recordable as a draft, attributed from the first moment; promotion is a separate act |
+| KF-SAS-RQ-203 | Every capture surface dispatches the same acts through the same seam |
+| KF-SAS-RQ-204 | An agent can act on behalf of a named human, attributed to them, with its participation recorded |

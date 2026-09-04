@@ -16,7 +16,7 @@ meaning = """
 Accepting 0.1.0-draft.2 records two scope decisions that point in opposite directions and were
 made together, so that neither is later mistaken for the other. Business logic is an application
 above the Fabric: it computes what a value should be, and the Fabric holds only what was asserted
-and by whom. Dataset, transform and lineage capability, if it is ever built, belongs inside the
+and by whom. It is not a part of the core knowledge fabric backend. Dataset, transform and lineage capability, if it is ever built, belongs inside the
 core under the same act, audit and access model as every other record, because a derivation is a
 fact with an authority and provenance is this system's job. Neither is built today and neither is
 foreclosed. I also accept that the deploying organization's identity is configuration rather than

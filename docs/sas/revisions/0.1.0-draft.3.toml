@@ -1,9 +1,9 @@
 schema = "oh.war/sas-revision/v1"
-version = "0.1.0-draft.2"
+version = "0.1.0-draft.3"
 source = "docs/sas/KF_Software_Architecture_Specification.md"
-sha256 = "6a1ff588b3328b07e6d8bafc41e59386032059ab943a4ef9a817f34eb3e008e1"
-state = "accepted"
-predecessor = "0.1.0-draft.1"
+sha256 = "b143de0b3dd5d1f7a134f8b5ec16fd7b5be9b86014ce7451fcc6bbde6467883c"
+state = "proposed"
+predecessor = "0.1.0-draft.2"
 architecture_changing = true
 
 [requirements]
@@ -142,21 +142,8 @@ KF-SAS-RQ-186 = "The forced-RLS set is derivable from migrations and reconciled 
 KF-SAS-RQ-190 = "Business logic is computed by callers and reaches the Fabric only as acts"
 KF-SAS-RQ-191 = "Dataset, transform and lineage capability, if built, is a core primitive"
 KF-SAS-RQ-192 = "The deploying organization's identity is configuration, not compiled in"
-
-[acceptance]
-accepted_by = "Brian Lam"
-actor_kind = "human"
-acting_role = "authorizer"
-meaning = """
-Accepting 0.1.0-draft.2 records two scope decisions that point in opposite directions and were
-made together, so that neither is later mistaken for the other. Business logic is an application
-above the Fabric: it computes what a value should be, and the Fabric holds only what was asserted
-and by whom. It is not a part of the core knowledge fabric backend. Dataset, transform and lineage capability, if it is ever built, belongs inside the
-core under the same act, audit and access model as every other record, because a derivation is a
-fact with an authority and provenance is this system's job. Neither is built today and neither is
-foreclosed. I also accept that the deploying organization's identity is configuration rather than
-compiled-in source, and that the phase ladder is full against a hard cap, which is recorded in
-§100.17 rather than worked around.
-"""
-effective_time = "REPLACE-WITH-AN-RFC3339-INSTANT"
-adr_ref = "docs/decisions/0023-business-logic-above-data-primitives-within.md"
+KF-SAS-RQ-200 = "Recording an observation asks the actor for no authority, concurrency or idempotency detail"
+KF-SAS-RQ-201 = "Capture and retrieval latency are stated as bars, measured, and architectural"
+KF-SAS-RQ-202 = "An observation is recordable as a draft, attributed from the first moment; promotion is a separate act"
+KF-SAS-RQ-203 = "Every capture surface dispatches the same acts through the same seam"
+KF-SAS-RQ-204 = "An agent can act on behalf of a named human, attributed to them, with its participation recorded"

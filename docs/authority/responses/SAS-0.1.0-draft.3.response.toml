@@ -1,0 +1,23 @@
+schema = "oh.war/sas-acceptance-response/v1"
+version = "0.1.0-draft.3"
+sha256 = "b143de0b3dd5d1f7a134f8b5ec16fd7b5be9b86014ce7451fcc6bbde6467883c"
+accepted_by = "Brian Lam"
+acting_role = "authorizer"
+adr_ref = "docs/decisions/0024-friction-is-an-architectural-property.md"
+# Pre-filled with a real instant, because the tool does NOT validate this field and a comment
+# warning about it did not stop the placeholder going in twice. Change it if you accept later.
+effective_time = "2026-09-04T02:24:10Z"
+
+meaning = """
+Accepting 0.1.0-draft.3 makes speed of capture and retrieval architectural requirements of the
+Knowledge Fabric, ranking with correctness rather than sitting below it as product polish. The
+reason is that this is a research, biotech and hardware company: if recording that a test ran
+costs a form and a think, engineers will narrate it in a chat window instead, and the Fabric will
+hold a well-governed record of the small fraction of work somebody had patience for. A record
+expensive to write is a record not written. I accept that the friction belongs in the API
+contract and not in the experience; that capture is cheap and governance applies at promotion,
+with a draft attributed and audited from the first moment; that several capture surfaces share
+one act model and none gets a private path to storage; and that an agent may form and dispatch an
+act on behalf of a named human. None of the latency bars is measured today and two capture
+surfaces do not exist, which is recorded in §100.18 rather than implied.
+"""
