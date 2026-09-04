@@ -5,10 +5,22 @@
  * the reason: a record that can be changed by field assignment cannot answer "who moved it,
  * under what authority, and why". Every write in the system is
  *
- *   POST /actions/:actionType   { targetIds, payload, reason, idempotencyKey }
+ *   POST /actions/:actionType
+ *     body    { targetIds, payload, reason, idempotencyKey, expectedVersion?, effectiveAt? }
+ *     headers x-kf-actor, x-kf-acting-role, x-kf-organization  (identity is never in the body,
+ *             so a receipt cannot be re-attributed by editing one)
  *
  * and the dispatcher decides whether it is allowed. An endpoint that bypassed it would
  * bypass the audit chain, the state machine and the invariants at once.
+ *
+ * THIS LIST USED TO NAME FOUR BODY FIELDS AND OMIT `expectedVersion`, which `write-route.ts`
+ * has always read. An integrating client read this comment as the route contract, concluded
+ * optimistic concurrency was unavailable, and wrote that into its own specification — so the
+ * omission travelled into another repository's obligations before anyone noticed. `requestId`
+ * and the recorded time are assigned by the server and are deliberately not accepted here.
+ *
+ * `expectedVersion` is the row version the caller read. Drift is refused as `version_conflict`
+ * with HTTP 409; it never overwrites.
  *
  * Read routes are separate and plural, because reading is not the inverse of writing here:
  * a work order is written by an action and read as a projection over several tables.
