@@ -1,0 +1,20 @@
+[Unit]
+Description=Knowledge Fabric dogfood host (kf-host-1)
+Documentation=file:///mnt/4tb/openhuman-knowledge-fabric/docs/deployment/dogfood-vm.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+ExecStart=/mnt/4tb/kf-vm/run-kf-host-1.sh
+# Ask the guest to power down through ACPI. A database host that is only ever killed has an
+# untested clean-shutdown path, and the first time it matters is the time it is not tested.
+ExecStop=/mnt/4tb/kf-vm/stop-kf-host-1.sh
+TimeoutStopSec=180
+Restart=on-failure
+RestartSec=10
+# The previous VM was lost because nothing recorded how to bring it back. This unit is that
+# record, and user lingering is already enabled, so it starts at boot without a login.
+
+[Install]
+WantedBy=default.target

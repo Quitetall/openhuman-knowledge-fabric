@@ -46,6 +46,25 @@ file` captured only GRUB redraws, so the log looked like a boot loop when the gu
 the kernel console was elsewhere. And `pkill -f kf-host-1.qcow2` matches the shell running it,
 so stopping the VM that way kills the caller; use the process id.
 
+## Keeping it alive
+
+The machine runs as a **user** systemd service, `~/.config/systemd/user/kf-host-1.service`.
+User lingering is enabled for this account, so it starts at boot with nobody logged in. A
+detached process would not, and the first reboot would have taken the host with it — which is
+the same class of loss as the scratchpad key, one layer up.
+
+```sh
+systemctl --user status kf-host-1     # is it up
+systemctl --user restart kf-host-1    # graceful: ACPI power-down, then start
+/mnt/4tb/kf-vm/kfssh                  # a shell on it
+```
+
+`ExecStop` asks the guest to power down through ACPI over a QMP socket and waits up to 180
+seconds. It does not kill it. A database host whose clean-shutdown path is never exercised has
+an untested clean-shutdown path, and the first time that matters is the time it was not tested.
+Falsified rather than assumed: a `systemctl --user restart` was run and the host answered SSH
+again 30 seconds later with PostgreSQL active.
+
 ## Provisioning
 
 The six host requirements, installed exactly as `.github/actions/provision-host/action.yml`
