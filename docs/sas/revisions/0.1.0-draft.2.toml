@@ -158,5 +158,5 @@ foreclosed. I also accept that the deploying organization's identity is configur
 compiled-in source, and that the phase ladder is full against a hard cap, which is recorded in
 §100.17 rather than worked around.
 """
-effective_time = "REPLACE-WITH-AN-RFC3339-INSTANT"
+effective_time = "2026-09-04T02:00:00Z"
 adr_ref = "docs/decisions/0023-business-logic-above-data-primitives-within.md"

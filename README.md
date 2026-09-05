@@ -28,9 +28,9 @@ Control Specification_, with its `1.0.0-draft.1` schema pack.
 >
 > The single answer to "what is this, and how far along is it" is the Software Architecture
 > Specification at [`docs/sas/KF_Software_Architecture_Specification.md`](docs/sas/KF_Software_Architecture_Specification.md).
-> The accepted revision is **`0.1.0-draft.1`**, at
-> `sha256:1a1c6f26c84f79493e7e4a30eb7199d2f0974bb0c7a3244d45f4561cf15a562b`, accepted
-> 2026-09-03. Its own header says "Draft for acceptance" and always will: a document cannot
+> The accepted revision is **`0.1.0-draft.3`**, at
+> `sha256:ecb95a11e5c5e48316ef7bea1ebc7ccb0cea65fbed15547ddd993948c71b6c92`, accepted
+> 2026-09-04. Its own header says "Draft for acceptance" and always will: a document cannot
 > state the digest that covers it, so acceptance is recorded in `docs/sas/revisions/` and stated
 > here, which is what §94.6 requires of a copy or an export.
 > It states the architecture, the invariants, the boundaries, the requirements and the phase

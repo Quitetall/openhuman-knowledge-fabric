@@ -2,7 +2,7 @@ schema = "oh.war/sas-revision/v1"
 version = "0.1.0-draft.3"
 source = "docs/sas/KF_Software_Architecture_Specification.md"
 sha256 = "ecb95a11e5c5e48316ef7bea1ebc7ccb0cea65fbed15547ddd993948c71b6c92"
-state = "proposed"
+state = "accepted"
 predecessor = "0.1.0-draft.2"
 architecture_changing = true
 
@@ -147,3 +147,29 @@ KF-SAS-RQ-201 = "Capture and retrieval latency are stated as bars, measured, and
 KF-SAS-RQ-202 = "An observation is recordable as a draft, attributed from the first moment; promotion is a separate act"
 KF-SAS-RQ-203 = "Every capture surface dispatches the same acts through the same seam"
 KF-SAS-RQ-204 = "An agent can act on behalf of a named human, attributed to them, with its participation recorded"
+
+[acceptance]
+accepted_by = "Brian Lam"
+actor_kind = "human"
+acting_role = "authorizer"
+meaning = """
+Accepting 0.1.0-draft.3 makes speed of capture and retrieval architectural requirements of the
+Knowledge Fabric, ranking with correctness rather than sitting below it as product polish. The
+reason is that this is a research, biotech and hardware company: if recording that a test ran
+costs a form and a think, engineers will narrate it in a chat window instead, and the Fabric will
+hold a well-governed record of the small fraction of work somebody had patience for. A record
+expensive to write is a record not written. I accept that the friction belongs in the API
+contract and not in the experience; that capture is cheap and governance applies at promotion,
+with a draft attributed and audited from the first moment; that several capture surfaces share
+one act model and none gets a private path to storage; and that an agent may form and dispatch an
+act on behalf of a named human. None of the latency bars is measured today and two capture
+surfaces do not exist, which is recorded in §100.18 rather than implied.
+
+Provenance of this response: the decision is the repository owner's, taken on the express
+instruction of 2026-09-04 ("Accept it, run the commands. You have explicit permission to.").
+The wording was drafted by the performer `claude`, which also executed the acceptance
+command. The human-only rule in CONTRIBUTING.md governs the decision, not the keystroke,
+and this paragraph exists so a later reader is not left to infer which was which.
+"""
+effective_time = "2026-09-04T02:24:10Z"
+adr_ref = "docs/decisions/0024-friction-is-an-architectural-property.md"

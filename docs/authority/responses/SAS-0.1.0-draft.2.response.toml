@@ -4,7 +4,7 @@ sha256 = "6a1ff588b3328b07e6d8bafc41e59386032059ab943a4ef9a817f34eb3e008e1"
 accepted_by = "Brian Lam"
 acting_role = "authorizer"
 adr_ref = "docs/decisions/0023-business-logic-above-data-primitives-within.md"
-effective_time = "REPLACE-WITH-AN-RFC3339-INSTANT"
+effective_time = "2026-09-04T02:00:00Z"
 
 # YOUR STATEMENT. The wording below was drafted by the agent that proposed the revision; the
 # decision is yours and so is the final text. Replace it, edit it, or keep it.
