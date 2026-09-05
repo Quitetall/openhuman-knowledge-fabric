@@ -92,14 +92,14 @@ describe('the release ships every runtime input the API unit names', () => {
     const unit = readFileSync(join(ROOT, 'deploy', 'systemd', 'kf-api.service'), 'utf8');
     const recipe = readFileSync(join(ROOT, 'scripts', 'deploy', 'build-release.sh'), 'utf8');
     const referenced = new Set(
-      [...unit.matchAll(/\/opt\/kf\/generated\/([a-z0-9_-]+)\//g)].map((m) => m[1]!),
+      [...unit.matchAll(/\/opt\/kf\/generated\/([A-Za-z0-9_-]+)\//g)].map((m) => m[1]!),
     );
     expect(
       referenced.size,
       'the API unit names no generated/ artifact at all, so this test checks nothing',
     ).toBeGreaterThan(0);
     const shipped = new Set(
-      [...recipe.matchAll(/^cp -a generated\/([a-z0-9_-]+) /gm)].map((m) => m[1]!),
+      [...recipe.matchAll(/^cp -a generated\/([A-Za-z0-9_-]+) /gm)].map((m) => m[1]!),
     );
     const missing = [...referenced].filter((dir) => !shipped.has(dir)).sort();
     expect(
