@@ -75,6 +75,42 @@ describe('the release recipe produces a self-contained tree', () => {
   });
 });
 
+describe('the release ships every runtime input the API unit names', () => {
+  /**
+   * From the first time a release ran on a host, 2026-09-05. The API refused to start with
+   * ENOENT on `generated/projections/knowledge-fabric.projections.json`, and the tree did not
+   * contain that file at ANY path: `build-release.sh` copied `generated/sql-registry` and
+   * nothing else under `generated/`. It had been that way since ADR 0014 added projections,
+   * because the only thing that had ever started a release tree was a host, and there had
+   * never been one.
+   *
+   * The rule this pins: every `/opt/kf/generated/<dir>/...` path the API unit references must
+   * correspond to a `cp -a generated/<dir>` line in the recipe. Static, so it runs in CI,
+   * which is where this should have failed.
+   */
+  it('copies every generated/ directory the API unit depends on', () => {
+    const unit = readFileSync(join(ROOT, 'deploy', 'systemd', 'kf-api.service'), 'utf8');
+    const recipe = readFileSync(join(ROOT, 'scripts', 'deploy', 'build-release.sh'), 'utf8');
+    const referenced = new Set(
+      [...unit.matchAll(/\/opt\/kf\/generated\/([a-z0-9_-]+)\//g)].map((m) => m[1]!),
+    );
+    expect(
+      referenced.size,
+      'the API unit names no generated/ artifact at all, so this test checks nothing',
+    ).toBeGreaterThan(0);
+    const shipped = new Set(
+      [...recipe.matchAll(/^cp -a generated\/([a-z0-9_-]+) /gm)].map((m) => m[1]!),
+    );
+    const missing = [...referenced].filter((dir) => !shipped.has(dir)).sort();
+    expect(
+      missing,
+      `the API unit needs generated/${missing.join(', generated/')} at runtime and ` +
+        'build-release.sh does not copy it into the release. The tree will unpack cleanly, ' +
+        'verify against its manifest, and then the API will die at startup on ENOENT.',
+    ).toEqual([]);
+  });
+});
+
 describe('the release verifier names what it refuses', () => {
   /** Minimal release tree the verifier will walk, with one deliberately escaping symlink. */
   function releaseWithEscape(): string {

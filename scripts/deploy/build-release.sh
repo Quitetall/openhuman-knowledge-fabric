@@ -70,6 +70,11 @@ cp -a docs/operating-model docs/backup-and-restore docs/deployment "$release_roo
 cp -a database "$release_root/"
 install -d "$release_root/generated"
 cp -a generated/sql-registry "$release_root/generated/"
+# The API refuses to start without the compiled projection definitions (ADR 0014). This line was
+# missing until 2026-09-05, when the release ran on a host for the first time and died with
+# ENOENT on a file the tree did not contain at any path. `generated/` has held more than the SQL
+# seed since ADR 0014 landed, and nothing noticed because nothing had ever started this tree.
+cp -a generated/projections "$release_root/generated/"
 
 # Package the already-installed, architecture-matched native dbmate binary. The target never
 # resolves this tool from a registry or PATH.

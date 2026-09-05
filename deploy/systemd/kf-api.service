@@ -14,7 +14,8 @@ EnvironmentFile=/etc/kf/api.env
 ExecStartPre=/usr/bin/test -s /etc/kf/api/database-url
 ExecStartPre=/usr/bin/test -s /etc/kf/api/s3-secret-access-key
 # Command-local values cannot be weakened by a value accidentally left in api.env.
-ExecStart=/usr/bin/env NODE_ENV=production KF_DEPLOYMENT_PROFILE=dogfood KF_TLS_TERMINATED_UPSTREAM=1 DATABASE_URL_FILE=/etc/kf/api/database-url S3_SECRET_ACCESS_KEY_FILE=/etc/kf/api/s3-secret-access-key HOST=127.0.0.1 PORT=4000 /usr/bin/node /opt/kf/apps/api/dist/server.js
+ExecStartPre=/usr/bin/test -s /opt/kf/generated/projections/knowledge-fabric.projections.json
+ExecStart=/usr/bin/env NODE_ENV=production KF_DEPLOYMENT_PROFILE=dogfood KF_TLS_TERMINATED_UPSTREAM=1 DATABASE_URL_FILE=/etc/kf/api/database-url S3_SECRET_ACCESS_KEY_FILE=/etc/kf/api/s3-secret-access-key KF_PROJECTIONS_ARTIFACT=/opt/kf/generated/projections/knowledge-fabric.projections.json HOST=127.0.0.1 PORT=4000 /usr/bin/node /opt/kf/apps/api/dist/server.js
 Restart=on-failure
 RestartSec=5s
 TimeoutStopSec=30s
