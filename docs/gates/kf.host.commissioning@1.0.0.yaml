@@ -39,15 +39,11 @@ fault_model: ["tls-termination-absent-or-expiring", "identity-provider-policy-dr
 known_blind_spots: ["Cannot distinguish a host that is independent hardware from a virtual machine on the build workstation. Every check can pass on a VM whose failure domain is shared with the builder.", "Cannot evidence that a PERSON received an alert. It verifies the dispatch path exists and is configured; delivery to a human is unobservable from here (SAS §93.3).", "Cannot evidence a real identity provider in a real browser. The automated proof uses a controlled OIDC fixture, which is a regression test and not evidence about a production provider.", "Cannot verify firewall rules, which are host state no check in this repository reads.", "Reports on the host it runs on. Running it from the workstation against a remote host would report the workstation's posture, which is exactly the confusion the deployment contract warns about."]
 
 # ---------------------------------------------------------------------------
-# §43.4 qualification.
+# One note that survives qualification, because it is a different claim:
 #
-# NOT YET QUALIFIED, and the digest is empty rather than fabricated. A gate is qualified by
-# planting each declared fault and recording whether it was detected; that battery does not exist
-# for this gate. Until it does, a PASS from this gate is a report, not a qualification.
-#
-# `unverifiable` failing exactly as `unsatisfied` does is a strong property and is not the same
-# thing as qualification: it says the program refuses to guess, not that its checks detect what
-# they claim.
+# `unverifiable` failing exactly as `unsatisfied` does is a strong property of this program and
+# is NOT what qualifies it. It says the program refuses to guess. Qualification says its checks
+# detect what they claim, and only the battery below shows that.
 # ---------------------------------------------------------------------------
 # §43.4 qualification.
 #
