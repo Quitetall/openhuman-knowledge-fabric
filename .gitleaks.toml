@@ -63,6 +63,22 @@ regexTarget = "match"
 
 [[allowlists]]
 description = """
+Idempotency keys in a Warrant journal. `war new` writes a §66.3 journal event whose
+`idempotency_key` is a SHA-256 over the event's own content — a deduplication identifier derived
+from data already in the file, and the one thing in it that cannot be a credential, because
+nothing chose it. The generic-api-key rule reaches for it on the word "key" plus 64 hex
+characters of entropy, which is the shape of every content digest ever written.
+
+Scoped to the snake_case JSON assignment and to exactly 64 hex characters, so a real key assigned
+to a field of the same name is still reported, and so is a shorter or longer value. NOT scoped by
+path: a `paths` key on a top-level allowlist switches the scanner off for every file it matches,
+which the note at the head of this file records as measured rather than assumed.
+"""
+regexes = ['''idempotency_key":"[0-9a-f]{64}"''']
+regexTarget = "match"
+
+[[allowlists]]
+description = """
 The fake PEM in the secret-file permission tests. Pinned to a body of exactly one character, which
 no real key has — a real PEM body is hundreds of base64 characters, so pasting one here still
 fails the scan.
