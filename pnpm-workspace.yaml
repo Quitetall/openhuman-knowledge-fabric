@@ -72,4 +72,9 @@ overrides:
   # js-yaml <4.3.2 does not bound CPU on merge keys. Reachable only transitively, through
   # graphile-worker > cosmiconfig, and the patch is a point release inside cosmiconfig's own
   # range — the override just stops us waiting for cosmiconfig to bump its lockfile.
-  'js-yaml@>=4.0.0 <4.3.2': '>=4.3.2'
+  #
+  # `^4.3.2`, NOT `>=4.3.2`. The unbounded form resolved to js-yaml 5.4.1 on the first attempt:
+  # a major jump, ESM-only, with `safeLoad` removed, pulled in to fix a point-release advisory.
+  # cosmiconfig declares `^4.1.0` and the suite stayed green, which means only that nothing in
+  # it parses YAML through that path — not that the jump was safe.
+  'js-yaml@>=4.0.0 <4.3.2': '^4.3.2'
