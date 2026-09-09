@@ -1,0 +1,61 @@
+schema: "oh.war/milestones/v1"
+
+# Ordered by dependency, not by convenience. M5 is reached only after a reboot, because a
+# service that works in the install shell is not deployed.
+
+milestones:
+  - id: "M1"
+    title: "Bytes survive a device failure: a second store on independent hardware, replicating and verifying on a timer"
+    stage_refs: ["STAGE-001", "STAGE-002"]
+
+  - id: "M2"
+    title: "Every shipped unit and timer runs on the host under its own unprivileged account"
+    stage_refs: ["STAGE-003"]
+
+  - id: "M3"
+    title: "The audit chain is checkpointed by a process the API cannot reach the key of, evidenced on the host"
+    stage_refs: ["STAGE-004"]
+
+  - id: "M4"
+    title: "A backup is verified where it landed, and a restore is proven with the shipped scripts"
+    stage_refs: ["STAGE-005"]
+
+  - id: "M5"
+    title: "kf-commissioning exits zero with nothing unverifiable, after a reboot"
+    stage_refs: ["STAGE-006", "STAGE-007"]
+
+stages:
+  - id: "STAGE-001"
+    title: "Declare the durable store on /mnt/2tb and give the host a path to it"
+    executor_kind: "service"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-002"
+    title: "Schedule replication and verification as recorded acts, and prove a copy verifies"
+    executor_kind: "service"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-003"
+    title: "Install worker, backup, offsite, restore-drill, readiness and alert units with their timers"
+    executor_kind: "service"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-004"
+    title: "Run the checkpoint signer and prove the API service account cannot read its key"
+    executor_kind: "service"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-005"
+    title: "Take a backup, verify it at its destination, restore it into a scratch database"
+    executor_kind: "service"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-006"
+    title: "Reboot the host and re-run preflight from a cold start"
+    executor_kind: "service"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-007"
+    title: "Run kf-commissioning to zero, capture its JSON, and enumerate what no check covers"
+    executor_kind: "human"
+    responsibility_tier: "T2"

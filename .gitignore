@@ -50,3 +50,7 @@ coverage/
 
 .DS_Store
 *.log
+
+# Gate-run receipts are local scratch; the README explains why (docs/receipts/README.md).
+docs/receipts/*
+!docs/receipts/README.md

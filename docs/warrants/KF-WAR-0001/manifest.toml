@@ -1,0 +1,107 @@
+# A Warrant is the contract for ONE bounded intervention inside a program,
+# and it traces to that program's SAS through [[implements]] and [[roadmap]].
+# Starting a program? Write its SAS instead (SAS §6.10; docs/DEFINITIONS.md).
+schema = "oh.war/manifest/v1"
+uuid = "01a084e1-5936-7bc3-bb49-777cdd4bb598"
+local_alias = "KF-WAR-0001"
+
+# Allocated only by Knowledge Fabric (SAS §12.4). Leave empty.
+enterprise_id = ""
+
+title = "Commission the dogfood host: KF serves records from a machine that is not the workstation"
+profile = "delivery"
+assurance_level = "controlled"
+
+# Phase 9's exit. Every requirement below is an OPERATIONS requirement (SAS §106) that only a
+# host can evidence — which is why they all read `unaddressed` until this Warrant resolves.
+[[roadmap]]
+ref = "roadmap://KF-PHASE-9/exit"
+
+# Probed on this host, on a near-empty Debian image rather than one whose defaults hide a
+# dependency. That is the whole method §85 records.
+[[implements]]
+ref = "sas://KF-SAS-RQ-161"
+contribution = "complete"
+
+# The release is built in a disposable worktree, sealed, verified on transfer, verified again
+# in place, and switched atomically with the previous release retained.
+[[implements]]
+ref = "sas://KF-SAS-RQ-162"
+contribution = "complete"
+
+[[implements]]
+ref = "sas://KF-SAS-RQ-163"
+contribution = "complete"
+
+# Partial: the timer can be installed here; a PERSON RECEIVING an alert cannot be produced by
+# this repository at all, and that half stays open until somebody confirms receipt.
+[[implements]]
+ref = "sas://KF-SAS-RQ-164"
+contribution = "partial"
+
+[[implements]]
+ref = "sas://KF-SAS-RQ-165"
+contribution = "partial"
+
+[[implements]]
+ref = "sas://KF-SAS-RQ-167"
+contribution = "complete"
+
+# This Warrant IS the host evidence the requirement demands, and the reason it exists.
+[[implements]]
+ref = "sas://KF-SAS-RQ-168"
+contribution = "complete"
+
+[[implements]]
+ref = "sas://KF-SAS-RQ-169"
+contribution = "complete"
+
+[[implements]]
+ref = "sas://KF-SAS-RQ-171"
+contribution = "validation"
+
+# Storage: a second store on a different physical device, with replication and verification
+# running as recorded acts on a timer rather than by hand.
+[[implements]]
+ref = "sas://KF-SAS-RQ-095"
+contribution = "complete"
+
+[[implements]]
+ref = "sas://KF-SAS-RQ-097"
+contribution = "complete"
+
+# A real realm on a real issuer, with the fixed-identity path unreachable from it.
+[[implements]]
+ref = "sas://KF-SAS-RQ-049"
+contribution = "complete"
+
+[[atoms]]
+ordinal = 10
+role = "intent"
+path = "atoms/10-intent.md"
+required = true
+
+[[atoms]]
+ordinal = 20
+role = "basis"
+path = "atoms/20-basis.md"
+required = true
+
+[[atoms]]
+ordinal = 40
+role = "work_order"
+path = "atoms/40-work-order.md"
+required = true
+
+[[atoms]]
+ordinal = 45
+role = "milestones"
+path = "atoms/45-milestones.yaml"
+required = true
+
+[[atoms]]
+ordinal = 60
+role = "assurance"
+path = "atoms/60-assurance.md"
+required = true
+

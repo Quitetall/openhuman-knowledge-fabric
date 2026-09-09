@@ -1,0 +1,94 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# A Gate Definition (OpenWarrant SAS §43.2), and the FIRST one in this repository.
+#
+# `provenance: local_candidate` because §43.1 gives the authoritative registry to a commissioned
+# Knowledge Fabric, and this one is not commissioned yet — SAS §43.1 gives the Knowledge Fabric the authoritative gate
+# registry, and this IS the Knowledge Fabric — but a registry the Fabric has not yet been
+# commissioned to serve is not authoritative just because of where it lives. It becomes an
+# institutional gate when the host this gate qualifies is itself commissioned, which is the
+# circularity KF-WAR-0001 exists to break.
+
+gate_id: "kf.host.commissioning"
+version: "1.0.0"
+lifecycle: "qualified"
+implementation_ref: "artifact://kf-operations/kf-commissioning"
+output_schema_ref: "schema://kf-commissioning-report/v1"
+provenance: "local_candidate"
+input_kinds: ["deployed-host"]
+
+# §44.7 — an argument vector, not a shell string. --json because a gate's output is a record,
+# and a human-readable table is a rendering of one.
+argv: ["/usr/bin/node", "/opt/kf/packages/operations/dist/commissioning-cli.js", "--json"]
+
+# §44.8 — this reads the host. It changes nothing, which is why it can run on a live one.
+mutating: "false"
+
+# Certificate reads, filesystem probes and a release-tree verification. 300s leaves room for a
+# release tree far larger than today's.
+timeout_secs: "300"
+
+# What this gate claims to detect. Every entry corresponds to a check the program implements.
+fault_model: ["tls-termination-absent-or-expiring", "identity-provider-policy-drift", "reverse-proxy-posture-wrong", "unit-provenance-mismatch", "secret-posture-world-readable", "liminal-runtime-inventory-incomplete", "evidence-receipts-missing-or-stale", "runtime-version-mismatch"]
+
+# §43.2. Stating these is what keeps the fault model honest rather than aspirational.
+#
+# The first is the one that matters most and is the reason this gate cannot, by itself, close
+# Phase 9: it reports on a host, and it cannot tell whether that host is a virtual machine on the
+# workstation that built the software.
+known_blind_spots: ["Cannot distinguish a host that is independent hardware from a virtual machine on the build workstation. Every check can pass on a VM whose failure domain is shared with the builder.", "Cannot evidence that a PERSON received an alert. It verifies the dispatch path exists and is configured; delivery to a human is unobservable from here (SAS §93.3).", "Cannot evidence a real identity provider in a real browser. The automated proof uses a controlled OIDC fixture, which is a regression test and not evidence about a production provider.", "Cannot verify firewall rules, which are host state no check in this repository reads.", "Reports on the host it runs on. Running it from the workstation against a remote host would report the workstation's posture, which is exactly the confusion the deployment contract warns about."]
+
+# ---------------------------------------------------------------------------
+# §43.4 qualification.
+#
+# NOT YET QUALIFIED, and the digest is empty rather than fabricated. A gate is qualified by
+# planting each declared fault and recording whether it was detected; that battery does not exist
+# for this gate. Until it does, a PASS from this gate is a report, not a qualification.
+#
+# `unverifiable` failing exactly as `unsatisfied` does is a strong property and is not the same
+# thing as qualification: it says the program refuses to guess, not that its checks detect what
+# they claim.
+# ---------------------------------------------------------------------------
+# §43.4 qualification.
+#
+# The battery already existed and was not written for this gate: `commissioning.test.ts` plants a
+# specific host defect per check and asserts the program reports it. Qualifying the gate was
+# therefore a matter of reading what the tests already prove, not of writing new ones — which is
+# the correct order, since a battery written to make a gate qualify is a battery written by the
+# thing it is qualifying.
+#
+# `qualification_digest` is empty for the same reason the parent project's is: the qualifier is a
+# test file under version control, and its identity is its commit, not a hash pasted here that
+# nothing recomputes. The digest of the battery at qualification time is recorded in the note.
+qualification_qualifier: "packages/operations/src/commissioning.test.ts, 41 cases, run by pnpm gate and by CI"
+qualification_digest: ""
+qualification_positive_controls: ["A planted host defect per declared fault class: an installed unit differing from the shipped one; the API and the checkpoint signer sharing one identity; a secret readable beyond its owner; a certificate issued for a different hostname; a TLS key readable beyond its owner; an issuer reached over plaintext; a realm policy changed after review; a runtime other than the tested one; receipts describing a release the host is not running."]
+qualification_negative_controls: ["'satisfies every check that can be satisfied without root' — a known-good fixture the gate must ACCEPT. Without it a gate that fails everything would qualify identically to one that works.", "'reports every check unverifiable rather than passing on absent evidence' — the fail-closed control: absence must not read as satisfaction."]
+qualification_mutation_classes: ["substitution (hostname in a certificate, reviewed policy digest, runtime version, release id in a receipt)", "permission widening (secret world-readable, TLS key group-readable, group holding an identity the unit does not name)", "identity collapse (two units sharing one system account)", "downgrade (issuer over plaintext instead of TLS)", "staleness (a rollback rehearsal too old to describe this system)", "omission (a missing receipt, which must read unverifiable rather than satisfied)"]
+qualification_environments: ["linux-x86_64, Node 24.18.1, vitest, run by pnpm gate", "ubuntu-latest via .github/workflows/ci.yml, same Node"]
+qualification_limitations: ["Plants are single-fault. A host with two interacting defects is not covered.", "The battery runs against FIXTURES, not a live host. It shows the program's checks fire on the states it is given; it does not show that a real host presents those states faithfully.", "Qualification shows the gate detects these mutations. It does not show the mutation set is complete, and the blind spots above are the known holes rather than the only ones.", "The battery digest at qualification was sha256:cfae20003502d4e7631cb989d1c8040cd8f0386132276f3be67b441b5cf8ea05. A later edit to the battery does not re-qualify the gate."]
+detection_results:
+  - fault_class: "tls-termination-absent-or-expiring"
+    mutation: "certificate issued for a different hostname; TLS private key readable beyond its owner"
+    detected: "true"
+  - fault_class: "identity-provider-policy-drift"
+    mutation: "realm policy changed after it was reviewed; issuer reached over plaintext"
+    detected: "true"
+  - fault_class: "reverse-proxy-posture-wrong"
+    mutation: "no installed reverse-proxy configuration supplied, so upstream TLS stays an unchecked assertion"
+    detected: "true"
+  - fault_class: "unit-provenance-mismatch"
+    mutation: "an installed unit differing from the one this release ships"
+    detected: "true"
+  - fault_class: "secret-posture-world-readable"
+    mutation: "a secret file the rest of the host can read; group-read by a group holding an identity the unit does not name"
+    detected: "true"
+  - fault_class: "liminal-runtime-inventory-incomplete"
+    mutation: "a compiler qualification recorded but never ratified"
+    detected: "true"
+  - fault_class: "evidence-receipts-missing-or-stale"
+    mutation: "receipts describing a release the host is not running; a rollback rehearsal too old to describe this system; a missing receipt"
+    detected: "true"
+  - fault_class: "runtime-version-mismatch"
+    mutation: "a runtime other than the one the release was tested on"
+    detected: "true"
