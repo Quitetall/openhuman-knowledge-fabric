@@ -13,7 +13,8 @@
     "start": "node dist/server.js",
     "dogfood": "node dist/dogfood.js",
     "build": "tsc --build",
-    "clean": "rm -rf dist *.tsbuildinfo"
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "bootstrap-organization": "node dist/bootstrap-organization.js"
   },
   "dependencies": {
     "@kf/actions": "workspace:*",

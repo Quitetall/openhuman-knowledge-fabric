@@ -44,14 +44,59 @@ function ownedActionIds(): ReadonlySet<string> {
   return new Set([...fabricDispatcherOptions().allowedActions, ...DOCUMENT_ACTION_IDS]);
 }
 
+/**
+ * Declared so the act can be RECORDED, owned by no dispatcher group on purpose.
+ *
+ * The rule below exists so a declared action is not a dead end for a caller: asking for one that
+ * nothing owns gets a refusal that reads like the caller's mistake. A bootstrap act has no
+ * caller. It cannot reach the dispatcher by construction — that is the whole reason it exists —
+ * so the rationale does not reach it, and treating it as an orphan would be treating a
+ * distinction as a defect.
+ *
+ * `core.action.action_type` is a foreign key into the ontology, so the alternative to declaring
+ * these is not recording them at all, which is what `bootstrapIdentity` did while
+ * KF-SAS-RQ-062 claimed otherwise.
+ *
+ * An exemption on its own would be a hole, so the test below it asserts the dispatcher REFUSES
+ * every id in this set. Both halves or neither.
+ */
+const BOOTSTRAP_TIER: readonly string[] = ['bootstrap_organization'];
+
 describe('the ontology and the dispatcher agree on what an action is', () => {
   it('declares no action that nothing can perform', () => {
     const owned = ownedActionIds();
-    const orphaned = declaredActionIds().filter((id) => !owned.has(id));
+    const orphaned = declaredActionIds().filter(
+      (id) => !owned.has(id) && !BOOTSTRAP_TIER.includes(id),
+    );
     expect(
       orphaned,
       'these action types are declared, documented and schema-valid, and no group owns them, ' +
         'so a caller asking for one gets refused for a reason that reads like their mistake',
+    ).toEqual([]);
+  });
+
+  it('refuses every bootstrap-tier action, so the exemption above is not a hole', () => {
+    const owned = ownedActionIds();
+    expect(
+      BOOTSTRAP_TIER.length,
+      'the bootstrap tier is empty, so this test asserts nothing',
+    ).toBeGreaterThan(0);
+    const dispatchable = BOOTSTRAP_TIER.filter((id) => owned.has(id));
+    expect(
+      dispatchable,
+      'a bootstrap-tier action is exempt from ownership AND owned by a dispatcher group. It is ' +
+        'reachable by a caller, which is exactly what the exemption promised it was not.',
+    ).toEqual([]);
+  });
+
+  it('declares every bootstrap-tier action, so none is recorded under a type nothing defines', () => {
+    const declared = new Set(declaredActionIds());
+    const undeclared = BOOTSTRAP_TIER.filter((id) => !declared.has(id));
+    expect(
+      undeclared,
+      'a bootstrap-tier action is exempt from ownership but not declared in the ontology. ' +
+        '`core.action.action_type` is a foreign key, so recording it would be refused and the ' +
+        'act would go unattributed.',
     ).toEqual([]);
   });
 

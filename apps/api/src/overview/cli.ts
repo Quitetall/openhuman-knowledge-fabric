@@ -8,11 +8,47 @@
  */
 
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { collectOverview } from './collect.js';
 import { renderOverview } from './render.js';
 
 export const DEFAULT_OUT = 'docs/generated/overview.html';
+
+/**
+ * The repository this command operates on.
+ *
+ * NOT `process.cwd()`, which was the first version and was wrong the moment the command left the
+ * repository directory: run from anywhere else it would read no specification and write into
+ * whatever tree the shell happened to be in. A command installed on PATH is a command that will
+ * be run from somewhere else.
+ *
+ * `KF_ROOT` wins when set, so the wrapper installed on PATH can name its own checkout. Otherwise
+ * walk up from the working directory looking for the specification itself — the file this
+ * command exists to project — rather than for a marker that could belong to any repository.
+ */
+export function findRoot(start: string, env: NodeJS.ProcessEnv = process.env): string {
+  const declared = env['KF_ROOT'];
+  if (declared !== undefined && declared !== '') {
+    if (!existsSync(join(declared, SPEC))) {
+      throw new Error(`KF_ROOT is ${declared}, which holds no ${SPEC}`);
+    }
+    return declared;
+  }
+  let dir = resolve(start);
+  for (;;) {
+    if (existsSync(join(dir, SPEC))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) {
+      throw new Error(
+        `no Knowledge Fabric checkout found at or above ${start}: none of them holds ${SPEC}. ` +
+          'Run this inside the repository, or set KF_ROOT to it.',
+      );
+    }
+    dir = parent;
+  }
+}
+
+const SPEC = 'docs/sas/KF_Software_Architecture_Specification.md';
 
 export function overviewUsage(): string {
   return [

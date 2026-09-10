@@ -52,6 +52,15 @@ const KNOWN_DRIFT = new Map<string, string>([
       're-cut and fresh human approval are required before release.',
   ],
   [
+    'knowledge-fabric-1.0.0-draft.4',
+    'Signed 2026-09-03. The bootstrap tier (SAS §33) added `bootstrap_organization` to the ' +
+      'ontology on 2026-09-10, because `core.action.action_type` is a foreign key and an act ' +
+      'of an undeclared type cannot be recorded — which is how an organization and its first ' +
+      'person had been created with no act and no audit entry while KF-SAS-RQ-062 claimed ' +
+      'otherwise. The approval remains a historical snapshot of draft.4 as cut; a re-cut and a ' +
+      'fresh signature are owed.',
+  ],
+  [
     'knowledge-fabric-1.0.0-draft.3',
     'Cut at 917d9b6d and signed 2026-09-03, but ADR 0016 (`requires: act` — the ' +
       'requires_capability column on 43 action types, f89fbf6f) and ADR 0020 (service actors, ' +

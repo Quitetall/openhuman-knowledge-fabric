@@ -3,7 +3,7 @@
   "info": {
     "title": "OpenHuman Knowledge Fabric API",
     "version": "1.2.0-draft.1",
-    "description": "Generated from ontology source digest 0d3dd10bb5f1a04f7e4cf40dc8b85938551d5bf441f1131d4875793dede0577e."
+    "description": "Generated from ontology source digest 6085670eb182be69ab185d3b2f41122718468ca70d07d9ce25ea78ffa5ca18c8."
   },
   "paths": {
     "/objects/organization/{id}": {
@@ -3072,6 +3072,36 @@
         }
       }
     },
+    "/actions/bootstrap_organization": {
+      "post": {
+        "summary": "Execute bootstrap_organization",
+        "operationId": "bootstrap_organization",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
     "/actions/grant_person_clearance": {
       "post": {
         "summary": "Execute grant_person_clearance",
@@ -5976,6 +6006,7 @@
               "record_document_proposal",
               "apply_document_proposal",
               "release_person_entitlement_exclusion",
+              "bootstrap_organization",
               "grant_person_clearance",
               "grant_access",
               "revoke_access",

@@ -294,6 +294,26 @@ action_types:
   # `apps/api/src/admin/grant-authority.ts` — which records this same action type, extends the
   # audit chain through the same helper, and writes the row through the same
   # `insertPersonClearance` the effect uses.
+  # BOOTSTRAP TIER (SAS §33, KF-SAS-RQ-062). Declared so the act can be RECORDED, and owned by
+  # no dispatcher group on purpose.
+  #
+  # The dispatcher binds authoritative clearance before it applies anything, so the first
+  # clearance in an organization cannot pass through it — there is no clearance yet to bind. The
+  # organization and the person it is granted to have that problem one step earlier. Something
+  # has to write them directly.
+  #
+  # Before this existed, that write recorded NOTHING: `bootstrapIdentity` created an organization
+  # and a person with no act row and no audit entry, and KF-SAS-RQ-062 claimed the opposite.
+  # `core.action.action_type` is a foreign key into this file, so an act of an undeclared type is
+  # refused — which is why the honest fix is to declare it rather than to skip recording it.
+  #
+  # `tests/conformance/action-coverage.test.ts` exempts this id from dispatcher ownership AND
+  # asserts the dispatcher refuses it. The exemption without that second half would be a hole.
+  - id: bootstrap_organization
+    audited: true
+    transactional: true
+    drives: []
+
   - id: grant_person_clearance
     audited: true
     transactional: true

@@ -253,6 +253,10 @@ const DECLARED_ADDITIONS = {
     'authorize_warrant_amendment',
     'authorize_warrant_contract',
     'authorize_warrant_dispatch',
+    // Bootstrap tier (SAS §33). Declared so the act can be RECORDED — `core.action.action_type`
+    // is a foreign key into the ontology — and owned by no dispatcher group, which
+    // `action-coverage.test.ts` exempts by name and then asserts is actually unreachable.
+    'bootstrap_organization',
     'change_document_source_holder',
     'check_capa_effectiveness',
     'close_capa',
