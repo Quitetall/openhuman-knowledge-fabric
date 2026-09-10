@@ -15,6 +15,7 @@
  * detectable at all.
  */
 
+import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -37,7 +38,16 @@ export interface OverviewFacts {
   readonly digest: string;
   readonly acceptedAt: string;
   readonly acceptedBy: string;
-  readonly commit: string;
+  /**
+   * A digest over the files this page is a projection OF — the specification and every Warrant
+   * manifest — and not over the page or the commit containing it.
+   *
+   * The commit was the obvious identity and is the wrong one: committing the page moves HEAD, so
+   * a page carrying its own commit is stale the moment it lands, and the drift check fails on
+   * every commit forever. §77 records the same shape one level up — a manifest cannot contain
+   * its own digest, so verifying it is a separate act.
+   */
+  readonly sourceDigest: string;
   readonly requirementTotal: number;
   readonly requirementClaimed: number;
   readonly groups: readonly RequirementGroup[];
@@ -113,7 +123,7 @@ function phasesWithExit(root: string): ReadonlySet<number> {
   return named;
 }
 
-export function collectOverview(root: string, commit: string): OverviewFacts {
+export function collectOverview(root: string): OverviewFacts {
   const sas = readFileSync(
     join(root, 'docs', 'sas', 'KF_Software_Architecture_Specification.md'),
     'utf8',
@@ -161,6 +171,18 @@ export function collectOverview(root: string, commit: string): OverviewFacts {
   }
 
   const { revision, digest, acceptedAt, acceptedBy } = revisionFacts(root);
+
+  // Inputs in a fixed order, each length-prefixed so two files cannot be confused for one.
+  const hash = createHash('sha256').update('kf-overview-v1');
+  hash.update(sas);
+  for (const alias of existsSync(join(root, 'docs', 'warrants'))
+    ? readdirSync(join(root, 'docs', 'warrants')).sort()
+    : []) {
+    const manifest = join(root, 'docs', 'warrants', alias, 'manifest.toml');
+    if (!existsSync(manifest)) continue;
+    hash.update(`\u0000${alias}\u0000`);
+    hash.update(readFileSync(manifest));
+  }
   const total = groups.reduce((n, g) => n + g.total, 0);
 
   return {
@@ -168,7 +190,7 @@ export function collectOverview(root: string, commit: string): OverviewFacts {
     digest,
     acceptedAt,
     acceptedBy,
-    commit,
+    sourceDigest: hash.digest('hex'),
     requirementTotal: total,
     requirementClaimed: groups.reduce((n, g) => n + g.claimed, 0),
     groups,

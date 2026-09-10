@@ -7,7 +7,6 @@
  * about.
  */
 
-import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { collectOverview } from './collect.js';
@@ -27,17 +26,6 @@ export function overviewUsage(): string {
     'projection that reads live state cannot be regenerated from a clone and compared, and',
     'comparison is what makes drift detectable.',
   ].join('\n');
-}
-
-/** The commit this tree is at, or `unknown` outside a repository. */
-function headCommit(root: string): string {
-  try {
-    return execFileSync('git', ['-C', root, 'rev-parse', '--short=8', 'HEAD'], {
-      encoding: 'utf8',
-    }).trim();
-  } catch {
-    return 'unknown';
-  }
 }
 
 export interface OverviewArgs {
@@ -88,7 +76,7 @@ export function runOverviewCommand(
     return 2;
   }
 
-  const html = renderOverview(collectOverview(root, headCommit(root)));
+  const html = renderOverview(collectOverview(root));
   const path = resolve(root, args.out);
 
   if (args.check) {
