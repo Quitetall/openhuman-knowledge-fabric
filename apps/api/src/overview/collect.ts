@@ -132,7 +132,19 @@ export function collectOverview(root: string): OverviewFacts {
   const withExit = phasesWithExit(root);
 
   // §106 is the requirements index: `### Group` headings, then `| ID | text |` rows.
+  //
+  // Fail closed on every parse below. A renamed heading, a stray `#`, an en dash where a hyphen
+  // was — any of those makes a regex match nothing, and the page would then render `0 / 0`
+  // requirements and no gaps: a plausible empty state nobody investigates. This tool exists to
+  // catch the specification drifting; silently reporting zero when it cannot read the
+  // specification is the exact failure it was built to prevent.
   const index = sas.split('## 106.')[1] ?? '';
+  if (index === '') {
+    throw new Error(
+      'the specification has no `## 106.` requirements index. Either the heading was renamed ' +
+        'or the file is not the specification; either way this page cannot be generated.',
+    );
+  }
   const groups: RequirementGroup[] = [];
   let current: { title: string; ids: string[] } | undefined;
   for (const line of index.split('\n')) {
@@ -164,13 +176,28 @@ export function collectOverview(root: string): OverviewFacts {
     const number = Number(m[1]);
     phases.push({ number, title: m[2]!.trim(), hasExitWarrant: withExit.has(number) });
   }
+  if (phases.length === 0) {
+    throw new Error(
+      'no `### Phase N — Title` headings found in §98. The em dash in that heading is load ' +
+        'bearing and a hyphen will not match.',
+    );
+  }
 
   const gaps: { id: string; text: string }[] = [];
   for (const m of sas.matchAll(/^\*\*(100\.\d+) ([^*]+?)\*\*/gm)) {
     gaps.push({ id: m[1]!, text: m[2]!.trim().replace(/\s+/g, ' ') });
   }
+  if (gaps.length === 0) {
+    throw new Error(
+      'no `**100.N …**` entries found in §100. A specification with no recorded gaps is not a ' +
+        'clean one, it is one this parser could not read.',
+    );
+  }
 
   const { revision, digest, acceptedAt, acceptedBy } = revisionFacts(root);
+  if (groups.length === 0) {
+    throw new Error('§106 parsed no requirement groups; the index shape changed.');
+  }
 
   // Inputs in a fixed order, each length-prefixed so two files cannot be confused for one.
   const hash = createHash('sha256').update('kf-overview-v1');

@@ -57,7 +57,12 @@ describe('the committed control record still describes this tree', () => {
       .size;
     const phases = [...sas.matchAll(/^### Phase \d+ — /gm)].length;
     expect(requirements, 'no requirements parsed from §106').toBeGreaterThan(0);
-    expect(page).toContain(`&middot;/&thinsp;${String(requirements)}`.replace('&middot;/', '/'));
+    expect(phases, 'no phases parsed from §98').toBeGreaterThan(0);
+    // The page writes a ratio denominator as `&thinsp;/&thinsp;N`, hair spaces either side of
+    // the slash. Both counts share that shape, so one literal covers both.
+    expect(page, 'the requirement total on the page disagrees with §106').toContain(
+      `&thinsp;/&thinsp;${String(requirements)}`,
+    );
     expect(page, 'the phase count on the page disagrees with §98').toContain(
       `&thinsp;/&thinsp;${String(phases)}`,
     );
