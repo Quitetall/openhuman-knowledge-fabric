@@ -3,7 +3,7 @@
   "info": {
     "title": "OpenHuman Knowledge Fabric API",
     "version": "1.2.0-draft.1",
-    "description": "Generated from ontology source digest 6085670eb182be69ab185d3b2f41122718468ca70d07d9ce25ea78ffa5ca18c8."
+    "description": "Generated from ontology source digest 85e2af2cb7dcd6cc9f265bb9a88c3938b9757e71b4904f9fc39f60058fc5f270."
   },
   "paths": {
     "/objects/organization/{id}": {
@@ -3072,6 +3072,96 @@
         }
       }
     },
+    "/actions/deactivate_organization": {
+      "post": {
+        "summary": "Execute deactivate_organization",
+        "operationId": "deactivate_organization",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/reactivate_organization": {
+      "post": {
+        "summary": "Execute reactivate_organization",
+        "operationId": "reactivate_organization",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/retire_organization": {
+      "post": {
+        "summary": "Execute retire_organization",
+        "operationId": "retire_organization",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
     "/actions/bootstrap_organization": {
       "post": {
         "summary": "Execute bootstrap_organization",
@@ -6006,6 +6096,9 @@
               "record_document_proposal",
               "apply_document_proposal",
               "release_person_entitlement_exclusion",
+              "deactivate_organization",
+              "reactivate_organization",
+              "retire_organization",
               "bootstrap_organization",
               "grant_person_clearance",
               "grant_access",

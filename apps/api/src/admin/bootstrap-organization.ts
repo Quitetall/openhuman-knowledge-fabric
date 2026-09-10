@@ -259,10 +259,32 @@ export async function runBootstrap(
                $2, $1, $3, $4, $4)`,
       [organizationId, version, declaration.legalName, BOOTSTRAP_IDENTITY],
     );
-    await tx.query(
-      `insert into org.organization (id, legal_name, organization_kind) values ($1, $2, $3)`,
-      [organizationId, declaration.legalName, declaration.organizationKind],
-    );
+    try {
+      await tx.query(
+        `insert into org.organization (id, legal_name, organization_kind) values ($1, $2, $3)`,
+        [organizationId, declaration.legalName, declaration.organizationKind],
+      );
+    } catch (error: unknown) {
+      // `organization_active_legal_name_unique` is the last line against unbounded duplicates,
+      // and it should read as a decision rather than as a constraint name. The database is
+      // right; the caller deserves to know why.
+      const code =
+        typeof error === 'object' && error !== null && 'code' in error
+          ? String((error as { readonly code?: unknown }).code ?? '')
+          : '';
+      if (code === '23505') {
+        throw new Error(
+          `an active organization named "${declaration.legalName}" already exists. Two active ` +
+            'organizations claiming to be the same company make every record scoped to "that ' +
+            'company" ambiguous. Retire the existing one first, or pass --organization <uuid> ' +
+            'to add a person to it.',
+          // The constraint violation is kept as the cause: the message is for the operator,
+          // the original is for whoever has to work out why the constraint fired.
+          { cause: error },
+        );
+      }
+      throw error;
+    }
 
     const personId = await createControlledObject(tx, {
       objectType: 'person',

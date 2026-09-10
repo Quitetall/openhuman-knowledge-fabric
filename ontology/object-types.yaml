@@ -10,7 +10,8 @@ object_types:
     authority_domain: organization
     enterprise_namespace: null
     first_class: true
-    state_machine: null
+    # Was null through R01, which declared the states below and no transitions between them.
+    state_machine: organization
     states: [active, inactive, retired]
     fields:
       - { name: legal_name, type: string, required: true, min_length: 1 }

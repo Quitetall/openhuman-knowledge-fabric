@@ -309,6 +309,31 @@ action_types:
   #
   # `tests/conformance/action-coverage.test.ts` exempts this id from dispatcher ownership AND
   # asserts the dispatcher refuses it. The exemption without that second half would be a hole.
+  # Organization lifecycle (2026-09-10). R01 declared the states and no transitions, so an
+  # organization could be created and never retired — and with no uniqueness rule on legal name,
+  # that made unlimited permanent duplicates reachable without breaking any rule.
+  #
+  # All three require `act`: retiring an organization re-parents every record scoped to it in
+  # every reader's mind, and deactivating one changes what the institution says it is. Neither is
+  # a tidy-up.
+  - id: deactivate_organization
+    audited: true
+    transactional: true
+    drives: [organization]
+    requires: act
+
+  - id: reactivate_organization
+    audited: true
+    transactional: true
+    drives: [organization]
+    requires: act
+
+  - id: retire_organization
+    audited: true
+    transactional: true
+    drives: [organization]
+    requires: act
+
   - id: bootstrap_organization
     audited: true
     transactional: true

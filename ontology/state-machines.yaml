@@ -301,3 +301,29 @@ state_machines:
       - { from: ready, to: authorized, action: authorize_warrant_amendment }
       - { from: executing, to: authorized, action: authorize_warrant_amendment }
       - { from: verifying, to: authorized, action: authorize_warrant_amendment }
+
+  # ADDED 2026-09-10, and the first lifecycle given to a type R01 approved without one.
+  #
+  # R01 defined eight machines and `organization` was not among them, so an organization could be
+  # created and never retired. Combined with no uniqueness rule on legal name, that is a way to
+  # degrade a record permanently without breaking any rule: create the same company repeatedly
+  # and nothing can remove the duplicates. A bootstrap defect did it eight times by accident.
+  #
+  # The states are R01's OWN — it declared `active, inactive, retired` for this type and left
+  # `state_machine: null`, so the vocabulary was approved and only the transitions were missing.
+  # This adds the transitions and invents no state.
+  #
+  # `retired` rather than deleted, because Law 6 retires by sequester. The row stays, its acts
+  # stay, and the successor is named in the act that retired it — so "which company did this
+  # record belong to" keeps an answer after the merge, the rename or the mistake.
+  #
+  # `inactive` is reversible and `retired` is not: a dormant company can trade again, a company
+  # that was superseded or created in error should not silently come back.
+  - id: organization
+    initial: active
+    terminal: [retired]
+    transitions:
+      - { from: active, to: inactive, action: deactivate_organization }
+      - { from: inactive, to: active, action: reactivate_organization }
+      - { from: active, to: retired, action: retire_organization }
+      - { from: inactive, to: retired, action: retire_organization }

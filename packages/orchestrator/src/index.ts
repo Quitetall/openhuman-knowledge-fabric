@@ -23,6 +23,7 @@ import {
 } from '@kf/authorization';
 import type { Pool } from '@kf/database';
 import { StoreRegistry, createStorageActionAtoms, type StorageActionAtoms } from '@kf/artifacts';
+import { createOrganizationLifecycleAtoms } from '@kf/authorization';
 import type { DocumentActionAtoms } from '@kf/documents';
 import { IDENTIFIER_ACTION_IDS, IDENTIFIER_EFFECTS, IDENTIFIER_RECEIPTS } from '@kf/identifiers';
 import { WARRANT_ACTION_IDS, WARRANT_EFFECTS, WARRANT_MATERIALIZERS } from '@kf/warrants';
@@ -114,6 +115,11 @@ export function composeActionAtoms(
 }
 
 const BUILT_IN_ATOMS: readonly ActionAtoms[] = [
+  // The organization lifecycle (ADR: R01 approved the states and no transitions). Built in
+  // rather than injected: it needs no store, no key and no configuration, so a deployment that
+  // forgot to wire it would be a deployment where an organization cannot be retired — which is
+  // the state this group exists to end.
+  createOrganizationLifecycleAtoms(),
   {
     // Granting a clearance is dispatchable once SOMEBODY in the organization already holds one.
     // The first grant cannot be — dispatch binds authoritative clearance before effects — and is

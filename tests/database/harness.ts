@@ -333,10 +333,19 @@ export async function seedFixtures(
       [orgObj, orgObj],
     );
     await tx.query('select core.set_access_context($1, $2)', [orgObj, 'restricted']);
+    // The legal name carries the organization's own id.
+    //
+    // Every fixture organization used to be called 'OpenHuman Technologies LLC', which was
+    // harmless until `organization_active_legal_name_unique` arrived — and then a suite that
+    // deliberately creates two organizations to test cross-scope behaviour was creating two
+    // companies with one name, which is the thing the constraint exists to refuse. The fixture
+    // was wrong and the constraint is right: two active organizations claiming to be the same
+    // company make every record scoped to "that company" ambiguous, in a test as much as in a
+    // record.
     await tx.query(
       `insert into org.organization (id, legal_name, organization_kind)
-       values ($1, 'OpenHuman Technologies LLC', 'company')`,
-      [orgObj],
+       values ($1, $2, 'company')`,
+      [orgObj, `OpenHuman Technologies LLC (${orgObj})`],
     );
 
     const mkPerson = async (name: string): Promise<string> => {

@@ -30,7 +30,17 @@ if (!plan.ok) {
 
 const pool = createPool({ connectionString: ownerUrl });
 try {
-  const result = await runBootstrap(pool, plan.declaration!);
+  let result;
+  try {
+    result = await runBootstrap(pool, plan.declaration!);
+  } catch (error: unknown) {
+    // A refusal is a feature, and a refusal printed as a stack trace is not one. The message
+    // says what happened and what to do; the trace says where the throw was written.
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+    await pool.end();
+    process.exit(1);
+  }
   console.error(result.reused ? 'already present:' : 'created:');
   console.error(`  organization ${result.organizationId}`);
   console.error(`  person       ${result.personId}`);

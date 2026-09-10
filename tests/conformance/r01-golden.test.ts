@@ -266,6 +266,9 @@ const DECLARED_ADDITIONS = {
     'consume_secure_object_capability',
     'contain_nonconformity',
     'create_warrant_draft',
+    // Organization lifecycle (2026-09-10). R01 declared this type's states and left
+    // `state_machine: null`, so an organization could be created and never retired.
+    'deactivate_organization',
     'define_test',
     'deprecate_interface_contract',
     'deprecate_warrant',
@@ -307,6 +310,7 @@ const DECLARED_ADDITIONS = {
     'qualify_supplier',
     'quarantine_equipment',
     'raise_nonconformity',
+    'reactivate_organization',
     'receive_complaint',
     'record_document_proposal',
     'record_physical_binding',
@@ -357,6 +361,7 @@ const DECLARED_ADDITIONS = {
     'retire_authored_fragment',
     'retire_configuration_item',
     'retire_equipment',
+    'retire_organization',
     'retire_risk_control',
     'revise_authored_fragment',
     'revise_document_composition',
@@ -401,6 +406,24 @@ const DECLARED_INVARIANT_ADDITIONS = [
  *
  * Anything not on this list must be byte-identical.
  */
+/**
+ * Lifecycles added to types R01 approved WITHOUT one.
+ *
+ * Distinct from `DECLARED_ADDITIONS.node_types`, which covers a machine arriving with a new
+ * type. Here the type is untouched and previously legal transitions stay legal — there were
+ * none — so this adds behaviour where the specification left a gap rather than redefining
+ * anything it approved.
+ *
+ * The value is why the gap existed, because a bare list would let the next entry in without one.
+ */
+const DECLARED_MACHINE_ADDITIONS: Readonly<Record<string, string>> = {
+  organization:
+    'R01 declared states `active, inactive, retired` and `state_machine: null`, so an ' +
+    'organization could be created and never retired. With no uniqueness rule on legal name ' +
+    'that made unlimited permanent duplicates reachable without breaking a rule — a bootstrap ' +
+    'defect produced eight in one session. The transitions use only R01 states and invent none.',
+};
+
 const WIDENABLE_ENUMS = [
   { def: 'Edge', path: ['properties', 'edge_type', 'enum'] },
   { def: 'Action', path: ['properties', 'action_type', 'enum'] },
@@ -638,8 +661,25 @@ describe('the extended ontology preserves R01 exactly', () => {
       .filter((id) => !(id in gm))
       .sort();
     // A lifecycle for a type nobody declared is a lifecycle nobody reviewed.
+    //
+    // Two ways a machine can be new, and only one of them was covered until 2026-09-10. A
+    // machine for a NEW type is declared with the type. A machine for a type R01 approved
+    // WITHOUT one is a different act: the type is unchanged and previously legal transitions
+    // stay legal, because there were none. That case had no declaration slot at all, so
+    // `organization` — approved with states `active, inactive, retired` and `state_machine:
+    // null` — could not be given the transitions between its own approved states.
+    //
+    // It still requires an explicit declaration, and the reason belongs beside it.
     for (const id of added) {
-      expect(DECLARED_ADDITIONS.node_types, `machine '${id}' has no declared type`).toContain(id);
+      const declared =
+        (DECLARED_ADDITIONS.node_types as readonly string[]).includes(id) ||
+        Object.hasOwn(DECLARED_MACHINE_ADDITIONS, id);
+      expect(
+        declared,
+        `machine '${id}' is neither a declared new type nor a declared lifecycle for an ` +
+          'existing one. Add it to DECLARED_ADDITIONS.node_types, or to ' +
+          'DECLARED_MACHINE_ADDITIONS with the reason R01 left it without transitions.',
+      ).toBe(true);
     }
   });
 
