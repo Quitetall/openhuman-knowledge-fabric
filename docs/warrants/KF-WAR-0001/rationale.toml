@@ -1,0 +1,30 @@
+schema = "oh.war/rationale/v1"
+
+# The three residual risks named in atoms/60-assurance.md, as TYPED records.
+#
+# They were prose only until the authorization request was emitted and read back
+# `residual_risks = []`. The authorizer would have been asked to accept risks the request did not
+# show them — which is the one thing an authorization request exists to prevent. Prose in the
+# assurance atom is for a human reading the Warrant; this file is what the tool puts in front of
+# the person signing.
+
+[[assumption]]
+id = "A-001"
+statement = "A virtual machine on the build workstation can produce commissioning evidence that means something."
+epistemic_status = "accepted_residual_risk"
+consequence_if_false = "Every check passes on a host whose failure domain is shared with its builder, criterion 3 of ADR 0004 reads met, and the property nobody looks at until the workstation fails is the one that died. The gate's own first blind spot is that it cannot tell the difference."
+judgment_ref = ""
+
+[[assumption]]
+id = "A-002"
+statement = "One person acting as technical authority, quality authority and accepting party is acceptable for a dogfood commissioning."
+epistemic_status = "accepted_residual_risk"
+consequence_if_false = "A mistaken approval has no second reader. ADR 0004 records this and its remedy: move quality authority or cutover acceptance to the second engineer as soon as one exists."
+judgment_ref = ""
+
+[[assumption]]
+id = "A-003"
+statement = "Phase 9 can be resolved while two of its exit conditions remain outside every gate in this repository."
+epistemic_status = "accepted_residual_risk"
+consequence_if_false = "A person receiving an alert and real-provider browser evidence are carried as open rather than covered. If they are later read as covered because the Warrant resolved, the alert path is untested where it matters and the identity claim rests on a fixture."
+judgment_ref = ""

@@ -1,0 +1,442 @@
+/**
+ * The overview page, rendered from facts (`collect.ts`) and nothing else.
+ *
+ * Deterministic BY CONSTRUCTION: there is no wall-clock timestamp anywhere in the output. The
+ * ontology compiler makes the same choice for the same reason — a generated artifact carrying
+ * the time it was generated differs on every build, which turns a drift check into noise and
+ * then into a check nobody trusts. The git commit identifies the state instead, and answers the
+ * question a timestamp only gestures at.
+ */
+
+import type { OverviewFacts } from './collect.js';
+
+/** Text into HTML. Every interpolation below goes through this. */
+function esc(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+const CSS = String.raw`
+  :root {
+    --paper:      #f4f4f0;
+    --paper-sunk: #eaeae4;
+    --ink:        #15191e;
+    --ink-soft:   #4d545c;
+    --ink-faint:  #7c848d;
+    --rule:       #cbcec7;
+    --rule-hard:  #a8ada4;
+    --accent:     #1d6e63;
+    --accent-dim: #cfe0dc;
+    --open:       #9a6a17;
+    --open-dim:   #ece0c6;
+    --halt:       #91352a;
+    --halt-dim:   #eed6d1;
+
+    --f-display: "Newsreader", "Iowan Old Style", Georgia, serif;
+    --f-body:    "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --f-data:    "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+    --measure: 66ch;
+    --pad: clamp(1.15rem, 4vw, 3.25rem);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #14181d;
+      --paper-sunk: #1b2027;
+      --ink:        #e6e8e6;
+      --ink-soft:   #a3aab1;
+      --ink-faint:  #767e87;
+      --rule:       #2b323b;
+      --rule-hard:  #414a55;
+      --accent:     #63b9ab;
+      --accent-dim: #1c3733;
+      --open:       #d8a447;
+      --open-dim:   #3a2f18;
+      --halt:       #d97e6e;
+      --halt-dim:   #3b211c;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:      #14181d;
+    --paper-sunk: #1b2027;
+    --ink:        #e6e8e6;
+    --ink-soft:   #a3aab1;
+    --ink-faint:  #767e87;
+    --rule:       #2b323b;
+    --rule-hard:  #414a55;
+    --accent:     #63b9ab;
+    --accent-dim: #1c3733;
+    --open:       #d8a447;
+    --open-dim:   #3a2f18;
+    --halt:       #d97e6e;
+    --halt-dim:   #3b211c;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sheet {
+    max-width: 60rem;
+    margin: 0 auto;
+    padding: var(--pad) var(--pad) 4rem;
+  }
+
+  h1, h2, h3 { font-family: var(--f-display); font-weight: 500; text-wrap: balance; margin: 0; }
+
+  .eyebrow {
+    font-family: var(--f-data);
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  /* ── masthead: a controlled-document header block, which is the convention
+        the specification itself opens with ───────────────────────────────── */
+  .masthead { border-top: 3px solid var(--accent); padding-top: 1.1rem; }
+
+  .masthead h1 {
+    font-size: clamp(1.9rem, 5vw, 3rem);
+    line-height: 1.08;
+    letter-spacing: -0.015em;
+    margin: 0.5rem 0 0.4rem;
+  }
+
+  .standfirst {
+    font-family: var(--f-display);
+    font-size: clamp(1.02rem, 2.1vw, 1.2rem);
+    line-height: 1.5;
+    color: var(--ink-soft);
+    max-width: var(--measure);
+    margin: 0 0 1.6rem;
+  }
+
+  .control {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11.5rem, 1fr));
+    gap: 0;
+    border-top: 1px solid var(--rule-hard);
+    border-bottom: 1px solid var(--rule-hard);
+  }
+  .control div {
+    padding: 0.7rem 0.9rem 0.75rem 0;
+    border-right: 1px solid var(--rule);
+  }
+  .control div:last-child { border-right: 0; }
+  .control dt {
+    font-family: var(--f-data);
+    font-size: 0.66rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 0.25rem;
+  }
+  .control dd {
+    margin: 0;
+    font-family: var(--f-data);
+    font-size: 0.82rem;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+  }
+
+  section { margin-top: 3.4rem; }
+
+  .head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--rule-hard);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1.4rem;
+  }
+  .head h2 { font-size: clamp(1.3rem, 3vw, 1.7rem); letter-spacing: -0.01em; }
+
+  p { max-width: var(--measure); }
+  p + p { margin-top: 0.9rem; }
+  .note { color: var(--ink-soft); font-size: 0.94rem; }
+
+  /* ── the three denominators ─────────────────────────────────────────────── */
+  .axes { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+  .axis { background: var(--paper-sunk); padding: 1.15rem 1.2rem 1.25rem; }
+  .axis .eyebrow { display: block; margin-bottom: 0.7rem; }
+  .ratio { font-family: var(--f-data); font-weight: 600; line-height: 1; letter-spacing: -0.02em; display: flex; align-items: baseline; gap: 0.1rem; }
+  .ratio .n { font-size: clamp(2.4rem, 7vw, 3.1rem); }
+  .ratio .d { font-size: 1.15rem; color: var(--ink-faint); }
+  .axis p { font-size: 0.87rem; color: var(--ink-soft); margin: 0.7rem 0 0; line-height: 1.5; }
+  .meter { height: 5px; background: var(--rule); margin-top: 0.95rem; display: flex; }
+  .meter i { display: block; height: 100%; }
+  .fill-live { background: var(--accent); }
+  .fill-open { background: var(--open); }
+  .fill-halt { background: var(--halt); }
+
+  /* ── phase ladder: a real sequence, so it is numbered ───────────────────── */
+  .ladder { border-top: 1px solid var(--rule); }
+  .rung {
+    display: grid;
+    grid-template-columns: 2.4rem 1fr auto;
+    gap: 0.9rem;
+    align-items: baseline;
+    padding: 0.62rem 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .rung .num { font-family: var(--f-data); font-size: 0.85rem; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+  .rung .name { font-size: 0.95rem; }
+  .rung.now { background: var(--accent-dim); margin-inline: calc(var(--pad) * -0.35); padding-inline: calc(var(--pad) * 0.35); }
+  .rung.now .name { font-weight: 600; }
+
+  .tag {
+    font-family: var(--f-data);
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    padding: 0.16rem 0.5rem;
+    white-space: nowrap;
+    border: 1px solid currentColor;
+  }
+  .t-live { color: var(--accent); }
+  .t-open { color: var(--open); }
+  .t-halt { color: var(--halt); }
+
+  /* ── requirement groups ─────────────────────────────────────────────────── */
+  .groups { border-top: 1px solid var(--rule); }
+  .grp {
+    display: grid;
+    grid-template-columns: 1fr 3.2rem 8rem;
+    gap: 0.9rem;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.92rem;
+  }
+  .grp .ct { font-family: var(--f-data); font-variant-numeric: tabular-nums; text-align: right; color: var(--ink-soft); font-size: 0.85rem; }
+  .bar { height: 8px; background: var(--rule); display: flex; }
+  .bar i { display: block; height: 100%; }
+
+  /* ── host ───────────────────────────────────────────────────────────────── */
+  .host { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1.6rem 2.4rem; }
+  .svc { border-top: 1px solid var(--rule); }
+  .svc li {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.8rem;
+    padding: 0.42rem 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.9rem;
+  }
+  .svc li span:last-child { font-family: var(--f-data); font-size: 0.78rem; color: var(--ink-soft); text-align: right; }
+  ul { list-style: none; margin: 0; padding: 0; }
+
+  .proof { border-left: 2px solid var(--accent); padding-left: 1rem; }
+  .proof li { padding: 0.3rem 0; font-size: 0.92rem; }
+  .proof li::before { content: "✓"; color: var(--accent); font-family: var(--f-data); margin-right: 0.55rem; }
+
+  /* ── gaps ───────────────────────────────────────────────────────────────── */
+  .gaps { columns: 2; column-gap: 2.4rem; }
+  @media (max-width: 46rem) { .gaps { columns: 1; } }
+  .gaps li {
+    break-inside: avoid;
+    padding: 0.42rem 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.88rem;
+    line-height: 1.45;
+    display: grid;
+    grid-template-columns: 3.1rem 1fr;
+    gap: 0.5rem;
+  }
+  .gaps b { font-family: var(--f-data); font-weight: 500; font-size: 0.76rem; color: var(--ink-faint); }
+
+  /* ── human-only ─────────────────────────────────────────────────────────── */
+  .human { border: 1px solid var(--halt); background: var(--halt-dim); padding: 1.25rem 1.4rem; }
+  .human h3 { font-size: 1.05rem; margin-bottom: 0.5rem; }
+  .human ol { margin: 0.7rem 0 0; padding-left: 1.15rem; }
+  .human li { padding: 0.28rem 0; font-size: 0.92rem; }
+  .human code { font-family: var(--f-data); font-size: 0.8rem; }
+
+  footer {
+    margin-top: 3.4rem;
+    border-top: 1px solid var(--rule-hard);
+    padding-top: 1rem;
+    font-size: 0.82rem;
+    color: var(--ink-faint);
+    max-width: var(--measure);
+  }
+  footer code { font-family: var(--f-data); font-size: 0.78rem; }
+
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+`;
+
+function meter(claimed: number, total: number): string {
+  if (total === 0) return '<span class="bar"></span>';
+  const pct = Math.round((claimed / total) * 100);
+  return `<span class="bar"><i class="fill-open" style="width:${String(pct)}%"></i></span>`;
+}
+
+export function renderOverview(f: OverviewFacts): string {
+  const delivered = f.phases.filter((p) => p.number <= 8).length;
+  const inFlight = f.phases.find((p) => p.hasExitWarrant && p.number > 8);
+  const pctClaimed =
+    f.requirementTotal === 0 ? 0 : Math.round((f.requirementClaimed / f.requirementTotal) * 100);
+
+  const rungs = f.phases
+    .map((p) => {
+      const state =
+        p.number <= 8
+          ? '<span class="tag t-live">Delivered</span>'
+          : p.hasExitWarrant
+            ? '<span class="tag t-open">In flight</span>'
+            : '<span class="tag t-halt">Not started</span>';
+      const now = p.hasExitWarrant && p.number > 8 ? ' now' : '';
+      const num = String(p.number).padStart(2, '0');
+      return `      <div class="rung${now}"><span class="num">${num}</span><span class="name">${esc(p.title)}</span>${state}</div>`;
+    })
+    .join('\n');
+
+  const groups = [...f.groups]
+    .sort((a, b) => b.total - a.total)
+    .map(
+      (g) =>
+        `      <div class="grp"><span>${esc(g.title)}</span><span class="ct">${String(g.total)}</span>${meter(g.claimed, g.total)}</div>`,
+    )
+    .join('\n');
+
+  const gaps = f.gaps
+    .map((g) => `      <li><b>${esc(g.id)}</b><span>${esc(g.text.replace(/\.$/, ''))}</span></li>`)
+    .join('\n');
+
+  const warrants =
+    f.warrants.length === 0
+      ? '<p class="note">No Warrant traces to this specification yet, so every requirement reads unaddressed. That is an honest state, not a defect.</p>'
+      : `<ul class="svc">\n${f.warrants
+          .map((w) => `        <li><span>${esc(w.title)}</span><span>${esc(w.alias)}</span></li>`)
+          .join('\n')}\n      </ul>`;
+
+  return `<title>Knowledge Fabric Control Record</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>${CSS}</style>
+
+<div class="sheet">
+
+  <header class="masthead">
+    <div class="eyebrow">Software Architecture Specification &middot; ${esc(f.revision)} &middot; accepted</div>
+    <h1>Knowledge Fabric Control Record</h1>
+    <p class="standfirst">One coherent institutional record, where the database is the authority and every write is an attributable act. This sheet is generated from the specification and the Warrant corpus; nothing on it was typed by hand.</p>
+
+    <dl class="control">
+      <div><dt>Accepted revision</dt><dd>${esc(f.revision)}</dd></div>
+      <div><dt>Contract digest</dt><dd>${esc(f.digest.slice(0, 12))}</dd></div>
+      <div><dt>Accepted</dt><dd>${esc(f.acceptedAt || '—')}</dd></div>
+      <div><dt>Authority</dt><dd>${esc(f.acceptedBy || '—')}</dd></div>
+      <div><dt>Requirements</dt><dd>${String(f.requirementTotal)} &middot; append&#8209;only</dd></div>
+      <div><dt>Commit</dt><dd>${esc(f.commit)}</dd></div>
+    </dl>
+  </header>
+
+  <section>
+    <div class="head">
+      <h2>Three answers to &ldquo;how far along&rdquo;</h2>
+      <span class="eyebrow">and they disagree</span>
+    </div>
+
+    <div class="axes">
+      <div class="axis">
+        <span class="eyebrow">Phases delivered</span>
+        <div class="ratio"><span class="n">${String(delivered)}</span><span class="d">&thinsp;/&thinsp;${String(f.phases.length)}</span></div>
+        <div class="meter"><i class="fill-live" style="width:${String(Math.round((delivered / Math.max(f.phases.length, 1)) * 100))}%"></i><i class="fill-open" style="width:${String(100 - Math.round((delivered / Math.max(f.phases.length, 1)) * 100))}%"></i></div>
+        <p>What was built. The engine, and everything a gate can exercise without a machine to run it on.</p>
+      </div>
+      <div class="axis">
+        <span class="eyebrow">Requirements claimed</span>
+        <div class="ratio"><span class="n">${String(f.requirementClaimed)}</span><span class="d">&thinsp;/&thinsp;${String(f.requirementTotal)}</span></div>
+        <div class="meter"><i class="fill-open" style="width:${String(pctClaimed)}%"></i></div>
+        <p>Declared by a Warrant. Claimed is not satisfied &mdash; status is derived from evidence, and a claim is where evidence starts.</p>
+      </div>
+      <div class="axis">
+        <span class="eyebrow">Requirements satisfied</span>
+        <div class="ratio"><span class="n">0</span><span class="d">&thinsp;/&thinsp;${String(f.requirementTotal)}</span></div>
+        <div class="meter"></div>
+        <p>Shown. No Warrant has resolved, so nothing reads above claimed, and this column stays at zero until one does.</p>
+      </div>
+    </div>
+
+    <p class="note" style="margin-top:1.3rem">The disagreement is the finding. Counting delivered phases measures what was built; counting satisfied requirements measures what has been shown. A program can be mostly built and nothing proven, and saying so is the difference between a record and a status report.</p>
+  </section>
+
+  <section>
+    <div class="head">
+      <h2>Phase ladder</h2>
+      <span class="eyebrow">&sect;98 &middot; ordered, so numbered</span>
+    </div>
+
+    <div class="ladder">
+${rungs}
+    </div>
+
+    ${
+      inFlight === undefined
+        ? ''
+        : `<p class="note" style="margin-top:1.2rem">Phase ${String(inFlight.number)} is the only objective no amount of engineering in this repository can discharge. It is closed by a machine existing, being configured against a contract, and being observed.</p>`
+    }
+  </section>
+
+  <section>
+    <div class="head">
+      <h2>Requirements, by group</h2>
+      <span class="eyebrow">${String(f.requirementTotal)} &middot; ${String(f.requirementClaimed)} claimed &middot; ${String(f.requirementTotal - f.requirementClaimed)} unaddressed</span>
+    </div>
+
+    <div class="groups">
+${groups}
+    </div>
+
+    <p class="note" style="margin-top:1.2rem">Shaded portion is claimed by a Warrant, not satisfied. Requirement identifiers are append&#8209;only: a row may be added or retitled and never removed, so work in any repository may cite one and expect it to still mean what it meant.</p>
+  </section>
+
+  <section>
+    <div class="head">
+      <h2>Warrants</h2>
+      <span class="eyebrow">${String(f.warrants.length)} in the corpus</span>
+    </div>
+    ${warrants}
+  </section>
+
+  <section>
+    <div class="head">
+      <h2>Recorded gaps</h2>
+      <span class="eyebrow">&sect;100 &middot; ${String(f.gaps.length)}</span>
+    </div>
+
+    <ul class="gaps">
+${gaps}
+    </ul>
+
+    <p class="note" style="margin-top:1.2rem">A gap is recorded in an enumerable place or it is not recorded. There is not one <code>TODO</code>, <code>FIXME</code> or <code>HACK</code> in the repository &mdash; gaps live here, in decision records, in pack manifests, or as named checker warnings, where a reader will find them and a gate can count them.</p>
+  </section>
+
+  <footer>
+    Generated by <code>kf overview</code> from <code>${esc(f.commit)}</code>. No wall&#8209;clock timestamp appears above, deliberately: a generated artifact that differs on every build turns a drift check into noise. Counts are the most perishable claims here; re&#8209;derive rather than trust them. Where this sheet and the specification disagree, the specification governs; where the specification and the code disagree, the code is right and the specification has drifted.
+  </footer>
+
+</div>
+`;
+}

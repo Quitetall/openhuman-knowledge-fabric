@@ -1,0 +1,54 @@
+schema = "oh.war/authorization-response/v1"
+warrant = "KF-WAR-0001"
+contract_digest = "afb81b38ab558c19e37c4ee509637bf00cc7a8d97f9bb413339f862f232f9383"
+authorizer = "Brian Lam"
+acting_role = "authorizer"
+independence = "none"
+effective_time = "2026-09-09T23:49:58Z"
+
+# One [[judgment]] per residual risk in the request. Accepting the Warrant without accepting
+# these individually would be accepting them silently, which is the shape of approval this
+# system exists to refuse.
+
+[[judgment]]
+assumption_id = "A-001"
+disposition = "accepted"
+meaning = """
+Accepted for dogfood, not for a claim about availability. The host is a separate operating
+system, kernel, service set and credential set, and qualifying it has twice found defects the
+workstation hid — five missing host requirements the first time, a documentation gap and a wrong
+row-level-security measurement the second. It shares a power supply and a motherboard, so it
+evidences configuration and not survival of hardware failure. Nothing produced under this
+Warrant may be cited as evidence of an availability property.
+"""
+
+[[judgment]]
+assumption_id = "A-002"
+disposition = "accepted"
+meaning = """
+Accepted because the alternative is not a better-reviewed commissioning but none. The remedy is
+already recorded in ADR 0004 and is unchanged: the first thing to do when a second engineer
+exists is to move quality authority or cutover acceptance to them.
+"""
+
+[[judgment]]
+assumption_id = "A-003"
+disposition = "accepted"
+meaning = """
+Accepted as open, not as covered. A person receiving an alert and real-provider browser evidence
+stay outside every gate here. If this Warrant resolves, those two do not become satisfied by it,
+and KF-SAS-RQ-164 stays partial by construction.
+"""
+
+# YOUR STATEMENT. Drafted by the performer Client.listTools() called but server does not advertise tools capability - returning empty list; the decision and the final wording are the
+# repository owner's. §28.4 reserves authorization to a human — the decision, not the keystroke.
+meaning = """
+Authorizing KF-WAR-0001 makes commissioning the dogfood host a contract rather than a task list.
+Its six obligations are what the host must be shown to do, not what it must appear to do: bytes
+served from the durable copy after the working one is removed, units fired by their own timers
+under their own accounts, a checkpoint key the API is refused when it asks, a backup verified
+where it landed and restored with the shipped scripts, and a host that answers after a reboot
+nobody watched. I accept the three residual risks individually above, and that a PASS from
+kf.host.commissioning is a report about configuration on a machine whose independence from its
+builder no gate here can check.
+"""

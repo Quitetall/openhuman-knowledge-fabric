@@ -1,0 +1,60 @@
+schema = "oh.war/authorization-request/v1"
+warrant = "KF-WAR-0001"
+title = "Commission the dogfood host: KF serves records from a machine that is not the workstation"
+assurance_level = "controlled"
+contract_digest = "afb81b38ab558c19e37c4ee509637bf00cc7a8d97f9bb413339f862f232f9383"
+contract_coverage = [
+    "intent",
+    "scope",
+    "basis_requirements",
+    "assumptions",
+    "constraints",
+    "adr_references",
+    "milestones",
+    "stages",
+]
+proposer = "claude"
+eligible_authorizers = ["Brian Lam"]
+
+[[obligations]]
+id = "OBL-001"
+statement = "bytes survive the loss of one device"
+
+[[obligations]]
+id = "OBL-002"
+statement = "every unit runs under its own account, from a timer, unattended"
+
+[[obligations]]
+id = "OBL-003"
+statement = "the API cannot read the checkpoint signing key"
+
+[[obligations]]
+id = "OBL-004"
+statement = "a backup was verified where it landed, and restored"
+
+[[obligations]]
+id = "OBL-005"
+statement = "the host answers after a reboot it was not watched through"
+
+[[obligations]]
+id = "OBL-006"
+statement = "what no check covers is written down"
+
+[[residual_risks]]
+assumption_id = "A-001"
+statement = "A virtual machine on the build workstation can produce commissioning evidence that means something."
+consequence_if_false = "Every check passes on a host whose failure domain is shared with its builder, criterion 3 of ADR 0004 reads met, and the property nobody looks at until the workstation fails is the one that died. The gate's own first blind spot is that it cannot tell the difference."
+judgment_ref = ""
+
+[[residual_risks]]
+assumption_id = "A-002"
+statement = "One person acting as technical authority, quality authority and accepting party is acceptable for a dogfood commissioning."
+consequence_if_false = "A mistaken approval has no second reader. ADR 0004 records this and its remedy: move quality authority or cutover acceptance to the second engineer as soon as one exists."
+judgment_ref = ""
+
+[[residual_risks]]
+assumption_id = "A-003"
+statement = "Phase 9 can be resolved while two of its exit conditions remain outside every gate in this repository."
+consequence_if_false = "A person receiving an alert and real-provider browser evidence are carried as open rather than covered. If they are later read as covered because the Warrant resolved, the alert path is untested where it matters and the identity claim rests on a fixture."
+judgment_ref = ""
+
