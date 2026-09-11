@@ -5,7 +5,7 @@ import Fastify from 'fastify';
 import { InMemoryObjectStore } from '@kf/artifacts';
 import { withTransaction } from '@kf/database';
 import { createDocumentActionAtoms, latestMasterRecord } from '@kf/documents';
-import { createFabricDispatcher } from '@kf/orchestrator';
+import { createFabricDispatcher, createFabricTransactionalDispatcher } from '@kf/orchestrator';
 import { loadProjectionDefinitions, type ProjectionResult } from '@kf/projections';
 import { registerMasterRecordProjectionRoute } from '../../apps/api/src/routes/documents/master-record-projection-route.js';
 import { registerObjectViewRoute } from '../../apps/api/src/routes/documents/object-view-route.js';
@@ -230,6 +230,56 @@ describe('corpus projections over a real master record', () => {
       await app.close();
     }
   }, 60_000);
+
+  it('refreshes a stale claim on demand to serve an Object View, as an act, rather than 409', async () => {
+    // The corpus moves under the viewer's claim. A person following a link is not sent away
+    // to compile something first: the view compiles their record — recorded, as them — and
+    // answers. (Found by the fixture workflow: every view answered 409 after any change.)
+    await createObject(harness.adminPool, fixtures, {
+      type: 'decision_record',
+      domain: 'engineering',
+      state: 'draft',
+      title: 'Arrived after the claim',
+      createdBy: fixtures.performerId,
+    });
+    const before = await withTransaction(harness.pool, async (tx) => {
+      await tx.query('select core.set_access_context($1, $2)', [
+        fixtures.organizationId,
+        'restricted',
+      ]);
+      return latestMasterRecord(tx, fixtures.performerId, fixtures.organizationId);
+    });
+    const app = Fastify({ logger: false });
+    registerObjectViewRoute(app, {
+      ...routeOptions(),
+      executeInTransaction: createFabricTransactionalDispatcher(
+        createDocumentActionAtoms({
+          store: new InMemoryObjectStore(),
+          parser: {
+            async parse() {
+              return undefined;
+            },
+          },
+        }),
+      ),
+    });
+    await app.ready();
+    try {
+      const response = await app.inject({ method: 'GET', url: `/objects/${probe}` });
+      expect(response.statusCode, response.body).toBe(200);
+      const after = await withTransaction(harness.pool, async (tx) => {
+        await tx.query('select core.set_access_context($1, $2)', [
+          fixtures.organizationId,
+          'restricted',
+        ]);
+        return latestMasterRecord(tx, fixtures.performerId, fixtures.organizationId);
+      });
+      expect(after?.['id']).not.toBe(before?.['id']);
+      expect(String(after?.['corpus_digest'])).not.toBe(String(before?.['corpus_digest']));
+    } finally {
+      await app.close();
+    }
+  });
 
   it('serves an Object View: the anchor, its neighbourhood in both directions, plus facets', async () => {
     const app = Fastify({ logger: false });
