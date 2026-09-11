@@ -98,3 +98,19 @@ export const PACKAGE = {
   role: 'Reusable controlled-record creation and payload-validation atoms',
   owns: [],
 } as const;
+
+/**
+ * The record's classification as the act states it, for every materializer that creates a
+ * record. Absent from the payload, nothing is spread and the envelope default (`internal`)
+ * applies. The insert policy on core.object refuses a classification above the session's bound
+ * ceiling, so a payload cannot widen; it can only say what the record is.
+ *
+ * Until 2026-09-11 only the artifact materializers read this, and every decision record,
+ * configuration item, project and test definition was `internal` whatever the act said.
+ */
+export function classificationFrom(payload: Readonly<Record<string, unknown>> | undefined): {
+  readonly classification?: string;
+} {
+  const value = optionalString(payload, 'classification');
+  return value === null ? {} : { classification: value };
+}

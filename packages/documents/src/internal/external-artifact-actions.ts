@@ -27,6 +27,7 @@ import {
   optionalString,
   requireInteger,
   requireString,
+  classificationFrom,
 } from '@kf/record-atoms';
 import { requireSha256 } from './action-types.js';
 
@@ -69,6 +70,7 @@ export function createExternalArtifactActions(): ExternalArtifactActions {
 
     const classification = optionalString(request.payload, 'classification') ?? undefined;
     const id = await createControlledObject(tx, {
+      ...classificationFrom(request.payload),
       objectType: 'artifact',
       authorityDomain: 'artifact',
       lifecycleState: 'draft',

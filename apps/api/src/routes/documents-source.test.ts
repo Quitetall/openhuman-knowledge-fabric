@@ -20,9 +20,30 @@ function caller(): IdentifyCaller {
 
 function pool(row: Record<string, unknown> | undefined): Pool {
   const client = {
-    query: vi.fn(async (sql: string) => ({
-      rows: sql.includes('/* document.source-bytes */') && row !== undefined ? [row] : [],
-    })),
+    query: vi.fn(async (sql: string, params?: readonly unknown[]) => {
+      // Access is a grant on every read surface (ADR 0016). The fakes answer the two queries the
+      // gate asks: the object's classification, and an organization-wide read grant.
+      if (sql.includes('/* read-grant.classifications */')) {
+        const ids = (params?.[0] ?? []) as readonly string[];
+        return { rows: ids.map((id) => ({ id, classification: 'internal' })) };
+      }
+      if (sql.includes('/* access-grants.coverage */')) {
+        return {
+          rows: [
+            {
+              source: 'role_assignment',
+              source_id: 'fake-assignment',
+              scope_object_id: '44444444-4444-7444-8444-444444444444',
+              classification_ceiling: null,
+              reason: 'role performer',
+            },
+          ],
+        };
+      }
+      return {
+        rows: sql.includes('/* document.source-bytes */') && row !== undefined ? [row] : [],
+      };
+    }),
     release: vi.fn(),
   };
   return { connect: vi.fn(async () => client) } as unknown as Pool;

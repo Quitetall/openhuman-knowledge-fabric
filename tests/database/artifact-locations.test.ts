@@ -76,7 +76,7 @@ async function recordVersion(body: Buffer): Promise<{ artifactId: string; versio
     await bindContext(tx, fixtures, fixtures.reviewerId);
     await tx.query(
       `insert into content.artifact (id, artifact_kind, source_system)
-       values ($1, 'report', 'object_store')`,
+       values ($1, 'document', 'object_store')`,
       [artifactId],
     );
     await tx.query(

@@ -93,3 +93,44 @@ export const checkpointCoverage: CheckFn = async (tx, limits) => {
     },
   };
 };
+
+/**
+ * Every SECURITY DEFINER function in this schema is a narrow seam that reads past forced
+ * row-level security: identity and classification resolution, outbox delivery, search
+ * indexing, ML signing keys, compiler pins, the action-target trigger. A definer function
+ * runs as the schema owner, and it reads past forced policies only if that owner bypasses
+ * them — a superuser does, an ordinary role only with BYPASSRLS. The dogfood host's migrator
+ * had neither, and every one of those seams was broken there while every test passed
+ * (ADR 0026). This is the check that would have said so on install day.
+ */
+export const schemaOwnerBypassesRls: CheckFn = async (tx) => {
+  const row = await tx.maybeOne<{ owner: string; bypasses: boolean; superuser: boolean }>(
+    `select r.rolname as owner, r.rolbypassrls as bypasses, r.rolsuper as superuser
+       from pg_class c
+       join pg_namespace n on n.oid = c.relnamespace
+       join pg_roles r on r.oid = c.relowner
+      where n.nspname = 'core' and c.relname = 'object'`,
+  );
+  if (row === undefined) {
+    return {
+      id: 'schema_owner_bypasses_rls',
+      status: 'failed',
+      detail: 'core.object does not exist, so there is no schema owner to assess.',
+    };
+  }
+  const ok = row.bypasses || row.superuser;
+  return {
+    id: 'schema_owner_bypasses_rls',
+    status: ok ? 'ok' : 'failed',
+    detail: ok
+      ? `Schema owner ${row.owner} bypasses row-level security, so definer seams read past forced policies.`
+      : `Schema owner ${row.owner} does NOT bypass row-level security: every SECURITY DEFINER seam ` +
+        '(identity resolution, outbox delivery, search indexing, signing keys) is bound by forced ' +
+        'policies and reads nothing. Grant BYPASSRLS to the migrator login.',
+    measured: {
+      owner: row.owner,
+      bypasses: row.bypasses ? 'yes' : 'no',
+      superuser: row.superuser ? 'yes' : 'no',
+    },
+  };
+};

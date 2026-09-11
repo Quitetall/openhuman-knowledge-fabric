@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { setAccessContext, withTransaction, type Pool } from '@kf/database';
+import { readCoverage, reaches } from './documents/read-grant.js';
 import { searchIn } from '@kf/search';
 import type { IdentifyCaller } from './actions.js';
 import { unidentified } from './actions.js';
@@ -38,13 +39,19 @@ export async function registerSearchRoutes(
           organizationId: caller.organizationId,
           maxClassification: caller.maxClassification,
         });
-        return searchIn(
+        const found = await searchIn(
           tx,
           {
             organizationId: caller.organizationId,
             maxClassification: caller.maxClassification,
           },
           query,
+        );
+        // A hit is a read. The index is row-level scoped; the grant is applied here, so a
+        // record a person is cleared for but not granted does not surface by its title.
+        const coverage = await readCoverage(tx, caller);
+        return found.filter((hit) =>
+          reaches(coverage, { id: hit.objectId, classification: hit.classification }),
         );
       });
       return reply.send({ hits });

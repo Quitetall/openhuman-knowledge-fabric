@@ -37,10 +37,9 @@ export function mediaTypeForDocumentFile(
 }
 
 /** Map controlled-document semantics onto evidence-vault artifact vocabulary. */
+/** Every document class is an artifact of kind `document`; the class lives on the document. */
 export function artifactKindForDocumentClass(documentClass: string): string {
-  if (documentClass === 'specification') return 'specification';
-  if (documentClass === 'report') return 'report';
-  return 'other';
+  return documentClass === 'specification' || documentClass === 'report' ? 'document' : 'other';
 }
 
 const MAX_SOURCE_BYTES = 20 * 1024 * 1024;

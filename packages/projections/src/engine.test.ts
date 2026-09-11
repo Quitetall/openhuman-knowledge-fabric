@@ -377,7 +377,8 @@ describe('rendered links', () => {
 
   it('are absent when no links are given, so a renderer never guesses a host', () => {
     const result = project({ definition, parameters: {}, corpus, graph });
-    expect(renderProjection(result, 'html').bytes.toString('utf8')).not.toContain('<a href');
+    // Section anchors remain; no member points anywhere.
+    expect(renderProjection(result, 'html').bytes.toString('utf8')).not.toContain('<a href="http');
   });
 
   it('escape a hostile link target rather than emit it as markup', () => {

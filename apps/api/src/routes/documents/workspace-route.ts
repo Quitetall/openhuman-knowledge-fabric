@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { setAccessContext, withTransaction } from '@kf/database';
+import { readGranted } from './read-grant.js';
 import { unidentified } from '../actions.js';
 import type { DocumentRoutesOptions } from './contracts.js';
 import { documentWorkspace, resolveWorkspaceTarget } from './workspace-repository.js';
@@ -21,6 +22,9 @@ export function registerDocumentWorkspaceRoute(
           organizationId: identity.organizationId,
           maxClassification: identity.maxClassification,
         });
+        // Not granted reads as not there: the workbench of a record you may not read is not yours.
+        if (!(await readGranted(tx, identity, request.params.id)))
+          return { status: 'unavailable' as const };
         const target = await resolveWorkspaceTarget(tx, request.params.id);
         return target.status === 'ready' ? documentWorkspace(tx, target.row) : target;
       });

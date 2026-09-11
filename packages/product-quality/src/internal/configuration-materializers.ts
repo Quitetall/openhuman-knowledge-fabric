@@ -1,5 +1,10 @@
 import type { ActionMaterializer } from '@kf/actions';
-import { createControlledObject, optionalString, requireString } from '@kf/record-atoms';
+import {
+  createControlledObject,
+  optionalString,
+  requireString,
+  classificationFrom,
+} from '@kf/record-atoms';
 
 /**
  * A configuration item is DEFINED and PROMOTED by the same action.
@@ -11,6 +16,7 @@ import { createControlledObject, optionalString, requireString } from '@kf/recor
 export const promoteConfigurationItem: ActionMaterializer = async (tx, request) => {
   if (request.targetIds.length > 0) return [];
   const id = await createControlledObject(tx, {
+    ...classificationFrom(request.payload),
     objectType: 'configuration_item',
     authorityDomain: 'configuration',
     lifecycleState: 'proposed',
@@ -36,6 +42,7 @@ export const promoteConfigurationItem: ActionMaterializer = async (tx, request) 
 export const publishInterfaceContract: ActionMaterializer = async (tx, request) => {
   if (request.targetIds.length > 0) return [];
   const id = await createControlledObject(tx, {
+    ...classificationFrom(request.payload),
     objectType: 'interface_contract',
     authorityDomain: 'configuration',
     lifecycleState: 'draft',
@@ -62,6 +69,7 @@ export const publishInterfaceContract: ActionMaterializer = async (tx, request) 
 export const recordPhysicalBinding: ActionMaterializer = async (tx, request) => {
   if (request.targetIds.length > 0) return [];
   const id = await createControlledObject(tx, {
+    ...classificationFrom(request.payload),
     objectType: 'physical_binding',
     authorityDomain: 'configuration',
     lifecycleState: 'planned',

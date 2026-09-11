@@ -215,7 +215,7 @@ beforeAll(async () => {
       idempotencyKey: key,
       payload: {
         title,
-        artifact_kind: 'specification',
+        artifact_kind: 'document',
         sha256,
         size_bytes: bytes.length,
         media_type: mediaType,

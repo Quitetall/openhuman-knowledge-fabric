@@ -19,6 +19,33 @@ release_argument="$1"
 release_root="$(readlink -f -- "$release_argument")"
 [ -n "$release_root" ] && [ "$release_root" != / ] || fail 'release directory resolved unsafely'
 
+# A release that ships no compiler says so in BUILD-METADATA (`liminal=none`, the ordinary case
+# while ADR 0010 defers the Liminal-backed compiler). The worker runs without one — outbox
+# delivery and search indexing do not need it, and compilation jobs stay retryable, which
+# `apps/worker/src/main.ts` already handles — so there is nothing here to verify. What is
+# refused is the inconsistent host: a release declaring none while the environment pins a
+# compiler, because one of the two is wrong and neither may be guessed. Until 2026-09-11 this
+# script required the pins unconditionally, so the worker could not start on any host running
+# the ordinary release, and nothing was delivered or indexed there.
+declared_liminal=''
+if [ -f "$release_root/BUILD-METADATA" ]; then
+  declared_liminal="$(sed -n 's/^liminal=//p' -- "$release_root/BUILD-METADATA" | head -n 1)"
+fi
+if [ "$declared_liminal" = none ]; then
+  for name in \
+    LIMINAL_COMPILER_PATH \
+    LIMINAL_CARGO_LOCK_PATH \
+    LIMINAL_RUNTIME_FILE_PATHS \
+    LIMINAL_EXECUTABLE_SHA256 \
+    LIMINAL_CARGO_LOCK_SHA256 \
+    LIMINAL_RUNTIME_CLOSURE_SHA256; do
+    [ -z "${!name:-}" ] ||
+      fail "release declares liminal=none but $name is set; one of the two is wrong"
+  done
+  echo 'Liminal runtime: release declares none; the worker runs without a compiler and compilation jobs remain retryable'
+  exit 0
+fi
+
 for name in \
   LIMINAL_COMPILER_PATH \
   LIMINAL_CARGO_LOCK_PATH \

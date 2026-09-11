@@ -183,12 +183,15 @@ export async function runRetireOrganization(
     }
 
     // The decider is a person somewhere in the record. They need not be a member of THIS
-    // organization — nobody with authority is, or the command would not apply. `org.person`
-    // enables row-level security without forcing it, so the owner connection sees the row.
-    const decider = await tx.maybeOne<{ id: string; display_name: string }>(
-      'select id, display_name from org.person where id = $1',
+    // organization — nobody with authority is, or the command would not apply — so the lookup
+    // goes through a definer function that answers existence and a name, and nothing else:
+    // the owner login on a host is not the table owner and sees `org.person` only under a
+    // bound organization.
+    const lookup = await tx.one<{ present: boolean; display_name: string | null }>(
+      'select present, display_name from org.person_lookup($1)',
       [decision.decidedBy],
     );
+    const decider = lookup.present ? lookup : undefined;
     if (decider === undefined) {
       throw new Error(`--decided-by ${decision.decidedBy} is not a person in this system`);
     }

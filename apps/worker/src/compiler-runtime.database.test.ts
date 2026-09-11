@@ -98,7 +98,7 @@ describe('compiler runtime database boundary', () => {
 
     const artifact = await call('attach_evidence', [], {
       title: 'runtime-constitution.md',
-      artifact_kind: 'specification',
+      artifact_kind: 'document',
       sha256: sourceDigest,
       size_bytes: sourceBytes.length,
       media_type: 'text/markdown',

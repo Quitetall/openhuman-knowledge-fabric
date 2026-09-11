@@ -1,3 +1,4 @@
+import { classificationFrom } from '@kf/record-atoms';
 import type { ActionEffect } from '@kf/actions';
 import { createControlledObject, requireMinor, requireString } from '../objects.js';
 import { recordAdrDecisionBody } from './decision-effects.js';
@@ -29,6 +30,7 @@ export const recordAcceptance: ActionEffect = async (tx, request, objects) => {
   }
 
   const id = await createControlledObject(tx, {
+    ...classificationFrom(request.payload),
     objectType: 'acceptance_record',
     authorityDomain: 'project',
     lifecycleState: 'issued',
@@ -70,6 +72,7 @@ export const amendWorkOrder: ActionEffect = async (tx, request, objects) => {
   );
 
   const id = await createControlledObject(tx, {
+    ...classificationFrom(request.payload),
     objectType: 'work_order_amendment',
     authorityDomain: 'project',
     lifecycleState: 'issued',

@@ -313,7 +313,12 @@ describe('classification narrows rather than widens', () => {
     expect(atInternal).toBeLessThanOrEqual(atRestricted);
   });
 
-  it('uses the narrower person clearance and assignment ceiling, and refuses widening', async () => {
+  it('binds the session to the CLEARANCE; the assignment ceiling caps the role grant, not the session', async () => {
+    // Until 20260911000200 the session ceiling was the lower of the clearance and the acting
+    // role's ceiling, which made an object-scoped grant above the role ceiling unreachable
+    // (ADR 0026, gap 1). The role ceiling is what `org.effective_access_grant` says it is:
+    // the cap on the organization-wide grant a role assignment is. The session is the
+    // clearance, and every read surface checks the grant.
     await withTransaction(h.adminPool, async (tx) => {
       await tx.query('update org.role_assignment set classification_ceiling = $1 where id = $2', [
         'internal',
@@ -321,13 +326,12 @@ describe('classification narrows rather than widens', () => {
       ]);
     });
     try {
-      const err = await resolveCaller(
-        h.adminPool,
+      const caller = await resolveCaller(
+        h.pool,
         verifier,
         request({ token: await token(), maxClassification: 'confidential' }),
-      ).catch((e: unknown) => e);
-      expect(err).toBeInstanceOf(IdentityRejected);
-      expect((err as IdentityRejected).failure).toBe('classification_not_granted');
+      );
+      expect(caller.maxClassification).toBe('confidential');
     } finally {
       await withTransaction(h.adminPool, async (tx) => {
         await tx.query(

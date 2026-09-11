@@ -206,6 +206,7 @@ export async function runDeclareServiceActor(
     });
     const personId = await createControlledObject(tx, {
       objectType: 'person',
+      classification: 'public',
       authorityDomain: 'organization',
       lifecycleState: 'active',
       title: declaration.name,

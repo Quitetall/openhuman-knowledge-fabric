@@ -57,12 +57,11 @@ function upSection(sql: string): string {
 
 export interface HarnessOptions {
   /**
-   * Own the schema as an ordinary role after migrating, as a host does (ADR 0026). A
-   * SECURITY DEFINER function owned by the container superuser bypasses forced row-level
-   * security; owned by an ordinary role it is bound, exactly as on the dogfood host. Opt-in
-   * per suite: turning it on everywhere failed 50 tests across 13 files on 2026-09-11, each
-   * of which needs its own reading — some are host-shaped defects, some are fixtures that
-   * lean on the superuser. Suites move over one at a time; the ones that have are the gate.
+   * Own the schema as a host's migrator owns it (ADR 0026): not a superuser, and BYPASSRLS.
+   * Default on. A superuser owner hid that the host's owner lacked BYPASSRLS, which broke
+   * every definer seam there; an owner WITHOUT bypass fails 49 tests, every one of which is a
+   * seam that exists to read past forced policies. This is the configuration a host must have,
+   * and `readiness` refuses one that does not.
    */
   readonly realisticOwner?: boolean;
   /**
@@ -144,21 +143,27 @@ export async function startHarness(options: HarnessOptions = {}): Promise<Harnes
     await tx.query(readFileSync(SEED, 'utf8').replace(/^begin;$|^commit;$/gm, ''));
   });
 
-  // THE SCHEMA IS OWNED BY AN ORDINARY ROLE, AS ON A HOST.
+  // THE SCHEMA IS OWNED BY A NON-SUPERUSER THAT BYPASSES ROW-LEVEL SECURITY, AS A HOST MUST.
   //
-  // Migrations ran as the container's bootstrap superuser, so every table and every function
-  // was owned by a superuser — and a SECURITY DEFINER function owned by a superuser bypasses
-  // row-level security even where it is FORCED. On a host the owner is the migrator login,
-  // which is not a superuser, so the same function is bound by the same policies. That
-  // difference let `org.resolve_identity_role` pass every test here while refusing every real
-  // login on the dogfood host (2026-09-11). Ownership moves to a role with no special
-  // attributes, exactly as the host has it; `adminPool` stays the superuser for fixture writes.
-  if (options.realisticOwner === true)
+  // Migrations ran as the container's bootstrap superuser. On a host the owner is the migrator
+  // login. Every SECURITY DEFINER function in this schema — identity and classification
+  // resolution, outbox delivery, search indexing, readiness, ML signing keys, compiler pins,
+  // the action-target trigger — is a deliberate narrow seam that reads past forced row-level
+  // security, and that works only because the owner bypasses it: a superuser does implicitly,
+  // an ordinary role only with BYPASSRLS. The dogfood host's migrator had neither, so every
+  // one of those seams was broken there while every test here passed (2026-09-11, ADR 0026).
+  // The owner here is what a host's owner must be — not a superuser, and BYPASSRLS — and the
+  // commissioning check `schema_owner_bypasses_rls` refuses a host whose owner is not.
+  // `adminPool` stays the superuser for fixture writes.
+  // The default. KF_TEST_REALISTIC_OWNER=0 keeps the superuser owner for a suite being
+  // bisected; nothing in CI sets it.
+  const realisticOwner = options.realisticOwner ?? process.env['KF_TEST_REALISTIC_OWNER'] !== '0';
+  if (realisticOwner)
     await withTransaction(adminPool, async (tx) => {
       await tx.query(
         `do $$ begin
          if not exists (select from pg_roles where rolname = 'kf_harness_owner') then
-           create role kf_harness_owner nologin nosuperuser nobypassrls;
+           create role kf_harness_owner nologin nosuperuser bypassrls;
          end if;
        end $$`,
       );

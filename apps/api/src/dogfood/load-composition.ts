@@ -49,7 +49,7 @@ export async function loadDogfoodComposition(
     manifestArtifactKey,
     {
       title: manifest.fileName,
-      artifactKind: 'specification',
+      artifactKind: 'document',
       sha256: manifest.sha256,
       sizeBytes: manifest.bytes.length,
       mediaType: 'application/json',
@@ -71,7 +71,7 @@ export async function loadDogfoodComposition(
       idempotencyKey: manifestArtifactKey,
       payload: {
         title: manifest.fileName,
-        artifact_kind: 'specification',
+        artifact_kind: 'document',
         sha256: manifest.sha256,
         size_bytes: manifest.bytes.length,
         media_type: 'application/json',

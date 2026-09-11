@@ -173,7 +173,7 @@ async function makeArtifact(): Promise<string> {
     await bindContext(tx, f);
     await tx.query(
       `insert into content.artifact (id, artifact_kind, source_system)
-       values ($1, 'cad_assembly', 'object_store')`,
+       values ($1, 'cad', 'object_store')`,
       [id],
     );
   });

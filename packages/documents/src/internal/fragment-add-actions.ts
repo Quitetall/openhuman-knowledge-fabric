@@ -1,5 +1,5 @@
 import type { ActionEffect, ActionMaterializer, PreconditionCheck } from '@kf/actions';
-import { createControlledObject, requireString } from '@kf/record-atoms';
+import { createControlledObject, requireString, classificationFrom } from '@kf/record-atoms';
 import { createAuthoredFragmentRevision } from '../compiler.js';
 import {
   assertDocumentAuthor,
@@ -30,6 +30,7 @@ export function createFragmentAddActions(): FragmentAddActions {
       );
     }
     const id = await createControlledObject(tx, {
+      ...classificationFrom(request.payload),
       objectType: 'authored_fragment',
       authorityDomain: 'qms',
       lifecycleState: 'active',

@@ -494,7 +494,7 @@ describe('extended preservation coverage', () => {
         ] as const) {
           await insert(tx, 'content.artifact', {
             id,
-            artifact_kind: 'specification',
+            artifact_kind: 'document',
             source_system: 'object_store',
           });
           await insert(tx, 'content.artifact_version', {

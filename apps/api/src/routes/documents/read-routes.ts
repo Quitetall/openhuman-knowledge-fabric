@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { setAccessContext, withTransaction } from '@kf/database';
+import { readGranted, readGrantedSubset } from './read-grant.js';
 import { getDocument, listDocuments } from '@kf/documents';
 import { unidentified } from '../actions.js';
 import type { DocumentRoutesOptions } from './contracts.js';
@@ -23,7 +24,7 @@ export function registerDocumentReadRoutes(
         organizationId: identity.organizationId,
         maxClassification: identity.maxClassification,
       });
-      return { documents: await listDocuments(tx) };
+      return { documents: await readGrantedSubset(tx, identity, await listDocuments(tx)) };
     });
   });
 
@@ -43,6 +44,9 @@ export function registerDocumentReadRoutes(
       });
       const document = await getDocument(tx, request.params.id);
       if (document === undefined) return reply.code(404).send({ error: 'not_found' });
+      if (!(await readGranted(tx, identity, document.id))) {
+        return reply.code(404).send({ error: 'not_found' });
+      }
       const sourceProvenance = await controlledDocumentSourceProvenance(
         tx,
         document.id,

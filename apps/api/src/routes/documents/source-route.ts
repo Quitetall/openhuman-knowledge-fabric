@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { setAccessContext, withTransaction } from '@kf/database';
+import { readGranted } from './read-grant.js';
 import { unidentified } from '../actions.js';
 import {
   DEFAULT_DOCUMENT_SOURCE_DOWNLOAD_MAX_BYTES,
@@ -58,6 +59,7 @@ export function registerDocumentSourceRoute(
           organizationId: identity.organizationId,
           maxClassification: identity.maxClassification,
         });
+        if (!(await readGranted(tx, identity, request.params.id))) return undefined;
         return documentSourceBytes(tx, request.params.id, maxBytes);
       });
     } catch (error: unknown) {

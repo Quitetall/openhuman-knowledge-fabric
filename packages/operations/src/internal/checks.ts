@@ -4,6 +4,7 @@ import { federationFreshness, outboxHealth, searchComplete } from './freshness-c
 import {
   chainIntact,
   checkpointCoverage,
+  schemaOwnerBypassesRls,
   schemaRelease,
   writeGuardsPresent,
 } from './integrity-checks.js';
@@ -13,6 +14,7 @@ import { secureObjectStorageEvidence } from './storage-checks.js';
 export const SERVICE_CHECKS: readonly CheckDefinition[] = [
   { id: 'schema_release', scope: 'service', run: schemaRelease },
   { id: 'write_guards', scope: 'service', run: writeGuardsPresent },
+  { id: 'schema_owner_bypasses_rls', scope: 'service', run: schemaOwnerBypassesRls },
   { id: 'audit_chain', scope: 'service', run: chainIntact },
   { id: 'outbox_delivery', scope: 'service', run: outboxHealth },
   { id: 'search_index', scope: 'service', run: searchComplete },

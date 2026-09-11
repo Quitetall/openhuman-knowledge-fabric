@@ -249,7 +249,7 @@ describe('master-record runtime', () => {
       });
       await tx.query(
         `insert into content.artifact (id, artifact_kind, source_system)
-         values ($1, 'report', 'object_store')`,
+         values ($1, 'document', 'object_store')`,
         [artifactId],
       );
       await tx.query(
@@ -810,7 +810,7 @@ describe('master-record runtime', () => {
       await bindContext(tx, fixtures);
       await tx.query(
         `insert into content.artifact (id, artifact_kind, source_system)
-         values ($1, 'report', 'object_store')`,
+         values ($1, 'document', 'object_store')`,
         [artifactId],
       );
       await tx.query(

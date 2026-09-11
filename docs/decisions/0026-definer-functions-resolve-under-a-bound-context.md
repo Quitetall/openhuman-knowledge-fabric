@@ -33,6 +33,16 @@ hold; neither returns record content, so the provisional ceiling exposes nothing
 requested ceiling cannot serve as the provisional one: a caller asking to work at `public`
 must still have their `internal` assignment envelope seen.
 
+**Amended the same day: the schema owner must bypass row-level security.** Running the whole
+suite under an ordinary owner failed 49 tests in 12 files, and every one was a definer seam
+built to read past forced policies — outbox delivery, search indexing, readiness, ML signing
+keys, compiler pins, the action-target trigger. On the dogfood host the same seams were all
+broken: zero rows in the search index, every outbox row undelivered. The seams are the design;
+what was wrong was the host. The migrator login is granted `BYPASSRLS` (it is still not a
+superuser), `readiness` carries `schema_owner_bypasses_rls` and refuses a host without it, and
+the harness owns the schema exactly that way by default. The provisional binds above stay as
+defence in depth. The paragraph below describes the intermediate state and is kept as a record.
+
 **The harness can own the schema as an ordinary role.** With `realisticOwner: true`,
 `tests/database/harness.ts` moves every schema, table, view, function and type in the fabric's
 own schemas to `kf_harness_owner` — `nologin nosuperuser nobypassrls` — after migrating, so a

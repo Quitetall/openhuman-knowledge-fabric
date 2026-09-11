@@ -1,9 +1,15 @@
 import type { ActionMaterializer } from '@kf/actions';
-import { createControlledObject, optionalString, requireString } from '@kf/record-atoms';
+import {
+  createControlledObject,
+  optionalString,
+  requireString,
+  classificationFrom,
+} from '@kf/record-atoms';
 
 export const submitDocumentForReview: ActionMaterializer = async (tx, request) => {
   if (request.targetIds.length > 0) return [];
   const id = await createControlledObject(tx, {
+    ...classificationFrom(request.payload),
     objectType: 'controlled_document',
     authorityDomain: 'qms',
     lifecycleState: 'draft',
@@ -29,6 +35,7 @@ export const submitDocumentForReview: ActionMaterializer = async (tx, request) =
 
 export const raiseNonconformity: ActionMaterializer = async (tx, request) => {
   const id = await createControlledObject(tx, {
+    ...classificationFrom(request.payload),
     objectType: 'nonconformity',
     authorityDomain: 'qms',
     lifecycleState: 'open',
@@ -51,6 +58,7 @@ export const raiseNonconformity: ActionMaterializer = async (tx, request) => {
 
 export const openCapa: ActionMaterializer = async (tx, request) => {
   const id = await createControlledObject(tx, {
+    ...classificationFrom(request.payload),
     objectType: 'capa',
     authorityDomain: 'qms',
     lifecycleState: 'open',
@@ -84,6 +92,7 @@ export const openCapa: ActionMaterializer = async (tx, request) => {
 
 export const registerSupplier: ActionMaterializer = async (tx, request) => {
   const id = await createControlledObject(tx, {
+    ...classificationFrom(request.payload),
     objectType: 'supplier',
     authorityDomain: 'qms',
     lifecycleState: 'prospective',
@@ -106,6 +115,7 @@ export const registerSupplier: ActionMaterializer = async (tx, request) => {
 
 export const registerEquipment: ActionMaterializer = async (tx, request) => {
   const id = await createControlledObject(tx, {
+    ...classificationFrom(request.payload),
     objectType: 'equipment',
     authorityDomain: 'qms',
     lifecycleState: 'in_service',
@@ -129,6 +139,7 @@ export const registerEquipment: ActionMaterializer = async (tx, request) => {
 
 export const receiveComplaint: ActionMaterializer = async (tx, request) => {
   const id = await createControlledObject(tx, {
+    ...classificationFrom(request.payload),
     objectType: 'complaint',
     authorityDomain: 'qms',
     lifecycleState: 'received',

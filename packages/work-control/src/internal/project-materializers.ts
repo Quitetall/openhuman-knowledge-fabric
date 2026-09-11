@@ -1,3 +1,4 @@
+import { classificationFrom } from '@kf/record-atoms';
 import type { ActionMaterializer } from '@kf/actions';
 import {
   createControlledObject,
@@ -9,6 +10,7 @@ import {
 
 export const createInitiative: ActionMaterializer = async (tx, request) => {
   const id = await createControlledObject(tx, {
+    ...classificationFrom(request.payload),
     objectType: 'initiative_project',
     authorityDomain: 'project',
     lifecycleState: 'captured',
@@ -32,6 +34,7 @@ export const createInitiative: ActionMaterializer = async (tx, request) => {
 export const createWorkPackage: ActionMaterializer = async (tx, request) => {
   const projectId = requireString(request.payload, 'project_id');
   const id = await createControlledObject(tx, {
+    ...classificationFrom(request.payload),
     objectType: 'work_package',
     authorityDomain: 'project',
     lifecycleState: 'planned',
@@ -65,6 +68,7 @@ export const createWorkPackage: ActionMaterializer = async (tx, request) => {
 
 export const issueWorkOrder: ActionMaterializer = async (tx, request) => {
   const id = await createControlledObject(tx, {
+    ...classificationFrom(request.payload),
     objectType: 'work_order',
     authorityDomain: 'project',
     lifecycleState: 'draft',
@@ -103,6 +107,7 @@ export const issueWorkOrder: ActionMaterializer = async (tx, request) => {
 
 export const submitWorkExecution: ActionMaterializer = async (tx, request) => {
   const id = await createControlledObject(tx, {
+    ...classificationFrom(request.payload),
     objectType: 'work_execution',
     authorityDomain: 'project',
     lifecycleState: 'draft',

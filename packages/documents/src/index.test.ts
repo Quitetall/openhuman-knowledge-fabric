@@ -376,8 +376,8 @@ describe('document atoms', () => {
   });
 
   it('maps document classes onto valid evidence-vault kinds', () => {
-    expect(artifactKindForDocumentClass('specification')).toBe('specification');
-    expect(artifactKindForDocumentClass('report')).toBe('report');
+    expect(artifactKindForDocumentClass('specification')).toBe('document');
+    expect(artifactKindForDocumentClass('report')).toBe('document');
     expect(artifactKindForDocumentClass('record')).toBe('other');
   });
 
@@ -781,7 +781,7 @@ describe('document action chain', () => {
         targetIds: [],
         payload: {
           title: 'forged-parser.md',
-          artifact_kind: 'specification',
+          artifact_kind: 'document',
           sha256: sourceDigest,
           size_bytes: source.length,
           media_type: 'text/markdown',
@@ -835,7 +835,7 @@ describe('document action chain', () => {
       targetIds: [],
       payload: {
         title: 'verified-parser.md',
-        artifact_kind: 'specification',
+        artifact_kind: 'document',
         sha256: sourceDigest,
         size_bytes: source.length,
         media_type: 'text/markdown',
@@ -1676,7 +1676,7 @@ describe('document action chain', () => {
     await store.put(storageKey, viewBytes, 'text/html');
     const viewArtifact = await call('attach_evidence', [], {
       title: 'constitution.html',
-      artifact_kind: 'report',
+      artifact_kind: 'document',
       sha256: viewDigest,
       size_bytes: viewBytes.length,
       media_type: 'text/html',

@@ -1,3 +1,4 @@
+import { classificationFrom } from '@kf/record-atoms';
 import type { ActionMaterializer } from '@kf/actions';
 import {
   createControlledObject,
@@ -10,6 +11,7 @@ import { refuse } from './errors.js';
 
 export const submitInvoice: ActionMaterializer = async (tx, request) => {
   const id = await createControlledObject(tx, {
+    ...classificationFrom(request.payload),
     objectType: 'invoice',
     authorityDomain: 'finance',
     lifecycleState: 'draft',
@@ -59,6 +61,7 @@ export const authorizePayment: ActionMaterializer = async (tx, request) => {
   if (request.targetIds.length > 0) return [];
 
   const id = await createControlledObject(tx, {
+    ...classificationFrom(request.payload),
     objectType: 'payment',
     authorityDomain: 'finance',
     lifecycleState: 'planned',

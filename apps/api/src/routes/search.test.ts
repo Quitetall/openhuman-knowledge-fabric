@@ -71,6 +71,25 @@ function identify(overrides: Partial<Awaited<ReturnType<IdentifyCaller>>> = {}):
 
 function searchPool() {
   const query = vi.fn(async (sql: string, params: readonly unknown[] = []) => {
+    // Access is a grant on every read surface (ADR 0016). The fakes answer the two queries the
+    // gate asks: the object's classification, and an organization-wide read grant.
+    if (sql.includes('/* read-grant.classifications */')) {
+      const ids = (params?.[0] ?? []) as readonly string[];
+      return { rows: ids.map((id) => ({ id, classification: 'internal' })) };
+    }
+    if (sql.includes('/* access-grants.coverage */')) {
+      return {
+        rows: [
+          {
+            source: 'role_assignment',
+            source_id: 'fake-assignment',
+            scope_object_id: ORGANIZATION_A,
+            classification_ceiling: null,
+            reason: 'role performer',
+          },
+        ],
+      };
+    }
     if (!sql.includes('with visible as')) return { rows: [] };
     const [organizationId, maxClassification, text, objectTypes, lifecycleStates, limit] =
       params as [string, string, string, string[] | null, string[] | null, number];

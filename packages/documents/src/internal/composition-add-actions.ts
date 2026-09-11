@@ -1,5 +1,5 @@
 import type { ActionEffect, ActionMaterializer, PreconditionCheck } from '@kf/actions';
-import { createControlledObject, requireString } from '@kf/record-atoms';
+import { createControlledObject, requireString, classificationFrom } from '@kf/record-atoms';
 import { refuseDocument } from './action-payload.js';
 import { assertCompositionClassification } from './composition-classification.js';
 import { compositionInputs } from './composition-inputs.js';
@@ -33,6 +33,7 @@ export function createCompositionAddActions(): CompositionAddActions {
       );
     }
     const id = await createControlledObject(tx, {
+      ...classificationFrom(request.payload),
       objectType: 'document_composition',
       authorityDomain: 'qms',
       lifecycleState: 'active',

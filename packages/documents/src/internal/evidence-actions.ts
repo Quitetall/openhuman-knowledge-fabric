@@ -6,6 +6,7 @@ import {
   optionalString,
   requireInteger,
   requireString,
+  classificationFrom,
 } from '@kf/record-atoms';
 import {
   DocumentParseIntegrityError,
@@ -27,6 +28,7 @@ export function createEvidenceActions(options: {
     if (request.targetIds.length > 0) return [];
     const classification = optionalString(request.payload, 'classification') ?? undefined;
     const id = await createControlledObject(tx, {
+      ...classificationFrom(request.payload),
       objectType: 'artifact',
       authorityDomain: 'artifact',
       lifecycleState: 'draft',

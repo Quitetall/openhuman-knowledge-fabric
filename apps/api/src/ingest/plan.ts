@@ -100,28 +100,30 @@ export function referenceOnlyRuleFor(path: string): ReferenceOnlyMatch | undefin
  * wrong about whether something is a `drawing` or a `specification` misfiles it, it does not
  * reproduce anybody's copyright. Overridable per batch.
  */
+// The ontology's `artifact_kind` vocabulary (object-types.yaml), which the column's CHECK
+// follows since 20260911000200. This map used a second vocabulary of its own for a year.
 const KIND_BY_EXTENSION = new Map<string, string>([
-  ['.step', 'cad_assembly'],
-  ['.stp', 'cad_assembly'],
-  ['.sldasm', 'cad_assembly'],
-  ['.f3d', 'cad_assembly'],
-  ['.sldprt', 'cad_part'],
-  ['.ipt', 'cad_part'],
-  ['.stl', 'cad_part'],
+  ['.step', 'cad'],
+  ['.stp', 'cad'],
+  ['.sldasm', 'cad'],
+  ['.f3d', 'cad'],
+  ['.sldprt', 'cad'],
+  ['.ipt', 'cad'],
+  ['.stl', 'cad'],
   ['.dwg', 'drawing'],
   ['.dxf', 'drawing'],
-  ['.sch', 'schematic'],
-  ['.kicad_sch', 'schematic'],
-  ['.kicad_pcb', 'pcb_layout'],
-  ['.brd', 'pcb_layout'],
+  ['.sch', 'drawing'],
+  ['.kicad_sch', 'drawing'],
+  ['.kicad_pcb', 'cad'],
+  ['.brd', 'cad'],
   ['.csv', 'dataset'],
   ['.json', 'dataset'],
-  ['.md', 'specification'],
-  ['.txt', 'specification'],
-  ['.pdf', 'report'],
-  ['.png', 'photograph'],
-  ['.jpg', 'photograph'],
-  ['.jpeg', 'photograph'],
+  ['.md', 'document'],
+  ['.txt', 'document'],
+  ['.pdf', 'document'],
+  ['.png', 'other'],
+  ['.jpg', 'other'],
+  ['.jpeg', 'other'],
 ]);
 
 const MEDIA_TYPE_BY_EXTENSION = new Map<string, string>([
@@ -251,9 +253,9 @@ export function planIngest(request: IngestRequest): IngestPlan {
       })),
       ...driveItems.map((item) => ({
         path: `drive:${item.ref}`,
-        // Not artifactKindFor: a Drive name carries no extension worth trusting, and
-        // 'document' is not a valid artifact_kind. 'other' is the honest default.
-        artifactKind: request.artifactKind ?? 'other',
+        // Not artifactKindFor: a Drive name carries no extension worth trusting. A Drive
+        // export is a document unless the caller says otherwise.
+        artifactKind: request.artifactKind ?? 'document',
         mediaType: 'application/octet-stream',
         drive: {
           fileId: item.fileId,

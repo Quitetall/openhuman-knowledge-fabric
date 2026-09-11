@@ -1,8 +1,10 @@
+import { classificationFrom } from '@kf/record-atoms';
 import type { ActionMaterializer } from '@kf/actions';
 import { createControlledObject, requireString } from '../objects.js';
 
 export const proposeDecision: ActionMaterializer = async (tx, request) => {
   const id = await createControlledObject(tx, {
+    ...classificationFrom(request.payload),
     objectType: 'decision_record',
     authorityDomain: 'engineering',
     lifecycleState: 'draft',
@@ -15,6 +17,7 @@ export const proposeDecision: ActionMaterializer = async (tx, request) => {
 
 export const openChange: ActionMaterializer = async (tx, request) => {
   const id = await createControlledObject(tx, {
+    ...classificationFrom(request.payload),
     objectType: 'change_record',
     authorityDomain: 'engineering',
     lifecycleState: 'proposed',

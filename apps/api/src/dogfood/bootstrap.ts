@@ -40,6 +40,7 @@ export async function createAppLogin(owner: Pool): Promise<string> {
 async function createPerson(tx: Tx, organizationId: string): Promise<string> {
   const id = await createControlledObject(tx, {
     objectType: 'person',
+    classification: 'public',
     authorityDomain: 'organization',
     lifecycleState: 'active',
     title: 'Local Dogfood Operator',
@@ -96,6 +97,7 @@ export async function bootstrapIdentity(owner: Pool): Promise<DogfoodIdentity> {
     if (organizationId === undefined) {
       organizationId = await createControlledObject(tx, {
         objectType: 'organization',
+        classification: 'public',
         authorityDomain: 'organization',
         lifecycleState: 'active',
         title: 'OpenHuman Technologies LLC',

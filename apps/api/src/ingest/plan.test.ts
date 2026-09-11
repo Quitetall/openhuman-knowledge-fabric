@@ -119,15 +119,15 @@ describe('reference-only material cannot be copied', () => {
 
 describe('descriptive metadata', () => {
   it('maps mechanical formats to the kinds an enclosure designer would expect', () => {
-    expect(artifactKindFor('/a/part.step')).toBe('cad_assembly');
-    expect(artifactKindFor('/a/bracket.sldprt')).toBe('cad_part');
+    expect(artifactKindFor('/a/part.step')).toBe('cad');
+    expect(artifactKindFor('/a/bracket.sldprt')).toBe('cad');
     expect(artifactKindFor('/a/outline.dxf')).toBe('drawing');
-    expect(artifactKindFor('/a/board.kicad_pcb')).toBe('pcb_layout');
+    expect(artifactKindFor('/a/board.kicad_pcb')).toBe('cad');
   });
 
   it('falls back to other rather than guessing wildly, and honours an override', () => {
     expect(artifactKindFor('/a/thing.weird')).toBe('other');
-    expect(artifactKindFor('/a/thing.weird', 'certificate')).toBe('certificate');
+    expect(artifactKindFor('/a/thing.weird', 'document')).toBe('document');
   });
 
   it('gives a media type, defaulting to octet-stream', () => {
@@ -149,13 +149,13 @@ describe('a Drive source is a copy with its origin recorded (ADR 0022)', () => {
     expect(plan.items).toEqual([
       {
         path: 'drive:F1234567890@r7',
-        artifactKind: 'other',
+        artifactKind: 'document',
         mediaType: 'application/octet-stream',
         drive: { fileId: 'F1234567890', revisionId: 'r7' },
       },
       {
         path: 'drive:G1234567890',
-        artifactKind: 'other',
+        artifactKind: 'document',
         mediaType: 'application/octet-stream',
         drive: { fileId: 'G1234567890' },
       },

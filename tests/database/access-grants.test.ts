@@ -10,6 +10,7 @@ import { createFabricDispatcher } from '@kf/orchestrator';
 import { loadProjectionDefinitions } from '@kf/projections';
 import { registerAccessExplanationRoute } from '../../apps/api/src/routes/documents/access-explanation-route.js';
 import type { DocumentRoutesOptions } from '../../apps/api/src/routes/documents/contracts.js';
+import { readGranted, readGrantedSubset } from '../../apps/api/src/routes/documents/read-grant.js';
 import {
   bindContext,
   createObject,
@@ -188,6 +189,23 @@ describe('access is a grant', () => {
     });
     expect(granted.status, JSON.stringify(granted)).toBe('applied');
     expect(await permittedFor(outsider)).toEqual([probe]);
+    // Every read surface asks the same question the master record asks (ADR 0016, applied
+    // 2026-09-11): the grant reaches the probe and nothing else the outsider is cleared for.
+    const reads = await withTransaction(harness.pool, async (tx) => {
+      await tx.query('select core.set_access_context($1, $2)', [
+        fixtures.organizationId,
+        'restricted',
+      ]);
+      const identity = { actorId: outsider, organizationId: fixtures.organizationId };
+      return {
+        probe: await readGranted(tx, identity, probe),
+        other: await readGranted(tx, identity, fixtures.performerId),
+        subset: (
+          await readGrantedSubset(tx, identity, [{ id: probe }, { id: fixtures.performerId }])
+        ).map((item) => item.id),
+      };
+    });
+    expect(reads).toEqual({ probe: true, other: false, subset: [probe] });
 
     const visible = await explainFor(outsider, probe);
     expect(visible.decision).toBe('visible');

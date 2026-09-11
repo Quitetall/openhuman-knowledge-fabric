@@ -257,6 +257,7 @@ describe('a system that is genuinely in order', () => {
     expect(report.service.checks.map((candidate) => candidate.id)).toEqual([
       'schema_release',
       'write_guards',
+      'schema_owner_bypasses_rls',
       'audit_chain',
       'outbox_delivery',
       'search_index',
@@ -606,5 +607,25 @@ describe('failing closed', () => {
       checkpoints?.status,
       `checkpoint coverage could not run as kf_app: ${checkpoints?.detail ?? 'no detail'}`,
     ).not.toBe('unknown');
+  });
+});
+
+describe('the schema owner bypasses row-level security', () => {
+  it('fails the service verdict when it does not, and names the remedy', async () => {
+    // Every definer seam depends on this (ADR 0026). The harness owner is what a host's
+    // owner must be; take the attribute away and readiness has to say so.
+    await withTransaction(h.adminPool, (tx) => tx.query('alter role kf_harness_owner nobypassrls'));
+    try {
+      const report = await assessReadiness(h.adminPool);
+      const owner = serviceCheck(report, 'schema_owner_bypasses_rls');
+      expect(owner?.status).toBe('failed');
+      expect(owner?.detail).toContain('BYPASSRLS');
+      expect(report.service.ready).toBe(false);
+    } finally {
+      await withTransaction(h.adminPool, (tx) => tx.query('alter role kf_harness_owner bypassrls'));
+    }
+    expect(
+      serviceCheck(await assessReadiness(h.adminPool), 'schema_owner_bypasses_rls')?.status,
+    ).toBe('ok');
   });
 });

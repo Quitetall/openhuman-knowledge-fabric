@@ -1,8 +1,14 @@
 import type { ActionMaterializer } from '@kf/actions';
-import { createControlledObject, optionalString, requireString } from '@kf/record-atoms';
+import {
+  createControlledObject,
+  optionalString,
+  requireString,
+  classificationFrom,
+} from '@kf/record-atoms';
 
 export const proposeRiskControl: ActionMaterializer = async (tx, request) => {
   const id = await createControlledObject(tx, {
+    ...classificationFrom(request.payload),
     objectType: 'risk_control',
     authorityDomain: 'engineering',
     lifecycleState: 'proposed',
@@ -25,6 +31,7 @@ export const proposeRiskControl: ActionMaterializer = async (tx, request) => {
 
 export const defineTest: ActionMaterializer = async (tx, request) => {
   const id = await createControlledObject(tx, {
+    ...classificationFrom(request.payload),
     objectType: 'test_definition',
     authorityDomain: 'engineering',
     lifecycleState: 'draft',
@@ -49,6 +56,7 @@ export const defineTest: ActionMaterializer = async (tx, request) => {
 
 export const planTestExecution: ActionMaterializer = async (tx, request) => {
   const id = await createControlledObject(tx, {
+    ...classificationFrom(request.payload),
     objectType: 'test_execution',
     authorityDomain: 'engineering',
     lifecycleState: 'planned',

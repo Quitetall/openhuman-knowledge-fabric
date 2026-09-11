@@ -155,7 +155,7 @@ describe('a declared service actor', () => {
     await withTransaction(harness.adminPool, async (tx) => {
       await bindContext(tx, fixtures, fixtures.reviewerId);
       await tx.query(
-        `insert into content.artifact (id, artifact_kind, source_system) values ($1, 'report', 'object_store')`,
+        `insert into content.artifact (id, artifact_kind, source_system) values ($1, 'document', 'object_store')`,
         [artifactId],
       );
       await tx.query(

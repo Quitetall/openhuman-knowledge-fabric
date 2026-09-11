@@ -98,14 +98,15 @@ slower with it on.
 does need.** That gap cost four failed attempts, each with a different refusal, and the answer is
 worth writing down:
 
-| It needs                                     | Because                                                                                                                                            |
-| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CREATEROLE`                                 | the first migration creates ten NOLOGIN group roles                                                                                                |
-| the group roles pre-created by the superuser | migration 1 creates them AND does `alter default privileges for role kf_migrator` in one transaction, so the running role must already be a member |
-| `ADMIN OPTION` on those roles                | `comment on role` requires it — PostgreSQL 18 says so by name                                                                                      |
-| the extensions pre-created by the superuser  | `btree_gist` and `pg_trgm` are untrusted; the migration's `create extension if not exists` then finds them                                         |
+| It needs                                     | Because                                                                                                                                                                                                                                                        |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CREATEROLE`                                 | the first migration creates ten NOLOGIN group roles                                                                                                                                                                                                            |
+| the group roles pre-created by the superuser | migration 1 creates them AND does `alter default privileges for role kf_migrator` in one transaction, so the running role must already be a member                                                                                                             |
+| `ADMIN OPTION` on those roles                | `comment on role` requires it — PostgreSQL 18 says so by name                                                                                                                                                                                                  |
+| the extensions pre-created by the superuser  | `btree_gist` and `pg_trgm` are untrusted; the migration's `create extension if not exists` then finds them                                                                                                                                                     |
+| `BYPASSRLS`                                  | every `SECURITY DEFINER` seam runs as the schema owner and reads past FORCED row-level security only if the owner bypasses it (ADR 0026). Without it this host identified nobody, delivered no outbox row and indexed nothing; `readiness` refuses such a host |
 
-It does **not** need superuser, and it is not one here. That matters: `kf_migrator` is described
+It does **not** need superuser, and it is not one here; `BYPASSRLS` is narrower than superuser, and it is what the definer seams need. That matters: `kf_migrator` is described
 as the only role permitted DDL, and a superuser migrator would make that description decorative.
 
 **The install corrected a number that had never been checked.** Measured on the fresh database:

@@ -111,7 +111,7 @@ describe('document constitution dogfood', { timeout: 120_000 }, () => {
       idempotencyKey: 'dogfood-artifact-0001',
       payload: {
         title: 'constitution.md',
-        artifact_kind: 'specification',
+        artifact_kind: 'document',
         sha256,
         size_bytes: bytes.length,
         media_type: 'text/markdown',
@@ -170,7 +170,7 @@ describe('document constitution dogfood', { timeout: 120_000 }, () => {
       idempotencyKey: 'dogfood-manifest-0001',
       payload: {
         title: 'document-constitution.json',
-        artifact_kind: 'specification',
+        artifact_kind: 'document',
         sha256: manifestSha256,
         size_bytes: manifestBytes.length,
         media_type: 'application/json',

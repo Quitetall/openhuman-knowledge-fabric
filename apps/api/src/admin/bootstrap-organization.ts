@@ -212,6 +212,7 @@ export async function runBootstrap(
         objectType: 'person',
         authorityDomain: 'organization',
         lifecycleState: 'active',
+        classification: 'public',
         title: declaration.personName,
         organizationId: existing.id,
         createdBy: BOOTSTRAP_IDENTITY,
@@ -255,7 +256,7 @@ export async function runBootstrap(
       `insert into core.object
          (id, object_type, authority_domain, lifecycle_state, classification, retention_class,
           schema_version, organization_id, title, created_by, updated_by)
-       values ($1, 'organization', 'organization', 'active', 'internal', 'project_record',
+       values ($1, 'organization', 'organization', 'active', 'public', 'project_record',
                $2, $1, $3, $4, $4)`,
       [organizationId, version, declaration.legalName, BOOTSTRAP_IDENTITY],
     );
@@ -290,6 +291,9 @@ export async function runBootstrap(
       objectType: 'person',
       authorityDomain: 'organization',
       lifecycleState: 'active',
+      // The lowest tier of the tenancy (20260911000200): a member capped at `public` must
+      // still see the people and the organization they belong to.
+      classification: 'public',
       title: declaration.personName,
       organizationId,
       createdBy: BOOTSTRAP_IDENTITY,

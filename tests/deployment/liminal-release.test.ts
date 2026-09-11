@@ -143,6 +143,34 @@ describe('Liminal release runtime closure', { timeout: 90_000 }, () => {
     expect(result.output).toContain('Liminal runtime verified');
   });
 
+  it('accepts a release that declares liminal=none with no pins, and refuses one with pins', () => {
+    // The ordinary release (ADR 0010 defers the compiler). Until 2026-09-11 the verifier
+    // required the pins unconditionally, so the worker could not start on the dogfood host and
+    // nothing was delivered or indexed there.
+    const release = temporaryDirectory('kf-liminal-none-');
+    writeFileSync(join(release, 'BUILD-METADATA'), 'git_commit=abc\nliminal=none\n');
+    const unset = Object.fromEntries(
+      Object.keys(process.env)
+        .filter((key) => key.startsWith('LIMINAL_'))
+        .map((key) => [key, '']),
+    );
+    const accepted = spawnSync('bash', [VERIFY, release], {
+      cwd: ROOT,
+      encoding: 'utf8',
+      env: { ...process.env, ...unset },
+    });
+    expect(accepted.status, accepted.stderr).toBe(0);
+    expect(accepted.stdout).toContain('declares none');
+
+    const inconsistent = spawnSync('bash', [VERIFY, release], {
+      cwd: ROOT,
+      encoding: 'utf8',
+      env: { ...process.env, ...unset, LIMINAL_COMPILER_PATH: '/nonexistent' },
+    });
+    expect(inconsistent.status).toBe(1);
+    expect(inconsistent.stderr).toContain('declares liminal=none but LIMINAL_COMPILER_PATH');
+  });
+
   it('fails closed for configured compiler, lock, or runtime-closure digest mismatch', () => {
     for (const name of [
       'LIMINAL_EXECUTABLE_SHA256',

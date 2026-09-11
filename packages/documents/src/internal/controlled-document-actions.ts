@@ -1,5 +1,5 @@
 import type { ActionMaterializer } from '@kf/actions';
-import { createControlledObject, requireString } from '@kf/record-atoms';
+import { createControlledObject, requireString, classificationFrom } from '@kf/record-atoms';
 
 interface ControlledDocumentActions {
   readonly addControlledDocument: ActionMaterializer;
@@ -9,6 +9,7 @@ export function createControlledDocumentActions(): ControlledDocumentActions {
   const addControlledDocument: ActionMaterializer = async (tx, request) => {
     if (request.targetIds.length > 0) return [];
     const id = await createControlledObject(tx, {
+      ...classificationFrom(request.payload),
       objectType: 'controlled_document',
       authorityDomain: 'qms',
       lifecycleState: 'draft',

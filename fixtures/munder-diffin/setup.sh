@@ -46,15 +46,12 @@ kf() { node "$release/apps/api/dist/cli.js" "$@"; }
 set -a
 . /etc/kf/api.env
 set +a
-# The TABLE OWNER, not the application's "owner" login. Bootstrap-tier commands read across
-# organizations (a decider in one, a duplicate in another) and `org.person` / `org.organization`
-# enable row-level security without forcing it: the table owner reads past the policy, any other
-# login sees only the bound organization. That is the configuration every database test runs
-# under, and on this host the table owner is the migrator credential. Overridable for a host
-# whose bootstrap login IS the owner.
-owner_file="${KF_BOOTSTRAP_DATABASE_URL_FILE:-/etc/kf/migrator/database-url}"
-export DATABASE_OWNER_URL_FILE="$owner_file"
-export DATABASE_OWNER_URL="$(cat "$owner_file")"
+# The owner login, as every bootstrap-tier command uses. It is not the table owner: it sees
+# org.person and org.organization only under a bound organization, and core.object only under
+# one; the lookups below bind it, and the two cross-organization answers it needs come from
+# definer functions that answer the minimum (organization_by_name, person_lookup).
+export DATABASE_OWNER_URL_FILE=/etc/kf/owner/database-url
+export DATABASE_OWNER_URL="$(cat /etc/kf/owner/database-url)"
 export DATABASE_URL_FILE=/etc/kf/api/database-url
 export S3_SECRET_ACCESS_KEY_FILE=/etc/kf/api/s3-secret-access-key
 export KF_API_ORIGIN="${KF_API_ORIGIN:-https://api.kf.internal}"
@@ -64,10 +61,6 @@ export CURL_CA_BUNDLE="${NODE_EXTRA_CA_CERTS:-}"
 export NODE_ENV=production
 
 psql_owner() { psql "$DATABASE_OWNER_URL" -v ON_ERROR_STOP=1 -X -A -t -q -c "$1"; }
-# Refuse a credential that is not the table owner: every cross-organization lookup below would
-# quietly return nothing and the run would report an empty company rather than a wrong login.
-owner_check="$(psql_owner "select case when tableowner = current_user then 'owner' else current_user || ' is not ' || tableowner end from pg_tables where schemaname = 'org' and tablename = 'person'")"
-[ "$owner_check" = owner ] || { echo "bootstrap credential must be the table owner: $owner_check" >&2; exit 2; }
 # `core.object` FORCES row-level security, which binds the table owner too: a lookup there
 # needs the organization bound in the same statement, or it returns nothing and looks like
 # "no such record". The two org.* lookups above do not need this (enabled, not forced).
@@ -78,7 +71,7 @@ q() { printf "'%s'" "${1//\'/\'\'}"; }
 
 # ── the company ─────────────────────────────────────────────────────────────────────────
 legal_name='Munder Diffin Paper Shredding Co.'
-org="$(psql_owner "select id from org.organization where legal_name = $(q "$legal_name") and retired_at is null")"
+org="$(psql_owner "select coalesce(org.organization_by_name($(q "$legal_name"))::text, '')")"
 if [ -z "$org" ]; then
   echo "no active organization named '$legal_name'; bootstrap it first:" >&2
   echo "  kf bootstrap-organization --legal-name '$legal_name' --person 'Jim Miller'" >&2
@@ -104,9 +97,9 @@ people=(
   'Robert California|robert.california|partner_contact|confidential|internal'
 )
 
-person_id() { psql_owner "select p.id from org.person p where p.organization = $(q "$org") and p.display_name = $(q "$1") order by p.id limit 1"; }
+person_id() { psql_scoped "select p.id from org.person p where p.organization = $(q "$org") and p.display_name = $(q "$1") order by p.id limit 1"; }
 role_assignment_id() {
-  psql_owner "select id from org.role_assignment where subject_id = $(q "$1") and scope_id = $(q "$org") and valid_from <= now() and (valid_to is null or valid_to > now()) order by valid_from limit 1"
+  psql_scoped "select id from org.role_assignment where subject_id = $(q "$1") and scope_id = $(q "$org") and valid_from <= now() and (valid_to is null or valid_to > now()) order by valid_from limit 1"
 }
 
 echo; echo "== people"
@@ -230,7 +223,7 @@ for classification in public internal confidential restricted; do
       printf '  %-14s %-52s already ingested\n' "$classification" "$title"
       continue
     fi
-    kf ingest --mode=copy --kind=other --classification="$classification" --identity=oidc \
+    kf ingest --mode=copy --kind=document --classification="$classification" --identity=oidc \
       --organization="$org" --acting-role="$jim_role" --token-file="$jim_token" \
       --reason="Munder Diffin fixture: $classification record ingested by Jim Miller" \
       --json "$file" > /dev/null
@@ -250,7 +243,7 @@ grant_read() {
   object="$(artifact_id "$title")"
   [ -n "$object" ] || { echo "  no artifact titled $title" >&2; return 1; }
   local live
-  live="$(psql_owner "select count(*) from org.access_grant where organization_id = $(q "$org") and principal_kind = 'person' and principal_id = $(q "$person") and scope_object_id = $(q "$object") and capability = 'read' and revoked_at is null")"
+  live="$(psql_scoped "select count(*) from org.access_grant where organization_id = $(q "$org") and principal_kind = 'person' and principal_id = $(q "$person") and scope_object_id = $(q "$object") and capability = 'read' and revoked_at is null")"
   if [ "$live" != 0 ]; then printf '  %-52s already granted\n' "$title"; return 0; fi
   local body status
   body="$(KF_T="$object" KF_P="$person" KF_TITLE="$title" python3 -c '
@@ -277,11 +270,9 @@ for entry in "${people[@]}"; do
   IFS='|' read -r name username role clearance ceiling <<<"$entry"
   token="$(token_for "$username")"
   assignment="$(role_assignment_id "${PERSON[$name]}")"
-  # The session ceiling is the clearance capped by the acting role's ceiling: the resolver
-  # refuses a request above that. So a contact asks at their role ceiling — which also means
-  # the object-scoped grant to their own confidential agreement is recorded but unreachable
-  # from this role. That is a limit of the model as it stands, stated here, not worked around.
-  ask="$clearance"; [ "$ceiling" = '-' ] || ask="$ceiling"
+  # The session ceiling is the clearance (20260911000200); the role ceiling caps only the
+  # organization-wide grant. A contact asks at their clearance and reads what grants reach.
+  ask="$clearance"
   for format in html markdown json; do
     ext="$format"; [ "$format" = markdown ] && ext=md
     extra=(); [ "$format" = html ] || extra=(--no-compile)

@@ -167,7 +167,7 @@ describe('corpus projections over a real master record', () => {
       expect(html.headers['x-kf-projection-digest']).toBe(digest);
       expect(md.headers['content-type']).toBe('text/markdown');
       expect(md.body).toContain('## Raw corpus');
-      expect(html.body).toContain('<h2>Raw corpus</h2>');
+      expect(html.body).toContain('<h2>Raw corpus<small>');
     } finally {
       await app.close();
     }
