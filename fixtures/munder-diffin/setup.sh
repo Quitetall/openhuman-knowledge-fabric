@@ -68,6 +68,10 @@ psql_owner() { psql "$DATABASE_OWNER_URL" -v ON_ERROR_STOP=1 -X -A -t -q -c "$1"
 # quietly return nothing and the run would report an empty company rather than a wrong login.
 owner_check="$(psql_owner "select case when tableowner = current_user then 'owner' else current_user || ' is not ' || tableowner end from pg_tables where schemaname = 'org' and tablename = 'person'")"
 [ "$owner_check" = owner ] || { echo "bootstrap credential must be the table owner: $owner_check" >&2; exit 2; }
+# `core.object` FORCES row-level security, which binds the table owner too: a lookup there
+# needs the organization bound in the same statement, or it returns nothing and looks like
+# "no such record". The two org.* lookups above do not need this (enabled, not forced).
+psql_scoped() { psql_owner "select core.set_access_context($(q "$org"), 'restricted'); $1" | tail -n 1; }
 # SQL literal: single quotes doubled. Every value below is a constant from this file, but a
 # query built by interpolation is a query built by interpolation.
 q() { printf "'%s'" "${1//\'/\'\'}"; }
@@ -221,7 +225,7 @@ for classification in public internal confidential restricted; do
   [ -d "$dir" ] || continue
   for file in "$dir"/*.md; do
     title="$(basename "$file")"
-    existing="$(psql_owner "select count(*) from core.object where organization_id = $(q "$org") and object_type = 'artifact' and title = $(q "$title")")"
+    existing="$(psql_scoped "select count(*) from core.object where organization_id = $(q "$org") and object_type = 'artifact' and title = $(q "$title")")"
     if [ "$existing" != 0 ]; then
       printf '  %-14s %-52s already ingested\n' "$classification" "$title"
       continue
@@ -240,7 +244,7 @@ done
 # ceiling on their role keeps every OTHER confidential record out of the organization-wide
 # grant; this names the one record each may read.
 echo; echo "== access grants"
-artifact_id() { psql_owner "select id from core.object where organization_id = $(q "$org") and object_type = 'artifact' and title = $(q "$1") order by id limit 1"; }
+artifact_id() { psql_scoped "select id from core.object where organization_id = $(q "$org") and object_type = 'artifact' and title = $(q "$1") order by id limit 1"; }
 grant_read() {
   local person="$1" title="$2" object
   object="$(artifact_id "$title")"
@@ -273,13 +277,18 @@ for entry in "${people[@]}"; do
   IFS='|' read -r name username role clearance ceiling <<<"$entry"
   token="$(token_for "$username")"
   assignment="$(role_assignment_id "${PERSON[$name]}")"
+  # The session ceiling is the clearance capped by the acting role's ceiling: the resolver
+  # refuses a request above that. So a contact asks at their role ceiling — which also means
+  # the object-scoped grant to their own confidential agreement is recorded but unreachable
+  # from this role. That is a limit of the model as it stands, stated here, not worked around.
+  ask="$clearance"; [ "$ceiling" = '-' ] || ask="$ceiling"
   for format in html markdown json; do
     ext="$format"; [ "$format" = markdown ] && ext=md
     extra=(); [ "$format" = html ] || extra=(--no-compile)
     kf master-record --token-file "$token" --organization "$org" --acting-role "$assignment" \
-      --classification "$clearance" --format "$format" --out "$out/$username.$ext" "${extra[@]}" \
+      --classification "$ask" --format "$format" --out "$out/$username.$ext" "${extra[@]}" \
       --reason "Munder Diffin fixture: $name asks for their master record" 2> "$out/$username.$ext.log"
   done
-  printf '  %-18s %-20s %-12s %s\n' "$name" "$role" "$clearance" "$(grep -c '<li>' "$out/$username.html") members"
+  printf '  %-18s %-20s %-12s %s\n' "$name" "$role" "$ask" "$(grep -o '<li>' "$out/$username.html" | wc -l) members"
 done
 echo; echo "done. Master records in $out; per-person logs beside them."
