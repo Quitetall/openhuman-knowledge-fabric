@@ -18,7 +18,7 @@ function caller(): IdentifyCaller {
   }));
 }
 
-function pool(row: Record<string, unknown> | undefined): Pool {
+function pool(row: Record<string, unknown> | undefined, asArtifact = false): Pool {
   const client = {
     query: vi.fn(async (sql: string, params?: readonly unknown[]) => {
       // Access is a grant on every read surface (ADR 0016). The fakes answer the two queries the
@@ -41,7 +41,11 @@ function pool(row: Record<string, unknown> | undefined): Pool {
         };
       }
       return {
-        rows: sql.includes('/* document.source-bytes */') && row !== undefined ? [row] : [],
+        rows:
+          (sql.includes('/* document.source-bytes */') && row !== undefined && !asArtifact) ||
+          (sql.includes('/* artifact.source-bytes */') && row !== undefined && asArtifact)
+            ? [row]
+            : [],
       };
     }),
     release: vi.fn(),
@@ -76,6 +80,36 @@ describe('GET /documents/:id/source', () => {
     expect(response.rawPayload).toEqual(SOURCE);
     expect(response.headers['content-type']).toContain('text/markdown');
     expect(response.headers.etag).toBe(`"sha256:${digestOf(SOURCE)}"`);
+  });
+
+  it('serves an ingested ARTIFACT — its latest version — not only a controlled document', async () => {
+    // Every ingest produces an artifact and every master record links its bytes here; until
+    // 2026-09-11 this route answered 404 for all of them.
+    const store = new InMemoryObjectStore();
+    const stored = await store.put('artifacts/brochure', SOURCE, 'text/markdown');
+    const app = Fastify({ logger: false });
+    await registerDocumentRoutes(app, {
+      pool: pool(
+        {
+          document_number: 'marketing-brochure-2026.md',
+          revision: 'v1',
+          media_type: 'text/markdown',
+          size_bytes: String(SOURCE.byteLength),
+          sha256: digestOf(SOURCE),
+          storage_uri: 'artifacts/brochure',
+          storage_version: stored.versionId,
+        },
+        true,
+      ),
+      identify: caller(),
+      store,
+      preflightInTransaction: vi.fn(async () => undefined),
+      executeInTransaction: vi.fn(),
+    });
+    const response = await app.inject({ method: 'GET', url: `/documents/${DOCUMENT_ID}/source` });
+    expect(response.statusCode).toBe(200);
+    expect(response.rawPayload).toEqual(SOURCE);
+    expect(response.headers['content-disposition']).toContain('marketing-brochure-2026.md-v1');
   });
 
   it('fails closed when stored bytes no longer match the authoritative digest', async () => {

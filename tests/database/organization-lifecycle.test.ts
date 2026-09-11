@@ -418,5 +418,39 @@ describe('deactivate_person', () => {
       clearances: 1,
       retirements: 0,
     });
+
+    // Re-engaged the SAME DAY: reactivation restores nothing, and the re-grant is a new
+    // generation of clearance — not a replay of the morning's action (the day-keyed
+    // idempotency key collided on `action_idempotency`; found by the fixture workflow).
+    const back = await execute({
+      actionType: 'reactivate_person',
+      actorId: founded.personId,
+      actingRoleId: founded.roleAssignmentId,
+      targetIds: [second.personId],
+      organizationId: founded.organizationId,
+      maxClassification: 'restricted',
+      idempotencyKey: `reactivate-${randomUUID()}`,
+      reason: 're-engaged the same afternoon',
+    });
+    expect(back.status).toBe('applied');
+    expect(await liveAuthority(second.personId, founded.organizationId)).toEqual({
+      roles: 0,
+      clearances: 0,
+      retirements: 1,
+    });
+    const regrant = await runGrantAuthority(harness.adminPool, {
+      personId: second.personId,
+      organizationId: founded.organizationId,
+      roleId: 'performer',
+      classification: 'internal',
+      grantedBy: founded.personId,
+      reason: 're-engaged: fresh authority, fresh reason',
+    });
+    expect(regrant.changed).toBe(true);
+    expect(await liveAuthority(second.personId, founded.organizationId)).toEqual({
+      roles: 1,
+      clearances: 1,
+      retirements: 1,
+    });
   });
 });

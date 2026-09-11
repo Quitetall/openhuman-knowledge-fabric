@@ -202,12 +202,15 @@ export interface GrantAuthorityResult {
 }
 
 /**
- * Same-day duplicate grants of the SAME clearance collide on the action idempotency index,
- * which is the intended protection against a double-run. A later re-grant is a different day
- * and a different key.
+ * Keyed on the GENERATION of clearance — how many this person has ever been granted in this
+ * organization, retired ones included — not on the day. A same-day double-run of the same
+ * grant still collides (and `currentAuthority` already writes nothing for it); a legitimate
+ * re-grant after a retirement the same day is a new generation and a new key. The day-keyed
+ * version refused exactly that: a contractor deactivated and re-engaged before lunch
+ * (2026-09-11, the fixture workflow).
  */
-function idempotencyKey(grant: GrantAuthorityGrant, day: string): string {
-  return `grant-clearance:${grant.personId}:${grant.organizationId}:${grant.classification}:${day}`;
+function idempotencyKey(grant: GrantAuthorityGrant, generation: number): string {
+  return `grant-clearance:${grant.personId}:${grant.organizationId}:${grant.classification}:g${String(generation)}`;
 }
 
 export async function runGrantAuthority(
@@ -315,7 +318,15 @@ export async function runGrantAuthority(
 
     const actionId = randomUUID();
     const effectiveAt = new Date();
-    const day = effectiveAt.toISOString().slice(0, 10);
+    const generation = Number(
+      (
+        await tx.one<{ n: string }>(
+          `select count(*)::text as n from org.person_clearance
+            where subject_id = $1 and organization_id = $2`,
+          [grant.personId, grant.organizationId],
+        )
+      ).n,
+    );
 
     await setTransactionContext(tx, {
       actorId: grant.grantedBy,
@@ -389,7 +400,7 @@ export async function runGrantAuthority(
           max_classification: grant.classification,
           ...(grant.identity === undefined ? {} : { issuer: grant.identity.issuer }),
         }),
-        idempotencyKey(grant, day),
+        idempotencyKey(grant, generation),
         effectiveAt.toISOString(),
         grant.reason,
         // The role EXERCISED. The first version wrote the grantor's person id here — the very

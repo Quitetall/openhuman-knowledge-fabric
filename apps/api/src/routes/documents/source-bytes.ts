@@ -58,30 +58,59 @@ export async function documentSourceBytes(
       where d.id = $1`,
     [documentId],
   );
-  if (row === undefined) return undefined;
-  const sizeBytes = Number(row.size_bytes);
+  // Not a controlled document: an ARTIFACT, which is what every ingest produces and what a
+  // master record links as "source". Its bytes are its latest recorded version. Until
+  // 2026-09-11 this route knew only controlled documents, so every link a master record
+  // carried to an ingested file answered 404 (found by the fixture workflow).
+  const artifact =
+    row ??
+    (await tx.maybeOne<{
+      document_number: string;
+      revision: string;
+      media_type: string;
+      size_bytes: string;
+      sha256: string;
+      storage_uri: string | null;
+      storage_version: string | null;
+      version_id: string;
+    }>(
+      `select /* artifact.source-bytes */
+              artifact_object.title as document_number,
+              coalesce(version.revision_label, 'v' || version.version_no::text) as revision,
+              version.media_type, version.size_bytes, version.sha256, version.storage_uri,
+              version.storage_version, version.id as version_id
+         from content.artifact artifact
+         join core.object artifact_object on artifact_object.id = artifact.id
+         join content.artifact_version version on version.artifact_id = artifact.id
+        where artifact.id = $1
+        order by version.version_no desc
+        limit 1`,
+      [documentId],
+    ));
+  if (artifact === undefined) return undefined;
+  const sizeBytes = Number(artifact.size_bytes);
   if (
-    row.storage_uri === null ||
-    row.storage_uri.trim() === '' ||
-    row.storage_version === null ||
-    row.storage_version.trim() === '' ||
+    artifact.storage_uri === null ||
+    artifact.storage_uri.trim() === '' ||
+    artifact.storage_version === null ||
+    artifact.storage_version.trim() === '' ||
     !Number.isSafeInteger(sizeBytes) ||
     sizeBytes < 0 ||
-    !/^[0-9a-f]{64}$/.test(row.sha256) ||
-    row.media_type.trim() === ''
+    !/^[0-9a-f]{64}$/.test(artifact.sha256) ||
+    artifact.media_type.trim() === ''
   ) {
     throw new DocumentBytesUnavailable('missing_identity');
   }
   if (sizeBytes > maxBytes) throw new DocumentBytesUnavailable('too_large');
   return {
-    documentNumber: row.document_number,
-    revision: row.revision,
-    mediaType: row.media_type,
+    documentNumber: artifact.document_number,
+    revision: artifact.revision,
+    mediaType: artifact.media_type,
     sizeBytes,
-    sha256: row.sha256,
-    storageUri: row.storage_uri,
-    storageVersion: row.storage_version,
-    versionId: row.version_id,
+    sha256: artifact.sha256,
+    storageUri: artifact.storage_uri,
+    storageVersion: artifact.storage_version,
+    versionId: artifact.version_id,
   };
 }
 
