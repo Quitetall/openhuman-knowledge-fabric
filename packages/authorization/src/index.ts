@@ -64,6 +64,8 @@ export {
 } from './access-grants.js';
 export {
   ORGANIZATION_LIFECYCLE_ACTION_IDS,
+  activePeopleOf,
   createOrganizationLifecycleAtoms,
+  endPersonAuthority,
   type OrganizationLifecycleAtoms,
 } from './organization-lifecycle.js';

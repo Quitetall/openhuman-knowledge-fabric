@@ -45,6 +45,12 @@ export interface ApiConfig {
    * so the default resolves inside the checkout or release root the process runs from.
    */
   readonly projectionsArtifact?: string;
+  /**
+   * Where rendered records point (ADR 0015: a master record links its sources). The web origin
+   * serves Object Views; the API origin serves bytes. Absent means a rendering carries no
+   * links, which is honest for a process that does not know its own public name.
+   */
+  readonly publicOrigins?: { readonly web?: string; readonly api?: string };
 }
 
 class ConfigError extends Error {
@@ -280,6 +286,35 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     }
   }
 
+  const origin = (name: string): string | undefined => {
+    const value = env[name];
+    if (value === undefined || value.trim() === '') return undefined;
+    let parsed: URL;
+    try {
+      parsed = new URL(value);
+    } catch {
+      throw new ConfigError(
+        `${name} must be an absolute http(s) origin, got ${JSON.stringify(value)}`,
+      );
+    }
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      throw new ConfigError(`${name} must be http or https, got ${parsed.protocol}`);
+    }
+    if (parsed.pathname !== '/' || parsed.search !== '' || parsed.hash !== '') {
+      throw new ConfigError(`${name} is an origin, not a URL: no path, query or fragment`);
+    }
+    return parsed.origin;
+  };
+  const webOrigin = origin('KF_WEB_ORIGIN');
+  const apiOrigin = origin('KF_API_ORIGIN');
+  const publicOrigins =
+    webOrigin === undefined && apiOrigin === undefined
+      ? undefined
+      : {
+          ...(webOrigin === undefined ? {} : { web: webOrigin }),
+          ...(apiOrigin === undefined ? {} : { api: apiOrigin }),
+        };
+
   const projectionsArtifact =
     env['KF_PROJECTIONS_ARTIFACT'] !== undefined && env['KF_PROJECTIONS_ARTIFACT'] !== ''
       ? env['KF_PROJECTIONS_ARTIFACT']
@@ -293,6 +328,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     environment,
     deploymentProfile,
     projectionsArtifact,
+    ...(publicOrigins === undefined ? {} : { publicOrigins }),
     tlsTerminatedUpstream,
     identity,
     ...(artifactStore === undefined ? {} : { artifactStore }),

@@ -1,16 +1,16 @@
 <!-- GENERATED from ontology/ — do not edit. -->
-<!-- ontology_version: 1.2.0-draft.1 · source_digest: 85e2af2cb7dcd6cc9f265bb9a88c3938b9757e71b4904f9fc39f60058fc5f270 -->
+<!-- ontology_version: 1.2.0-draft.1 · source_digest: a6bd646125392d4c450b1641c36f1d3223511153af92069201db9992f73ae61f -->
 
 # Ontology reference
 
-Compiled from `ontology/`. 39 object types, 41 relation types, 149 action types, 23 state machines, 15 invariants, 4 corpus projections.
+Compiled from `ontology/`. 39 object types, 41 relation types, 151 action types, 24 state machines, 15 invariants, 4 corpus projections.
 
 ## Object types
 
 | Type | Authority | Enterprise namespace | Lifecycle | States |
 |---|---|---|---|---|
 | `organization` | organization | — | organization | 3 |
-| `person` | organization | — | — | 2 |
+| `person` | organization | — | person | 2 |
 | `role_assignment` | organization | — | — | 3 |
 | `engagement` | commercial | — | — | 5 |
 | `product_system` | configuration | ITM | — | 5 |
@@ -159,7 +159,9 @@ Compiled from `ontology/`. 39 object types, 41 relation types, 149 action types,
 | `release_person_entitlement_exclusion` | — | role only |
 | `deactivate_organization` | organization | act |
 | `reactivate_organization` | organization | act |
-| `retire_organization` | organization | act |
+| `retire_organization` | organization, person | act |
+| `deactivate_person` | person | act |
+| `reactivate_person` | person | act |
 | `bootstrap_organization` | — | role only |
 | `grant_person_clearance` | — | act |
 | `grant_access` | — | act |
@@ -634,6 +636,18 @@ stateDiagram-v2
     active --> retired: retire_organization
     inactive --> retired: retire_organization
     retired --> [*]
+```
+
+### `person`
+
+Initial: `active` · Terminal: 
+
+```mermaid
+stateDiagram-v2
+    [*] --> active
+    active --> inactive: deactivate_person
+    inactive --> active: reactivate_person
+    active --> inactive: retire_organization
 ```
 
 ## Invariants

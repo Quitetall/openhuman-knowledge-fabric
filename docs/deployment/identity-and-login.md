@@ -214,6 +214,23 @@ Also verified: the audit event landed at `seq=14` chained from the previous head
 reported "nothing to do", wrote nothing, and did **not** mint a second action: re-running a setup
 command must not record a decision nobody made.
 
+### The founding grant
+
+`--granted-by` names the person who decided, and the act is recorded under a role assignment
+that person holds in the organization. The first grant in a new organization has no such
+assignment — nobody holds one, the founder included — and until 2026-09-11 that made every
+organization's first grant impossible. The one admitted exception: the organization holds no
+live role assignment at all, and the person being granted is the grantor. The founder assigns
+themself the role first and exercises it for the clearance that follows, so the act is still
+recorded under a real assignment held by the actor. Any later self-grant is refused.
+
+### A token without a browser
+
+`scripts/deploy/login-token.sh <username> <token-file>` performs the same authorization-code
+PKCE login the table above walked, with curl against the realm's login form, and writes the
+access token 0600. It is the token the person would hold after logging in themselves; `kf
+ingest --identity=oidc` and `kf master-record` take it as `--token-file`.
+
 ### Why this is not a dispatched action
 
 Because it cannot be. Dispatch binds authoritative clearance before effects run, so granting the

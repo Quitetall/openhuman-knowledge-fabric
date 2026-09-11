@@ -30,7 +30,7 @@ import {
 import { createControlledObject } from '@kf/record-atoms';
 
 /** The identity every bootstrap act is attributed to, so they are findable as a class. */
-const BOOTSTRAP_IDENTITY = '01930000-0000-7000-8000-00000000b007';
+export const BOOTSTRAP_IDENTITY = '01930000-0000-7000-8000-00000000b007';
 
 /**
  * Record the bootstrap act itself.

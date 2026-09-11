@@ -328,10 +328,27 @@ action_types:
     drives: [organization]
     requires: act
 
+  # Drives `person` as well: an organization is retired WITH its people, who become
+  # `inactive` under the same act. They cannot move — their object is bound to this
+  # organization by row-level security — and leaving them active would attribute live people
+  # to a company that no longer exists, which is exactly what the first retirement did.
   - id: retire_organization
     audited: true
     transactional: true
-    drives: [organization]
+    drives: [organization, person]
+    requires: act
+
+  # The person lifecycle (2026-09-11). R01 approved the states and no transitions.
+  - id: deactivate_person
+    audited: true
+    transactional: true
+    drives: [person]
+    requires: act
+
+  - id: reactivate_person
+    audited: true
+    transactional: true
+    drives: [person]
     requires: act
 
   - id: bootstrap_organization

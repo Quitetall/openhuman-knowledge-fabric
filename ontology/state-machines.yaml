@@ -327,3 +327,21 @@ state_machines:
       - { from: inactive, to: active, action: reactivate_organization }
       - { from: active, to: retired, action: retire_organization }
       - { from: inactive, to: retired, action: retire_organization }
+
+  # ADDED 2026-09-11. R01 approved `person` with states `active, inactive` and
+  # `state_machine: null`, so a person could be created and never leave. Retiring an
+  # organization then had nowhere to put its people: the first retirement done outside the act
+  # left nine active people attributed to organizations that no longer existed.
+  #
+  # Two transitions between R01's own two states, and no new state. `inactive` is what a
+  # person becomes when they leave, are suspended, or when their organization is retired;
+  # `retire_organization` drives it directly so an organization cannot be retired with its
+  # people left active. A person's organization is fixed — row-level security binds the object
+  # to it — so people are never "moved"; a person who joins a successor is a new record there.
+  - id: person
+    initial: active
+    terminal: []
+    transitions:
+      - { from: active, to: inactive, action: deactivate_person }
+      - { from: inactive, to: active, action: reactivate_person }
+      - { from: active, to: inactive, action: retire_organization }

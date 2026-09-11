@@ -170,7 +170,11 @@ export function registerMasterRecordProjectionRoute(
             corpus,
             graph,
           });
-          const rendered = renderProjection(result, format);
+          const rendered = renderProjection(
+            result,
+            format,
+            options.links === undefined ? {} : { links: options.links },
+          );
           return reply
             .header('content-type', rendered.mediaType)
             .header('x-kf-projection-digest', result.projectionDigest)

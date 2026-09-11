@@ -29,6 +29,7 @@ import { assessReadiness } from '@kf/operations';
 import type { ApiConfig } from './config.js';
 import { createCallerIdentifier, registerActionRoutes } from './routes/actions.js';
 import { registerDocumentRoutes } from './routes/documents.js';
+import type { ProjectionLinks } from '@kf/projections';
 import { registerMlRoutes } from './routes/ml.js';
 import { registerSearchRoutes } from './routes/search.js';
 import { registerIdentifierRoutes } from './routes/identifiers.js';
@@ -236,6 +237,9 @@ export async function buildApp(
       ...(config.masterRecordLinkSecret === undefined
         ? {}
         : { masterRecordLinkSecret: config.masterRecordLinkSecret }),
+      ...(config.publicOrigins === undefined
+        ? {}
+        : { links: projectionLinks(config.publicOrigins) }),
     });
     await registerMlRoutes(app, { pool, identify, executeInTransaction });
     await registerSearchRoutes(app, { pool, identify });
@@ -244,3 +248,25 @@ export async function buildApp(
 
   return app;
 }
+
+/**
+ * Every member has an Object View; only members that carry bytes have a source. The paths are
+ * the routes this process and the web app actually serve, not a guess about them.
+ */
+function projectionLinks(origins: {
+  readonly web?: string;
+  readonly api?: string;
+}): ProjectionLinks {
+  const encoded = (id: string): string => encodeURIComponent(id);
+  return {
+    objectView: (member) =>
+      origins.web === undefined ? undefined : `${origins.web}/objects/${encoded(member.objectId)}`,
+    source: (member) =>
+      origins.api !== undefined && SOURCE_BEARING_TYPES.has(member.objectType)
+        ? `${origins.api}/documents/${encoded(member.objectId)}/source`
+        : undefined,
+  };
+}
+
+/** Object types `GET /documents/:id/source` can answer for. */
+const SOURCE_BEARING_TYPES: ReadonlySet<string> = new Set(['artifact', 'controlled_document']);

@@ -2,7 +2,7 @@ import type { ActionRequest, ActionResult, ObjectRow } from '@kf/actions';
 import type { AiProvider, AiRoutingPolicy } from '@kf/agent-tools';
 import type { ObjectStore, StoreRegistry } from '@kf/artifacts';
 import type { Pool, Tx } from '@kf/database';
-import type { ProjectionDefinitionSet } from '@kf/projections';
+import type { ProjectionDefinitionSet, ProjectionLinks } from '@kf/projections';
 import type { IdentifyCaller } from '../actions.js';
 
 export const DOCUMENT_IMPORT_BODY_LIMIT_BYTES = 16 * 1024 * 1024;
@@ -86,6 +86,8 @@ export interface DocumentRoutesOptions {
   readonly maxSourceDownloadBytes?: number;
   /** Independent read ceiling for compiled projections, regardless of recorded object size. */
   readonly maxProjectionDownloadBytes?: number;
+  /** Where rendered members link. Absent = renderings carry no links. */
+  readonly links?: ProjectionLinks;
   /**
    * Public delivery adapter. Its implementation must establish public-only RLS context and call
    * the package verification boundary before returning. This route never approves or signs.

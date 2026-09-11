@@ -269,6 +269,7 @@ const DECLARED_ADDITIONS = {
     // Organization lifecycle (2026-09-10). R01 declared this type's states and left
     // `state_machine: null`, so an organization could be created and never retired.
     'deactivate_organization',
+    'deactivate_person',
     'define_test',
     'deprecate_interface_contract',
     'deprecate_warrant',
@@ -311,6 +312,7 @@ const DECLARED_ADDITIONS = {
     'quarantine_equipment',
     'raise_nonconformity',
     'reactivate_organization',
+    'reactivate_person',
     'receive_complaint',
     'record_document_proposal',
     'record_physical_binding',
@@ -422,6 +424,12 @@ const DECLARED_MACHINE_ADDITIONS: Readonly<Record<string, string>> = {
     'organization could be created and never retired. With no uniqueness rule on legal name ' +
     'that made unlimited permanent duplicates reachable without breaking a rule — a bootstrap ' +
     'defect produced eight in one session. The transitions use only R01 states and invent none.',
+  person:
+    'R01 declared states `active, inactive` and `state_machine: null`, so a person could never ' +
+    'leave. Retiring an organization then had nowhere to put its people: the first retirement, ' +
+    'done outside the act, left nine active people attributed to organizations that no longer ' +
+    'existed. Two transitions between the two approved states, and `retire_organization` drives ' +
+    'a person to `inactive` so an organization is retired with its people. No state is invented.',
 };
 
 const WIDENABLE_ENUMS = [

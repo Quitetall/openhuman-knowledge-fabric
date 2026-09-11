@@ -28,7 +28,9 @@ object_types:
     authority_domain: organization
     enterprise_namespace: null
     first_class: true
-    state_machine: null
+    # `person` — not null since 2026-09-11. R01 approved these two states with no machine; the
+    # transitions between them are declared in state-machines.yaml and invent no state.
+    state_machine: person
     states: [active, inactive]
     fields:
       - { name: display_name, type: string, required: true, min_length: 1 }

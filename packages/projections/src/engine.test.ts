@@ -345,3 +345,46 @@ describe('renderProjection', () => {
     expect(markdown).toContain('## Raw corpus');
   });
 });
+
+describe('rendered links', () => {
+  const links = {
+    objectView: (m: ProjectionMember) => `https://kf.internal/objects/${m.objectId}`,
+    source: (m: ProjectionMember) =>
+      m.objectId === 'a' ? `https://api.kf.internal/documents/${m.objectId}/source` : undefined,
+  };
+
+  it('emit an Object View link for every member and a source link only where one exists', () => {
+    const result = project({ definition, parameters: {}, corpus, graph });
+    const html = renderProjection(result, 'html', { links }).bytes.toString('utf8');
+    expect(html).toContain('<a href="https://kf.internal/objects/a">Mine</a>');
+    expect(html).toContain('<a href="https://kf.internal/objects/b">Unrelated</a>');
+    expect(html).toContain('<a href="https://api.kf.internal/documents/a/source">source</a>');
+    expect(html).not.toContain('documents/b/source');
+    const markdown = renderProjection(result, 'markdown', { links }).bytes.toString('utf8');
+    expect(markdown).toContain('[Mine](https://kf.internal/objects/a)');
+    expect(markdown).toContain('[source](https://api.kf.internal/documents/a/source)');
+  });
+
+  it('are a rendering concern: the projection digest is the same with and without them', () => {
+    const result = project({ definition, parameters: {}, corpus, graph });
+    expect(renderProjection(result, 'json', { links }).contentDigest).toBe(
+      renderProjection(result, 'json').contentDigest,
+    );
+    expect(result.projectionDigest).toBe(
+      project({ definition, parameters: {}, corpus, graph }).projectionDigest,
+    );
+  });
+
+  it('are absent when no links are given, so a renderer never guesses a host', () => {
+    const result = project({ definition, parameters: {}, corpus, graph });
+    expect(renderProjection(result, 'html').bytes.toString('utf8')).not.toContain('<a href');
+  });
+
+  it('escape a hostile link target rather than emit it as markup', () => {
+    const result = project({ definition, parameters: {}, corpus, graph });
+    const hostile = { objectView: () => 'https://x/"><script>alert(1)</script>' };
+    const html = renderProjection(result, 'html', { links: hostile }).bytes.toString('utf8');
+    expect(html).not.toContain('<script>');
+    expect(html).toContain('&quot;&gt;&lt;script&gt;');
+  });
+});

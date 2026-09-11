@@ -39,6 +39,13 @@ export interface GrantAuthorityRequest {
   readonly organizationId?: string;
   readonly roleId?: string;
   readonly classification?: string;
+  /**
+   * What the ROLE lets them read organization-wide, when that is less than their clearance.
+   * A customer's contact cleared to `confidential` for their own agreement must not read every
+   * confidential record through the organization-wide grant a role assignment is; the ceiling
+   * on the assignment caps that grant, and object-scoped grants reach the rest.
+   */
+  readonly roleCeiling?: string;
   readonly grantedBy?: string;
   readonly reason?: string;
   /** Both or neither: an issuer without a subject names no account. */
@@ -51,6 +58,7 @@ export interface GrantAuthorityGrant {
   readonly organizationId: string;
   readonly roleId: string;
   readonly classification: string;
+  readonly roleCeiling?: string;
   readonly grantedBy: string;
   readonly reason: string;
   readonly identity?: { readonly issuer: string; readonly subject: string };
@@ -109,6 +117,11 @@ export function planGrantAuthority(request: GrantAuthorityRequest): GrantAuthori
     );
   }
 
+  const roleCeiling = request.roleCeiling?.trim();
+  if (roleCeiling !== undefined && roleCeiling === '') {
+    refusals.push('--role-ceiling, when given, names a classification');
+  }
+
   const hasIssuer = request.issuer !== undefined && request.issuer.trim() !== '';
   const hasSubject = request.subject !== undefined && request.subject.trim() !== '';
   if (hasIssuer !== hasSubject) {
@@ -127,6 +140,7 @@ export function planGrantAuthority(request: GrantAuthorityRequest): GrantAuthori
       organizationId: request.organizationId as string,
       roleId: (request.roleId as string).trim(),
       classification: (request.classification as string).trim(),
+      ...(roleCeiling === undefined || roleCeiling === '' ? {} : { roleCeiling }),
       grantedBy: request.grantedBy as string,
       reason: (request.reason as string).trim(),
       ...(hasIssuer
@@ -148,6 +162,7 @@ export function parseGrantAuthorityArgs(argv: readonly string[]): GrantAuthority
     ['--organization', 'organizationId'],
     ['--role', 'roleId'],
     ['--clearance', 'classification'],
+    ['--role-ceiling', 'roleCeiling'],
     ['--granted-by', 'grantedBy'],
     ['--reason', 'reason'],
     ['--issuer', 'issuer'],
@@ -208,6 +223,19 @@ export async function runGrantAuthority(
     await assertPersonInOrganization(tx, grant.personId, grant.organizationId, '--person');
     await assertPersonExists(tx, grant.grantedBy, '--granted-by');
     await assertClassificationExists(tx, grant.classification);
+    if (grant.roleCeiling !== undefined) {
+      await assertClassificationExists(tx, grant.roleCeiling);
+      if (
+        (await classificationRank(tx, grant.roleCeiling)) >
+        (await classificationRank(tx, grant.classification))
+      ) {
+        throw new Error(
+          `--role-ceiling ${grant.roleCeiling} is above --clearance ${grant.classification}. ` +
+            'The clearance is the ceiling on everything; a role ceiling only ever lowers what ' +
+            'the organization-wide grant reaches.',
+        );
+      }
+    }
 
     // Decide what is actually missing BEFORE writing anything. Re-running this command after a
     // partial setup is the normal case — the first run of it here found the person already had a
@@ -231,19 +259,51 @@ export async function runGrantAuthority(
     // is "the role EXERCISED, not every role held" — passing the grantor's person id would put a
     // person where every dispatched action puts a role assignment, and an auditor comparing
     // bootstrap-written and dispatcher-written events would find the column means two things.
-    const grantorRole = await tx.maybeOne<{ id: string }>(
+    let grantorRole = await tx.maybeOne<{ id: string }>(
       `select id from org.role_assignment
         where subject_id = $1 and scope_id = $2
           and valid_from <= now() and (valid_to is null or valid_to > now())
         order by valid_from limit 1`,
       [grant.grantedBy, grant.organizationId],
     );
+
+    // THE FIRST AUTHORITY IN AN ORGANIZATION.
+    //
+    // Every grant is made under a role the grantor exercises, so the record says which
+    // authority was used. The first grant has no such role: nobody in a new organization holds
+    // one, including its founder. The check below made that first grant impossible — the
+    // founder could not grant themself, and nobody else could grant them — which was found
+    // when the first fixture company could not get past its bootstrap.
+    //
+    // The one case admitted: the organization holds NO live role assignment at all, and the
+    // grantor is the person being granted. The founder assigns themself the role FIRST, and
+    // exercises that assignment for the clearance that follows — so the act is still recorded
+    // under a real role assignment, held by the actor, in this organization. It is not "no
+    // role": it is the role this act creates, and a later reader sees exactly that.
+    let foundingAssignmentId: string | undefined;
     if (grantorRole === undefined) {
-      throw new Error(
-        `--granted-by ${grant.grantedBy} holds no active role assignment in organization ` +
-          `${grant.organizationId}. The record has to say which authority was exercised, and ` +
-          'somebody with no role in this organization exercised none.',
+      const anyone = await tx.maybeOne<{ id: string }>(
+        `select id from org.role_assignment
+          where scope_id = $1
+            and valid_from <= now() and (valid_to is null or valid_to > now())
+          limit 1`,
+        [grant.organizationId],
       );
+      const isFounding = anyone === undefined && grant.grantedBy === grant.personId;
+      if (!isFounding) {
+        throw new Error(
+          `--granted-by ${grant.grantedBy} holds no active role assignment in organization ` +
+            `${grant.organizationId}. The record has to say which authority was exercised, and ` +
+            'somebody with no role in this organization exercised none. (The only exception is ' +
+            'the founding grant: an organization with no role assignment at all, where the ' +
+            'person being granted is the grantor.)',
+        );
+      }
+      // Minted here so the transaction context can name it BEFORE the row exists: the object
+      // guard requires a context on every core.object write, and the context names the role
+      // being exercised, which is this one.
+      foundingAssignmentId = randomUUID();
+      grantorRole = { id: foundingAssignmentId };
     }
 
     const actionId = randomUUID();
@@ -256,6 +316,38 @@ export async function runGrantAuthority(
       actionId,
       requestId: 'kf-grant-authority',
     });
+
+    if (foundingAssignmentId !== undefined) {
+      const { version } = await tx.one<{ version: string }>(
+        'select version from registry.schema_release where is_current',
+      );
+      await tx.query(
+        `insert into core.object
+           (id, object_type, authority_domain, lifecycle_state, classification, retention_class,
+            schema_version, organization_id, title, created_by, updated_by)
+         values ($1, 'role_assignment', 'organization', 'active', 'internal', 'project_record',
+                 $2, $3, $4, $5, $5)`,
+        [
+          foundingAssignmentId,
+          version,
+          grant.organizationId,
+          `${grant.roleId} assignment (founding)`,
+          grant.grantedBy,
+        ],
+      );
+      await tx.query(
+        `insert into org.role_assignment
+           (id, subject_id, role_id, scope_id, classification_ceiling)
+         values ($1,$2,$3,$4,$5)`,
+        [
+          foundingAssignmentId,
+          grant.personId,
+          grant.roleId,
+          grant.organizationId,
+          grant.roleCeiling ?? null,
+        ],
+      );
+    }
 
     const requestDigest = createHash('sha256')
       .update(
@@ -277,7 +369,7 @@ export async function runGrantAuthority(
          (id, organization_id, request_digest, action_type, actor_id, acting_role_id,
           target_ids, parameters, preconditions, idempotency_key, effective_at,
           reason, result_status, result)
-       values ($1,$2,$3,'grant_person_clearance',$4,$4,array[$5]::uuid[],$6::jsonb,'{}'::jsonb,
+       values ($1,$2,$3,'grant_person_clearance',$4,$10,array[$5]::uuid[],$6::jsonb,'{}'::jsonb,
                $7,$8,$9,'applied','{}'::jsonb)`,
       [
         actionId,
@@ -293,6 +385,9 @@ export async function runGrantAuthority(
         idempotencyKey(grant, day),
         effectiveAt.toISOString(),
         grant.reason,
+        // The role EXERCISED. The first version wrote the grantor's person id here — the very
+        // thing the comment above says not to do — and the audit event disagreed with it.
+        grantorRole.id,
       ],
     );
 
@@ -312,8 +407,8 @@ export async function runGrantAuthority(
       afterDigest: null,
     });
 
-    let roleAssignmentId = existing.roleAssignmentId;
-    const roleAssignmentReused = roleAssignmentId !== undefined;
+    let roleAssignmentId = existing.roleAssignmentId ?? foundingAssignmentId;
+    const roleAssignmentReused = existing.roleAssignmentId !== undefined;
     if (roleAssignmentId === undefined) {
       roleAssignmentId = await createControlledObject(tx, {
         objectType: 'role_assignment',
@@ -324,9 +419,16 @@ export async function runGrantAuthority(
         createdBy: grant.grantedBy,
       });
       await tx.query(
-        `insert into org.role_assignment (id, subject_id, role_id, scope_id)
-         values ($1,$2,$3,$4)`,
-        [roleAssignmentId, grant.personId, grant.roleId, grant.organizationId],
+        `insert into org.role_assignment
+           (id, subject_id, role_id, scope_id, classification_ceiling)
+         values ($1,$2,$3,$4,$5)`,
+        [
+          roleAssignmentId,
+          grant.personId,
+          grant.roleId,
+          grant.organizationId,
+          grant.roleCeiling ?? null,
+        ],
       );
     }
 
@@ -379,19 +481,26 @@ interface CurrentAuthority {
  * that gets its own record.
  */
 async function currentAuthority(tx: Tx, grant: GrantAuthorityGrant): Promise<CurrentAuthority> {
+  // Live means effective-dated AND not retired: a clearance is append-only and ends through
+  // `org.person_clearance_retirement`, which is what the resolver reads. Reading only
+  // `valid_to` here would call a retired clearance "already held" and refuse to re-grant it.
   const clearance = await tx.maybeOne<{ id: string }>(
-    `select id from org.person_clearance
+    `select id from org.person_clearance c
       where subject_id = $1 and organization_id = $2 and max_classification = $3
         and valid_from <= now() and (valid_to is null or valid_to > now())
+        and not exists (
+          select 1 from org.person_clearance_retirement r where r.clearance_id = c.id)
       order by valid_from limit 1`,
     [grant.personId, grant.organizationId, grant.classification],
   );
+  // The same role at a DIFFERENT ceiling is a different grant, not "already held".
   const role = await tx.maybeOne<{ id: string }>(
     `select id from org.role_assignment
       where subject_id = $1 and role_id = $2 and scope_id = $3
+        and classification_ceiling is not distinct from $4
         and valid_from <= now() and (valid_to is null or valid_to > now())
       order by valid_from limit 1`,
-    [grant.personId, grant.roleId, grant.organizationId],
+    [grant.personId, grant.roleId, grant.organizationId, grant.roleCeiling ?? null],
   );
 
   // A clearance at a DIFFERENT classification is not "already held" — but neither can it simply
@@ -402,9 +511,11 @@ async function currentAuthority(tx: Tx, grant: GrantAuthorityGrant): Promise<Cur
   // org.person_clearance_retirement is for.
   if (clearance === undefined) {
     const conflicting = await tx.maybeOne<{ max_classification: string }>(
-      `select max_classification from org.person_clearance
+      `select max_classification from org.person_clearance c
         where subject_id = $1 and organization_id = $2
           and valid_from <= now() and (valid_to is null or valid_to > now())
+          and not exists (
+            select 1 from org.person_clearance_retirement r where r.clearance_id = c.id)
         limit 1`,
       [grant.personId, grant.organizationId],
     );
@@ -484,6 +595,14 @@ async function assertPersonInOrganization(
         'organization-scoped, so granting one across organizations is meaningless.',
     );
   }
+}
+
+async function classificationRank(tx: Tx, classification: string): Promise<number> {
+  const row = await tx.one<{ rank: number }>(
+    'select rank from registry.classification where id = $1',
+    [classification],
+  );
+  return Number(row.rank);
 }
 
 async function assertClassificationExists(tx: Tx, classification: string): Promise<void> {

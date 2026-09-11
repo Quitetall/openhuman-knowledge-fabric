@@ -14,6 +14,7 @@ export {
   renderProjection,
   renderProjectionHtml,
   renderProjectionMarkdown,
+  type ProjectionLinks,
   type ProjectionRenderOptions,
   type ProjectionRenderTarget,
   type RenderedProjection,

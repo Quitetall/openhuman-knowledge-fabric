@@ -10,9 +10,21 @@ export interface RenderedProjection {
   readonly contentDigest: string;
 }
 
+/**
+ * Where a rendered member points. Rendering concerns only: a link changes nothing about the
+ * Result or its digest, and a renderer given no links emits none rather than guessing a host.
+ */
+export interface ProjectionLinks {
+  /** The Object View for a member — every member has one. */
+  readonly objectView: (member: ProjectionMember) => string | undefined;
+  /** The bytes themselves, for members that have any (documents, artifacts). */
+  readonly source?: (member: ProjectionMember) => string | undefined;
+}
+
 export interface ProjectionRenderOptions {
   /** Members whose full typed payload is inlined; the rest are referenced. Never a membership cut. */
   readonly maxInlineMembers?: number;
+  readonly links?: ProjectionLinks;
 }
 
 function safeText(value: string): string {
@@ -55,7 +67,13 @@ export function renderProjectionMarkdown(
     out.push(`## ${md(section.title)}`, '');
     if (section.members.length === 0) out.push('_None._');
     for (const member of section.members) {
-      out.push(`- **${md(member.title ?? member.objectType)}** — ${md(line(member))}`);
+      const view = options.links?.objectView(member);
+      const source = options.links?.source?.(member);
+      const title = md(member.title ?? member.objectType);
+      out.push(
+        `- **${view === undefined ? title : `[${title}](${view})`}** — ${md(line(member))}` +
+          (source === undefined ? '' : ` — [source](${source})`),
+      );
       if (member.itemState === 'withdrawn') {
         out.push(
           `  - Withdrawal: ${md(member.withdrawnAt ?? 'time not recorded')} — ${md(member.withdrawalReason ?? 'reason not recorded')}`,
@@ -99,7 +117,12 @@ export function renderProjectionHtml(
             member.itemState === 'withdrawn'
               ? `<div>Withdrawal: ${html(member.withdrawnAt ?? 'time not recorded')} — ${html(member.withdrawalReason ?? 'reason not recorded')}</div>`
               : '';
-          return `<li><strong>${html(member.title ?? member.objectType)}</strong> — ${html(line(member))}${withdrawal}${payload}</li>`;
+          const view = options.links?.objectView(member);
+          const source = options.links?.source?.(member);
+          const title = html(member.title ?? member.objectType);
+          const heading = view === undefined ? title : `<a href="${html(view)}">${title}</a>`;
+          const bytes = source === undefined ? '' : ` — <a href="${html(source)}">source</a>`;
+          return `<li><strong>${heading}</strong> — ${html(line(member))}${bytes}${withdrawal}${payload}</li>`;
         })
         .join('');
       return `<section><h2>${html(section.title)}</h2>${items === '' ? '<p><em>None.</em></p>' : `<ul>${items}</ul>`}</section>`;

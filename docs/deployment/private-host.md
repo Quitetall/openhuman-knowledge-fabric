@@ -557,6 +557,10 @@ Credentials arrive through owner-only files:
 - `DATABASE_URL_FILE` for the constrained application role;
 - `S3_SECRET_ACCESS_KEY_FILE` plus the non-secret S3 endpoint, region, access-key ID and bucket;
 - a different worker database credential if its grants differ;
+- `KF_WEB_ORIGIN` and `KF_API_ORIGIN`, the public origins a rendered master record links to
+  (the Object View at `<web>/objects/<id>`, the bytes at `<api>/documents/<id>/source`).
+  Origins only — no path — and absent means renderings carry no links, which is the honest
+  reading for a process that has not been told its own public name.
 - `KF_MASTER_RECORD_LINK_SECRET_FILE`, an owner-only random HMAC key (minimum 32 bytes) for
   signed, expiring master-record links;
 - a migrator credential readable only by `kf-migrator`, never API/web/worker;
