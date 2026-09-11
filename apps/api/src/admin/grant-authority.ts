@@ -282,6 +282,13 @@ export async function runGrantAuthority(
     // role": it is the role this act creates, and a later reader sees exactly that.
     let foundingAssignmentId: string | undefined;
     if (grantorRole === undefined) {
+      // Serialised per organization: two founding grants racing would both see "no role
+      // assignment yet" and both create one. The lock is transaction-scoped and keyed on the
+      // organization, so ordinary grants elsewhere are untouched.
+      await tx.query(
+        "select pg_advisory_xact_lock(hashtextextended('kf:founding-grant:' || $1, 0))",
+        [grant.organizationId],
+      );
       const anyone = await tx.maybeOne<{ id: string }>(
         `select id from org.role_assignment
           where scope_id = $1

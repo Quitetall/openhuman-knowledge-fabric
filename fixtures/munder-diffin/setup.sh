@@ -57,10 +57,13 @@ export CURL_CA_BUNDLE="${NODE_EXTRA_CA_CERTS:-}"
 export NODE_ENV=production
 
 psql_owner() { psql "$DATABASE_OWNER_URL" -v ON_ERROR_STOP=1 -X -A -t -q -c "$1"; }
+# SQL literal: single quotes doubled. Every value below is a constant from this file, but a
+# query built by interpolation is a query built by interpolation.
+q() { printf "'%s'" "${1//\'/\'\'}"; }
 
 # ── the company ─────────────────────────────────────────────────────────────────────────
 legal_name='Munder Diffin Paper Shredding Co.'
-org="$(psql_owner "select id from org.organization where legal_name = '$legal_name' and retired_at is null")"
+org="$(psql_owner "select id from org.organization where legal_name = $(q "$legal_name") and retired_at is null")"
 if [ -z "$org" ]; then
   echo "no active organization named '$legal_name'; bootstrap it first:" >&2
   echo "  kf bootstrap-organization --legal-name '$legal_name' --person 'Jim Miller'" >&2
@@ -86,9 +89,9 @@ people=(
   'Robert California|robert.california|partner_contact|confidential|internal'
 )
 
-person_id() { psql_owner "select p.id from org.person p where p.organization = '$org' and p.display_name = '$1' order by p.id limit 1"; }
+person_id() { psql_owner "select p.id from org.person p where p.organization = $(q "$org") and p.display_name = $(q "$1") order by p.id limit 1"; }
 role_assignment_id() {
-  psql_owner "select id from org.role_assignment where subject_id = '$1' and scope_id = '$org' and valid_from <= now() and (valid_to is null or valid_to > now()) order by valid_from limit 1"
+  psql_owner "select id from org.role_assignment where subject_id = $(q "$1") and scope_id = $(q "$org") and valid_from <= now() and (valid_to is null or valid_to > now()) order by valid_from limit 1"
 }
 
 echo; echo "== people"
@@ -207,7 +210,7 @@ for classification in public internal confidential restricted; do
   [ -d "$dir" ] || continue
   for file in "$dir"/*.md; do
     title="$(basename "$file")"
-    existing="$(psql_owner "select count(*) from core.object where organization_id = '$org' and object_type = 'artifact' and title = '$title'")"
+    existing="$(psql_owner "select count(*) from core.object where organization_id = $(q "$org") and object_type = 'artifact' and title = $(q "$title")")"
     if [ "$existing" != 0 ]; then
       printf '  %-14s %-52s already ingested\n' "$classification" "$title"
       continue
@@ -226,13 +229,13 @@ done
 # ceiling on their role keeps every OTHER confidential record out of the organization-wide
 # grant; this names the one record each may read.
 echo; echo "== access grants"
-artifact_id() { psql_owner "select id from core.object where organization_id = '$org' and object_type = 'artifact' and title = '$1' order by id limit 1"; }
+artifact_id() { psql_owner "select id from core.object where organization_id = $(q "$org") and object_type = 'artifact' and title = $(q "$1") order by id limit 1"; }
 grant_read() {
   local person="$1" title="$2" object
   object="$(artifact_id "$title")"
   [ -n "$object" ] || { echo "  no artifact titled $title" >&2; return 1; }
   local live
-  live="$(psql_owner "select count(*) from org.access_grant where organization_id = '$org' and principal_kind = 'person' and principal_id = '$person' and scope_object_id = '$object' and capability = 'read' and revoked_at is null")"
+  live="$(psql_owner "select count(*) from org.access_grant where organization_id = $(q "$org") and principal_kind = 'person' and principal_id = $(q "$person") and scope_object_id = $(q "$object") and capability = 'read' and revoked_at is null")"
   if [ "$live" != 0 ]; then printf '  %-52s already granted\n' "$title"; return 0; fi
   local body status
   body="$(KF_T="$object" KF_P="$person" KF_TITLE="$title" python3 -c '
