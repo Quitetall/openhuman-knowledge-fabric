@@ -132,3 +132,24 @@ deliverable inside it.
 It also runs on the workstation's hardware, sharing its disk and its power. That is a real
 limit on what it can evidence about availability, and it is stated here rather than discovered
 later.
+
+## Worker and web, 2026-09-11
+
+Both were absent until the fixture company showed what their absence costs: no outbox row was
+ever delivered and the search index was empty, and every link a master record carries pointed
+at a web origin nothing served.
+
+`kf-worker` runs as `kf-worker` with its own login `kf_worker_login` (member of `kf_worker`),
+a 0600 `database-url` under `/etc/kf/worker/`, its own copy of the object-store secret, and
+`/etc/kf/worker.env` carrying the non-secret S3 and CA settings. Two grants the deployment
+contract never named: the job-queue library creates and migrates its own `graphile_worker`
+schema on every start, so the worker login needs `CREATE` on the database — `CREATE SCHEMA IF
+NOT EXISTS` checks the privilege before the existence — and `TEMP`. The release declares
+`liminal=none`, which `verify-liminal-runtime.sh` now accepts as the ordinary case: outbox
+delivery and search indexing run, compilation jobs stay retryable until a compiler is pinned.
+
+`kf-web` runs as `kf-web` with a 0600 session key under `/etc/kf/web/` and `/etc/kf/web.env`
+naming the realm, the public client and `https://kf.internal/auth/callback`; nginx already
+forwarded `kf.internal` to port 3000. Object View links in a master record resolve there.
+
+Measured after provisioning: outbox pending 23 → 0, search index 0 → 21 rows.
