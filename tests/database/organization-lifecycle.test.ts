@@ -281,6 +281,42 @@ describe('retire_organization', () => {
   });
 });
 
+describe('a person compiles their own master record', () => {
+  it('needs only a live role assignment, whatever the role; another person’s needs an author role', async () => {
+    const founded = await foundOrganization('Own Record Co');
+    const execute = dispatcher();
+    // project_owner is not a document-author role, and this is the founder's own record.
+    const own = await execute({
+      actionType: 'compile_master_record',
+      actorId: founded.personId,
+      actingRoleId: founded.roleAssignmentId,
+      targetIds: [founded.personId],
+      organizationId: founded.organizationId,
+      maxClassification: 'restricted',
+      idempotencyKey: `own-record-${randomUUID()}`,
+    });
+    expect(own.status).toBe('applied');
+
+    const other = await runBootstrap(harness.adminPool, {
+      legalName: '',
+      personName: 'Colleague',
+      organizationKind: 'company',
+      organizationId: founded.organizationId,
+    });
+    await expect(
+      execute({
+        actionType: 'compile_master_record',
+        actorId: founded.personId,
+        actingRoleId: founded.roleAssignmentId,
+        targetIds: [other.personId],
+        organizationId: founded.organizationId,
+        maxClassification: 'restricted',
+        idempotencyKey: `other-record-${randomUUID()}`,
+      }),
+    ).rejects.toMatchObject({ name: 'ActionRejected', failure: 'actor_not_authorized' });
+  });
+});
+
 describe('kf retire-organization (bootstrap tier)', () => {
   it('refuses an organization somebody can act in', async () => {
     await expect(
