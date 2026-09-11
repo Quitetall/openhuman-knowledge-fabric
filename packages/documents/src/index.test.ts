@@ -699,6 +699,45 @@ describe('document action chain', () => {
     ).rejects.toThrow('source_locator.authority must be');
   });
 
+  it('classifies the artifact as the act states, and internal when the act says nothing', async () => {
+    // `kf ingest --classification` had only ever set the caller's ceiling; every artifact was
+    // created `internal`, so a public ingest was refused by the insert policy and a restricted
+    // one silently produced an internal record (2026-09-11).
+    const source = Buffer.from('# Public notice\n');
+    const key = `classified/${digestOf(source)}`;
+    await store.put(key, source, 'text/markdown');
+    const stated = await call('attach_evidence', [], {
+      title: 'Public notice.md',
+      artifact_kind: 'other',
+      classification: 'public',
+      sha256: digestOf(source),
+      size_bytes: source.length,
+      media_type: 'text/markdown',
+      storage_uri: key,
+    });
+    const silent = await call('attach_evidence', [], {
+      title: 'Unstated.md',
+      artifact_kind: 'other',
+      sha256: digestOf(source),
+      size_bytes: source.length,
+      media_type: 'text/markdown',
+      storage_uri: key,
+    });
+    const rows = await withTransaction(harness.pool, async (tx) => {
+      await setAccessContext(tx, {
+        organizationId: fixtures.organizationId,
+        maxClassification: 'restricted',
+      });
+      return tx.query<{ id: string; classification: string }>(
+        'select id, classification from core.object where id = any($1::uuid[]) order by id',
+        [[stated.objectIds[0], silent.objectIds[0]]],
+      );
+    });
+    const byId = new Map(rows.map((row) => [row.id, row.classification]));
+    expect(byId.get(stated.objectIds[0]!)).toBe('public');
+    expect(byId.get(silent.objectIds[0]!)).toBe('internal');
+  });
+
   it('fails attach_evidence closed before parser-authored digests can persist', async () => {
     const source = Buffer.from('# Title\n');
     const sourceDigest = digestOf(source);

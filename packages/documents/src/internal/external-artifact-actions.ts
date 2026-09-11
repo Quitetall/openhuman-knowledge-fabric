@@ -67,6 +67,7 @@ export function createExternalArtifactActions(): ExternalArtifactActions {
       throw new Error(`unknown external source_system: ${sourceSystem}`);
     }
 
+    const classification = optionalString(request.payload, 'classification') ?? undefined;
     const id = await createControlledObject(tx, {
       objectType: 'artifact',
       authorityDomain: 'artifact',
@@ -75,6 +76,11 @@ export function createExternalArtifactActions(): ExternalArtifactActions {
       organizationId: request.organizationId,
       createdBy: request.actorId,
       retentionClass: 'quality_record',
+      // The record's own classification, when the act states one. Absent, the envelope default
+      // (`internal`) applies — which is what every ingest produced until 2026-09-11, whatever
+      // `--classification` said: that flag only set the caller's ceiling. The insert policy on
+      // core.object refuses a classification above the bound ceiling, so this cannot widen.
+      ...(classification === undefined ? {} : { classification }),
     });
     await tx.query(
       `insert into content.artifact (id, artifact_kind, source_system) values ($1,$2,$3)`,

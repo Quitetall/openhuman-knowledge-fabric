@@ -404,11 +404,13 @@ function actionPayload(
   reference: ReferenceManifestEntry | undefined,
   storeKey: string | undefined,
   organizationId: string,
+  classification: string,
   drive?: DriveFetched,
 ): Readonly<Record<string, JsonValue>> {
   if (mode === 'reference') {
     if (reference === undefined) throw new IngestCliError(`no manifest entry for ${item.path}`);
     return {
+      classification,
       title: reference.title ?? basename(item.path),
       artifact_kind: item.artifactKind,
       source_system: reference.source_system,
@@ -424,6 +426,8 @@ function actionPayload(
   }
   if (storeKey === undefined) throw new IngestCliError(`no storage key for ${item.path}`);
   return {
+    // The record's classification: what the artifact IS, not only what the caller may see.
+    classification,
     title: drive === undefined ? basename(item.path) : drive.name,
     artifact_kind: item.artifactKind,
     sha256: digestBytes(bytes),
@@ -617,6 +621,7 @@ export async function runIngest(
           reference,
           source.storeKey,
           identity.organizationId,
+          classification,
           source.drive,
         );
         const idempotencyKey = `kf-ingest-v1-${digest({

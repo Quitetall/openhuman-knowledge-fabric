@@ -226,7 +226,7 @@ for classification in public internal confidential restricted; do
       printf '  %-14s %-52s already ingested\n' "$classification" "$title"
       continue
     fi
-    kf ingest --mode=copy --kind=document --classification="$classification" --identity=oidc \
+    kf ingest --mode=copy --kind=other --classification="$classification" --identity=oidc \
       --organization="$org" --acting-role="$jim_role" --token-file="$jim_token" \
       --reason="Munder Diffin fixture: $classification record ingested by Jim Miller" \
       --json "$file" > /dev/null
