@@ -12,7 +12,7 @@
  * the claim, render the projection — and writes what came back, unmodified.
  */
 
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
@@ -151,9 +151,12 @@ export async function fetchMasterRecord(
 
   let compiled: MasterRecordCompileOutcome | undefined;
   if (args.compile) {
-    const day = new Date().toISOString().slice(0, 10);
+    // Fresh per invocation. The key guards a network retry of THIS request, nothing more:
+    // the API already reuses the existing claim when the corpus is unchanged (ADR 0013), and
+    // a key that repeated across a day replayed a stale claim after the corpus had moved —
+    // which is exactly what a second compile exists to catch.
     const idempotencyKey = createHash('sha256')
-      .update(`kf-master-record:${args.organizationId}:${args.actingRoleId}:${day}`)
+      .update(`kf-master-record:${args.organizationId}:${args.actingRoleId}:${randomUUID()}`)
       .digest('hex');
     const response = await fetchImpl(`${base}/master-record/compile`, {
       method: 'POST',
