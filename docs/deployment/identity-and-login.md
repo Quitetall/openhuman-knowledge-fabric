@@ -226,7 +226,7 @@ recorded under a real assignment held by the actor. Any later self-grant is refu
 
 ### A token without a browser
 
-`scripts/deploy/login-token.sh <username> <token-file>` performs the same authorization-code
+`scripts/deploy/login-token.sh`, given a username and a token file path, performs the same authorization-code
 PKCE login the table above walked, with curl against the realm's login form, and writes the
 access token 0600. It is the token the person would hold after logging in themselves; `kf
 ingest --identity=oidc` and `kf master-record` take it as `--token-file`.
