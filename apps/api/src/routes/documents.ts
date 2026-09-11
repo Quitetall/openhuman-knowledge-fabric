@@ -3,6 +3,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { DocumentRoutesOptions } from './documents/contracts.js';
 import { registerDocumentImportRoute } from './documents/import-route.js';
+import { registerIngestRoute } from './documents/ingest-route.js';
 import { registerDocumentReadRoutes } from './documents/read-routes.js';
 import { registerDocumentProposalRoute } from './documents/proposal-route.js';
 import { registerDocumentPlannerProposalRoute } from './documents/planner-proposal-route.js';
@@ -35,4 +36,5 @@ export async function registerDocumentRoutes(
   registerDocumentPlannerProposalRoute(app, options);
   registerDocumentProposalRoute(app, options);
   registerDocumentImportRoute(app, options);
+  registerIngestRoute(app, options);
 }

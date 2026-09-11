@@ -49,6 +49,12 @@ export interface IngestCliArgs {
   readonly exportMimeType?: string;
   readonly json: boolean;
   readonly paths: readonly string[];
+  /**
+   * `api` (the default when KF_API_ORIGIN is set): every file is a POST /ingest as the person
+   * whose token this is — no database credential anywhere. `database`: the original path, on
+   * the owner connection, which a host operator has and an engineer's laptop must not.
+   */
+  readonly via?: 'api' | 'database';
 }
 
 export interface ReferenceManifestEntry {
@@ -107,7 +113,13 @@ const OPTION_NAMES = new Set([
   'reason',
   'drive',
   'export-mime',
+  'via',
 ]);
+
+function viaOf(value: string): 'api' | 'database' {
+  if (value === 'api' || value === 'database') return value;
+  throw new IngestCliError(`unknown --via ${value}; expected api or database`);
+}
 
 /** Parse only CLI shape. Policy validation remains in planIngest. */
 export function parseIngestArgs(argv: readonly string[]): IngestCliArgs {
@@ -168,6 +180,7 @@ export function parseIngestArgs(argv: readonly string[]): IngestCliArgs {
     ...(identity === undefined ? {} : { identity }),
     ...(values['revision'] === undefined ? {} : { revisionLabel: values['revision'] }),
     ...(values['kind'] === undefined ? {} : { artifactKind: values['kind'] }),
+    ...(values['via'] === undefined ? {} : { via: viaOf(values['via']) }),
     ...(values['reference-manifest'] === undefined
       ? {}
       : { referenceManifest: values['reference-manifest'] }),
@@ -468,12 +481,102 @@ async function versionForAction(tx: Tx, artifactId: string, actionId: string): P
 }
 
 /** Execute one complete ingest batch. Dependencies are injectable for seam tests. */
+/**
+ * Over the API, as the person whose token this is. The same plan, the same refusals, the same
+ * record: `POST /ingest` stores the bytes and dispatches `attach_evidence` exactly as the
+ * database path does, without this process holding any credential but the person's own.
+ */
+export async function runIngestViaApi(
+  args: IngestCliArgs,
+  env: NodeJS.ProcessEnv,
+  cwd: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<IngestResult> {
+  const planned: IngestPlan = planIngest({
+    paths: args.paths,
+    ...(args.mode === undefined ? {} : { mode: args.mode }),
+    ...(args.classification === undefined ? {} : { classification: args.classification }),
+    ...(args.artifactKind === undefined ? {} : { artifactKind: args.artifactKind }),
+    ...(args.revisionLabel === undefined ? {} : { revisionLabel: args.revisionLabel }),
+  });
+  if (!planned.ok) throw new IngestCliError(planned.refusals.join('\n'), planned.refusals);
+  if (planned.mode !== 'copy') {
+    throw new IngestCliError(
+      '--via=api ingests copies only; reference mode stays on the database path',
+    );
+  }
+  if (args.driveRefs !== undefined && args.driveRefs.length > 0) {
+    throw new IngestCliError('--via=api does not read Drive; export first, or use --via=database');
+  }
+  if (args.identity !== 'oidc' || args.tokenFile === undefined) {
+    throw new IngestCliError(
+      '--via=api needs --identity=oidc and --token-file: the API is called as that person',
+    );
+  }
+  if (args.organizationId === undefined || args.actingRoleId === undefined) {
+    throw new IngestCliError('--via=api needs --organization and --acting-role');
+  }
+  const origin = env['KF_API_ORIGIN'];
+  if (origin === undefined || origin.trim() === '')
+    throw new IngestCliError('KF_API_ORIGIN is required for --via=api');
+  const token = readSecretFile(args.tokenFile, 'OIDC token file');
+  const base = origin.replace(/\/+$/, '');
+  const items: IngestItemResult[] = [];
+  for (const item of planned.items) {
+    const bytes = await readFile(resolve(cwd, item.path));
+    const response = await fetchImpl(`${base}/ingest`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${token}`,
+        'x-kf-organization': args.organizationId,
+        'x-kf-acting-role': args.actingRoleId,
+        'x-kf-classification': planned.classification,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: basename(item.path),
+        artifactKind: item.artifactKind,
+        classification: planned.classification,
+        mediaType: item.mediaType,
+        contentBase64: bytes.toString('base64'),
+        ...(args.revisionLabel === undefined ? {} : { revisionLabel: args.revisionLabel }),
+        ...(args.reason === undefined ? {} : { reason: args.reason }),
+      }),
+    });
+    const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    if (response.status !== 200 && response.status !== 201) {
+      throw new IngestCliError(
+        `${item.path}: ingest refused: ${String(response.status)} ${JSON.stringify(body)}`,
+      );
+    }
+    items.push({
+      path: item.path,
+      sha256: String(body['sha256']),
+      sizeBytes: Number(body['sizeBytes']),
+      actionId: String(body['actionId']),
+      artifactId: String(body['artifactId']),
+      versionId: '',
+      replayed: body['replayed'] === true,
+    });
+  }
+  return {
+    mode: 'copy',
+    classification: planned.classification,
+    organizationId: args.organizationId,
+    items,
+  };
+}
+
 export async function runIngest(
   args: IngestCliArgs,
   env: NodeJS.ProcessEnv = process.env,
   cwd = process.cwd(),
   deps: IngestRuntimeDeps = {},
 ): Promise<IngestResult> {
+  const via =
+    args.via ??
+    (env['KF_API_ORIGIN'] !== undefined && env['KF_API_ORIGIN'] !== '' ? 'api' : 'database');
+  if (via === 'api') return runIngestViaApi(args, env, cwd);
   const planned: IngestPlan = planIngest({
     paths: args.paths,
     ...(args.mode === undefined ? {} : { mode: args.mode }),
@@ -714,6 +817,7 @@ export function usage(): string {
     'kf ingest --mode=copy|reference --classification=<id> --identity=dev|oidc ' +
     '[--revision=<label>] [--kind=<artifact-kind>] [--reference-manifest=<file>] ' +
     '[--organization=<uuid> --acting-role=<uuid> --token-file=<file>] [--reason=<text>] ' +
+    '[--via=api|database] ' +
     '[--json] <paths...>'
   );
 }

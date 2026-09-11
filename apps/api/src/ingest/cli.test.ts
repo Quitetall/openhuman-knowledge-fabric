@@ -1,5 +1,14 @@
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { parseIngestArgs, parseReferenceManifest, runIngest, runIngestCommand } from './cli.js';
+import {
+  parseIngestArgs,
+  parseReferenceManifest,
+  runIngest,
+  runIngestCommand,
+  runIngestViaApi,
+} from './cli.js';
 
 describe('kf ingest argument boundary', () => {
   it('parses explicit mode, identity, metadata, and paths', () => {
@@ -144,5 +153,67 @@ describe('kf ingest argument boundary', () => {
       'refusing to copy /workspace/vendor/theirs.pdf: rule vendor-tree — vendor material is ' +
         'third-party copyright. Re-run this batch with --mode=reference --revision=<document revision>.\n',
     );
+  });
+});
+
+describe('kf ingest --via=api', () => {
+  it('posts each file to /ingest as the person, and needs no database credential', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'kf-ingest-api-'));
+    await writeFile(join(dir, 'note.md'), '# note\n');
+    await writeFile(join(dir, 'token'), 'tok.en\n', { mode: 0o600 });
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+    const fake = (async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), init: init ?? {} });
+      return new Response(
+        JSON.stringify({
+          artifactId: 'art-1',
+          actionId: 'act-1',
+          sha256: 'x',
+          sizeBytes: 7,
+          replayed: false,
+        }),
+        { status: 201, headers: { 'content-type': 'application/json' } },
+      );
+    }) as typeof fetch;
+    const result = await runIngestViaApi(
+      {
+        mode: 'copy',
+        classification: 'internal',
+        identity: 'oidc',
+        organizationId: '44444444-4444-7444-8444-444444444444',
+        actingRoleId: '66666666-6666-7666-8666-666666666666',
+        tokenFile: join(dir, 'token'),
+        json: true,
+        paths: [join(dir, 'note.md')],
+        via: 'api',
+      },
+      { KF_API_ORIGIN: 'https://api.kf.internal/' },
+      dir,
+      fake,
+    );
+    expect(calls.map((c) => c.url)).toEqual(['https://api.kf.internal/ingest']);
+    const headers = calls[0]!.init.headers as Record<string, string>;
+    expect(headers['authorization']).toBe('Bearer tok.en');
+    expect(headers['x-kf-classification']).toBe('internal');
+    const body = JSON.parse(String(calls[0]!.init.body)) as Record<string, unknown>;
+    expect(body['title']).toBe('note.md');
+    expect(body['artifactKind']).toBe('document');
+    expect(body['classification']).toBe('internal');
+    expect(Buffer.from(String(body['contentBase64']), 'base64').toString()).toBe('# note\n');
+    expect(result.items[0]).toMatchObject({
+      artifactId: 'art-1',
+      actionId: 'act-1',
+      replayed: false,
+    });
+  });
+
+  it('refuses reference mode and Drive sources, which stay on the database path', async () => {
+    await expect(
+      runIngestViaApi(
+        { mode: 'reference', identity: 'oidc', json: false, paths: ['x.md'], via: 'api' },
+        { KF_API_ORIGIN: 'https://api' },
+        '/tmp',
+      ),
+    ).rejects.toThrow(/reference mode|--reference-manifest|copies only/);
   });
 });
