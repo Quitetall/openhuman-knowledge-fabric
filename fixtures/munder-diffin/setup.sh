@@ -280,6 +280,6 @@ for entry in "${people[@]}"; do
       --classification "$ask" --format "$format" --out "$out/$username.$ext" "${extra[@]}" \
       --reason "Munder Diffin fixture: $name asks for their master record" 2> "$out/$username.$ext.log"
   done
-  printf '  %-18s %-20s %-12s %s\n' "$name" "$role" "$ask" "$(grep -o '<li>' "$out/$username.html" | wc -l) members"
+  printf '  %-18s %-20s %-12s %s\n' "$name" "$role" "$ask" "$(grep -o '<li class="member">' "$out/$username.html" | wc -l) members"
 done
 echo; echo "done. Master records in $out; per-person logs beside them."
