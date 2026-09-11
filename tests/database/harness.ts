@@ -57,6 +57,15 @@ function upSection(sql: string): string {
 
 export interface HarnessOptions {
   /**
+   * Own the schema as an ordinary role after migrating, as a host does (ADR 0026). A
+   * SECURITY DEFINER function owned by the container superuser bypasses forced row-level
+   * security; owned by an ordinary role it is bound, exactly as on the dogfood host. Opt-in
+   * per suite: turning it on everywhere failed 50 tests across 13 files on 2026-09-11, each
+   * of which needs its own reading — some are host-shaped defects, some are fixtures that
+   * lean on the superuser. Suites move over one at a time; the ones that have are the gate.
+   */
+  readonly realisticOwner?: boolean;
+  /**
    * Migration filenames to leave unapplied.
    *
    * Exists for one purpose: comparing the schema a migration produces against the schema
@@ -134,6 +143,69 @@ export async function startHarness(options: HarnessOptions = {}): Promise<Harnes
   await withTransaction(adminPool, async (tx) => {
     await tx.query(readFileSync(SEED, 'utf8').replace(/^begin;$|^commit;$/gm, ''));
   });
+
+  // THE SCHEMA IS OWNED BY AN ORDINARY ROLE, AS ON A HOST.
+  //
+  // Migrations ran as the container's bootstrap superuser, so every table and every function
+  // was owned by a superuser — and a SECURITY DEFINER function owned by a superuser bypasses
+  // row-level security even where it is FORCED. On a host the owner is the migrator login,
+  // which is not a superuser, so the same function is bound by the same policies. That
+  // difference let `org.resolve_identity_role` pass every test here while refusing every real
+  // login on the dogfood host (2026-09-11). Ownership moves to a role with no special
+  // attributes, exactly as the host has it; `adminPool` stays the superuser for fixture writes.
+  if (options.realisticOwner === true)
+    await withTransaction(adminPool, async (tx) => {
+      await tx.query(
+        `do $$ begin
+         if not exists (select from pg_roles where rolname = 'kf_harness_owner') then
+           create role kf_harness_owner nologin nosuperuser nobypassrls;
+         end if;
+       end $$`,
+      );
+      // Not REASSIGN OWNED: the bootstrap user also owns objects the database system requires,
+      // and PostgreSQL refuses to move those. Everything in the fabric's own schemas moves.
+      await tx.query(
+        `do $$
+       declare r record;
+       begin
+         for r in
+           select nspname from pg_namespace
+            where nspname not in ('pg_catalog', 'information_schema', 'public')
+              and nspname !~ '^pg_'
+         loop
+           execute format('alter schema %I owner to kf_harness_owner', r.nspname);
+         end loop;
+         for r in
+           select n.nspname, c.relname, c.relkind from pg_class c
+             join pg_namespace n on n.oid = c.relnamespace
+            where n.nspname not in ('pg_catalog', 'information_schema', 'public')
+              and n.nspname !~ '^pg_' and c.relkind in ('r', 'v', 'm', 'p')
+         loop
+           -- Owned sequences (serial columns) follow their table and refuse a direct change.
+           execute format('alter %s %I.%I owner to kf_harness_owner',
+             case r.relkind when 'v' then 'view' when 'm' then 'materialized view'
+                            else 'table' end, r.nspname, r.relname);
+         end loop;
+         for r in
+           select n.nspname, p.oid::regprocedure as sig, p.prokind from pg_proc p
+             join pg_namespace n on n.oid = p.pronamespace
+            where n.nspname not in ('pg_catalog', 'information_schema', 'public')
+              and n.nspname !~ '^pg_'
+         loop
+           execute format('alter %s %s owner to kf_harness_owner',
+             case r.prokind when 'p' then 'procedure' else 'function' end, r.sig);
+         end loop;
+         for r in
+           select n.nspname, t.typname from pg_type t
+             join pg_namespace n on n.oid = t.typnamespace
+            where n.nspname not in ('pg_catalog', 'information_schema', 'public')
+              and n.nspname !~ '^pg_' and t.typtype in ('e', 'd', 'c') and t.typrelid = 0
+         loop
+           execute format('alter type %I.%I owner to kf_harness_owner', r.nspname, r.typname);
+         end loop;
+       end $$`,
+      );
+    });
 
   // A login role that INHERITS kf_app. Production does the same: privileges attach to the
   // nologin group, and people and services get login roles that inherit them.

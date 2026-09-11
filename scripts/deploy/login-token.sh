@@ -111,9 +111,11 @@ print(urllib.parse.urlencode({
   | python3 -c '
 import json, sys
 body = json.load(sys.stdin)
-tok = body.get("access_token")
+tok = body.pop("access_token", None)
 if not tok:
-    sys.exit(f"token endpoint returned no access_token: {json.dumps({k: v for k, v in body.items() if k != \"access_token\"})}")
+    body.pop("refresh_token", None)
+    body.pop("id_token", None)
+    sys.exit("token endpoint returned no access_token: " + json.dumps(body))
 sys.stdout.write(tok)
 ' > "$token_file"
 chmod 0600 "$token_file"

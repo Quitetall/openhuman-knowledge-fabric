@@ -44,7 +44,7 @@ let outsider: string;
 let probe: string;
 
 beforeAll(async () => {
-  harness = await startHarness();
+  harness = await startHarness({ realisticOwner: true });
   fixtures = await seedFixtures(harness.adminPool);
   probe = await createObject(harness.adminPool, fixtures, {
     type: 'decision_record',

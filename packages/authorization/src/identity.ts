@@ -177,6 +177,9 @@ export async function resolveCaller(
   });
 }
 
+/** The widest classification, used only while identity itself is being resolved. */
+const RESOLUTION_CEILING = 'restricted';
+
 /** The database half, separated so it can be tested without a token. */
 export async function resolveIn(
   tx: Tx,
@@ -189,6 +192,25 @@ export async function resolveIn(
     readonly authentication?: AuthenticationEvent;
   },
 ): Promise<Caller> {
+  // RESOLUTION RUNS UNDER A BOUND ORGANIZATION, OR IT RESOLVES NOTHING.
+  //
+  // `org.resolve_identity_role` is SECURITY DEFINER and joins `core.object` for the role
+  // assignment's envelope — and `core.object` FORCES row-level security, which binds the
+  // definer too. With no organization bound, the envelope is invisible, `role_held` is false,
+  // and every real login was refused as `role_not_held`. Every database test bound a context
+  // before calling this, so none of them saw it; the first person to log in on the dogfood
+  // host did (2026-09-11).
+  //
+  // The context bound here is provisional: this organization, at the widest ceiling, for the
+  // resolution queries only. Nothing in this function returns record content — it returns who
+  // the caller is and what ceiling they hold — and `resolveCaller` re-binds the transaction to
+  // that derived ceiling before anything else runs. The requested ceiling cannot be used
+  // instead: a caller asking for `public` must still be able to have their `internal`
+  // assignment envelope seen.
+  await tx.query('select core.set_access_context($1, $2)', [
+    request.organizationId,
+    RESOLUTION_CEILING,
+  ]);
   const identity = await tx.maybeOne<{
     person_id: string;
     identity_revoked: boolean;

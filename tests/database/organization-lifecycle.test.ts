@@ -37,7 +37,7 @@ let harness: Harness;
 let fixtures: Fixtures;
 
 beforeAll(async () => {
-  harness = await startHarness();
+  harness = await startHarness({ realisticOwner: true });
   fixtures = await seedFixtures(harness.adminPool);
 }, 180_000);
 
@@ -241,6 +241,12 @@ describe('retire_organization', () => {
     });
 
     const merged = await foundOrganization('Merged Away Co');
+    // The shape the 2026-09-10 migration left behind: retired_at already set, lifecycle active.
+    await withTransaction(harness.adminPool, (tx) =>
+      tx.query('update org.organization set retired_at = now() where id = $1', [
+        merged.organizationId,
+      ]),
+    );
     const base = {
       actionType: 'retire_organization',
       actorId: merged.personId,

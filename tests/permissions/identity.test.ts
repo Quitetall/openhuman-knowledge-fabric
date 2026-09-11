@@ -76,7 +76,7 @@ async function token(
 }
 
 beforeAll(async () => {
-  h = await startHarness();
+  h = await startHarness({ realisticOwner: true });
   f = await seedFixtures(h.adminPool);
 
   const pair = await generateKeyPair('RS256', { extractable: true });
@@ -120,6 +120,29 @@ describe('a valid token becomes a caller', () => {
     expect(caller.actorId).toBe(f.reviewerId);
     expect(caller.actingRoleId).toBe(f.reviewerRoleId);
     expect(caller.subject).toBe('auth0|reviewer');
+  });
+
+  it('resolves through the APPLICATION login, which row-level security binds', async () => {
+    // `h.adminPool` is the container superuser and bypasses every policy, so the case above
+    // could not see what the first real login on the dogfood host saw (2026-09-11): the
+    // definer function joins `core.object`, which FORCES row-level security, and with no
+    // organization bound at resolution time the assignment envelope was invisible — every
+    // login was refused as `role_not_held`. This pool is the role the API actually runs as.
+    const caller = await resolveCaller(h.pool, verifier, request({ token: await token() }));
+    expect(caller.actorId).toBe(f.reviewerId);
+    expect(caller.actingRoleId).toBe(f.reviewerRoleId);
+  });
+
+  it('resolves at a requested ceiling BELOW the assignment envelope, through the app login', async () => {
+    // The envelope of a role assignment is `internal`. A caller asking to work at `public`
+    // must still be recognised; the resolution context is not the requested ceiling.
+    const caller = await resolveCaller(
+      h.pool,
+      verifier,
+      request({ token: await token(), maxClassification: 'public' }),
+    );
+    expect(caller.actorId).toBe(f.reviewerId);
+    expect(caller.maxClassification).toBe('public');
   });
 });
 

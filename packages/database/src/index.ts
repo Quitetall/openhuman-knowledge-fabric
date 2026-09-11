@@ -311,6 +311,19 @@ export async function setResolvedAccessContext(
     readonly requestedClassification: string;
   },
 ): Promise<string> {
+  // RESOLUTION RUNS UNDER A BOUND ORGANIZATION, OR IT RESOLVES NOTHING.
+  //
+  // `org.resolve_effective_classification` is SECURITY DEFINER and reads `org.person_clearance`
+  // and `core.object`, both of which FORCE row-level security — which binds the definer too
+  // unless its owner is a superuser. In the test harness it was; on a host it is the migrator
+  // login, and every dispatched action there failed with `classification clearance is not
+  // granted` before anything ran. The context bound here is provisional — this organization at
+  // the widest ceiling, for the resolver's own reads — and is replaced by the resolved ceiling
+  // before the caller's transaction touches a record.
+  await setAccessContext(tx, {
+    organizationId: ctx.organizationId,
+    maxClassification: 'restricted',
+  });
   const resolved = await tx.maybeOne<{ requested_classification: string }>(
     `select requested_classification
        from org.resolve_effective_classification($1, $2, $3, $4)`,

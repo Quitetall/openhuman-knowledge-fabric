@@ -46,8 +46,15 @@ kf() { node "$release/apps/api/dist/cli.js" "$@"; }
 set -a
 . /etc/kf/api.env
 set +a
-export DATABASE_OWNER_URL_FILE=/etc/kf/owner/database-url
-export DATABASE_OWNER_URL="$(cat /etc/kf/owner/database-url)"
+# The TABLE OWNER, not the application's "owner" login. Bootstrap-tier commands read across
+# organizations (a decider in one, a duplicate in another) and `org.person` / `org.organization`
+# enable row-level security without forcing it: the table owner reads past the policy, any other
+# login sees only the bound organization. That is the configuration every database test runs
+# under, and on this host the table owner is the migrator credential. Overridable for a host
+# whose bootstrap login IS the owner.
+owner_file="${KF_BOOTSTRAP_DATABASE_URL_FILE:-/etc/kf/migrator/database-url}"
+export DATABASE_OWNER_URL_FILE="$owner_file"
+export DATABASE_OWNER_URL="$(cat "$owner_file")"
 export DATABASE_URL_FILE=/etc/kf/api/database-url
 export S3_SECRET_ACCESS_KEY_FILE=/etc/kf/api/s3-secret-access-key
 export KF_API_ORIGIN="${KF_API_ORIGIN:-https://api.kf.internal}"
@@ -240,10 +247,11 @@ grant_read() {
   local body status
   body="$(KF_T="$object" KF_P="$person" KF_TITLE="$title" python3 -c '
 import hashlib, json, os
-key = hashlib.sha256(f"munder-fixture-grant:{os.environ[\"KF_P\"]}:{os.environ[\"KF_T\"]}".encode()).hexdigest()
-print(json.dumps({"targetIds": [os.environ["KF_T"]], "idempotencyKey": key,
-  "reason": f"Munder Diffin fixture: the counterparty contact reads their own agreement ({os.environ[\"KF_TITLE\"]})",
-  "payload": {"principal_kind": "person", "principal_id": os.environ["KF_P"], "capability": "read"}}))')"
+target, person, title = os.environ["KF_T"], os.environ["KF_P"], os.environ["KF_TITLE"]
+key = hashlib.sha256(("munder-fixture-grant:" + person + ":" + target).encode()).hexdigest()
+print(json.dumps({"targetIds": [target], "idempotencyKey": key,
+  "reason": "Munder Diffin fixture: the counterparty contact reads their own agreement (" + title + ")",
+  "payload": {"principal_kind": "person", "principal_id": person, "capability": "read"}}))')"
   status="$(curl -sS -o "$secrets_dir/last-grant.json" --max-time 30 -w '%{http_code}' -X POST \
     -H "Authorization: Bearer $(cat "$jim_token")" -H "x-kf-organization: $org" \
     -H "x-kf-acting-role: $jim_role" -H 'x-kf-classification: restricted' \
