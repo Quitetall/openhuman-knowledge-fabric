@@ -92,7 +92,7 @@ req GET "/documents/$pricing/source";   check "Karen (finance, confidential) rea
 req GET "/documents/$board/source";     check "Karen cannot read the restricted board decision" 404 "$STATUS" "$BODY"
 as 'Ryan Temp' ryan.temp internal
 req GET "/documents/$agreement/source"; check "Ryan (contractor, internal) cannot read Vance's agreement" 404 "$STATUS" "$BODY"
-req GET "/objects/$agreement";          check "Ryan cannot see its Object View either (his claim refreshes on demand; no 409)" 404 "$STATUS" "$BODY"
+req GET "/objects/$agreement";          check "Ryan cannot see its Object View either (a stale claim refreshes on demand first)" 404 "$STATUS" "$BODY"
 
 echo "== 2. a session may not ask above its clearance"
 as 'Pam Bealey' pam.bealey restricted

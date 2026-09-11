@@ -86,6 +86,9 @@ export function registerObjectViewRoute(
             organizationId: identity.organizationId,
             maxClassification: identity.maxClassification,
             targetIds: [identity.actorId],
+            // Random on purpose: this is not a retry of anything. Two views racing on the
+            // same stale claim both compile; the second finds the corpus unchanged and reuses
+            // the claim the first made (ADR 0013), so nothing is recorded twice.
             idempotencyKey: `object-view-refresh:${crypto.randomUUID()}`,
             requestId: String(request.id),
             reason: 'master record refreshed on demand to serve an Object View',
