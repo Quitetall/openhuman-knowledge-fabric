@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@kf/artifacts": "workspace:*",
+    "@kf/canonicalization": "workspace:*",
     "@kf/database": "workspace:*",
     "@kf/documents": "workspace:*",
     "@kf/domain": "workspace:*",
