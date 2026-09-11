@@ -32,7 +32,7 @@ function sources(dir: string): string[] {
   return out;
 }
 
-const VALUE_IMPORT = /^import\s+(type\s+)?[^;]*?from\s+'(@kf\/[a-z-]+)'/gms;
+const VALUE_IMPORT = /^import\s+(type\s+)?[^;]*?from\s+['"](@kf\/[a-z0-9-]+)['"]/gms;
 
 function workspacePackages(): string[] {
   const out: string[] = [];
@@ -64,12 +64,10 @@ describe('workspace dependencies are declared where they are imported', () => {
       const manifest = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as {
         name: string;
         dependencies?: Record<string, string>;
-        devDependencies?: Record<string, string>;
       };
-      const declared = new Set([
-        ...Object.keys(manifest.dependencies ?? {}),
-        ...Object.keys(manifest.devDependencies ?? {}),
-      ]);
+      // Runtime dependencies ONLY. `build-release.sh` runs `pnpm deploy --prod`, so a package
+      // declared under devDependencies is exactly as absent on the host as one not declared.
+      const declared = new Set(Object.keys(manifest.dependencies ?? {}));
       for (const file of sources(join(dir, 'src'))) {
         const text = readFileSync(file, 'utf8');
         for (const match of text.matchAll(VALUE_IMPORT)) {
