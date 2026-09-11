@@ -251,7 +251,11 @@ describe('transactional action ownership', () => {
       true,
     );
     expect(boundary.statements.some((sql) => /insert into core\.outbox/i.test(sql))).toBe(true);
+    // Two binds, in this order: the provisional one the classification resolver needs in
+    // order to see the caller's own clearance under forced row-level security (ADR 0026), then
+    // the resolved ceiling that every read after it is bound to.
     expect(boundary.accessContexts).toEqual([
+      [PURE_TRANSITION_REQUEST.organizationId, 'restricted'],
       [PURE_TRANSITION_REQUEST.organizationId, PURE_TRANSITION_REQUEST.maxClassification],
     ]);
   });
