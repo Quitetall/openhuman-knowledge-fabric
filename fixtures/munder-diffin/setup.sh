@@ -64,6 +64,10 @@ export CURL_CA_BUNDLE="${NODE_EXTRA_CA_CERTS:-}"
 export NODE_ENV=production
 
 psql_owner() { psql "$DATABASE_OWNER_URL" -v ON_ERROR_STOP=1 -X -A -t -q -c "$1"; }
+# Refuse a credential that is not the table owner: every cross-organization lookup below would
+# quietly return nothing and the run would report an empty company rather than a wrong login.
+owner_check="$(psql_owner "select case when tableowner = current_user then 'owner' else current_user || ' is not ' || tableowner end from pg_tables where schemaname = 'org' and tablename = 'person'")"
+[ "$owner_check" = owner ] || { echo "bootstrap credential must be the table owner: $owner_check" >&2; exit 2; }
 # SQL literal: single quotes doubled. Every value below is a constant from this file, but a
 # query built by interpolation is a query built by interpolation.
 q() { printf "'%s'" "${1//\'/\'\'}"; }

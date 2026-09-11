@@ -250,13 +250,14 @@ export function createOrganizationLifecycleAtoms(): OrganizationLifecycleAtoms {
     // Not a `core.relation`: a relation needs both ends visible under the caller's scope, and
     // the successor is another organization — another scope. The first version of this effect
     // tried to write one and was refused by the policy the first time it was actually run.
-    // `retired_at` keeps its first value if one was already there — the nine organizations
-    // mis-retired by SQL on 2026-09-10 carried one before the act ever ran — and the successor
-    // is written whenever this act names one. Filtering on `retired_at is null` here lost the
-    // successor on exactly those nine.
+    // Both keep their FIRST value. `retired_at` was already set on the nine organizations
+    // mis-retired by SQL on 2026-09-10, and filtering on `retired_at is null` here lost the
+    // successor on exactly those nine; a successor, once named, is not silently replaced by a
+    // later act — there is no transition out of `retired`, so a later act is not expected, and
+    // if one arrives the first answer stands.
     await tx.query(
       `update org.organization
-          set retired_at = coalesce(retired_at, $2), succeeded_by = coalesce($3, succeeded_by)
+          set retired_at = coalesce(retired_at, $2), succeeded_by = coalesce(succeeded_by, $3)
         where id = $1`,
       [organizationId, ctx.effectiveAt.toISOString(), successorId ?? null],
     );
