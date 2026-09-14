@@ -21,7 +21,7 @@
 
   <line x1="880" y1="254" x2="880" y2="194" stroke="#c8813f" stroke-width="2"/>
   <polygon points="875,194 885,194 880,184" fill="#c8813f"/>
-  <text x="612" y="226" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#c8813f" text-anchor="end">projections come back</text>
+  <text x="864" y="226" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#c8813f" text-anchor="end">projections come back</text>
 
   <!-- Layer 2: compiler -->
   <rect x="60" y="258" width="1000" height="150" fill="#1f2925" stroke="#3a4742" stroke-width="1.5"/>
