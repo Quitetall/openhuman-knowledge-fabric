@@ -48,7 +48,11 @@ const RESTATED = [
   'content.document_publication.document_publication_scope',
   'ml.aggregate_reference.aggregate_reference_read',
   'ml.aggregate_reference.aggregate_reference_insert',
-  'search.document.search_document_read',
+  // NOT search.document.search_document_read. The sweep did rewrite it, and 20260914000100
+  // then replaced that policy's predicate entirely — it defers to core.object rather than
+  // testing a denormalised classification, so it carries no ceiling clause for the sweep to
+  // have rewritten. The final schema is identical with and without the sweep for that policy,
+  // which is what this list measures.
   'secure_object.capability_request.capability_request_read',
   'secure_object.capability_request.capability_request_insert',
   'secure_object.erasure_request.erasure_request_read',

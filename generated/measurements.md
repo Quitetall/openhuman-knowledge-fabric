@@ -12,7 +12,7 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 
 | Measure | Count | Derived from |
 | --- | ---: | --- |
-| migrations | 91 | files under `database/migrations/` |
+| migrations | 92 | files under `database/migrations/` |
 | tables created | 169 | in migration up-sections |
 | row-security policies | 440 | in migration up-sections |
 | definer functions | 125 | in migration up-sections |
@@ -20,5 +20,5 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 | object types | 39 | declared in `ontology/object-types.yaml` |
 | relation types | 41 | declared in `ontology/relation-types.yaml` |
 | decision records | 30 | under `docs/decisions/` — 27 accepted, 3 proposed |
-| architecture requirements | 156 | distinct identifiers in §106 |
-| test files | 152 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
+| architecture requirements | 157 | distinct identifiers in §106 |
+| test files | 153 | `*.test.ts` under `tests/`, `apps/` and `packages/` |

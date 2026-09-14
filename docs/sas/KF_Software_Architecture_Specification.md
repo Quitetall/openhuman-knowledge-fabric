@@ -1634,8 +1634,30 @@ So `search.document` is a derived projection, filtered at read time by the same 
 filters everything else, and rebuildable in full from authoritative rows. It is deliberately
 outside the master-record boundary, and §62 states that exclusion explicitly.
 
+**Visibility defers to the record, and once did not.** `search.document` denormalises
+`organization_id` and `classification` so a hit can be filtered and rendered without joining back
+for every row. Until `20260914000100` the read policy also *decided* on that copy — and the copy is
+refreshed through the outbox, which states plainly that delivery "is allowed to be late". Late is
+exactly what broke it: between a reclassification committing and the drain running, the index
+evaluated the old level over `search.document.body`, which holds the assembled plaintext of every
+controlled document. Nothing bounded that window and nothing measured it.
+
+The repair is not a faster drain. A shorter window is still a window, and one measured in seconds
+is harder to reason about than one that cannot exist. The policy now asks whether the record itself
+is visible and lets `core.object`'s own row security answer, live, in the same statement. The
+denormalised columns stay and no longer decide, so a stale copy can only make the index
+under-inclusive — costing a caller a result until the next drain, and disclosing nothing. The
+failure direction is safe by construction rather than by punctuality.
+
+Found while specifying §64A, which avoids the same failure by holding no authorization input at
+all, and fixed in the same revision that found it.
+
 **KF-SAS-RQ-121.** Search SHALL use one index for all audiences, filtered at read time by the
 same authorization context as every other read.
+
+**KF-SAS-RQ-226.** A derived index SHALL NOT decide visibility from a denormalised copy of an
+authorization input; the decision SHALL be taken against the authoritative record in the same
+statement that reads the index.
 
 ## 64A. The retrieval index
 
@@ -2765,15 +2787,6 @@ service actor acts for itself and is barred from institutional acts, which is a 
 from an agent forming an act on a person's behalf. KF-SAS-RQ-204 states the requirement; nothing
 implements it.
 
-**100.20 Revocation in the search index is asynchronous and the window is unmeasured.**
-`search.document` holds the assembled plaintext body of every controlled document, and
-`search_document_read` filters on that table's own denormalised `classification` rather than
-joining back to the record. The column is refreshed through the outbox, whose own documentation
-states that delivery is allowed to be late. So between a reclassification committing and the outbox
-draining, the index evaluates a stale rank over live plaintext. Nothing bounds or measures that
-window. Found while designing §64A, which avoids the same failure by storing no authorization input
-at all. Bears on KF-SAS-RQ-121 and KF-SAS-RQ-214.
-
 **100.21 The retrieval architecture is specified and largely unbuilt, on both sides.** §64A states
 eight requirements against a capability that mostly does not exist yet. Outstanding in the engine:
 its mask predicate is tenancy rather than clearance; there is no entry point accepting an externally
@@ -2913,7 +2926,7 @@ record which program owns each federated fact.
 
 | Revision | Date | Change |
 |---|---|---|
-| `0.1.0-draft.4` | 2026-09-14 | States the architecture in one place for the first time: §8B names the three layers and pins the invariants that hold across them ([ADR 0030](../decisions/0030-three-layers.md)), after the observation that a reader had to assemble the structure from five documents and a README, and that the README had consequently outrun this document on a structural claim. Adds §64A, the retrieval index — inside the trust boundary, outside the authority boundary, holding a vector and an identifier and no authorization input, with authorization computed per query and applied during scoring ([ADR 0028](../decisions/0028-the-retrieval-index-is-masked-not-copied.md)); this supersedes the reasoning that refused embeddings in `database/migrations/20260811001800_search.sql`, on the condition that reasoning itself set. Adds §64B, transient observations, a third category of stored thing that is neither authoritative nor rebuildable, with the four exclusions that make an expiry mean anything ([ADR 0029](../decisions/0029-transient-observations-are-a-third-category.md)). Removes every source count from this document in favour of a generated, gated measurement file, after four figures here were found stale and had been copied into two other documents and a Warrant basis; §103.3 records why transclusion was rejected. Five gaps appended, including that revocation in the search index is asynchronous and unmeasured, and that no objective after v1.0 can be scheduled. Sixteen requirements appended, none removed or retitled; architecture-changing under §94.3, carrying ADRs 0028, 0029 and 0030. |
+| `0.1.0-draft.4` | 2026-09-14 | States the architecture in one place for the first time: §8B names the three layers and pins the invariants that hold across them ([ADR 0030](../decisions/0030-three-layers.md)), after the observation that a reader had to assemble the structure from five documents and a README, and that the README had consequently outrun this document on a structural claim. Adds §64A, the retrieval index — inside the trust boundary, outside the authority boundary, holding a vector and an identifier and no authorization input, with authorization computed per query and applied during scoring ([ADR 0028](../decisions/0028-the-retrieval-index-is-masked-not-copied.md)); this supersedes the reasoning that refused embeddings in `database/migrations/20260811001800_search.sql`, on the condition that reasoning itself set. Adds §64B, transient observations, a third category of stored thing that is neither authoritative nor rebuildable, with the four exclusions that make an expiry mean anything ([ADR 0029](../decisions/0029-transient-observations-are-a-third-category.md)). Removes every source count from this document in favour of a generated, gated measurement file, after four figures here were found stale and had been copied into two other documents and a Warrant basis; §103.3 records why transclusion was rejected. Five gaps appended, including that revocation in the search index is asynchronous and unmeasured, and that no objective after v1.0 can be scheduled. Seventeen requirements appended, none removed or retitled. One defect found and closed in the same revision: `search.document`'s read policy decided visibility from a denormalised classification refreshed by a worker documented as permitted to be late, so a reclassification did not take effect until the drain ran; `20260914000100` makes the policy defer to `core.object`, and a test reproduces the window by reclassifying without reindexing; architecture-changing under §94.3, carrying ADRs 0028, 0029 and 0030. |
 | `0.1.0-draft.3` | 2026-09-04 | Corrects §38's row-level security figures against the first ever install of this schema on a host — 143 enabled, 70 forced, the 73 unforced reconciling exactly with the migrations, and the previously cited 113 of 139 wrong in both halves. Adds §8A and five requirements making speed of capture and retrieval architectural rather than product polish, after the observation that a records system engineers skip records nothing ([ADR 0024](../decisions/0024-friction-is-an-architectural-property.md)). Records that capture is cheap and governance applies at promotion, that several surfaces share one act model, and that an agent may act for a named human. Five requirements appended, none removed or retitled; architecture-changing, carrying ADR 0024. |
 | `0.1.0-draft.2` | 2026-09-04 | Records two scope decisions that pull in opposite directions and were made together: business logic is an application above the Fabric (§8.10), and dataset, transform and lineage capability, if ever built, belongs in the core rather than above it (§8.11). Adds the organization-as-configuration requirement. Three requirements appended, none removed or retitled. Architecture-changing under §94.3 and carrying [ADR 0023](../decisions/0023-business-logic-above-data-primitives-within.md): the draft asserted it was not, and `war sas propose` derived otherwise from the §106 diff and required a decision record. The tool was right. |
 | `0.1.0-draft.1` | 2026-09-03 | First revision. Establishes the Knowledge Fabric as a program with its own specification, 132 requirements and an eleven-phase ladder. No predecessor. |
@@ -3150,6 +3163,7 @@ from evidence, never recorded here (§97.3).
 | KF-SAS-RQ-223 | A band bitmap or derived scope tag lives only for the life of its process and never reaches durable storage |
 | KF-SAS-RQ-224 | Lexical and semantic rankings are composed rather than merged, the lexical one stays exhaustive, and each result names the ranking that produced it |
 | KF-SAS-RQ-225 | Text may transit to an on-host embedder and is never persisted there; a controlled record offered to a persisting path is refused |
+| KF-SAS-RQ-226 | A derived index never decides visibility from a denormalised copy; the decision is taken against the record in the same statement |
 
 ### Transient observations, 2026-09-14 (ADR 0029)
 
