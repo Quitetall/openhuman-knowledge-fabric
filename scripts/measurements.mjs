@@ -59,7 +59,10 @@ const countStatements = (pattern) =>
 const decisions = walk('docs/decisions', (name) => /^\d{4}-.*\.md$/.test(name)).sort();
 const decisionStatus = decisions.map((file) => {
   const source = readFileSync(join(ROOT, file), 'utf8');
-  return /^[-*]\s+\*\*Status:\*\*\s*proposed/im.test(source) ? 'proposed' : 'accepted';
+  // Only the header. An accepted record's body may well discuss what was proposed and rejected,
+  // and matching that would report it as proposed.
+  const header = source.split('\n').slice(0, 12).join('\n');
+  return /^[-*]\s+\*\*Status:\*\*\s*proposed/im.test(header) ? 'proposed' : 'accepted';
 });
 
 /**
@@ -92,7 +95,7 @@ const measures = [
   ],
   [
     'architecture requirements',
-    new Set(sas.match(/KF-SAS-RQ-\d{3}/g) ?? []).size,
+    new Set(sas.match(/KF-SAS-RQ-\d{3,}/g) ?? []).size,
     'distinct identifiers in §106',
   ],
   [
@@ -129,11 +132,17 @@ ${measures.map(([name, count, from]) => `| ${name} | ${count} | ${from} |`).join
  * repository has none of these things in zero quantity, so refusing is always the right answer
  * and a future measure that legitimately can be zero should say so here, deliberately.
  */
-const empty = measures.filter(([, count]) => count === 0).map(([name]) => name);
+/** Measures that may legitimately read zero. Empty today; add a name here, never a bare `|| 0`. */
+const MAY_BE_ZERO = new Set([]);
+
+const empty = measures
+  .filter(([name, count]) => count === 0 && !MAY_BE_ZERO.has(name))
+  .map(([name]) => name);
 if (empty.length > 0) {
   process.stderr.write(
     `refusing to write a measurement of zero for: ${empty.join(', ')}.\n` +
-      'A zero here has always meant the derivation is broken, never that the repository is empty.\n',
+      'A zero here has always meant the derivation is broken, never that the repository is empty.\n' +
+      'If one can legitimately be zero, name it in MAY_BE_ZERO rather than removing this check.\n',
   );
   process.exit(1);
 }
