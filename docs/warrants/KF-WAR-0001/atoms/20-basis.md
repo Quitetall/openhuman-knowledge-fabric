@@ -28,7 +28,7 @@ Measured 2026-09-09 on the host, four days after it was built and without interv
 | The host exists and is not the workstation | Debian 13 VM, `kf-host-1`, user systemd service, survives reboot |
 | Six host requirements | probed on a near-empty image; bubblewrap namespace qualification passes |
 | PostgreSQL 18.6 | running, `jit = off` per the measured planner setting |
-| `kf` database | 88 migrations applied by a non-superuser migrator; ontology seeded 39/145/41 |
+| `kf` database | 88 migrations applied by a non-superuser migrator; ontology seeded 39/145/41 — the counts as installed on that date, not as the repository stands now |
 | Object store | MinIO, own account, own credentials, bucket, scoped API key |
 | Identity | Keycloak, own database, realm `knowledge-fabric`, `sslRequired: all`, two clients |
 | TLS | private CA, nginx terminating, CA-verified 200, `:80`→308, unknown name→444 |

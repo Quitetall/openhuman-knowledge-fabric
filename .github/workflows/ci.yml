@@ -138,8 +138,9 @@ jobs:
       - name: Regenerate and diff
         run: |
           pnpm ontology:build
+          pnpm measurements:build
           if ! git diff --exit-code -- generated/; then
-            echo "::error::generated/ is out of date — run 'pnpm ontology:build' and commit the result"
+            echo "::error::generated/ is out of date — run 'pnpm ontology:build && pnpm measurements:build' and commit the result"
             exit 1
           fi
 

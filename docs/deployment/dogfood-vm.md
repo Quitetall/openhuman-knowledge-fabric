@@ -92,7 +92,12 @@ slower with it on.
 ## The database, and what installing it found
 
 `kf` exists on the host, owned by `kf_migrator_login`, whose credential is a 0600 file at
-`/etc/kf/migrator/database-url` readable only by root. All 88 migrations applied.
+`/etc/kf/migrator/database-url` readable only by root. 88 migrations applied, which was all of
+them on 2026-09-09 and is not all of them now — the repository has moved and this host has not.
+The current figure is in [`generated/measurements.md`](../../generated/measurements.md); the
+difference is what a commissioning run would have to close. Stated as a lag rather than corrected
+to a larger number, because the number here records what was installed, and changing it would
+describe a host that does not exist.
 
 **The migrator does not need to be a superuser, and the deployment contract never said what it
 does need.** That gap cost four failed attempts, each with a different refusal, and the answer is
