@@ -187,3 +187,6 @@ export function admitted(mask: Uint8Array): number {
   for (const bit of mask) total += bit;
   return total;
 }
+
+export * from './protocol.js';
+export * from './client.js';
