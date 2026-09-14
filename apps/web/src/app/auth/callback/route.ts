@@ -3,6 +3,7 @@ import {
   OIDC_TRANSACTION_COOKIE,
   openOidcTransaction,
   sealWebSession,
+  publicUrl,
   SESSION_COOKIE,
 } from '../../../lib/auth';
 import { discoverOidc, exchangeAuthorizationCode } from '../../../lib/oidc';
@@ -23,7 +24,7 @@ function clearTransaction(response: NextResponse): NextResponse {
 
 function failed(request: NextRequest, code: string): NextResponse {
   return clearTransaction(
-    NextResponse.redirect(new URL(`/auth/error?code=${encodeURIComponent(code)}`, request.url)),
+    NextResponse.redirect(publicUrl(request, `/auth/error?code=${encodeURIComponent(code)}`)),
   );
 }
 
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     config = dogfoodConfig();
   } catch {
-    return NextResponse.redirect(new URL('/documents', request.url));
+    return NextResponse.redirect(publicUrl(request, '/documents'));
   }
   const transaction = await openOidcTransaction(
     request.cookies.get(OIDC_TRANSACTION_COOKIE)?.value,
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const metadata = await discoverOidc(config);
     const session = await exchangeAuthorizationCode(metadata, config, transaction, code);
     const compact = await sealWebSession(session, config.sessionKey);
-    const destination = new URL('/session/select', request.url);
+    const destination = publicUrl(request, '/session/select');
     destination.searchParams.set('next', transaction.returnTo);
     const response = clearTransaction(NextResponse.redirect(destination));
     response.cookies.set(SESSION_COOKIE, compact, {
