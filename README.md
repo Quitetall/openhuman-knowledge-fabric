@@ -1,244 +1,202 @@
+![Knowledge Fabric](docs/assets/banner.svg)
+
+[![CI](https://github.com/Quitetall/openhuman-knowledge-fabric/actions/workflows/ci.yml/badge.svg)](https://github.com/Quitetall/openhuman-knowledge-fabric/actions/workflows/ci.yml)
+[![Licence](https://img.shields.io/badge/licence-Apache--2.0-0f6b5c)](LICENSE)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-0f6b5c)](docs/deployment/private-host.md)
+[![Node](https://img.shields.io/badge/Node-24.18.1-0f6b5c)](package.json)
+
 # Knowledge Fabric
 
-An institutional information platform: one coherent, machine-readable view of products,
-projects, work packages, contractor work orders, work execution, artifacts, decisions,
-configuration changes, requirements, risks, tests, acceptance, invoices, payments, controlled
-documents, people and provenance — while keeping project management, engineering configuration,
-contractor authorization, quality management and finance as separate authorities linked by
-typed identities.
+A company's records live in a dozen systems that each think they are the source of truth. Ask
+"what is the state of this work" and somebody assembles the answer from five screens, knowing
+which system to disbelieve.
 
-**The product and one instance of it live in this repository, and they are different things.**
-The software is general: it does not know your company. What it does know is loaded from an
-identifier registry — the namespaces, grammars, check digits and lifecycle rules your
-organisation allocates under. `registries/openhuman/` is the one that exists today, a
-transcription of OpenHuman Technologies LLC's `OH-DOC-000001-3` R01. It is an example of the
-shape, not part of the product, and `KF_REGISTRY_DIR` points at a different one.
+The Knowledge Fabric is one database that answers that question, without pretending the other
+systems do not exist. It keeps a typed record of every project, document, decision, artifact,
+work order, test, invoice and person, records which system owns each fact, and refuses any
+change that is not an attributed act.
 
-That boundary is **partly enforced and partly aspirational today** — the compiler takes any
-registry, the database does not. [ADR 0006](docs/decisions/0006-product-instance-boundary.md)
-records exactly where the line holds and where it leaks, rather than claiming a separation that
-has never been exercised.
+It is a backend. People and other applications reach it through the layers above it.
 
-Specification: `OH-DOC-000002-1-R01` — _Knowledge Fabric Organizational Graph and Work
-Control Specification_, with its `1.0.0-draft.1` schema pack.
+## What it does
 
-> ## Status — read this first
->
-> **Operational for local development and draft dogfood; not an authoritative service.**
->
-> The single answer to "what is this, and how far along is it" is the Software Architecture
-> Specification at [`docs/sas/KF_Software_Architecture_Specification.md`](docs/sas/KF_Software_Architecture_Specification.md).
-> The accepted revision is **`0.1.0-draft.3`**, at
-> `sha256:ecb95a11e5c5e48316ef7bea1ebc7ccb0cea65fbed15547ddd993948c71b6c92`, accepted
-> 2026-09-04. Its own header says "Draft for acceptance" and always will: a document cannot
-> state the digest that covers it, so acceptance is recorded in `docs/sas/revisions/` and stated
-> here, which is what §94.6 requires of a copy or an export.
-> It states the architecture, the invariants, the boundaries, the requirements and the phase
-> ladder, and it says which phases are delivered and which are not. This block used to carry a
-> summary of that, and a summary of a moving system is a summary that goes quietly stale.
->
-> **Phase 9 is not started.** Phases 0 through 8 — nine of the eleven — are delivered and
-> exercised by the test suite. Phase 9 — a commissioned
-> host and its operating evidence — is **not started**, and four of the five v1.0 criteria in
-> `docs/decisions/0004-production-release.md` queue behind it. Phase 10 is v1.0 itself.
-> §100 of the specification enumerates every known gap, including the two schema packs that
-> are signed snapshots of a source that has since moved.
->
-> `development` may explicitly enable a fixed non-authoritative identity; `dogfood` refuses that
-> path and requires verified OIDC identity plus database-backed role assignment. Automated
-> browser proof uses a controlled OIDC fixture. Real identity-provider, TLS, key-custody,
-> external-storage and alerting commissioning still require operator evidence. The first
-> dogfood corpus remains draft-only: no approval, effective-state transition or enterprise
-> identifier is fabricated.
+- **Keeps one record.** Every object has a type, an owner, a history and a secrecy level.
+- **Refuses untracked change.** There are 151 kinds of act. There is no generic write endpoint.
+- **Proves what happened.** Every act appends to an audit chain that verifies on its own.
+- **Shows each person exactly what they may see.** Not more, not less, and it can say why.
+- **Reads for machines first.** A human page is compiled from the record, not stored instead of it.
+- **Serves agents.** The same record compiles into a context bundle for retrieval and reasoning.
+- **Keeps the bytes.** Files are stored with digests and verified before they are served.
 
----
+## How it is built
 
-## Build philosophy
+![The three layers](docs/assets/layers.svg)
 
-**Architecture-complete, capability-incremental.** One permanent architecture, commissioned
-in vertical slices. A gate is complete only when its exit criteria _and_ its
-planted-violation tests pass.
+**The kernel** is PostgreSQL. The rules live in the database, not in application code: row-level
+security, triggers, check constraints and foreign keys decide what a caller may see and change.
+TypeScript opens one transaction and dispatches into it. A defect in the application cannot
+widen those rules.
 
-| Gate | Scope                               | State        |
-| ---- | ----------------------------------- | ------------ |
-| 1    | Repository, toolchain, local stack  | **complete** |
-| 2    | Ontology compiler                   | **complete** |
-| 3    | PostgreSQL authority kernel         | **complete** |
-| 4    | Evidence vault and preservation     | **complete** |
-| 5    | Work-control vertical slice         | **complete** |
-| 6    | Product configuration and quality   | **complete** |
-| 7    | Search, federation, agent-safe APIs | **complete** |
-| 8    | Operational hardening               | **complete** |
+**The compiler** reads the database. It is a consumer, not part of the kernel. It produces the
+master record, which is exactly the set of records one person may see at one moment, and
+projections over it: a readable page for a person, a context bundle for an agent, a view of one
+object and its neighbours. LAMU is the vector store inside the same boundary. It finds records
+near a question, and those results stay in a separate labelled set that a caller has to ask for.
 
-## Composed monolith
+**The workflows** sit on top and call the compiler. Business rules live here: invoicing
+arithmetic, scheduling, CRM. So do the integrations and every way a record gets in, whether an
+agent, Slack, the command line or a web form. All of them dispatch the same acts through the
+same seam. None of them touches storage directly.
 
-The Knowledge Fabric is monolithic at the product boundary: one integrated source of truth,
-one web experience and one machine-readable authority surface. Its software parts are not
-black-box monoliths. Small auditable atoms own narrow contracts; orchestrators compose them
-into larger capabilities and reject ambiguous ownership. Each atom remains testable and
-reusable outside the full application — a pragmatic fusion of composition and the Unix
-philosophy.
+## Status
+
+Operational for development and draft use. **Not an authoritative service yet.**
+
+|                  |                                                      |
+| ---------------- | ---------------------------------------------------- |
+| Phases delivered | 9 of 11                                              |
+| Tests            | 1,520 across 151 files, against a real PostgreSQL 18 |
+| Remaining        | Phase 9, commission a host. Phase 10, version 1.0    |
+
+The single source of truth for program state is the
+[Software Architecture Specification](docs/sas/KF_Software_Architecture_Specification.md). Its
+§98 lists the phases, §99 the acceptance criteria and §100 every known gap. Where this README
+and that document disagree, that document is right.
 
 ## Getting started
-
-**New here? Read [`docs/onboarding.md`](docs/onboarding.md).** It is the same path with the
-traps written down — including which steps have actually been walked and which have not. The
-seven lines below are the summary, not the instructions.
 
 ```sh
 pnpm install
 cp .env.example .env
 set -a; . ./.env; set +a
-docker compose up -d      # PostgreSQL 18, MinIO, Keycloak
+docker compose up -d                                  # PostgreSQL 18, MinIO, Keycloak
 DATABASE_URL="$DATABASE_OWNER_URL" pnpm db:migrate
-pnpm dogfood:load -- --source-dir /path/to/OpenHuman_Technologies
-# paste the three KF_DEV_* values the loader prints into .env
-pnpm dev                  # api :4000, web :3000, worker
+pnpm dogfood:load -- --source-dir /path/to/documents   # prints three KF_DEV_* values for .env
+pnpm dev                                              # api :4000, web :3000, worker
 ```
 
-Open <http://localhost:3000/documents> to read parsed document atoms or add another draft.
-The manifest for the initial three-document constitution is
-`dogfood/document-constitution.json`; rerunning the loader replays semantic action receipts or
-reuses only migration-allowlisted, audit-bound materializations created before that replay
-contract. Pinned object versions and parsed source records are reverified. Content-addressed
-staging uses conditional create, so an unchanged rerun creates neither database duplicates nor
-new object-store versions; an occupied key with different bytes fails closed.
+Then open <http://localhost:3000/documents>.
 
-Verification, all of which must pass from a clean checkout:
+Requires Node 24.18.1, pnpm 11, and Docker with Compose v2.
+[`docs/onboarding.md`](docs/onboarding.md) is the same path with the traps written down.
+
+## The command line
 
 ```sh
-pnpm gate
+kf ingest --mode=copy --classification=internal --identity=oidc <files...>
+kf master-record --token-file <file> --organization <uuid> --acting-role <uuid>
+kf overview
+kf bootstrap-organization --legal-name "..." --person "..."
+kf grant-authority --person <uuid> --role <id> --clearance <id> --reason "..."
+kf retire-organization --organization <uuid> --decided-by <uuid> --reason "..."
 ```
 
-That is the whole set, in CI's order, fail-fast. It is what three of the four CI jobs run
-between them — the fourth, `secrets`, is a gitleaks scan over full history that cannot run
-locally on every machine — and `tests/deployment/gate-parity.test.ts` asserts the two agree in
-both directions, so a step added to `.github/workflows/ci.yml` and not to `gate` fails the suite
-rather than waiting to fail on somebody's push.
+`scripts/install-kf.sh` puts `kf` on your path.
 
-**CI passed for the first time on 2026-08-18**, run `32146924053` at commit `93e5b6c4`, all four
-jobs green in 6.8 minutes. This paragraph previously read "nothing in CI has ever actually run",
-which was true when written: all 38 runs to that point had failed at job-start on GitHub Actions
-billing. Billing was restored and the first real runs found five host requirements the runner did
-not satisfy — bubblewrap, unprivileged user namespaces, a PostgreSQL 18 client, `/usr/bin/node`
-and pandoc — four of them named in `docs/deployment/private-host.md` and never checked against a
-machine, and the fifth written down nowhere at all.
-
-That is the useful part, so it is stated plainly rather than tidied away: `pnpm gate` was green on
-this workstation the entire time, and it was green because of what happened to be installed here.
-`docs/decisions/0004-production-release.md` criterion 5 still requires a green run on the TAGGED
-commit, which has not happened. Run the pieces individually while iterating:
+## Testing and CI
 
 ```sh
-pnpm format:check
-pnpm lint
-pnpm typecheck
-pnpm ontology:check                        # ontology internally consistent
-pnpm ontology:build && git diff --exit-code -- generated/   # and the committed output is current
-pnpm test                                  # includes a real PostgreSQL 18 via Testcontainers
-pnpm build
+pnpm gate          # everything CI runs, in CI's order, fail-fast
 ```
 
-`ontology:check` compares in memory; the regenerate-and-diff is a separate step because only a
-real write proves the emitters are deterministic.
+Four jobs run on every push and pull request:
 
-Requires Node 24.18.1 (current active LTS), pnpm 11, Docker with Compose v2.
+| Job        | Checks                                                              |
+| ---------- | ------------------------------------------------------------------- |
+| `verify`   | format, lint, typecheck, the full test suite, dependency advisories |
+| `ontology` | the ontology is consistent and `generated/` is current              |
+| `build`    | the project builds from a clean checkout                            |
+| `secrets`  | no secret has ever been committed, over full history                |
+
+`pnpm gate` reproduces three of the four CI jobs. The fourth, `secrets`, scans the full history
+and cannot run on every machine. `tests/deployment/gate-parity.test.ts` asserts that the gate and
+the workflow run the same commands, so a step added to one and not the other fails the suite.
+
+The suite starts real PostgreSQL 18 containers through Testcontainers. On a loaded machine, run
+it in partitions rather than all at once.
+
+## The rules
+
+Breaking one of these is a defect, not a style choice.
+
+1. **One authority per fact.** Every record names its authority, and a mirror is always
+   distinguishable from the original. Indexes, embeddings and summaries are derived and never
+   authoritative.
+2. **Every controlled write is an act** naming the actor, their role, the reason and the time.
+3. **A refusal is a feature.** Every refusal carries a named code, never an untyped error.
+4. **Fail closed.** If a check cannot run, the system refuses.
+5. **Identity never changes meaning.** An identifier is never reissued or re-meant, and the
+   requester never chooses it.
+6. **Retire by sequester, never delete.** Withdrawal, revocation and supersession leave the
+   record in place.
+7. **Canonical before hashed.** Every digest is taken over an RFC 8785 canonical form.
+
+## What it is not
+
+Not a wiki: there is no free page anyone can edit. Not merely a file store: the record is the
+typed object, and the bytes are one attachment to it. Not a replacement for a PLM, QMS, finance
+ledger or version control, which it links to and records the origin of. Not a general-purpose
+write API. Business logic is an application above it, never inside it.
+
+It holds no health information, no bank details and no payroll secrets. It does not sync
+folders; each external file is admitted as a decision.
 
 ## Where things live
 
-| Path                        | Contents                                                                                                                  |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `ontology/`                 | **Canonical** organizational semantics — object, relation, action, state, rule definitions                                |
-| `generated/`                | Compiler output. Never hand-edited; `pnpm gate` fails on drift (CI would too — see above)                                 |
-| `database/`                 | Plain SQL migrations, functions, triggers, constraints, row security                                                      |
-| `packages/`                 | Domain, database, actions, authorization, validation, artifacts, audit, canonicalization, export, search, integration, ui |
-| `apps/`                     | `api` (Fastify) · `web` (Next.js) · `worker` (Graphile Worker) · `checkpoint` (audit signer)                              |
-| `examples/atlas-enclosure/` | The reference scenario, loaded through public actions                                                                     |
-| `tests/`                    | Ontology, conformance, database, permissions, financial invariants, planted violations, round-trip, audit verification    |
+| Path         | Contents                                                                             |
+| ------------ | ------------------------------------------------------------------------------------ |
+| `ontology/`  | Object, relation, action and state definitions. The canonical semantics              |
+| `generated/` | Compiler output. Never hand-edited; the gate fails on drift                          |
+| `database/`  | SQL migrations, functions, triggers, constraints, row security                       |
+| `packages/`  | Domain, database, actions, authorization, artifacts, export, search, projections, UI |
+| `apps/`      | `api` (Fastify), `web` (Next.js), `worker`, `checkpoint`, `kf-storage`               |
+| `fixtures/`  | A demonstration company that exercises every path end to end                         |
+| `examples/`  | Real master records, exactly as the API returned them                                |
+| `docs/`      | Specification, decisions, deployment, security, warrants                             |
+| `tests/`     | Conformance, database, permissions, round-trip, deployment, planted violations       |
 
-Each package carries an `AUTHORITY.md` stating which facts it may own. Most own none —
-that is the correct and common case.
+Each package carries an `AUTHORITY.md` saying which facts it may own. Most own none, which is
+the common and correct case.
 
-## Design laws
+## Documentation
 
-These are not stylistic preferences. Violating one is a defect.
+| Document                                                            | Answers                                  |
+| ------------------------------------------------------------------- | ---------------------------------------- |
+| [Specification](docs/sas/KF_Software_Architecture_Specification.md) | What it is, every requirement, every gap |
+| [Decisions](docs/decisions/)                                        | Why it is this way. 27 records           |
+| [Onboarding](docs/onboarding.md)                                    | How to run it, with the traps            |
+| [Private host](docs/deployment/private-host.md)                     | How to deploy it properly                |
+| [Identity and login](docs/deployment/identity-and-login.md)         | How a person gets an account             |
+| [Security](docs/security/) and [threat model](docs/threat-model/)   | What it defends against                  |
 
-1. **One canonical authority per fact.** Search indexes, embeddings, graph projections,
-   analytics and AI summaries are derived and non-authoritative.
-2. **PostgreSQL 18 is the constitutional kernel.** Not a graph database, document store,
-   event store, triplestore, workflow engine or search engine.
-3. **Object storage is the evidence vault.** PostgreSQL holds identity, digest, provenance,
-   classification, retention and location; the object store holds the bytes.
-4. **Git owns implementation, not operational records.** No live contractor records,
-   payment records, personnel information or database exports are ever committed.
-5. **Typed relational tables plus typed relationships** — never `node(id, type, json)` +
-   `edge(src, predicate, tgt)`.
-6. **Controlled changes occur through typed actions**, one transaction each. There is no
-   generic `PATCH /work-orders/123 {status}`.
-7. **No controlled fact exists only in free text.**
-8. **Approved records are immutable.** Corrections are new revisions, supersessions,
-   reversals or amendments — never a silent overwrite.
-9. **Derived systems are disposable** and must be rebuildable from authoritative records.
+## Why the durable record is a file
 
-## Why the durable artifact is a file, not the database
-
-ISO 13485 §4.2.5 requires retention for at least the device lifetime as the organization
-defines it. That lifetime is currently **undefined**, so retention is unbounded — records
-created now must stay readable indefinitely.
-
-No database binary format survives that horizon: a 2026 `PGDATA` will not mount on a 2045
-server, and major-version migration is mandatory every few years. So the preservation export
-(§14) — RFC 8785 canonical JSON with a signed manifest — is the institutional record, and
-PostgreSQL is the operational engine over it. The export round-trip test is what keeps that
-claim true rather than aspirational.
+Retention here is unbounded, so records written now must stay readable indefinitely. No database
+format survives that: a 2026 `PGDATA` will not mount on a 2045 server. So the preservation
+export, canonical JSON with a signed manifest, is the institutional record, and PostgreSQL is
+the operational engine over it. A round-trip test keeps that claim true.
 
 ## Repository boundaries
 
-GitHub cannot restrict _read_ access by path, so anything with a narrower read audience
-belongs in a different repository. Fixing that later means rewriting history.
+GitHub cannot restrict read access by path, so anything with a narrower audience belongs in a
+different repository. Fixing that later means rewriting history.
 
-| Repository          | Read audience                      | Holds                                    |
-| ------------------- | ---------------------------------- | ---------------------------------------- |
-| **this repo**       | Staff                              | Fabric implementation, ontology, schemas |
-| `openhuman-quality` | All staff, auditors, notified body | QMS, product files, validation records   |
-| `openhuman-ip`      | Legal and named inventors          | Invention disclosures — privileged       |
-| `LamQuant`          | Engineering                        | Design source, analysis code, decisions  |
-| _(none)_            | —                                  | **PHI never enters any git repository.** |
+| Repository          | Audience                       | Holds                              |
+| ------------------- | ------------------------------ | ---------------------------------- |
+| this one            | Staff                          | Implementation, ontology, schemas  |
+| `openhuman-quality` | Staff, auditors, notified body | QMS, product files, validation     |
+| `openhuman-ip`      | Legal and named inventors      | Invention disclosures              |
+| `LamQuant`          | Engineering                    | Design source, analysis, decisions |
 
-Bank details, tax identifiers and payroll secrets are never stored in this system at all —
-they stay in restricted HR/finance systems and are referenced, never copied.
+Health information never enters any repository. Bank details, tax identifiers and payroll
+secrets are never stored in this system at all; they stay in restricted systems and are
+referenced, never copied.
 
 ## Licence
 
-[Apache License, Version 2.0](LICENSE). Copyright **OpenHuman Technologies LLC**, stated in
-[`NOTICE`](NOTICE).
+[Apache 2.0](LICENSE). Copyright OpenHuman Technologies LLC, stated in [`NOTICE`](NOTICE).
 
-This is open source: Apache-2.0 is OSI-approved and meets the Open Source Definition. Use it
-for anything, including commercially, including in closed-source products. There is no field-of-use
-restriction, no change date, and nothing to buy.
-
-|                                                              |                             |
-| ------------------------------------------------------------ | --------------------------- |
-| Read, modify, fork, redistribute, run in production, sell it | Granted                     |
-| Use any patent of ours that this code needs                  | Granted — section 3         |
-| Use the OpenHuman name or logo                               | **Not** granted — section 6 |
-| Keep the LICENSE and NOTICE with copies you distribute       | Required — section 4        |
-
-`LICENSE` is the canonical Apache-2.0 text, byte-identical to the copy published by the Apache
-Software Foundation, with the appendix placeholders left intact as the ASF intends. The
-copyright lives in `NOTICE` instead, which is both the convention and what lets automated
-licence detection recognise the file.
-
-**This replaced BUSL-1.1 before the repository was ever public**, so no version was ever
-distributed under it and nobody holds rights under the old terms. BUSL exists to stop one
-thing — a third party offering the software as a hosted service — and that is not a thing this
-project needs to stop. Under BUSL it would have been source-available but not open source, and
-saying otherwise would have been exactly the kind of true-sounding overclaim the rest of this
-repository exists to prevent. Now the plain statement and the accurate one are the same.
-[ADR 0005](docs/decisions/0005-apache-2-0-licence.md) records the decision.
-
-The legal name is written `OpenHuman Technologies LLC`, with the `LLC`, and appears as data in
-the seeded organization in `apps/api/src/dogfood/bootstrap.ts`, the database harness, and the
-R01 golden conformance fixture, all carrying `legal_name` "OpenHuman Technologies LLC". Kept
-here because the next person to notice a shortened form should find the answer rather than
-re-open the question.
+Use it for anything, including commercially and in closed-source products. The patent grant is
+included. Keep the `LICENSE` and `NOTICE` with copies you distribute. The OpenHuman name and
+logo are not granted. [ADR 0005](docs/decisions/0005-apache-2-0-licence.md) records why this is
+Apache 2.0 rather than a source-available licence.

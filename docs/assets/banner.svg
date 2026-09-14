@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 340" width="1280" height="340" role="img" aria-label="Knowledge Fabric — one record for the whole company">
+  <rect width="1280" height="340" fill="#16201d"/>
+  <rect x="0" y="0" width="6" height="340" fill="#0f6b5c"/>
+
+  <text x="72" y="86" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" letter-spacing="3.6" fill="#6d8078">OPENHUMAN TECHNOLOGIES LLC</text>
+
+  <text x="70" y="168" font-family="Georgia, 'Times New Roman', serif" font-size="76" font-weight="600" fill="#e4ece8">Knowledge Fabric</text>
+
+  <text x="72" y="212" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="21" fill="#9fb0a9">One record for the whole company. Every change is an act.</text>
+
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" letter-spacing="1.8">
+    <rect x="72" y="258" width="220" height="5" fill="#4f9e63"/>
+    <text x="72" y="286" fill="#4f9e63">PUBLIC</text>
+
+    <rect x="304" y="258" width="220" height="5" fill="#7a7ac0"/>
+    <text x="304" y="286" fill="#7a7ac0">INTERNAL</text>
+
+    <rect x="536" y="258" width="220" height="5" fill="#c8813f"/>
+    <text x="536" y="286" fill="#c8813f">CONFIDENTIAL</text>
+
+    <rect x="768" y="258" width="220" height="5" fill="#c25c5c"/>
+    <text x="768" y="286" fill="#c25c5c">RESTRICTED</text>
+  </g>
+
+  <g opacity="0.85">
+    <circle cx="1076" cy="150" r="17" fill="none" stroke="#0f6b5c" stroke-width="2.5"/>
+    <line x1="1093" y1="150" x2="1119" y2="150" stroke="#0f6b5c" stroke-width="2.5"/>
+    <circle cx="1136" cy="150" r="17" fill="none" stroke="#0f6b5c" stroke-width="2.5"/>
+    <line x1="1153" y1="150" x2="1179" y2="150" stroke="#0f6b5c" stroke-width="2.5"/>
+    <circle cx="1196" cy="150" r="17" fill="#0f6b5c" stroke="#0f6b5c" stroke-width="2.5"/>
+  </g>
+  <text x="1076" y="196" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" letter-spacing="1.6" fill="#6d8078">AUDIT CHAIN</text>
+</svg>
