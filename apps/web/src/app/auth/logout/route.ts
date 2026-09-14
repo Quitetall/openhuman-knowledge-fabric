@@ -1,5 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { OIDC_TRANSACTION_COOKIE, publicUrl, SESSION_COOKIE } from '../../../lib/auth';
+import {
+  OIDC_TRANSACTION_COOKIE,
+  publicOrigin,
+  publicUrl,
+  SESSION_COOKIE,
+} from '../../../lib/auth';
 import { discoverOidc, logoutUrl } from '../../../lib/oidc';
 import { dogfoodConfig } from '../../../lib/session';
 
@@ -23,7 +28,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   } catch {
     return NextResponse.redirect(publicUrl(request, '/'), 303);
   }
-  if (request.headers.get('origin') !== new URL(config.redirectUri).origin) {
+  if (request.headers.get('origin') !== publicOrigin(request)) {
     return NextResponse.json({ error: 'cross_origin_logout_refused' }, { status: 403 });
   }
   const destination = new URL('/', config.redirectUri).toString();

@@ -35,7 +35,15 @@ export function publicOrigin(request: OriginSource, env: Environment = process.e
       // to a host that is not the one they asked for, and does it silently.
       throw new Error('KF_WEB_OIDC_REDIRECT_URI is required to build a redirect in dogfood');
     }
-    return new URL(configured).origin;
+    try {
+      return new URL(configured).origin;
+    } catch {
+      // A non-empty value that is not a URL — a bare path, a typo'd scheme. The opaque
+      // TypeError that `new URL` raises names neither the variable nor the deployment.
+      throw new Error(
+        `KF_WEB_OIDC_REDIRECT_URI is not an absolute URL: ${JSON.stringify(configured)}`,
+      );
+    }
   }
   return new URL(request.url).origin;
 }

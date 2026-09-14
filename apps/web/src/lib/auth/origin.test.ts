@@ -52,6 +52,12 @@ describe('the public origin comes from configuration, not from the request', () 
     expect(publicOrigin(behindProxy)).toBe('https://kf.internal');
   });
 
+  it('refuses a redirect URI that is not an absolute URL, by name', () => {
+    Object.assign(process.env, DOGFOOD);
+    process.env['KF_WEB_OIDC_REDIRECT_URI'] = '/auth/callback';
+    expect(() => publicOrigin(behindProxy)).toThrow(/KF_WEB_OIDC_REDIRECT_URI is not an absolute/);
+  });
+
   it('refuses rather than guessing when dogfood names no redirect URI', () => {
     Object.assign(process.env, DOGFOOD);
     delete process.env['KF_WEB_OIDC_REDIRECT_URI'];
