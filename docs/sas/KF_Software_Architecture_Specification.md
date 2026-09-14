@@ -1656,9 +1656,28 @@ neighbouring program under §104 and Law 1 does not apply to it.
 **The role is named here; the implementation is not.** A specification that names an engine cannot
 change engines without a revision.
 
-**The index holds a vector and an identifier.** No body, no title, no classification, no metadata —
-and no authorization input of any kind at rest. Every hit is resolved through the same grant check
-every other read surface performs (§27, ADR 0027) before it reaches a person or an agent.
+**The index holds no record content and no authorization input.** No body, no title, no
+classification, no metadata. It holds what an index needs to rank — vectors, the identifiers they
+belong to, and whatever positional bookkeeping the engine's own structure requires — and nothing
+that would let a stale copy answer a question the kernel should have answered. Every hit is
+resolved through the same grant check every other read surface performs (§27, ADR 0027) before it
+reaches a person or an agent.
+
+Stated as two prohibitions rather than as a list of permitted fields, deliberately. An exhaustive
+list makes a conformant engine non-conformant for a structural reason unrelated to authorization —
+a slot-parallel array that the index needs to score positionally is not an authorization input, and
+a specification that a correct implementation fails is worse than none.
+
+**The band bitmap is memory-only.** It is a derived copy of an authorization input, and the only
+thing that makes it safe is that it never outlives the process holding it and is re-derived per
+query against a version token. Stating it separately (RQ-223) rather than leaving it to rest on
+what "stored" means: a memory-mapped cache is both stored and not, and that argument should not be
+available to anyone.
+
+**These requirements bind the Fabric, not the engine.** Every requirement in this section is one
+the Fabric must satisfy; where an engine's behaviour is what satisfies it, choosing and configuring
+that engine is how the Fabric complies. No requirement here reaches into a peer program's
+implementation, and none may.
 
 **Authorization is computed per query from live rows and applied during scoring.** The kernel
 derives band-membership bitmaps from the live records, versioned against both the classification
@@ -1691,8 +1710,10 @@ entry (§63) rather than a separate flag, because a ledger entry carries its bas
 not, and an agent that cannot distinguish a degraded answer from a complete one acts on it as
 complete.
 
-**Near misses are a labelled, opt-in set.** Records near a question but not asked for are returned
-only when the caller asks, are never merged into the requested result, and the scoring function that
+**Near misses are a labelled, opt-in set.** This is an obligation on the projection the compiler
+produces (§59, §60), not on how an engine ranks: an engine returns a ranked result and the
+compiler decides what part of it, if any, is offered as adjacent rather than requested. Records
+near a question but not asked for are returned only when the caller asks, are never merged into the requested result, and the scoring function that
 selected them is named in the projection that used it — so changing how nearness is computed is a
 visible event. The withholding ledger does not apply to them: an unauthorized record is never a
 candidate, so nothing was withheld. Reporting a count of withheld near misses would disclose the
@@ -1703,9 +1724,9 @@ materially worse bargain than §63's fixed-corpus disclosure.
 provider resolving is a refusal rather than a fallback, and the binding is evidenced at
 commissioning (§91).
 
-**KF-SAS-RQ-213.** The retrieval index SHALL hold a vector and an object identifier and no
-authorization input, and every hit SHALL be resolved through the same grant check as every other
-read before it reaches a caller.
+**KF-SAS-RQ-213.** The retrieval index SHALL hold no record content and no authorization input,
+and every hit SHALL be resolved through the same grant check as every other read before it reaches
+a caller.
 
 **KF-SAS-RQ-214.** Authorization for a retrieval query SHALL be computed from live records and
 applied during scoring, and no derived copy of an authorization input SHALL be stored.
@@ -1719,12 +1740,16 @@ semantic ranking SHALL record that in the withholding ledger.
 **KF-SAS-RQ-217.** Near misses SHALL be returned only on request, as a separately labelled set,
 naming the scoring function that selected them.
 
-**KF-SAS-RQ-218.** Controlled content SHALL NOT leave the host to be embedded, a non-local embedding
-provider SHALL be refused rather than used as a fallback, and the embedder binding SHALL be
-registered once and SHALL NOT be replaced by a differing identity while the process runs.
+**KF-SAS-RQ-218.** Controlled content SHALL NOT leave the host to be embedded, a non-local
+embedding provider SHALL be refused rather than used as a fallback, and the embedder binding SHALL
+NOT be replaced by a differing identity while the process runs.
 
 **KF-SAS-RQ-219.** The retrieval engine's trace SHALL be derived and disposable, and the record of
 what was disclosed SHALL be held by the kernel as a digest of that trace.
+
+**KF-SAS-RQ-223.** A band bitmap, ceiling, coverage set or derived scope tag supplied to the
+retrieval engine SHALL exist only for the life of the process holding it, and SHALL NOT be written
+to durable storage of any kind.
 
 ## 64B. Transient observations
 
@@ -2699,12 +2724,17 @@ draining, the index evaluates a stale rank over live plaintext. Nothing bounds o
 window. Found while designing §64A, which avoids the same failure by storing no authorization input
 at all. Bears on KF-SAS-RQ-121 and KF-SAS-RQ-214.
 
-**100.21 The retrieval architecture is specified and unbuilt, on both sides.** §64A states seven
-requirements against a capability that does not exist yet. Outstanding in the engine: its mask
-predicate is tenancy rather than clearance; there is no entry point accepting an externally supplied
-mask; there is no socket server; vectors are not encrypted at rest; the embedder is not pinned local.
-Outstanding here: there is no band-bitmap builder and no embed-on-ingest path. Seven items, counted
-rather than described, so that a later reader can tell a specified capability from a shipped one.
+**100.21 The retrieval architecture is specified and largely unbuilt, on both sides.** §64A states
+eight requirements against a capability that mostly does not exist yet. Outstanding in the engine:
+its mask predicate is tenancy rather than clearance; there is no entry point accepting an externally
+supplied mask; there is no socket server; vectors are not encrypted at rest. Outstanding here: there
+is no band-bitmap builder and no embed-on-ingest path. Six items, counted rather than described, so
+that a later reader can tell a specified capability from a shipped one.
+
+KF-SAS-RQ-218 is the exception and is noted as such: the engine refuses a non-local embedding
+provider by default as of 2026-09-14, before this requirement was proposed. A requirement with a
+conformant implementation already behind it is unusual here and worth marking, because the rest of
+this section describes the opposite.
 
 **100.22 Vectors are readable in the serving process.** Encryption at rest makes a stolen index
 inert; it does not protect a running one. Anyone who can attach to the retrieval process or read a
@@ -2823,7 +2853,7 @@ record which program owns each federated fact.
 
 | Revision | Date | Change |
 |---|---|---|
-| `0.1.0-draft.4` | 2026-09-14 | States the architecture in one place for the first time: §8B names the three layers and pins the invariants that hold across them ([ADR 0030](../decisions/0030-three-layers.md)), after the observation that a reader had to assemble the structure from five documents and a README, and that the README had consequently outrun this document on a structural claim. Adds §64A, the retrieval index — inside the trust boundary, outside the authority boundary, holding a vector and an identifier and no authorization input, with authorization computed per query and applied during scoring ([ADR 0028](../decisions/0028-the-retrieval-index-is-masked-not-copied.md)); this supersedes the reasoning that refused embeddings in `database/migrations/20260811001800_search.sql`, on the condition that reasoning itself set. Adds §64B, transient observations, a third category of stored thing that is neither authoritative nor rebuildable, with the four exclusions that make an expiry mean anything ([ADR 0029](../decisions/0029-transient-observations-are-a-third-category.md)). Removes every source count from this document in favour of a generated, gated measurement file, after four figures here were found stale and had been copied into two other documents and a Warrant basis; §103.3 records why transclusion was rejected. Five gaps appended, including that revocation in the search index is asynchronous and unmeasured, and that no objective after v1.0 can be scheduled. Thirteen requirements appended, none removed or retitled; architecture-changing under §94.3, carrying ADRs 0028, 0029 and 0030. |
+| `0.1.0-draft.4` | 2026-09-14 | States the architecture in one place for the first time: §8B names the three layers and pins the invariants that hold across them ([ADR 0030](../decisions/0030-three-layers.md)), after the observation that a reader had to assemble the structure from five documents and a README, and that the README had consequently outrun this document on a structural claim. Adds §64A, the retrieval index — inside the trust boundary, outside the authority boundary, holding a vector and an identifier and no authorization input, with authorization computed per query and applied during scoring ([ADR 0028](../decisions/0028-the-retrieval-index-is-masked-not-copied.md)); this supersedes the reasoning that refused embeddings in `database/migrations/20260811001800_search.sql`, on the condition that reasoning itself set. Adds §64B, transient observations, a third category of stored thing that is neither authoritative nor rebuildable, with the four exclusions that make an expiry mean anything ([ADR 0029](../decisions/0029-transient-observations-are-a-third-category.md)). Removes every source count from this document in favour of a generated, gated measurement file, after four figures here were found stale and had been copied into two other documents and a Warrant basis; §103.3 records why transclusion was rejected. Five gaps appended, including that revocation in the search index is asynchronous and unmeasured, and that no objective after v1.0 can be scheduled. Fourteen requirements appended, none removed or retitled; architecture-changing under §94.3, carrying ADRs 0028, 0029 and 0030. |
 | `0.1.0-draft.3` | 2026-09-04 | Corrects §38's row-level security figures against the first ever install of this schema on a host — 143 enabled, 70 forced, the 73 unforced reconciling exactly with the migrations, and the previously cited 113 of 139 wrong in both halves. Adds §8A and five requirements making speed of capture and retrieval architectural rather than product polish, after the observation that a records system engineers skip records nothing ([ADR 0024](../decisions/0024-friction-is-an-architectural-property.md)). Records that capture is cheap and governance applies at promotion, that several surfaces share one act model, and that an agent may act for a named human. Five requirements appended, none removed or retitled; architecture-changing, carrying ADR 0024. |
 | `0.1.0-draft.2` | 2026-09-04 | Records two scope decisions that pull in opposite directions and were made together: business logic is an application above the Fabric (§8.10), and dataset, transform and lineage capability, if ever built, belongs in the core rather than above it (§8.11). Adds the organization-as-configuration requirement. Three requirements appended, none removed or retitled. Architecture-changing under §94.3 and carrying [ADR 0023](../decisions/0023-business-logic-above-data-primitives-within.md): the draft asserted it was not, and `war sas propose` derived otherwise from the §106 diff and required a decision record. The tool was right. |
 | `0.1.0-draft.1` | 2026-09-03 | First revision. Establishes the Knowledge Fabric as a program with its own specification, 132 requirements and an eleven-phase ladder. No predecessor. |
@@ -3057,6 +3087,7 @@ from evidence, never recorded here (§97.3).
 | KF-SAS-RQ-217 | Near misses are returned only on request, separately labelled, naming the scoring function |
 | KF-SAS-RQ-218 | Controlled content never leaves the host to be embedded; a non-local provider is refused, and the embedder binding is registered once |
 | KF-SAS-RQ-219 | The retrieval trace is derived and disposable; the kernel holds the record of what was disclosed as its digest |
+| KF-SAS-RQ-223 | A band bitmap or derived scope tag lives only for the life of its process and never reaches durable storage |
 
 ### Transient observations, 2026-09-14 (ADR 0029)
 
