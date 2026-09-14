@@ -40,8 +40,8 @@ widen those rules.
 **The compiler** reads the database. It is a consumer, not part of the kernel. It produces the
 master record, which is exactly the set of records one person may see at one moment, and
 projections over it: a readable page for a person, a context bundle for an agent, a view of one
-object and its neighbours. LAMU is the vector store inside the same boundary. It finds records
-near a question, and those results stay in a separate labelled set that a caller has to ask for.
+object and its neighbours. The retrieval database (LAMU) sits inside the same boundary. It finds
+records near a question, and those results stay in a separate labelled set a caller has to ask for.
 
 **The workflows** sit on top and call the compiler. Business rules live here: invoicing
 arithmetic, scheduling, CRM. So do the integrations and every way a record gets in, whether an

@@ -37,7 +37,7 @@
 
   <!-- LAMU box -->
   <rect x="820" y="278" width="216" height="112" fill="#26312d" stroke="#4fbfa8" stroke-width="1.5" stroke-dasharray="5 4"/>
-  <text x="844" y="308" font-family="Georgia, 'Times New Roman', serif" font-size="20" font-weight="600" fill="#4fbfa8">LAMU</text>
+  <text x="844" y="308" font-family="Georgia, 'Times New Roman', serif" font-size="20" font-weight="600" fill="#4fbfa8">RAG DB</text>
   <text x="844" y="332" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="13" fill="#9fb0a9">The vector store.</text>
   <text x="844" y="352" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="13" fill="#9fb0a9">Finds near records</text>
   <text x="844" y="372" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="13" fill="#9fb0a9">for a given P value.</text>
@@ -52,16 +52,16 @@
   <text x="864" y="440" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#c8813f" text-anchor="end">every write is an act</text>
 
   <!-- Layer 1: kernel -->
-  <rect x="60" y="472" width="1000" height="140" fill="#1c2723" stroke="#0f6b5c" stroke-width="2"/>
+  <rect x="60" y="472" width="1000" height="150" fill="#1c2723" stroke="#0f6b5c" stroke-width="2"/>
   <text x="84" y="506" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" letter-spacing="2.4" fill="#6d8078">LAYER 1</text>
   <text x="84" y="538" font-family="Georgia, 'Times New Roman', serif" font-size="27" font-weight="600" fill="#e4ece8">Kernel</text>
   <text x="84" y="568" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="16" fill="#9fb0a9">PostgreSQL holds the rules. One dispatcher is the only way to write.</text>
   <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#9fb0a9">
-    <rect x="608" y="530" width="140" height="26" fill="#2a3531"/><text x="623" y="547">row security</text>
-    <rect x="758" y="530" width="140" height="26" fill="#2a3531"/><text x="781" y="547">151 acts</text>
-    <rect x="908" y="530" width="140" height="26" fill="#2a3531"/><text x="924" y="547">audit chain</text>
-    <rect x="608" y="566" width="140" height="26" fill="#2a3531"/><text x="637" y="583">artifacts</text>
-    <rect x="758" y="566" width="140" height="26" fill="#2a3531"/><text x="781" y="583">clearance</text>
-    <rect x="908" y="566" width="140" height="26" fill="#2a3531"/><text x="937" y="583">grants</text>
+    <rect x="84" y="582" width="118" height="26" fill="#2a3531"/><text x="100" y="599">row security</text>
+    <rect x="214" y="582" width="108" height="26" fill="#2a3531"/><text x="232" y="599">provenance</text>
+    <rect x="334" y="582" width="112" height="26" fill="#2a3531"/><text x="350" y="599">audit chain</text>
+    <rect x="458" y="582" width="100" height="26" fill="#2a3531"/><text x="476" y="599">artifacts</text>
+    <rect x="570" y="582" width="100" height="26" fill="#2a3531"/><text x="588" y="599">clearance</text>
+    <rect x="682" y="582" width="84" height="26" fill="#2a3531"/><text x="702" y="599">grants</text>
   </g>
 </svg>
