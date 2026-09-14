@@ -1661,7 +1661,28 @@ classification, no metadata.
 
 "Text" rather than "content", deliberately: §100.22 records that a vector is itself a degraded
 reconstruction of what it was made from, so a prohibition on holding "content" would, read
-strictly, forbid the index from holding the one thing an index is for. It holds what an index needs to rank — vectors, the identifiers they
+strictly, forbid the index from holding the one thing an index is for.
+
+**Holds, not sees — and the difference is not a quibble.** A vector is made from text, only the
+engine has an embedder, and the Fabric holds the text. So record text necessarily *transits* to the
+engine to be embedded. It is never persisted there, which is what RQ-213 forbids and what the word
+"hold" means. The two are easy to conflate and the wrong one is the memorable one: "the engine
+never sees our records" is false, and a later reader who carries that phrase away will reason from
+it to a conclusion this document does not support.
+
+**What makes that transit lawful is RQ-218, and the two requirements are incomplete alone.**
+Controlled text may reach the embedder because the embedder is on the host and cannot be a remote
+service. Without that guarantee this design would route controlled text to a component able to
+forward it onward on the presence of an ambient credential, and every other control here would sit
+downstream of that. RQ-213 governs what is kept; RQ-218 governs where it may go; neither is
+sufficient by itself.
+
+**Text supplied for embedding is not persisted, and the ordinary path is refused.** An engine
+built to remember things will have a write path that stores the text it was given — that is what
+such a path is for. Admitting controlled records through it would persist the text by default and
+populate a lexical index the Fabric does not want populated, without anyone deciding to. The
+Fabric therefore writes through a path that persists no text, and a controlled record offered to
+the remembering path is refused rather than quietly stored. It holds what an index needs to rank — vectors, the identifiers they
 belong to, and whatever positional bookkeeping the engine's own structure requires — and nothing
 that would let a stale copy answer a question the kernel should have answered. Every hit is
 resolved through the same grant check every other read surface performs (§27, ADR 0027) before it
@@ -1775,6 +1796,10 @@ to durable storage of any kind.
 **KF-SAS-RQ-224.** The Fabric SHALL compose lexical and semantic rankings rather than merging them
 into a single order, SHALL keep the lexical ranking exhaustive within its scope, and every result
 SHALL name the ranking that produced it.
+
+**KF-SAS-RQ-225.** Record text MAY transit to an embedder on the same host and SHALL NOT be
+persisted by it; the Fabric SHALL write controlled records only through a path that persists no
+text, and a controlled record offered to a path that would persist it SHALL be refused.
 
 ## 64B. Transient observations
 
@@ -2752,9 +2777,12 @@ at all. Bears on KF-SAS-RQ-121 and KF-SAS-RQ-214.
 **100.21 The retrieval architecture is specified and largely unbuilt, on both sides.** §64A states
 eight requirements against a capability that mostly does not exist yet. Outstanding in the engine:
 its mask predicate is tenancy rather than clearance; there is no entry point accepting an externally
-supplied mask; there is no socket server; vectors are not encrypted at rest. Outstanding here: there
-is no band-bitmap builder and no embed-on-ingest path. Six items, counted rather than described, so
-that a later reader can tell a specified capability from a shipped one.
+supplied mask; there is no socket server; vectors are not encrypted at rest; and there is no write
+path that stores a vector without also storing the text it came from — its schema requires the text
+and its lexical index is populated by a trigger that fires on every insert, so the obvious
+workaround of supplying an empty string half-populates that index rather than skipping it.
+Outstanding here: there is no band-bitmap builder and no embed-on-ingest path. Seven items, counted
+rather than described, so that a later reader can tell a specified capability from a shipped one.
 
 KF-SAS-RQ-218 is the exception and is noted as such: the engine refuses a non-local embedding
 provider by default as of 2026-09-14, before this requirement was proposed. A requirement with a
@@ -2885,7 +2913,7 @@ record which program owns each federated fact.
 
 | Revision | Date | Change |
 |---|---|---|
-| `0.1.0-draft.4` | 2026-09-14 | States the architecture in one place for the first time: §8B names the three layers and pins the invariants that hold across them ([ADR 0030](../decisions/0030-three-layers.md)), after the observation that a reader had to assemble the structure from five documents and a README, and that the README had consequently outrun this document on a structural claim. Adds §64A, the retrieval index — inside the trust boundary, outside the authority boundary, holding a vector and an identifier and no authorization input, with authorization computed per query and applied during scoring ([ADR 0028](../decisions/0028-the-retrieval-index-is-masked-not-copied.md)); this supersedes the reasoning that refused embeddings in `database/migrations/20260811001800_search.sql`, on the condition that reasoning itself set. Adds §64B, transient observations, a third category of stored thing that is neither authoritative nor rebuildable, with the four exclusions that make an expiry mean anything ([ADR 0029](../decisions/0029-transient-observations-are-a-third-category.md)). Removes every source count from this document in favour of a generated, gated measurement file, after four figures here were found stale and had been copied into two other documents and a Warrant basis; §103.3 records why transclusion was rejected. Five gaps appended, including that revocation in the search index is asynchronous and unmeasured, and that no objective after v1.0 can be scheduled. Fifteen requirements appended, none removed or retitled; architecture-changing under §94.3, carrying ADRs 0028, 0029 and 0030. |
+| `0.1.0-draft.4` | 2026-09-14 | States the architecture in one place for the first time: §8B names the three layers and pins the invariants that hold across them ([ADR 0030](../decisions/0030-three-layers.md)), after the observation that a reader had to assemble the structure from five documents and a README, and that the README had consequently outrun this document on a structural claim. Adds §64A, the retrieval index — inside the trust boundary, outside the authority boundary, holding a vector and an identifier and no authorization input, with authorization computed per query and applied during scoring ([ADR 0028](../decisions/0028-the-retrieval-index-is-masked-not-copied.md)); this supersedes the reasoning that refused embeddings in `database/migrations/20260811001800_search.sql`, on the condition that reasoning itself set. Adds §64B, transient observations, a third category of stored thing that is neither authoritative nor rebuildable, with the four exclusions that make an expiry mean anything ([ADR 0029](../decisions/0029-transient-observations-are-a-third-category.md)). Removes every source count from this document in favour of a generated, gated measurement file, after four figures here were found stale and had been copied into two other documents and a Warrant basis; §103.3 records why transclusion was rejected. Five gaps appended, including that revocation in the search index is asynchronous and unmeasured, and that no objective after v1.0 can be scheduled. Sixteen requirements appended, none removed or retitled; architecture-changing under §94.3, carrying ADRs 0028, 0029 and 0030. |
 | `0.1.0-draft.3` | 2026-09-04 | Corrects §38's row-level security figures against the first ever install of this schema on a host — 143 enabled, 70 forced, the 73 unforced reconciling exactly with the migrations, and the previously cited 113 of 139 wrong in both halves. Adds §8A and five requirements making speed of capture and retrieval architectural rather than product polish, after the observation that a records system engineers skip records nothing ([ADR 0024](../decisions/0024-friction-is-an-architectural-property.md)). Records that capture is cheap and governance applies at promotion, that several surfaces share one act model, and that an agent may act for a named human. Five requirements appended, none removed or retitled; architecture-changing, carrying ADR 0024. |
 | `0.1.0-draft.2` | 2026-09-04 | Records two scope decisions that pull in opposite directions and were made together: business logic is an application above the Fabric (§8.10), and dataset, transform and lineage capability, if ever built, belongs in the core rather than above it (§8.11). Adds the organization-as-configuration requirement. Three requirements appended, none removed or retitled. Architecture-changing under §94.3 and carrying [ADR 0023](../decisions/0023-business-logic-above-data-primitives-within.md): the draft asserted it was not, and `war sas propose` derived otherwise from the §106 diff and required a decision record. The tool was right. |
 | `0.1.0-draft.1` | 2026-09-03 | First revision. Establishes the Knowledge Fabric as a program with its own specification, 132 requirements and an eleven-phase ladder. No predecessor. |
@@ -3121,6 +3149,7 @@ from evidence, never recorded here (§97.3).
 | KF-SAS-RQ-219 | The retrieval trace is derived and disposable; the kernel holds the record of what was disclosed as its digest |
 | KF-SAS-RQ-223 | A band bitmap or derived scope tag lives only for the life of its process and never reaches durable storage |
 | KF-SAS-RQ-224 | Lexical and semantic rankings are composed rather than merged, the lexical one stays exhaustive, and each result names the ranking that produced it |
+| KF-SAS-RQ-225 | Text may transit to an on-host embedder and is never persisted there; a controlled record offered to a persisting path is refused |
 
 ### Transient observations, 2026-09-14 (ADR 0029)
 
