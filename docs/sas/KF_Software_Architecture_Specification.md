@@ -1656,8 +1656,12 @@ neighbouring program under §104 and Law 1 does not apply to it.
 **The role is named here; the implementation is not.** A specification that names an engine cannot
 change engines without a revision.
 
-**The index holds no record content and no authorization input.** No body, no title, no
-classification, no metadata. It holds what an index needs to rank — vectors, the identifiers they
+**The index holds no record text and no authorization input.** No body, no title, no
+classification, no metadata.
+
+"Text" rather than "content", deliberately: §100.22 records that a vector is itself a degraded
+reconstruction of what it was made from, so a prohibition on holding "content" would, read
+strictly, forbid the index from holding the one thing an index is for. It holds what an index needs to rank — vectors, the identifiers they
 belong to, and whatever positional bookkeeping the engine's own structure requires — and nothing
 that would let a stale copy answer a question the kernel should have answered. Every hit is
 resolved through the same grant check every other read surface performs (§27, ADR 0027) before it
@@ -1704,6 +1708,23 @@ index, whose structure is built over a fixed row set. Any design placing an appr
 behind a row policy needs masked scoring or accepts silent recall collapse for the least-cleared
 reader. That holds regardless of where the index runs.
 
+**The Fabric composes rankings; it does not delegate retrieval wholesale.** Two ways to find a
+record, and they fail differently. Lexical search answers "every record naming `SOP-QMS-012`" and
+its answer is exhaustive — that is the property §64 exists for, and an auditor's question is not
+answered by a ranking that is usually about right. Semantic search answers "records about this",
+including ones that use none of the caller's words, and cannot be exhaustive by construction.
+
+So the lexical index stays here (§64), the semantic ranking comes from the engine, and the compiler
+presents both. Merging them into one order would destroy the property §64 was built for: a merged
+list cannot show which results are the complete lexical answer, because a semantically near record
+sits in the same list and looks identical. Composition keeps both — an auditor reads the lexical
+ranking and knows it is complete; an agent reads both and gets the wider reach.
+
+This also settles what the Fabric takes from a retrieval engine. Such an engine is a full suite,
+and the Fabric uses the part of it the boundary permits and the Fabric lacks: semantic ranking over
+vectors it holds. A lexical leg inside the engine would need a copy of the record text, which
+RQ-213 forbids, so that leg stays here where the text already lawfully lives.
+
 **A degraded engine refuses.** It never returns a short result set. Where the system falls back to
 lexical search, the response records that semantic ranking was unavailable as a withholding-ledger
 entry (§63) rather than a separate flag, because a ledger entry carries its basis and a boolean does
@@ -1724,9 +1745,9 @@ materially worse bargain than §63's fixed-corpus disclosure.
 provider resolving is a refusal rather than a fallback, and the binding is evidenced at
 commissioning (§91).
 
-**KF-SAS-RQ-213.** The retrieval index SHALL hold no record content and no authorization input,
-and every hit SHALL be resolved through the same grant check as every other read before it reaches
-a caller.
+**KF-SAS-RQ-213.** The retrieval index SHALL hold no record text and no authorization input, and
+every hit SHALL be resolved through the same grant check as every other read before it reaches a
+caller.
 
 **KF-SAS-RQ-214.** Authorization for a retrieval query SHALL be computed from live records and
 applied during scoring, and no derived copy of an authorization input SHALL be stored.
@@ -1750,6 +1771,10 @@ what was disclosed SHALL be held by the kernel as a digest of that trace.
 **KF-SAS-RQ-223.** A band bitmap, ceiling, coverage set or derived scope tag supplied to the
 retrieval engine SHALL exist only for the life of the process holding it, and SHALL NOT be written
 to durable storage of any kind.
+
+**KF-SAS-RQ-224.** The Fabric SHALL compose lexical and semantic rankings rather than merging them
+into a single order, SHALL keep the lexical ranking exhaustive within its scope, and every result
+SHALL name the ranking that produced it.
 
 ## 64B. Transient observations
 
@@ -2754,6 +2779,13 @@ ladder is not merely full: nothing after v1.0 has a number, including the retrie
 Renumbering would cost every existing reference and buy one slot. Supersedes the narrower reading in
 §100.17, which described this as a twelfth objective being unaddable.
 
+**100.25 The composed ranking is unmeasured.** §64A composes a lexical ranking from this
+repository with a semantic ranking from an engine tuned against a different lexical leg, on public
+corpora with no clearances. The engine's published numbers therefore say nothing about how the
+composition behaves here, and nothing yet measures it. Stated because the same transfer argument
+decided against porting the engine onto this database, and it points at the Fabric as readily as it
+pointed there. Bears on KF-SAS-RQ-224.
+
 **KF-SAS-RQ-186.** The set of tables forced under row-level security SHALL be derivable from the
 migrations, and any difference between that set and the running database SHALL be reconciled.
 
@@ -2853,7 +2885,7 @@ record which program owns each federated fact.
 
 | Revision | Date | Change |
 |---|---|---|
-| `0.1.0-draft.4` | 2026-09-14 | States the architecture in one place for the first time: §8B names the three layers and pins the invariants that hold across them ([ADR 0030](../decisions/0030-three-layers.md)), after the observation that a reader had to assemble the structure from five documents and a README, and that the README had consequently outrun this document on a structural claim. Adds §64A, the retrieval index — inside the trust boundary, outside the authority boundary, holding a vector and an identifier and no authorization input, with authorization computed per query and applied during scoring ([ADR 0028](../decisions/0028-the-retrieval-index-is-masked-not-copied.md)); this supersedes the reasoning that refused embeddings in `database/migrations/20260811001800_search.sql`, on the condition that reasoning itself set. Adds §64B, transient observations, a third category of stored thing that is neither authoritative nor rebuildable, with the four exclusions that make an expiry mean anything ([ADR 0029](../decisions/0029-transient-observations-are-a-third-category.md)). Removes every source count from this document in favour of a generated, gated measurement file, after four figures here were found stale and had been copied into two other documents and a Warrant basis; §103.3 records why transclusion was rejected. Five gaps appended, including that revocation in the search index is asynchronous and unmeasured, and that no objective after v1.0 can be scheduled. Fourteen requirements appended, none removed or retitled; architecture-changing under §94.3, carrying ADRs 0028, 0029 and 0030. |
+| `0.1.0-draft.4` | 2026-09-14 | States the architecture in one place for the first time: §8B names the three layers and pins the invariants that hold across them ([ADR 0030](../decisions/0030-three-layers.md)), after the observation that a reader had to assemble the structure from five documents and a README, and that the README had consequently outrun this document on a structural claim. Adds §64A, the retrieval index — inside the trust boundary, outside the authority boundary, holding a vector and an identifier and no authorization input, with authorization computed per query and applied during scoring ([ADR 0028](../decisions/0028-the-retrieval-index-is-masked-not-copied.md)); this supersedes the reasoning that refused embeddings in `database/migrations/20260811001800_search.sql`, on the condition that reasoning itself set. Adds §64B, transient observations, a third category of stored thing that is neither authoritative nor rebuildable, with the four exclusions that make an expiry mean anything ([ADR 0029](../decisions/0029-transient-observations-are-a-third-category.md)). Removes every source count from this document in favour of a generated, gated measurement file, after four figures here were found stale and had been copied into two other documents and a Warrant basis; §103.3 records why transclusion was rejected. Five gaps appended, including that revocation in the search index is asynchronous and unmeasured, and that no objective after v1.0 can be scheduled. Fifteen requirements appended, none removed or retitled; architecture-changing under §94.3, carrying ADRs 0028, 0029 and 0030. |
 | `0.1.0-draft.3` | 2026-09-04 | Corrects §38's row-level security figures against the first ever install of this schema on a host — 143 enabled, 70 forced, the 73 unforced reconciling exactly with the migrations, and the previously cited 113 of 139 wrong in both halves. Adds §8A and five requirements making speed of capture and retrieval architectural rather than product polish, after the observation that a records system engineers skip records nothing ([ADR 0024](../decisions/0024-friction-is-an-architectural-property.md)). Records that capture is cheap and governance applies at promotion, that several surfaces share one act model, and that an agent may act for a named human. Five requirements appended, none removed or retitled; architecture-changing, carrying ADR 0024. |
 | `0.1.0-draft.2` | 2026-09-04 | Records two scope decisions that pull in opposite directions and were made together: business logic is an application above the Fabric (§8.10), and dataset, transform and lineage capability, if ever built, belongs in the core rather than above it (§8.11). Adds the organization-as-configuration requirement. Three requirements appended, none removed or retitled. Architecture-changing under §94.3 and carrying [ADR 0023](../decisions/0023-business-logic-above-data-primitives-within.md): the draft asserted it was not, and `war sas propose` derived otherwise from the §106 diff and required a decision record. The tool was right. |
 | `0.1.0-draft.1` | 2026-09-03 | First revision. Establishes the Knowledge Fabric as a program with its own specification, 132 requirements and an eleven-phase ladder. No predecessor. |
@@ -3088,6 +3120,7 @@ from evidence, never recorded here (§97.3).
 | KF-SAS-RQ-218 | Controlled content never leaves the host to be embedded; a non-local provider is refused, and the embedder binding is registered once |
 | KF-SAS-RQ-219 | The retrieval trace is derived and disposable; the kernel holds the record of what was disclosed as its digest |
 | KF-SAS-RQ-223 | A band bitmap or derived scope tag lives only for the life of its process and never reaches durable storage |
+| KF-SAS-RQ-224 | Lexical and semantic rankings are composed rather than merged, the lexical one stays exhaustive, and each result names the ranking that produced it |
 
 ### Transient observations, 2026-09-14 (ADR 0029)
 
