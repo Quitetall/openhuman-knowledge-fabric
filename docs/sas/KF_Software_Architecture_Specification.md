@@ -1715,6 +1715,13 @@ list makes a conformant engine non-conformant for a structural reason unrelated 
 a slot-parallel array that the index needs to score positionally is not an authorization input, and
 a specification that a correct implementation fails is worse than none.
 
+**Where the version lives, and why the bitmaps do not.** The database holds one row per
+organization recording a band version, moved by a trigger on every insert, reclassification,
+organization change and deletion of a record. That row is a derived table, excluded from the
+master-record boundary alongside `search.document`, and it is the only durable thing this design
+adds. The bitmaps themselves are built from it and from the live records, per process, and are
+never written anywhere.
+
 **The band bitmap is memory-only.** It is a derived copy of an authorization input, and the only
 thing that makes it safe is that it never outlives the process holding it and is re-derived per
 query against a version token. Stating it separately (RQ-223) rather than leaving it to rest on

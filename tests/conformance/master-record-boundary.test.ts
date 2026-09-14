@@ -44,7 +44,7 @@ describe('master-record permission boundary', () => {
         registry.derivedTables.length +
         registry.liveExternalTables.length,
     );
-    expect(registry.derivedTables).toEqual(['search.document']);
+    expect(registry.derivedTables).toEqual(['search.document', 'retrieval.band_version']);
     expect(registry.materializedTables).toContain('content.master_record_item');
     expect(registry.materializedTables).toContain('content.master_record_link');
     expect(registry.materializedTables).toContain('org.person_clearance');

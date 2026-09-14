@@ -1,0 +1,23 @@
+{
+  "name": "@kf/retrieval",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Band bitmaps and the authorization mask handed to a retrieval engine",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@kf/authorization": "workspace:*",
+    "@kf/database": "workspace:*"
+  }
+}

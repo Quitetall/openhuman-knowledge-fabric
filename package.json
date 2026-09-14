@@ -62,6 +62,7 @@
     "@kf/product-quality": "workspace:*",
     "@kf/projections": "workspace:*",
     "@kf/record-atoms": "workspace:*",
+    "@kf/retrieval": "workspace:*",
     "@kf/search": "workspace:*",
     "@kf/work-control": "workspace:*",
     "@testcontainers/postgresql": "^12.1.0",

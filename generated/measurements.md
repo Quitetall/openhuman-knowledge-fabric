@@ -12,13 +12,13 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 
 | Measure | Count | Derived from |
 | --- | ---: | --- |
-| migrations | 92 | files under `database/migrations/` |
-| tables created | 169 | in migration up-sections |
-| row-security policies | 440 | in migration up-sections |
-| definer functions | 125 | in migration up-sections |
+| migrations | 93 | files under `database/migrations/` |
+| tables created | 170 | in migration up-sections |
+| row-security policies | 441 | in migration up-sections |
+| definer functions | 129 | in migration up-sections |
 | action types | 151 | declared in `ontology/action-types.yaml` |
 | object types | 39 | declared in `ontology/object-types.yaml` |
 | relation types | 41 | declared in `ontology/relation-types.yaml` |
 | decision records | 30 | under `docs/decisions/` — 27 accepted, 3 proposed |
 | architecture requirements | 157 | distinct identifiers in §106 |
-| test files | 153 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
+| test files | 154 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
