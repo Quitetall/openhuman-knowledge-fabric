@@ -2,7 +2,7 @@ schema = "oh.war/sas-revision/v1"
 version = "0.1.0-draft.5"
 source = "docs/sas/KF_Software_Architecture_Specification.md"
 sha256 = "84d23d16f0a9cd1e880502a67812982d75053b7d7abd890d5908c65d7e282f0d"
-state = "proposed"
+state = "accepted"
 predecessor = "0.1.0-draft.4"
 architecture_changing = true
 
@@ -169,3 +169,11 @@ KF-SAS-RQ-228 = "A draft is a record under Law 6, attributed from the first mome
 KF-SAS-RQ-229 = "A projection labels an unverified member and never omits it silently"
 KF-SAS-RQ-230 = "An unverified record is not citable as evidence"
 KF-SAS-RQ-231 = "A promotion act records whether the item was reviewed individually or in bulk"
+
+[acceptance]
+accepted_by = "Brian Lam"
+actor_kind = "human"
+acting_role = "project_owner"
+meaning = "Accepted. A gesture may produce many acts but never zero and never one covering many. An unverified record is a record, labelled wherever it is read, and never citable as evidence. A promotion says whether it was reviewed individually or in bulk."
+effective_time = "2026-09-15T00:16:04Z"
+adr_ref = "docs/decisions/0031-a-draft-is-a-record-that-says-so.md"
