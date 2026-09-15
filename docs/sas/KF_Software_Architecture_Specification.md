@@ -7,8 +7,8 @@
 | Document class | Software Architecture Specification |
 | Short name | KF SAS |
 | Status | Draft for acceptance |
-| Version | `0.1.0-draft.3` |
-| Date | 2026-09-04 |
+| Version | `0.1.0-draft.5` |
+| Date | 2026-09-15 |
 | Enterprise identifier | Unallocated — this file name is not an official Identifier Registry allocation (§94.5) |
 | Program name | **OpenHuman Knowledge Fabric** |
 | Record name | **Object** |
@@ -2590,10 +2590,54 @@ and a locator, and says whose it is.
 **KF-SAS-RQ-185.** KF SHALL NOT duplicate the authority of a neighbouring program, and SHALL
 record which program owns each federated fact.
 
+## 104A. LAMU runtime integration
+
+LAMU is the application-facing AI runtime and context compiler, not KF's record
+authority. KF may supply source material to LAMU and call it for AI operations.
+These interfaces remain separate; source authorization must not depend on LAMU
+recursively authorizing the same read. This section refines RQ-001, RQ-010,
+RQ-012, RQ-013 and RQ-185; it does not report an implemented adapter.
+
+KF SHALL retain authority over its records, current access rules, ranking
+composition, final disclosure and writes. LAMU SHALL consume scoped, revision-bound
+source interfaces and return changes as proposals with source preconditions.
+Model output SHALL NOT authorize an institutional change.
+
+The initial shared kernel SHALL consist of versioned data contracts and
+conformance fixtures, not shared mutable tables or copied authorization policy.
+No repository merger or executable kernel extraction is selected. KF's ordinary
+record operations SHALL remain usable without LAMU; LAMU's entrusted local memory
+does not require KF.
+
+A derived semantic index for controlled records SHALL apply eligibility during
+scoring, bind positional masks to index generations and return identifiers for
+KF to resolve and reauthorize. It SHALL persist neither source text nor
+authorization inputs. Controlled embedding SHALL remain local. LAMU SHALL enforce
+the same retention and destination restrictions across logs, caches, packages,
+memory consolidation and derived model outputs. Text can transit for an admitted
+operation; this does not permit ordinary persistent memory capture.
+
+Before dispatch or disclosure, recheck current authority. A successful retrieval
+followed by a failed disclosure check SHALL NOT become an authorized package.
+Retries SHALL recheck authority and prevent duplicate writes or resource leases.
+Tests SHALL cover concurrent scopes, revocation, source revision changes,
+deletion, stale index generations, partial outage and remote embedding refusal.
+The decision point for concurrent revocation SHALL be explicit; already disclosed
+bytes cannot be recalled by a later policy update.
+
+See [ADR 0032](../decisions/0032-lamu-runtime-source-contract.md). No shared
+database migration, live provider change, acceptance or release follows from
+this proposed specification.
+
 ## 105. Amendment history
+
+This candidate is based on published draft.3. It does not include or supersede
+the separate unpublished draft.4 candidate. Both must be reconciled before an
+exact-byte acceptance. Previous accepted revisions remain in the registry.
 
 | Revision | Date | Change |
 |---|---|---|
+| `0.1.0-draft.5` | 2026-09-15 | Separate candidate from published draft.3. Adds section 104A and ADR 0032 for LAMU's runtime/source contract. Preserves KF authority and adds explicit context-path refusal and retention requirements. Does not include unpublished draft.4; reconciliation remains required. No requirement IDs removed or retitled. |
 | `0.1.0-draft.3` | 2026-09-04 | Corrects §38's row-level security figures against the first ever install of this schema on a host — 143 enabled, 70 forced, the 73 unforced reconciling exactly with the migrations, and the previously cited 113 of 139 wrong in both halves. Adds §8A and five requirements making speed of capture and retrieval architectural rather than product polish, after the observation that a records system engineers skip records nothing ([ADR 0024](../decisions/0024-friction-is-an-architectural-property.md)). Records that capture is cheap and governance applies at promotion, that several surfaces share one act model, and that an agent may act for a named human. Five requirements appended, none removed or retitled; architecture-changing, carrying ADR 0024. |
 | `0.1.0-draft.2` | 2026-09-04 | Records two scope decisions that pull in opposite directions and were made together: business logic is an application above the Fabric (§8.10), and dataset, transform and lineage capability, if ever built, belongs in the core rather than above it (§8.11). Adds the organization-as-configuration requirement. Three requirements appended, none removed or retitled. Architecture-changing under §94.3 and carrying [ADR 0023](../decisions/0023-business-logic-above-data-primitives-within.md): the draft asserted it was not, and `war sas propose` derived otherwise from the §106 diff and required a decision record. The tool was right. |
 | `0.1.0-draft.1` | 2026-09-03 | First revision. Establishes the Knowledge Fabric as a program with its own specification, 132 requirements and an eleven-phase ladder. No predecessor. |

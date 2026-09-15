@@ -9,6 +9,12 @@ contracts.
 
 ## Delivery order
 
+Proposed LAMU integration clarification: [ADR 0032](../decisions/0032-lamu-runtime-source-contract.md)
+and SAS section 104A. KF remains record authority; LAMU compiles context and
+coordinates AI backends. Start with shared contracts and failure tests, not a
+shared database. This branch excludes unpublished local work and needs candidate
+reconciliation before acceptance.
+
 1. Close explicit runtime profiles, real dogfood identity and split readiness.
 2. Implement authority-preserving document records from proposed ADR 0002.
 3. Load constitution drafts under truthful Holder identity: current non-Git corpus is
