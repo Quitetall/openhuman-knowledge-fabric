@@ -7,7 +7,7 @@
 | Document class | Software Architecture Specification |
 | Short name | KF SAS |
 | Status | Draft for acceptance |
-| Version | `0.1.0-draft.4` |
+| Version | `0.1.0-draft.5` |
 | Date | 2026-09-14 |
 | Enterprise identifier | Unallocated — this file name is not an official Identifier Registry allocation (§94.5) |
 | Program name | **OpenHuman Knowledge Fabric** |
@@ -1345,6 +1345,56 @@ refuse a batch that does not state one.
 
 **KF-SAS-RQ-093.** The system SHALL support recording an external artifact by digest and locator
 without holding its bytes.
+
+## 48A. Drafts, and what unverified means
+
+[ADR 0031](../decisions/0031-a-draft-is-a-record-that-says-so.md). §48 admits one named item at a
+time and KF-SAS-RQ-021 forbids admitting a container. Neither says how many acts a single gesture
+may produce, and the distinction decides whether a low-friction capture path is possible at all.
+
+**One gesture may produce many acts. It may not produce zero, and it may not produce one act
+covering many items.** Zero acts is folder synchronisation — unattributable, and what RQ-021
+forbids. One act covering many items is "I admitted this folder", the same container decision
+reached by a different route. Many acts from one gesture is cheap capture with full attribution,
+which KF-SAS-RQ-202 already permits. The person clicks once; the ledger receives one entry per
+item, each naming them. A capture path built this way is a fast path **through** this machinery
+rather than around it.
+
+**A draft is a record.** Law 6 applies, it is attributed and audited from the moment it is written
+(RQ-202), and it appears in the preservation export marked as a draft. Excluding it would create a
+class of stored thing that can vanish, and §64B defines that category deliberately narrowly.
+
+**A draft is a member of a master record, and the projection says it is unverified.** Omission is
+not available: a master record that silently omits is the failure §63 was written against. What is
+required instead is that a reader can tell which members nobody has checked. An unlabelled draft
+inside "everything you may see" is worse than an absent one, because it borrows the credibility of
+the records around it.
+
+**A draft is not citable as evidence.** A Warrant tracing to an unverified document is a claim
+resting on something nobody has checked, which is the ticked box §97.3 exists to prevent. This is
+the single place a draft is not a record like any other, and it is where the distinction earns its
+keep.
+
+**A promotion act records its basis.** Reviewing five hundred documents one at a time and promoting
+five hundred in one gesture are different facts. A ledger that writes "verified" for both has made
+the word carry no information, and an auditor asking whether a person looked at a document then has
+no answer available. Recording the basis costs the fast path nothing and stops it misrepresenting
+itself.
+
+**KF-SAS-RQ-227.** A single caller gesture MAY dispatch many acts, SHALL dispatch at least one per
+item it admits, and SHALL NOT dispatch one act covering several items.
+
+**KF-SAS-RQ-228.** A draft SHALL be a record under Law 6, attributed from the moment it is written,
+and SHALL appear in the preservation export marked as unverified.
+
+**KF-SAS-RQ-229.** A projection that includes an unverified member SHALL label it as such, and
+SHALL NOT omit it silently.
+
+**KF-SAS-RQ-230.** An unverified record SHALL NOT be citable as evidence for a requirement or a
+Warrant.
+
+**KF-SAS-RQ-231.** An act that promotes a record from unverified SHALL record whether the item was
+reviewed individually or promoted in bulk.
 
 ## 49. Object storage and the working store
 
@@ -2827,6 +2877,15 @@ ladder is not merely full: nothing after v1.0 has a number, including the retrie
 Renumbering would cost every existing reference and buy one slot. Supersedes the narrower reading in
 §100.17, which described this as a twelfth objective being unaddable.
 
+**100.26 The draft lifecycle is a label with no rules behind it.** `draft` is the initial state of
+every state machine in `ontology/state-machines.yaml`, and nothing filters on it: not
+master-record membership, not the preservation export, not projections. So an unverified record is
+today a full corpus member distinguishable only by a column no reader consults, and §48A's five
+requirements have no implementation. This is why the capture path must be built last rather than
+first — filling a store whose rules do not exist puts unverified material inside master records and
+inside the permanent export, which is worse than the folder of files this program replaces, because
+the folder never claimed to be the record. Bears on KF-SAS-RQ-228 through RQ-231.
+
 **100.25 The composed ranking is unmeasured.** §64A composes a lexical ranking from this
 repository with a semantic ranking from an engine tuned against a different lexical leg, on public
 corpora with no clearances. The engine's published numbers therefore say nothing about how the
@@ -2933,6 +2992,7 @@ record which program owns each federated fact.
 
 | Revision | Date | Change |
 |---|---|---|
+| `0.1.0-draft.5` | 2026-09-14 | Adds §48A, which settles whether a low-friction capture path is compatible with KF-SAS-RQ-021's refusal to admit a container. It is, under one rule: a gesture may produce many acts, never zero and never one covering many. Records what an unverified record is — a record under Law 6, exported marked, a labelled member of a master record rather than a silent omission, and not citable as evidence — and requires a promotion act to say whether it was reviewed individually or promoted in bulk, so that "verified" keeps its meaning. Adds §100.26: the draft state is presently a label that nothing filters on, which inverts the build order, because a capture path filling a store whose rules do not exist puts unverified material into master records and into the permanent export. Five requirements appended, none removed or retitled; architecture-changing under §94.3, carrying [ADR 0031](../decisions/0031-a-draft-is-a-record-that-says-so.md). |
 | `0.1.0-draft.4` | 2026-09-14 | States the architecture in one place for the first time: §8B names the three layers and pins the invariants that hold across them ([ADR 0030](../decisions/0030-three-layers.md)), after the observation that a reader had to assemble the structure from five documents and a README, and that the README had consequently outrun this document on a structural claim. Adds §64A, the retrieval index — inside the trust boundary, outside the authority boundary, holding a vector and an identifier and no authorization input, with authorization computed per query and applied during scoring ([ADR 0028](../decisions/0028-the-retrieval-index-is-masked-not-copied.md)); this supersedes the reasoning that refused embeddings in `database/migrations/20260811001800_search.sql`, on the condition that reasoning itself set. Adds §64B, transient observations, a third category of stored thing that is neither authoritative nor rebuildable, with the four exclusions that make an expiry mean anything ([ADR 0029](../decisions/0029-transient-observations-are-a-third-category.md)). Removes every source count from this document in favour of a generated, gated measurement file, after four figures here were found stale and had been copied into two other documents and a Warrant basis; §103.3 records why transclusion was rejected. Five gaps appended, including that revocation in the search index is asynchronous and unmeasured, and that no objective after v1.0 can be scheduled. Seventeen requirements appended, none removed or retitled. One defect found and closed in the same revision: `search.document`'s read policy decided visibility from a denormalised classification refreshed by a worker documented as permitted to be late, so a reclassification did not take effect until the drain ran; `20260914000100` makes the policy defer to `core.object`, and a test reproduces the window by reclassifying without reindexing; architecture-changing under §94.3, carrying ADRs 0028, 0029 and 0030. |
 | `0.1.0-draft.3` | 2026-09-04 | Corrects §38's row-level security figures against the first ever install of this schema on a host — 143 enabled, 70 forced, the 73 unforced reconciling exactly with the migrations, and the previously cited 113 of 139 wrong in both halves. Adds §8A and five requirements making speed of capture and retrieval architectural rather than product polish, after the observation that a records system engineers skip records nothing ([ADR 0024](../decisions/0024-friction-is-an-architectural-property.md)). Records that capture is cheap and governance applies at promotion, that several surfaces share one act model, and that an agent may act for a named human. Five requirements appended, none removed or retitled; architecture-changing, carrying ADR 0024. |
 | `0.1.0-draft.2` | 2026-09-04 | Records two scope decisions that pull in opposite directions and were made together: business logic is an application above the Fabric (§8.10), and dataset, transform and lineage capability, if ever built, belongs in the core rather than above it (§8.11). Adds the organization-as-configuration requirement. Three requirements appended, none removed or retitled. Architecture-changing under §94.3 and carrying [ADR 0023](../decisions/0023-business-logic-above-data-primitives-within.md): the draft asserted it was not, and `war sas propose` derived otherwise from the §106 diff and required a decision record. The tool was right. |
@@ -3171,6 +3231,16 @@ from evidence, never recorded here (§97.3).
 | KF-SAS-RQ-224 | Lexical and semantic rankings are composed rather than merged, the lexical one stays exhaustive, and each result names the ranking that produced it |
 | KF-SAS-RQ-225 | Text may transit to an on-host embedder and is never persisted there; a controlled record offered to a persisting path is refused |
 | KF-SAS-RQ-226 | A derived index never decides visibility from a denormalised copy; the decision is taken against the record in the same statement |
+
+### Capture and verification, 2026-09-14 (ADR 0031)
+
+| ID | Requirement |
+|---|---|
+| KF-SAS-RQ-227 | One gesture may dispatch many acts; at least one per item, never one covering several |
+| KF-SAS-RQ-228 | A draft is a record under Law 6, attributed from the first moment, exported marked unverified |
+| KF-SAS-RQ-229 | A projection labels an unverified member and never omits it silently |
+| KF-SAS-RQ-230 | An unverified record is not citable as evidence |
+| KF-SAS-RQ-231 | A promotion act records whether the item was reviewed individually or in bulk |
 
 ### Transient observations, 2026-09-14 (ADR 0029)
 
