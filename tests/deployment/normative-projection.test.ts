@@ -9,69 +9,37 @@ const PROJECTION = join(ROOT, 'docs/sas/generated/NORMATIVE.json');
 /**
  * A projection agents are told to read INSTEAD of the document must contain the document.
  *
- * `war compile` emits NORMATIVE.{md,json} and its own header says "Read this instead of the
- * document". `war check --generated` then drift-checks it — but drift proves the compilation is
- * REPRODUCIBLE, not that it is COMPLETE. A deterministic extractor that drops sentences drops the
- * same ones every time, so a fresh compile matches the committed one and the check passes.
+ * `war check --generated` drift-checks the projection, and drift proves a compilation is
+ * REPRODUCIBLE rather than COMPLETE: a deterministic extractor drops the same sentences every
+ * time, so a fresh compile matches the committed one and the check passes. On 2026-09-16 that gap
+ * was real — the projection held 134 of 162 requirements, missing every one in a lettered section
+ * (§8A, §8B, §48A, §64A, §64B), including KF-SAS-RQ-021, the rule forbidding container
+ * synchronisation that this program had just spent two rounds of design reasoning on.
  *
- * Measured on 2026-09-16: the projection held 134 of the document's 162 requirements. The 28
- * missing ones were every requirement in a lettered section — §8A, §8B, §48A, §64A, §64B — and
- * RQ-021, the rule forbidding container synchronisation, was among them. Two rounds of design
- * reasoning had just been spent on that requirement; an agent reading the projection would have
- * concluded it did not exist.
- *
- * This test is the completeness check the drift check cannot be. It stays after the extractor is
- * fixed, because the next extractor change needs catching too.
+ * Fixed upstream the same day, and `war check` now reports a heading it cannot label rather than
+ * dropping it silently. This test is the other half: the tool checks that no section was lost,
+ * this checks that every identifier this document declares actually arrived. Both are needed,
+ * because they fail for different reasons — a parser that loses a heading, and a document that
+ * states a requirement somewhere the extractor does not look.
  */
-/**
- * The 28 requirements the current `war` drops, recorded exactly.
- *
- * This is a defect record, not an expectation. Every one lives in a lettered section — §8A, §8B,
- * §48A, §64A, §64B — which the extractor's heading parser does not match. It is pinned rather
- * than tolerated: the test fails if the set grows (a new section shape stops parsing) AND if it
- * shrinks (upstream fixed it, and this list plus `docs/normative-projection.md` should go).
- *
- * Deleting the projection instead was tried and is not available: `openwarrant.toml` sets
- * `[generated] commit = true`, so `war check --generated` errors on its absence. Keeping a file
- * that is known-wrong is the lesser fault only while the wrongness is written down this precisely.
- */
-const KNOWN_ABSENT = [
-  'KF-SAS-RQ-020',
-  'KF-SAS-RQ-021',
-  'KF-SAS-RQ-200',
-  'KF-SAS-RQ-201',
-  'KF-SAS-RQ-202',
-  'KF-SAS-RQ-203',
-  'KF-SAS-RQ-204',
-  'KF-SAS-RQ-210',
-  'KF-SAS-RQ-211',
-  'KF-SAS-RQ-212',
-  'KF-SAS-RQ-213',
-  'KF-SAS-RQ-214',
-  'KF-SAS-RQ-215',
-  'KF-SAS-RQ-216',
-  'KF-SAS-RQ-217',
-  'KF-SAS-RQ-218',
-  'KF-SAS-RQ-219',
-  'KF-SAS-RQ-220',
-  'KF-SAS-RQ-221',
-  'KF-SAS-RQ-222',
-  'KF-SAS-RQ-223',
-  'KF-SAS-RQ-224',
-  'KF-SAS-RQ-225',
-  'KF-SAS-RQ-227',
-  'KF-SAS-RQ-228',
-  'KF-SAS-RQ-229',
-  'KF-SAS-RQ-230',
-  'KF-SAS-RQ-231',
-] as const;
-
 describe('the normative projection contains the document', () => {
-  function missingFromProjection(): string[] {
+  it('carries every requirement identifier the specification declares', () => {
+    if (!existsSync(PROJECTION)) {
+      // Not compiled is a different state from compiled-and-incomplete, and only the second is a
+      // defect. `war compile` is deliberately outside `pnpm gate` — openwarrant.toml keeps KF free
+      // of a Rust dependency — so an uncompiled tree is ordinary rather than wrong.
+      return;
+    }
+
     const document = readFileSync(SAS, 'utf8');
     const declared = [...document.matchAll(/^\*\*(KF-SAS-RQ-\d+)\.\*\*/gm)].map(
       (match) => match[1] as string,
     );
+    expect(
+      declared.length,
+      'the document states requirements inline; if none parse, this test is vacuous',
+    ).toBeGreaterThan(100);
+
     const projection: { sentences: { sentence: string }[] } = JSON.parse(
       readFileSync(PROJECTION, 'utf8'),
     );
@@ -80,27 +48,30 @@ describe('the normative projection contains the document', () => {
         .map((entry) => /^(KF-SAS-RQ-\d+)/.exec(entry.sentence)?.[1])
         .filter((id): id is string => id !== undefined),
     );
-    return declared
-      .filter((id) => !present.has(id))
-      .sort((a, b) => Number(a.slice(-3)) - Number(b.slice(-3)));
-  }
 
-  it('omits exactly the requirements a known extractor defect drops, and no others', () => {
-    if (!existsSync(PROJECTION)) return; // `war compile` is not part of `pnpm gate`, by design.
+    const missing = declared
+      .filter((id) => !present.has(id))
+      .sort((left, right) => Number(left.slice(-3)) - Number(right.slice(-3)));
+
     expect(
-      missingFromProjection(),
-      'the set of requirements absent from the normative projection has changed. If it GREW, a ' +
-        'section shape stopped parsing and agents are now missing more rules than recorded. If ' +
-        'it SHRANK, the extractor was fixed — delete KNOWN_ABSENT, delete ' +
-        'docs/normative-projection.md, and let this test assert completeness outright.',
-    ).toEqual([...KNOWN_ABSENT]);
+      missing,
+      'the normative projection omits requirements the specification states. An agent told to ' +
+        'read it instead of the document would not know these rules exist. Recompile; if they ' +
+        'are still absent, stop shipping the projection until the extractor sees them.',
+    ).toEqual([]);
   });
 
-  it('is not relied upon while it is incomplete', () => {
-    // The note exists so that a reader who finds the projection knows not to trust it. It goes
-    // when KNOWN_ABSENT goes.
-    expect(existsSync(join(ROOT, 'docs/normative-projection.md'))).toBe(
-      !existsSync(PROJECTION) || KNOWN_ABSENT.length > 0,
+  it('leaves no emphasis markers inside a normative sentence', () => {
+    if (!existsSync(PROJECTION)) return;
+    const projection: { sentences: { sentence: string }[] } = JSON.parse(
+      readFileSync(PROJECTION, 'utf8'),
     );
+    // The first fix left `RQ-001.** The Fabric SHALL …` — the opening marker trimmed and the
+    // interior close surviving. Cosmetic in a file nobody reads; misleading in one an agent reads
+    // instead of the document, because it makes the identifier look like part of the rule.
+    const marked = projection.sentences
+      .map((entry) => entry.sentence)
+      .filter((sentence) => sentence.includes('**'));
+    expect(marked.slice(0, 3), 'markdown emphasis leaked into an extracted sentence').toEqual([]);
   });
 });
