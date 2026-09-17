@@ -1,4 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { execFile } from 'node:child_process';
+import { mkdtemp, writeFile, readFile, access, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
 import { withReadTransaction, withTransaction } from '@kf/database';
 import { digestBytes } from '@kf/canonicalization';
 import { contextSourceReferencesIn, readContextSourceIn } from '@kf/documents';
@@ -129,8 +134,68 @@ describe('context source with real database authority', () => {
         'x-kf-classification': 'restricted',
       },
     };
+    let proofDirectory: string | undefined;
+    let dispatchGate: string | undefined;
+    let dispatchProbe: Promise<unknown> | undefined;
     try {
       const base = await app.listen({ host: '127.0.0.1', port: 0 });
+      const probe = process.env['LAMU_KF_SOURCE_PROBE'];
+      let probeInput: string | undefined;
+      if (probe !== undefined) {
+        const modelPath = process.env['LAMU_KF_MODEL_PATH'];
+        const modelPort = process.env['LAMU_KF_MODEL_PORT'];
+        const modelPid = process.env['LAMU_KF_MODEL_PID'];
+        const supplied = [modelPath, modelPort, modelPid].filter(
+          (value) => value !== undefined,
+        ).length;
+        if (supplied !== 0 && supplied !== 3)
+          throw new Error('all KF probe model fields are required');
+        proofDirectory = await mkdtemp(join(tmpdir(), 'kf-lamu-source-'));
+        const tokenFile = join(proofDirectory, 'token');
+        probeInput = join(proofDirectory, 'input.json');
+        await writeFile(tokenFile, token, { mode: 0o600 });
+        await writeFile(
+          probeInput,
+          JSON.stringify({
+            source: {
+              endpoint: base,
+              token_file: tokenFile,
+              organization: fixtures.organizationId,
+              acting_role: fixtures.reviewerRoleId,
+              classification: 'restricted',
+            },
+            scope: { tenant: 'paired-fixture', principal: 'reader', policy_revision: 'v1' },
+            model: {
+              id: 'policy-fixture-only',
+              backend_digest: 'a'.repeat(64),
+              weights_digest: 'b'.repeat(64),
+              tokenizer_digest: 'c'.repeat(64),
+              destination: 'local',
+            },
+            query: 'OpenHuman',
+            ...(modelPath === undefined
+              ? {}
+              : {
+                  backend: {
+                    model_path: modelPath,
+                    port: Number(modelPort),
+                    pid: Number(modelPid),
+                  },
+                  journal_path: join(proofDirectory, 'journal.sqlite'),
+                }),
+          }),
+          { mode: 0o600 },
+        );
+        const result = await promisify(execFile)(probe, [probeInput], {
+          timeout: 20_000,
+          maxBuffer: 4096,
+        });
+        expect(JSON.parse(result.stdout)).toMatchObject({
+          status: 'ok',
+          records_checked: 1,
+          runtime_dispatch: modelPath !== undefined,
+        });
+      }
       const send = (input: { url: string; payload: unknown }) =>
         fetch(`${base}${input.url}`, {
           method: 'POST',
@@ -196,18 +261,130 @@ describe('context source with real database authority', () => {
       expect(await recovered.json()).toMatchObject({
         references: expect.arrayContaining([reference]),
       });
+      if (
+        probe !== undefined &&
+        probeInput !== undefined &&
+        proofDirectory !== undefined &&
+        process.env['LAMU_KF_MODEL_PATH'] !== undefined
+      ) {
+        const original: unknown = JSON.parse(await readFile(probeInput, 'utf8'));
+        if (typeof original !== 'object' || original === null || Array.isArray(original)) {
+          throw new Error('invalid probe fixture');
+        }
+        if (
+          !('source' in original) ||
+          typeof original.source !== 'object' ||
+          original.source === null
+        ) {
+          throw new Error('invalid probe source fixture');
+        }
+        const outageApp = Fastify();
+        const outageGate = join(proofDirectory, 'outage.gate');
+        let outageProbe: Promise<unknown> | undefined;
+        try {
+          await registerContextSourceRoutes(outageApp, { pool: harness.pool, verifier });
+          const outageBase = await outageApp.listen({ host: '127.0.0.1', port: 0 });
+          const outageInput = join(proofDirectory, 'outage.json');
+          await writeFile(
+            outageInput,
+            JSON.stringify({
+              ...original,
+              source: { ...original.source, endpoint: outageBase },
+              journal_path: join(proofDirectory, 'outage-journal.sqlite'),
+              before_execute_gate: outageGate,
+            }),
+            { mode: 0o600 },
+          );
+          outageProbe = promisify(execFile)(probe, [outageInput], {
+            timeout: 20_000,
+            maxBuffer: 4096,
+          }).then(
+            () => ({ ok: true }),
+            (error: unknown) => ({ ok: false, error }),
+          );
+          let compiled = false;
+          for (let attempt = 0; attempt < 1000 && !compiled; attempt += 1) {
+            compiled = await access(join(proofDirectory, 'outage.ready')).then(
+              () => true,
+              () => false,
+            );
+            if (!compiled) await new Promise((resolve) => setTimeout(resolve, 10));
+          }
+          expect(compiled).toBe(true);
+          await outageApp.close();
+          await writeFile(outageGate, 'continue\n', { mode: 0o600 });
+          expect(await outageProbe).toMatchObject({
+            ok: false,
+            error: { code: 1, stderr: expect.stringContaining('SourceUnavailable') },
+          });
+          process.stdout.write('[kf-lamu-source] compiled package refused after KF outage\n');
+        } finally {
+          await writeFile(outageGate, 'cleanup\n', { mode: 0o600 });
+          if (outageProbe !== undefined) await outageProbe;
+          await outageApp.close();
+        }
+        dispatchGate = join(proofDirectory, 'dispatch.gate');
+        const dispatchInput = join(proofDirectory, 'dispatch.json');
+        await writeFile(
+          dispatchInput,
+          JSON.stringify({
+            ...original,
+            journal_path: join(proofDirectory, 'dispatch-journal.sqlite'),
+            before_execute_gate: dispatchGate,
+          }),
+          { mode: 0o600 },
+        );
+        dispatchProbe = promisify(execFile)(probe, [dispatchInput], {
+          timeout: 20_000,
+          maxBuffer: 4096,
+        }).then(
+          () => ({ ok: true }),
+          (error: unknown) => ({ ok: false, error }),
+        );
+        const ready = join(proofDirectory, 'dispatch.ready');
+        let compiled = false;
+        for (let attempt = 0; attempt < 1000 && !compiled; attempt += 1) {
+          compiled = await access(ready).then(
+            () => true,
+            () => false,
+          );
+          if (!compiled) await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        expect(compiled).toBe(true);
+      }
       await withTransaction(harness.adminPool, async (tx) => {
         await bindContext(tx, fixtures);
         await revokeIdentity(tx, identity);
       });
+      if (dispatchGate !== undefined && dispatchProbe !== undefined) {
+        await writeFile(dispatchGate, 'continue\n', { mode: 0o600 });
+        expect(await dispatchProbe).toMatchObject({
+          ok: false,
+          error: { code: 1, stderr: expect.stringContaining('AccessDenied') },
+        });
+        process.stdout.write(
+          '[kf-lamu-source] compiled package refused after identity revocation\n',
+        );
+      }
       const revokedRead = await send(request);
       expect(revokedRead.status).toBe(401);
       await revokedRead.arrayBuffer();
       const revokedRetrieval = await send(retrieval);
       expect(revokedRetrieval.status).toBe(401);
       await revokedRetrieval.arrayBuffer();
+      if (probe !== undefined && probeInput !== undefined) {
+        await expect(
+          promisify(execFile)(probe, [probeInput], { timeout: 20_000, maxBuffer: 4096 }),
+        ).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining('AccessDenied') });
+        process.stdout.write(
+          '[kf-lamu-source] Rust adapter retrieval/read/recheck/invalidate and revocation passed\n',
+        );
+      }
     } finally {
+      if (dispatchGate !== undefined) await writeFile(dispatchGate, 'cleanup\n', { mode: 0o600 });
+      if (dispatchProbe !== undefined) await dispatchProbe;
       await app.close();
+      if (proofDirectory !== undefined) await rm(proofDirectory, { recursive: true, force: true });
     }
   });
 
