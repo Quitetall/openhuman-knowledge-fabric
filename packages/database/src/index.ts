@@ -263,6 +263,48 @@ export async function withTransaction<T>(pool: Pool, fn: (tx: Tx) => Promise<T>)
   }
 }
 
+/** Abortable read-only work. A cancelled connection is discarded, never returned for reuse. */
+export async function withReadTransaction<T>(
+  pool: Pool,
+  signal: AbortSignal,
+  fn: (tx: Tx) => Promise<T>,
+): Promise<T> {
+  signal.throwIfAborted();
+  const client = await pool.connect();
+  let released = false;
+  const abort = () => {
+    if (!released) {
+      released = true;
+      client.release(true);
+    }
+  };
+  signal.addEventListener('abort', abort, { once: true });
+  try {
+    signal.throwIfAborted();
+    await client.query('begin read only');
+    await client.query("select set_config('statement_timeout', '5000', true)");
+    signal.throwIfAborted();
+    const result = await fn(wrap(client));
+    signal.throwIfAborted();
+    await client.query('commit');
+    signal.throwIfAborted();
+    return result;
+  } catch (error: unknown) {
+    if (!released) {
+      try {
+        await client.query('rollback');
+      } catch {
+        abort();
+      }
+    }
+    signal.throwIfAborted();
+    throw error;
+  } finally {
+    signal.removeEventListener('abort', abort);
+    if (!released) client.release();
+  }
+}
+
 /**
  * Bind actor, role, action and request to the CURRENT transaction.
  *

@@ -32,6 +32,7 @@ import { registerDocumentRoutes } from './routes/documents.js';
 import type { ProjectionLinks } from '@kf/projections';
 import { registerMlRoutes } from './routes/ml.js';
 import { registerSearchRoutes } from './routes/search.js';
+import { registerContextSourceRoutes } from './routes/context-source.js';
 import { registerIdentifierRoutes } from './routes/identifiers.js';
 import { hasRequiredSchema } from './schema-contract.js';
 
@@ -53,6 +54,17 @@ export async function buildApp(
   config: ApiConfig,
   dependencies: AppDependencies = {},
 ): Promise<FastifyInstance> {
+  // Tests and embedders can construct ApiConfig without passing through loadConfig.
+  if (
+    config.contextSourceEnabled === true &&
+    (config.identity === undefined ||
+      config.databaseUrl === undefined ||
+      (config.host !== '127.0.0.1' && config.host !== '::1'))
+  ) {
+    throw new Error(
+      'KF context source requires verified identity, a database, and a literal loopback listener',
+    );
+  }
   const app = Fastify({
     logger: {
       level: config.logLevel,
@@ -200,6 +212,9 @@ export async function buildApp(
     );
     const verifier = config.identity === undefined ? undefined : new TokenVerifier(config.identity);
     const identify = createCallerIdentifier(pool, verifier);
+    if (config.contextSourceEnabled === true && verifier !== undefined) {
+      await registerContextSourceRoutes(app, { pool, verifier });
+    }
     await registerActionRoutes(app, {
       pool,
       execute,

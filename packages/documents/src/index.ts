@@ -6,6 +6,16 @@
  */
 
 export * from './compiler.js';
+export {
+  CONTEXT_SOURCE_ADAPTER,
+  MAX_CONTEXT_SOURCE_BYTES,
+  ContextSourceRefused,
+  contextSourceReferencesIn,
+  readContextSourceIn,
+  type ContextSourceReader,
+  type ContextSourceReference,
+  type ContextSourceRecord,
+} from './context-source.js';
 export * from './lamquant-compat.js';
 export * from './liminal-adapter.js';
 export * from './proposal.js';

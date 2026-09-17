@@ -10,6 +10,8 @@ import { loadSecret } from '@kf/operations';
 import type { S3Config } from '@kf/artifacts';
 
 export interface ApiConfig {
+  /** Private loopback-only context source; disabled unless explicitly enabled. */
+  readonly contextSourceEnabled?: boolean;
   readonly host: string;
   readonly port: number;
   readonly logLevel: string;
@@ -320,7 +322,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       ? env['KF_PROJECTIONS_ARTIFACT']
       : resolve(process.cwd(), 'generated/projections/knowledge-fabric.projections.json');
 
+  const contextSourceEnabled = env['KF_CONTEXT_SOURCE_ENABLED'] === '1';
+  if (
+    contextSourceEnabled &&
+    (identity === undefined ||
+      databaseUrl === undefined ||
+      (host !== '127.0.0.1' && host !== '::1'))
+  ) {
+    throw new ConfigError(
+      'KF context source requires verified identity, a database, and a literal loopback listener',
+    );
+  }
+
   return {
+    contextSourceEnabled,
     host,
     port: readPort(env['PORT'], 4000),
     logLevel: env['LOG_LEVEL'] ?? (environment === 'production' ? 'info' : 'debug'),
