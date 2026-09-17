@@ -22,6 +22,17 @@ import {
 
 let harness: Harness;
 let fixtures: Fixtures;
+async function cleanupAll(steps: readonly (() => Promise<unknown>)[]): Promise<void> {
+  const errors: unknown[] = [];
+  for (const step of steps) {
+    try {
+      await step();
+    } catch (error: unknown) {
+      errors.push(error);
+    }
+  }
+  if (errors.length > 0) throw new AggregateError(errors, 'context probe cleanup failed');
+}
 beforeAll(async () => {
   harness = await startHarness();
   fixtures = await seedFixtures(harness.adminPool);
@@ -38,6 +49,28 @@ const reader = () => ({
 });
 
 describe('context source with real database authority', () => {
+  it('attempts every cleanup step even when a prior step fails', async () => {
+    const visited: number[] = [];
+    await expect(
+      cleanupAll([
+        async () => {
+          visited.push(1);
+          throw new Error('gate unavailable');
+        },
+        async () => {
+          visited.push(2);
+        },
+        async () => {
+          visited.push(3);
+          throw new Error('close failed');
+        },
+        async () => {
+          visited.push(4);
+        },
+      ]),
+    ).rejects.toThrow('context probe cleanup failed');
+    expect(visited).toEqual([1, 2, 3, 4]);
+  });
   it('aborts an active read, discards its connection and leaves the pool usable', async () => {
     const controller = new AbortController();
     let started!: () => void;
@@ -253,8 +286,11 @@ describe('context source with real database authority', () => {
       } finally {
         cancelledClient.abort();
         harness.pool.removeListener('remove', removed);
-        await blocker.query('rollback');
-        blocker.release();
+        try {
+          await blocker.query('rollback');
+        } finally {
+          blocker.release();
+        }
       }
       const recovered = await send(retrieval);
       expect(recovered.status).toBe(200);
@@ -319,9 +355,13 @@ describe('context source with real database authority', () => {
           });
           process.stdout.write('[kf-lamu-source] compiled package refused after KF outage\n');
         } finally {
-          await writeFile(outageGate, 'cleanup\n', { mode: 0o600 });
-          if (outageProbe !== undefined) await outageProbe;
-          await outageApp.close();
+          await cleanupAll([
+            () => writeFile(outageGate, 'cleanup\n', { mode: 0o600 }),
+            async () => {
+              if (outageProbe !== undefined) await outageProbe;
+            },
+            () => outageApp.close(),
+          ]);
         }
         dispatchGate = join(proofDirectory, 'dispatch.gate');
         const dispatchInput = join(proofDirectory, 'dispatch.json');
@@ -381,10 +421,20 @@ describe('context source with real database authority', () => {
         );
       }
     } finally {
-      if (dispatchGate !== undefined) await writeFile(dispatchGate, 'cleanup\n', { mode: 0o600 });
-      if (dispatchProbe !== undefined) await dispatchProbe;
-      await app.close();
-      if (proofDirectory !== undefined) await rm(proofDirectory, { recursive: true, force: true });
+      await cleanupAll([
+        async () => {
+          if (dispatchGate !== undefined)
+            await writeFile(dispatchGate, 'cleanup\n', { mode: 0o600 });
+        },
+        async () => {
+          if (dispatchProbe !== undefined) await dispatchProbe;
+        },
+        () => app.close(),
+        async () => {
+          if (proofDirectory !== undefined)
+            await rm(proofDirectory, { recursive: true, force: true });
+        },
+      ]);
     }
   });
 
