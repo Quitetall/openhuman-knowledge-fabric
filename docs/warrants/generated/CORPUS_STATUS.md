@@ -17,11 +17,11 @@ Source: every Warrant under the configured warrants path, its sidecar records, a
 - **digest:** `sha256:84d23d16f0a9cd1e880502a67812982d75053b7d7abd890d5908c65d7e282f0d`
 - Revision 0.1.0-draft.5 is ACCEPTED (§101.2) and normative. A Warrant compiles against the revision its authorization recorded (§14), so a later revision does not move an authorized contract: 1 against 0.1.0-draft.5.
 
-**Requirements (162 in §106)** — strictest rung first:
+**Requirements (163 in §106)** — strictest rung first:
 
 | satisfied | in_progress | claimed | unaddressed | superseded |
 |---|---|---|---|---|
-| **0** | 0 | 12 | 150 | 0 |
+| **0** | 0 | 12 | 151 | 0 |
 
 ## Objectives (SAS §98 phases)
 
@@ -79,7 +79,7 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 
 ## Requirements (SAS §106, §34.3)
 
-**Unaddressed (150)** — no Warrant names these. Several may be built; the gap is bookkeeping, and it is listed rather than hidden:
+**Unaddressed (151)** — no Warrant names these. Several may be built; the gap is bookkeeping, and it is listed rather than hidden:
 
 - `KF-SAS-RQ-001` — One coherent typed graph over records whose authorities remain distinct
 - `KF-SAS-RQ-002` — Visibility, immutability and integrity enforced in the database
@@ -227,10 +227,11 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 - `KF-SAS-RQ-225` — Text may transit to an on-host embedder and is never persisted there; a controlled record offered to a persisting path is refused
 - `KF-SAS-RQ-226` — A derived index never decides visibility from a denormalised copy; the decision is taken against the record in the same statement
 - `KF-SAS-RQ-227` — One gesture may dispatch many acts; at least one per item, never one covering several
-- `KF-SAS-RQ-228` — A draft is a record under Law 6, attributed from the first moment, exported marked unverified
+- `KF-SAS-RQ-228` — An unverified record is a record under Law 6, attributed from the first moment, exported marked unverified
 - `KF-SAS-RQ-229` — A projection labels an unverified member and never omits it silently
 - `KF-SAS-RQ-230` — An unverified record is not citable as evidence
 - `KF-SAS-RQ-231` — A promotion act records whether the item was reviewed individually or in bulk
+- `KF-SAS-RQ-232` — Verification is recorded independently of lifecycle state, never inferred from it
 
 | requirement | status | would_satisfy | implementers |
 |---|---|---|---|
@@ -396,6 +397,7 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 | `KF-SAS-RQ-229` | unaddressed | 0 | — |
 | `KF-SAS-RQ-230` | unaddressed | 0 | — |
 | `KF-SAS-RQ-231` | unaddressed | 0 | — |
+| `KF-SAS-RQ-232` | unaddressed | 0 | — |
 
 ## Warrants (1) — invalid 0 · draft 1 · ready_to_resolve 0 · would_satisfy 0 · resolved **0**
 

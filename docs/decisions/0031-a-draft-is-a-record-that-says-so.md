@@ -1,6 +1,6 @@
-# ADR 0031 — A draft is a record that says it is unverified, and one gesture may produce many acts
+# ADR 0031 — An unverified record is a record that says so, and one gesture may produce many acts
 
-- **Status:** proposed, 2026-09-14
+- **Status:** proposed, 2026-09-14; corrected in place 2026-09-18 while still proposed
 - **Extends:** ADR 0012 (ingestion: copy or reference), ADR 0024 (friction is architectural),
   ADR 0029 (transient observations).
 - **Bears on:** KF-SAS-RQ-021, RQ-202, §48 ingestion, §62 the master-record boundary, §63 the
@@ -24,11 +24,12 @@ architectural rather than product polish, and KF-SAS-RQ-202 already permits chea
 draft, attributed from the first moment, with promotion as a separate act. The three are
 consistent once the distinction is drawn explicitly.
 
-**What the investigation found, and what changed the sequencing.** `draft` is the initial state of
-every state machine in `ontology/state-machines.yaml`, and **nothing filters on it anywhere** —
-not master-record membership, not the preservation export, not projections. A draft is a full
-corpus member today, distinguishable from a decided record only by a column no reader consults.
-
+**What the investigation found, and what changed the sequencing.** Nothing records whether a
+record has been verified, and nothing filters on such a thing anywhere — not master-record
+membership, not the preservation export, not projections. An unverified record is a full corpus
+member today, indistinguishable from a checked one. (First written as "`draft` is the initial state
+of every state machine and nothing filters on it". The second half was true; the first was not —
+`draft` is the initial state of 8 of 24 — and correcting it produced the orthogonality below.)
 So the "special set of rules" that unverified material was assumed to have does not exist. It is a
 label. Building the fast capture path first would put unverified material inside master records and
 inside the permanent preservation export, indistinguishable from records somebody checked — which
@@ -46,17 +47,26 @@ different route. Many acts from one gesture is cheap capture with full attributi
 RQ-202 already blesses. The person clicks once; the ledger receives one entry per item, each
 naming them.
 
-**A draft is a record.** Law 6 applies to it, it is attributed and audited from the moment it is
+**Verification is orthogonal to lifecycle state.** The first form of this record used "draft" and
+"unverified" as synonyms. They are not. `draft` is the initial state of 8 of the 24 state machines
+in `ontology/state-machines.yaml`; the rest begin at `planned`, `proposed`, `active`, `open`,
+`captured`, `prospective`, `in_service` or `received`. A work order beginning at `planned` was never
+a draft, so these rules would not have reached it — and "any initial state" fails the other way,
+because equipment beginning at `in_service` is not unverified, that is simply where the machine
+starts. A record carries whether anyone verified it, and who, independently of where its lifecycle
+sits: `active` and unverified is ordinary, and so is `draft` and verified.
+
+**An unverified record is a record.** Law 6 applies to it, it is attributed and audited from the moment it is
 written, and it appears in the preservation export marked as a draft. Excluding it would create a
 class of stored thing that can vanish, and ADR 0029 defined that category deliberately narrowly.
 
-**A draft is a member of a master record, and the projection says it is unverified.** A master
+**It is a member of a master record, and the projection says it is unverified.** A master
 record that silently omits is the failure §63's withholding ledger was written against, so
 omission is not available. What is available — and required — is that the reader can tell which
-members nobody has checked. An unlabelled draft inside "everything you may see" is worse than an
+members nobody has checked. An unlabelled unverified record inside "everything you may see" is worse than an
 absent one, because it borrows the credibility of the records around it.
 
-**A draft SHALL NOT be citable as evidence.** A Warrant tracing to an unverified document is a
+**It SHALL NOT be citable as evidence.** A Warrant tracing to an unverified record is a
 claim resting on something nobody has checked, which is the ticked box §97.3 exists to prevent.
 This is the one place where a draft is not a record like any other, and it is the place where the
 distinction earns its keep.
