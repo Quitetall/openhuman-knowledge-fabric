@@ -1,3 +1,4 @@
+import { runtimeEvidenceCommand } from './runtime-evidence-command.js';
 import { parseArguments, usage } from './arguments.js';
 import { signBackupCommand, verifyBackupCommand, verifyPackageCommand } from './backup-commands.js';
 import { runDatabaseCommand } from './database-commands.js';
@@ -17,6 +18,7 @@ export async function runCli(argv: readonly string[]): Promise<number> {
     return 2;
   }
 
+  if (verb === 'runtime-evidence') return runtimeEvidenceCommand(args, dir);
   if (verb === 'verify') return verifyPackageCommand(args, dir);
   if (verb === 'sign-backup') return signBackupCommand(args, dir);
   if (verb === 'verify-backup') return verifyBackupCommand(args, dir);

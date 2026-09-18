@@ -92,3 +92,71 @@ After all refusals the target must still contain no Warrants. The intact package
 then restores successfully, preserving all exact section contents. Judgment and
 gate records here are explicitly disposable fixture data, not independent verdicts
 or human acceptance of OW-WAR-0111.
+
+## Offline runtime evidence reader (OW-WAR-0111)
+
+`@kf/export` exposes `readWarrantRuntimeEvidence(package, warrantId, trustedKeys, dispatchPackets?)`.
+It authenticates the complete v2 snapshot with the existing preservation verifier,
+then selects the exact Warrant, contract revisions, dispatches and runtime receipt
+rows. It checks unique revision/digest identities and receipt-to-dispatch-to-contract
+bindings. Missing trust, missing sections or broken bindings refuse.
+
+The result includes manifest and database snapshot digests. Retain the original
+signed package and historical trust keys alongside this projection. All row
+columns survive; PostgreSQL JSONB preservation wrappers remain exact text, so the
+reader does not round large JSON numbers or reinterpret native runtime bodies.
+Failed and historical attempts are preserved. `dispatchesWithoutReceipts` lists
+provider dispatch digests without any retained receipt row, independently of stage
+packet mappings. An empty list means only that every selected dispatch has a
+receipt; it does not mean successful execution or complete stage coverage. A
+listed digest does not establish that execution never occurred. Nothing is
+activated or written.
+
+This reader does not establish runtime success, actor permissions, native receipt
+semantics, complete stage coverage or Warrant assurance. The current provider
+dispatch table does not supply a general stage mapping. OpenWarrant archive
+integration must keep that unresolved binding visible rather than infer it.
+
+Validation uses the real PostgreSQL/MinIO preservation fixture after source
+shutdown, plus signed-package negative tests for broken contract/dispatch links
+and duplicate receipts. Shared scope: OpenWarrant OW-WAR-0111.
+
+The optional fourth argument carries exact OpenWarrant stage dispatch packets.
+The reader recomputes the existing `oh.war/dispatch/v1` domain digest with the
+packet digest field empty, then checks the provider dispatch digest, Warrant,
+authorized contract revision and contract digest. Successful bindings preserve
+the full packet; `unmappedDispatchDigests` names provider dispatches without a
+supplied matching packet. Duplicate, altered or cross-Warrant packets refuse.
+This mapping does not prove that all project stages have been dispatched or that
+native receipt semantics are valid. It is not an assurance or permission grant.
+
+The cross-language vector is compiled by the OpenWarrant CLI from OW-WAR-0075,
+STAGE-001. `ow75-dispatch-identity.json` records the observed producer and packet
+identity. Compiling this vector did not launch any work or fabricate a receipt.
+
+For non-TypeScript callers, the same offline reader is available through:
+
+```sh
+kf-export runtime-evidence ./export --trust-store ./historical-public-keys \
+  --warrant-id UUID --dispatch-file ./dispatch.json
+```
+
+Repeat `--dispatch-file` for additional attempts (at most 256 files, 1 MiB each,
+16 MiB combined). Output is one canonical JSON object on stdout. No database,
+network service, signing key or import is needed. Public keys must come from the
+operator's external historical trust store, not from the exported package.
+Unsigned legacy input and signing/restore flags refuse. Packet inputs must be
+regular files; invalid UTF-8 and changed files refuse. No output is emitted until
+all package, trust and binding checks succeed.
+
+The CLI test also launches the built `dist/cli.js` in a separate Node process
+with an unusable database URL and compares its canonical JSON with the SDK result.
+This proves offline command execution for the signed fixture; it does not assert
+production runtime qualification.
+
+Set `OW111_RUNTIME_PACKAGE` to a new directory when running the database
+preservation test to retain its signed export, public fixture key and Warrant ID.
+The directory is created exclusively with private permissions; no private key is
+written. This optional output does not skip normal restore assertions. It supports
+source-detached CLI/archive integration experiments. These are disposable fixture
+records and keys, never project authorization or assurance.

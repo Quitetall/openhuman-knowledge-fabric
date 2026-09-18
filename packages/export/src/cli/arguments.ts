@@ -12,6 +12,8 @@ export interface CliArguments {
   readonly snapshotToken: string | undefined;
   readonly stageDirectory: string | undefined;
   readonly allowUnsignedLegacyV1: boolean;
+  readonly warrantId: string | undefined;
+  readonly dispatchFiles: readonly string[];
 }
 
 export function usage(): string {
@@ -21,6 +23,8 @@ export function usage(): string {
     '      [--checkpoint-public-key-dir <directory>] [--snapshot <exported-snapshot-token>]',
     '  kf-export verify <directory> --trust-store <public-key-directory>',
     '      [--allow-unsigned-legacy-v1]',
+    '  kf-export runtime-evidence <directory> --trust-store <public-key-directory>',
+    '      --warrant-id <uuid> [--dispatch-file <packet.json> ...]',
     '  kf-export load <directory> --trust-store <public-key-directory>',
     '      [--allow-unsigned-legacy-v1]',
     '  kf-export sign-backup <directory> --signing-key <private.pem> --key-id <id>',
@@ -39,6 +43,8 @@ export function parseArguments(argv: readonly string[]): CliArguments {
   let snapshotToken: string | undefined;
   let stageDirectory: string | undefined;
   let allowUnsignedLegacyV1 = false;
+  let warrantId: string | undefined;
+  const dispatchFiles: string[] = [];
 
   const valueAfter = (index: number, option: string): string => {
     const value = argv[index + 1];
@@ -70,6 +76,14 @@ export function parseArguments(argv: readonly string[]): CliArguments {
     } else if (argument === '--stage') {
       stageDirectory = valueAfter(index, argument);
       index += 1;
+    } else if (argument === '--warrant-id') {
+      if (warrantId !== undefined) throw new Error('--warrant-id may appear only once');
+      warrantId = valueAfter(index, argument);
+      index += 1;
+    } else if (argument === '--dispatch-file') {
+      dispatchFiles.push(valueAfter(index, argument));
+      if (dispatchFiles.length > 256) throw new Error('at most 256 dispatch files are allowed');
+      index += 1;
     } else if (argument.startsWith('--')) {
       throw new Error(`unknown option: ${argument}`);
     } else {
@@ -80,7 +94,15 @@ export function parseArguments(argv: readonly string[]): CliArguments {
   if (snapshotToken !== undefined && !STRICT_SNAPSHOT_TOKEN.test(snapshotToken)) {
     throw new Error('--snapshot must be an exact PostgreSQL exported snapshot token');
   }
+  if (
+    positional[0] !== 'runtime-evidence' &&
+    (warrantId !== undefined || dispatchFiles.length > 0)
+  ) {
+    throw new Error('runtime evidence options require runtime-evidence');
+  }
   return {
+    warrantId,
+    dispatchFiles,
     verb: positional[0],
     dir: positional[1],
     signingKeyPath,

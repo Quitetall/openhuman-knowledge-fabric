@@ -1,11 +1,14 @@
 import { createHash, generateKeyPairSync, randomUUID } from 'node:crypto';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
+import { writePackage } from '../../packages/export/src/cli/package-io.js';
 import { expect, it } from 'vitest';
 import { readVersionBytes, StoreRegistry, verifyRecordedVersion } from '@kf/artifacts';
 import { withTransaction } from '@kf/database';
 import { createFabricDispatcher } from '@kf/orchestrator';
 import {
   createExport,
+  readWarrantRuntimeEvidence,
   importExport,
   signExportPackage,
   PRESERVATION_IMPORT_TARGETS,
@@ -333,6 +336,42 @@ it('preserves Warrant revisions, standing and action history after source shutdo
     expect(first.manifest.counts['audit-events']).toBeGreaterThan(20);
     await source.stop();
     sourceStopped = true;
+    const trust = new Map([[keyId, keys.publicKey]]);
+    expect(() => readWarrantRuntimeEvidence(first, superseded, new Map())).toThrow(/untrusted_key/);
+    expect(() => readWarrantRuntimeEvidence(first, randomUUID(), trust)).toThrow(
+      /matching Warrant/,
+    );
+    const runtimePackagePath = process.env['OW111_RUNTIME_PACKAGE'];
+    if (runtimePackagePath !== undefined) {
+      await mkdir(runtimePackagePath, { mode: 0o700 });
+      const exportDirectory = join(runtimePackagePath, 'export');
+      const trustDirectory = join(runtimePackagePath, 'trust');
+      await mkdir(exportDirectory, { mode: 0o700 });
+      await mkdir(trustDirectory, { mode: 0o700 });
+      writePackage(exportDirectory, first);
+      await writeFile(
+        join(trustDirectory, `${keyId}.pub`),
+        keys.publicKey.export({ type: 'spki', format: 'pem' }),
+        { flag: 'wx', mode: 0o600 },
+      );
+      await writeFile(join(runtimePackagePath, 'warrant-id.txt'), `${superseded}\n`, {
+        flag: 'wx',
+        mode: 0o600,
+      });
+    }
+    const runtimeEvidence = readWarrantRuntimeEvidence(first, superseded, trust);
+    expect(runtimeEvidence.contracts).toHaveLength(2);
+    expect(runtimeEvidence.dispatches).toHaveLength(1);
+    expect(runtimeEvidence.receipts).toHaveLength(1);
+    expect(runtimeEvidence.receipts[0]?.['receipt']).toMatchObject({
+      $kf_type: 'postgres.jsonb',
+      text: expect.stringContaining('fixture://no-model-called'),
+    });
+    const missingRuntime = {
+      ...first,
+      files: first.files.filter((file) => file.path !== 'warrant-runtime-receipts.json'),
+    };
+    expect(() => readWarrantRuntimeEvidence(missingRuntime, superseded, trust)).toThrow(/missing/);
     const objectRestored = await storage.restore(objectSource.id);
 
     // Untrusted origins refuse before any Warrant becomes visible in the target.
