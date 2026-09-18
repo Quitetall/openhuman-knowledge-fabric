@@ -25,7 +25,10 @@ it('preserves Warrant revisions, standing and action history after source shutdo
     const fixtures = await seedFixtures(source.adminPool);
     const dispatch = createFabricDispatcher(source.pool);
     const archiveBytes = await readFile(
-      new URL('../fixtures/openwarrant-preservation/kf-source-archive.json', import.meta.url),
+      new URL(
+        '../fixtures/openwarrant-preservation/kf-source-complete-archive.json',
+        import.meta.url,
+      ),
     );
     const identity: {
       archive_sha256: string;
@@ -36,11 +39,26 @@ it('preserves Warrant revisions, standing and action history after source shutdo
       } & NonNullable<Parameters<typeof dispatch>[0]['payload']>;
     } = JSON.parse(
       await readFile(
-        new URL('../fixtures/openwarrant-preservation/kf-source-identity.json', import.meta.url),
+        new URL(
+          '../fixtures/openwarrant-preservation/kf-source-complete-identity.json',
+          import.meta.url,
+        ),
         'utf8',
       ),
     );
     expect(createHash('sha256').update(archiveBytes).digest('hex')).toBe(identity.archive_sha256);
+    const sourceArchive = JSON.parse(archiveBytes.toString('utf8')) as {
+      schema: string;
+      coverage: Record<string, { state: string }>;
+    };
+    expect(sourceArchive.schema).toBe('oh.war/preservation-archive/v1-draft.1');
+    expect(Object.keys(sourceArchive.coverage)).toHaveLength(14);
+    expect(
+      Object.values(sourceArchive.coverage).every(
+        (entry) => entry.state === 'retained' || entry.state === 'absent',
+      ),
+    ).toBe(true);
+
     expect(identity.subject).toBe(`war://${identity.canonical_ir.identity.uuid}`);
     const sha = (value: string) => createHash('sha256').update(value).digest('hex');
     const act = async (
@@ -117,7 +135,20 @@ it('preserves Warrant revisions, standing and action history after source shutdo
         receipt_digest: sha(`runtime-${id}`),
         terminal_status: 'completed',
         artifact_refs: [],
-        receipt: { fixture: 'OW111', session_id: id },
+        receipt: {
+          session_id: id,
+          dispatch_digest: sha(`dispatch-${id}`),
+          prompt_ir_digest: sha(`fixture-prompt-${id}`),
+          provider_model_identity: 'fixture://no-model-called',
+          runtime_event_log_head: sha(`fixture-events-${id}`),
+          realized_capabilities: ['fixture.record-retention'],
+          confinement: 'disposable test containers',
+          usage: 'synthetic receipt fixture; no model spend',
+          artifact_refs: [],
+          terminal_runtime_status: 'completed',
+          receipt_digest: sha(`runtime-${id}`),
+          taint_label_refs: [],
+        },
       });
       await act('open_warrant_blocker', [id], {
         blocker_ref: 'B-1',
