@@ -45,6 +45,7 @@
     "core.approval",
     "core.audit_event",
     "core.object",
+    "core.object_verification",
     "core.outbox",
     "core.relation",
     "core.retention_hold",
