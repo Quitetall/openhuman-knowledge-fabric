@@ -25,8 +25,19 @@ pnpm exec tsc -p tsconfig.test.json
 pnpm exec eslint tests/database/warrant-preservation.test.ts
 ```
 
-This proves the stated provider database scenario. It does not yet reconnect
-external artifact bytes, reconstruct OpenWarrant IR from original source atoms,
-cover every Warrant record family, or complete OW-WAR-0111. Provider database
+The same test stores binary evidence in a real, versioned MinIO service and links
+its immutable content version to a Warrant artifact through the public dispatcher.
+It stops the object store, copies its data into a separate Docker volume, removes
+the source container and starts a new service from that retained copy. The shipped
+SDK reconnects the restored database record to the exact original version bytes.
+An incorrect expected digest is refused. Replacing the current key does not replace
+the pinned version; deleting that exact version yields a missing-object refusal
+and no served bytes. The fixture uses pinned images matching Compose and cleans
+up only the containers, volumes and backup directory it created.
+
+This proves the stated provider database and local MinIO recovery scenario. It
+does not yet reconstruct OpenWarrant IR from original source atoms, cover every
+Warrant record family, or complete OW-WAR-0111. Provider database
 preservation and the experimental OpenWarrant byte archive remain distinct
-formats. Complete qualification requires both database and object-store evidence.
+formats. Complete qualification also requires the combined OpenWarrant source reconstruction
+and full required-category inventory; this fixture alone is not that qualification.

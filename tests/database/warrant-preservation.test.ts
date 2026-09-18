@@ -1,14 +1,17 @@
 import { createHash, generateKeyPairSync, randomUUID } from 'node:crypto';
 import { expect, it } from 'vitest';
+import { readVersionBytes, StoreRegistry, verifyRecordedVersion } from '@kf/artifacts';
 import { withTransaction } from '@kf/database';
 import { createFabricDispatcher } from '@kf/orchestrator';
 import { createExport, importExport, signExportPackage } from '@kf/export';
-import { seedFixtures, startHarness, type Harness } from './harness.js';
+import { bindContext, createObject, seedFixtures, startHarness, type Harness } from './harness.js';
+import { PreservationMinio } from './preservation-minio.js';
 
 // Shared scope: OpenWarrant OW-WAR-0111. These are disposable fixture identities,
 // never signatures or assurance claims over an actual project Warrant.
 it('preserves Warrant revisions, standing and action history after source shutdown', async () => {
   const source = await startHarness();
+  const storage = new PreservationMinio();
   let sourceStopped = false;
   let restored: Harness | undefined;
   try {
@@ -89,6 +92,60 @@ it('preserves Warrant revisions, standing and action history after source shutdo
     await act('dispute_warrant_resolution', [annulled], { dispute: 'fixture upheld dispute' });
     await act('annul_warrant_resolution', [annulled], { annulment_basis: 'fixture withdrawal' });
 
+    const objectSource = await storage.start();
+    const bytes = Buffer.from([0, 255, 13, 10, 65, 66, 67, 0]);
+    const artifactId = await createObject(source.adminPool, fixtures, {
+      type: 'artifact',
+      domain: 'content',
+      state: 'draft',
+      title: 'OW111 binary evidence',
+      createdBy: fixtures.reviewerId,
+    });
+    const key = `artifacts/${artifactId}/v1`;
+    const stored = await objectSource.store.put(key, bytes, 'application/octet-stream');
+    expect(stored.versionId).toBeTruthy();
+    const versionId = randomUUID();
+    const contentDigest = createHash('sha256').update(bytes).digest('hex');
+    await withTransaction(source.adminPool, async (tx) => {
+      await bindContext(tx, fixtures, fixtures.reviewerId);
+      await tx.query(
+        `insert into content.artifact (id, artifact_kind, source_system)
+        values ($1, 'document', 'object_store')`,
+        [artifactId],
+      );
+      await tx.query(
+        `insert into content.artifact_version
+        (id, artifact_id, version_no, sha256, size_bytes, media_type, storage_uri,
+         storage_version, created_by, created_by_action)
+        values ($1,$2,1,$3,$4,'application/octet-stream',$5,$6,$7,$8)`,
+        [
+          versionId,
+          artifactId,
+          contentDigest,
+          bytes.length,
+          key,
+          stored.versionId,
+          fixtures.reviewerId,
+          fixtures.clearanceActionId,
+        ],
+      );
+    });
+    await act('register_warrant_artifact', [successor], {
+      artifact_ref: artifactId,
+      artifact_version_id: versionId,
+      producer_ref: 'fixture://ow111',
+      producing_attempt: 'preservation-1',
+      contract_digest: sha(successor),
+      input_digests: [contentDigest],
+      tool_identity: 'OW111 real MinIO fixture',
+      creation_method: 'generated',
+      content_digest: contentDigest,
+      media_type: 'application/octet-stream',
+      classification: 'internal',
+      retention_class: 'project_record',
+      source_holder: 'fabric_native',
+    });
+
     const keys = generateKeyPairSync('ed25519');
     const keyId = 'ow111-disposable-export-key';
     const first = signExportPackage(
@@ -101,6 +158,7 @@ it('preserves Warrant revisions, standing and action history after source shutdo
     expect(first.manifest.counts['audit-events']).toBeGreaterThan(20);
     await source.stop();
     sourceStopped = true;
+    const objectRestored = await storage.restore(objectSource.id);
 
     // Untrusted origins refuse before any Warrant becomes visible in the target.
     await expect(
@@ -113,6 +171,45 @@ it('preserves Warrant revisions, standing and action history after source shutdo
     await withTransaction(restored.adminPool, (tx) =>
       importExport(tx, first, { trustedManifestKeys: new Map([[keyId, keys.publicKey]]) }),
     );
+    const registry = new StoreRegistry({ working: objectRestored.store });
+    const reconnected = await withTransaction(restored.adminPool, (tx) =>
+      readVersionBytes(tx, registry, versionId),
+    );
+    expect(reconnected?.bytes).toEqual(bytes);
+    expect(reconnected?.servedFrom.store_version).toBe(stored.versionId);
+    const version = {
+      sha256: contentDigest,
+      sizeBytes: bytes.length,
+      storageUri: key,
+      storageVersion: stored.versionId ?? null,
+    };
+    await expect(verifyRecordedVersion(objectRestored.store, version)).resolves.toEqual({
+      ok: true,
+    });
+    await expect(
+      verifyRecordedVersion(objectRestored.store, { ...version, sha256: sha('wrong bytes') }),
+    ).resolves.toMatchObject({ ok: false, failure: 'digest_mismatch' });
+    // A new value at the same key cannot replace the immutable referenced version.
+    await objectRestored.store.put(key, Buffer.from('replacement'), 'application/octet-stream');
+    await expect(verifyRecordedVersion(objectRestored.store, version)).resolves.toEqual({
+      ok: true,
+    });
+    await storage.client(
+      objectRestored.id,
+      'rm',
+      '--version-id',
+      stored.versionId ?? '',
+      `fixture/preserved/${key}`,
+    );
+    await expect(verifyRecordedVersion(objectRestored.store, version)).resolves.toMatchObject({
+      ok: false,
+      failure: 'not_uploaded',
+    });
+    const missing = await withTransaction(restored.adminPool, (tx) =>
+      readVersionBytes(tx, registry, versionId),
+    );
+    expect(missing).toBeUndefined();
+
     const second = await withTransaction(restored.adminPool, (tx) => createExport(tx));
     expect(second.manifest.database_snapshot_sha256).toBe(first.manifest.database_snapshot_sha256);
     for (const file of second.files) {
@@ -145,7 +242,14 @@ it('preserves Warrant revisions, standing and action history after source shutdo
       outcome: 'satisfied',
     });
   } finally {
-    if (!sourceStopped) await source.stop();
-    await restored?.stop();
+    try {
+      if (!sourceStopped) await source.stop();
+    } finally {
+      try {
+        await restored?.stop();
+      } finally {
+        await storage.stop();
+      }
+    }
   }
-}, 180_000);
+}, 240_000);
