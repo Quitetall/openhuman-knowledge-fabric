@@ -11,6 +11,7 @@ import { expect, it, vi } from 'vitest';
 import {
   PRESERVATION_IMPORT_TARGETS,
   readWarrantRuntimeEvidence,
+  readArchiveRuntimeBinding,
   recomputeDatabaseSnapshotDigest,
   signExportPackage,
   type ExportManifest,
@@ -219,4 +220,155 @@ it('reports missing receipt evidence independently from stage mapping and keeps 
   expect(result.receipts[0]?.['terminal_status']).toBe('failed');
   expect(result.dispatches).toHaveLength(2);
   expect(readWarrantRuntimeEvidence(fixture(), 'w1', trust).dispatchesWithoutReceipts).toEqual([]);
+});
+
+it('reconciles exact source revisions and exposes same-digest provider revisions without sources', () => {
+  const contractDigest = 'c'.repeat(64);
+  const basis = {
+    schema: 'oh.war/runtime-archive-basis/v1-draft.1',
+    archive_digest: `sha256:${'e'.repeat(64)}`,
+    subject: 'war://w1',
+    warrant_id: 'w1',
+    current_contract: { revision: 1, digest: contractDigest },
+    retained_contracts: [{ revision: 3, digest: 'd'.repeat(64), source: 'history' }],
+    authority_activated: false,
+    qualified: false,
+  };
+  const pkg = fixture((s) => {
+    s['warrant-contract-revisions'] = [1, 2].map((revision_no) => ({
+      warrant_id: 'w1',
+      revision_no,
+      contract_digest: contractDigest,
+    }));
+  });
+  const result = readArchiveRuntimeBinding(pkg, basis, trust);
+  expect(result.currentContractMatched).toBe(true);
+  expect(result.matchedContracts).toEqual([basis.current_contract]);
+  expect(result.providerContractsWithoutSource).toEqual([{ revision: 2, digest: contractDigest }]);
+  expect(result.sourceContractsWithoutProvider).toEqual([{ revision: 3, digest: 'd'.repeat(64) }]);
+  expect(result.sourceBasisAuthenticated).toBe(false);
+  expect(result.qualified).toBe(false);
+  expect(result.evidence.receipts[0]?.['terminal_status']).toBe('failed');
+  expect(() => readArchiveRuntimeBinding(pkg, basis, new Map())).toThrow(/untrusted_key/);
+  expect(() => readArchiveRuntimeBinding(pkg, { ...basis, subject: 'war://other' }, trust)).toThrow(
+    /Invalid archive runtime basis/,
+  );
+  expect(() =>
+    readArchiveRuntimeBinding(
+      pkg,
+      {
+        ...basis,
+        current_contract: { revision: 1, digest: 'f'.repeat(64) },
+      },
+      trust,
+    ),
+  ).toThrow(/differs from archive revision 1/);
+  expect(() =>
+    readArchiveRuntimeBinding(
+      pkg,
+      {
+        ...basis,
+        retained_contracts: [{ revision: 1, digest: 'f'.repeat(64) }],
+      },
+      trust,
+    ),
+  ).toThrow(/Conflicting archive contract/);
+  expect(() =>
+    readArchiveRuntimeBinding(
+      pkg,
+      {
+        ...basis,
+        current_contract: { revision: 0, digest: contractDigest },
+      },
+      trust,
+    ),
+  ).toThrow(/Invalid archive contract/);
+  const missing = readArchiveRuntimeBinding(
+    pkg,
+    {
+      ...basis,
+      current_contract: { revision: 4, digest: contractDigest },
+      retained_contracts: [],
+    },
+    trust,
+  );
+  expect(missing.currentContractMatched).toBe(false);
+  expect(missing.matchedContracts).toEqual([]);
+});
+
+it('reads bounded archive query basis through CLI and refuses mismatched subjects and unsafe files', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'kf-archive-binding-cli-'));
+  try {
+    const dir = join(root, 'export');
+    const trustDir = join(root, 'trust');
+    mkdirSync(dir);
+    mkdirSync(trustDir);
+    const contractDigest = 'c'.repeat(64);
+    writePackage(
+      dir,
+      fixture((s) => {
+        s['warrant-contract-revisions']![0]!['contract_digest'] = contractDigest;
+      }),
+    );
+    writeFileSync(
+      join(trustDir, 'fixture.pub'),
+      keys.publicKey.export({ type: 'spki', format: 'pem' }),
+    );
+    const basis = {
+      schema: 'oh.war/runtime-archive-basis/v1-draft.1',
+      archive_digest: `sha256:${'e'.repeat(64)}`,
+      subject: 'war://w1',
+      warrant_id: 'w1',
+      current_contract: { revision: 1, digest: contractDigest },
+      retained_contracts: [],
+      authority_activated: false,
+      qualified: false,
+    };
+    const path = join(root, 'basis.json');
+    writeFileSync(path, JSON.stringify(basis));
+    const executable = fileURLToPath(new URL('../dist/cli.js', import.meta.url));
+    const args = [
+      'runtime-evidence',
+      dir,
+      '--trust-store',
+      trustDir,
+      '--warrant-id',
+      'w1',
+      '--archive-basis',
+    ];
+    const run = (file: string, extra: string[] = []) =>
+      spawnSync(process.execPath, [executable, ...args, file, ...extra], {
+        encoding: 'utf8',
+        timeout: 5000,
+        env: { ...process.env, DATABASE_URL: 'postgresql://invalid.invalid:1/no_database' },
+      });
+    const result = run(path);
+    expect(result.error).toBeUndefined();
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      currentContractMatched: true,
+      qualified: false,
+    });
+    const duplicate = run(path, ['--archive-basis', path]);
+    expect(duplicate.status).toBe(2);
+    expect(duplicate.stdout).toBe('');
+    writeFileSync(path, JSON.stringify({ ...basis, warrant_id: 'other' }));
+    const mismatch = run(path);
+    expect(mismatch.status).toBe(1);
+    expect(mismatch.stdout).toBe('');
+    expect(mismatch.stderr).toContain('does not match requested Warrant');
+    const link = join(root, 'basis-link.json');
+    symlinkSync(path, link);
+    expect(run(link).status).toBe(1);
+    if (process.platform !== 'win32') {
+      const fifo = join(root, 'basis.fifo');
+      expect(spawnSync('mkfifo', [fifo]).status).toBe(0);
+      const refused = run(fifo);
+      expect(refused.error).toBeUndefined();
+      expect(refused.status).toBe(1);
+      expect(refused.stderr).toContain('archive basis is not a regular file');
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
