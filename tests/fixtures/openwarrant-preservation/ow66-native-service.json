@@ -1,0 +1,168 @@
+{
+  "producer_commit": "948400ad",
+  "archive_sha256": "2e61aebc395a1a7f2c2cc7a9e4c3415946b6f4888a780e1a551801f1771ae5fa",
+  "canonical_ir": {
+    "api_version": "oh.war/v1",
+    "contract_coverage": {
+      "covered": [
+        "intent",
+        "scope",
+        "basis_requirements",
+        "assumptions",
+        "constraints",
+        "adr_references",
+        "milestones",
+        "stages"
+      ]
+    },
+    "contract_revision": 1,
+    "format_basis": {
+      "package_id": "openwarrant-schema-pack",
+      "profile_schema_id": "delivery",
+      "root_schema_id": "work_authorization_record",
+      "sas_digest": "sha256:742dfd066b8df579116ebbd36e19a4b57dc0849bf913c37b716e690e29069a8a",
+      "sas_revision": "0.1.0-draft.3",
+      "version": "0.2.0"
+    },
+    "identity": {
+      "assurance_level": "basic",
+      "local_alias": "OW-WAR-0066",
+      "profile": "delivery",
+      "title": "Run: the conformance battery as a service stage",
+      "uuid": "01a0935b-6870-73d1-bbbb-ca87591adbd4"
+    },
+    "integrity": {
+      "algorithm": "sha256",
+      "composition_revision_digest": "327e82ede0372477c445e23596a135647389903bb868af8df14a930d6346c1ec",
+      "workspace_basis_digest": "4c213d97cb140bd3e1b1ad53f5fd27fbd6828311cec16e4b81a545d88a6d69d4"
+    },
+    "kind": "work_authorization_record",
+    "relations": {},
+    "source_and_composition": {
+      "atoms": [
+        {
+          "atom_source_digest": "4876af6309843ee5ada0740b94e6c4a98d3012a20b1bf40482568f76112e62f0",
+          "jurisdiction": "authored",
+          "ordinal": 10,
+          "required": true,
+          "role": "intent",
+          "source": "atoms/10-intent.md"
+        },
+        {
+          "atom_source_digest": "566b882b393c44f25511ecd5b1f041d0d40682a9e0a14b895cbc19a1d38ee3fe",
+          "jurisdiction": "authored",
+          "ordinal": 20,
+          "required": true,
+          "role": "basis",
+          "source": "atoms/20-basis.md"
+        },
+        {
+          "atom_source_digest": "42b3cc3f52687dfdc73e535bafd6c01859585d5b503b361dbbd1c260fbf75b2b",
+          "jurisdiction": "authored",
+          "ordinal": 40,
+          "required": true,
+          "role": "work_order",
+          "source": "atoms/40-work-order.md"
+        },
+        {
+          "atom_source_digest": "90f34208e679d9db3e207bb5fc8e155120dffb4a1f8f2756ea91b2bf74e463e6",
+          "jurisdiction": "authored",
+          "ordinal": 45,
+          "required": true,
+          "role": "milestones",
+          "source": "atoms/45-milestones.yaml"
+        },
+        {
+          "atom_source_digest": "94192d03371a629ae1780794cb83973d62c41e14fe9dc55a0aa695f46c82c44a",
+          "jurisdiction": "authored",
+          "ordinal": 60,
+          "required": true,
+          "role": "assurance",
+          "source": "atoms/60-assurance.md"
+        }
+      ],
+      "manifest_digest": "0351b29c2f912a125b5d57543a45c3cfcf247abc10fefdd32bd6b510f3e56a1e",
+      "manifest_source": "docs/warrants/OW-WAR-0066/manifest.toml"
+    }
+  },
+  "dispatch": {
+    "api_version": "oh.war/stage-dispatch/v1",
+    "attempt_basis_digest": "d1d0cce43ebd24fee2be5f026124aec398d29ea1b9f0aeeae516f080eedda2d7",
+    "attempt_id": "01a0b5c4-746c-78b0-a988-1983ce6de417",
+    "attempt_kind": "initial",
+    "capability_authorization": {
+      "digest": "",
+      "policy_ref": "policy://none-declared"
+    },
+    "context_manifest_digest": "9c17928722912c2dca70c293460ce7ffae869b14eb565d17116b26b3765a0182",
+    "context_manifest_ref": "artifact://context-manifest/sha256:9c17928722912c2dca70c293460ce7ffae869b14eb565d17116b26b3765a0182",
+    "contract_digest": "69c2d3d8ccec7b93a7bf9f3cc5e25d5b9957db12ae5ac08febfca4e5fbbb6d74",
+    "contract_revision": 1,
+    "dispatch_digest": "a16851e04a58fce711176e11690782e87661e6a0e7daead2a59d633a75a3abcd",
+    "dispatch_id": "01a0b5c4-746c-78b0-a988-199999f9eb92",
+    "input_artifacts": [],
+    "instructions": [
+      "A submission requests `verify` on a pass and `block` on anything else.",
+      "Never write a submission by hand for a run that did not happen."
+    ],
+    "milestone_id": "M1",
+    "non_goals": [],
+    "objective": "Run ops.echo under the seam",
+    "obligation_refs": [
+      "OBL-001"
+    ],
+    "omitted_subgraphs": [],
+    "prior_failure_evidence_refs": [],
+    "required_outputs": [],
+    "resource_envelope": {
+      "cpu_cores": 0,
+      "gpu_count": 0,
+      "memory_bytes": 0,
+      "network_policy": "none",
+      "spend_limit_amount": "",
+      "spend_limit_currency": "",
+      "wall_time_seconds": 0
+    },
+    "stage_id": "STAGE-001",
+    "submission_schema_ref": "schema://oh.war/stage-submission/v1",
+    "tokens": {
+      "budget_tokens": 32000,
+      "estimated_tokens": 1330,
+      "method": "oh.war/token-estimate/bytes-div-4/v1"
+    },
+    "warrant_ref": "war://01a0935b-6870-73d1-bbbb-ca87591adbd4",
+    "workspace_basis_digest": "4c213d97cb140bd3e1b1ad53f5fd27fbd6828311cec16e4b81a545d88a6d69d4",
+    "workspace_basis_ref": "basis://docs/warrants/OW-WAR-0066/manifest.toml"
+  },
+  "receipt": {
+    "run_id": "GR-ops.echo@1.0.0",
+    "gate_definition_digest": "sha256:d7eb781c224f4b30ace789b660985a949c93c49c188baf06b7d612b193d35748",
+    "gate_binding_digest": "unbound:ops.echo@1.0.0",
+    "subject_digests": [
+      "dispatch:a16851e04a58fce711176e11690782e87661e6a0e7daead2a59d633a75a3abcd"
+    ],
+    "fixture_digests": [],
+    "runner": "war gate --run",
+    "runtime_environment": "linux x86_64 / rustc 1.97.1",
+    "arguments": [
+      "true"
+    ],
+    "working_directory": "/mnt/4tb/tmp/ow111-service-runtime-fixed",
+    "started_at": "2026-09-18T18:25:46Z",
+    "completed_at": "2026-09-18T18:25:46Z",
+    "exit_result": "pass",
+    "selected_test_count": 0,
+    "selected_test_manifest": [],
+    "raw_evidence_refs": [],
+    "stdout_ref": "docs/warrants/OW-WAR-0066/gate-runs/ops_echo_1_0_0.stdout.txt",
+    "stderr_ref": "docs/warrants/OW-WAR-0066/gate-runs/ops_echo_1_0_0.stderr.txt",
+    "resource_usage": "wall-clock only; 1 argv item(s)",
+    "verdict": "pass",
+    "receipt_digest": "sha256:aa18a0a1d347b927da2ba0d6a7f950bfb681863acbede3812a3a4c21bd1b491e"
+  },
+  "streams": {
+    "stdout_ref": "",
+    "stderr_ref": ""
+  },
+  "scope": "Actual true service gate in isolated OW clone; not feature correctness, production execution, or human authorization."
+}

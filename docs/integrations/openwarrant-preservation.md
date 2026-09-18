@@ -191,7 +191,10 @@ an authenticated provider snapshot. The CLI also requires the explicit Warrant
 ID to match the basis. It reads at most 1 MiB from a regular, non-symlink file;
 FIFO inputs are refused without blocking. No database or model call is made.
 
-Matching requires both revision number and contract digest. A digest mismatch
+Matching requires both OpenWarrant source contract revision and contract digest.
+KF `revision_no` is a separate ledger counter: proposal and authorization can
+create two provider rows for one source contract. Source revision comes from the
+retained canonical IR, never from that provider counter. A digest mismatch
 for the same revision is refused. The result separately lists matched contracts,
 provider revisions without retained sources, and source revisions without
 provider records. Equal digests across different revisions do not establish a
@@ -205,7 +208,44 @@ missing receipts and unsuccessful attempts remain present in nested `evidence`.
 This comparison never activates authority, grants qualification, or establishes
 stage/runtime coverage.
 
-The corrected real database round-trip fixture matches source revision 1. Its
-provider-only revision 2 remains explicitly unmatched, despite having the same
-digest. This exposes the fixture's true historical limit instead of presenting
-it as a second reconstructed source contract.
+The corrected real database round-trip fixture has provider records 1 and 2 for
+source contract 1. Both match that retained source identity. An earlier adapter
+mistook provider record 2 for source contract 2 and reported a false history gap.
+The native-service round trip exposed that error. `providerContractBindings` now
+reports both counters explicitly; `providerContractsWithoutSourceIdentity` reports
+rows whose canonical IR cannot identify a supported source contract. No fallback
+to the ledger counter occurs. An actual distinct source revision still needs its
+own retained source identity.
+
+### Source stage membership
+
+When the producer basis includes `stage_inventory`, archive reconciliation also
+reports `sourceStageBindings`. A current-revision dispatch matches only when a
+current declaration contains its stage and its named milestone references that
+stage. The result retains the exact declaration path and source digest. A missing
+inventory, missing membership, or a historical dispatch without a graph bound to
+that contract revision stays unresolved. Duplicate matching declarations and
+malformed inventory envelopes are refused.
+
+This is membership comparison, not a stage execution verdict. It does not verify
+executor behavior, receipt semantics, all-stage coverage or graph authenticity.
+The existing externally authenticated provider bindings are checked first; source
+reconstruction remains the OpenWarrant caller's responsibility. Historical graphs
+are never silently treated as current declarations.
+
+The retained OW75 source basis and real dispatch packet exercise matching contract,
+stage and milestone identities. Provider rows in that regression are synthetic;
+its missing receipt remains visible. This does not prove OW75 execution occurred.
+
+### Native service receipt round trip
+
+`warrant-native-runtime.test.ts` uses the actual OW66 service dispatch and sealed
+gate receipt produced in an isolated OpenWarrant clone. The command was `true`:
+it establishes the service execution seam, not feature correctness. Provider
+permissions and export signing keys are disposable test identities. The test
+stops the source database, reads the authenticated package, restores an empty
+provider, and checks identical runtime-receipt and dispatch exports plus identical
+database snapshot digest. Missing trust refuses import. Provider JSONB receipt text stays byte-identical across export, restore and
+re-export; its parsed value equals the original native receipt. This is separate from
+receipt authenticity, output-artifact restoration, stage coverage and production
+authorization. Original output bytes remain in the retained OpenWarrant archive.
