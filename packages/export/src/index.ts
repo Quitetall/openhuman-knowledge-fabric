@@ -42,3 +42,5 @@ export const PACKAGE = {
 
 export { readWarrantRuntimeEvidence } from './warrant-runtime-evidence.js';
 export type { WarrantRuntimeEvidence } from './warrant-runtime-evidence.js';
+
+export { readArchiveRuntimeBinding } from './archive-runtime-binding.js';

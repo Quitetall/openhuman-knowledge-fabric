@@ -13,6 +13,7 @@ export interface CliArguments {
   readonly stageDirectory: string | undefined;
   readonly allowUnsignedLegacyV1: boolean;
   readonly warrantId: string | undefined;
+  readonly archiveBasisFile: string | undefined;
   readonly dispatchFiles: readonly string[];
 }
 
@@ -24,7 +25,7 @@ export function usage(): string {
     '  kf-export verify <directory> --trust-store <public-key-directory>',
     '      [--allow-unsigned-legacy-v1]',
     '  kf-export runtime-evidence <directory> --trust-store <public-key-directory>',
-    '      --warrant-id <uuid> [--dispatch-file <packet.json> ...]',
+    '      --warrant-id <uuid> [--dispatch-file <packet.json> ...] [--archive-basis <basis.json>]',
     '  kf-export load <directory> --trust-store <public-key-directory>',
     '      [--allow-unsigned-legacy-v1]',
     '  kf-export sign-backup <directory> --signing-key <private.pem> --key-id <id>',
@@ -44,6 +45,7 @@ export function parseArguments(argv: readonly string[]): CliArguments {
   let stageDirectory: string | undefined;
   let allowUnsignedLegacyV1 = false;
   let warrantId: string | undefined;
+  let archiveBasisFile: string | undefined;
   const dispatchFiles: string[] = [];
 
   const valueAfter = (index: number, option: string): string => {
@@ -80,6 +82,10 @@ export function parseArguments(argv: readonly string[]): CliArguments {
       if (warrantId !== undefined) throw new Error('--warrant-id may appear only once');
       warrantId = valueAfter(index, argument);
       index += 1;
+    } else if (argument === '--archive-basis') {
+      if (archiveBasisFile !== undefined) throw new Error('--archive-basis may appear only once');
+      archiveBasisFile = valueAfter(index, argument);
+      index += 1;
     } else if (argument === '--dispatch-file') {
       dispatchFiles.push(valueAfter(index, argument));
       if (dispatchFiles.length > 256) throw new Error('at most 256 dispatch files are allowed');
@@ -96,12 +102,13 @@ export function parseArguments(argv: readonly string[]): CliArguments {
   }
   if (
     positional[0] !== 'runtime-evidence' &&
-    (warrantId !== undefined || dispatchFiles.length > 0)
+    (warrantId !== undefined || dispatchFiles.length > 0 || archiveBasisFile !== undefined)
   ) {
     throw new Error('runtime evidence options require runtime-evidence');
   }
   return {
     warrantId,
+    archiveBasisFile,
     dispatchFiles,
     verb: positional[0],
     dir: positional[1],

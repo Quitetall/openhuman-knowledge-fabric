@@ -181,3 +181,31 @@ This fixture still stores a second provider revision with the same source IR.
 That is provider history preservation, not proof that a second distinct local
 source revision or a real execution exists. Full archive/runtime reconciliation
 must preserve this distinction.
+
+### Reconcile archive source identities with provider runtime records
+
+`readArchiveRuntimeBinding(package, basis, trustedKeys, dispatchPackets?)` and
+`kf-export runtime-evidence ... --archive-basis basis.json` compare the exact
+`result` from OpenWarrant's experimental `war archive runtime-basis` command with
+an authenticated provider snapshot. The CLI also requires the explicit Warrant
+ID to match the basis. It reads at most 1 MiB from a regular, non-symlink file;
+FIFO inputs are refused without blocking. No database or model call is made.
+
+Matching requires both revision number and contract digest. A digest mismatch
+for the same revision is refused. The result separately lists matched contracts,
+provider revisions without retained sources, and source revisions without
+provider records. Equal digests across different revisions do not establish a
+match. Conflicting source identities for one revision are refused.
+
+The caller must obtain the basis by reconstructing the source archive. KF checks
+its shape and compares its claims; it does not authenticate the source archive.
+The result explicitly reports `sourceBasisAuthenticated: false`. Provider trust
+still comes from externally configured manifest keys. Missing dispatch packets,
+missing receipts and unsuccessful attempts remain present in nested `evidence`.
+This comparison never activates authority, grants qualification, or establishes
+stage/runtime coverage.
+
+The corrected real database round-trip fixture matches source revision 1. Its
+provider-only revision 2 remains explicitly unmatched, despite having the same
+digest. This exposes the fixture's true historical limit instead of presenting
+it as a second reconstructed source contract.
