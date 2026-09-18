@@ -61,7 +61,7 @@ it does not claim to implement the OpenWarrant parser.
 For cross-repository proof, choose a new output path and run:
 
 ```sh
-OW111_RESTORED_ARCHIVE=/absolute/new/restored.json pnpm exec vitest run tests/database/warrant-preservation.test.ts
+OW111_RESTORED_ARCHIVE=/absolute/new/restored.json pnpm exec vitest run tests/database/warrant-preservation.test.ts -t "preserves kf-source"
 ```
 
 The optional output contains only the bytes recovered through the SDK. It is
@@ -249,3 +249,23 @@ database snapshot digest. Missing trust refuses import. Provider JSONB receipt t
 re-export; its parsed value equals the original native receipt. This is separate from
 receipt authenticity, output-artifact restoration, stage coverage and production
 authorization. Original output bytes remain in the retained OpenWarrant archive.
+
+## Populated local service archive
+
+The same PostgreSQL and MinIO restore test now runs against a second producer
+fixture, `local-runtime`. This archive contains two actual local service attempts,
+including their dispatches, submissions, run records, receipts and stdout/stderr.
+OpenWarrant producer b223fc24 reported runtime retention, then its temporary source
+repository was removed before local import and byte-identical re-export.
+
+The KF test restores that populated archive after provider source shutdown. The
+recovered object was then imported and re-exported by OpenWarrant, with SHA-256
+`99161d9b3d3131f3ca51e2028615b5929270377436f08bee7e5a2c1b67bc54fb` unchanged.
+This establishes archive transport through KF. The provider action rows created
+by this test remain synthetic fixture records; it does not ingest the archive's
+native attempts as provider execution or grant qualification. Native receipt row
+transport is exercised separately by `warrant-native-runtime.test.ts`.
+
+When retaining optional outputs, select exactly one fixture with
+`-t "preserves local-runtime"` or `-t "preserves kf-source"`. Each output path must
+be new; running both fixtures against one exclusive output path will refuse.

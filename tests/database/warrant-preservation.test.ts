@@ -19,7 +19,7 @@ import { PreservationMinio } from './preservation-minio.js';
 
 // Shared scope: OpenWarrant OW-WAR-0111. These are disposable fixture identities,
 // never signatures or assurance claims over an actual project Warrant.
-it('preserves Warrant revisions, standing and action history after source shutdown', async () => {
+async function preservesArchive(fixture: string) {
   const source = await startHarness();
   const storage = new PreservationMinio();
   let sourceStopped = false;
@@ -30,7 +30,7 @@ it('preserves Warrant revisions, standing and action history after source shutdo
     const dispatch = createFabricDispatcher(source.pool);
     const archiveBytes = await readFile(
       new URL(
-        '../fixtures/openwarrant-preservation/kf-source-complete-archive.json',
+        `../fixtures/openwarrant-preservation/${fixture}-complete-archive.json`,
         import.meta.url,
       ),
     );
@@ -44,7 +44,7 @@ it('preserves Warrant revisions, standing and action history after source shutdo
     } = JSON.parse(
       await readFile(
         new URL(
-          '../fixtures/openwarrant-preservation/kf-source-complete-identity.json',
+          `../fixtures/openwarrant-preservation/${fixture}-complete-identity.json`,
           import.meta.url,
         ),
         'utf8',
@@ -75,7 +75,7 @@ it('preserves Warrant revisions, standing and action history after source shutdo
     } = JSON.parse(
       await readFile(
         new URL(
-          '../fixtures/openwarrant-preservation/kf-source-runtime-basis.json',
+          `../fixtures/openwarrant-preservation/${fixture}-runtime-basis.json`,
           import.meta.url,
         ),
         'utf8',
@@ -528,4 +528,10 @@ it('preserves Warrant revisions, standing and action history after source shutdo
       }
     }
   }
-}, 240_000);
+}
+
+it.each(['kf-source', 'local-runtime'])(
+  'preserves %s Warrant archive after source shutdown',
+  preservesArchive,
+  240_000,
+);
