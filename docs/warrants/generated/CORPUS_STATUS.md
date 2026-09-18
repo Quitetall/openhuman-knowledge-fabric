@@ -13,9 +13,9 @@ Source: every Warrant under the configured warrants path, its sidecar records, a
 
 ## Release
 
-- **SAS revision:** 0.1.0-draft.5
-- **digest:** `sha256:84d23d16f0a9cd1e880502a67812982d75053b7d7abd890d5908c65d7e282f0d`
-- Revision 0.1.0-draft.5 is ACCEPTED (§101.2) and normative. A Warrant compiles against the revision its authorization recorded (§14), so a later revision does not move an authorized contract: 1 against 0.1.0-draft.5.
+- **SAS revision:** 0.1.0-draft.6
+- **digest:** `sha256:1445c75ab04570358a43531627276d36d9d12265ca00941d1bdad2cefabc6dae`
+- Revision 0.1.0-draft.6 is ACCEPTED (§101.2) and normative. A Warrant compiles against the revision its authorization recorded (§14), so a later revision does not move an authorized contract: 1 against 0.1.0-draft.6.
 
 **Requirements (163 in §106)** — strictest rung first:
 

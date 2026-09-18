@@ -2,7 +2,7 @@ schema = "oh.war/sas-revision/v1"
 version = "0.1.0-draft.6"
 source = "docs/sas/KF_Software_Architecture_Specification.md"
 sha256 = "1445c75ab04570358a43531627276d36d9d12265ca00941d1bdad2cefabc6dae"
-state = "proposed"
+state = "accepted"
 predecessor = "0.1.0-draft.5"
 architecture_changing = true
 
@@ -170,3 +170,11 @@ KF-SAS-RQ-229 = "A projection labels an unverified member and never omits it sil
 KF-SAS-RQ-230 = "An unverified record is not citable as evidence"
 KF-SAS-RQ-231 = "A promotion act records whether the item was reviewed individually or in bulk"
 KF-SAS-RQ-232 = "Verification is recorded independently of lifecycle state, never inferred from it"
+
+[acceptance]
+accepted_by = "Brian Lam"
+actor_kind = "human"
+acting_role = "project_owner"
+meaning = "Accepted. Verification is orthogonal to lifecycle state: draft is the initial state of 8 of 24 machines, so it could never have carried this. A record may be active and unverified, or draft and verified."
+effective_time = "2026-09-18T17:02:45Z"
+adr_ref = "docs/decisions/0031-a-draft-is-a-record-that-says-so.md"
