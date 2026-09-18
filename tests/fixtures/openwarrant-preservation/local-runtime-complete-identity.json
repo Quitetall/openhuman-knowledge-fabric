@@ -1,0 +1,101 @@
+{
+  "producer_revision": "b223fc241c04eceffcec570acf6a13c6e99fd083",
+  "producer_binary_sha256": "e6c92c361d62ff9f544e9f8fecb4efa1d93d11174da67ca0c6cd8adbafbae5dc",
+  "archive_sha256": "99161d9b3d3131f3ca51e2028615b5929270377436f08bee7e5a2c1b67bc54fb",
+  "subject": "war://01a0b5e3-38a2-7110-b336-63ec6dcc1bd0",
+  "canonical_ir": {
+    "api_version": "oh.war/v1",
+    "contract_coverage": {
+      "covered": [
+        "intent",
+        "scope",
+        "basis_requirements",
+        "assumptions",
+        "constraints",
+        "adr_references",
+        "milestones",
+        "stages"
+      ]
+    },
+    "contract_revision": 1,
+    "format_basis": {
+      "package_id": "openwarrant-schema-pack",
+      "profile_schema_id": "delivery",
+      "root_schema_id": "work_authorization_record",
+      "version": "0.2.0"
+    },
+    "identity": {
+      "assurance_level": "basic",
+      "local_alias": "ROUND-WAR-0001",
+      "profile": "delivery",
+      "title": "Adopt OpenWarrant in Runtime roundtrip proof",
+      "uuid": "01a0b5e3-38a2-7110-b336-63ec6dcc1bd0"
+    },
+    "integrity": {
+      "algorithm": "sha256",
+      "composition_revision_digest": "d4404a5fa1e0016a2811939d98b2f067858de95d0cd7caf91196de0f3bd529d7",
+      "workspace_basis_digest": "40191284985bc0a10a65a3c0483ce1480d8ccb78cae869d60699187fb8fc4d4b"
+    },
+    "kind": "work_authorization_record",
+    "relations": {
+      "implements": [
+        {
+          "contribution": "complete",
+          "ref": "sas://ROUND-SAS-RQ-001"
+        }
+      ],
+      "roadmap": [
+        "roadmap://ROUND-PHASE-1/adopt"
+      ]
+    },
+    "source_and_composition": {
+      "atoms": [
+        {
+          "atom_source_digest": "13a6fe24cc7ddc7c6be8c694464bc4bbe2bc27b6ab92d34ae7af8254fe7d04d8",
+          "jurisdiction": "authored",
+          "ordinal": 10,
+          "required": true,
+          "role": "intent",
+          "source": "atoms/10-intent.md"
+        },
+        {
+          "atom_source_digest": "88a913440f806844ad94aec2d29fa588d331f934ac214d598100a156aa7a44ed",
+          "jurisdiction": "authored",
+          "ordinal": 20,
+          "required": true,
+          "role": "basis",
+          "source": "atoms/20-basis.md"
+        },
+        {
+          "atom_source_digest": "6c298eec2f0af9189f5ad08edda0085137a97823a6bbee3acd9b13d773b2e5b0",
+          "jurisdiction": "authored",
+          "ordinal": 40,
+          "required": true,
+          "role": "work_order",
+          "source": "atoms/40-work-order.md"
+        },
+        {
+          "atom_source_digest": "fbabffb8e3ee12ce2c9314b1b42c6937648c9c100dfa6288d476ffc0cbd99e70",
+          "jurisdiction": "authored",
+          "ordinal": 45,
+          "required": true,
+          "role": "milestones",
+          "source": "atoms/45-milestones.yaml"
+        },
+        {
+          "atom_source_digest": "5b34b2de4b8b3f8920262ea0216d6dff9947c33539b37872c0b015ff36ac229f",
+          "jurisdiction": "authored",
+          "ordinal": 60,
+          "required": true,
+          "role": "assurance",
+          "source": "atoms/60-assurance.md"
+        }
+      ],
+      "manifest_digest": "24a06a4343632147c2913bf4477066aff7d96848e8c6d6140770fae2966c018e",
+      "manifest_source": "docs/warrants/ROUND-WAR-0001/manifest.toml"
+    }
+  },
+  "source_removed": true,
+  "completeness_scope": "two local service attempts, selected source history; no qualification",
+  "complete": true
+}

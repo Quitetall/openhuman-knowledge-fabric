@@ -1,0 +1,156 @@
+{
+  "archive_sha256": "99161d9b3d3131f3ca51e2028615b5929270377436f08bee7e5a2c1b67bc54fb",
+  "basis": {
+    "schema": "oh.war/runtime-archive-basis/v1-draft.1",
+    "archive_digest": "sha256:482e58269cddb17f9e6d853f890632150dea36b6d89211d098483880a3f8de27",
+    "subject": "war://01a0b5e3-38a2-7110-b336-63ec6dcc1bd0",
+    "warrant_id": "01a0b5e3-38a2-7110-b336-63ec6dcc1bd0",
+    "current_contract": {
+      "revision": 1,
+      "digest": "e795b4953671582b2c296a78bc22db2478e57ee882a74874b0889280eb9fd510"
+    },
+    "retained_contracts": [],
+    "stage_inventory": {
+      "declarations": [
+        {
+          "source": "__ow_archive__/history/078c8023b8936a6c41cde5c70f18134d54e2d7c9/docs/warrants/ROUND-WAR-0001/atoms/45-milestones.yaml",
+          "source_digest": "sha256:fbabffb8e3ee12ce2c9314b1b42c6937648c9c100dfa6288d476ffc0cbd99e70",
+          "manifest_source": "__ow_archive__/history/078c8023b8936a6c41cde5c70f18134d54e2d7c9/docs/warrants/ROUND-WAR-0001/manifest.toml",
+          "graph": {
+            "milestones": [
+              {
+                "id": "M1",
+                "title": "The SAS is accepted and this Warrant is authorized",
+                "stage_refs": [
+                  "STAGE-001"
+                ],
+                "obligation_refs": [
+                  "OBL-001"
+                ]
+              },
+              {
+                "id": "M2",
+                "title": "Evidence, verification, resolution",
+                "depends_on": [
+                  "M1"
+                ],
+                "stage_refs": [
+                  "STAGE-002"
+                ],
+                "obligation_refs": [
+                  "OBL-002"
+                ]
+              }
+            ],
+            "stages": [
+              {
+                "id": "STAGE-001",
+                "title": "propose the SAS; emit the authorization request",
+                "executor_kind": "service",
+                "responsibility_tier": "T2",
+                "executor_ref": "gate://ops.echo@1.0.0",
+                "wall_time_seconds": 5
+              },
+              {
+                "id": "STAGE-002",
+                "title": "record evidence; request verification; request resolution",
+                "executor_kind": "service",
+                "responsibility_tier": "T2",
+                "executor_ref": "gate://ops.echo@1.0.0",
+                "wall_time_seconds": 5
+              }
+            ]
+          }
+        },
+        {
+          "source": "docs/warrants/ROUND-WAR-0001/atoms/45-milestones.yaml",
+          "source_digest": "sha256:fbabffb8e3ee12ce2c9314b1b42c6937648c9c100dfa6288d476ffc0cbd99e70",
+          "manifest_source": "docs/warrants/ROUND-WAR-0001/manifest.toml",
+          "graph": {
+            "milestones": [
+              {
+                "id": "M1",
+                "title": "The SAS is accepted and this Warrant is authorized",
+                "stage_refs": [
+                  "STAGE-001"
+                ],
+                "obligation_refs": [
+                  "OBL-001"
+                ]
+              },
+              {
+                "id": "M2",
+                "title": "Evidence, verification, resolution",
+                "depends_on": [
+                  "M1"
+                ],
+                "stage_refs": [
+                  "STAGE-002"
+                ],
+                "obligation_refs": [
+                  "OBL-002"
+                ]
+              }
+            ],
+            "stages": [
+              {
+                "id": "STAGE-001",
+                "title": "propose the SAS; emit the authorization request",
+                "executor_kind": "service",
+                "responsibility_tier": "T2",
+                "executor_ref": "gate://ops.echo@1.0.0",
+                "wall_time_seconds": 5
+              },
+              {
+                "id": "STAGE-002",
+                "title": "record evidence; request verification; request resolution",
+                "executor_kind": "service",
+                "responsibility_tier": "T2",
+                "executor_ref": "gate://ops.echo@1.0.0",
+                "wall_time_seconds": 5
+              }
+            ]
+          }
+        }
+      ],
+      "unresolved": [],
+      "history_retained": true,
+      "execution_coverage_established": false
+    },
+    "contract_history_coverage": {
+      "state": "retained",
+      "paths": [
+        "__ow_archive__/history.json",
+        "__ow_archive__/history/078c8023b8936a6c41cde5c70f18134d54e2d7c9/commit.txt",
+        "__ow_archive__/history/078c8023b8936a6c41cde5c70f18134d54e2d7c9/docs/warrants/ROUND-WAR-0001/atoms/10-intent.md",
+        "__ow_archive__/history/078c8023b8936a6c41cde5c70f18134d54e2d7c9/docs/warrants/ROUND-WAR-0001/atoms/20-basis.md",
+        "__ow_archive__/history/078c8023b8936a6c41cde5c70f18134d54e2d7c9/docs/warrants/ROUND-WAR-0001/atoms/40-work-order.md",
+        "__ow_archive__/history/078c8023b8936a6c41cde5c70f18134d54e2d7c9/docs/warrants/ROUND-WAR-0001/atoms/45-milestones.yaml",
+        "__ow_archive__/history/078c8023b8936a6c41cde5c70f18134d54e2d7c9/docs/warrants/ROUND-WAR-0001/atoms/60-assurance.md",
+        "__ow_archive__/history/078c8023b8936a6c41cde5c70f18134d54e2d7c9/docs/warrants/ROUND-WAR-0001/journal.jsonl",
+        "__ow_archive__/history/078c8023b8936a6c41cde5c70f18134d54e2d7c9/docs/warrants/ROUND-WAR-0001/manifest.toml",
+        "docs/warrants/ROUND-WAR-0001/atoms/10-intent.md",
+        "docs/warrants/ROUND-WAR-0001/atoms/20-basis.md",
+        "docs/warrants/ROUND-WAR-0001/atoms/40-work-order.md",
+        "docs/warrants/ROUND-WAR-0001/atoms/45-milestones.yaml",
+        "docs/warrants/ROUND-WAR-0001/atoms/60-assurance.md",
+        "docs/warrants/ROUND-WAR-0001/dispatches/01a0b5e3-38be-72f0-a7a9-e85261210afb.json",
+        "docs/warrants/ROUND-WAR-0001/dispatches/01a0b5e3-38d1-7211-ab36-5be6ebf86094.json",
+        "docs/warrants/ROUND-WAR-0001/gate-runs/01a0b5e3-38be-72f0-a7a9-e85261210afb/ops_echo_1_0_0.receipt.json",
+        "docs/warrants/ROUND-WAR-0001/gate-runs/01a0b5e3-38be-72f0-a7a9-e85261210afb/ops_echo_1_0_0.run.toml",
+        "docs/warrants/ROUND-WAR-0001/gate-runs/01a0b5e3-38be-72f0-a7a9-e85261210afb/ops_echo_1_0_0.stderr.txt",
+        "docs/warrants/ROUND-WAR-0001/gate-runs/01a0b5e3-38be-72f0-a7a9-e85261210afb/ops_echo_1_0_0.stdout.txt",
+        "docs/warrants/ROUND-WAR-0001/gate-runs/01a0b5e3-38d1-7211-ab36-5be6ebf86094/ops_echo_1_0_0.receipt.json",
+        "docs/warrants/ROUND-WAR-0001/gate-runs/01a0b5e3-38d1-7211-ab36-5be6ebf86094/ops_echo_1_0_0.run.toml",
+        "docs/warrants/ROUND-WAR-0001/gate-runs/01a0b5e3-38d1-7211-ab36-5be6ebf86094/ops_echo_1_0_0.stderr.txt",
+        "docs/warrants/ROUND-WAR-0001/gate-runs/01a0b5e3-38d1-7211-ab36-5be6ebf86094/ops_echo_1_0_0.stdout.txt",
+        "docs/warrants/ROUND-WAR-0001/journal.jsonl",
+        "docs/warrants/ROUND-WAR-0001/manifest.toml",
+        "docs/warrants/ROUND-WAR-0001/submissions/01a0b5e3-38be-72f0-a7a9-e85261210afb.json",
+        "docs/warrants/ROUND-WAR-0001/submissions/01a0b5e3-38d1-7211-ab36-5be6ebf86094.json"
+      ]
+    },
+    "authority_activated": false,
+    "qualified": false
+  }
+}
