@@ -148,3 +148,10 @@ The CLI test also launches the built `dist/cli.js` in a separate Node process
 with an unusable database URL and compares its canonical JSON with the SDK result.
 This proves offline command execution for the signed fixture; it does not assert
 production runtime qualification.
+
+Set `OW111_RUNTIME_PACKAGE` to a new directory when running the database
+preservation test to retain its signed export, public fixture key and Warrant ID.
+The directory is created exclusively with private permissions; no private key is
+written. This optional output does not skip normal restore assertions. It supports
+source-detached CLI/archive integration experiments. These are disposable fixture
+records and keys, never project authorization or assurance.

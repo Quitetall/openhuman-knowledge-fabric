@@ -1,5 +1,7 @@
 import { createHash, generateKeyPairSync, randomUUID } from 'node:crypto';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
+import { writePackage } from '../../packages/export/src/cli/package-io.js';
 import { expect, it } from 'vitest';
 import { readVersionBytes, StoreRegistry, verifyRecordedVersion } from '@kf/artifacts';
 import { withTransaction } from '@kf/database';
@@ -339,6 +341,24 @@ it('preserves Warrant revisions, standing and action history after source shutdo
     expect(() => readWarrantRuntimeEvidence(first, randomUUID(), trust)).toThrow(
       /matching Warrant/,
     );
+    const runtimePackagePath = process.env['OW111_RUNTIME_PACKAGE'];
+    if (runtimePackagePath !== undefined) {
+      await mkdir(runtimePackagePath, { mode: 0o700 });
+      const exportDirectory = join(runtimePackagePath, 'export');
+      const trustDirectory = join(runtimePackagePath, 'trust');
+      await mkdir(exportDirectory, { mode: 0o700 });
+      await mkdir(trustDirectory, { mode: 0o700 });
+      writePackage(exportDirectory, first);
+      await writeFile(
+        join(trustDirectory, `${keyId}.pub`),
+        keys.publicKey.export({ type: 'spki', format: 'pem' }),
+        { flag: 'wx', mode: 0o600 },
+      );
+      await writeFile(join(runtimePackagePath, 'warrant-id.txt'), `${superseded}\n`, {
+        flag: 'wx',
+        mode: 0o600,
+      });
+    }
     const runtimeEvidence = readWarrantRuntimeEvidence(first, superseded, trust);
     expect(runtimeEvidence.contracts).toHaveLength(2);
     expect(runtimeEvidence.dispatches).toHaveLength(1);
