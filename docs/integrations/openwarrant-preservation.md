@@ -160,3 +160,24 @@ The directory is created exclusively with private permissions; no private key is
 written. This optional output does not skip normal restore assertions. It supports
 source-detached CLI/archive integration experiments. These are disposable fixture
 records and keys, never project authorization or assurance.
+
+## Producer contract identity correction
+
+The original source-complete provider fixture supplied the IR composition digest
+as its contract digest. Those digests have different meanings in OpenWarrant.
+The old round trip proved that the supplied value survived storage; it did not
+prove a correct producer contract binding.
+
+The fixture now consumes `kf-source-runtime-basis.json`, produced by
+`war archive runtime-basis` from the exact retained source archive. Its sidecar
+records producer revision, binary digest and archive bytes. The test checks the
+archive domain digest and Warrant subject before using the recomputed contract
+digest for submit, authorize, artifact provenance and restored-row comparison.
+A red run reproduced the old composition-versus-contract mismatch after database
+restoration. Earlier retained observations remain historical; no signed source
+archive or authority record is rewritten by this correction.
+
+This fixture still stores a second provider revision with the same source IR.
+That is provider history preservation, not proof that a second distinct local
+source revision or a real execution exists. Full archive/runtime reconciliation
+must preserve this distinction.

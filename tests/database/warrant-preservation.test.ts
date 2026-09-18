@@ -5,6 +5,7 @@ import { writePackage } from '../../packages/export/src/cli/package-io.js';
 import { expect, it } from 'vitest';
 import { readVersionBytes, StoreRegistry, verifyRecordedVersion } from '@kf/artifacts';
 import { withTransaction } from '@kf/database';
+import { digest } from '@kf/canonicalization';
 import { createFabricDispatcher } from '@kf/orchestrator';
 import {
   createExport,
@@ -63,6 +64,38 @@ it('preserves Warrant revisions, standing and action history after source shutdo
     ).toBe(true);
 
     expect(identity.subject).toBe(`war://${identity.canonical_ir.identity.uuid}`);
+    const runtimeBasis: {
+      archive_sha256: string;
+      basis: {
+        schema: string;
+        archive_digest: string;
+        subject: string;
+        current_contract: { revision: number; digest: string };
+      };
+    } = JSON.parse(
+      await readFile(
+        new URL(
+          '../fixtures/openwarrant-preservation/kf-source-runtime-basis.json',
+          import.meta.url,
+        ),
+        'utf8',
+      ),
+    );
+    expect(runtimeBasis.archive_sha256).toBe(identity.archive_sha256);
+    expect(runtimeBasis.basis.schema).toBe('oh.war/runtime-archive-basis/v1-draft.1');
+    expect(runtimeBasis.basis.subject).toBe(identity.subject);
+    expect(runtimeBasis.basis.archive_digest).toBe(
+      'sha256:' +
+        digest({
+          digest_domain: 'oh.war/preservation-archive/v1-draft.1',
+          payload: sourceArchive,
+        }),
+    );
+    const sourceContractDigest = runtimeBasis.basis.current_contract.digest;
+    expect(sourceContractDigest).not.toBe(
+      identity.canonical_ir.integrity.composition_revision_digest,
+    );
+
     const sha = (value: string) => createHash('sha256').update(value).digest('hex');
     const act = async (
       actionType: string,
@@ -102,9 +135,7 @@ it('preserves Warrant revisions, standing and action history after source shutdo
     const resolve = async (id: string) => {
       await act('submit_warrant', [id], {
         contract_digest:
-          id === identity.canonical_ir.identity.uuid
-            ? identity.canonical_ir.integrity.composition_revision_digest
-            : sha(id),
+          id === identity.canonical_ir.identity.uuid ? sourceContractDigest : sha(id),
         compilation_basis:
           id === identity.canonical_ir.identity.uuid
             ? identity.canonical_ir.integrity.workspace_basis_digest
@@ -116,9 +147,7 @@ it('preserves Warrant revisions, standing and action history after source shutdo
       });
       await act('authorize_warrant_contract', [id], {
         contract_digest:
-          id === identity.canonical_ir.identity.uuid
-            ? identity.canonical_ir.integrity.composition_revision_digest
-            : sha(id),
+          id === identity.canonical_ir.identity.uuid ? sourceContractDigest : sha(id),
         authorization_meaning: 'fixture authorization only',
         policy_basis: 'disposable OW111 test',
       });
@@ -285,7 +314,7 @@ it('preserves Warrant revisions, standing and action history after source shutdo
       artifact_version_id: versionId,
       producer_ref: 'fixture://ow111',
       producing_attempt: 'preservation-1',
-      contract_digest: identity.canonical_ir.integrity.composition_revision_digest,
+      contract_digest: sourceContractDigest,
       input_digests: [contentDigest],
       tool_identity: 'OW111 real MinIO fixture',
       creation_method: 'generated',
@@ -419,9 +448,7 @@ it('preserves Warrant revisions, standing and action history after source shutdo
     expect(restoredSource).toHaveLength(2);
     for (const revision of restoredSource) {
       expect(revision.canonical_ir).toEqual(identity.canonical_ir);
-      expect(revision.contract_digest).toBe(
-        identity.canonical_ir.integrity.composition_revision_digest,
-      );
+      expect(revision.contract_digest).toBe(sourceContractDigest);
       expect(revision.compilation_basis).toBe(
         identity.canonical_ir.integrity.workspace_basis_digest,
       );
