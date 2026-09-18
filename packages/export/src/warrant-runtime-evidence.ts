@@ -1,3 +1,4 @@
+import { runtimeContractIdentity } from './runtime-contract-identity.js';
 import type { KeyObject } from 'node:crypto';
 import { digest } from '@kf/canonicalization';
 import { isRecord } from './internal/format.js';
@@ -122,14 +123,19 @@ export function readWarrantRuntimeEvidence(
       payload: { ...packet, dispatch_digest: '' },
     });
     const dispatch = dispatches.find((row) => row['dispatch_digest'] === packetDigest);
-    const contract = contracts.find((row) => row['revision_no'] === packet['contract_revision']);
+    const contract = contracts.find(
+      (row) => row['revision_no'] === dispatch?.['authorized_revision'],
+    );
+    const sourceContract =
+      contract === undefined ? undefined : runtimeContractIdentity(contract, warrantId);
     if (
       computed !== packetDigest ||
       mapped.has(packetDigest) ||
       dispatch === undefined ||
       contract === undefined ||
-      dispatch['authorized_revision'] !== packet['contract_revision'] ||
-      contract['contract_digest'] !== packet['contract_digest']
+      sourceContract === undefined ||
+      sourceContract.revision !== packet['contract_revision'] ||
+      sourceContract.digest !== packet['contract_digest']
     )
       throw new Error('Runtime stage packet digest or contract binding mismatch');
     mapped.add(packetDigest);

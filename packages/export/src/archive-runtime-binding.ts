@@ -1,3 +1,4 @@
+import { runtimeContractIdentity } from './runtime-contract-identity.js';
 import { bindArchiveStages } from './archive-stage-binding.js';
 import type { KeyObject } from 'node:crypto';
 import { isRecord } from './internal/format.js';
@@ -60,24 +61,48 @@ export function readArchiveRuntimeBinding(
     trustedManifestKeys,
     dispatchPackets,
   );
-  const providerContracts = evidence.contracts
-    .map((row) =>
-      contract({
-        revision: row['revision_no'],
-        digest: row['contract_digest'],
-      }),
-    )
-    .sort((a, b) => a.revision - b.revision);
-  const matchedContracts: Contract[] = [];
-  const providerContractsWithoutSource: Contract[] = [];
-  for (const item of providerContracts) {
+  const matched = new Map<number, string>();
+  const providerContractsWithoutSource: {
+    revision: number;
+    digest: string;
+    providerRevision: number;
+  }[] = [];
+  const providerContractsWithoutSourceIdentity: { providerRevision: number; reason: string }[] = [];
+  const providerContractBindings: {
+    providerRevision: number;
+    sourceRevision: number;
+    digest: string;
+    matched: boolean;
+  }[] = [];
+  const providerRevisions = new Set<number>();
+  for (const row of [...evidence.contracts].sort(
+    (a, b) => Number(a['revision_no']) - Number(b['revision_no']),
+  )) {
+    const providerRevision = Number(row['revision_no']);
+    const item = runtimeContractIdentity(row, basis['warrant_id']);
+    if (item === undefined) {
+      providerContractsWithoutSourceIdentity.push({
+        providerRevision,
+        reason: 'retained canonical IR has no supported source contract identity',
+      });
+      continue;
+    }
+    providerRevisions.add(item.revision);
     const expected = sourceContracts.get(item.revision);
-    if (expected === undefined) providerContractsWithoutSource.push(item);
+    if (expected === undefined) providerContractsWithoutSource.push({ ...item, providerRevision });
     else if (expected !== item.digest) {
       throw new Error(`Provider contract digest differs from archive revision ${item.revision}`);
-    } else matchedContracts.push(item);
+    } else matched.set(item.revision, item.digest);
+    providerContractBindings.push({
+      providerRevision,
+      sourceRevision: item.revision,
+      digest: item.digest,
+      matched: expected === item.digest,
+    });
   }
-  const providerRevisions = new Set(providerContracts.map((item) => item.revision));
+  const matchedContracts = [...matched]
+    .map(([revision, digest]) => ({ revision, digest }))
+    .sort((a, b) => a.revision - b.revision);
   return {
     schema: 'kf.archive-runtime-binding/v1-draft.1',
     archiveDigest: basis['archive_digest'],
@@ -90,6 +115,8 @@ export function readArchiveRuntimeBinding(
     currentContractMatched: matchedContracts.some((item) => item.revision === current.revision),
     matchedContracts,
     providerContractsWithoutSource,
+    providerContractsWithoutSourceIdentity,
+    providerContractBindings,
     sourceContractsWithoutProvider: [...sourceContracts]
       .filter(([revision]) => !providerRevisions.has(revision))
       .map(([revision, digest]) => ({ revision, digest }))

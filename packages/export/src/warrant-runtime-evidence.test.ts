@@ -25,7 +25,13 @@ const receiptDigest = 'b'.repeat(64);
 function fixture(change: (sections: Record<string, Record<string, unknown>[]>) => void = () => {}) {
   const sections: Record<string, Record<string, unknown>[]> = {
     warrants: [{ id: 'w1' }],
-    'warrant-contract-revisions': [{ warrant_id: 'w1', revision_no: 1 }],
+    'warrant-contract-revisions': [
+      {
+        warrant_id: 'w1',
+        revision_no: 1,
+        canonical_ir: { api_version: 'oh.war/v1', identity: { uuid: 'w1' }, contract_revision: 1 },
+      },
+    ],
     'warrant-dispatches': [
       { warrant_id: 'w1', dispatch_digest: dispatchDigest, authorized_revision: 1 },
     ],
@@ -115,14 +121,19 @@ it('binds a real OpenWarrant dispatch packet and exposes missing mappings', () =
     sections['warrant-contract-revisions'] = [
       {
         warrant_id: warrantId,
-        revision_no: packet['contract_revision'],
+        revision_no: 2,
+        canonical_ir: {
+          api_version: 'oh.war/v1',
+          identity: { uuid: warrantId },
+          contract_revision: packet['contract_revision'],
+        },
         contract_digest: packet['contract_digest'],
       },
     ];
     sections['warrant-dispatches'] = [
       {
         warrant_id: warrantId,
-        authorized_revision: packet['contract_revision'],
+        authorized_revision: 2,
         dispatch_digest: packet['dispatch_digest'],
       },
     ];
@@ -259,12 +270,19 @@ it('reconciles exact source revisions and exposes same-digest provider revisions
       warrant_id: 'w1',
       revision_no,
       contract_digest: contractDigest,
+      canonical_ir: {
+        api_version: 'oh.war/v1',
+        identity: { uuid: 'w1' },
+        contract_revision: revision_no,
+      },
     }));
   });
   const result = readArchiveRuntimeBinding(pkg, basis, trust);
   expect(result.currentContractMatched).toBe(true);
   expect(result.matchedContracts).toEqual([basis.current_contract]);
-  expect(result.providerContractsWithoutSource).toEqual([{ revision: 2, digest: contractDigest }]);
+  expect(result.providerContractsWithoutSource).toEqual([
+    { revision: 2, digest: contractDigest, providerRevision: 2 },
+  ]);
   expect(result.sourceContractsWithoutProvider).toEqual([{ revision: 3, digest: 'd'.repeat(64) }]);
   expect(result.sourceBasisAuthenticated).toBe(false);
   expect(result.qualified).toBe(false);
