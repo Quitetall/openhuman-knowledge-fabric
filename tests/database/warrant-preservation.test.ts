@@ -1,4 +1,5 @@
 import { createHash, generateKeyPairSync, randomUUID } from 'node:crypto';
+import { readFile, writeFile } from 'node:fs/promises';
 import { expect, it } from 'vitest';
 import { readVersionBytes, StoreRegistry, verifyRecordedVersion } from '@kf/artifacts';
 import { withTransaction } from '@kf/database';
@@ -18,6 +19,24 @@ it('preserves Warrant revisions, standing and action history after source shutdo
     restored = await startHarness();
     const fixtures = await seedFixtures(source.adminPool);
     const dispatch = createFabricDispatcher(source.pool);
+    const archiveBytes = await readFile(
+      new URL('../fixtures/openwarrant-preservation/kf-source-archive.json', import.meta.url),
+    );
+    const identity: {
+      archive_sha256: string;
+      subject: string;
+      canonical_ir: {
+        identity: { uuid: string; local_alias: string };
+        integrity: { composition_revision_digest: string; workspace_basis_digest: string };
+      } & NonNullable<Parameters<typeof dispatch>[0]['payload']>;
+    } = JSON.parse(
+      await readFile(
+        new URL('../fixtures/openwarrant-preservation/kf-source-identity.json', import.meta.url),
+        'utf8',
+      ),
+    );
+    expect(createHash('sha256').update(archiveBytes).digest('hex')).toBe(identity.archive_sha256);
+    expect(identity.subject).toBe(`war://${identity.canonical_ir.identity.uuid}`);
     const sha = (value: string) => createHash('sha256').update(value).digest('hex');
     const act = async (
       actionType: string,
@@ -38,9 +57,11 @@ it('preserves Warrant revisions, standing and action history after source shutdo
       expect(result.status).toBe('applied');
       return result;
     };
-    const draft = async (alias: string) => {
+    const draft = async (alias: string, sourceUuid?: string) => {
       const { id } = await withTransaction(source.adminPool, (tx) =>
-        tx.one<{ id: string }>('select uuidv7()::text as id'),
+        tx.one<{ id: string }>('select coalesce($1::uuid, uuidv7())::text as id', [
+          sourceUuid ?? null,
+        ]),
       );
       await act('create_warrant_draft', [], {
         warrant_uuid: id,
@@ -54,12 +75,24 @@ it('preserves Warrant revisions, standing and action history after source shutdo
     };
     const resolve = async (id: string) => {
       await act('submit_warrant', [id], {
-        contract_digest: sha(id),
-        compilation_basis: sha(`basis-${id}`),
-        canonical_ir: { schema: 'oh.war/ir/v1', intent: { problem: id } },
+        contract_digest:
+          id === identity.canonical_ir.identity.uuid
+            ? identity.canonical_ir.integrity.composition_revision_digest
+            : sha(id),
+        compilation_basis:
+          id === identity.canonical_ir.identity.uuid
+            ? identity.canonical_ir.integrity.workspace_basis_digest
+            : sha(`basis-${id}`),
+        canonical_ir:
+          id === identity.canonical_ir.identity.uuid
+            ? identity.canonical_ir
+            : { schema: 'oh.war/ir/v1', intent: { problem: id } },
       });
       await act('authorize_warrant_contract', [id], {
-        contract_digest: sha(id),
+        contract_digest:
+          id === identity.canonical_ir.identity.uuid
+            ? identity.canonical_ir.integrity.composition_revision_digest
+            : sha(id),
         authorization_meaning: 'fixture authorization only',
         policy_basis: 'disposable OW111 test',
       });
@@ -82,7 +115,10 @@ it('preserves Warrant revisions, standing and action history after source shutdo
       });
       await act('resolve_warrant', [id], { outcome: 'satisfied' });
     };
-    const superseded = await draft('OW-WAR-9901');
+    const superseded = await draft(
+      identity.canonical_ir.identity.local_alias,
+      identity.canonical_ir.identity.uuid,
+    );
     const successor = await draft('OW-WAR-9902');
     const disputed = await draft('OW-WAR-9903');
     const annulled = await draft('OW-WAR-9904');
@@ -93,7 +129,7 @@ it('preserves Warrant revisions, standing and action history after source shutdo
     await act('annul_warrant_resolution', [annulled], { annulment_basis: 'fixture withdrawal' });
 
     const objectSource = await storage.start();
-    const bytes = Buffer.from([0, 255, 13, 10, 65, 66, 67, 0]);
+    const bytes = archiveBytes;
     const artifactId = await createObject(source.adminPool, fixtures, {
       type: 'artifact',
       domain: 'content',
@@ -130,12 +166,12 @@ it('preserves Warrant revisions, standing and action history after source shutdo
         ],
       );
     });
-    await act('register_warrant_artifact', [successor], {
+    await act('register_warrant_artifact', [superseded], {
       artifact_ref: artifactId,
       artifact_version_id: versionId,
       producer_ref: 'fixture://ow111',
       producing_attempt: 'preservation-1',
-      contract_digest: sha(successor),
+      contract_digest: identity.canonical_ir.integrity.composition_revision_digest,
       input_digests: [contentDigest],
       tool_identity: 'OW111 real MinIO fixture',
       creation_method: 'generated',
@@ -177,6 +213,29 @@ it('preserves Warrant revisions, standing and action history after source shutdo
     );
     expect(reconnected?.bytes).toEqual(bytes);
     expect(reconnected?.servedFrom.store_version).toBe(stored.versionId);
+    // Optional durable output lets the producer reconstruct IR from the recovered object.
+    // This does not skip or weaken the ordinary CI assertions.
+    const restoredArchivePath = process.env['OW111_RESTORED_ARCHIVE'];
+    if (restoredArchivePath !== undefined) {
+      if (reconnected === undefined) throw new Error('no restored source archive');
+      await writeFile(restoredArchivePath, reconnected.bytes, { flag: 'wx', mode: 0o600 });
+    }
+    const restoredSource = await withTransaction(restored.adminPool, (tx) =>
+      tx.query<{ canonical_ir: unknown; contract_digest: string; compilation_basis: string }>(
+        'select canonical_ir, contract_digest, compilation_basis from work.warrant_contract_revision where warrant_id = $1 order by revision_no',
+        [superseded],
+      ),
+    );
+    expect(restoredSource).toHaveLength(2);
+    for (const revision of restoredSource) {
+      expect(revision.canonical_ir).toEqual(identity.canonical_ir);
+      expect(revision.contract_digest).toBe(
+        identity.canonical_ir.integrity.composition_revision_digest,
+      );
+      expect(revision.compilation_basis).toBe(
+        identity.canonical_ir.integrity.workspace_basis_digest,
+      );
+    }
     const version = {
       sha256: contentDigest,
       sizeBytes: bytes.length,

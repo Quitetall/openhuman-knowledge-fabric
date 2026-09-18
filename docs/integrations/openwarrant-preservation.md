@@ -25,7 +25,7 @@ pnpm exec tsc -p tsconfig.test.json
 pnpm exec eslint tests/database/warrant-preservation.test.ts
 ```
 
-The same test stores binary evidence in a real, versioned MinIO service and links
+The same test stores source-archive bytes in a real, versioned MinIO service and links
 its immutable content version to a Warrant artifact through the public dispatcher.
 It stops the object store, copies its data into a separate Docker volume, removes
 the source container and starts a new service from that retained copy. The shipped
@@ -36,8 +36,42 @@ and no served bytes. The fixture uses pinned images matching Compose and cleans
 up only the containers, volumes and backup directory it created.
 
 This proves the stated provider database and local MinIO recovery scenario. It
-does not yet reconstruct OpenWarrant IR from original source atoms, cover every
-Warrant record family, or complete OW-WAR-0111. Provider database
-preservation and the experimental OpenWarrant byte archive remain distinct
-formats. Complete qualification also requires the combined OpenWarrant source reconstruction
-and full required-category inventory; this fixture alone is not that qualification.
+does not cover every Warrant record family or complete OW-WAR-0111. Provider
+database preservation and the experimental OpenWarrant byte archive remain
+distinct formats. The combined reconstruction observation below adds producer
+validation; full required-category inventory remains incomplete.
+
+## Producer source reconstruction
+
+The opaque object is now an actual experimental OpenWarrant source archive,
+created by `war init --program` and `war archive export` in a disposable directory.
+That source directory was removed. Byte-identical fixtures come from OpenWarrant
+revision `f51b016434c7baeb822dd3557fe6f9fd81fdfca7`, under
+`conformance/fixtures/preservation/kf-source-{archive,identity}.json`.
+The identity sidecar records archive digest, exact IR, producer source revision
+and producer binary digest. The archive is excluded from formatting because its
+canonical bytes are part of its contract.
+
+The database fixture uses the source Warrant UUID, canonical IR, contract digest
+and compilation-basis digest. It checks both retained contract revisions against
+the producer input after restore. KF treats the archive as opaque artifact bytes;
+it does not claim to implement the OpenWarrant parser.
+
+For cross-repository proof, choose a new output path and run:
+
+```sh
+OW111_RESTORED_ARCHIVE=/absolute/new/restored.json pnpm exec vitest run tests/database/warrant-preservation.test.ts
+```
+
+The optional output contains only the bytes recovered through the SDK. It is
+created exclusively; an existing path refuses overwrite. All CI assertions still
+run without this output setting. From an empty directory, run the producer's
+`war archive inspect /absolute/new/restored.json --json`. Require exit zero,
+`source_reconstructed: true` and `authority_activated: false`; also compare the
+restored file's SHA-256 with the fixture sidecar. This inspection reconstructs
+IR from retained source atoms and compares it with the archived IR.
+
+The combined local run passed on 2026-09-18. Evidence lives in the shared OW111
+implementation directory. This establishes the stated cross-system fixture;
+complete category assembly, stable format adoption and independent qualification
+remain open.
