@@ -105,7 +105,12 @@ The result includes manifest and database snapshot digests. Retain the original
 signed package and historical trust keys alongside this projection. All row
 columns survive; PostgreSQL JSONB preservation wrappers remain exact text, so the
 reader does not round large JSON numbers or reinterpret native runtime bodies.
-Failed and historical attempts are preserved. Nothing is activated or written.
+Failed and historical attempts are preserved. `dispatchesWithoutReceipts` lists
+provider dispatch digests without any retained receipt row, independently of stage
+packet mappings. An empty list means only that every selected dispatch has a
+receipt; it does not mean successful execution or complete stage coverage. A
+listed digest does not establish that execution never occurred. Nothing is
+activated or written.
 
 This reader does not establish runtime success, actor permissions, native receipt
 semantics, complete stage coverage or Warrant assurance. The current provider

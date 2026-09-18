@@ -190,3 +190,20 @@ it('exposes authenticated offline evidence through the CLI and refuses unsafe op
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+it('reports missing receipt evidence independently from stage mapping and keeps failed attempts', () => {
+  const missing = 'd'.repeat(64);
+  const pkg = fixture((sections) => {
+    sections['warrant-dispatches']!.push({
+      warrant_id: 'w1',
+      dispatch_digest: missing,
+      authorized_revision: 1,
+    });
+  });
+  const result = readWarrantRuntimeEvidence(pkg, 'w1', trust);
+  expect(result.dispatchesWithoutReceipts).toEqual([missing]);
+  expect(result.unmappedDispatchDigests).toEqual([dispatchDigest, missing]);
+  expect(result.receipts[0]?.['terminal_status']).toBe('failed');
+  expect(result.dispatches).toHaveLength(2);
+  expect(readWarrantRuntimeEvidence(fixture(), 'w1', trust).dispatchesWithoutReceipts).toEqual([]);
+});

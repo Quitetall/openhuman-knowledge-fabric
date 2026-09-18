@@ -15,6 +15,8 @@ export interface WarrantRuntimeEvidence {
   readonly receipts: readonly Row[];
   readonly stageBindings: readonly Row[];
   readonly unmappedDispatchDigests: readonly string[];
+  /** No retained receipt row; this does not establish whether execution occurred. */
+  readonly dispatchesWithoutReceipts: readonly string[];
 }
 
 /**
@@ -81,6 +83,7 @@ export function readWarrantRuntimeEvidence(
     dispatchDigests.add(value);
   }
   const receiptDigests = new Set<string>();
+  const receiptedDispatches = new Set<string>();
   for (const row of receipts) {
     const value = row['receipt_digest'];
     if (
@@ -93,6 +96,7 @@ export function readWarrantRuntimeEvidence(
       throw new Error('Runtime receipt has invalid dispatch binding or duplicate digest');
     }
     receiptDigests.add(value);
+    receiptedDispatches.add(row['dispatch_digest']);
   }
   const stageBindings: Row[] = [];
   const mapped = new Set<string>();
@@ -140,5 +144,8 @@ export function readWarrantRuntimeEvidence(
     receipts,
     stageBindings,
     unmappedDispatchDigests: [...dispatchDigests].filter((value) => !mapped.has(value)).sort(),
+    dispatchesWithoutReceipts: [...dispatchDigests]
+      .filter((value) => !receiptedDispatches.has(value))
+      .sort(),
   };
 }
