@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runCli } from './cli/run.js';
 import { writePackage } from './cli/package-io.js';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { generateKeyPairSync } from 'node:crypto';
 import { canonicalize, digestBytes } from '@kf/canonicalization';
 import { expect, it, vi } from 'vitest';
@@ -162,6 +164,16 @@ it('exposes authenticated offline evidence through the CLI and refuses unsafe op
       String(output.mock.calls[0]?.[0]),
     );
     expect(result.unmappedDispatchDigests).toEqual([dispatchDigest]);
+    const executable = fileURLToPath(new URL('../dist/cli.js', import.meta.url));
+    const actual = spawnSync(process.execPath, [executable, ...args], {
+      encoding: 'utf8',
+      timeout: 10_000,
+      env: { ...process.env, DATABASE_URL: 'postgresql://invalid.invalid:1/no_database' },
+    });
+    expect(actual.error).toBeUndefined();
+    expect(actual.status, actual.stderr).toBe(0);
+    expect(JSON.parse(actual.stdout)).toEqual(JSON.parse(String(output.mock.calls[0]?.[0])));
+
     await expect(runCli([...args, '--allow-unsigned-legacy-v1'])).rejects.toThrow(/accepts only/);
     expect(await runCli(['verify', dir, '--warrant-id', 'w1'])).toBe(2);
     const packet = join(root, 'packet.json');
