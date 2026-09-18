@@ -9,8 +9,10 @@ import { promisify } from 'node:util';
 import { S3ObjectStore } from '@kf/artifacts';
 
 const exec = promisify(execFile);
-const IMAGE = 'minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e';
-const CLIENT = 'minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727';
+const IMAGE =
+  'quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e';
+const CLIENT =
+  'quay.io/minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727';
 // Public fixture credentials, isolated from user services and used only in these containers.
 const ACCESS = 'ow111-fixture';
 const SECRET = 'ow111-disposable-not-a-secret';
