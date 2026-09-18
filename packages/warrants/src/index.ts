@@ -560,3 +560,6 @@ export const PACKAGE = {
   role: 'OpenWarrant SAS §67 controlled actions',
   owns: [],
 } as const;
+
+export type { Document as OpenWarrantSubmission } from './generated/openwarrant/stage-submission.js';
+export type { Document as OpenWarrantDispatch } from './generated/openwarrant/stage-dispatch.js';
