@@ -6,6 +6,7 @@ import { withTransaction } from '@kf/database';
 import { createFabricDispatcher } from '@kf/orchestrator';
 import {
   createExport,
+  readWarrantRuntimeEvidence,
   importExport,
   signExportPackage,
   PRESERVATION_IMPORT_TARGETS,
@@ -333,6 +334,24 @@ it('preserves Warrant revisions, standing and action history after source shutdo
     expect(first.manifest.counts['audit-events']).toBeGreaterThan(20);
     await source.stop();
     sourceStopped = true;
+    const trust = new Map([[keyId, keys.publicKey]]);
+    expect(() => readWarrantRuntimeEvidence(first, superseded, new Map())).toThrow(/untrusted_key/);
+    expect(() => readWarrantRuntimeEvidence(first, randomUUID(), trust)).toThrow(
+      /matching Warrant/,
+    );
+    const runtimeEvidence = readWarrantRuntimeEvidence(first, superseded, trust);
+    expect(runtimeEvidence.contracts).toHaveLength(2);
+    expect(runtimeEvidence.dispatches).toHaveLength(1);
+    expect(runtimeEvidence.receipts).toHaveLength(1);
+    expect(runtimeEvidence.receipts[0]?.['receipt']).toMatchObject({
+      $kf_type: 'postgres.jsonb',
+      text: expect.stringContaining('fixture://no-model-called'),
+    });
+    const missingRuntime = {
+      ...first,
+      files: first.files.filter((file) => file.path !== 'warrant-runtime-receipts.json'),
+    };
+    expect(() => readWarrantRuntimeEvidence(missingRuntime, superseded, trust)).toThrow(/missing/);
     const objectRestored = await storage.restore(objectSource.id);
 
     // Untrusted origins refuse before any Warrant becomes visible in the target.

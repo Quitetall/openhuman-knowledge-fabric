@@ -92,3 +92,26 @@ After all refusals the target must still contain no Warrants. The intact package
 then restores successfully, preserving all exact section contents. Judgment and
 gate records here are explicitly disposable fixture data, not independent verdicts
 or human acceptance of OW-WAR-0111.
+
+## Offline runtime evidence reader (OW-WAR-0111)
+
+`@kf/export` exposes `readWarrantRuntimeEvidence(package, warrantId, trustedKeys)`.
+It authenticates the complete v2 snapshot with the existing preservation verifier,
+then selects the exact Warrant, contract revisions, dispatches and runtime receipt
+rows. It checks unique revision/digest identities and receipt-to-dispatch-to-contract
+bindings. Missing trust, missing sections or broken bindings refuse.
+
+The result includes manifest and database snapshot digests. Retain the original
+signed package and historical trust keys alongside this projection. All row
+columns survive; PostgreSQL JSONB preservation wrappers remain exact text, so the
+reader does not round large JSON numbers or reinterpret native runtime bodies.
+Failed and historical attempts are preserved. Nothing is activated or written.
+
+This reader does not establish runtime success, actor permissions, native receipt
+semantics, complete stage coverage or Warrant assurance. The current provider
+dispatch table does not supply a general stage mapping. OpenWarrant archive
+integration must keep that unresolved binding visible rather than infer it.
+
+Validation uses the real PostgreSQL/MinIO preservation fixture after source
+shutdown, plus signed-package negative tests for broken contract/dispatch links
+and duplicate receipts. Shared scope: OpenWarrant OW-WAR-0111.
