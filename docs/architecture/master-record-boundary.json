@@ -142,7 +142,7 @@
     "work.work_order_scope",
     "work.work_package"
   ],
-  "derivedTables": ["search.document"],
+  "derivedTables": ["search.document", "retrieval.band_version"],
   "liveExternalTables": [],
   "liveExternalDecision": "No live external table is a permission member. quality federated rows and content.external_locator are materialized metadata only; external bytes must be imported into a governed artifact version before membership."
 }

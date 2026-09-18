@@ -15,6 +15,7 @@ export type {
   WebSession,
 } from './auth/types';
 export { loadWebIdentityConfig } from './auth/config';
+export { publicOrigin, publicUrl } from './auth/origin';
 export { makePkceTransaction, sanitizeReturnTo, validateContextSelection } from './auth/context';
 export {
   openOidcTransaction,

@@ -69,6 +69,9 @@ importers:
       '@kf/record-atoms':
         specifier: workspace:*
         version: link:packages/record-atoms
+      '@kf/retrieval':
+        specifier: workspace:*
+        version: link:packages/retrieval
       '@kf/search':
         specifier: workspace:*
         version: link:packages/search
@@ -599,6 +602,15 @@ importers:
       '@types/node':
         specifier: ^24.13.3
         version: 24.13.3
+
+  packages/retrieval:
+    dependencies:
+      '@kf/authorization':
+        specifier: workspace:*
+        version: link:../authorization
+      '@kf/database':
+        specifier: workspace:*
+        version: link:../database
 
   packages/search:
     dependencies:

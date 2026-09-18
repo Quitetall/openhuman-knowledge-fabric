@@ -13,15 +13,15 @@ Source: every Warrant under the configured warrants path, its sidecar records, a
 
 ## Release
 
-- **SAS revision:** 0.1.0-draft.3
-- **digest:** `sha256:ecb95a11e5c5e48316ef7bea1ebc7ccb0cea65fbed15547ddd993948c71b6c92`
-- Revision 0.1.0-draft.3 is ACCEPTED (§101.2) and normative. A Warrant compiles against the revision its authorization recorded (§14), so a later revision does not move an authorized contract: 1 against 0.1.0-draft.3.
+- **SAS revision:** 0.1.0-draft.5
+- **digest:** `sha256:84d23d16f0a9cd1e880502a67812982d75053b7d7abd890d5908c65d7e282f0d`
+- Revision 0.1.0-draft.5 is ACCEPTED (§101.2) and normative. A Warrant compiles against the revision its authorization recorded (§14), so a later revision does not move an authorized contract: 1 against 0.1.0-draft.5.
 
-**Requirements (140 in §106)** — strictest rung first:
+**Requirements (162 in §106)** — strictest rung first:
 
 | satisfied | in_progress | claimed | unaddressed | superseded |
 |---|---|---|---|---|
-| **0** | 0 | 12 | 128 | 0 |
+| **0** | 0 | 12 | 150 | 0 |
 
 ## Objectives (SAS §98 phases)
 
@@ -79,7 +79,7 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 
 ## Requirements (SAS §106, §34.3)
 
-**Unaddressed (128)** — no Warrant names these. Several may be built; the gap is bookkeeping, and it is listed rather than hidden:
+**Unaddressed (150)** — no Warrant names these. Several may be built; the gap is bookkeeping, and it is listed rather than hidden:
 
 - `KF-SAS-RQ-001` — One coherent typed graph over records whose authorities remain distinct
 - `KF-SAS-RQ-002` — Visibility, immutability and integrity enforced in the database
@@ -209,6 +209,28 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 - `KF-SAS-RQ-202` — An observation is recordable as a draft, attributed from the first moment; promotion is a separate act
 - `KF-SAS-RQ-203` — Every capture surface dispatches the same acts through the same seam
 - `KF-SAS-RQ-204` — An agent can act on behalf of a named human, attributed to them, with its participation recorded
+- `KF-SAS-RQ-210` — A kernel holds the rules, consumers project, callers reach records only through acts; no layer above the kernel can widen what a reader sees
+- `KF-SAS-RQ-211` — A layer above the kernel writes only as an attributed act, never to storage directly
+- `KF-SAS-RQ-212` — Each layer reads only what the layer below authorised, and is replaceable without changing the layers below
+- `KF-SAS-RQ-213` — The retrieval index holds a vector and an identifier, no authorization input, and every hit passes the same grant check as every other read
+- `KF-SAS-RQ-214` — Retrieval authorization is computed from live records and applied during scoring; no derived copy of an authorization input is stored
+- `KF-SAS-RQ-215` — A short mask excludes the unaddressed slots; a long mask is refused
+- `KF-SAS-RQ-216` — A retrieval engine that cannot serve refuses, and a result without semantic ranking says so in the withholding ledger
+- `KF-SAS-RQ-217` — Near misses are returned only on request, separately labelled, naming the scoring function
+- `KF-SAS-RQ-218` — Controlled content never leaves the host to be embedded; a non-local provider is refused, and the embedder binding is registered once
+- `KF-SAS-RQ-219` — The retrieval trace is derived and disposable; the kernel holds the record of what was disclosed as its digest
+- `KF-SAS-RQ-220` — A stored thing that is neither authoritative nor rebuildable is a transient observation with a stated expiry, excluded from the export, the boundary, checkpoints and long backups
+- `KF-SAS-RQ-221` — Recorded queries are transient observations; the durable demand aggregate names records and counts of distinct persons, never which persons
+- `KF-SAS-RQ-222` — What a query withheld is computed on demand at the asking person's ceiling and never persisted
+- `KF-SAS-RQ-223` — A band bitmap or derived scope tag lives only for the life of its process and never reaches durable storage
+- `KF-SAS-RQ-224` — Lexical and semantic rankings are composed rather than merged, the lexical one stays exhaustive, and each result names the ranking that produced it
+- `KF-SAS-RQ-225` — Text may transit to an on-host embedder and is never persisted there; a controlled record offered to a persisting path is refused
+- `KF-SAS-RQ-226` — A derived index never decides visibility from a denormalised copy; the decision is taken against the record in the same statement
+- `KF-SAS-RQ-227` — One gesture may dispatch many acts; at least one per item, never one covering several
+- `KF-SAS-RQ-228` — A draft is a record under Law 6, attributed from the first moment, exported marked unverified
+- `KF-SAS-RQ-229` — A projection labels an unverified member and never omits it silently
+- `KF-SAS-RQ-230` — An unverified record is not citable as evidence
+- `KF-SAS-RQ-231` — A promotion act records whether the item was reviewed individually or in bulk
 
 | requirement | status | would_satisfy | implementers |
 |---|---|---|---|
@@ -352,6 +374,28 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 | `KF-SAS-RQ-202` | unaddressed | 0 | — |
 | `KF-SAS-RQ-203` | unaddressed | 0 | — |
 | `KF-SAS-RQ-204` | unaddressed | 0 | — |
+| `KF-SAS-RQ-210` | unaddressed | 0 | — |
+| `KF-SAS-RQ-211` | unaddressed | 0 | — |
+| `KF-SAS-RQ-212` | unaddressed | 0 | — |
+| `KF-SAS-RQ-213` | unaddressed | 0 | — |
+| `KF-SAS-RQ-214` | unaddressed | 0 | — |
+| `KF-SAS-RQ-215` | unaddressed | 0 | — |
+| `KF-SAS-RQ-216` | unaddressed | 0 | — |
+| `KF-SAS-RQ-217` | unaddressed | 0 | — |
+| `KF-SAS-RQ-218` | unaddressed | 0 | — |
+| `KF-SAS-RQ-219` | unaddressed | 0 | — |
+| `KF-SAS-RQ-220` | unaddressed | 0 | — |
+| `KF-SAS-RQ-221` | unaddressed | 0 | — |
+| `KF-SAS-RQ-222` | unaddressed | 0 | — |
+| `KF-SAS-RQ-223` | unaddressed | 0 | — |
+| `KF-SAS-RQ-224` | unaddressed | 0 | — |
+| `KF-SAS-RQ-225` | unaddressed | 0 | — |
+| `KF-SAS-RQ-226` | unaddressed | 0 | — |
+| `KF-SAS-RQ-227` | unaddressed | 0 | — |
+| `KF-SAS-RQ-228` | unaddressed | 0 | — |
+| `KF-SAS-RQ-229` | unaddressed | 0 | — |
+| `KF-SAS-RQ-230` | unaddressed | 0 | — |
+| `KF-SAS-RQ-231` | unaddressed | 0 | — |
 
 ## Warrants (1) — invalid 0 · draft 1 · ready_to_resolve 0 · would_satisfy 0 · resolved **0**
 

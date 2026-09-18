@@ -475,6 +475,22 @@ describe('SAS §67 through typed actions', () => {
 
     await act('record_warrant_preflight', [id], preflight(9, 'ready'));
     await act('authorize_warrant_dispatch', [id], dispatch(9));
+    const beforeInvalidSubmission = await phaseAndVersion(id);
+    await expect(
+      act('register_warrant_submission', [id], {
+        ...submission('S-invalid'),
+        requested_next_action: 'ship',
+      }),
+    ).rejects.toMatchObject({ failure: 'precondition_failed' });
+    expect(await phaseAndVersion(id)).toEqual(beforeInvalidSubmission);
+    const invalidSubmissionCount = await withTransaction(harness.adminPool, async (tx) =>
+      tx.one<{ count: string }>(
+        `select count(*)::text as count from work.warrant_submission
+         where warrant_id = $1 and submission_ref = 'S-invalid'`,
+        [id],
+      ),
+    );
+    expect(invalidSubmissionCount.count).toBe('0');
     await act('register_warrant_submission', [id], submission('S-1'));
     expect((await phaseAndVersion(id)).phase).toBe('verifying');
     await act('resolve_warrant', [id], { outcome: 'satisfied' });

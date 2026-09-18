@@ -53,6 +53,9 @@
       "path": "./packages/export"
     },
     {
+      "path": "./packages/retrieval"
+    },
+    {
       "path": "./packages/search"
     },
     {

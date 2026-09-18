@@ -1,4 +1,5 @@
 import { ApiError, parseDocumentProposalInput, postDocumentProposal } from '../../../../lib/api';
+import { publicOrigin } from '../../../../lib/auth';
 import { webCaller } from '../../../../lib/session';
 
 const MAX_PROPOSAL_BYTES = 64 * 1024;
@@ -36,7 +37,7 @@ export async function POST(
   context: { readonly params: Promise<{ id: string }> },
 ): Promise<Response> {
   const origin = request.headers.get('origin');
-  if (origin === null || origin !== new URL(request.url).origin) {
+  if (origin === null || origin !== publicOrigin(request)) {
     return Response.json({ error: 'cross_origin_proposal_refused' }, { status: 403 });
   }
   if (request.headers.get('content-type')?.split(';', 1)[0]?.trim() !== 'application/json') {

@@ -1,0 +1,6 @@
+{
+  "repository": "https://github.com/Quitetall/OpenWarrant",
+  "revision": "8d8b81ce6704eff8bbcc9e5dd36cd689021f64b7",
+  "path": "schemas/typescript",
+  "shared_contract": "docs/warrants/OW-WAR-0110/"
+}

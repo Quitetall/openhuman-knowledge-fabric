@@ -7,8 +7,8 @@
 | Document class | Software Architecture Specification |
 | Short name | KF SAS |
 | Status | Draft for acceptance |
-| Version | `0.1.0-draft.3` |
-| Date | 2026-09-04 |
+| Version | `0.1.0-draft.5` |
+| Date | 2026-09-14 |
 | Enterprise identifier | Unallocated — this file name is not an official Identifier Registry allocation (§94.5) |
 | Program name | **OpenHuman Knowledge Fabric** |
 | Record name | **Object** |
@@ -430,6 +430,46 @@ a caller-supplied action type outside the declared set.
 **KF-SAS-RQ-021.** Ingestion SHALL admit external content one named item at a time, and SHALL
 NOT provide recursive synchronisation of an external container.
 
+## 8B. The three layers
+
+Recorded here because a reader had to assemble this from ADRs 0002, 0010 and 0013 for the
+compiler, §8.10 and KF-SAS-RQ-190 for business logic, ADR 0023 for the scope boundary, and a
+README for the shape holding them together. Every piece was written down; the structure they form
+was not, anywhere, with an identifier. That is the failure a specification exists to prevent, and
+the predictable consequence arrived: the README's account outran this document on a structural
+claim, because an unstated architecture leaves the informal description as the only description
+and nothing gates it. [ADR 0030](../decisions/0030-three-layers.md).
+
+**Layer 1 — the kernel.** PostgreSQL holds the rules. Row-level security, triggers, check
+constraints and foreign keys decide what a caller may see and change; one dispatcher is the only
+way to write. A defect anywhere above cannot widen what a reader sees, which is KF-SAS-RQ-002
+stated as a property of the structure rather than of one mechanism.
+
+**Layer 2 — the compiler.** Reads the kernel and writes nothing to it. Produces the master
+record — exactly the set of records one person may see at one moment — and projections over it: a
+page for a person, a context bundle for an agent, a view of one object and its neighbours. The
+retrieval index sits inside this boundary (§64A), derived and never authoritative.
+
+**Layer 3 — workflows.** Business rules, integrations, and every surface through which a person
+or an agent reaches the Fabric: invoicing arithmetic, scheduling, CRM, the web application, the
+command line, chat, agents. All dispatch the same acts through the same seam and none touches
+storage directly. This is §8.10 stated positively rather than only as a non-goal.
+
+**The vocabulary above is explanatory; the requirements below are not.** A later revision may
+rewrite how these layers are described — the framing has already been refined more than once, and
+will be again. The invariants have not moved, and §97.2 makes an appended identifier permanent, so
+what is pinned is the part that should not move.
+
+**KF-SAS-RQ-210.** The system SHALL be organised as a kernel that holds the rules, consumers that
+read and project, and callers that reach records only through acts; and no layer above the kernel
+SHALL be able to widen what a reader may see.
+
+**KF-SAS-RQ-211.** A layer above the kernel SHALL write only as an attributed act through the
+dispatcher, and SHALL NOT reach storage directly.
+
+**KF-SAS-RQ-212.** Each layer SHALL read only what the layer below it authorised, and SHALL be
+replaceable without change to the layers below it.
+
 ## 9. Relationship to the specifications this implements
 
 ### 9.1 `OH-DOC-000002-1-R01` — the domain specification
@@ -680,7 +720,8 @@ Not every action is equal. Some change what the organization asserts: authorize,
 revoke, allocate, issue, publish, supersede, deprecate, annul, make-effective, resolve.
 
 An action type may declare `requires: act` in the ontology, carried into
-`registry.action_type.requires_capability`. 43 of the 145 action types declare it. For those,
+`registry.action_type.requires_capability`. 43 action types declare it, of the total in
+[`generated/measurements.md`](../../generated/measurements.md). For those,
 the dispatcher requires a live `act` grant reaching every target — or the organization — before
 the act is applied, through `org.act_grant_reaches`, over the same view the read side uses.
 A refusal is `act_not_granted`, surfaced as HTTP 403.
@@ -1085,7 +1126,7 @@ application role SHALL NOT hold it.
 ## 38. Row-level security
 
 RLS is **enabled** on 143 tables and **forced** — so that even a table's owner is subject to it —
-on 70 of them. Measured on 2026-09-04 against a fresh install of all 88 migrations on the dogfood
+on 70 of them. Measured on 2026-09-04 against a fresh install of every migration on the dogfood
 host, which is the first time this schema had ever been installed anywhere but a test container.
 
 **73 tables enable row-level security without forcing it**, and the static count of the
@@ -1135,7 +1176,7 @@ function. Invoker rights keep every referenced table enforcing its own RLS, so t
 plan-shape change and not a visibility change — which is the property that made it acceptable at
 all.
 
-A census found 4 of the 438 policies with three or more `EXISTS` clauses. Three siblings in
+A census found 4 policies with three or more `EXISTS` clauses. Three siblings in
 `ml.*` are unmeasured because their tables are empty, and that is recorded rather than assumed
 benign.
 
@@ -1304,6 +1345,56 @@ refuse a batch that does not state one.
 
 **KF-SAS-RQ-093.** The system SHALL support recording an external artifact by digest and locator
 without holding its bytes.
+
+## 48A. Drafts, and what unverified means
+
+[ADR 0031](../decisions/0031-a-draft-is-a-record-that-says-so.md). §48 admits one named item at a
+time and KF-SAS-RQ-021 forbids admitting a container. Neither says how many acts a single gesture
+may produce, and the distinction decides whether a low-friction capture path is possible at all.
+
+**One gesture may produce many acts. It may not produce zero, and it may not produce one act
+covering many items.** Zero acts is folder synchronisation — unattributable, and what RQ-021
+forbids. One act covering many items is "I admitted this folder", the same container decision
+reached by a different route. Many acts from one gesture is cheap capture with full attribution,
+which KF-SAS-RQ-202 already permits. The person clicks once; the ledger receives one entry per
+item, each naming them. A capture path built this way is a fast path **through** this machinery
+rather than around it.
+
+**A draft is a record.** Law 6 applies, it is attributed and audited from the moment it is written
+(RQ-202), and it appears in the preservation export marked as a draft. Excluding it would create a
+class of stored thing that can vanish, and §64B defines that category deliberately narrowly.
+
+**A draft is a member of a master record, and the projection says it is unverified.** Omission is
+not available: a master record that silently omits is the failure §63 was written against. What is
+required instead is that a reader can tell which members nobody has checked. An unlabelled draft
+inside "everything you may see" is worse than an absent one, because it borrows the credibility of
+the records around it.
+
+**A draft is not citable as evidence.** A Warrant tracing to an unverified document is a claim
+resting on something nobody has checked, which is the ticked box §97.3 exists to prevent. This is
+the single place a draft is not a record like any other, and it is where the distinction earns its
+keep.
+
+**A promotion act records its basis.** Reviewing five hundred documents one at a time and promoting
+five hundred in one gesture are different facts. A ledger that writes "verified" for both has made
+the word carry no information, and an auditor asking whether a person looked at a document then has
+no answer available. Recording the basis costs the fast path nothing and stops it misrepresenting
+itself.
+
+**KF-SAS-RQ-227.** A single caller gesture MAY dispatch many acts, SHALL dispatch at least one per
+item it admits, and SHALL NOT dispatch one act covering several items.
+
+**KF-SAS-RQ-228.** A draft SHALL be a record under Law 6, attributed from the moment it is written,
+and SHALL appear in the preservation export marked as unverified.
+
+**KF-SAS-RQ-229.** A projection that includes an unverified member SHALL label it as such, and
+SHALL NOT omit it silently.
+
+**KF-SAS-RQ-230.** An unverified record SHALL NOT be citable as evidence for a requirement or a
+Warrant.
+
+**KF-SAS-RQ-231.** An act that promotes a record from unverified SHALL record whether the item was
+reviewed individually or promoted in bulk.
 
 ## 49. Object storage and the working store
 
@@ -1593,8 +1684,252 @@ So `search.document` is a derived projection, filtered at read time by the same 
 filters everything else, and rebuildable in full from authoritative rows. It is deliberately
 outside the master-record boundary, and §62 states that exclusion explicitly.
 
+**Visibility defers to the record, and once did not.** `search.document` denormalises
+`organization_id` and `classification` so a hit can be filtered and rendered without joining back
+for every row. Until `20260914000100` the read policy also *decided* on that copy — and the copy is
+refreshed through the outbox, which states plainly that delivery "is allowed to be late". Late is
+exactly what broke it: between a reclassification committing and the drain running, the index
+evaluated the old level over `search.document.body`, which holds the assembled plaintext of every
+controlled document. Nothing bounded that window and nothing measured it.
+
+The repair is not a faster drain. A shorter window is still a window, and one measured in seconds
+is harder to reason about than one that cannot exist. The policy now asks whether the record itself
+is visible and lets `core.object`'s own row security answer, live, in the same statement. The
+denormalised columns stay and no longer decide, so a stale copy can only make the index
+under-inclusive — costing a caller a result until the next drain, and disclosing nothing. The
+failure direction is safe by construction rather than by punctuality.
+
+Found while specifying §64A, which avoids the same failure by holding no authorization input at
+all, and fixed in the same revision that found it.
+
 **KF-SAS-RQ-121.** Search SHALL use one index for all audiences, filtered at read time by the
 same authorization context as every other read.
+
+**KF-SAS-RQ-226.** A derived index SHALL NOT decide visibility from a denormalised copy of an
+authorization input; the decision SHALL be taken against the authoritative record in the same
+statement that reads the index.
+
+## 64A. The retrieval index
+
+A second derived index beside `search.document`, and the same bargain §64 already struck: one
+index, many audiences, filtered at read time. [ADR 0028](../decisions/0028-the-retrieval-index-is-masked-not-copied.md).
+
+The migration that built canonical search refused embeddings with reasons and named the condition
+for revisiting — canonical search first, because an auditor asking for every record citing a
+document needs an answer that is exhaustive and explicable rather than usually about right. That
+condition is met. This section is that revisiting, not a reversal of it.
+
+**Inside the trust boundary, outside the authority boundary.** An embedding index over restricted
+records is itself restricted, so it cannot live where the kernel's rules do not reach. It is also
+derived, disposable and rebuildable in full from authoritative rows, so it is never authoritative
+for anything — KF-SAS-RQ-010 already says so and this section adds no exception. It is not a
+neighbouring program under §104 and Law 1 does not apply to it.
+
+**The role is named here; the implementation is not.** A specification that names an engine cannot
+change engines without a revision.
+
+**The index holds no record text and no authorization input.** No body, no title, no
+classification, no metadata.
+
+"Text" rather than "content", deliberately: §100.22 records that a vector is itself a degraded
+reconstruction of what it was made from, so a prohibition on holding "content" would, read
+strictly, forbid the index from holding the one thing an index is for.
+
+**Holds, not sees — and the difference is not a quibble.** A vector is made from text, only the
+engine has an embedder, and the Fabric holds the text. So record text necessarily *transits* to the
+engine to be embedded. It is never persisted there, which is what RQ-213 forbids and what the word
+"hold" means. The two are easy to conflate and the wrong one is the memorable one: "the engine
+never sees our records" is false, and a later reader who carries that phrase away will reason from
+it to a conclusion this document does not support.
+
+**What makes that transit lawful is RQ-218, and the two requirements are incomplete alone.**
+Controlled text may reach the embedder because the embedder is on the host and cannot be a remote
+service. Without that guarantee this design would route controlled text to a component able to
+forward it onward on the presence of an ambient credential, and every other control here would sit
+downstream of that. RQ-213 governs what is kept; RQ-218 governs where it may go; neither is
+sufficient by itself.
+
+**Text supplied for embedding is not persisted, and the ordinary path is refused.** An engine
+built to remember things will have a write path that stores the text it was given — that is what
+such a path is for. Admitting controlled records through it would persist the text by default and
+populate a lexical index the Fabric does not want populated, without anyone deciding to. The
+Fabric therefore writes through a path that persists no text, and a controlled record offered to
+the remembering path is refused rather than quietly stored. It holds what an index needs to rank — vectors, the identifiers they
+belong to, and whatever positional bookkeeping the engine's own structure requires — and nothing
+that would let a stale copy answer a question the kernel should have answered. Every hit is
+resolved through the same grant check every other read surface performs (§27, ADR 0027) before it
+reaches a person or an agent.
+
+Stated as two prohibitions rather than as a list of permitted fields, deliberately. An exhaustive
+list makes a conformant engine non-conformant for a structural reason unrelated to authorization —
+a slot-parallel array that the index needs to score positionally is not an authorization input, and
+a specification that a correct implementation fails is worse than none.
+
+**Where the version lives, and why the bitmaps do not.** The database holds one row per
+organization recording a band version, moved by a trigger on every insert, reclassification,
+organization change and deletion of a record. That row is a derived table, excluded from the
+master-record boundary alongside `search.document`, and it is the only durable thing this design
+adds. The bitmaps themselves are built from it and from the live records, per process, and are
+never written anywhere.
+
+**The band bitmap is memory-only.** It is a derived copy of an authorization input, and the only
+thing that makes it safe is that it never outlives the process holding it and is re-derived per
+query against a version token. Stating it separately (RQ-223) rather than leaving it to rest on
+what "stored" means: a memory-mapped cache is both stored and not, and that argument should not be
+available to anyone.
+
+**These requirements bind the Fabric, not the engine.** Every requirement in this section is one
+the Fabric must satisfy; where an engine's behaviour is what satisfies it, choosing and configuring
+that engine is how the Fabric complies. No requirement here reaches into a peer program's
+implementation, and none may.
+
+**Authorization is computed per query from live rows and applied during scoring.** The kernel
+derives band-membership bitmaps from the live records, versioned against both the classification
+state and the index's own slot ordering, and the engine scores only unmasked slots. Masked records
+are never scored rather than filtered afterwards, so a caller cleared for a small part of the
+corpus receives a full result set rather than a silently short one. Because no authorization input
+is stored, a reclassification takes effect on the next query: there is no refresh to schedule and
+no window to bound.
+
+**This is the property `search.document` does not have**, and the difference is the reason this
+section exists rather than extending §64. That index carries a denormalised classification refreshed
+by a worker that is permitted to be late (§100.20).
+
+**A stale or mismatched mask fails closed, asymmetrically.** Slots are append-only and positional,
+so a mask shorter than the index means the newest records are not yet authorized, and those slots
+are excluded. A mask *longer* than the index is refused outright: that is not a stale bitmap but one
+built against a different index, and scoring by a foreign ordering is not a degraded answer but a
+wrong one. Treating both the same way and calling it safe is the failure this formulation exists to
+prevent.
+
+**Row-level security cannot substitute for the mask**, and this is worth stating because it is
+counter-intuitive. Row policies filter rows; they cannot filter inside a precomputed approximate
+index, whose structure is built over a fixed row set. Any design placing an approximate index
+behind a row policy needs masked scoring or accepts silent recall collapse for the least-cleared
+reader. That holds regardless of where the index runs.
+
+**The Fabric composes rankings; it does not delegate retrieval wholesale.** Two ways to find a
+record, and they fail differently. Lexical search answers "every record naming `SOP-QMS-012`" and
+its answer is exhaustive — that is the property §64 exists for, and an auditor's question is not
+answered by a ranking that is usually about right. Semantic search answers "records about this",
+including ones that use none of the caller's words, and cannot be exhaustive by construction.
+
+So the lexical index stays here (§64), the semantic ranking comes from the engine, and the compiler
+presents both. Merging them into one order would destroy the property §64 was built for: a merged
+list cannot show which results are the complete lexical answer, because a semantically near record
+sits in the same list and looks identical. Composition keeps both — an auditor reads the lexical
+ranking and knows it is complete; an agent reads both and gets the wider reach.
+
+This also settles what the Fabric takes from a retrieval engine. Such an engine is a full suite,
+and the Fabric uses the part of it the boundary permits and the Fabric lacks: semantic ranking over
+vectors it holds. A lexical leg inside the engine would need a copy of the record text, which
+RQ-213 forbids, so that leg stays here where the text already lawfully lives.
+
+**A degraded engine refuses.** It never returns a short result set. Where the system falls back to
+lexical search, the response records that semantic ranking was unavailable as a withholding-ledger
+entry (§63) rather than a separate flag, because a ledger entry carries its basis and a boolean does
+not, and an agent that cannot distinguish a degraded answer from a complete one acts on it as
+complete.
+
+**Near misses are a labelled, opt-in set.** This is an obligation on the projection the compiler
+produces (§59, §60), not on how an engine ranks: an engine returns a ranked result and the
+compiler decides what part of it, if any, is offered as adjacent rather than requested. Records
+near a question but not asked for are returned only when the caller asks, are never merged into the requested result, and the scoring function that
+selected them is named in the projection that used it — so changing how nearness is computed is a
+visible event. The withholding ledger does not apply to them: an unauthorized record is never a
+candidate, so nothing was withheld. Reporting a count of withheld near misses would disclose the
+shape of a semantic neighbourhood that is unbounded and steerable by choice of query, which is a
+materially worse bargain than §63's fixed-corpus disclosure.
+
+**No controlled content leaves the host to be embedded.** The embedder is local, a non-local
+provider resolving is a refusal rather than a fallback, and the binding is evidenced at
+commissioning (§91).
+
+**KF-SAS-RQ-213.** The retrieval index SHALL hold no record text and no authorization input, and
+every hit SHALL be resolved through the same grant check as every other read before it reaches a
+caller.
+
+**KF-SAS-RQ-214.** Authorization for a retrieval query SHALL be computed from live records and
+applied during scoring, and no derived copy of an authorization input SHALL be stored.
+
+**KF-SAS-RQ-215.** A mask shorter than the index SHALL exclude the unaddressed slots; a mask longer
+than the index SHALL be refused.
+
+**KF-SAS-RQ-216.** A retrieval engine that cannot serve SHALL refuse, and a result produced without
+semantic ranking SHALL record that in the withholding ledger.
+
+**KF-SAS-RQ-217.** Near misses SHALL be returned only on request, as a separately labelled set,
+naming the scoring function that selected them.
+
+**KF-SAS-RQ-218.** Controlled content SHALL NOT leave the host to be embedded, a non-local
+embedding provider SHALL be refused rather than used as a fallback, and the embedder binding SHALL
+NOT be replaced by a differing identity while the process runs.
+
+**KF-SAS-RQ-219.** The retrieval engine's trace SHALL be derived and disposable, and the record of
+what was disclosed SHALL be held by the kernel as a digest of that trace.
+
+**KF-SAS-RQ-223.** A band bitmap, ceiling, coverage set or derived scope tag supplied to the
+retrieval engine SHALL exist only for the life of the process holding it, and SHALL NOT be written
+to durable storage of any kind.
+
+**KF-SAS-RQ-224.** The Fabric SHALL compose lexical and semantic rankings rather than merging them
+into a single order, SHALL keep the lexical ranking exhaustive within its scope, and every result
+SHALL name the ranking that produced it.
+
+**KF-SAS-RQ-225.** Record text MAY transit to an embedder on the same host and SHALL NOT be
+persisted by it; the Fabric SHALL write controlled records only through a path that persists no
+text, and a controlled record offered to a path that would persist it SHALL be refused.
+
+## 64B. Transient observations
+
+Not every stored thing is a record or a rebuildable projection. A query log observes something that
+happened once: it is not authoritative, and unlike `search.document` or the retrieval index it
+cannot be recomputed from anything. Without a name for that category a later reader infers that
+whatever sits outside the records is rebuildable, writes a restore procedure on that assumption, and
+silently loses what was never recoverable. [ADR 0029](../decisions/0029-transient-observations-are-a-third-category.md).
+
+| | Authoritative | Rebuildable | On loss |
+| --- | --- | --- | --- |
+| Record | yes | — | Law 6; never deleted |
+| Derived projection | no | yes | rebuild it |
+| Transient observation | no | no | expected |
+
+Raw queries are transient observations rather than records, which is why Law 6 is untouched: a
+query was never a record. They expire on a stated window, and **expiry means nothing unless every
+copy expires** — so a transient observation is excluded from the preservation export, whose
+retention is unbounded and would otherwise keep every search anyone ever ran; from the
+master-record boundary; from checkpoint coverage, which signs state and would pin it
+cryptographically; and from any backup retained past the window. Missing one of the four makes the
+guarantee false.
+
+What managers need from the log is an aggregate — which records recur in higher-clearance replays
+of lower-clearance queries — and that aggregate is a durable record carrying a count of distinct
+persons and never which persons. The log itself carries identity while it lives, because otherwise
+the aggregate cannot distinguish many people wanting a record from one person wanting it many
+times, and those mean opposite things. Reading the log with attribution is its own act requiring its
+own grant.
+
+The replay is structurally necessary rather than convenient: under §64A a masked record is never
+scored, so the original query genuinely cannot know whether a withheld record would have ranked.
+Only an unmasked run can, and only somebody cleared for those records may perform one. What was
+withheld is computed at the replayer's ceiling and never persisted, because written down it becomes
+a classified fact about records at whatever classification the writer guessed.
+
+The signal is biased and the requirement says so. It measures demand from people who searched for
+what they could not find; people who have learned the system will not help them stop searching, so
+it decays toward zero exactly where the access problem is worst. A quiet report is not evidence of
+no unmet demand.
+
+**KF-SAS-RQ-220.** A stored thing that is neither authoritative nor rebuildable SHALL be declared a
+transient observation, SHALL carry a stated expiry, and SHALL be excluded from the preservation
+export, the master-record boundary, checkpoint coverage and any backup retained beyond its window.
+
+**KF-SAS-RQ-221.** Recorded queries SHALL be transient observations rather than records, and a
+durable demand aggregate over them SHALL identify records and counts of distinct persons, never
+which persons.
+
+**KF-SAS-RQ-222.** What a query withheld from a caller SHALL be computed on demand at the ceiling of
+the person asking, and SHALL NOT be persisted.
 
 ---
 
@@ -2193,7 +2528,8 @@ and digest it reproduces.
 
 ## 96. Decision records
 
-Twenty-two accepted decision records live in `docs/decisions/`. They are the program's reasoning,
+The decision records in `docs/decisions/` — counted in
+[`generated/measurements.md`](../../generated/measurements.md) — are the program's reasoning,
 and this specification is downstream of them: where a section here states a rule, the ADR that
 decided it says what was measured and what was rejected.
 
@@ -2204,7 +2540,8 @@ The supersession graph, which nothing else in the repository states in one place
 | superseded | 0008 by 0011; 0009 by 0022 |
 | partially superseded | 0004's licence half by 0005; the rest of 0004 stands |
 | amended | 0011's identity key by 0013 |
-| builds on | 0014→0013; 0015→0014; 0016→{0008, 0011, 0013}; 0017→{0004, 0006}; 0018→{0006, 0016}; 0019→0018; 0020→{0016, 0017}; 0021→{0006, 0016}; 0022→0009 |
+| builds on | 0014→0013; 0015→0014; 0016→{0008, 0011, 0013}; 0017→{0004, 0006}; 0018→{0006, 0016}; 0019→0018; 0020→{0016, 0017}; 0021→{0006, 0016}; 0022→0009; 0027→{0011, 0016, 0025, 0026}; 0028→{0010, 0016, 0023, 0027}; 0029→{0016, 0024}; 0030→{0002, 0010, 0013, 0023, 0028} |
+| supersedes a rationale rather than a record | 0028 supersedes the "no `pgvector`" reasoning in `database/migrations/20260811001800_search.sql`, on the condition that reasoning set |
 
 A superseded record is kept in full. ADR 0008 remains as the measured problem and the options
 history even though its recommendation no longer applies, because deleting it would leave ADR
@@ -2507,6 +2844,55 @@ service actor acts for itself and is barred from institutional acts, which is a 
 from an agent forming an act on a person's behalf. KF-SAS-RQ-204 states the requirement; nothing
 implements it.
 
+**100.21 The retrieval architecture is specified and largely unbuilt, on both sides.** §64A states
+eight requirements against a capability that mostly does not exist yet. Outstanding in the engine:
+its mask predicate is tenancy rather than clearance; there is no entry point accepting an externally
+supplied mask; there is no socket server; vectors are not encrypted at rest; and there is no write
+path that stores a vector without also storing the text it came from — its schema requires the text
+and its lexical index is populated by a trigger that fires on every insert, so the obvious
+workaround of supplying an empty string half-populates that index rather than skipping it.
+Outstanding here: there is no band-bitmap builder and no embed-on-ingest path. Seven items, counted
+rather than described, so that a later reader can tell a specified capability from a shipped one.
+
+KF-SAS-RQ-218 is the exception and is noted as such: the engine refuses a non-local embedding
+provider by default as of 2026-09-14, before this requirement was proposed. A requirement with a
+conformant implementation already behind it is unusual here and worth marking, because the rest of
+this section describes the opposite.
+
+**100.22 Vectors are readable in the serving process.** Encryption at rest makes a stolen index
+inert; it does not protect a running one. Anyone who can attach to the retrieval process or read a
+core dump reconstructs a degraded version of everything embedded, and sentence embeddings invert
+well enough for that to matter. This is the irreducible floor of performing compute outside the
+kernel and no design removes it. Recorded as an accepted limit rather than left to be discovered.
+
+**100.23 The demand aggregate has no implementation and a known bias.** §64B specifies it;
+nothing records queries, nothing expires them, and nothing computes the aggregate. When built, it
+will measure demand only from people who searched for what they could not find, so a quiet report is
+not evidence of no unmet demand. Bears on KF-SAS-RQ-220 through RQ-222.
+
+**100.24 No objective after v1.0 can be scheduled.** §98 numbers phases 0 through 10 and phase 10
+is v1.0, while the roadmap reference grammar bounds a phase number at 10 — a constant derived from a
+neighbouring program's own phase count and applied to every program that uses the scheme. So the
+ladder is not merely full: nothing after v1.0 has a number, including the retrieval work in §64A.
+Renumbering would cost every existing reference and buy one slot. Supersedes the narrower reading in
+§100.17, which described this as a twelfth objective being unaddable.
+
+**100.26 The draft lifecycle is a label with no rules behind it.** `draft` is the initial state of
+every state machine in `ontology/state-machines.yaml`, and nothing filters on it: not
+master-record membership, not the preservation export, not projections. So an unverified record is
+today a full corpus member distinguishable only by a column no reader consults, and §48A's five
+requirements have no implementation. This is why the capture path must be built last rather than
+first — filling a store whose rules do not exist puts unverified material inside master records and
+inside the permanent export, which is worse than the folder of files this program replaces, because
+the folder never claimed to be the record. Bears on KF-SAS-RQ-228 through RQ-231.
+
+**100.25 The composed ranking is unmeasured.** §64A composes a lexical ranking from this
+repository with a semantic ranking from an engine tuned against a different lexical leg, on public
+corpora with no clearances. The engine's published numbers therefore say nothing about how the
+composition behaves here, and nothing yet measures it. Stated because the same transfer argument
+decided against porting the engine onto this database, and it points at the Fabric as readily as it
+pointed there. Bears on KF-SAS-RQ-224.
+
 **KF-SAS-RQ-186.** The set of tables forced under row-level security SHALL be derivable from the
 migrations, and any difference between that set and the running database SHALL be reconciled.
 
@@ -2545,12 +2931,24 @@ numbers are not reused for different content.
 document offers to outside work. Cite a requirement, not a section number, from another
 repository.
 
-**103.3 Counts.** Two kinds appear here and they answer different questions. A **source count** is
+**103.3 Counts.** Two kinds exist and they answer different questions. A **source count** is
 derived from the repository — migrations, statements, declared types — and moves when the source
-moves. A **runtime count** is measured against a running database and is cited only where the
-runtime is the subject, as in §38 and §40. Where they differ, both are given and labelled. Counts
-in this revision were taken on 2026-09-03 and are not gated: they are the most perishable claims
-here, and a reader checking one should re-derive it rather than trust it.
+moves. A **runtime count** is measured against a running database and appears only where the
+runtime is the subject, as in §38 and §40, carrying its measurement date and host.
+
+**This document states no source count.** It cites
+[`generated/measurements.md`](../../generated/measurements.md), which is derived from the checkout
+and gated on drift. The earlier revisions wrote the figures into prose with a disclaimer saying
+they were perishable, and they duly rotted: this document claimed 88 migrations against 91, 168
+tables against 174 and 438 policies against 463, and those same wrong figures had been copied into
+the dogfood host document and into a Warrant's compilation basis, where each rotted separately. The
+disclaimer prevented none of it; it only meant nobody was surprised.
+
+Transclusion — substituting the number at build time — is the obvious repair and is the wrong one
+here. §94.2 digests this document's exact bytes and acceptance freezes that digest, so a
+build-time substitution would break an accepted revision every time a migration landed. A signed
+artifact cannot also be a generated one. Citing a generated file keeps this document's bytes stable
+and makes a wrong number fail the build, which is what the disclaimer could never do.
 
 The database source counts were derived by taking each migration's up-section only — everything
 before its `-- migrate:down` marker — and counting statements across the concatenation. The
@@ -2594,6 +2992,8 @@ record which program owns each federated fact.
 
 | Revision | Date | Change |
 |---|---|---|
+| `0.1.0-draft.5` | 2026-09-14 | Adds §48A, which settles whether a low-friction capture path is compatible with KF-SAS-RQ-021's refusal to admit a container. It is, under one rule: a gesture may produce many acts, never zero and never one covering many. Records what an unverified record is — a record under Law 6, exported marked, a labelled member of a master record rather than a silent omission, and not citable as evidence — and requires a promotion act to say whether it was reviewed individually or promoted in bulk, so that "verified" keeps its meaning. Adds §100.26: the draft state is presently a label that nothing filters on, which inverts the build order, because a capture path filling a store whose rules do not exist puts unverified material into master records and into the permanent export. Five requirements appended, none removed or retitled; architecture-changing under §94.3, carrying [ADR 0031](../decisions/0031-a-draft-is-a-record-that-says-so.md). |
+| `0.1.0-draft.4` | 2026-09-14 | States the architecture in one place for the first time: §8B names the three layers and pins the invariants that hold across them ([ADR 0030](../decisions/0030-three-layers.md)), after the observation that a reader had to assemble the structure from five documents and a README, and that the README had consequently outrun this document on a structural claim. Adds §64A, the retrieval index — inside the trust boundary, outside the authority boundary, holding a vector and an identifier and no authorization input, with authorization computed per query and applied during scoring ([ADR 0028](../decisions/0028-the-retrieval-index-is-masked-not-copied.md)); this supersedes the reasoning that refused embeddings in `database/migrations/20260811001800_search.sql`, on the condition that reasoning itself set. Adds §64B, transient observations, a third category of stored thing that is neither authoritative nor rebuildable, with the four exclusions that make an expiry mean anything ([ADR 0029](../decisions/0029-transient-observations-are-a-third-category.md)). Removes every source count from this document in favour of a generated, gated measurement file, after four figures here were found stale and had been copied into two other documents and a Warrant basis; §103.3 records why transclusion was rejected. Five gaps appended, including that revocation in the search index is asynchronous and unmeasured, and that no objective after v1.0 can be scheduled. Seventeen requirements appended, none removed or retitled. One defect found and closed in the same revision: `search.document`'s read policy decided visibility from a denormalised classification refreshed by a worker documented as permitted to be late, so a reclassification did not take effect until the drain ran; `20260914000100` makes the policy defer to `core.object`, and a test reproduces the window by reclassifying without reindexing; architecture-changing under §94.3, carrying ADRs 0028, 0029 and 0030. |
 | `0.1.0-draft.3` | 2026-09-04 | Corrects §38's row-level security figures against the first ever install of this schema on a host — 143 enabled, 70 forced, the 73 unforced reconciling exactly with the migrations, and the previously cited 113 of 139 wrong in both halves. Adds §8A and five requirements making speed of capture and retrieval architectural rather than product polish, after the observation that a records system engineers skip records nothing ([ADR 0024](../decisions/0024-friction-is-an-architectural-property.md)). Records that capture is cheap and governance applies at promotion, that several surfaces share one act model, and that an agent may act for a named human. Five requirements appended, none removed or retitled; architecture-changing, carrying ADR 0024. |
 | `0.1.0-draft.2` | 2026-09-04 | Records two scope decisions that pull in opposite directions and were made together: business logic is an application above the Fabric (§8.10), and dataset, transform and lineage capability, if ever built, belongs in the core rather than above it (§8.11). Adds the organization-as-configuration requirement. Three requirements appended, none removed or retitled. Architecture-changing under §94.3 and carrying [ADR 0023](../decisions/0023-business-logic-above-data-primitives-within.md): the draft asserted it was not, and `war sas propose` derived otherwise from the §106 diff and required a decision record. The tool was right. |
 | `0.1.0-draft.1` | 2026-09-03 | First revision. Establishes the Knowledge Fabric as a program with its own specification, 132 requirements and an eleven-phase ladder. No predecessor. |
@@ -2807,3 +3207,45 @@ from evidence, never recorded here (§97.3).
 | KF-SAS-RQ-202 | An observation is recordable as a draft, attributed from the first moment; promotion is a separate act |
 | KF-SAS-RQ-203 | Every capture surface dispatches the same acts through the same seam |
 | KF-SAS-RQ-204 | An agent can act on behalf of a named human, attributed to them, with its participation recorded |
+
+### The three layers, 2026-09-14 (ADR 0030)
+
+| ID | Requirement |
+|---|---|
+| KF-SAS-RQ-210 | A kernel holds the rules, consumers project, callers reach records only through acts; no layer above the kernel can widen what a reader sees |
+| KF-SAS-RQ-211 | A layer above the kernel writes only as an attributed act, never to storage directly |
+| KF-SAS-RQ-212 | Each layer reads only what the layer below authorised, and is replaceable without changing the layers below |
+
+### Retrieval, 2026-09-14 (ADR 0028)
+
+| ID | Requirement |
+|---|---|
+| KF-SAS-RQ-213 | The retrieval index holds a vector and an identifier, no authorization input, and every hit passes the same grant check as every other read |
+| KF-SAS-RQ-214 | Retrieval authorization is computed from live records and applied during scoring; no derived copy of an authorization input is stored |
+| KF-SAS-RQ-215 | A short mask excludes the unaddressed slots; a long mask is refused |
+| KF-SAS-RQ-216 | A retrieval engine that cannot serve refuses, and a result without semantic ranking says so in the withholding ledger |
+| KF-SAS-RQ-217 | Near misses are returned only on request, separately labelled, naming the scoring function |
+| KF-SAS-RQ-218 | Controlled content never leaves the host to be embedded; a non-local provider is refused, and the embedder binding is registered once |
+| KF-SAS-RQ-219 | The retrieval trace is derived and disposable; the kernel holds the record of what was disclosed as its digest |
+| KF-SAS-RQ-223 | A band bitmap or derived scope tag lives only for the life of its process and never reaches durable storage |
+| KF-SAS-RQ-224 | Lexical and semantic rankings are composed rather than merged, the lexical one stays exhaustive, and each result names the ranking that produced it |
+| KF-SAS-RQ-225 | Text may transit to an on-host embedder and is never persisted there; a controlled record offered to a persisting path is refused |
+| KF-SAS-RQ-226 | A derived index never decides visibility from a denormalised copy; the decision is taken against the record in the same statement |
+
+### Capture and verification, 2026-09-14 (ADR 0031)
+
+| ID | Requirement |
+|---|---|
+| KF-SAS-RQ-227 | One gesture may dispatch many acts; at least one per item, never one covering several |
+| KF-SAS-RQ-228 | A draft is a record under Law 6, attributed from the first moment, exported marked unverified |
+| KF-SAS-RQ-229 | A projection labels an unverified member and never omits it silently |
+| KF-SAS-RQ-230 | An unverified record is not citable as evidence |
+| KF-SAS-RQ-231 | A promotion act records whether the item was reviewed individually or in bulk |
+
+### Transient observations, 2026-09-14 (ADR 0029)
+
+| ID | Requirement |
+|---|---|
+| KF-SAS-RQ-220 | A stored thing that is neither authoritative nor rebuildable is a transient observation with a stated expiry, excluded from the export, the boundary, checkpoints and long backups |
+| KF-SAS-RQ-221 | Recorded queries are transient observations; the durable demand aggregate names records and counts of distinct persons, never which persons |
+| KF-SAS-RQ-222 | What a query withheld is computed on demand at the asking person's ceiling and never persisted |

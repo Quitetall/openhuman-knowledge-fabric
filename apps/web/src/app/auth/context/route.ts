@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { ApiError, get, parseDocumentsResponse, type Caller } from '../../../lib/api';
 import {
   openWebSession,
+  publicOrigin,
+  publicUrl,
   sanitizeReturnTo,
   sealWebSession,
   SESSION_COOKIE,
@@ -40,7 +42,7 @@ async function boundedBody(request: NextRequest): Promise<string | undefined> {
 }
 
 function selectUrl(request: NextRequest, next: string, error: string): URL {
-  const url = new URL('/session/select', request.url);
+  const url = publicUrl(request, '/session/select');
   url.searchParams.set('next', next);
   url.searchParams.set('error', error);
   return url;
@@ -51,10 +53,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     config = dogfoodConfig();
   } catch {
-    return NextResponse.redirect(new URL('/documents', request.url), 303);
+    return NextResponse.redirect(publicUrl(request, '/documents'), 303);
   }
-  const publicOrigin = new URL(config.redirectUri).origin;
-  if (request.headers.get('origin') !== publicOrigin) {
+  if (request.headers.get('origin') !== publicOrigin(request)) {
     return NextResponse.json({ error: 'cross_origin_context_selection_refused' }, { status: 403 });
   }
   if (
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     config.sessionKey,
   );
   if (session === undefined) {
-    return NextResponse.redirect(new URL('/auth/login?next=/documents', request.url), 303);
+    return NextResponse.redirect(publicUrl(request, '/auth/login?next=/documents'), 303);
   }
   const form = new URLSearchParams(body);
   const next = sanitizeReturnTo(
@@ -119,7 +120,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const compact = await sealWebSession({ ...session, context }, config.sessionKey);
-  const response = NextResponse.redirect(new URL(next, request.url), 303);
+  const response = NextResponse.redirect(publicUrl(request, next), 303);
   response.cookies.set(SESSION_COOKIE, compact, {
     httpOnly: true,
     secure: true,

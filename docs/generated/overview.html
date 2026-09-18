@@ -270,17 +270,17 @@
 <div class="sheet">
 
   <header class="masthead">
-    <div class="eyebrow">Software Architecture Specification &middot; 0.1.0-draft.3 &middot; accepted</div>
+    <div class="eyebrow">Software Architecture Specification &middot; 0.1.0-draft.5 &middot; accepted</div>
     <h1>Knowledge Fabric Control Record</h1>
     <p class="standfirst">One coherent institutional record, where the database is the authority and every write is an attributable act. This sheet is generated from the specification and the Warrant corpus; nothing on it was typed by hand.</p>
 
     <dl class="control">
-      <div><dt>Accepted revision</dt><dd>0.1.0-draft.3</dd></div>
-      <div><dt>Contract digest</dt><dd>ecb95a11e5c5</dd></div>
-      <div><dt>Accepted</dt><dd>2026-09-04</dd></div>
+      <div><dt>Accepted revision</dt><dd>0.1.0-draft.5</dd></div>
+      <div><dt>Contract digest</dt><dd>84d23d16f0a9</dd></div>
+      <div><dt>Accepted</dt><dd>2026-09-15</dd></div>
       <div><dt>Authority</dt><dd>Brian Lam</dd></div>
-      <div><dt>Requirements</dt><dd>140 &middot; append&#8209;only</dd></div>
-      <div><dt>Source digest</dt><dd>6ba7ef92d93e</dd></div>
+      <div><dt>Requirements</dt><dd>162 &middot; append&#8209;only</dd></div>
+      <div><dt>Source digest</dt><dd>61d65f1d592a</dd></div>
     </dl>
   </header>
 
@@ -299,13 +299,13 @@
       </div>
       <div class="axis">
         <span class="eyebrow">Requirements claimed</span>
-        <div class="ratio"><span class="n">12</span><span class="d">&thinsp;/&thinsp;140</span></div>
-        <div class="meter"><i class="fill-open" style="width:9%"></i></div>
+        <div class="ratio"><span class="n">12</span><span class="d">&thinsp;/&thinsp;162</span></div>
+        <div class="meter"><i class="fill-open" style="width:7%"></i></div>
         <p>Declared by a Warrant. Claimed is not satisfied &mdash; status is derived from evidence, and a claim is where evidence starts.</p>
       </div>
       <div class="axis">
         <span class="eyebrow">Requirements satisfied</span>
-        <div class="ratio"><span class="n">0</span><span class="d">&thinsp;/&thinsp;140</span></div>
+        <div class="ratio"><span class="n">0</span><span class="d">&thinsp;/&thinsp;162</span></div>
         <div class="meter"></div>
         <p>Shown. No Warrant has resolved, so nothing reads above claimed, and this column stays at zero until one does.</p>
       </div>
@@ -340,7 +340,7 @@
   <section>
     <div class="head">
       <h2>Requirements, by group</h2>
-      <span class="eyebrow">140 &middot; 12 claimed &middot; 128 unaddressed</span>
+      <span class="eyebrow">162 &middot; 12 claimed &middot; 150 unaddressed</span>
     </div>
 
     <div class="groups">
@@ -352,11 +352,15 @@
       <div class="grp"><span>The database as the authority</span><span class="ct">12</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
       <div class="grp"><span>Corpus and disclosure</span><span class="ct">12</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
       <div class="grp"><span>Operations</span><span class="ct">12</span><span class="bar"><i class="fill-open" style="width:75%"></i></span></div>
+      <div class="grp"><span>Retrieval, 2026-09-14 (ADR 0028)</span><span class="ct">11</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
       <div class="grp"><span>Interfaces</span><span class="ct">9</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
       <div class="grp"><span>Governance</span><span class="ct">7</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
       <div class="grp"><span>Friction and use, 2026-09-04 (ADR 0024)</span><span class="ct">5</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
+      <div class="grp"><span>Capture and verification, 2026-09-14 (ADR 0031)</span><span class="ct">5</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
       <div class="grp"><span>Purpose and thesis</span><span class="ct">3</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
       <div class="grp"><span>Scope decisions of 2026-09-04</span><span class="ct">3</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
+      <div class="grp"><span>The three layers, 2026-09-14 (ADR 0030)</span><span class="ct">3</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
+      <div class="grp"><span>Transient observations, 2026-09-14 (ADR 0029)</span><span class="ct">3</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
     </div>
 
     <p class="note" style="margin-top:1.2rem">Shaded portion is claimed by a Warrant, not satisfied. Requirement identifiers are append&#8209;only: a row may be added or retitled and never removed, so work in any repository may cite one and expect it to still mean what it meant.</p>
@@ -375,7 +379,7 @@
   <section>
     <div class="head">
       <h2>Recorded gaps</h2>
-      <span class="eyebrow">&sect;100 &middot; 19</span>
+      <span class="eyebrow">&sect;100 &middot; 25</span>
     </div>
 
     <ul class="gaps">
@@ -398,13 +402,19 @@
       <li><b>100.17</b><span>The phase ladder is full against a hard cap</span></li>
       <li><b>100.18</b><span>None of ADR 0024's latency bars is measured, and two of its capture surfaces do not exist</span></li>
       <li><b>100.19</b><span>How an agent authenticates when acting for a named human is undecided</span></li>
+      <li><b>100.21</b><span>The retrieval architecture is specified and largely unbuilt, on both sides</span></li>
+      <li><b>100.22</b><span>Vectors are readable in the serving process</span></li>
+      <li><b>100.23</b><span>The demand aggregate has no implementation and a known bias</span></li>
+      <li><b>100.24</b><span>No objective after v1.0 can be scheduled</span></li>
+      <li><b>100.26</b><span>The draft lifecycle is a label with no rules behind it</span></li>
+      <li><b>100.25</b><span>The composed ranking is unmeasured</span></li>
     </ul>
 
     <p class="note" style="margin-top:1.2rem">A gap is recorded in an enumerable place or it is not recorded. There is not one <code>TODO</code>, <code>FIXME</code> or <code>HACK</code> in the repository &mdash; gaps live here, in decision records, in pack manifests, or as named checker warnings, where a reader will find them and a gate can count them.</p>
   </section>
 
   <footer>
-    Generated by <code>kf overview</code> from source digest <code>6ba7ef92d93e</code> &mdash; a hash over the specification and the Warrant manifests this page projects, not over the commit containing it, which could not exist before the page was written. No wall&#8209;clock timestamp appears above, deliberately: a generated artifact that differs on every build turns a drift check into noise. Counts are the most perishable claims here; re&#8209;derive rather than trust them. Where this sheet and the specification disagree, the specification governs; where the specification and the code disagree, the code is right and the specification has drifted.
+    Generated by <code>kf overview</code> from source digest <code>61d65f1d592a</code> &mdash; a hash over the specification and the Warrant manifests this page projects, not over the commit containing it, which could not exist before the page was written. No wall&#8209;clock timestamp appears above, deliberately: a generated artifact that differs on every build turns a drift check into noise. Counts are the most perishable claims here; re&#8209;derive rather than trust them. Where this sheet and the specification disagree, the specification governs; where the specification and the code disagree, the code is right and the specification has drifted.
   </footer>
 
 </div>

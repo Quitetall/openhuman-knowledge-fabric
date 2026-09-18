@@ -28,3 +28,6 @@ docs/gates/
 docs/decisions/generated/
 # Master records as the API returned them, byte for byte. A formatter would change the digest.
 examples/
+
+# Byte-identical OpenWarrant schema projection; checked against its manifest.
+packages/warrants/src/generated/openwarrant/

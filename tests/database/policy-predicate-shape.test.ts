@@ -197,13 +197,15 @@ describe('row-independent policy predicates are evaluated once per statement', (
           where clause ~ 'IN \\(\\s*SELECT classification\\.id'`,
       ),
     );
-    // 4 clauses on core.object (20260817000200) plus 19 elsewhere (20260817000300). An
-    // assertion of "more than zero" would be satisfied by one, and report a finished sweep.
+    // 4 clauses on core.object (20260817000200) plus 18 elsewhere: 19 from 20260817000300, less
+    // search_document_read, which 20260914000100 rewrote to defer to core.object instead of
+    // testing its own denormalised classification. An assertion of "more than zero" would be
+    // satisfied by one, and report a finished sweep.
     expect(
       Number(hashed.count),
       'the fabric does not carry the expected number of hashed ceiling clauses, so the ' +
         'check above may be passing because it found nothing rather than nothing wrong',
-    ).toBe(23);
+    ).toBe(22);
   }, 120_000);
 
   it('reverses the ceiling sweep and reapplies it', async () => {

@@ -3,6 +3,7 @@ import {
   makePkceTransaction,
   OIDC_TRANSACTION_COOKIE,
   sealOidcTransaction,
+  publicUrl,
 } from '../../../lib/auth';
 import { authorizationUrl, discoverOidc } from '../../../lib/oidc';
 import { dogfoodConfig } from '../../../lib/session';
@@ -28,6 +29,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     });
     return response;
   } catch {
-    return NextResponse.redirect(new URL('/auth/error?code=provider_unavailable', request.url));
+    return NextResponse.redirect(publicUrl(request, '/auth/error?code=provider_unavailable'));
   }
 }
