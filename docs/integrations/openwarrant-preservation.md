@@ -36,7 +36,8 @@ and no served bytes. The fixture uses pinned images matching Compose and cleans
 up only the containers, volumes and backup directory it created.
 
 This proves the stated provider database and local MinIO recovery scenario. It
-does not cover every Warrant record family or complete OW-WAR-0111. Provider
+covers all 15 current Warrant section families but does not exhaust their field
+values, historical combinations or complete OW-WAR-0111. Provider
 database preservation and the experimental OpenWarrant byte archive remain
 distinct formats. The combined reconstruction observation below adds producer
 validation; full required-category inventory remains incomplete.
@@ -75,3 +76,19 @@ The combined local run passed on 2026-09-18. Evidence lives in the shared OW111
 implementation directory. This establishes the stated cross-system fixture;
 complete category assembly, stable format adoption and independent qualification
 remain open.
+
+## Populated record-family inventory
+
+The fixture populates every current `warrant*` section in
+`PRESERVATION_IMPORT_TARGETS`: identity, contract revisions, preflights, dispatches,
+runtime receipts, submissions, blockers, deviations, discovered gaps, artifacts,
+evidence, gate runs, inferences, judgments and resolution requests. A newly added
+family fails until its fixture is populated. Each exported row's columns must
+match the live migrated database catalogue, so an exporter that drops the same
+column before and after restoration cannot pass by symmetry alone.
+
+For every family, removing its file from the signed package must refuse import.
+After all refusals the target must still contain no Warrants. The intact package
+then restores successfully, preserving all exact section contents. Judgment and
+gate records here are explicitly disposable fixture data, not independent verdicts
+or human acceptance of OW-WAR-0111.

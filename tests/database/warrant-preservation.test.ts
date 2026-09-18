@@ -4,7 +4,12 @@ import { expect, it } from 'vitest';
 import { readVersionBytes, StoreRegistry, verifyRecordedVersion } from '@kf/artifacts';
 import { withTransaction } from '@kf/database';
 import { createFabricDispatcher } from '@kf/orchestrator';
-import { createExport, importExport, signExportPackage } from '@kf/export';
+import {
+  createExport,
+  importExport,
+  signExportPackage,
+  PRESERVATION_IMPORT_TARGETS,
+} from '@kf/export';
 import { bindContext, createObject, seedFixtures, startHarness, type Harness } from './harness.js';
 import { PreservationMinio } from './preservation-minio.js';
 
@@ -106,12 +111,87 @@ it('preserves Warrant revisions, standing and action history after source shutdo
         dispatch_digest: sha(`dispatch-${id}`),
         performer_ref: 'fixture://ow111',
       });
+      await act('attach_warrant_runtime_receipt', [id], {
+        adapter: 'oh.war/katana-receipt/v1',
+        dispatch_digest: sha(`dispatch-${id}`),
+        receipt_digest: sha(`runtime-${id}`),
+        terminal_status: 'completed',
+        artifact_refs: [],
+        receipt: { fixture: 'OW111', session_id: id },
+      });
+      await act('open_warrant_blocker', [id], {
+        blocker_ref: 'B-1',
+        condition_ref: 'PRE-001',
+        reason: 'fixture dependency',
+        owner_ref: 'fixture://owner',
+        required_to_unblock: 'fixture recovery',
+      });
+      await act('resolve_warrant_blocker', [id], {
+        blocker_ref: 'B-1',
+        resolution: 'fixture recovered',
+      });
       await act('register_warrant_submission', [id], {
         submission_ref: 'S-1',
         artifact_refs: [],
         blocker_refs: [],
         deviation_refs: [],
         requested_next_action: 'verify',
+      });
+      await act('propose_warrant_deviation', [id], {
+        deviation_ref: 'D-1',
+        affected_contract_path: '/execution/fixture',
+        proposed_change: { fixture: 'isolated' },
+        reason: 'fixture variation',
+        impact: { production: 'none' },
+      });
+      await act('approve_warrant_deviation', [id], {
+        deviation_ref: 'D-1',
+        decision_reason: 'fixture only',
+      });
+      await act('record_warrant_discovered_gap', [id], {
+        gap_ref: 'G-1',
+        statement: 'fixture missing condition',
+        under_specified: 'gate',
+        disposition: 'amendment',
+      });
+      await act('register_warrant_evidence', [id], {
+        evidence_ref: 'E-1',
+        kind: 'external_tool_verdict',
+        origin: 'knowledge_fabric',
+        admissibility: 'authoritative_external',
+        content_digest: sha(`evidence-${id}`),
+        collection_method: 'disposable fixture',
+        occurred_at: '2026-09-18T00:00:00Z',
+      });
+      await act('attach_warrant_gate_run', [id], {
+        gate_run_ref: 'GR-1',
+        gate_ref: 'gate://fixture/ow111@1.0.0',
+        definition_digest: sha('fixture gate'),
+        binding_digest: sha(id),
+        execution_status: 'completed',
+        verdict: 'pass',
+        receipt_digest: sha(`gate-${id}`),
+        receipt: { fixture: true, production_claim: false },
+      });
+      await act('record_warrant_inference', [id], {
+        inference_ref: 'I-1',
+        kind: 'deductive',
+        statement: 'fixture inference',
+        premise_refs: ['E-1', 'GR-1'],
+        claim_ref: 'OBL-FIXTURE',
+      });
+      await act('record_warrant_judgment', [id], {
+        judgment_ref: 'J-1',
+        kind: 'acceptance',
+        statement: 'fixture judgment',
+        meaning: 'disposable records only',
+        basis_refs: ['I-1'],
+        authority: 'technical_authority',
+        limitations: ['No real project acceptance'],
+      });
+      await act('request_warrant_resolution', [id], {
+        requested_outcome: 'satisfied',
+        basis_refs: ['J-1'],
       });
       await act('resolve_warrant', [id], { outcome: 'satisfied' });
     };
@@ -188,6 +268,34 @@ it('preserves Warrant revisions, standing and action history after source shutdo
       await withTransaction(source.adminPool, (tx) => createExport(tx)),
       { keyId, privateKey: keys.privateKey },
     );
+    const warrantSections = Object.entries(PRESERVATION_IMPORT_TARGETS).filter(([name]) =>
+      name.startsWith('warrant'),
+    );
+    // A symmetric exporter omission can survive an exact round trip. Compare its
+    // field inventory with the live migrated database before shutting source down.
+    await withTransaction(source.adminPool, async (tx) => {
+      for (const [section, qualifiedTable] of warrantSections) {
+        const [schema, table] = qualifiedTable.split('.');
+        const columns = await tx.query<{ column_name: string }>(
+          `select column_name from information_schema.columns
+           where table_schema = $1 and table_name = $2 and is_generated = 'NEVER'
+           order by column_name`,
+          [schema, table],
+        );
+        const file = first.files.find((entry) => entry.path === `${section}.json`);
+        if (file === undefined) throw new Error(`missing ${section}`);
+        const rows: Record<string, unknown>[] = JSON.parse(file.content);
+        expect(rows.length, section).toBeGreaterThan(0);
+        for (const row of rows) {
+          expect(Object.keys(row).sort(), `${section} dropped a column`).toEqual(
+            columns.map((column) => column.column_name),
+          );
+        }
+      }
+    });
+    for (const [section] of warrantSections) {
+      expect(first.manifest.counts[section], `${section} must be populated`).toBeGreaterThan(0);
+    }
     expect(first.manifest.counts['warrants']).toBe(4);
     expect(first.manifest.counts['warrant-contract-revisions']).toBe(6);
     expect(first.manifest.counts['actions']).toBeGreaterThan(20);
@@ -200,6 +308,18 @@ it('preserves Warrant revisions, standing and action history after source shutdo
     await expect(
       withTransaction(restored.adminPool, (tx) => importExport(tx, first)),
     ).rejects.toThrow(/untrusted_key/);
+    for (const [section] of warrantSections) {
+      const omitted = {
+        ...first,
+        files: first.files.filter((file) => file.path !== `${section}.json`),
+      };
+      await expect(
+        withTransaction(restored.adminPool, (tx) =>
+          importExport(tx, omitted, { trustedManifestKeys: new Map([[keyId, keys.publicKey]]) }),
+        ),
+        section,
+      ).rejects.toThrow(/missing/);
+    }
     const empty = await withTransaction(restored.adminPool, (tx) =>
       tx.one<{ count: string }>('select count(*)::text as count from work.warrant'),
     );
