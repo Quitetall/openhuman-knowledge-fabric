@@ -1,7 +1,11 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { runCli } from './cli/run.js';
+import { writePackage } from './cli/package-io.js';
 import { generateKeyPairSync } from 'node:crypto';
 import { canonicalize, digestBytes } from '@kf/canonicalization';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import {
   PRESERVATION_IMPORT_TARGETS,
   readWarrantRuntimeEvidence,
@@ -136,4 +140,41 @@ it('binds a real OpenWarrant dispatch packet and exposes missing mappings', () =
   expect(() =>
     readWarrantRuntimeEvidence(pkg, warrantId, trust, [{ ...packet, warrant_ref: 'war://other' }]),
   ).toThrow(/Invalid runtime stage/);
+});
+
+it('exposes authenticated offline evidence through the CLI and refuses unsafe options', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'kf-runtime-cli-'));
+  const output = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    const dir = join(root, 'export');
+    const trustDir = join(root, 'trust');
+    mkdirSync(dir);
+    mkdirSync(trustDir);
+    writePackage(dir, fixture());
+    writeFileSync(
+      join(trustDir, 'fixture.pub'),
+      keys.publicKey.export({ type: 'spki', format: 'pem' }),
+    );
+    const args = ['runtime-evidence', dir, '--trust-store', trustDir, '--warrant-id', 'w1'];
+    expect(await runCli(args)).toBe(0);
+    const result: { unmappedDispatchDigests: string[] } = JSON.parse(
+      String(output.mock.calls[0]?.[0]),
+    );
+    expect(result.unmappedDispatchDigests).toEqual([dispatchDigest]);
+    await expect(runCli([...args, '--allow-unsigned-legacy-v1'])).rejects.toThrow(/accepts only/);
+    expect(await runCli(['verify', dir, '--warrant-id', 'w1'])).toBe(2);
+    const packet = join(root, 'packet.json');
+    writeFileSync(packet, '{}');
+    const link = join(root, 'link.json');
+    symlinkSync(packet, link);
+    await expect(runCli([...args, '--dispatch-file', link])).rejects.toThrow();
+    writeFileSync(join(dir, 'warrant-runtime-receipts.json'), '[]\n');
+    await expect(runCli(args)).rejects.toThrow(/package refused/);
+    expect(output.mock.calls).toHaveLength(1);
+  } finally {
+    output.mockRestore();
+    errors.mockRestore();
+    rmSync(root, { recursive: true, force: true });
+  }
 });

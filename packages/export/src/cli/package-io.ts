@@ -27,7 +27,7 @@ export function writePackage(dir: string, pkg: ExportPackage): void {
   }
 }
 
-function readBoundedRegularFile(path: string, maximumBytes: number, label: string): Buffer {
+export function readBoundedRegularFile(path: string, maximumBytes: number, label: string): Buffer {
   const descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
   try {
     const status = fstatSync(descriptor);

@@ -128,3 +128,18 @@ native receipt semantics are valid. It is not an assurance or permission grant.
 The cross-language vector is compiled by the OpenWarrant CLI from OW-WAR-0075,
 STAGE-001. `ow75-dispatch-identity.json` records the observed producer and packet
 identity. Compiling this vector did not launch any work or fabricate a receipt.
+
+For non-TypeScript callers, the same offline reader is available through:
+
+```sh
+kf-export runtime-evidence ./export --trust-store ./historical-public-keys \
+  --warrant-id UUID --dispatch-file ./dispatch.json
+```
+
+Repeat `--dispatch-file` for additional attempts (at most 256 files, 1 MiB each,
+16 MiB combined). Output is one canonical JSON object on stdout. No database,
+network service, signing key or import is needed. Public keys must come from the
+operator's external historical trust store, not from the exported package.
+Unsigned legacy input and signing/restore flags refuse. Packet inputs must be
+regular files; invalid UTF-8 and changed files refuse. No output is emitted until
+all package, trust and binding checks succeed.
