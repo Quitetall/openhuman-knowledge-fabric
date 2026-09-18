@@ -28,7 +28,11 @@ export function writePackage(dir: string, pkg: ExportPackage): void {
 }
 
 export function readBoundedRegularFile(path: string, maximumBytes: number, label: string): Buffer {
-  const descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  // Do not wait for a FIFO writer before fstat can reject non-regular input.
+  const descriptor = openSync(
+    path,
+    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+  );
   try {
     const status = fstatSync(descriptor);
     if (!status.isFile()) throw new Error(`${label} is not a regular file`);

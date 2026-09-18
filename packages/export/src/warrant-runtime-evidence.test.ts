@@ -181,6 +181,19 @@ it('exposes authenticated offline evidence through the CLI and refuses unsafe op
     const link = join(root, 'link.json');
     symlinkSync(packet, link);
     await expect(runCli([...args, '--dispatch-file', link])).rejects.toThrow();
+    if (process.platform !== 'win32') {
+      const fifo = join(root, 'packet.fifo');
+      const made = spawnSync('mkfifo', [fifo], { encoding: 'utf8' });
+      expect(made.status, made.stderr).toBe(0);
+      const refused = spawnSync(process.execPath, [executable, ...args, '--dispatch-file', fifo], {
+        encoding: 'utf8',
+        timeout: 5000,
+      });
+      expect(refused.error).toBeUndefined();
+      expect(refused.status).toBe(1);
+      expect(refused.stdout).toBe('');
+      expect(refused.stderr).toContain('dispatch packet is not a regular file');
+    }
     writeFileSync(join(dir, 'warrant-runtime-receipts.json'), '[]\n');
     await expect(runCli(args)).rejects.toThrow(/package refused/);
     expect(output.mock.calls).toHaveLength(1);
