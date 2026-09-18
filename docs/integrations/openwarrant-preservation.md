@@ -1,0 +1,94 @@
+# OpenWarrant preservation integration
+
+Shared implementation contract:
+[OW-WAR-0111](https://github.com/Quitetall/OpenWarrant/tree/1a1048d/docs/warrants/OW-WAR-0111).
+This document records the KF side of that scope, not a separate Warrant.
+
+`tests/database/warrant-preservation.test.ts` exercises the public dispatcher and
+preservation APIs against two independent PostgreSQL 18 containers. It creates
+four fixture Warrants, resolves three, supersedes one, disputes two and annuls
+one of the disputed results. Export retains six immutable contract revisions,
+action history and audit receipts. The test stops the source container before
+importing into the empty migrated target. Re-export must preserve every
+manifest-listed section's exact content and the database snapshot digest.
+
+The export uses an ephemeral Ed25519 fixture key. An import without that trusted
+key must fail and leave the target without Warrants. These fixture actions and
+keys authorize no real project work and confer no OpenWarrant assurance mark.
+
+Run:
+
+```sh
+pnpm exec tsc --build
+pnpm exec vitest run tests/database/warrant-preservation.test.ts
+pnpm exec tsc -p tsconfig.test.json
+pnpm exec eslint tests/database/warrant-preservation.test.ts
+```
+
+The same test stores source-archive bytes in a real, versioned MinIO service and links
+its immutable content version to a Warrant artifact through the public dispatcher.
+It stops the object store, copies its data into a separate Docker volume, removes
+the source container and starts a new service from that retained copy. The shipped
+SDK reconnects the restored database record to the exact original version bytes.
+An incorrect expected digest is refused. Replacing the current key does not replace
+the pinned version; deleting that exact version yields a missing-object refusal
+and no served bytes. The fixture uses pinned images matching Compose and cleans
+up only the containers, volumes and backup directory it created.
+
+This proves the stated provider database and local MinIO recovery scenario. It
+covers all 15 current Warrant section families but does not exhaust their field
+values, historical combinations or complete OW-WAR-0111. Provider
+database preservation and the experimental OpenWarrant byte archive remain
+distinct formats. The combined reconstruction observation below adds producer
+validation; full required-category inventory remains incomplete.
+
+## Producer source reconstruction
+
+The opaque object is now an actual experimental OpenWarrant source archive,
+created by `war init --program` and `war archive export` in a disposable directory.
+That source directory was removed. Byte-identical fixtures come from OpenWarrant
+revision `f51b016434c7baeb822dd3557fe6f9fd81fdfca7`, under
+`conformance/fixtures/preservation/kf-source-{archive,identity}.json`.
+The identity sidecar records archive digest, exact IR, producer source revision
+and producer binary digest. The archive is excluded from formatting because its
+canonical bytes are part of its contract.
+
+The database fixture uses the source Warrant UUID, canonical IR, contract digest
+and compilation-basis digest. It checks both retained contract revisions against
+the producer input after restore. KF treats the archive as opaque artifact bytes;
+it does not claim to implement the OpenWarrant parser.
+
+For cross-repository proof, choose a new output path and run:
+
+```sh
+OW111_RESTORED_ARCHIVE=/absolute/new/restored.json pnpm exec vitest run tests/database/warrant-preservation.test.ts
+```
+
+The optional output contains only the bytes recovered through the SDK. It is
+created exclusively; an existing path refuses overwrite. All CI assertions still
+run without this output setting. From an empty directory, run the producer's
+`war archive inspect /absolute/new/restored.json --json`. Require exit zero,
+`source_reconstructed: true` and `authority_activated: false`; also compare the
+restored file's SHA-256 with the fixture sidecar. This inspection reconstructs
+IR from retained source atoms and compares it with the archived IR.
+
+The combined local run passed on 2026-09-18. Evidence lives in the shared OW111
+implementation directory. This establishes the stated cross-system fixture;
+complete category assembly, stable format adoption and independent qualification
+remain open.
+
+## Populated record-family inventory
+
+The fixture populates every current `warrant*` section in
+`PRESERVATION_IMPORT_TARGETS`: identity, contract revisions, preflights, dispatches,
+runtime receipts, submissions, blockers, deviations, discovered gaps, artifacts,
+evidence, gate runs, inferences, judgments and resolution requests. A newly added
+family fails until its fixture is populated. Each exported row's columns must
+match the live migrated database catalogue, so an exporter that drops the same
+column before and after restoration cannot pass by symmetry alone.
+
+For every family, removing its file from the signed package must refuse import.
+After all refusals the target must still contain no Warrants. The intact package
+then restores successfully, preserving all exact section contents. Judgment and
+gate records here are explicitly disposable fixture data, not independent verdicts
+or human acceptance of OW-WAR-0111.
