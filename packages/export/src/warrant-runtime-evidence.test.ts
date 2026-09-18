@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { generateKeyPairSync } from 'node:crypto';
 import { canonicalize, digestBytes } from '@kf/canonicalization';
 import { expect, it } from 'vitest';
@@ -89,4 +90,50 @@ it('refuses authenticated packages with broken receipt or contract bindings', ()
   expect(() => readWarrantRuntimeEvidence(duplicateReceipt, 'w1', trust)).toThrow(
     /duplicate digest/,
   );
+});
+
+it('binds a real OpenWarrant dispatch packet and exposes missing mappings', () => {
+  const packet: Record<string, unknown> = JSON.parse(
+    readFileSync(
+      new URL(
+        '../../../tests/fixtures/openwarrant-preservation/ow75-dispatch.json',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  );
+  const warrantId = String(packet['warrant_ref']).slice('war://'.length);
+  const pkg = fixture((sections) => {
+    sections['warrants'] = [{ id: warrantId }];
+    sections['warrant-contract-revisions'] = [
+      {
+        warrant_id: warrantId,
+        revision_no: packet['contract_revision'],
+        contract_digest: packet['contract_digest'],
+      },
+    ];
+    sections['warrant-dispatches'] = [
+      {
+        warrant_id: warrantId,
+        authorized_revision: packet['contract_revision'],
+        dispatch_digest: packet['dispatch_digest'],
+      },
+    ];
+    sections['warrant-runtime-receipts'] = [];
+  });
+  expect(readWarrantRuntimeEvidence(pkg, warrantId, trust).unmappedDispatchDigests).toEqual([
+    packet['dispatch_digest'],
+  ]);
+  const result = readWarrantRuntimeEvidence(pkg, warrantId, trust, [packet]);
+  expect(result.unmappedDispatchDigests).toEqual([]);
+  expect(result.stageBindings).toEqual([packet]);
+  expect(() =>
+    readWarrantRuntimeEvidence(pkg, warrantId, trust, [{ ...packet, stage_id: 'OTHER' }]),
+  ).toThrow(/digest or contract/);
+  expect(() => readWarrantRuntimeEvidence(pkg, warrantId, trust, [packet, packet])).toThrow(
+    /digest or contract/,
+  );
+  expect(() =>
+    readWarrantRuntimeEvidence(pkg, warrantId, trust, [{ ...packet, warrant_ref: 'war://other' }]),
+  ).toThrow(/Invalid runtime stage/);
 });

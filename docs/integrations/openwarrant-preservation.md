@@ -95,7 +95,7 @@ or human acceptance of OW-WAR-0111.
 
 ## Offline runtime evidence reader (OW-WAR-0111)
 
-`@kf/export` exposes `readWarrantRuntimeEvidence(package, warrantId, trustedKeys)`.
+`@kf/export` exposes `readWarrantRuntimeEvidence(package, warrantId, trustedKeys, dispatchPackets?)`.
 It authenticates the complete v2 snapshot with the existing preservation verifier,
 then selects the exact Warrant, contract revisions, dispatches and runtime receipt
 rows. It checks unique revision/digest identities and receipt-to-dispatch-to-contract
@@ -115,3 +115,16 @@ integration must keep that unresolved binding visible rather than infer it.
 Validation uses the real PostgreSQL/MinIO preservation fixture after source
 shutdown, plus signed-package negative tests for broken contract/dispatch links
 and duplicate receipts. Shared scope: OpenWarrant OW-WAR-0111.
+
+The optional fourth argument carries exact OpenWarrant stage dispatch packets.
+The reader recomputes the existing `oh.war/dispatch/v1` domain digest with the
+packet digest field empty, then checks the provider dispatch digest, Warrant,
+authorized contract revision and contract digest. Successful bindings preserve
+the full packet; `unmappedDispatchDigests` names provider dispatches without a
+supplied matching packet. Duplicate, altered or cross-Warrant packets refuse.
+This mapping does not prove that all project stages have been dispatched or that
+native receipt semantics are valid. It is not an assurance or permission grant.
+
+The cross-language vector is compiled by the OpenWarrant CLI from OW-WAR-0075,
+STAGE-001. `ow75-dispatch-identity.json` records the observed producer and packet
+identity. Compiling this vector did not launch any work or fabricate a receipt.

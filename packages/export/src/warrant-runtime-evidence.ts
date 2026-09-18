@@ -13,6 +13,8 @@ export interface WarrantRuntimeEvidence {
   readonly contracts: readonly Row[];
   readonly dispatches: readonly Row[];
   readonly receipts: readonly Row[];
+  readonly stageBindings: readonly Row[];
+  readonly unmappedDispatchDigests: readonly string[];
 }
 
 /**
@@ -26,6 +28,7 @@ export function readWarrantRuntimeEvidence(
   pkg: ExportPackage,
   warrantId: string,
   trustedManifestKeys: ReadonlyMap<string, KeyObject>,
+  dispatchPackets: readonly unknown[] = [],
 ): WarrantRuntimeEvidence {
   const findings = verifyExport(pkg, { trustedManifestKeys });
   if (findings.length > 0) {
@@ -91,6 +94,43 @@ export function readWarrantRuntimeEvidence(
     }
     receiptDigests.add(value);
   }
+  const stageBindings: Row[] = [];
+  const mapped = new Set<string>();
+  for (const packet of dispatchPackets) {
+    if (
+      !isRecord(packet) ||
+      packet['api_version'] !== 'oh.war/stage-dispatch/v1' ||
+      packet['warrant_ref'] !== `war://${warrantId}` ||
+      typeof packet['stage_id'] !== 'string' ||
+      packet['stage_id'].trim() === '' ||
+      typeof packet['milestone_id'] !== 'string' ||
+      packet['milestone_id'].trim() === '' ||
+      typeof packet['attempt_id'] !== 'string' ||
+      packet['attempt_id'].trim() === '' ||
+      typeof packet['dispatch_id'] !== 'string' ||
+      packet['dispatch_id'].trim() === '' ||
+      typeof packet['dispatch_digest'] !== 'string'
+    )
+      throw new Error('Invalid runtime stage dispatch packet');
+    const packetDigest = packet['dispatch_digest'];
+    const computed = digest({
+      digest_domain: 'oh.war/dispatch/v1',
+      payload: { ...packet, dispatch_digest: '' },
+    });
+    const dispatch = dispatches.find((row) => row['dispatch_digest'] === packetDigest);
+    const contract = contracts.find((row) => row['revision_no'] === packet['contract_revision']);
+    if (
+      computed !== packetDigest ||
+      mapped.has(packetDigest) ||
+      dispatch === undefined ||
+      contract === undefined ||
+      dispatch['authorized_revision'] !== packet['contract_revision'] ||
+      contract['contract_digest'] !== packet['contract_digest']
+    )
+      throw new Error('Runtime stage packet digest or contract binding mismatch');
+    mapped.add(packetDigest);
+    stageBindings.push({ ...packet });
+  }
   return {
     manifestDigest: digest(pkg.manifest),
     databaseSnapshotDigest: snapshot,
@@ -98,5 +138,7 @@ export function readWarrantRuntimeEvidence(
     contracts,
     dispatches,
     receipts,
+    stageBindings,
+    unmappedDispatchDigests: [...dispatchDigests].filter((value) => !mapped.has(value)).sort(),
   };
 }
