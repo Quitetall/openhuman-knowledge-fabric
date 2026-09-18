@@ -134,6 +134,26 @@ it('binds a real OpenWarrant dispatch packet and exposes missing mappings', () =
   const result = readWarrantRuntimeEvidence(pkg, warrantId, trust, [packet]);
   expect(result.unmappedDispatchDigests).toEqual([]);
   expect(result.stageBindings).toEqual([packet]);
+  const sourceFixture: { basis: unknown } = JSON.parse(
+    readFileSync(
+      new URL(
+        '../../../tests/fixtures/openwarrant-preservation/ow75-runtime-basis.json',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  );
+  const sourceBinding = readArchiveRuntimeBinding(pkg, sourceFixture.basis, trust, [packet]);
+  expect(sourceBinding.sourceStageBindings.matches).toEqual([
+    expect.objectContaining({
+      stageId: packet['stage_id'],
+      milestoneId: packet['milestone_id'],
+      source: 'docs/warrants/OW-WAR-0075/atoms/45-milestones.yaml',
+    }),
+  ]);
+  expect(sourceBinding.sourceStageBindings.unresolved).toEqual([]);
+  expect(sourceBinding.evidence.dispatchesWithoutReceipts).toEqual([packet['dispatch_digest']]);
+  expect(sourceBinding.qualified).toBe(false);
   expect(() =>
     readWarrantRuntimeEvidence(pkg, warrantId, trust, [{ ...packet, stage_id: 'OTHER' }]),
   ).toThrow(/digest or contract/);

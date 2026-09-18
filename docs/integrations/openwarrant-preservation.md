@@ -209,3 +209,23 @@ The corrected real database round-trip fixture matches source revision 1. Its
 provider-only revision 2 remains explicitly unmatched, despite having the same
 digest. This exposes the fixture's true historical limit instead of presenting
 it as a second reconstructed source contract.
+
+### Source stage membership
+
+When the producer basis includes `stage_inventory`, archive reconciliation also
+reports `sourceStageBindings`. A current-revision dispatch matches only when a
+current declaration contains its stage and its named milestone references that
+stage. The result retains the exact declaration path and source digest. A missing
+inventory, missing membership, or a historical dispatch without a graph bound to
+that contract revision stays unresolved. Duplicate matching declarations and
+malformed inventory envelopes are refused.
+
+This is membership comparison, not a stage execution verdict. It does not verify
+executor behavior, receipt semantics, all-stage coverage or graph authenticity.
+The existing externally authenticated provider bindings are checked first; source
+reconstruction remains the OpenWarrant caller's responsibility. Historical graphs
+are never silently treated as current declarations.
+
+The retained OW75 source basis and real dispatch packet exercise matching contract,
+stage and milestone identities. Provider rows in that regression are synthetic;
+its missing receipt remains visible. This does not prove OW75 execution occurred.

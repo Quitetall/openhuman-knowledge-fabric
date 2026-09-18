@@ -1,3 +1,4 @@
+import { bindArchiveStages } from './archive-stage-binding.js';
 import type { KeyObject } from 'node:crypto';
 import { isRecord } from './internal/format.js';
 import type { ExportPackage } from './internal/types.js';
@@ -80,6 +81,11 @@ export function readArchiveRuntimeBinding(
   return {
     schema: 'kf.archive-runtime-binding/v1-draft.1',
     archiveDigest: basis['archive_digest'],
+    sourceStageBindings: bindArchiveStages(
+      basis['stage_inventory'],
+      current.revision,
+      evidence.stageBindings,
+    ),
     sourceBasisAuthenticated: false,
     currentContractMatched: matchedContracts.some((item) => item.revision === current.revision),
     matchedContracts,
