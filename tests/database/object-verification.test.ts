@@ -172,6 +172,140 @@ describe('verification is orthogonal to lifecycle', () => {
     ).toBe(true);
   });
 
+  /**
+   * KF-SAS-RQ-230: an unverified record is not citable as evidence.
+   *
+   * Checked through the table rather than the action, because the refusal lives in the database
+   * (RQ-002) and must hold for any writer, not only for the dispatcher path that happens to exist
+   * today.
+   */
+  describe('evidence cannot rest on a record nobody has checked', () => {
+    /** A warrant object to hang evidence on. `work.warrant.id` IS a `core.object` id. */
+    async function makeWarrant(): Promise<string> {
+      const id = await createObject(harness.adminPool, f, {
+        type: 'warrant',
+        domain: 'project',
+        state: 'draft',
+        title: 'KF-WAR-9001 evidence guard fixture',
+        createdBy: f.performerId,
+      });
+      await withTransaction(harness.adminPool, async (tx) => {
+        await bindContext(tx, f);
+        await tx.query(
+          `insert into work.warrant (id, warrant_uuid, repository, profile, assurance_level)
+           values ($1, $1, 'openhuman-knowledge-fabric', 'delivery', 'basic')`,
+          [id],
+        );
+      });
+      return id;
+    }
+
+    async function citeEvidence(warrant: string, ref: string): Promise<void> {
+      const action = await recordAction();
+      await withTransaction(harness.adminPool, async (tx) => {
+        await bindContext(tx, f);
+        await tx.query(
+          `insert into work.warrant_evidence
+             (warrant_id, evidence_ref, kind, origin, admissibility, recorded_by, recorded_by_action)
+           values ($1, $2, 'record', 'fabric', 'direct', $3, $4)`,
+          [warrant, ref, f.performerId, action],
+        );
+      });
+    }
+
+    it('refuses the citation itself, not merely reporting it', async () => {
+      const warrant = await makeWarrant();
+      const unchecked = await createObject(harness.adminPool, f, {
+        type: 'decision_record',
+        domain: 'engineering',
+        state: 'draft',
+        title: 'Cited before anyone read it',
+        createdBy: f.performerId,
+      });
+      await expect(citeEvidence(warrant, unchecked)).rejects.toThrow(/KF-SAS-RQ-230/);
+      await expect(
+        citeEvidence(warrant, objectId),
+        'the verified subject must still be citable, or the guard is a blanket refusal',
+      ).resolves.toBeUndefined();
+    });
+
+    it('recognises an unverified record of this Fabric by its identifier', async () => {
+      const unchecked = await createObject(harness.adminPool, f, {
+        type: 'decision_record',
+        domain: 'engineering',
+        state: 'draft',
+        title: 'Nobody has read this',
+        createdBy: f.performerId,
+      });
+      const verdict = await withTransaction(harness.pool, async (tx) => {
+        await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+        const rows = await tx.query<{ unverified: boolean }>(
+          'select work.evidence_ref_is_unverified_record($1) as unverified',
+          [unchecked],
+        );
+        return rows[0]?.unverified;
+      });
+      expect(verdict).toBe(true);
+    });
+
+    it('permits a record that has been verified', async () => {
+      const verdict = await withTransaction(harness.pool, async (tx) => {
+        await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+        const rows = await tx.query<{ unverified: boolean }>(
+          'select work.evidence_ref_is_unverified_record($1) as unverified',
+          [objectId],
+        );
+        return rows[0]?.unverified;
+      });
+      expect(verdict, 'the subject was verified earlier in this file').toBe(false);
+    });
+
+    it('leaves a reference that is not an identifier of this Fabric alone', async () => {
+      // Evidence is often a URL, a run id, a document number from a system that is not this one.
+      // Those are §41's admissibility problem, not this trigger's.
+      const verdicts = await withTransaction(harness.pool, async (tx) => {
+        await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+        const rows = await tx.query<{ unverified: boolean }>(
+          `select work.evidence_ref_is_unverified_record(r) as unverified
+             from unnest(array['https://example.invalid/run/7', 'OH-DOC-000001-3-R01', 'not-a-uuid']) as r`,
+        );
+        return rows.map((row) => row.unverified);
+      });
+      expect(verdicts).toEqual([false, false, false]);
+    });
+
+    it('answers for a record the asking session cannot see', async () => {
+      // The definer exists for this. Checked as the caller, row security would hide the record,
+      // `exists` would be false, and the citation would be ALLOWED — the refusal would apply to
+      // exactly the records a caller can already see and to none of the ones they cannot.
+      const hidden = await createObject(harness.adminPool, f, {
+        type: 'decision_record',
+        domain: 'engineering',
+        state: 'draft',
+        title: 'Above the asking ceiling',
+        createdBy: f.performerId,
+      });
+      await withTransaction(harness.adminPool, async (tx) => {
+        await bindContext(tx, f);
+        await tx.query(
+          'update core.object set classification = $2, row_version = row_version + 1 where id = $1',
+          [hidden, 'restricted'],
+        );
+      });
+      const verdict = await withTransaction(harness.pool, async (tx) => {
+        await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'public']);
+        const seen = await tx.query('select 1 from core.object where id = $1', [hidden]);
+        expect(seen.length, 'the record must be invisible for this test to mean anything').toBe(0);
+        const rows = await tx.query<{ unverified: boolean }>(
+          'select work.evidence_ref_is_unverified_record($1) as unverified',
+          [hidden],
+        );
+        return rows[0]?.unverified;
+      });
+      expect(verdict).toBe(true);
+    });
+  });
+
   it('hides the verification from a session that cannot see the record', async () => {
     await withTransaction(harness.adminPool, async (tx) => {
       await bindContext(tx, f);
