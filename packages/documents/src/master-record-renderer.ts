@@ -77,9 +77,31 @@ function classificationLine(member: PermissionMember): string {
   return `${markdownText(member.objectType)} — ${markdownText(member.classification)} — ${markdownText(member.objectId)} (${markdownText(member.contentDigest)})`;
 }
 
+/**
+ * What a reader is told about verification (KF-SAS-RQ-229).
+ *
+ * Both states are stated, and that asymmetry is the requirement rather than an oversight. An
+ * unverified member is marked because otherwise it borrows the credibility of the checked records
+ * around it — it looks exactly like them, and "everything you may see" then quietly mixes what
+ * somebody reviewed with what nobody has. A verified one names who and how, because RQ-231 makes
+ * "reviewed individually" and "promoted in bulk" different facts and a reader who cannot tell them
+ * apart has been told the weaker one.
+ */
+function verificationNote(member: PermissionMember): string {
+  if (member.verified === undefined) return 'UNVERIFIED — nobody has checked this record';
+  const how =
+    member.verified.basis === 'reviewed_individually'
+      ? 'reviewed individually'
+      : 'promoted in bulk';
+  return `verified ${how} by ${member.verified.by} at ${member.verified.at}`;
+}
+
 function renderMemberMarkdown(member: PermissionMember, inlineContent: boolean): string[] {
   const title = member.title === undefined ? member.objectType : member.title;
-  const lines = [`- **${markdownText(title)}** — ${classificationLine(member)}`];
+  const lines = [
+    `- **${markdownText(title)}** — ${classificationLine(member)}`,
+    `  - ${markdownText(verificationNote(member))}`,
+  ];
   if (member.withdrawnAt !== undefined || member.withdrawalReason !== undefined) {
     lines.push(
       `  - Withdrawal: ${markdownText(member.withdrawnAt ?? 'time not recorded')} — ${markdownText(member.withdrawalReason ?? 'reason not recorded')}`,
@@ -227,7 +249,8 @@ function htmlMember(member: PermissionMember, inlineContent: boolean): string {
     member.withdrawnAt !== undefined || member.withdrawalReason !== undefined
       ? `<div>Withdrawal: ${htmlText(member.withdrawnAt ?? 'time not recorded')} — ${htmlText(member.withdrawalReason ?? 'reason not recorded')}</div>`
       : '';
-  return `<li><strong>${htmlText(title)}</strong> — ${htmlText(member.objectType)} — ${htmlText(member.classification)} — <code>${htmlText(member.objectId)}</code> <small>${htmlText(member.contentDigest)}</small>${withdrawal}${content}</li>`;
+  const verification = `<div${member.verified === undefined ? ' class="unverified"' : ''}>${htmlText(verificationNote(member))}</div>`;
+  return `<li><strong>${htmlText(title)}</strong> — ${htmlText(member.objectType)} — ${htmlText(member.classification)} — <code>${htmlText(member.objectId)}</code> <small>${htmlText(member.contentDigest)}</small>${verification}${withdrawal}${content}</li>`;
 }
 
 function htmlSection(

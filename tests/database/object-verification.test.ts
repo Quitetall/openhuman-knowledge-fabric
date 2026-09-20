@@ -157,6 +157,21 @@ describe('verification is orthogonal to lifecycle', () => {
     expect(object?.row_version, 'verifying a record is not a change to the record').toBe('1');
   });
 
+  it('reaches the master-record member, so a projection can label it (RQ-229)', async () => {
+    const { enumeratePermissionSet } = await import('@kf/documents');
+    const members = await withTransaction(harness.pool, async (tx) => {
+      await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+      return enumeratePermissionSet(tx, f.organizationId);
+    });
+    const subject = members.find((m) => m.objectId === objectId);
+    expect(subject?.verified?.basis).toBe('promoted_in_bulk');
+    expect(
+      members.some((m) => m.verified === undefined),
+      'the join must be a LEFT join: an inner one drops every unchecked record from the corpus, ' +
+        'which is the silent omission RQ-229 forbids arriving as a query shape',
+    ).toBe(true);
+  });
+
   it('hides the verification from a session that cannot see the record', async () => {
     await withTransaction(harness.adminPool, async (tx) => {
       await bindContext(tx, f);

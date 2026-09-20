@@ -13,6 +13,20 @@ export interface PermissionMember {
   readonly title?: string;
   /** Canonical, RLS-visible typed-row payload. Empty when no typed extension exists. */
   readonly content?: Readonly<Record<string, unknown>>;
+  /**
+   * Who checked this member, when, and on what basis. Absent means nobody has (KF-SAS-RQ-228).
+   *
+   * Deliberately NOT part of `corpusDigest`. Identity is the authorized corpus, and verifying a
+   * member does not change which records a person may see — the same reasoning that keeps
+   * `withdrawnAt` and `withdrawalReason` out of the digest line while `state` stays in it. What
+   * RQ-229 requires is that a reader can tell, which is a rendering obligation rather than an
+   * identity one.
+   */
+  readonly verified?: {
+    readonly at: string;
+    readonly by: string;
+    readonly basis: 'reviewed_individually' | 'promoted_in_bulk';
+  };
   /** Present only for members carried forward from a prior compilation after withdrawal. */
   readonly withdrawnAt?: string;
   /** Machine-recorded reason for withdrawal; never used to decide membership. */

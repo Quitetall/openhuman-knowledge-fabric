@@ -28,6 +28,10 @@ interface ObjectRow extends Record<string, unknown> {
   readonly lifecycle_state: string;
   readonly row_version: string;
   readonly content_payload: Record<string, unknown>;
+  /** Null when nothing has verified this record. Absence is the unverified state. */
+  readonly verified_at: string | null;
+  readonly verified_by: string | null;
+  readonly verified_basis: string | null;
 }
 
 interface RelationRow extends Record<string, unknown> {
@@ -107,11 +111,17 @@ export async function enumeratePermissionSet(
 ): Promise<readonly PermissionMember[]> {
   const rows = await tx.query<ObjectRow>(
     `select /* master-record.permission-set */
-            id, object_type, organization_id, classification, title, lifecycle_state,
-            row_version::text, content.master_record_payload(id) as content_payload
-       from core.object
-      where organization_id = $1
-      order by id`,
+            o.id, o.object_type, o.organization_id, o.classification, o.title,
+            o.lifecycle_state, o.row_version::text,
+            content.master_record_payload(o.id) as content_payload,
+            -- Left join, because absence IS the unverified state (KF-SAS-RQ-228). An inner join
+            -- would drop every unchecked record from the corpus, which is the silent omission
+            -- RQ-229 forbids, arriving as a query shape rather than as a decision.
+            v.verified_at, v.verified_by, v.basis as verified_basis
+       from core.object o
+       left join core.object_verification v on v.object_id = o.id
+      where o.organization_id = $1
+      order by o.id`,
     [organizationId],
   );
   return rows.map((row) => ({
@@ -124,6 +134,18 @@ export async function enumeratePermissionSet(
     // an update changes the permission-set identity rather than serving an old completeness
     // claim as if it were current.
     content: row.content_payload,
+    ...(row.verified_at === null || row.verified_at === undefined
+      ? {}
+      : {
+          verified: {
+            at: new Date(row.verified_at).toISOString(),
+            by: row.verified_by as string,
+            basis: row.verified_basis as 'reviewed_individually' | 'promoted_in_bulk',
+          },
+        }),
+    // Verification is NOT in this digest. It is a fact about the member, not about which records
+    // the person may see, so a verification does not move the corpus identity — the same place
+    // `withdrawnAt` sits relative to the digest line.
     contentDigest: digest({
       id: row.id,
       objectType: row.object_type,

@@ -455,6 +455,59 @@ describe('master-record renderings', () => {
     compiledAt: '2026-08-26T00:00:00.000Z',
   });
 
+  /**
+   * KF-SAS-RQ-229: a projection labels an unverified member and never omits it silently.
+   *
+   * The omission half is already impossible here — sections must cover every included member, and
+   * the renderer throws otherwise. What was missing is the label. An unverified record rendered
+   * identically to a checked one borrows the credibility of the records around it, and
+   * "everything you may see" then mixes what somebody reviewed with what nobody has, invisibly.
+   */
+  describe('verification is stated for every member', () => {
+    const verified = (basis: 'reviewed_individually' | 'promoted_in_bulk') =>
+      compileMasterRecord({
+        personId: 'person-a',
+        organizationId: 'org-a',
+        effectiveClassification: 'restricted',
+        permitted: [
+          { ...member('a'), title: 'Checked' },
+          {
+            ...member('b'),
+            title: 'Also checked',
+            verified: { at: '2026-09-20T00:00:00.000Z', by: 'person-b', basis },
+          },
+        ],
+        relevantIds: new Set(['person-a', 'a', 'b']),
+        withdrawn: [],
+        compiledAt: '2026-08-26T00:00:00.000Z',
+      });
+
+    it('marks a member nobody has checked, in markdown and in html', () => {
+      const compilation = verified('reviewed_individually');
+      expect(renderMasterRecordMarkdown(compilation)).toContain(
+        'UNVERIFIED — nobody has checked this record',
+      );
+      expect(renderMasterRecordHtml(compilation)).toContain('class="unverified"');
+    });
+
+    it('names who verified a member and on which basis, because the two bases differ', () => {
+      expect(renderMasterRecordMarkdown(verified('reviewed_individually'))).toContain(
+        'verified reviewed individually by person-b',
+      );
+      expect(renderMasterRecordMarkdown(verified('promoted_in_bulk'))).toContain(
+        'verified promoted in bulk by person-b',
+      );
+    });
+
+    it('does not let verification move the corpus identity', () => {
+      // Verifying a member changes nothing about which records the person may see, so the claim
+      // is the same claim. The same reasoning keeps `withdrawnAt` out of the digest line.
+      expect(verified('reviewed_individually').manifest.corpusDigest).toBe(
+        verified('promoted_in_bulk').manifest.corpusDigest,
+      );
+    });
+  });
+
   it('renders all membership sections deterministically', () => {
     const markdown = renderMasterRecordMarkdown(compilation);
     expect(markdown).toContain('## Your record');
