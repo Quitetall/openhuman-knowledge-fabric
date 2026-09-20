@@ -12,6 +12,16 @@ export interface RestoredSections {
   readonly legacyActionIds: readonly string[];
 }
 
+/**
+ * Sections that did not exist at export format 1.
+ *
+ * A format-1 archive was written before these tables did, so their absence means the corpus had
+ * none — which is true, and not a loss. Named explicitly rather than treating any missing section
+ * as empty: a blanket rule would silently accept a truncated export of the current format, which
+ * is the failure the round trip exists to catch.
+ */
+const SECTIONS_ADDED_AFTER_FORMAT_1 = new Set(['object-verifications']);
+
 export async function restoreSections(
   tx: Tx,
   pkg: ExportPackage,
@@ -22,6 +32,7 @@ export async function restoreSections(
   for (const name of importOrder) {
     const table = IMPORT_TARGETS[name];
     if (table === undefined) continue;
+    if (pkg.manifest.format_version === '1' && SECTIONS_ADDED_AFTER_FORMAT_1.has(name)) continue;
     let rows = sectionRows(pkg, name);
     if (pkg.manifest.format_version === '1' && name === 'audit-checkpoints') {
       rows = rows.map((row) => ({ ...row, format_version: 'kf.audit-checkpoint.v1' }));

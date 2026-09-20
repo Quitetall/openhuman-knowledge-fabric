@@ -2,7 +2,7 @@
   "schema_version": "1.2.0-draft.1",
   "x-generated-from": {
     "ontology_version": "1.2.0-draft.1",
-    "source_digest": "a6bd646125392d4c450b1641c36f1d3223511153af92069201db9992f73ae61f"
+    "source_digest": "895eb499d54039c9fcc490c3ec63f7d7aca8ea7b415db33ba6369e3bb732c8eb"
   },
   "node_types": {
     "organization": {
@@ -648,6 +648,10 @@
       "transactional": true
     },
     "release_person_entitlement_exclusion": {
+      "audited": true,
+      "transactional": true
+    },
+    "verify_record": {
       "audited": true,
       "transactional": true
     },

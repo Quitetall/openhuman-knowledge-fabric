@@ -3,7 +3,7 @@
   "info": {
     "title": "OpenHuman Knowledge Fabric API",
     "version": "1.2.0-draft.1",
-    "description": "Generated from ontology source digest a6bd646125392d4c450b1641c36f1d3223511153af92069201db9992f73ae61f."
+    "description": "Generated from ontology source digest 895eb499d54039c9fcc490c3ec63f7d7aca8ea7b415db33ba6369e3bb732c8eb."
   },
   "paths": {
     "/objects/organization/{id}": {
@@ -3046,6 +3046,36 @@
       "post": {
         "summary": "Execute release_person_entitlement_exclusion",
         "operationId": "release_person_entitlement_exclusion",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/verify_record": {
+      "post": {
+        "summary": "Execute verify_record",
+        "operationId": "verify_record",
         "requestBody": {
           "required": true,
           "content": {
@@ -6156,6 +6186,7 @@
               "record_document_proposal",
               "apply_document_proposal",
               "release_person_entitlement_exclusion",
+              "verify_record",
               "deactivate_organization",
               "reactivate_organization",
               "retire_organization",

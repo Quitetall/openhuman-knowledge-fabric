@@ -33,6 +33,18 @@ export const CORE_SECTIONS = [
             from core.approval order by id`,
   },
   {
+    // KF-SAS-RQ-228: an unverified record appears in the preservation export marked as such.
+    //
+    // The mark is the ABSENCE of a row here, which is the same shape the database uses and for
+    // the same reason: a `verified` column would have to default to something, and false on a
+    // table nobody writes is indistinguishable from a system that has never verified anything.
+    // Exporting the verifications means an imported corpus knows exactly which of its records
+    // somebody checked, and the round-trip test proves the two sets are identical.
+    name: 'object-verifications',
+    sql: `select object_id, verified_at, verified_by, basis, recorded_by_action
+            from core.object_verification order by object_id`,
+  },
+  {
     name: 'snapshots',
     sql: `select id, object_id, action_id, object_revision, payload, payload_sha256,
                  ontology_digest, storage_uri, recorded_at

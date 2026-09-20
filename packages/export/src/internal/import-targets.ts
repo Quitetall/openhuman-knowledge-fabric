@@ -5,6 +5,7 @@ export const PRESERVATION_IMPORT_TARGETS = {
   actions: 'core.action',
   'legacy-action-provenance': 'core.action_migration019_legacy',
   approvals: 'core.approval',
+  'object-verifications': 'core.object_verification',
   snapshots: 'core.snapshot',
   'audit-events': 'core.audit_event',
   'audit-checkpoints': 'core.audit_checkpoint',

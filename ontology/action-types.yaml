@@ -277,6 +277,16 @@ action_types:
     audited: true
     transactional: true
     drives: []
+  # Records that somebody has checked one record (KF-SAS-RQ-228 to RQ-232).
+  #
+  # Exactly one target, deliberately. A gesture may dispatch many of these — verifying five
+  # hundred records produces five hundred acts — but one act may not cover several, because that
+  # is the container decision KF-SAS-RQ-021 and RQ-227 forbid, and the ledger would carry one
+  # entry where five hundred judgements were made.
+  - id: verify_record
+    audited: true
+    transactional: true
+    drives: []
   # Grants a person an organization-scoped, effective-dated clearance (ADR 0011).
   #
   # This type exists because `org.person_clearance.granted_by_action` is a NOT NULL foreign key

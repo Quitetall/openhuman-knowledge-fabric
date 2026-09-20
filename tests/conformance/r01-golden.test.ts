@@ -381,6 +381,7 @@ const DECLARED_ADDITIONS = {
     'triage_complaint',
     // Storage locations (ADR 0017): re-hash one location; the outcome is recorded either way.
     'verify_artifact_location',
+    'verify_record',
     'verify_risk_control',
     'withdraw_controlled_document',
     'withdraw_interface_contract',

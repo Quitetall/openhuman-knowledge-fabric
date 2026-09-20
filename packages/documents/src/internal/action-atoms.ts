@@ -15,6 +15,7 @@ import { createProposalRecordActions } from './proposal-record-actions.js';
 import { createPublicationActions } from './publication-actions.js';
 import { assertCompileMasterRecord, compileMasterRecordEffect } from './master-record-actions.js';
 import { createEntitlementActions } from './entitlement-actions.js';
+import { createVerificationActions } from './verification-actions.js';
 import { createExternalArtifactActions } from './external-artifact-actions.js';
 
 export function createDocumentActionAtoms(options: {
@@ -38,6 +39,7 @@ export function createDocumentActionAtoms(options: {
   const proposalRecord = createProposalRecordActions();
   const proposalApply = createProposalApplyActions();
   const entitlement = createEntitlementActions();
+  const verification = createVerificationActions();
   const externalArtifact = createExternalArtifactActions();
 
   return {
@@ -66,6 +68,7 @@ export function createDocumentActionAtoms(options: {
       record_document_proposal: proposalRecord.recordDocumentProposal,
       apply_document_proposal: proposalApply.applyDocumentProposal,
       release_person_entitlement_exclusion: entitlement.releaseExclusion,
+      verify_record: verification.verifyRecord,
     },
     preconditions: {
       add_authored_fragment: fragmentAdd.assertAddFragment,
@@ -81,6 +84,7 @@ export function createDocumentActionAtoms(options: {
       record_document_proposal: proposalRecord.assertRecordProposal,
       apply_document_proposal: proposalApply.assertApplyProposal,
       release_person_entitlement_exclusion: entitlement.assertReleaseExclusion,
+      verify_record: verification.assertVerifyRecord,
     },
   };
 }
