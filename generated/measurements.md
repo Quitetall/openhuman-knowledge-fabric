@@ -19,6 +19,6 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 | action types | 151 | declared in `ontology/action-types.yaml` |
 | object types | 39 | declared in `ontology/object-types.yaml` |
 | relation types | 41 | declared in `ontology/relation-types.yaml` |
-| decision records | 31 | under `docs/decisions/` — 27 accepted, 4 proposed |
+| decision records | 32 | under `docs/decisions/` — 27 accepted, 5 proposed |
 | architecture requirements | 163 | distinct identifiers in §106 |
 | test files | 157 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
