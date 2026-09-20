@@ -1,6 +1,6 @@
 # ADR 0029 — Transient observations are a third category of stored thing, and expiry only counts if every copy expires
 
-- **Status:** proposed, 2026-09-14
+- **Status:** accepted 2026-09-20; proposed 2026-09-14
 - **Extends:** ADR 0016 (access is a grant), ADR 0024 (friction is an architectural property).
 - **Bears on:** Law 6 (retire by sequester, never delete), §55 preservation export,
   §62 the master-record boundary, §88 backup and restore, §89 checkpoints.

@@ -2,7 +2,7 @@ schema = "oh.war/sas-revision/v1"
 version = "0.1.0-draft.7"
 source = "docs/sas/KF_Software_Architecture_Specification.md"
 sha256 = "cd221037a66d3b94cfdaf77215b58bc36982491a337af3d5e6ddfc65b574dd37"
-state = "proposed"
+state = "accepted"
 predecessor = "0.1.0-draft.6"
 architecture_changing = false
 
@@ -170,3 +170,11 @@ KF-SAS-RQ-229 = "A projection labels an unverified member and never omits it sil
 KF-SAS-RQ-230 = "An unverified record is not citable as evidence"
 KF-SAS-RQ-231 = "A promotion act records whether the item was reviewed individually or in bulk"
 KF-SAS-RQ-232 = "Verification is recorded independently of lifecycle state, never inferred from it"
+
+[acceptance]
+accepted_by = "Brian Lam"
+actor_kind = "human"
+acting_role = "project_owner"
+meaning = "Accepted. The seven-day floor on compiler cutover is waived. The other three conditions stand. What the floor observed — a restart, a certificate rotation, a daily timer — is now unobserved before cutover, and that is accepted."
+effective_time = "2026-09-20T19:45:43Z"
+adr_ref = "docs/decisions/0032-the-seven-day-floor-is-waived.md"

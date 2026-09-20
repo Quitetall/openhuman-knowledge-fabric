@@ -1,6 +1,6 @@
 # ADR 0028 — The retrieval index holds vectors and identifiers; authorization crosses the wire as a mask
 
-- **Status:** proposed, 2026-09-14
+- **Status:** accepted 2026-09-20; proposed 2026-09-14
 - **Extends:** ADR 0016 (access is a grant), ADR 0027 (access is a grant on every read),
   ADR 0010 (the Liminal-backed compiler is deferred), ADR 0023 (business logic above,
   data primitives within).

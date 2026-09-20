@@ -1,6 +1,6 @@
 # ADR 0030 — The system is three layers, and the specification says so in one place
 
-- **Status:** proposed, 2026-09-14
+- **Status:** accepted 2026-09-20; proposed 2026-09-14
 - **Builds on:** ADR 0002, ADR 0010, ADR 0013 (the compiler is a consumer),
   ADR 0023 (business logic above, data primitives within), ADR 0028 (the retrieval index).
 

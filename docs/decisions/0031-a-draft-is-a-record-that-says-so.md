@@ -1,6 +1,6 @@
 # ADR 0031 — An unverified record is a record that says so, and one gesture may produce many acts
 
-- **Status:** proposed, 2026-09-14; corrected in place 2026-09-18 while still proposed
+- **Status:** accepted 2026-09-20; proposed 2026-09-14, corrected in place 2026-09-18 while still proposed
 - **Extends:** ADR 0012 (ingestion: copy or reference), ADR 0024 (friction is architectural),
   ADR 0029 (transient observations).
 - **Bears on:** KF-SAS-RQ-021, RQ-202, §48 ingestion, §62 the master-record boundary, §63 the
