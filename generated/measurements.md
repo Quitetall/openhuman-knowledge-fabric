@@ -21,4 +21,4 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 | relation types | 41 | declared in `ontology/relation-types.yaml` |
 | decision records | 32 | under `docs/decisions/` — 32 accepted, 0 proposed |
 | architecture requirements | 163 | distinct identifiers in §106 |
-| test files | 158 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
+| test files | 159 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
