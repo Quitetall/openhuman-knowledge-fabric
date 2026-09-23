@@ -33,6 +33,14 @@ function endpoint(raw: unknown, name: string): string {
 const MAX_OIDC_RESPONSE_BYTES = 128 * 1024;
 
 /**
+ * The only JWS algorithm an ID token may use: what the realm signs with
+ * (deploy/keycloak/knowledge-fabric-realm.json, `defaultSignatureAlgorithm`). Without a list the
+ * token's own header chooses, limited only by which keys the set holds. Mirrors the API's
+ * OIDC_SIGNING_ALGORITHMS in @kf/authorization.
+ */
+const ID_TOKEN_ALGORITHMS = ['RS256'];
+
+/**
  * Read a response body, refusing to hold more than the cap in memory.
  *
  * `await response.text()` then checking `.length` bounds what is ACCEPTED and not what is
@@ -210,6 +218,7 @@ export async function exchangeAuthorizationCode(
   const verified = await jwtVerify(idToken, keys, {
     issuer: config.issuer,
     audience: config.clientId,
+    algorithms: ID_TOKEN_ALGORITHMS,
     currentDate: new Date(nowSeconds * 1000),
     clockTolerance: 30,
   });

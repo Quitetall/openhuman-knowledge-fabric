@@ -15,6 +15,7 @@ export const PACKAGE: PackageManifest = {
 
 export {
   IdentityRejected,
+  OIDC_SIGNING_ALGORITHMS,
   TokenVerifier,
   linkIdentity,
   resolveCaller,

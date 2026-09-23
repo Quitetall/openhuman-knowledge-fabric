@@ -79,6 +79,23 @@ describe('config', () => {
     expect(config.host).toBe('127.0.0.1');
   });
 
+  it.each([
+    ['OIDC_ISSUER', 'http://idp.example.internal/realms/knowledge-fabric'],
+    ['OIDC_JWKS_URI', 'http://idp.example.internal/realms/knowledge-fabric/certs'],
+  ])('refuses %s over plain http off loopback', (name, value) => {
+    // Whoever is on the path of a cleartext JWKS fetch supplies the keys, and so every identity.
+    expect(() =>
+      loadConfig({
+        NODE_ENV: 'test',
+        KF_DEPLOYMENT_PROFILE: 'dogfood',
+        OIDC_ISSUER: 'https://idp.example.internal/realms/knowledge-fabric',
+        OIDC_AUDIENCE: 'knowledge-fabric-api',
+        OIDC_JWKS_URI: 'https://idp.example.internal/realms/knowledge-fabric/certs',
+        [name]: value,
+      }),
+    ).toThrow(new RegExp(`${name} must use https unless it is loopback`));
+  });
+
   it('refuses cleartext dogfood on a non-loopback listener', () => {
     expect(() =>
       loadConfig({

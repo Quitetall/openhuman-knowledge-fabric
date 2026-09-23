@@ -141,4 +141,34 @@ describe('OIDC authorization code client', () => {
       }),
     ).rejects.toThrow(/nonce/);
   });
+
+  it('refuses an ID token signed with an algorithm the realm does not use', async () => {
+    // Without a pin, the token header chooses the algorithm, limited only by which keys fit.
+    const now = 1_800_000_000;
+    const transaction = makePkceTransaction('/documents', now);
+    const { privateKey, publicKey } = await generateKeyPair('ES256');
+    const token = await new SignJWT({ nonce: transaction.nonce })
+      .setProtectedHeader({ alg: 'ES256', kid: 'fixture' })
+      .setIssuer(config.issuer)
+      .setAudience(config.clientId)
+      .setSubject('person-subject')
+      .setIssuedAt(now)
+      .setExpirationTime(now + 900)
+      .sign(privateKey);
+    const fetcher = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({ access_token: 'api-access', id_token: token, expires_in: 3600 }),
+          { status: 200 },
+        ),
+    );
+    const keys: JWTVerifyGetKey = async () => publicKey;
+    await expect(
+      exchangeAuthorizationCode(metadata, config, transaction, 'one-use-code', {
+        fetcher: fetcher as typeof fetch,
+        keys,
+        nowSeconds: now,
+      }),
+    ).rejects.toThrow(/alg/i);
+  });
 });

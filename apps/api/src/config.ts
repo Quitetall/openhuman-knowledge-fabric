@@ -112,6 +112,24 @@ function readDeploymentProfile(raw: string | undefined): ApiConfig['deploymentPr
   );
 }
 
+function requireHttpsUnlessLoopback(name: string, raw: string): void {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new ConfigError(`${name} must be an absolute URL, got ${JSON.stringify(raw)}`);
+  }
+  if (url.username !== '' || url.password !== '') {
+    throw new ConfigError(`${name} must not contain credentials`);
+  }
+  const loopback =
+    url.protocol === 'http:' &&
+    (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]');
+  if (url.protocol !== 'https:' && !loopback) {
+    throw new ConfigError(`${name} must use https unless it is loopback, got ${url.protocol}//`);
+  }
+}
+
 /** A listener address that only this machine can connect to. */
 function isLoopbackHost(host: string): boolean {
   return host === '127.0.0.1' || host === '::1' || host === 'localhost';
@@ -199,6 +217,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
       'OIDC_ISSUER, OIDC_AUDIENCE and OIDC_JWKS_URI must all be set, or none of them. ' +
         'A partially configured identity provider falls back to trusting headers.',
     );
+  }
+  // The issuer names who is trusted and the JWKS URI is where the trusted keys come from. Over
+  // plain HTTP anyone on the path substitutes their own keys and mints any identity. Loopback
+  // is the one exception, as in the web client (apps/web/src/lib/oidc.ts): a workstation
+  // Keycloak on localhost never crosses a network.
+  if (identityParts.length === 3) {
+    requireHttpsUnlessLoopback('OIDC_ISSUER', issuer!);
+    requireHttpsUnlessLoopback('OIDC_JWKS_URI', jwksUri!);
   }
   const identity =
     identityParts.length === 3

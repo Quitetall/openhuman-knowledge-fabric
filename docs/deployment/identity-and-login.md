@@ -120,6 +120,12 @@ verifier returns `400 invalid_grant — PKCE verification failed: Code mismatch`
 ### The API verifies the token
 
 Run with `KF_DEPLOYMENT_PROFILE=dogfood`, `HOST=127.0.0.1`, and the three `OIDC_*` variables set.
+`OIDC_ISSUER` and `OIDC_JWKS_URI` must be `https://` unless they are loopback (`localhost`,
+`127.0.0.1`, `[::1]`), as the web client already required: whoever is on the path of a cleartext
+key fetch supplies the keys. Both the API and the web client accept only `RS256` signatures, the
+realm's `defaultSignatureAlgorithm`; changing the realm's algorithm means changing
+`OIDC_SIGNING_ALGORITHMS` (`packages/authorization`) and `ID_TOKEN_ALGORITHMS`
+(`apps/web/src/lib/oidc.ts`) with it.
 `GET /master-record`, with `x-kf-acting-role` and `x-kf-organization` supplied:
 
 | token presented                         | status | body                                                          |

@@ -62,6 +62,16 @@ export class IdentityRejected extends Error {
   }
 }
 
+/**
+ * The JWS algorithms a token may be signed with: what the realm signs with
+ * (deploy/keycloak/knowledge-fabric-realm.json, `defaultSignatureAlgorithm`).
+ *
+ * Pinned, not left to the key set. Without a list, jose accepts whatever `alg` the token header
+ * names so long as a key in the set fits it, so the accepted algorithm is chosen by the token's
+ * author. Changing the realm's algorithm is then a deliberate change here as well.
+ */
+export const OIDC_SIGNING_ALGORITHMS: readonly string[] = ['RS256'];
+
 export interface IdentityConfig {
   readonly issuer: string;
   readonly audience: string;
@@ -107,6 +117,7 @@ export class TokenVerifier {
         // same provider is a valid token and not one for us; accepting it would let any
         // service in the estate act here on a user's behalf.
         audience: this.#config.audience,
+        algorithms: [...OIDC_SIGNING_ALGORITHMS],
         clockTolerance: this.#config.clockToleranceSeconds ?? 30,
       });
       if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp)) {
