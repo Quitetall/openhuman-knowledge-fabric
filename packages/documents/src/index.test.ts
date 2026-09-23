@@ -18,6 +18,7 @@ import {
   createCompositionRevision,
   createDocumentActionAtoms,
   compileAdrProjections,
+  evidenceStorageKey,
   mediaTypeForDocumentFile,
   PANDOC_PROJECTION_CONTRACT,
   projectionFromPandoc,
@@ -643,10 +644,39 @@ describe('document action chain', () => {
     } as ActionRequest);
   }
 
+  it('refuses to attach bytes under any key the server did not derive for the bound organization', async () => {
+    // The object exists and matches the claimed digest and size in every case below — that
+    // was the whole check before, and knowing another organization's digest and size was
+    // enough to pass it and then read their bytes back through the source route.
+    const source = Buffer.from('# Another organization owns this\n');
+    const sourceDigest = digestOf(source);
+    const otherOrganization = '0badc0de-0000-4000-8000-000000000001';
+    const foreign = [
+      evidenceStorageKey('ingest', otherOrganization, sourceDigest),
+      evidenceStorageKey('document-imports', otherOrganization, sourceDigest),
+      `document-imports/${sourceDigest}`, // the legacy unscoped import key
+      `ingest/${fixtures.organizationId}/../${otherOrganization}/${sourceDigest}`,
+    ];
+    for (const key of foreign) {
+      await store.put(key, source, 'text/markdown');
+      await expect(
+        call('attach_evidence', [], {
+          title: 'Borrowed.md',
+          artifact_kind: 'other',
+          sha256: sourceDigest,
+          size_bytes: source.length,
+          media_type: 'text/markdown',
+          storage_uri: key,
+        }),
+        key,
+      ).rejects.toMatchObject({ failure: 'precondition_failed', detail: { rule: 'KF-ART-KEY' } });
+    }
+  });
+
   it('records where a copied source lives when attach_evidence names a source locator (ADR 0022)', async () => {
     const source = Buffer.from('# From Drive\n');
     const sourceDigest = digestOf(source);
-    const key = `drive-copy/${sourceDigest}`;
+    const key = evidenceStorageKey('ingest', fixtures.organizationId, sourceDigest);
     await store.put(key, source, 'text/markdown');
     const result = await call('attach_evidence', [], {
       title: 'Spec.gdoc',
@@ -704,7 +734,7 @@ describe('document action chain', () => {
     // created `internal`, so a public ingest was refused by the insert policy and a restricted
     // one silently produced an internal record (2026-09-11).
     const source = Buffer.from('# Public notice\n');
-    const key = `classified/${digestOf(source)}`;
+    const key = evidenceStorageKey('ingest', fixtures.organizationId, digestOf(source));
     await store.put(key, source, 'text/markdown');
     const stated = await call('attach_evidence', [], {
       title: 'Public notice.md',
@@ -741,7 +771,7 @@ describe('document action chain', () => {
   it('fails attach_evidence closed before parser-authored digests can persist', async () => {
     const source = Buffer.from('# Title\n');
     const sourceDigest = digestOf(source);
-    const key = `parser-integrity/${sourceDigest}`;
+    const key = evidenceStorageKey('ingest', fixtures.organizationId, sourceDigest);
     await store.put(key, source, 'text/markdown');
     const forgedExecute = createFabricDispatcher(
       harness.pool,
@@ -797,7 +827,7 @@ describe('document action chain', () => {
   it('persists exact source, atom, loss, and projection preimages as one verified parse', async () => {
     const source = Buffer.from('# Title\n');
     const sourceDigest = digestOf(source);
-    const key = `parser-preimage/${sourceDigest}`;
+    const key = evidenceStorageKey('ingest', fixtures.organizationId, sourceDigest);
     await store.put(key, source, 'text/markdown');
     const parserExecute = createFabricDispatcher(
       harness.pool,
@@ -1672,7 +1702,7 @@ describe('document action chain', () => {
 
     const viewBytes = Buffer.from('<h1>Document Constitution</h1>');
     const viewDigest = digestOf(viewBytes);
-    const storageKey = `test-compiled-views/${viewDigest}`;
+    const storageKey = evidenceStorageKey('ingest', fixtures.organizationId, viewDigest);
     await store.put(storageKey, viewBytes, 'text/html');
     const viewArtifact = await call('attach_evidence', [], {
       title: 'constitution.html',

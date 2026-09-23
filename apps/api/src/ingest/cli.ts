@@ -21,6 +21,7 @@ import { S3ObjectStore, verifyUpload, type ObjectStore } from '@kf/artifacts';
 import { resolveCaller, TokenVerifier, type Caller, type IdentityConfig } from '@kf/authorization';
 import {
   createDocumentActionAtoms,
+  evidenceStorageKey,
   PandocDocumentParser,
   type DocumentParser,
 } from '@kf/documents';
@@ -661,7 +662,7 @@ export async function runIngest(
           item: { ...item, mediaType: fetched.mediaType },
           bytes: fetched.bytes,
           sha256,
-          storeKey: `ingest/${identity.organizationId}/${sha256}`,
+          storeKey: evidenceStorageKey('ingest', identity.organizationId, sha256),
           drive: fetched,
         });
         continue;
@@ -674,7 +675,9 @@ export async function runIngest(
       if (bytes.length === 0) throw new IngestCliError(`ingest path is empty: ${item.path}`);
       const sha256 = digestBytes(bytes);
       const storeKey =
-        planned.mode === 'copy' ? `ingest/${identity.organizationId}/${sha256}` : undefined;
+        planned.mode === 'copy'
+          ? evidenceStorageKey('ingest', identity.organizationId, sha256)
+          : undefined;
       const reference = manifest?.get(absolutePath);
       if (planned.mode === 'reference' && reference === undefined) {
         throw new IngestCliError(`no manifest entry for ${item.path}`);

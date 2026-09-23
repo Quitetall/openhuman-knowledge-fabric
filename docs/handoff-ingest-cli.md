@@ -114,7 +114,10 @@ never write the bytes into the object store.
 **`--mode=copy`** — we hold the bytes. Use `attach_evidence`
 (`packages/documents/src/internal/evidence-actions.ts`), unchanged. Note it hardcodes
 `source_system='object_store'` and requires a `storage_uri`; that is correct for this path and is
-the reason the other action had to exist.
+the reason the other action had to exist. Since 2026-09-23 that `storage_uri` must be exactly
+`ingest/<organization>/<sha256>` or `document-imports/<organization>/<sha256>` for the act's own
+organization (`evidenceStorageKey`, refused `KF-ART-KEY` otherwise): a caller-named key let
+anyone who knew another organization's digest and size attach, then download, its bytes.
 
 ## The spine to copy, not invent
 

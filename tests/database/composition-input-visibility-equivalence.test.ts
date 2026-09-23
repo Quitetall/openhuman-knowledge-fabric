@@ -208,7 +208,7 @@ beforeAll(async () => {
     title: string,
   ): Promise<string> => {
     const sha256 = digestOf(bytes);
-    await store.put(`document-imports/${sha256}`, bytes, mediaType);
+    await store.put(`document-imports/${fixtures.organizationId}/${sha256}`, bytes, mediaType);
     const artifact = await execute({
       ...caller,
       actionType: 'attach_evidence',
@@ -219,7 +219,7 @@ beforeAll(async () => {
         sha256,
         size_bytes: bytes.length,
         media_type: mediaType,
-        storage_uri: `document-imports/${sha256}`,
+        storage_uri: `document-imports/${fixtures.organizationId}/${sha256}`,
         revision_label: 'R01',
       },
     });

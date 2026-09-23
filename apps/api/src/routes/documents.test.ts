@@ -228,7 +228,7 @@ describe('POST /documents fabric-native source', () => {
   it('refuses an occupied content-addressed key without overwriting its bytes', async () => {
     const db = databaseBoundary(() => []);
     const store = new InMemoryObjectStore();
-    const key = `document-imports/${SOURCE_SHA256}`;
+    const key = `document-imports/${ORGANIZATION_ID}/${SOURCE_SHA256}`;
     const occupiedBytes = Buffer.alloc(SOURCE_BYTES.length, 0x78);
     const occupied = await store.put(key, occupiedBytes, 'application/octet-stream');
     const putIfAbsent = vi.spyOn(store, 'putIfAbsent');

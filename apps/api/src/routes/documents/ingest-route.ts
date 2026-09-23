@@ -18,7 +18,7 @@ import { ActionRejected } from '@kf/actions';
 import { ArtifactRejected, verifyUpload } from '@kf/artifacts';
 import { digestBytes } from '@kf/canonicalization';
 import { withTransaction } from '@kf/database';
-import { DocumentParseRefused } from '@kf/documents';
+import { DocumentParseRefused, evidenceStorageKey } from '@kf/documents';
 import { unidentified } from '../actions.js';
 import { documentParseRefusalBody } from '../actions/errors.js';
 import { DOCUMENT_IMPORT_BODY_LIMIT_BYTES, type DocumentRoutesOptions } from './contracts.js';
@@ -125,7 +125,7 @@ export function registerIngestRoute(app: FastifyInstance, options: DocumentRoute
         const source = parseIngest(request.body ?? {});
         // Content-addressed under the organization, as the CLI keys it: the same bytes ingested
         // twice occupy one object, and a different file can never overwrite them.
-        const storageKey = `ingest/${identity.organizationId}/${source.sha256}`;
+        const storageKey = evidenceStorageKey('ingest', identity.organizationId, source.sha256);
         const uploaded = await store.putIfAbsent(storageKey, source.bytes, source.mediaType);
         await verifyUpload(store, {
           key: storageKey,

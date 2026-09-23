@@ -84,6 +84,7 @@ const LOCAL_FAMILIES: readonly string[] = [
   'KF-QMS', // nonconformity and CAPA closure preconditions
   'KF-COMPILER', // the compiler process itself failed
   'KF-MISSING', // a required record was not found
+  'KF-ART', // an evidence storage key the server did not derive for the bound organization
 ];
 
 function declaredRules(): ReadonlyMap<string, string> {

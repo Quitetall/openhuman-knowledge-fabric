@@ -28,6 +28,11 @@ export {
 export { createDocumentActionAtoms } from './internal/action-atoms.js';
 export { DOCUMENT_ACTION_IDS, type DocumentActionAtoms } from './internal/action-types.js';
 export {
+  EVIDENCE_KEY_NAMESPACES,
+  evidenceStorageKey,
+  type EvidenceKeyNamespace,
+} from './internal/evidence-storage-key.js';
+export {
   artifactKindForDocumentClass,
   mediaTypeForDocumentFile,
   PandocDocumentParser,
