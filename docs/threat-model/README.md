@@ -134,22 +134,24 @@ database is an operational requirement — see [backup and restore](../backup-an
 
 ## T5 — Loss
 
-| Control                                                                                               | Where                                                    | Proven by                                           |
-| ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | --------------------------------------------------- |
-| Canonical export round-trips through an empty database byte for byte                                  | `packages/export`                                        | `tests/round-trip/export.test.ts`                   |
-| Restore drill runs the shipped scripts against real containers                                        | `scripts/`                                               | `tests/backup-restore/drill.test.ts`                |
-| Restore refuses a target that already holds records                                                   | `restore-verify.sh`                                      | same                                                |
-| Every derived index is rebuildable from the records                                                   | `search.rebuild()`                                       | `tests/integration/search.test.ts`                  |
-| A declared recovery objective, or institutional readiness FAILS                                       | `ops.recovery_objective`                                 | `tests/database/readiness.test.ts`                  |
-| Backups, off-site copies and drills are recorded and checked                                          | `ops.backup_run`, `ops.backup_copy`, `ops.restore_drill` | same                                                |
-| The objective cannot be edited into compliance — only superseded                                      | append-only trigger                                      | same                                                |
-| Continuous archiving is checked against the declared objective                                        | `pitr_readiness`                                         | same                                                |
-| Everything above runs on a timer, and a timer that stops is noticed                                   | `scripts/timer-liveness.sh`, `X-KF-MaxSilenceSec=`       | `tests/deployment/timer-liveness.test.ts`           |
-| A crash-looping service ends in `failed`, so its alert fires                                          | `StartLimitBurst=` on every restarting unit              | `tests/deployment/systemd-units.test.ts`            |
-| Backups are encrypted to a public key before they leave, and pruned only once an off-site copy exists | `scripts/backup.sh`                                      | `tests/backup-restore/backup-hardening.test.ts`     |
-| A local destination is not off-site unless a named failure domain says so                             | `scripts/backup-offsite.sh`                              | `tests/backup-restore/offsite-copy.test.ts`         |
-| The drill restores the off-site copy, into a throwaway cluster                                        | `scripts/restore-drill.sh`                               | `tests/backup-restore/restore-drill-source.test.ts` |
-| Checkpoint signatures are verified daily, by an identity holding no signing key                       | `kf-audit-verify.timer`                                  | `tests/deployment/systemd-units.test.ts`            |
+| Control                                                                                                                           | Where                                                    | Proven by                                              |
+| --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------ |
+| Canonical export round-trips through an empty database byte for byte                                                              | `packages/export`                                        | `tests/round-trip/export.test.ts`                      |
+| Restore drill runs the shipped scripts against real containers                                                                    | `scripts/`                                               | `tests/backup-restore/drill.test.ts`                   |
+| Restore refuses a target that already holds records                                                                               | `restore-verify.sh`                                      | same                                                   |
+| Every derived index is rebuildable from the records                                                                               | `search.rebuild()`                                       | `tests/integration/search.test.ts`                     |
+| A declared recovery objective, or institutional readiness FAILS                                                                   | `ops.recovery_objective`                                 | `tests/database/readiness.test.ts`                     |
+| Backups, off-site copies and drills are recorded and checked                                                                      | `ops.backup_run`, `ops.backup_copy`, `ops.restore_drill` | same                                                   |
+| The objective cannot be edited into compliance — only superseded                                                                  | append-only trigger                                      | same                                                   |
+| Continuous archiving is checked against the declared objective                                                                    | `pitr_readiness`                                         | same                                                   |
+| Everything above runs on a timer, and a timer that stops is noticed                                                               | `scripts/timer-liveness.sh`, `X-KF-MaxSilenceSec=`       | `tests/deployment/timer-liveness.test.ts`              |
+| A crash-looping service ends in `failed`, so its alert fires                                                                      | `StartLimitBurst=` on every restarting unit              | `tests/deployment/systemd-units.test.ts`               |
+| Backups are encrypted to a public key before they leave, and pruned only once an off-site copy exists                             | `scripts/backup.sh`                                      | `tests/backup-restore/backup-hardening.test.ts`        |
+| A local destination is not off-site unless a named failure domain says so                                                         | `scripts/backup-offsite.sh`                              | `tests/backup-restore/offsite-copy.test.ts`            |
+| The drill restores the off-site copy, into a throwaway cluster                                                                    | `scripts/restore-drill.sh`                               | `tests/backup-restore/restore-drill-source.test.ts`    |
+| The drill decrypts as its own user, `kf-drill`, the only unit holding the sealed decryption credential; the backup user never can | `kf-restore-drill.service`                               | `tests/deployment/systemd-units.test.ts`               |
+| The release ships the object-store verifier; a host program is only a root-owned, digest-pinned override                          | `apps/kf-storage/src/verify-object-store.ts`             | `tests/backup-restore/restore-verify-defaults.test.ts` |
+| Checkpoint signatures are verified daily, by an identity holding no signing key                                                   | `kf-audit-verify.timer`                                  | `tests/deployment/systemd-units.test.ts`               |
 
 **The load-bearing part is the objective, not the schedule.** "Back up nightly" is an activity;
 an objective says how much work the organization has decided it can afford to lose. Until one
@@ -263,10 +265,7 @@ whoever deploys, and a false one produces exactly the exposure it claims to prev
 
 - **No seccomp filter on the compiler sandbox.** bwrap takes one as a compiled BPF program and
   nothing here builds one; `SystemCallFilter=` on the unit is the syscall boundary.
-- **The object-store verifier program is supplied by the host**, pinned by digest and asked for
-  measurements it cannot copy from the export — but not shipped here.
-- **The drill decrypts on the backup uid.** The key is a host-sealed credential, never a file;
-  running the drill on a separate recovery host is the documented recommendation.
+
 - **pandoc still parses inside the database transaction.** The deadline bounds how long.
 
 ## Open items
