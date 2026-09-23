@@ -194,6 +194,22 @@ importers:
         specifier: ^4.23.12
         version: 4.23.12
 
+  apps/attestor:
+    dependencies:
+      '@kf/authorization':
+        specifier: workspace:*
+        version: link:../../packages/authorization
+      '@kf/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@kf/operations':
+        specifier: workspace:*
+        version: link:../../packages/operations
+    devDependencies:
+      '@types/node':
+        specifier: ^24.13.3
+        version: 24.13.3
+
   apps/checkpoint:
     dependencies:
       '@kf/artifacts':
