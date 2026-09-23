@@ -237,6 +237,12 @@ PKCE login the table above walked, with curl against the realm's login form, and
 access token 0600. It is the token the person would hold after logging in themselves; `kf
 ingest --identity=oidc` and `kf master-record` take it as `--token-file`.
 
+The password is read from the terminal without echo, or from `KF_LOGIN_PASSWORD_FILE`, which
+must be owner-only (0600). `KF_LOGIN_PASSWORD` is refused: set on a command line it lands in shell
+history, and exported it is inherited by every child of the shell. `kf master-record` likewise
+refuses a `--token-file` readable beyond its owner, and writes `--out` as 0600, including over
+an existing file.
+
 ### Why this is not a dispatched action
 
 Because it cannot be. Dispatch binds authoritative clearance before effects run, so granting the
