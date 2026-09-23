@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
@@ -125,11 +125,26 @@ printf 'psql:%s\n' "$*" >> "$KF_TEST_PSQL_LOG"
 case "$*" in
   *"current_database()"*) printf 'kf_rehearsal|empty\n' ;;
   *"public.schema_migrations"*) printf '${state}\n' ;;
+  *"information_schema.columns"*) printf 'column|core.object.id|uuid|NO|\n' ;;
 esac
 `,
   );
   chmodSync(executable, 0o755);
   return { executable, log };
+}
+
+/**
+ * The host-local key rehearsal receipts are authenticated with. One per test file, created on
+ * first use: every rehearsal and apply below runs "on the same host" unless a test says not.
+ */
+let receiptKey: string | undefined;
+function hostReceiptKey(): string {
+  if (receiptKey === undefined) {
+    const directory = mkdtempSync(join(tmpdir(), 'kf-receipt-key-'));
+    receiptKey = join(directory, 'rehearsal-receipt-key');
+    writeFileSync(receiptKey, randomBytes(32), { mode: 0o600 });
+  }
+  return receiptKey;
 }
 
 function runMigration(
@@ -149,6 +164,7 @@ function runMigration(
       KF_EXPECTED_RELEASE_OWNER_UID: String(process.getuid?.() ?? statSync(release.release).uid),
       KF_MIGRATION_LOCK_FILE: join(temporaryDirectory('kf-lock-'), 'migration.lock'),
       KF_TEST_COMMAND_LOG: dbmate.log,
+      KF_REHEARSAL_RECEIPT_KEY_FILE: hostReceiptKey(),
       ...additionalEnvironment,
     },
   });
@@ -290,7 +306,7 @@ describe('private-host service boundary', () => {
     expect(body).toContain('Group=kf-migrator');
     expect(body).toContain('EnvironmentFile=/etc/kf/migrator.env');
     expect(body).toMatch(
-      /^ExecStart=\/usr\/bin\/env DATABASE_URL_FILE=\/etc\/kf\/migrator\/database-url KF_EXPECTED_RELEASE_OWNER_UID=0 KF_MIGRATION_LOCK_FILE=\/run\/kf-migrate\/migration\.lock \/opt\/kf\/scripts\/deploy\/migrate-release\.sh apply \/opt\/kf$/m,
+      /^ExecStart=\/usr\/bin\/env DATABASE_URL_FILE=\/etc\/kf\/migrator\/database-url KF_EXPECTED_RELEASE_OWNER_UID=0 KF_MIGRATION_LOCK_FILE=\/run\/kf-migrate\/migration\.lock KF_REHEARSAL_RECEIPT_KEY_FILE=\/etc\/kf\/migrator\/rehearsal-receipt-key \/opt\/kf\/scripts\/deploy\/migrate-release\.sh apply \/opt\/kf$/m,
     );
     expect(body).not.toContain('[Install]');
   });
@@ -422,7 +438,9 @@ describe('release migration command', () => {
     );
     expect(psqlCalls).not.toContain('scratch-secret');
     const receiptBody = readFileSync(receipt, 'utf8');
-    expect(receiptBody).toContain('format=kf-migration-rollback-rehearsal-v2');
+    expect(receiptBody).toContain('format=kf-migration-rollback-rehearsal-v3');
+    expect(receiptBody).toMatch(/^post_migration_schema_sha256=[0-9a-f]{64}$/m);
+    expect(receiptBody.trimEnd().split('\n').at(-1)).toMatch(/^hmac_sha256=[0-9a-f]{64}$/);
     expect(receiptBody).toContain(`manifest_sha256=${release.manifestDigest}`);
     expect(receiptBody).toContain('scratch_label=test-disposable-cluster');
     // Every migration in this fixture is reversible, so the receipt must say so plainly rather
@@ -582,7 +600,7 @@ describe('release migration command', () => {
     writeFileSync(
       receipt,
       readFileSync(receipt, 'utf8').replace(
-        'format=kf-migration-rollback-rehearsal-v2',
+        'format=kf-migration-rollback-rehearsal-v3',
         'format=kf-migration-rollback-rehearsal-v1',
       ),
       { mode: 0o600 },
@@ -603,5 +621,129 @@ describe('release migration command', () => {
     expect(applied.code, applied.output).not.toBe(0);
     expect(applied.output).toContain('v1');
     expect(applied.output).toContain('re-run the rehearsal');
+  });
+  describe('a rehearsal receipt cannot be produced without running the rehearsal', () => {
+    // Until 2026-09-23 every receipt field — manifest digest, migration-set digest, dbmate
+    // version — was derivable from the release alone, so a receipt could be typed rather than
+    // earned. v3 receipts carry the rehearsal database's post-migration schema digest and an
+    // HMAC under a key that exists only on the migrating host.
+    function rehearsed(): {
+      release: ReleaseFixture;
+      receipt: string;
+      psql: { executable: string; log: string };
+    } {
+      const release = makeRelease();
+      const psql = fakePsql();
+      const secret = join(temporaryDirectory('kf-rehearsal-secret-'), 'database-url');
+      const receipt = join(temporaryDirectory('kf-rehearsal-receipt-'), 'receipt');
+      writeFileSync(secret, 'postgresql://kf_migrator@database.invalid/scratch\n', { mode: 0o600 });
+      const result = runMigration(
+        ['rehearse-rollback', release.release, receipt],
+        release,
+        fakeDbmate(release),
+        {
+          KF_PSQL_BIN: psql.executable,
+          KF_TEST_PSQL_LOG: psql.log,
+          KF_REHEARSAL_DATABASE_URL_FILE: secret,
+          KF_REHEARSAL_DISPOSABLE_CLUSTER_CONFIRMATION: 'dedicated-disposable-cluster',
+          KF_REHEARSAL_TARGET_LABEL: 'test-disposable-cluster',
+        },
+      );
+      expect(result.code, result.output).toBe(0);
+      return { release, receipt, psql };
+    }
+
+    function apply(
+      fixture: ReturnType<typeof rehearsed>,
+      environment: Record<string, string> = {},
+    ): { code: number; output: string; dbmateLog: string } {
+      const production = join(temporaryDirectory('kf-production-secret-'), 'database-url');
+      writeFileSync(production, 'postgresql://kf_migrator@database.invalid/kf\n', { mode: 0o600 });
+      const dbmate = fakeDbmate(fixture.release);
+      const result = runMigration(['apply', fixture.release.release], fixture.release, dbmate, {
+        DATABASE_URL_FILE: production,
+        KF_PSQL_BIN: fixture.psql.executable,
+        KF_TEST_PSQL_LOG: fixture.psql.log,
+        KF_ROLLBACK_REHEARSAL_RECEIPT: fixture.receipt,
+        KF_MIGRATION_APPLY_CONFIRMATION: 'apply-reviewed-release',
+        ...environment,
+      });
+      return { ...result, dbmateLog: dbmate.log };
+    }
+
+    it('refuses a receipt typed from the release, even in the new format', () => {
+      const fixture = rehearsed();
+      const body = readFileSync(fixture.receipt, 'utf8');
+      const forged = body.replace(/^hmac_sha256=.*$/m, `hmac_sha256=${'0'.repeat(64)}`);
+      writeFileSync(fixture.receipt, forged, { mode: 0o600 });
+      const result = apply(fixture);
+      expect(result.code).not.toBe(0);
+      expect(result.output).toContain('MAC does not verify');
+      expect(existsSync(result.dbmateLog), 'dbmate ran on a forged receipt').toBe(false);
+    });
+
+    it('refuses a genuine receipt whose content was edited afterwards', () => {
+      const fixture = rehearsed();
+      const body = readFileSync(fixture.receipt, 'utf8');
+      writeFileSync(
+        fixture.receipt,
+        body.replace(
+          /^post_migration_schema_sha256=.*$/m,
+          `post_migration_schema_sha256=${'1'.repeat(64)}`,
+        ),
+        { mode: 0o600 },
+      );
+      expect(apply(fixture).output).toContain('MAC does not verify');
+    });
+
+    it('refuses a receipt made on another host, under another key', () => {
+      const fixture = rehearsed();
+      const otherHost = join(temporaryDirectory('kf-other-host-'), 'rehearsal-receipt-key');
+      writeFileSync(otherHost, randomBytes(32), { mode: 0o600 });
+      const result = apply(fixture, { KF_REHEARSAL_RECEIPT_KEY_FILE: otherHost });
+      expect(result.code).not.toBe(0);
+      expect(result.output).toContain('MAC does not verify');
+    });
+
+    it('refuses an unauthenticated v2 receipt by name', () => {
+      const fixture = rehearsed();
+      const body = readFileSync(fixture.receipt, 'utf8')
+        .replace(
+          'format=kf-migration-rollback-rehearsal-v3',
+          'format=kf-migration-rollback-rehearsal-v2',
+        )
+        .replace(/^post_migration_schema_sha256=.*\n/m, '')
+        .replace(/^hmac_sha256=.*\n/m, '');
+      writeFileSync(fixture.receipt, body, { mode: 0o600 });
+      const result = apply(fixture);
+      expect(result.code).not.toBe(0);
+      expect(result.output).toContain('v2, which is unauthenticated');
+    });
+
+    it('refuses to rehearse without a closed host key, before migrating anything', () => {
+      const release = makeRelease();
+      const dbmate = fakeDbmate(release);
+      const psql = fakePsql();
+      const secret = join(temporaryDirectory('kf-rehearsal-secret-'), 'database-url');
+      writeFileSync(secret, 'postgresql://kf_migrator@database.invalid/scratch\n', { mode: 0o600 });
+      const openKey = join(temporaryDirectory('kf-open-key-'), 'key');
+      writeFileSync(openKey, randomBytes(32), { mode: 0o644 });
+      const result = runMigration(
+        ['rehearse-rollback', release.release, join(temporaryDirectory('kf-receipt-'), 'receipt')],
+        release,
+        dbmate,
+        {
+          KF_PSQL_BIN: psql.executable,
+          KF_TEST_PSQL_LOG: psql.log,
+          KF_REHEARSAL_DATABASE_URL_FILE: secret,
+          KF_REHEARSAL_DISPOSABLE_CLUSTER_CONFIRMATION: 'dedicated-disposable-cluster',
+          KF_REHEARSAL_TARGET_LABEL: 'test-disposable-cluster',
+          KF_REHEARSAL_RECEIPT_KEY_FILE: openKey,
+        },
+      );
+      expect(result.code).not.toBe(0);
+      expect(result.output).toContain('readable by its owner only');
+      expect(existsSync(dbmate.log) ? readFileSync(dbmate.log, 'utf8') : '').not.toContain(' up');
+    });
   });
 });

@@ -15,7 +15,7 @@ RuntimeDirectory=kf-migrate
 RuntimeDirectoryMode=0700
 StateDirectory=kf-migrator
 StateDirectoryMode=0700
-ExecStart=/usr/bin/env DATABASE_URL_FILE=/etc/kf/migrator/database-url KF_EXPECTED_RELEASE_OWNER_UID=0 KF_MIGRATION_LOCK_FILE=/run/kf-migrate/migration.lock /opt/kf/scripts/deploy/migrate-release.sh apply /opt/kf
+ExecStart=/usr/bin/env DATABASE_URL_FILE=/etc/kf/migrator/database-url KF_EXPECTED_RELEASE_OWNER_UID=0 KF_MIGRATION_LOCK_FILE=/run/kf-migrate/migration.lock KF_REHEARSAL_RECEIPT_KEY_FILE=/etc/kf/migrator/rehearsal-receipt-key /opt/kf/scripts/deploy/migrate-release.sh apply /opt/kf
 TimeoutStartSec=30min
 
 NoNewPrivileges=true

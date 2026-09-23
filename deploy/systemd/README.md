@@ -116,6 +116,10 @@ sudo install -m 0600 -o kf-web -g kf-web /dev/null /etc/kf/web/session-key
 sudo install -m 0600 -o kf-worker -g kf-worker /dev/null /etc/kf/worker/database-url
 sudo install -m 0600 -o kf-worker -g kf-worker /dev/null /etc/kf/worker/s3-secret-access-key
 sudo install -m 0600 -o kf-migrator -g kf-migrator /dev/null /etc/kf/migrator/database-url
+# Host-local key rehearsal receipts are authenticated with; apply refuses a receipt it did not
+# sign. See "Migration and rollback rehearsal" in docs/deployment/private-host.md.
+sudo install -m 0600 -o kf-migrator -g kf-migrator /dev/null /etc/kf/migrator/rehearsal-receipt-key
+sudo sh -c 'head -c 32 /dev/urandom > /etc/kf/migrator/rehearsal-receipt-key'
 
 # Scheduled-operation identities: one per set of secrets, not one shared `kf`. Until
 # 2026-08-17 all five scheduled units ran as `kf`, which made the checkpoint signing key and

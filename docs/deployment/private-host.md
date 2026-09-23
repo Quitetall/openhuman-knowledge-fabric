@@ -410,6 +410,7 @@ sudo -u kf-migrator env \
   KF_REHEARSAL_DATABASE_URL_FILE=/etc/kf/migrator/rehearsal-database-url \
   KF_REHEARSAL_DISPOSABLE_CLUSTER_CONFIRMATION=dedicated-disposable-cluster \
   KF_REHEARSAL_TARGET_LABEL=<non-secret-target-label> \
+  KF_REHEARSAL_RECEIPT_KEY_FILE=/etc/kf/migrator/rehearsal-receipt-key \
   /path/to/extracted-release/scripts/deploy/migrate-release.sh rehearse-rollback \
   /path/to/extracted-release \
   /var/lib/kf-migrator/rollback-rehearsal-<release-id>.receipt
@@ -449,9 +450,24 @@ thing a reviewer reads to judge whether the irreversibility was intended. Declar
 while also carrying down statements is likewise refused: one of the two is wrong and there is no
 safe way to guess which.
 
-Receipts are `format=kf-migration-rollback-rehearsal-v2`. The version moved rather than the
-fields being added quietly, because reading a v2 as a v1 would read "reversible to a floor" as
-"reversible" — the overclaim this exists to remove.
+Receipts are `format=kf-migration-rollback-rehearsal-v3`. v2 moved from v1 because reading a
+v2 as a v1 would read "reversible to a floor" as "reversible" — the overclaim this exists to
+remove. v3 moved from v2 because a v2 receipt was plain text whose every field could be derived
+from the release alone, so it could be written without running the rehearsal. A v3 receipt also
+records `post_migration_schema_sha256` — a digest of the columns, constraints, indexes and
+function bodies the rehearsal database held after migrating and seeding — and ends with
+`hmac_sha256`, an HMAC over every preceding byte under `/etc/kf/migrator/rehearsal-receipt-key`.
+That key is host-local, 0600 `kf-migrator`, at least 32 bytes, and never leaves the host:
+
+```sh
+sudo install -m 0600 -o kf-migrator -g kf-migrator /dev/null /etc/kf/migrator/rehearsal-receipt-key
+sudo sh -c 'head -c 32 /dev/urandom > /etc/kf/migrator/rehearsal-receipt-key'
+```
+
+`apply` (and `kf-migrate.service`) recompute the MAC with the same key and refuse a receipt that
+does not verify, a v2 receipt, and a v1 receipt, each by name. A receipt therefore authorises a
+migration only on the host whose rehearsal produced it. The schema digest is evidence of what
+the rehearsal saw; it is not compared against production, whose history can legitimately differ.
 
 **First passing rehearsal**, release `3054582c84a1` on this host, 2026-08-26 — a historical
 record for the pre-master-record tree, not a claim about the current tree. The next release
