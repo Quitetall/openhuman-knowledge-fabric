@@ -169,4 +169,7 @@ export const PRESERVATION_TABLE_EXCLUSIONS = {
   'content.document_basis_classifier_lease': 'ephemeral classifier lease, invalid after restore',
   'core.context_seal_key':
     'transaction-scoped seal key; a restore needs a key, not this one, and makes a fresh one',
+  'core.principal_attestation':
+    'transient proof a person was present (20260924001000): digests only, expired within 60 s, ' +
+    'never evidence of an act — the action and audit rows are',
 } as const;
