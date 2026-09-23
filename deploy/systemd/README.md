@@ -163,6 +163,8 @@ sudo install -m 0600 -o kf-storage -g kf-storage /dev/null /etc/kf/storage/s3-du
 # The unit also runs --collect-orphans (evidence bytes no record references, older than a
 # week): declare the actor at `restricted` and give the working-store key
 # s3:ListBucketVersions + s3:DeleteObjectVersion on the artifacts bucket, or every run refuses.
+# Every key it deletes is recorded in content.orphan_collection in the same run (see the
+# runbook); a deletion it could not record fails the run.
 sudo install -m 0600 -o kf-storage -g kf-storage /dev/null /etc/kf/storage/storage.env
 sudo install -m 0600 -o kf-readiness -g kf-readiness /dev/null /etc/kf/readiness/database-url
 

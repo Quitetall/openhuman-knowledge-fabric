@@ -314,6 +314,61 @@ provider configuration item, and until it is fixed **nobody can perform those tw
 which is the intended direction, because a session whose age cannot be established is not one
 to authorize a payment on.
 
+## An act is refused: `act_not_granted`
+
+The actor holds a role, but no live `act` grant reaches the target — or the actor is a service
+actor, which never performs an institutional act (ADR 0020). The institutional acts are the
+action types that declare `requires: act` in `ontology/action-types.yaml`: authorizing,
+approving, accepting, issuing, making effective.
+
+Adding a role fixes it only if the role assignment is scoped to the organization or to the
+target. Otherwise the fix is a `grant_access` act with `capability: act` at the target's scope
+(or the organization's), performed by somebody entitled to grant it. `explainAccess` says
+which grants reach a person and why the others do not.
+
+Since `20260924000100` the database makes the same decision the dispatcher does, on the ledger
+row itself. The dispatcher still refuses first, with this error. A refusal that arrives instead
+as a database error naming `act authority` means something wrote to `core.action` without going
+through the dispatcher. That is not a configuration problem: treat it as an incident (threat
+model T2).
+
+## A verification is refused: reviewed individually, too fast
+
+`verify_record` with basis `reviewed_individually` is refused when the same person recorded
+another individual review less than one second earlier. A person reading records does not
+finish two in a second. A script does, and a script's verifications are a bulk promotion
+whatever basis it declares (KF-SAS-RQ-231).
+
+Promoting many records at once is legitimate, and it has its own gesture, which stamps the
+basis itself:
+
+    POST /verifications/bulk
+    body  { recordIds: [...], reason, idempotencyKey, acceptBulk? }
+
+It dispatches one `verify_record` act per record (KF-SAS-RQ-227: one act, one record) with
+basis `promoted_in_bulk`, and answers per record: which were applied, and which were refused
+and why. It refuses a gesture above the sync ceiling (250 records; `acceptBulk: true` lifts it
+to 2,000 and no further). Retrying with the same idempotency key replays rather than repeating.
+
+Somebody who really did read each record, and was refused because two landed in the same
+second, can retry the refused one: the pace is one second, not a quota.
+
+## Orphaned evidence bytes were collected
+
+`kf-storage --collect-orphans` deletes evidence bytes that no record references, after a grace
+period (a week on the shipped timer). Each deletion is recorded in `content.orphan_collection`
+by the same run: the key, the store, the digest the key names, how many object versions were
+removed, when, which service actor did it, and why. The table is append-only and is carried in
+preservation exports. To answer "where did these bytes go", as the auditor or backup login:
+
+    select collected_at, store_id, storage_key, versions_removed, reason
+      from content.orphan_collection
+     where storage_key like 'ingest/<org>/%' order by collected_at;
+
+A key the run deleted but could not record is reported as a refusal and the run exits
+non-zero: the bytes are gone and the trail is not, which is the one outcome the alert must get
+to somebody.
+
 ## The API will not start
 
 - `KF_TLS_TERMINATED_UPSTREAM` — this process serves plain HTTP and refuses to run in staging
