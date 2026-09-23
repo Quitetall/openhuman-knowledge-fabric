@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { withTransaction, type Tx } from '@kf/database';
+import { attestationFor, withTransaction, type Tx } from '@kf/database';
 import { runDeclareServiceActor } from '../../apps/api/src/admin/declare-service-actor.js';
 import {
   createObject,
@@ -100,14 +100,29 @@ describe('an institutional act needs act authority in the database, not only in 
    * action's ledger row directly — the row the dispatcher would have written after its own
    * check, written without it.
    */
-  const forge = (actor: string, role: string, actionType: string, targets: readonly string[]) =>
-    withTransaction(h.pool, async (tx: Tx) => {
+  const forge = (
+    actor: string,
+    role: string,
+    actionType: string,
+    targets: readonly string[],
+    pool = h.pool,
+  ) =>
+    withTransaction(pool, async (tx: Tx) => {
       const actionId = randomUUID();
-      await tx.query('select core.bind_principal($1, $2, $3, $4)', [
+      // The application login binds a person only on an attestation (20260924001000); the
+      // harness pool obtains one from the attestor's login, as the API obtains one from
+      // kf-attestor. The act-authority guard under test is the next statement's concern.
+      await tx.query('select core.bind_principal($1, $2, $3, $4, $5)', [
         actor,
         role,
         f.organizationId,
         'restricted',
+        (await attestationFor(tx, {
+          actorId: actor,
+          actingRoleId: role,
+          organizationId: f.organizationId,
+          maxClassification: 'restricted',
+        })) ?? null,
       ]);
       await tx.query('select core.set_transaction_context($1, $2, $3, $4)', [
         actor,
@@ -161,7 +176,9 @@ describe('an institutional act needs act authority in the database, not only in 
 
   it('refuses an institutional act by a service actor, whatever role it holds', async () => {
     await expect(
-      forge(steward.personId, steward.roleId, 'accept_decision', [decision]),
+      // Through the storage login, the only application login that binds a service actor (it
+      // has no token to attest), so the refusal reached is the act-authority one.
+      forge(steward.personId, steward.roleId, 'accept_decision', [decision], h.storagePool),
     ).rejects.toThrow(/service actor cannot perform one/);
   });
 

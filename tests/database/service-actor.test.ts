@@ -376,8 +376,10 @@ describe('orphaned evidence collection', () => {
       }),
     ).rejects.toThrow(/service actor/);
     // Nor may the collector name a key outside its own organization's evidence prefixes.
+    // As the storage login (kf_app + kf_service_actor), the only application login that binds
+    // a service actor: the steward has no token, so no attestation (20260924001000).
     const asSteward = <T>(sql: string, params: unknown[]) =>
-      withTransaction(harness.pool, async (tx) => {
+      withTransaction(harness.storagePool, async (tx) => {
         await tx.query('select core.bind_principal($1, $2, $3, $4)', [
           steward.personId,
           steward.roleAssignmentId,
@@ -450,7 +452,7 @@ describe('orphaned evidence collection', () => {
     })();
     cannotDelete.objects.set(`ingest/${fixtures.organizationId}/${'e'.repeat(64)}`, old);
     cannotDelete.objects.set(`ingest/${fixtures.organizationId}/${'d'.repeat(64)}`, old);
-    const deleteReport = await sweepOrphanedEvidence(harness.pool, cannotDelete, actor, {
+    const deleteReport = await sweepOrphanedEvidence(harness.storagePool, cannotDelete, actor, {
       graceHours: 168,
       accessDenied: refusal,
     });
@@ -469,7 +471,7 @@ describe('orphaned evidence collection', () => {
         };
       }
     })();
-    const listReport = await sweepOrphanedEvidence(harness.pool, cannotList, actor, {
+    const listReport = await sweepOrphanedEvidence(harness.storagePool, cannotList, actor, {
       graceHours: 168,
       accessDenied: refusal,
     });

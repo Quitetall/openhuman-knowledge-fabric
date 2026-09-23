@@ -56,6 +56,8 @@ const PURE_TRANSITION_REQUEST: ActionRequest = {
   actionType: 'triage_initiative',
   targetIds: ['55555555-5555-7555-8555-555555555555'],
   idempotencyKey: 'test-pure-transition-0001',
+  // The caller's attestation (20260924001000): the dispatcher must hand it to the bind.
+  attestation: 'a7'.repeat(32),
 };
 
 function replayReceipt(request: ActionRequest = PURE_TRANSITION_REQUEST) {
@@ -266,6 +268,7 @@ describe('transactional action ownership', () => {
         PURE_TRANSITION_REQUEST.actingRoleId,
         PURE_TRANSITION_REQUEST.organizationId,
         PURE_TRANSITION_REQUEST.maxClassification,
+        PURE_TRANSITION_REQUEST.attestation,
       ],
     ]);
     expect(boundary.accessContexts).toEqual([]);

@@ -5,6 +5,7 @@ import { createDispatcher } from '@kf/actions';
 import {
   createPool,
   bindPrincipal,
+  registerAttestationIssuer,
   setTransactionContext,
   withTransaction,
   type Tx,
@@ -114,12 +115,22 @@ async function withAction<T>(
     readonly isolationLevel?: 'read committed' | 'repeatable read';
   } = {},
 ): Promise<T> {
+  const actorId = options.actorId ?? fixtures.reviewerId;
+  const actingRoleId = options.actingRoleId ?? fixtures.reviewerRoleId;
+  const maxClassification = options.maxClassification ?? 'restricted';
+  // Attested BEFORE the transaction opens, as the API is before any of a request's transactions
+  // (20260924001000). Issued mid-transaction instead, the attestation row would be committed
+  // after a REPEATABLE READ snapshot was taken, and the bind would not see it.
+  const attestation = await h.attest({
+    actorId,
+    actingRoleId,
+    organizationId: fixtures.organizationId,
+    maxClassification,
+  });
   return withTransaction(h.pool, async (tx) => {
     if (options.isolationLevel !== undefined) {
       await tx.query(`set transaction isolation level ${options.isolationLevel}`);
     }
-    const actorId = options.actorId ?? fixtures.reviewerId;
-    const actingRoleId = options.actingRoleId ?? fixtures.reviewerRoleId;
     const actionId = (await tx.one<{ id: string }>('select uuidv7() as id')).id;
     const effectiveAt = options.effectiveAt ?? new Date();
 
@@ -129,7 +140,8 @@ async function withAction<T>(
       actorId,
       actingRoleId,
       organizationId: fixtures.organizationId,
-      maxClassification: options.maxClassification ?? 'restricted',
+      maxClassification,
+      attestation,
     });
     await setTransactionContext(tx, {
       actorId,
@@ -905,6 +917,8 @@ describe('SOA signing-key authority', () => {
       connectionString: appUri.toString(),
       maxConnections: 1,
     });
+    // A pool of its own, so the harness's attestation issuer is registered for it explicitly.
+    registerAttestationIssuer(singleConnectionPool, h.attest);
     let aborted = false;
     const stalledSigner = vi.fn(
       ({ signal }: { readonly signal: AbortSignal }) =>

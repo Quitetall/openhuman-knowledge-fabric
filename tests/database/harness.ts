@@ -310,6 +310,11 @@ export async function startHarness(options: HarnessOptions = {}): Promise<Harnes
   // this pool — and only this pool — gets one from the attestor's login whenever it binds
   // without one. A test proving the refusal uses a pool of its own, or calls bind_principal
   // with an explicit NULL. The production API registers nothing.
+  //
+  // One trap: the issuer commits its attestation from ANOTHER connection, at the moment of the
+  // bind. A REPEATABLE READ transaction whose snapshot was already taken cannot see it. Such a
+  // test attests first (`h.attest`) and passes the attestation in, as the API does — it attests
+  // before any of a request's transactions open.
   registerAttestationIssuer(pool, attest);
 
   return {

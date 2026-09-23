@@ -10,6 +10,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { COMMISSIONING_DEFAULTS } from './internal/commissioning/contracts.js';
 import { parseUnit, secretPosture } from './internal/commissioning/units.js';
 
 const roots: string[] = [];
@@ -25,11 +26,12 @@ describe('commissioning and provisioning', () => {
       join(root, 'kf-fixture.service'),
       `[Service]\nUser=kf-api\nEnvironment=DATABASE_URL_FILE=${join(root, 'absent')}\n`,
     );
+    // Every default, so a new input (the attestor socket, the passwd/group paths) reaches the
+    // check as it would on a host rather than as undefined.
     const result = await secretPosture({
+      ...COMMISSIONING_DEFAULTS,
       systemdDirectory: root,
       shippedUnitDirectory: root,
-      certificateRenewalDays: 21,
-      rollbackRehearsalDays: 180,
     });
     expect(result.status).toBe('unverifiable');
     expect(result.detail).toContain('provision-host.sh --check');
