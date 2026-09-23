@@ -34,6 +34,15 @@ The two private keys are each owned mode `0600` by the single identity that uses
 by `kf-backup`. No other identity — application or scheduled — can read either. Host must prove
 denial after install.
 
+The checkpoint signer runs with `NODE_ENV=production`, which removes the old `checkpoint-1`
+default: `CHECKPOINT_SIGNING_KEY_ID` in `/etc/kf/checkpoint.env` names the key, and `--run`
+refuses to sign unless `/etc/kf/checkpoint-public-keys/<id>.pub` exists and is the public half
+of the configured private key. Rotating a key therefore means a NEW id, its `.pub` installed
+first, then the id changed — never a new private key under an old id, which used to turn every
+earlier checkpoint into an unexplained `bad_signature`. Each checkpoint is also written to the
+external anchor (`CHECKPOINT_S3_*`); without one it is still signed into the database, and the
+run then exits nonzero so `OnFailure=` reports it every hour until an anchor is configured.
+
 This is stricter than it was. Until 2026-08-17 all five scheduled units ran as a shared `kf`,
 so both signing keys were readable by the backup, offsite, readiness and restore-drill jobs.
 `kf-commissioning` now refuses any host where units sharing an identity do not need the same
@@ -126,6 +135,11 @@ sudo install -d -m 0750 -o root -g kf-storage /etc/kf/storage
 
 sudo install -m 0600 -o kf-checkpoint -g kf-checkpoint /dev/null /etc/kf/checkpoint/database-url
 sudo install -m 0600 -o kf-checkpoint -g kf-checkpoint /dev/null /etc/kf/checkpoint/checkpoint-key
+# Secret for the external anchor every signed checkpoint is also written to (required in
+# production), and the non-secret routing: CHECKPOINT_SIGNING_KEY_ID and the anchor endpoint.
+sudo install -m 0600 -o kf-checkpoint -g kf-checkpoint /dev/null \
+  /etc/kf/checkpoint/anchor-secret-access-key
+sudo install -m 0640 -o root -g kf-checkpoint checkpoint.env.example /etc/kf/checkpoint.env
 sudo install -m 0600 -o kf-backup -g kf-backup /dev/null /etc/kf/backup/database-url
 sudo install -m 0600 -o kf-backup -g kf-backup /dev/null /etc/kf/backup/preservation-manifest-key
 sudo install -m 0600 -o kf-offsite -g kf-offsite /dev/null /etc/kf/offsite/database-url
