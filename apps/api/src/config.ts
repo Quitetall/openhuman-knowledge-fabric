@@ -73,7 +73,15 @@ function readPort(raw: string | undefined, fallback: number): number {
 }
 
 function readEnvironment(raw: string | undefined): ApiConfig['environment'] {
-  const value = raw ?? 'development';
+  // Required, not defaulted. Defaulting an unset NODE_ENV to `development` meant a unit file
+  // or container that forgot it came up in the one posture that trusts x-kf-* headers as the
+  // caller. The mistake has to fail loudly at boot, not quietly grant the most permissive mode.
+  if (raw === undefined || raw === '') {
+    throw new ConfigError(
+      'NODE_ENV is required; set it explicitly to development, test, ' + 'staging or production',
+    );
+  }
+  const value = raw;
   if (
     value === 'development' ||
     value === 'test' ||
@@ -99,10 +107,17 @@ function readDeploymentProfile(raw: string | undefined): ApiConfig['deploymentPr
   );
 }
 
+/** A listener address that only this machine can connect to. */
+function isLoopbackHost(host: string): boolean {
+  return host === '127.0.0.1' || host === '::1' || host === 'localhost';
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   const environment = readEnvironment(env['NODE_ENV']);
   const deploymentProfile = readDeploymentProfile(env['KF_DEPLOYMENT_PROFILE']);
-  const host = env['HOST'] ?? (deploymentProfile === 'dogfood' ? '127.0.0.1' : '0.0.0.0');
+  // Loopback by default under every profile. A wildcard listener is something a deployment
+  // asks for by name, never something it gets for forgetting a variable.
+  const host = env['HOST'] !== undefined && env['HOST'] !== '' ? env['HOST'] : '127.0.0.1';
 
   // The development profile is the only place header-supplied identity can exist. Naming it
   // in a deployed Node environment would make a non-authoritative mode look deployable, so
@@ -118,6 +133,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     );
   }
 
+  // The development profile believes whatever x-kf-* headers say, classification included, so
+  // anyone who can reach its socket is whoever they claim to be. Only this machine may reach it.
+  if (deploymentProfile === 'development' && !isLoopbackHost(host)) {
+    throw new ConfigError(
+      `The development profile trusts caller-supplied identity headers and may listen only on ` +
+        `loopback; HOST=${JSON.stringify(host)} is not. Use HOST=127.0.0.1, or ` +
+        'KF_DEPLOYMENT_PROFILE=dogfood with verified bearer identity for anything reachable.',
+    );
+  }
+
   // Serving plain HTTP with nothing terminating TLS means bearer tokens cross the network in
   // clear. Refused rather than warned: the warning would be read once.
   const tlsTerminatedUpstream = env['KF_TLS_TERMINATED_UPSTREAM'] === '1';
@@ -129,13 +154,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
         'clear.',
     );
   }
-  if (
-    deploymentProfile === 'dogfood' &&
-    !tlsTerminatedUpstream &&
-    host !== '127.0.0.1' &&
-    host !== '::1' &&
-    host !== 'localhost'
-  ) {
+  if (deploymentProfile === 'dogfood' && !tlsTerminatedUpstream && !isLoopbackHost(host)) {
     throw new ConfigError(
       'cleartext dogfood is permitted only on a loopback listener; set HOST=127.0.0.1 or ' +
         'terminate TLS upstream and set KF_TLS_TERMINATED_UPSTREAM=1',

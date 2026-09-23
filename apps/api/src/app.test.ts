@@ -11,9 +11,27 @@ describe('config', () => {
   it('defaults port and host in development', () => {
     const c = loadConfig({ NODE_ENV: 'development', KF_DEPLOYMENT_PROFILE: 'development' });
     expect(c.port).toBe(4000);
-    expect(c.host).toBe('0.0.0.0');
+    // Loopback: the development profile trusts identity headers, so nothing else may dial it.
+    expect(c.host).toBe('127.0.0.1');
     expect(c.deploymentProfile).toBe('development');
   });
+
+  it.each([undefined, ''])('refuses to guess an unset NODE_ENV (%j)', (nodeEnv) => {
+    // An unset NODE_ENV used to become `development`, the header-trusting posture. A unit file
+    // that forgot the variable therefore booted the most permissive mode there is.
+    const env: NodeJS.ProcessEnv = { KF_DEPLOYMENT_PROFILE: 'development' };
+    if (nodeEnv !== undefined) env['NODE_ENV'] = nodeEnv;
+    expect(() => loadConfig(env)).toThrow(/NODE_ENV is required/);
+  });
+
+  it.each(['0.0.0.0', '::', '192.0.2.10'])(
+    'refuses a non-loopback listener under the header-trusting development profile (%s)',
+    (host) => {
+      expect(() =>
+        loadConfig({ NODE_ENV: 'development', KF_DEPLOYMENT_PROFILE: 'development', HOST: host }),
+      ).toThrow(/development profile .* only on loopback/);
+    },
+  );
 
   it('requires an explicit deployment profile', () => {
     expect(() => loadConfig({ NODE_ENV: 'development' })).toThrow(

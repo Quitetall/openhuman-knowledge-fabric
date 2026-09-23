@@ -8,7 +8,12 @@ fixed credentials on loopback; it is not a private-host topology. See
 
 `KF_DEPLOYMENT_PROFILE` is mandatory. It describes whether records can carry authenticated
 human provenance; `NODE_ENV` still controls framework behavior, TLS posture and secret loading.
-Neither variable substitutes for the other.
+Neither variable substitutes for the other, and neither has a default: the API refuses to start
+when `NODE_ENV` is unset rather than assuming `development`.
+
+The `development` profile believes whatever `x-kf-*` headers say, so the API refuses it on any
+listener other than loopback. `HOST` defaults to `127.0.0.1` under every profile; `0.0.0.0` must
+be asked for, and is refused under `development`.
 
 | Profile       | Identity path                                            | Where it is allowed                          | Authority claim |
 | ------------- | -------------------------------------------------------- | -------------------------------------------- | --------------- |
