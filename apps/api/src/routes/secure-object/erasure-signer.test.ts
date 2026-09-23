@@ -108,4 +108,37 @@ describe('HTTP erasure authority signer', () => {
       await expect(signer.sign(input)).rejects.not.toThrow(/private error|private_key/);
     }
   });
+
+  it('stops reading an oversized body at the cap instead of buffering all of it', async () => {
+    // Ten MiB offered in 1 KiB chunks. Reading it all and then checking the length bounded what
+    // was accepted, not what was held in memory.
+    let pulled = 0;
+    const chunk = new Uint8Array(1024).fill(0x78);
+    const endless = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (pulled >= 10 * 1024 * 1024) {
+          controller.close();
+          return;
+        }
+        pulled += chunk.byteLength;
+        controller.enqueue(chunk);
+      },
+    });
+    const signer = new HttpErasureAuthoritySigner(
+      { endpoint: new URL('https://soa.example.test/sign'), timeoutMs: 5_000 },
+      async () => new Response(endless, { status: 200 }),
+    );
+    await expect(signer.sign(input)).rejects.toThrow(/oversized/);
+    expect(pulled).toBeLessThanOrEqual(64 * 1024);
+  });
+
+  it('refuses to follow a redirect away from the configured authority', async () => {
+    const fetcher = vi.fn(async (_input: string | URL, _init?: RequestInit) => response());
+    const signer = new HttpErasureAuthoritySigner(
+      { endpoint: new URL('https://soa.example.test/sign'), timeoutMs: 5_000 },
+      fetcher,
+    );
+    await signer.sign(input);
+    expect(fetcher.mock.calls[0]![1]?.redirect).toBe('error');
+  });
 });
