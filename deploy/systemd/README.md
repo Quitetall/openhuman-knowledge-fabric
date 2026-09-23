@@ -96,6 +96,9 @@ sudo install -m 0640 -o root -g kf-web web.env.example /etc/kf/web.env
 sudo install -m 0640 -o root -g kf-worker worker.env.example /etc/kf/worker.env
 sudo install -m 0640 -o root -g kf-migrator migrator.env.example /etc/kf/migrator.env
 sudo install -m 0640 -o root -g kf-backup backup.env.example /etc/kf/backup.env
+# The OpenPGP PUBLIC key backups are encrypted to (requires gnupg on the host). Its private key
+# stays with whoever performs recovery; backup.sh refuses a file that contains one.
+sudo install -m 0644 -o root -g root backup-recipient.asc /etc/kf/backup-recipient.asc
 
 sudo install -m 0600 -o kf-api -g kf-api /dev/null /etc/kf/api/database-url
 sudo install -m 0600 -o kf-api -g kf-api /dev/null /etc/kf/api/s3-secret-access-key

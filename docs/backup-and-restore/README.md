@@ -33,6 +33,28 @@ external. Verification uses the append-only multi-key `PRESERVATION_TRUST_STORE_
 cannot nominate its own trust root. The root manifest also repeats the exact authenticated inner
 `database_snapshot_sha256`, binding operational bundle to canonical database-row identity.
 
+### Encryption, retention and space
+
+Every backup is also written as `<backup>.tar.gpg` beside its directory: the signed bundle,
+tarred and encrypted with `gpg` to the OpenPGP **public** key in `KF_BACKUP_RECIPIENT_FILE`.
+That archive is the only thing `backup-offsite.sh` ships; plaintext never leaves the host. The
+matching private key is held by whoever performs recovery and is not on the database host —
+`backup.sh` refuses a recipient file containing one. After encrypting, the script reads the
+archive's packets back and requires a public-key-encrypted session key for a configured
+recipient, so "encrypted" is measured, not assumed from an exit code.
+
+On a deployed host (the unit sets `KF_DEPLOYMENT_PROFILE=dogfood`) the recipient and
+`CHECKPOINT_PUBLIC_KEY_DIR` are **required**; without them the script stops before touching the
+database. On a workstation both stay optional, and an unencrypted backup is reported as one the
+off-site job will refuse.
+
+Local copies are plaintext, so they are pruned: the newest `KF_BACKUP_RETAIN_LOCAL` (default 7)
+are kept, and an older one is removed only once the ledger records an off-site copy of it. A
+backup whose only copy is local is never pruned. Before taking a snapshot the script requires
+free space of twice the previous backup plus `KF_BACKUP_FREE_SPACE_RESERVE_BYTES` (default
+1 GiB), and refuses to start otherwise — a backup that fills the disk half-way fails anyway, and
+takes anything sharing that disk with it.
+
 Verify without database access:
 
 ```sh
