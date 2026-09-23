@@ -91,8 +91,12 @@ The script:
 6. re-exports from the restored database and diffs **every file byte for byte** against the
    export taken at backup time;
 7. verifies the audit ledger against authenticated historical checkpoint keys;
-8. invokes `KF_OBJECT_STORE_VERIFY_PROGRAM <verified-export-dir> <proof-output-file>` to make
-   the configured federated object store re-read every referenced byte and verify its digest;
+8. invokes `KF_OBJECT_STORE_VERIFY_PROGRAM <request-file> <proof-output-file>` — only after its
+   SHA-256 matches `KF_OBJECT_STORE_VERIFY_PROGRAM_SHA256` — with a request naming each stored
+   object (`storage_uri`, `storage_version`) and nothing about its contents. The program answers
+   with the `sha256` and `size_bytes` it measured by re-reading each object, and
+   `scripts/lib/object-store-proof.mjs` checks that answer against the authenticated export: every
+   requested object exactly once, every digest and size equal;
 9. records separate database, checkpoint-trust, and object-store proof dimensions. Generic
    `verified` is legal only when all three pass. Missing proof records `partial` and exits nonzero.
 
@@ -121,10 +125,16 @@ the vault after any restore. It is the only thing that can answer whether the tw
 agree; no amount of database integrity can.
 
 Production restore units must point `KF_OBJECT_STORE_VERIFY_PROGRAM` at an absolute,
-root-owned, non-writable adapter executable and set `KF_OBJECT_STORE_PROOF_REF` to a stable,
-credential-free evidence reference. Adapter exits zero only after full inventory verification
-and writes a bounded proof artifact to path supplied as second argument. KF stores proof digest
-and reference, never object-store credentials or PHI bytes.
+root-owned, non-writable adapter executable, pin its reviewed digest in
+`KF_OBJECT_STORE_VERIFY_PROGRAM_SHA256` (a mismatch refuses the restore outright), and set
+`KF_OBJECT_STORE_PROOF_REF` to a stable, credential-free evidence reference. The adapter reads
+the request file given as its first argument — one JSON object per line, `storage_uri` and
+`storage_version` — re-reads each object from the store, and writes one line per object to the
+second argument: the same two fields plus the `sha256` and `size_bytes` it measured. It is never
+given the export, so it cannot pass by repeating the digests the export records; the comparison
+happens in this repository's code. Until 2026-09-23 the adapter received the export and was
+trusted on its exit code. KF stores proof digest and reference, never object-store credentials
+or PHI bytes.
 
 ## Audit ledger verification
 

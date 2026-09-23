@@ -246,9 +246,10 @@ the package first and only then uses the archived directory to verify historical
 Checkpoint private keys are never copied.
 
 Database restoration is only one proof dimension. Restore service also requires root-owned
-`/usr/local/libexec/kf-verify-object-store`; adapter receives authenticated export directory
-and a proof-output path, re-reads every external object named by registry, verifies each digest,
-then writes bounded evidence. `KF_OBJECT_STORE_PROOF_REF` names external custody evidence without
+`/usr/local/libexec/kf-verify-object-store`, pinned by `KF_OBJECT_STORE_VERIFY_PROGRAM_SHA256`;
+the adapter receives a request naming each stored object (URI and version, no digests) and a
+proof-output path, re-reads every object, and reports the digest and size it measured, which
+`scripts/lib/object-store-proof.mjs` then checks against the authenticated export. `KF_OBJECT_STORE_PROOF_REF` names external custody evidence without
 credentials. Database, checkpoint, and object-store results land separately in
 `ops.restore_drill`; only all three may use outcome `verified`. Missing adapter/key evidence is
 recorded `partial`, returns nonzero, and keeps readiness red. Adapter implementation remains a

@@ -179,7 +179,8 @@ echo "==> verifying external object-store recovery"
 OBJECT_STORE_VERIFIED=false
 OBJECT_STORE_PROOF_REF=""
 OBJECT_STORE_PROOF_SHA256=""
-OBJECT_STORE_PROOF="$WORK/object-store-proof"
+OBJECT_STORE_REQUEST="$WORK/object-store-request.jsonl"
+OBJECT_STORE_PROOF="$WORK/object-store-proof.jsonl"
 if [ -n "${KF_OBJECT_STORE_VERIFY_PROGRAM:-}" ]; then
   if [[ "$KF_OBJECT_STORE_VERIFY_PROGRAM" != /* ]] ||
      [ ! -f "$KF_OBJECT_STORE_VERIFY_PROGRAM" ] ||
@@ -198,22 +199,44 @@ if [ -n "${KF_OBJECT_STORE_VERIFY_PROGRAM:-}" ]; then
     echo "refusing group/world-writable object-store verifier" >&2
     exit 1
   fi
+  # The program is not in this repository, so the only thing that ties it to a review is its
+  # digest. Pinned in root-owned configuration; an unpinned or changed program is refused
+  # outright rather than recorded partial, because running unreviewed code with object-store
+  # credentials is the failure, not a missing proof.
+  if [[ ! "${KF_OBJECT_STORE_VERIFY_PROGRAM_SHA256:-}" =~ ^[0-9a-f]{64}$ ]]; then
+    echo "refusing object-store verifier: KF_OBJECT_STORE_VERIFY_PROGRAM_SHA256 must pin its reviewed digest" >&2
+    exit 1
+  fi
+  if [ "$(sha256sum -- "$KF_OBJECT_STORE_VERIFY_PROGRAM" | cut -d' ' -f1)" != "$KF_OBJECT_STORE_VERIFY_PROGRAM_SHA256" ]; then
+    echo "refusing object-store verifier: its digest is not the pinned reviewed digest" >&2
+    exit 1
+  fi
   if [[ ! "${KF_OBJECT_STORE_PROOF_REF:-}" =~ ^[A-Za-z0-9][A-Za-z0-9._:/+-]{0,511}$ ]]; then
     echo "KF_OBJECT_STORE_PROOF_REF must be a credential-free stable evidence reference" >&2
     exit 1
   fi
-  "$KF_OBJECT_STORE_VERIFY_PROGRAM" "$VERIFIED_BACKUP/export" "$OBJECT_STORE_PROOF"
-  if [ ! -f "$OBJECT_STORE_PROOF" ] || [ -L "$OBJECT_STORE_PROOF" ] || [ ! -s "$OBJECT_STORE_PROOF" ]; then
-    echo "object-store verifier did not write a non-empty regular proof file" >&2
+  # The program is told WHICH objects to read — storage URI and version — and never what they
+  # should contain. It must answer with the SHA-256 and size it measured; the answer is then
+  # checked here, in this repository's code, against the authenticated export. Until
+  # 2026-09-23 it was handed the export itself and trusted on its exit code, so a program that
+  # echoed the export's own digests, or read nothing, produced a `verified` drill.
+  REQUESTED="$(node "$ROOT/scripts/lib/object-store-proof.mjs" request \
+    "$VERIFIED_BACKUP/export" "$OBJECT_STORE_REQUEST")"
+  : > "$OBJECT_STORE_PROOF"
+  "$KF_OBJECT_STORE_VERIFY_PROGRAM" "$OBJECT_STORE_REQUEST" "$OBJECT_STORE_PROOF"
+  if [ ! -f "$OBJECT_STORE_PROOF" ] || [ -L "$OBJECT_STORE_PROOF" ]; then
+    echo "object-store verifier did not leave a regular proof file" >&2
     exit 1
   fi
-  if [ "$(stat -c '%s' "$OBJECT_STORE_PROOF")" -gt 16777216 ]; then
-    echo "object-store proof exceeds 16 MiB safety bound" >&2
-    exit 1
+  if MEASURED="$(node "$ROOT/scripts/lib/object-store-proof.mjs" check \
+       "$VERIFIED_BACKUP/export" "$OBJECT_STORE_PROOF")"; then
+    echo "object store: $MEASURED of $REQUESTED stored object(s) measured and matched"
+    OBJECT_STORE_VERIFIED=true
+    OBJECT_STORE_PROOF_REF="$KF_OBJECT_STORE_PROOF_REF"
+    OBJECT_STORE_PROOF_SHA256="$(sha256sum "$OBJECT_STORE_PROOF" | cut -d' ' -f1)"
+  else
+    echo "OBJECT STORE NOT VERIFIED: the verifier's measurements do not match the export" >&2
   fi
-  OBJECT_STORE_VERIFIED=true
-  OBJECT_STORE_PROOF_REF="$KF_OBJECT_STORE_PROOF_REF"
-  OBJECT_STORE_PROOF_SHA256="$(sha256sum "$OBJECT_STORE_PROOF" | cut -d' ' -f1)"
 else
   echo "SKIPPED: KF_OBJECT_STORE_VERIFY_PROGRAM absent — object bytes were NOT verified" >&2
 fi
