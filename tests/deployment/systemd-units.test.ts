@@ -98,3 +98,32 @@ describe('a crash loop ends in failed, and failed reaches a person', () => {
     },
   );
 });
+
+describe('checkpoint signatures are verified daily, not only by the monthly drill', () => {
+  const service = parseSections(readFileSync(join(UNITS, 'kf-audit-verify.service'), 'utf8'));
+  const timer = parseSections(readFileSync(join(UNITS, 'kf-audit-verify.timer'), 'utf8'));
+
+  it('runs the shipped verifier against the published public keys and alerts on a finding', () => {
+    const exec = service.get('Service')?.get('ExecStart')?.[0] ?? '';
+    expect(exec).toBe('/usr/bin/node /opt/kf/apps/checkpoint/dist/main.js --verify');
+    const environment = service.get('Service')?.get('Environment') ?? [];
+    expect(environment).toContain('CHECKPOINT_PUBLIC_KEY_DIR=/etc/kf/checkpoint-public-keys');
+    expect(service.get('Unit')?.get('OnFailure')?.[0]).toBe('kf-alert@%n.service');
+  });
+
+  it('cannot sign: its own identity, and no signing key anywhere in the unit', () => {
+    const user = service.get('Service')?.get('User')?.[0];
+    expect(user).toBe('kf-audit-verify');
+    const checkpoint = parseSections(readFileSync(join(UNITS, 'kf-checkpoint.service'), 'utf8'));
+    expect(user).not.toBe(checkpoint.get('Service')?.get('User')?.[0]);
+    expect(readFileSync(join(UNITS, 'kf-audit-verify.service'), 'utf8')).not.toContain(
+      'CHECKPOINT_SIGNING_KEY',
+    );
+  });
+
+  it('is scheduled at least daily and catches up after downtime', () => {
+    const calendar = timer.get('Timer')?.get('OnCalendar')?.[0] ?? '';
+    expect(calendar).toMatch(/^(daily|\*-\*-\* \d\d:\d\d:\d\d)$/);
+    expect(timer.get('Timer')?.get('Persistent')?.[0]).toBe('true');
+  });
+});

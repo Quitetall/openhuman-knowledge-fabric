@@ -134,6 +134,10 @@ Recomputes the hash chain from genesis, rebuilds each checkpoint's Merkle root f
 actually present, and verifies each signature. Exits non-zero on any finding — a verification
 that reports problems and exits 0 would be recorded by a scheduler as a clean audit.
 
+`kf-audit-verify.timer` runs exactly this daily against the live database, as its own
+identity holding only public keys, and fails into `kf-alert@` on any finding. Until 2026-09-23
+signatures were verified only inside the monthly restore drill.
+
 The three checks are independent, which is the point: a tamperer who fixes the chain still
 fails the root, and one who fixes both still cannot produce the signature.
 

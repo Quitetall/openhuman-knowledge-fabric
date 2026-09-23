@@ -57,15 +57,16 @@ credential. Application start/restart never runs migrations.
 
 Five things have to happen on a schedule, and until they are scheduled they are habits:
 
-| Unit                        | Interval          | What stops being true without it                                                           |
-| --------------------------- | ----------------- | ------------------------------------------------------------------------------------------ |
-| `kf-checkpoint.timer`       | hourly            | The audit log is unsigned past the last run. A rewrite inside that window is undetectable. |
-| `kf-backup.timer`           | daily 02:00       | Everything exists in one place.                                                            |
-| `kf-backup-offsite.service` | after each backup | The copy is beside the original; a lost host loses both.                                   |
-| `kf-restore-drill.timer`    | monthly           | Nothing has proven the backups can be read.                                                |
-| `kf-readiness.timer`        | every 15 min      | Nothing notices when any of the above stops running.                                       |
-| `kf-alert-heartbeat.timer`  | daily             | Nothing notices when the thing that notices stops working.                                 |
-| `kf-storage.timer`          | daily 03:30       | Every artifact version has one copy, and nothing has re-hashed the copies that exist.      |
+| Unit                        | Interval          | What stops being true without it                                                            |
+| --------------------------- | ----------------- | ------------------------------------------------------------------------------------------- |
+| `kf-checkpoint.timer`       | hourly            | The audit log is unsigned past the last run. A rewrite inside that window is undetectable.  |
+| `kf-backup.timer`           | daily 02:00       | Everything exists in one place.                                                             |
+| `kf-backup-offsite.service` | after each backup | The copy is beside the original; a lost host loses both.                                    |
+| `kf-audit-verify.timer`     | daily 05:15       | A rewritten audit log or an unverifiable checkpoint goes unnoticed until the monthly drill. |
+| `kf-restore-drill.timer`    | monthly           | Nothing has proven the backups can be read.                                                 |
+| `kf-readiness.timer`        | every 15 min      | Nothing notices when any of the above stops running.                                        |
+| `kf-alert-heartbeat.timer`  | daily             | Nothing notices when the thing that notices stops working.                                  |
+| `kf-storage.timer`          | daily 03:30       | Every artifact version has one copy, and nothing has re-hashed the copies that exist.       |
 
 The last two are what make the others real. A backup timer that silently stops is
 indistinguishable from a backup timer that is working, right up until the restore — unless
@@ -151,6 +152,14 @@ sudo install -m 0600 -o kf-storage -g kf-storage /dev/null /etc/kf/storage/s3-du
 # and KF_STORAGE_ACTOR / KF_STORAGE_ROLE as printed by `pnpm kf:declare-service-actor`.
 sudo install -m 0600 -o kf-storage -g kf-storage /dev/null /etc/kf/storage/storage.env
 sudo install -m 0600 -o kf-readiness -g kf-readiness /dev/null /etc/kf/readiness/database-url
+
+# The daily checkpoint verifier. Public keys and a read connection, never the signing key. Its
+# database login needs the same cross-organization reads the signer uses to verify (today the
+# only role holding them is kf_checkpoint, so grant the login membership in it: it could insert
+# a checkpoint row but not sign one, and an unsigned row fails this very check).
+sudo useradd --system --user-group --home-dir /nonexistent --shell /usr/sbin/nologin kf-audit-verify
+sudo install -d -m 0750 -o root -g kf-audit-verify /etc/kf/audit-verify
+sudo install -m 0600 -o kf-audit-verify -g kf-audit-verify /dev/null /etc/kf/audit-verify/database-url
 
 # The alerter. Its own identity holding exactly one secret — the webhook URL — and no key,
 # no database credential. Every other unit routes OnFailure= here, so it must be the least
@@ -250,7 +259,7 @@ Run migration procedure in private-host guide. Only after it and real-provider p
 ```sh
 sudo systemctl enable --now kf-api.service kf-worker.service kf-web.service
 sudo systemctl enable --now kf-checkpoint.timer kf-backup.timer \
-  kf-restore-drill.timer kf-readiness.timer
+  kf-audit-verify.timer kf-restore-drill.timer kf-readiness.timer
 ```
 
 Do not enable `kf-migrate.service`; start it once per reviewed release. Do not start nginx until
