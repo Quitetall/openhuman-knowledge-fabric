@@ -111,11 +111,19 @@ The backup is current and sits beside the database it came from. That survives a
 and not a lost host.
 
 ```
-scripts/backup-offsite.sh /srv/kf-backups/<newest> <destination> <label>
+scripts/backup-offsite.sh /srv/kf-backups/<newest> <destination> <label> [--separate-domain <ref>]
 ```
 
+A LOCAL destination is recorded as not off-site (`offsite_basis = local-unattested`) unless a
+person has approved its failure domain in `ops.physical_failure_domain_evidence` and the copy
+names it with `--separate-domain` (or `KF_OFFSITE_FAILURE_DOMAIN` in `/etc/kf/offsite.env`). A
+second disk in the same machine is the same host; that is the check working. Look at
+`select destination_label, offsite, offsite_basis from ops.backup_copy order by copied_at desc`.
+
 If `kf-backup-offsite.service` is configured and this keeps recurring, the destination is
-probably unreachable — `journalctl -u kf-backup-offsite.service`.
+probably unreachable — `journalctl -u kf-backup-offsite.service`. A unit that fails before
+copying anything says why in its first line: an empty `KF_OFFSITE_DESTINATION`, or a local
+destination missing from `ReadWritePaths=`.
 
 ## `backup_freshness` degraded — never restored, or the drill has lapsed
 
@@ -125,9 +133,19 @@ probably unreachable — `journalctl -u kf-backup-offsite.service`.
 systemctl start kf-restore-drill.service      # or: scripts/restore-drill.sh
 ```
 
-The drill restores into a scratch database, compares a fresh export, verifies historical
-checkpoints, invokes configured external object-store verifier, records all three proof
-dimensions against production ledger, then drops scratch database.
+The drill pulls the newest off-site copy back from `KF_DRILL_OFFSITE_SOURCE`, refuses it
+unless its digest is the ciphertext the ledger recorded as sent, decrypts it with the sealed
+`backup-decryption-key` credential, and restores THAT — not the local original — into a
+throwaway PostgreSQL cluster it starts on a private Unix socket and its own port under
+`/var/lib/kf-restore-drill`. It compares a fresh export, verifies historical checkpoints, invokes
+the configured object-store verifier, records all three proof dimensions against the production
+ledger with `notes` naming which copy was restored, then deletes the cluster. Nothing is created
+in the production cluster.
+
+If the off-site copy cannot be pulled back (source unset, a pre-encryption copy, no decryption
+key) the drill refuses. `scripts/restore-drill.sh --allow-local-fallback` restores the local
+original instead and records `notes = source=local-fallback ...`, so it never reads as an
+off-site drill.
 
 ## `backup_freshness` FAILED — latest restore is PARTIAL
 

@@ -22,6 +22,10 @@
 #                 is discarded with it, and readiness keeps reporting that no backup has ever
 #                 been restored. Omitting it is allowed and says so at the end, loudly, because
 #                 the consequence is visible in readiness rather than only in this output.
+#
+# KF_RESTORE_LEDGER_LOCATION  the ledger location of the run being restored, when the
+#                 directory given is a copy unpacked elsewhere (restore-drill.sh sets it).
+# KF_RESTORE_DRILL_NOTES      recorded in ops.restore_drill.notes — which copy was restored.
 
 set -euo pipefail
 
@@ -229,7 +233,9 @@ echo "==> recording the drill"
 # having proved it. A failure exits earlier under `set -e` and leaves no row — which readiness
 # reads as "not restored recently", the correct reading of a drill that did not complete.
 if [ -n "$LEDGER" ]; then
-  LOCATION="$(cd "$BACKUP" && pwd)"
+  # The ledger names a backup by where backup.sh recorded it. A drill that restored a copy
+  # pulled back from off-site unpacked it somewhere else, and says which run it was here.
+  LOCATION="${KF_RESTORE_LEDGER_LOCATION:-$(cd "$BACKUP" && pwd)}"
   # On stdin: psql does not interpolate :'var' in a -c string.
   RUN_ID="$("$KF_PSQL" "$LEDGER" -v ON_ERROR_STOP=1 -tA -v location="$LOCATION" <<'SQL'
 select id from ops.backup_run where location = :'location';
@@ -253,14 +259,15 @@ SQL
       -v checkpoint_digest="$CHECKPOINT_PROOF_SHA256" \
       -v object_verified="$OBJECT_STORE_VERIFIED" \
       -v object_ref="$OBJECT_STORE_PROOF_REF" \
-      -v object_digest="$OBJECT_STORE_PROOF_SHA256" <<'SQL'
+      -v object_digest="$OBJECT_STORE_PROOF_SHA256" \
+      -v notes="${KF_RESTORE_DRILL_NOTES:-}" <<'SQL'
 insert into ops.restore_drill
-  (backup_run_id, target_label, outcome, recovery_seconds,
+  (backup_run_id, target_label, outcome, notes, recovery_seconds,
    database_verified, database_snapshot_sha256,
    checkpoint_verified, checkpoint_proof_sha256,
    object_store_verified, object_store_proof_ref, object_store_proof_sha256)
 values
-  (:'run'::uuid, :'label', :'outcome', :'recovery'::integer,
+  (:'run'::uuid, :'label', :'outcome', nullif(:'notes', ''), :'recovery'::integer,
    :'database_verified'::boolean, nullif(:'database_digest', ''),
    :'checkpoint_verified'::boolean, nullif(:'checkpoint_digest', ''),
    :'object_verified'::boolean, nullif(:'object_ref', ''), nullif(:'object_digest', ''));

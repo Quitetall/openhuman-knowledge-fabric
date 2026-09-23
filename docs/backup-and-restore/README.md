@@ -96,6 +96,16 @@ The script:
 9. records separate database, checkpoint-trust, and object-store proof dimensions. Generic
    `verified` is legal only when all three pass. Missing proof records `partial` and exits nonzero.
 
+The scheduled drill (`scripts/restore-drill.sh`, run by `kf-restore-drill.service`) does not
+restore the local directory. It pulls the newest off-site `<backup>.tar.gpg` back, refuses it
+unless its SHA-256 equals the ciphertext digest `backup-offsite.sh` recorded at the destination,
+decrypts it with the recipient's private key (a sealed systemd credential, never a file the
+backup job can read), checks the decrypted root manifest against `ops.backup_run`, and runs the
+steps above against a **throwaway cluster** it initialises for the run: Unix socket only, in a
+0700 directory, on its own port, deleted on exit. The production cluster is never a restore
+target. `ops.restore_drill.notes` records which copy was restored; `--allow-local-fallback`
+restores the local original when the off-site copy is unavailable and says so there.
+
 Exercised end to end by `tests/backup-restore/drill.test.ts`, which runs these scripts —
 not a reimplementation of them — against real containers. A test that re-derived what
 `backup.sh` does would pass while `backup.sh` was broken.

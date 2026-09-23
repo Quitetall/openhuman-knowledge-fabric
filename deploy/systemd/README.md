@@ -312,6 +312,24 @@ unless `KF_OFFSITE_FAILURE_DOMAIN` names a failure domain a person approved in
 `ops.encrypted_backup_evidence` row from the ciphertext digest it measured, carrying the domain
 approval's approver; nobody types that row by hand any more.
 
-The restore drill picks the most recent backup that has an off-site copy, restores it into a
-scratch database, and drops it afterwards. It records the drill against the **production**
-ledger — a drill recorded in the scratch database is discarded along with it.
+The restore drill picks the most recent backup with an off-site copy at
+`KF_DRILL_OFFSITE_LABEL`, pulls that copy back from `KF_DRILL_OFFSITE_SOURCE`, checks it is the
+ciphertext recorded as sent, decrypts it, and restores it into a throwaway PostgreSQL cluster
+(socket-only, own port, under `StateDirectory=kf-restore-drill`) that it deletes afterwards. It
+never creates a database in the production cluster. It records the drill against the
+**production** ledger — a drill recorded in the throwaway cluster is discarded along with it.
+
+The decryption key reaches the drill as an encrypted systemd credential, sealed to the host:
+
+```sh
+sudo install -d -m 0700 -o root -g root /etc/kf/credstore.encrypted
+sudo systemd-creds encrypt --name=backup-decryption-key recovery-secret-key.asc \
+  /etc/kf/credstore.encrypted/backup-decryption-key
+shred -u recovery-secret-key.asc
+```
+
+It is decrypted into the drill's private credential directory for one run and is never a
+plaintext file on disk; `kf-backup.service` does not name it. Where a separate recovery host
+exists, run the drill there instead — the script and unit are the same. The drill also needs
+the PostgreSQL 18 server package (`KF_POSTGRES_SERVER_DIR`, for `initdb` and `pg_ctl`) and
+`gnupg`.
