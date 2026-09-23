@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { ActionRejected } from '@kf/actions';
 import { ArtifactRejected, verifyUpload } from '@kf/artifacts';
-import { DocumentParseRefused } from '@kf/documents';
+import { DocumentParseRefused, preparseDocument, withPreparsedDocuments } from '@kf/documents';
 import { deniedPathRule, formatContentRefusal, scanContent } from '../../ingest/content-policy.js';
 import { unidentified } from '../actions.js';
 import { documentParseRefusalBody } from '../actions/errors.js';
@@ -65,13 +65,20 @@ export function registerDocumentImportRoute(
           requestId: String(request.id),
         };
         await preflightDocumentImport(options, identity, source, common);
+        // Parsed with no transaction open, before the bytes are stored; see ingest-route.ts.
+        const preparsed =
+          options.documentParser === undefined
+            ? undefined
+            : await preparseDocument(options.documentParser, source.bytes, source.mediaType);
         await options.store.putIfAbsent(source.storageKey, source.bytes, source.mediaType);
         await verifyUpload(options.store, {
           key: source.storageKey,
           claimedSha256: source.sha256,
           claimedSizeBytes: source.bytes.length,
         });
-        const imported = await persistDocumentImport(options, identity, source, common);
+        const imported = await withPreparsedDocuments(preparsed && [preparsed], () =>
+          persistDocumentImport(options, identity, source, common),
+        );
         return reply.code(imported.statusCode).send(imported.body);
       } catch (error: unknown) {
         if (error instanceof SourceHolderConflict) {

@@ -19,7 +19,12 @@ import { ActionRejected } from '@kf/actions';
 import { ArtifactRejected, verifyUpload } from '@kf/artifacts';
 import { digestBytes } from '@kf/canonicalization';
 import { withTransaction } from '@kf/database';
-import { DocumentParseRefused, evidenceStorageKey } from '@kf/documents';
+import {
+  DocumentParseRefused,
+  evidenceStorageKey,
+  preparseDocument,
+  withPreparsedDocuments,
+} from '@kf/documents';
 import { deniedPathRule, formatContentRefusal, scanContent } from '../../ingest/content-policy.js';
 import { unidentified } from '../actions.js';
 import { documentParseRefusalBody } from '../actions/errors.js';
@@ -190,6 +195,13 @@ export function registerIngestRoute(app: FastifyInstance, options: DocumentRoute
             ],
           ),
         );
+        // Parsed now, with no transaction open and before a byte is stored: a source pandoc
+        // refuses is refused here, and the act's transaction below only checks that this parse
+        // is bound to the exact bytes it verifies. In-process only; the payload cannot carry it.
+        const preparsed =
+          options.documentParser === undefined
+            ? undefined
+            : await preparseDocument(options.documentParser, source.bytes, source.mediaType);
         // Content-addressed under the organization, as the CLI keys it: the same bytes ingested
         // twice occupy one object, and a different file can never overwrite them.
         const storageKey = evidenceStorageKey('ingest', identity.organizationId, source.sha256);
@@ -227,19 +239,21 @@ export function registerIngestRoute(app: FastifyInstance, options: DocumentRoute
               ]),
             ),
           )}`;
-        const result = await withTransaction(options.pool, (tx) =>
-          options.executeInTransaction(tx, {
-            actionType: 'attach_evidence',
-            actorId: identity.actorId,
-            actingRoleId: identity.actingRoleId,
-            organizationId: identity.organizationId,
-            maxClassification: identity.maxClassification,
-            targetIds: [],
-            payload,
-            idempotencyKey,
-            requestId: String(request.id),
-            ...(source.reason === undefined ? {} : { reason: source.reason }),
-          }),
+        const result = await withPreparsedDocuments(preparsed && [preparsed], () =>
+          withTransaction(options.pool, (tx) =>
+            options.executeInTransaction(tx, {
+              actionType: 'attach_evidence',
+              actorId: identity.actorId,
+              actingRoleId: identity.actingRoleId,
+              organizationId: identity.organizationId,
+              maxClassification: identity.maxClassification,
+              targetIds: [],
+              payload,
+              idempotencyKey,
+              requestId: String(request.id),
+              ...(source.reason === undefined ? {} : { reason: source.reason }),
+            }),
+          ),
         );
         const artifactId = result.objectIds[0];
         return reply.code(result.replayed ? 200 : 201).send({

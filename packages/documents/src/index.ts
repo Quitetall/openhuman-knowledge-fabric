@@ -52,6 +52,12 @@ export {
   type ParsedDocument,
 } from './internal/parse-contract.js';
 export {
+  activePreparsedDocuments,
+  preparseDocument,
+  withPreparsedDocuments,
+  type PreparsedDocument,
+} from './internal/preparse.js';
+export {
   getDocument,
   listDocuments,
   type DocumentDetail,

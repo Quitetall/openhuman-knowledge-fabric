@@ -24,7 +24,10 @@ import {
   createDocumentActionAtoms,
   evidenceStorageKey,
   PandocDocumentParser,
+  preparseDocument,
+  withPreparsedDocuments,
   type DocumentParser,
+  type PreparsedDocument,
 } from '@kf/documents';
 import {
   createFabricTransactionalDispatcher,
@@ -793,51 +796,63 @@ export async function runIngest(
     }).catch((error: unknown) => {
       if (error !== ROLLBACK) throw error;
     });
-    const items = await withTransaction(app, async (tx) => {
-      const results: IngestItemResult[] = [];
-      for (const { source, request } of acts) {
-        if (planned.mode === 'copy') {
-          const uploaded = await store.putIfAbsent(
-            source.storeKey!,
-            source.bytes,
-            source.item.mediaType,
-          );
-          await verifyUpload(store, {
-            key: source.storeKey!,
-            claimedSha256: source.sha256,
-            claimedSizeBytes: source.bytes.length,
-          });
-          if (uploaded.versionId === undefined) {
-            throw new IngestCliError(
-              `object store returned no immutable version for ${source.item.path}`,
-            );
-          }
-        }
-        const action: ActionResult = await execute(tx, request);
-        const artifactId = action.objectIds[0];
-        if (artifactId === undefined)
-          throw new IngestCliError(`action returned no artifact for ${source.item.path}`);
-        results.push({
-          path: source.item.path,
-          sha256: source.sha256,
-          sizeBytes: source.bytes.length,
-          actionId: action.actionId,
-          artifactId,
-          versionId: await versionForAction(tx, artifactId, action.actionId),
-          replayed: action.replayed,
-          ...(source.drive === undefined
-            ? {}
-            : {
-                drive: {
-                  fileId: source.drive.fileId,
-                  revisionId: source.drive.revisionId,
-                  exporter: source.drive.exporter,
-                },
-              }),
-        });
+    // Every copy is parsed now, with no transaction open, one pandoc at a time: a source the
+    // parser refuses refuses the batch before a byte is stored, and each act below only checks
+    // that its parse is bound to the exact bytes it verified. Reference mode holds no bytes.
+    const preparsed: PreparsedDocument[] = [];
+    if (planned.mode === 'copy') {
+      for (const { source } of acts) {
+        preparsed.push(await preparseDocument(parser, source.bytes, source.item.mediaType));
       }
-      return results;
-    });
+    }
+    const pool = app;
+    const items = await withPreparsedDocuments(preparsed, () =>
+      withTransaction(pool, async (tx) => {
+        const results: IngestItemResult[] = [];
+        for (const { source, request } of acts) {
+          if (planned.mode === 'copy') {
+            const uploaded = await store.putIfAbsent(
+              source.storeKey!,
+              source.bytes,
+              source.item.mediaType,
+            );
+            await verifyUpload(store, {
+              key: source.storeKey!,
+              claimedSha256: source.sha256,
+              claimedSizeBytes: source.bytes.length,
+            });
+            if (uploaded.versionId === undefined) {
+              throw new IngestCliError(
+                `object store returned no immutable version for ${source.item.path}`,
+              );
+            }
+          }
+          const action: ActionResult = await execute(tx, request);
+          const artifactId = action.objectIds[0];
+          if (artifactId === undefined)
+            throw new IngestCliError(`action returned no artifact for ${source.item.path}`);
+          results.push({
+            path: source.item.path,
+            sha256: source.sha256,
+            sizeBytes: source.bytes.length,
+            actionId: action.actionId,
+            artifactId,
+            versionId: await versionForAction(tx, artifactId, action.actionId),
+            replayed: action.replayed,
+            ...(source.drive === undefined
+              ? {}
+              : {
+                  drive: {
+                    fileId: source.drive.fileId,
+                    revisionId: source.drive.revisionId,
+                    exporter: source.drive.exporter,
+                  },
+                }),
+          });
+        }
+        return results;
+      }),
+    );
     return {
       mode: planned.mode,
       classification,

@@ -377,6 +377,7 @@ export async function buildApp(
       preflightInTransaction,
       identify,
       store: objectStore,
+      documentParser: parser,
       ...(stores === undefined ? {} : { stores }),
       ...(config.masterRecordLinkSecret === undefined
         ? {}

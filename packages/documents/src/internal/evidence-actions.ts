@@ -15,6 +15,7 @@ import {
 } from './parse-contract.js';
 import { requireSha256 } from './action-types.js';
 import { requireDerivedEvidenceKey } from './evidence-storage-key.js';
+import { boundPreparse } from './preparse.js';
 
 interface EvidenceActions {
   readonly attachEvidence: ActionMaterializer;
@@ -112,7 +113,13 @@ export function createEvidenceActions(options: {
         'source bytes changed between artifact verification and parser persistence',
       );
     }
-    const parserResult = await options.parser.parse(sourceBytes, mediaType);
+    // Parsed before the transaction opened, when the caller could (preparse.ts): then this only
+    // checks the parse is bound to the exact bytes just verified. Otherwise, parsed here.
+    const preparsed = boundPreparse(sourceBytes, mediaType);
+    const parserResult =
+      preparsed === undefined
+        ? await options.parser.parse(sourceBytes, mediaType)
+        : preparsed.parsed;
     if (parserResult === undefined) return;
     const parsed = validateParsedDocument(parserResult, sourceBytes);
     const atomClaims = parsed.atoms.map(({ digest: _digest, ...claim }) => claim);
