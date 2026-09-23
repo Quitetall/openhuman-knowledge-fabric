@@ -595,6 +595,15 @@ HTTP, terminates TLS, rejects unknown virtual hosts and proxies only to loopback
 hostnames with reviewed names and certificate paths; run `nginx -t`; do not generate or enroll
 certificates from this repository.
 
+The template also rate-limits per client address and answers the excess with `429`: `/ingest`
+at 10 requests a minute (burst 5), `/documents` and `/search` at 10 a second (burst 40), the
+web's `/auth/` login paths at 10 a minute (burst 5), `/readiness` at 1 a second and to loopback
+only, and at most 50 concurrent connections per address on each site. Its zone declarations
+(`limit_req_zone`, `limit_conn_zone`) sit at the top of the file and therefore require it to be
+included at `http{}` level, as `sites-enabled`/`conf.d` are. The web site sends a
+`Content-Security-Policy` floor of `frame-ancestors 'none'` plus `X-Frame-Options: DENY`; the
+application itself sends the full nonce-based policy on every page (`apps/web/src/proxy.ts`).
+
 ## Host preflight and evidence
 
 Before any shared user is admitted:
