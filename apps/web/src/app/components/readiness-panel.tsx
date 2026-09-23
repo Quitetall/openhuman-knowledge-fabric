@@ -20,16 +20,26 @@ function measuredFacts(
         .join(' · ');
 }
 
+/**
+ * One readiness partition.
+ *
+ * `redacted` keeps each check's name and verdict and drops what it measured. The detail and
+ * measured facts name organizations by id, count their records, state backup posture and
+ * quote the error of a check that could not run; this page renders before sign-in, and the
+ * API gives that report only to its own host, so the page must not hand it on to anyone.
+ */
 export function ReadinessPanel({
   title,
   partition,
   readyLabel,
   blockedLabel,
+  redacted = false,
 }: {
   readonly title: string;
   readonly partition: OperationalReadinessPartition;
   readonly readyLabel: string;
   readonly blockedLabel: string;
+  readonly redacted?: boolean;
 }) {
   return (
     <section aria-labelledby={`${title.toLowerCase().replaceAll(' ', '-')}-heading`}>
@@ -45,12 +55,14 @@ export function ReadinessPanel({
       </p>
       <ul style={{ paddingLeft: '1.25rem' }}>
         {partition.checks.map((check) => {
-          const measured = measuredFacts(check.measured);
+          const measured = redacted ? undefined : measuredFacts(check.measured);
           return (
             <li key={check.id} style={{ marginBottom: '0.65rem' }}>
               <code>{check.id}</code>{' '}
               <strong style={{ color: READINESS_COLOUR[check.status] }}>— {check.status}</strong>
-              <div style={{ color: '#475569', fontSize: '0.85rem' }}>{check.detail}</div>
+              <div style={{ color: '#475569', fontSize: '0.85rem' }}>
+                {redacted ? 'Sign in to see what was measured.' : check.detail}
+              </div>
               {measured === undefined ? null : (
                 <div style={{ color: '#64748b', fontSize: '0.78rem' }}>{measured}</div>
               )}

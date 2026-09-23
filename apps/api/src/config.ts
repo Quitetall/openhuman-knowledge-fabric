@@ -41,6 +41,11 @@ export interface ApiConfig {
   /** HMAC key used for short-lived master-record capability links. */
   readonly masterRecordLinkSecret?: string;
   /**
+   * Bearer for the detailed GET /readiness report from a non-loopback caller. Absent means only
+   * a direct loopback connection sees the detail; everyone else gets the bare verdict.
+   */
+  readonly readinessToken?: string;
+  /**
    * The compiled corpus-projection definitions (ADR 0013). A release tree carries generated/,
    * so the default resolves inside the checkout or release root the process runs from.
    */
@@ -305,6 +310,24 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     }
   }
 
+  let readinessToken: string | undefined;
+  if (
+    (env['KF_READINESS_TOKEN'] !== undefined && env['KF_READINESS_TOKEN'] !== '') ||
+    (env['KF_READINESS_TOKEN_FILE'] !== undefined && env['KF_READINESS_TOKEN_FILE'] !== '')
+  ) {
+    try {
+      readinessToken = loadSecret('KF_READINESS_TOKEN', env, { allowInline: inlineAllowed });
+    } catch (error: unknown) {
+      throw new ConfigError(error instanceof Error ? error.message : String(error), {
+        cause: error,
+      });
+    }
+    // Compared in constant time, so its length is the whole of its strength.
+    if (readinessToken.length < 32) {
+      throw new ConfigError('KF_READINESS_TOKEN must be at least 32 bytes');
+    }
+  }
+
   const origin = (name: string): string | undefined => {
     const value = env[name];
     if (value === undefined || value.trim() === '') return undefined;
@@ -353,6 +376,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     ...(artifactStore === undefined ? {} : { artifactStore }),
     ...(durableStore === undefined ? {} : { durableStore }),
     ...(masterRecordLinkSecret === undefined ? {} : { masterRecordLinkSecret }),
+    ...(readinessToken === undefined ? {} : { readinessToken }),
   };
 }
 

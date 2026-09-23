@@ -299,3 +299,61 @@ describe('error bodies', () => {
     await app.close();
   });
 });
+
+describe('deep readiness exposure', () => {
+  // Unreachable on purpose: every check then fails with the pg connection error as its
+  // detail, which is exactly the raw text that must not reach a remote caller.
+  const unreachable = {
+    ...baseEnv,
+    LOG_LEVEL: 'silent',
+    DATABASE_URL: 'postgres://kf_app@127.0.0.1:1/kf',
+  };
+
+  it('gives a forwarded (remote) caller the bare verdict and nothing else', async () => {
+    const app = await buildApp(loadConfig(unreachable));
+    const res = await app.inject({
+      method: 'GET',
+      url: '/readiness',
+      headers: { 'x-forwarded-for': '203.0.113.9' },
+    });
+    expect(res.statusCode).toBe(503);
+    // toEqual: an extra key here is a leak, and toMatchObject would let it through.
+    expect(res.json()).toEqual({ ready: false });
+    await app.close();
+  });
+
+  it('gives a non-loopback peer the bare verdict', async () => {
+    const app = await buildApp(loadConfig(unreachable));
+    const res = await app.inject({ method: 'GET', url: '/readiness', remoteAddress: '192.0.2.4' });
+    expect(res.json()).toEqual({ ready: false });
+    await app.close();
+  });
+
+  it('gives a direct loopback caller, or a token holder, the full report', async () => {
+    const token = 'r'.repeat(40);
+    const app = await buildApp(loadConfig({ ...unreachable, KF_READINESS_TOKEN: token }));
+    const local = await app.inject({ method: 'GET', url: '/readiness' });
+    expect(local.json()).toHaveProperty('service');
+    const remote = await app.inject({
+      method: 'GET',
+      url: '/readiness',
+      remoteAddress: '192.0.2.4',
+      headers: { 'x-kf-readiness-token': token },
+    });
+    expect(remote.json()).toHaveProperty('institutional');
+    const wrong = await app.inject({
+      method: 'GET',
+      url: '/readiness',
+      remoteAddress: '192.0.2.4',
+      headers: { 'x-kf-readiness-token': 'x'.repeat(40) },
+    });
+    expect(wrong.json()).toEqual({ ready: false });
+    await app.close();
+  });
+
+  it('refuses a readiness token too short to be a secret', () => {
+    expect(() => loadConfig({ ...baseEnv, KF_READINESS_TOKEN: 'short' })).toThrow(
+      /KF_READINESS_TOKEN must be at least 32 bytes/,
+    );
+  });
+});

@@ -304,6 +304,16 @@ describe('private-host service boundary', () => {
     expect(body).not.toMatch(/proxy_pass http:\/\/(?!127\.0\.0\.1)/);
   });
 
+  it('keeps the deep readiness scan off the public edge', () => {
+    // The full report names organizations and backup posture, and every request walks the
+    // audit chain. The API redacts for forwarded callers; nginx refuses them the scan itself.
+    const nginx = readFileSync(join(ROOT, 'deploy', 'nginx', 'knowledge-fabric.conf'), 'utf8');
+    const block = /location = \/readiness \{([\s\S]*?)\n {4}\}/.exec(nginx)?.[1];
+    expect(block).toBeDefined();
+    expect(block).toContain('allow 127.0.0.1;');
+    expect(block).toMatch(/deny all;/);
+  });
+
   it('carries a 10 MiB document through multipart and API transport limits', async () => {
     const nextConfig = (await import(join(ROOT, 'apps', 'web', 'next.config.mjs'))).default;
     expect(nextConfig.experimental?.serverActions?.bodySizeLimit).toBe('11mb');

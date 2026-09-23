@@ -10,6 +10,7 @@
 import type { Metadata } from 'next';
 import { loadWebIdentityConfig } from '../lib/auth';
 import { getOperationalReadiness, type OperationalReadinessReport } from '../lib/api';
+import { currentWebSession } from '../lib/session';
 import { ReadinessPanel } from './components/readiness-panel';
 
 export const dynamic = 'force-dynamic';
@@ -86,6 +87,9 @@ export default async function Home() {
   } catch {
     readinessError = 'API readiness evidence is unavailable. Runtime state is unknown.';
   }
+  // Signed-out visitors see each check's verdict, not what it measured (see ReadinessPanel).
+  // The development profile is loopback-only and has no sign-in to ask for.
+  const redacted = identity.profile === 'dogfood' && (await currentWebSession()) === undefined;
   const operationalNote =
     identity.profile === 'development'
       ? 'Deployment controls exist. This fixed-identity development profile is non-attributable and non-authoritative.'
@@ -156,12 +160,14 @@ export default async function Home() {
             partition={readiness.service}
             readyLabel="Ready to serve shared dogfood."
             blockedLabel="Not ready to serve."
+            redacted={redacted}
           />
           <ReadinessPanel
             title="Measured institutional readiness"
             partition={readiness.institutional}
             readyLabel="Recorded institutional evidence passes."
             blockedLabel="Governed operations remain blocked."
+            redacted={redacted}
           />
         </>
       )}

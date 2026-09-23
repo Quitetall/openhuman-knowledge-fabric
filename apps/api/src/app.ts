@@ -6,7 +6,7 @@
  */
 
 import { loadProjectionDefinitions } from '@kf/projections';
-import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyError, type FastifyInstance, type FastifyRequest } from 'fastify';
 import {
   S3ObjectStore,
   StoreRegistry,
@@ -32,7 +32,8 @@ import {
   createFabricTransactionalDispatcher,
   createFabricTransactionalPreflight,
 } from '@kf/orchestrator';
-import { assessReadiness } from '@kf/operations';
+import { assessReadiness, type ReadinessReport } from '@kf/operations';
+import { timingSafeEqual } from 'node:crypto';
 import type { ApiConfig } from './config.js';
 import { createCallerIdentifier, registerActionRoutes } from './routes/actions.js';
 import { registerDocumentRoutes } from './routes/documents.js';
@@ -43,6 +44,34 @@ import { registerIdentifierRoutes } from './routes/identifiers.js';
 import { hasRequiredSchema } from './schema-contract.js';
 
 export const SERVICE_NAME = 'openhuman-knowledge-fabric-api';
+
+/** How long one deep-readiness assessment answers for. */
+const READINESS_TTL_MS = 10_000;
+
+const LOOPBACK_PEERS: ReadonlySet<string> = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+
+/**
+ * Whether this request may see the full readiness report.
+ *
+ * Loopback means a DIRECT loopback connection. The TLS proxy also connects from loopback, so a
+ * forwarded request (any forwarding header present) is judged as the remote caller it is. A
+ * local process that adds such a header only downgrades itself.
+ */
+function mayReadReadinessDetail(request: FastifyRequest, token: string | undefined): boolean {
+  if (token !== undefined) {
+    const presented = request.headers['x-kf-readiness-token'];
+    if (typeof presented === 'string') {
+      const a = Buffer.from(presented);
+      const b = Buffer.from(token);
+      if (a.length === b.length && timingSafeEqual(a, b)) return true;
+    }
+  }
+  const forwarded =
+    request.headers['x-forwarded-for'] !== undefined ||
+    request.headers['forwarded'] !== undefined ||
+    request.headers['x-real-ip'] !== undefined;
+  return !forwarded && LOOPBACK_PEERS.has(request.socket.remoteAddress ?? '');
+}
 
 /**
  * Liveness and readiness are deliberately different questions.
@@ -207,9 +236,35 @@ export async function buildApp(
      * request", and answering that with a full chain verification would take a database
      * outage and turn it into a restart loop. This one answers "is the system in the state
      * it is supposed to be in", which is a slower and much more interesting question.
+     *
+     * Two audiences, two bodies. The full report names every organization by id, counts its
+     * records, states backup and checkpoint posture and quotes the text of any check that
+     * could not run — reconnaissance for anybody else. An operator on this host (a direct
+     * loopback connection, which is how the web app and a shell reach it) or a caller holding
+     * KF_READINESS_TOKEN gets the report; everybody else gets the bare verdict.
+     *
+     * And one assessment per interval, not per request. The report walks the whole audit
+     * chain, so an endpoint that recomputed it on every GET was a CPU and I/O lever for
+     * anybody who could reach it. Concurrent callers share one run.
      */
-    app.get('/readiness', async (_request, reply) => {
-      const report = await assessReadiness(pool);
+    let cachedReadiness:
+      { readonly at: number; readonly report: Promise<ReadinessReport> } | undefined;
+    const readinessReport = (): Promise<ReadinessReport> => {
+      const now = Date.now();
+      if (cachedReadiness === undefined || now - cachedReadiness.at >= READINESS_TTL_MS) {
+        const report = assessReadiness(pool);
+        const entry = { at: now, report };
+        cachedReadiness = entry;
+        // A failed run is not cached: the next caller measures again rather than being told
+        // about a failure that may already be over.
+        report.catch(() => {
+          if (cachedReadiness === entry) cachedReadiness = undefined;
+        });
+      }
+      return cachedReadiness.report;
+    };
+    app.get('/readiness', async (request, reply) => {
+      const report = await readinessReport();
       // BOTH partitions, not `report.ready`.
       //
       // `report.ready` is a compatibility alias for `service.ready` — it narrowed when
@@ -222,7 +277,11 @@ export async function buildApp(
       // this endpoint asks is the question in its docstring — is the system in the state it
       // is supposed to be in — and that is the union.
       const inOrder = report.service.ready && report.institutional.ready;
-      return reply.code(inOrder ? 200 : 503).send(report);
+      const status = inOrder ? 200 : 503;
+      if (!mayReadReadinessDetail(request, config.readinessToken)) {
+        return reply.code(status).send({ ready: inOrder });
+      }
+      return reply.code(status).send(report);
     });
 
     const objectStore =

@@ -606,7 +606,9 @@ Before any shared user is admitted:
    unknown `sub` fails, a revoked identity fails and fixed identity headers are ignored.
 4. Verify `/health` reports process liveness, `/ready` performs a database round trip (and
    reports `checks.login`) and `/readiness` reports separate service and institutional
-   verdicts. Service `degraded`, `failed` or `unknown` is a failed service preflight. Any institutional blocker still fails the governed
+   verdicts (from the host: `curl http://127.0.0.1:4000/readiness`; through nginx the endpoint
+   is refused, and a forwarded caller without `X-KF-Readiness-Token` gets only
+   `{"ready": …}`). Service `degraded`, `failed` or `unknown` is a failed service preflight. Any institutional blocker still fails the governed
    operation or commissioning claim it protects even when HTTP status is `200`; never treat service
    availability as institutional approval.
 5. Run and record a backup, off-host copy and restore drill using the declared recovery
