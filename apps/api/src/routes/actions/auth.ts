@@ -52,12 +52,37 @@ export function unidentified(err: unknown): { error: string; message: string } {
   return { error: 'caller_unidentified', message: (err as Error).message };
 }
 
+export interface CallerIdentifierOptions {
+  /**
+   * Whether x-kf-* headers may name the caller when no verifier is configured. Only the
+   * development profile says yes (see app.ts).
+   */
+  readonly trustHeaders: boolean;
+}
+
+/**
+ * The one way every route learns who is calling.
+ *
+ * Header trust is an explicit input, not an inference from "no verifier". This identifier used
+ * to fall back to headers whenever the verifier was absent, and it is handed to the document,
+ * ML, search and identifier routes as well as /actions — so only /actions honoured
+ * `trustHeaders`, and a verifier-less app believed headers everywhere else. With neither a
+ * verifier nor header trust there is no way to identify anybody, and every request is refused.
+ */
 export function createCallerIdentifier(
   pool: Pool,
   verifier: TokenVerifier | undefined,
+  options: CallerIdentifierOptions,
 ): IdentifyCaller {
   return async (request): Promise<Caller> => {
-    if (verifier === undefined) return callerFrom(request.headers);
+    if (verifier === undefined) {
+      if (!options.trustHeaders) {
+        throw new CallerRejected(
+          'no identity provider is configured and header identity is not trusted',
+        );
+      }
+      return callerFrom(request.headers);
+    }
 
     const authorization = request.headers['authorization'];
     const token =

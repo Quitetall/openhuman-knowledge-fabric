@@ -241,3 +241,32 @@ describe('health endpoints', () => {
     await app.close();
   });
 });
+
+describe('identity on every route, not only /actions', () => {
+  it('refuses header identity on /search when the profile does not trust headers', async () => {
+    // A hand-built dogfood config with no identity provider: exactly the case loadConfig
+    // refuses but buildApp accepts. Only /actions used to honour trustHeaders; /search took
+    // the same x-kf-* headers as the caller and went on to the database.
+    const config = {
+      ...loadConfig({
+        ...baseEnv,
+        LOG_LEVEL: 'silent',
+        DATABASE_URL: 'postgres://kf_app@127.0.0.1:1/kf',
+      }),
+      deploymentProfile: 'dogfood' as const,
+    };
+    const app = await buildApp(config);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/search?q=pump',
+      headers: {
+        'x-kf-actor': '01930000-0000-7000-8000-000000000001',
+        'x-kf-acting-role': '01930000-0000-7000-8000-000000000002',
+        'x-kf-organization': '01930000-0000-7000-8000-000000000003',
+        'x-kf-classification': 'restricted',
+      },
+    });
+    expect(res.statusCode).toBe(401);
+    await app.close();
+  });
+});

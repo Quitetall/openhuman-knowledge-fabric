@@ -55,7 +55,7 @@ export async function registerActionRoutes(
    * had one and headers otherwise would let anybody who could omit a header downgrade the
    * whole authentication scheme.
    */
-  const identify = createCallerIdentifier(pool, verifier);
+  const identify = createCallerIdentifier(pool, verifier, { trustHeaders: options.trustHeaders });
 
   if (verifier === undefined && !options.trustHeaders) {
     registerUnavailableActionRoute(app);

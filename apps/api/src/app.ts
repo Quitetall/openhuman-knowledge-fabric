@@ -199,29 +199,34 @@ export async function buildApp(
       storageAtoms,
     );
     const verifier = config.identity === undefined ? undefined : new TokenVerifier(config.identity);
-    const identify = createCallerIdentifier(pool, verifier);
+    // Header-supplied identity is a development affordance and nothing else, and it is
+    // reachable only when no identity provider is configured — the identifier ignores headers
+    // entirely once a verifier exists, rather than falling back to them, because a fallback
+    // activates exactly when the provider is unreachable.
+    //
+    // Keyed on the DEPLOYMENT PROFILE, not on NODE_ENV. config.ts states the rule — "the
+    // development profile is the only place header-supplied identity can exist" — and this
+    // is the point of use that has to implement it. Keyed on `environment` alone, a dogfood
+    // app built with NODE_ENV=test trusted headers, which is the one thing the profile
+    // exists to forbid. `loadConfig` happens to prevent that combination reaching
+    // production by requiring an identity provider under dogfood, but buildApp accepts any
+    // ApiConfig, so relying on that made the guarantee depend on which constructor a caller
+    // happened to use.
+    //
+    // The environment clause stays as well: both must agree before a header is a caller.
+    //
+    // ONE decision, handed to every route. It used to reach /actions only; the identifier
+    // given to the document, ML, search and identifier routes trusted headers whenever the
+    // verifier was absent, whatever the profile said.
+    const trustHeaders =
+      config.deploymentProfile === 'development' &&
+      (config.environment === 'development' || config.environment === 'test');
+    const identify = createCallerIdentifier(pool, verifier, { trustHeaders });
     await registerActionRoutes(app, {
       pool,
       execute,
       ...(verifier === undefined ? {} : { verifier }),
-      // Header-supplied identity is a development affordance and nothing else, and it is
-      // reachable only when no identity provider is configured — `registerActionRoutes`
-      // ignores headers entirely once a verifier exists, rather than falling back to them,
-      // because a fallback activates exactly when the provider is unreachable.
-      //
-      // Keyed on the DEPLOYMENT PROFILE, not on NODE_ENV. config.ts states the rule — "the
-      // development profile is the only place header-supplied identity can exist" — and this
-      // is the point of use that has to implement it. Keyed on `environment` alone, a dogfood
-      // app built with NODE_ENV=test trusted headers, which is the one thing the profile
-      // exists to forbid. `loadConfig` happens to prevent that combination reaching
-      // production by requiring an identity provider under dogfood, but buildApp accepts any
-      // ApiConfig, so relying on that made the guarantee depend on which constructor a caller
-      // happened to use.
-      //
-      // The environment clause stays as well: both must agree before a header is a caller.
-      trustHeaders:
-        config.deploymentProfile === 'development' &&
-        (config.environment === 'development' || config.environment === 'test'),
+      trustHeaders,
     });
     await registerDocumentRoutes(app, {
       pool,
