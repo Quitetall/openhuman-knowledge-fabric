@@ -13,14 +13,27 @@ export interface RestoredSections {
 }
 
 /**
- * Sections that did not exist at export format 1.
+ * Sections added to the export after archives of the current format were already being written.
  *
  * A format-1 archive was written before these tables did, so their absence means the corpus had
- * none — which is true, and not a loss. Named explicitly rather than treating any missing section
- * as empty: a blanket rule would silently accept a truncated export of the current format, which
- * is the failure the round trip exists to catch.
+ * none — which is true, and not a loss. The same holds for a format-2 archive written before the
+ * section existed: `object-verifications` arrived on 2026-09-20 without a format bump, and every
+ * format-2 archive from before then refused to restore with "export has no
+ * object-verifications.json". Those archives are the backups.
+ *
+ * Named explicitly rather than treating any missing section as empty: a blanket rule would
+ * silently accept a truncated export, which is the failure the round trip exists to catch. And a
+ * named section is skipped only when its file is absent from the archive — the manifest check
+ * that runs before this refuses a listed file that is missing, so absence here means the signed
+ * manifest never listed it, not that it was lost on the way.
  */
 const SECTIONS_ADDED_AFTER_FORMAT_1 = new Set(['object-verifications']);
+
+function predatesSection(pkg: ExportPackage, name: string): boolean {
+  if (!SECTIONS_ADDED_AFTER_FORMAT_1.has(name)) return false;
+  if (pkg.manifest.format_version === '1') return true;
+  return !pkg.files.some((file) => file.path === `${name}.json`);
+}
 
 export async function restoreSections(
   tx: Tx,
@@ -32,7 +45,7 @@ export async function restoreSections(
   for (const name of importOrder) {
     const table = IMPORT_TARGETS[name];
     if (table === undefined) continue;
-    if (pkg.manifest.format_version === '1' && SECTIONS_ADDED_AFTER_FORMAT_1.has(name)) continue;
+    if (predatesSection(pkg, name)) continue;
     let rows = sectionRows(pkg, name);
     if (pkg.manifest.format_version === '1' && name === 'audit-checkpoints') {
       rows = rows.map((row) => ({ ...row, format_version: 'kf.audit-checkpoint.v1' }));
