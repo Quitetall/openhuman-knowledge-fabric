@@ -33,12 +33,16 @@ import {
   withTransaction,
   type Pool,
 } from '@kf/database';
+import { InMemoryObjectStore } from '@kf/artifacts';
+import { PandocDocumentParser, createDocumentActionAtoms } from '@kf/documents';
 import { createFabricDispatcher } from '@kf/orchestrator';
 import { createAttestorServer } from '../../apps/attestor/src/server.js';
 import { createCallerIdentifier, registerActionRoutes } from '../../apps/api/src/routes/actions.js';
 import { registerSearchRoutes } from '../../apps/api/src/routes/search.js';
+import { registerVerificationRoutes } from '../../apps/api/src/routes/verifications.js';
 import {
   bindContext,
+  createObject,
   seedFixtures,
   startHarness,
   type Fixtures,
@@ -237,12 +241,21 @@ describe('the API routes, bound only through the attestation', () => {
     api = Fastify({ logger: false });
     const identify = createCallerIdentifier(bareApp, attestor, { trustHeaders: false });
     await registerSearchRoutes(api, { pool: bareApp, identify });
+    // Document atoms carry verify_record; the store is never touched by the acts used here.
+    const execute = createFabricDispatcher(
+      bareApp,
+      createDocumentActionAtoms({
+        store: new InMemoryObjectStore(),
+        parser: new PandocDocumentParser(),
+      }),
+    );
     await registerActionRoutes(api, {
       pool: bareApp,
       attestor,
       trustHeaders: false,
-      execute: createFabricDispatcher(bareApp),
+      execute,
     });
+    registerVerificationRoutes(api, { execute, identify });
     await api.ready();
   });
 
@@ -281,6 +294,33 @@ describe('the API routes, bound only through the attestation', () => {
       },
     });
     expect(r.statusCode).toBe(201);
+  });
+
+  it('verifies in bulk, the attestation carried into every act of the gesture', async () => {
+    // The bulk route builds one dispatch per record. It was merged without carrying the caller's
+    // attestation, which every development and test pool papered over with its issuer; here,
+    // as on a dogfood host, each act was refused as not_attested.
+    const ids = [
+      await createObject(h.adminPool, f, {
+        type: 'decision_record',
+        domain: 'engineering',
+        state: 'draft',
+        title: 'Attested bulk record',
+        createdBy: f.performerId,
+      }),
+    ];
+    const r = await api.inject({
+      method: 'POST',
+      url: '/verifications/bulk',
+      headers: await headers(),
+      payload: {
+        recordIds: ids,
+        reason: 'promoting the imported register after sampling ten',
+        idempotencyKey: 'attestor-bulk-0001',
+      },
+    });
+    expect(r.statusCode, r.body).toBe(201);
+    expect((r.json() as { refused: unknown[] }).refused).toEqual([]);
   });
 
   it('refuses a forged token at the door', async () => {

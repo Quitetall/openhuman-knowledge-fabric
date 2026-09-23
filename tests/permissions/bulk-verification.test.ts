@@ -13,7 +13,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { InMemoryObjectStore } from '@kf/artifacts';
-import { withTransaction, type Tx } from '@kf/database';
+import { attestationFor, withTransaction, type Tx } from '@kf/database';
 import { buildApp } from '../../apps/api/src/app.js';
 import { DEFAULT_BULK_CEILING, MAX_BULK_CEILING } from '../../apps/api/src/sync/plan.js';
 import {
@@ -70,15 +70,14 @@ const pastThePace = () => new Promise((resolve) => setTimeout(resolve, 1_100));
 beforeAll(async () => {
   h = await startHarness();
   f = await seedFixtures(h.adminPool);
-  const appUri = new URL(h.connectionString);
-  appUri.username = 'kf_app_login';
-  appUri.password = 'test-only-not-a-secret';
   app = await buildApp(
     {
       host: '127.0.0.1',
       port: 0,
       logLevel: process.env['LOG_LEVEL'] ?? 'silent',
-      databaseUrl: appUri.toString(),
+      // The development login (kf_app + kf_attestor): a development app attests its header
+      // callers in-process (20260924001000).
+      databaseUrl: h.developmentDatabaseUrl,
       environment: 'test',
       deploymentProfile: 'development',
       tlsTerminatedUpstream: false,
@@ -271,11 +270,17 @@ describe('individual review has a human pace', () => {
     const forge = (tx: Tx, recordId: string) =>
       (async () => {
         const actionId = randomUUID();
-        await tx.query('select core.bind_principal($1, $2, $3, $4)', [
+        await tx.query('select core.bind_principal($1, $2, $3, $4, $5)', [
           f.reviewerId,
           f.reviewerRoleId,
           f.organizationId,
           'restricted',
+          (await attestationFor(tx, {
+            actorId: f.reviewerId,
+            actingRoleId: f.reviewerRoleId,
+            organizationId: f.organizationId,
+            maxClassification: 'restricted',
+          })) ?? null,
         ]);
         await tx.query('select core.set_transaction_context($1, $2, $3, $4)', [
           f.reviewerId,

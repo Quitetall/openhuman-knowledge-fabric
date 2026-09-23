@@ -136,6 +136,9 @@ export function registerVerificationRoutes(
       actingRoleId: caller.actingRoleId,
       organizationId: caller.organizationId,
       maxClassification: caller.maxClassification,
+      // kf-attestor's proof the caller is present (20260924001000). Without it every act of the
+      // gesture is refused at the bind as not_attested.
+      attestation: caller.attestation,
       targetIds: [recordId],
       idempotencyKey: `${key}:${recordId}`,
       requestId: String(request.id),
