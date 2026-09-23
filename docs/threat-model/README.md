@@ -118,15 +118,16 @@ every policy working while none was consulted.
 
 ## T4 — Evidence is altered underneath the record
 
-| Control                                                                                                             | Where                                        | Proven by                                      |
-| ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ---------------------------------------------- |
-| The server re-derives the digest from the stored bytes; the client's claim is only used to detect mismatch          | `packages/artifacts`                         | `tests/round-trip/export.test.ts`              |
-| Full bytes are read, never an ETag or a length                                                                      | same                                         | same                                           |
-| `verifyRecordedVersion` re-checks the vault against the record                                                      | same                                         | same                                           |
-| Federated content is pinned to a commit and digested as seen                                                        | `packages/integration`                       | `tests/integration/federation.test.ts`         |
-| The storage key is derived by the server from the bound organization and digest; a caller-named key is refused      | `evidenceStorageKey`, `@kf/documents`        | `packages/documents/src/index.test.ts`         |
-| pandoc parses under a sandbox, a heap ceiling, a wall-clock kill and an output cap, and refuses rather than hangs   | `packages/documents`                         | `packages/documents/src/pandoc-parser.test.ts` |
-| Nothing reaches the object store before the act could be refused; unreferenced bytes are swept after a grace period | ingest route, `kf-storage --collect-orphans` | `apps/api/src/ingest/content-policy.test.ts`   |
+| Control                                                                                                                                                                     | Where                                                                    | Proven by                                        |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------ |
+| The server re-derives the digest from the stored bytes; the client's claim is only used to detect mismatch                                                                  | `packages/artifacts`                                                     | `tests/round-trip/export.test.ts`                |
+| Full bytes are read, never an ETag or a length                                                                                                                              | same                                                                     | same                                             |
+| `verifyRecordedVersion` re-checks the vault against the record                                                                                                              | same                                                                     | same                                             |
+| Federated content is pinned to a commit and digested as seen                                                                                                                | `packages/integration`                                                   | `tests/integration/federation.test.ts`           |
+| The storage key is derived by the server from the bound organization and digest; a caller-named key is refused                                                              | `evidenceStorageKey`, `@kf/documents`                                    | `packages/documents/src/index.test.ts`           |
+| pandoc parses under a sandbox, a heap ceiling, a wall-clock kill and an output cap, and refuses rather than hangs, and on the ingest paths before the act transaction opens | `packages/documents`                                                     | `packages/documents/src/pandoc-parser.test.ts`   |
+| The compiler sandbox runs under its own BPF deny list as well as the worker unit's syscall filter                                                                           | `packages/documents/src/liminal-adapter/seccomp.ts`, `kf-worker.service` | `tests/deployment/worker-syscall-filter.test.ts` |
+| Nothing reaches the object store before the act could be refused; unreferenced bytes are swept after a grace period                                                         | ingest route, `kf-storage --collect-orphans`                             | `apps/api/src/ingest/content-policy.test.ts`     |
 
 **Not mitigated: the object store's own durability.** If the bucket is lost, the digests prove
 what the bytes _were_, and that is all. Backing up the bucket on the same schedule as the
@@ -227,8 +228,10 @@ it reading, and everything in T6's read surface is available to it.
 
 - **PHI.** Never enters this system in any form. Policy first; since 2026-09-23 ingest and sync
   also refuse private keys, likely IBAN, SSN and card numbers and credential-shaped filenames
-  (`apps/api/src/ingest/content-policy.ts`). A backstop, not a guarantee: the scan cannot see
-  inside compressed DOCX, ODT or PDF streams, and it knows no pattern for health information.
+  (`apps/api/src/ingest/content-policy.ts`). A backstop, not a guarantee: it reads inside ZIP packages (DOCX, ODT, XLSX, PPTX, ODS) and PDF
+  FlateDecode streams, under a 64 MiB / 10 000-part / 250:1 bound that refuses a decompression
+  bomb, but not text drawn through custom-encoded (CID) fonts, encrypted PDFs or images, and it
+  knows no pattern for health information.
 - **Bank details, tax identifiers, payroll.** Referenced, never copied.
 - **Vendor datasheets.** Third-party copyright; referenced by number, revision and digest.
 - **Complainant identity.** `quality.complaint` holds a reference, never a name — putting
@@ -263,10 +266,12 @@ whoever deploys, and a false one produces exactly the exposure it claims to prev
 
 ## Accepted gaps from the 2026-09-23 hardening
 
-- **No seccomp filter on the compiler sandbox.** bwrap takes one as a compiled BPF program and
-  nothing here builds one; `SystemCallFilter=` on the unit is the syscall boundary.
-
-- **pandoc still parses inside the database transaction.** The deadline bounds how long.
+- **pandoc parses inside the transaction only for acts dispatched without a pre-parse** (the
+  generic `/actions` route, dogfood loaders). Ingest, document import and `kf ingest` parse before
+  the transaction opens; the deadline bounds the rest.
+- **The compiler's own syscall filter is a deny list, not an allow list**, because the pinned
+  compiler's syscall set has not been measured. It runs under `bwrap --seccomp`
+  (`liminal-adapter/seccomp.ts`) on top of the worker unit's inherited `SystemCallFilter=`.
 
 ## Open items
 
