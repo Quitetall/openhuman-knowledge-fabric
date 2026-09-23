@@ -1,7 +1,7 @@
 # ADR 0032 — The seven-day floor on compiler cutover is waived, and what that gives up
 
 - **Status:** accepted 2026-09-20; proposed 2026-09-20
-- **Amends:** [ADR 0004](0004-document-compiler-cutover.md)'s replacement criterion. The other
+- **Amends:** [ADR 0004](0004-production-release.md)'s replacement criterion. The other
   three conditions stand unchanged.
 
 ## Context

@@ -139,8 +139,10 @@ typed object, and the bytes are one attachment to it. Not a replacement for a PL
 ledger or version control, which it links to and records the origin of. Not a general-purpose
 write API. Business logic is an application above it, never inside it.
 
-It holds no health information, no bank details and no payroll secrets. It does not sync
-folders; each external file is admitted as a decision.
+It is not for health information, bank details or payroll secrets. That is policy first, and
+ingest backs it with a deny list and a content scan that refuses private keys and likely bank,
+tax and card numbers — a backstop, not a guarantee. Folders can be synchronised, but each file
+still arrives as its own act, and none is evidence until somebody verifies it.
 
 ## Where things live
 
@@ -168,7 +170,7 @@ the common and correct case.
 | [Onboarding](docs/onboarding.md)                                    | How to run it, with the traps            |
 | [Private host](docs/deployment/private-host.md)                     | How to deploy it properly                |
 | [Identity and login](docs/deployment/identity-and-login.md)         | How a person gets an account             |
-| [Security](docs/security/) and [threat model](docs/threat-model/)   | What it defends against                  |
+| [Threat model](docs/threat-model/)                                  | What it defends against, and what not    |
 
 ## Why the durable record is a file
 

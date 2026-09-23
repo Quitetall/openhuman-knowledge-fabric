@@ -28,7 +28,7 @@
  */
 
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const ROOT = join(import.meta.dirname, '..', '..');
@@ -111,5 +111,41 @@ describe('the documentation cites files that exist', () => {
           'nothing about it',
       ).toContain(required);
     }
+  });
+});
+
+/** Every relative markdown link in README.md and docs/, resolved against its own document. */
+function relativeLinks(): ReadonlyArray<{ readonly document: string; readonly target: string }> {
+  const found: { document: string; target: string }[] = [];
+  // `docs/warrants/generated/` is OpenWarrant's output, which writes its links relative to the
+  // repository root rather than to the page. It is regenerated, never edited here, so the fix
+  // belongs upstream; checking it would only fail on every regeneration until then.
+  const generated = join(DOCS, 'warrants', 'generated');
+  for (const file of [join(ROOT, 'README.md'), ...markdownFiles(DOCS)]) {
+    if (file.startsWith(generated)) continue;
+    const text = readFileSync(file, 'utf8').replace(/```[\s\S]*?```/g, '');
+    for (const match of text.matchAll(/\]\(([^)\s]+)\)/g)) {
+      const link = match[1]!;
+      if (/^[a-z][a-z0-9+.-]*:/i.test(link) || link.startsWith('#')) continue;
+      const target = decodeURIComponent(link.split('#')[0]!);
+      if (target === '') continue;
+      found.push({ document: relative(ROOT, file), target: join(dirname(file), target) });
+    }
+  }
+  return found;
+}
+
+describe('the documentation links to files that exist', () => {
+  // The backticked-path check above did not look at links, so `README.md` linked an empty
+  // `docs/security/` for as long as the directory had no tracked file, and passed.
+  it('resolves every relative markdown link', () => {
+    const broken = relativeLinks()
+      .filter(({ target }) => !existsSync(target))
+      .map(({ document, target }) => `${document} -> ${relative(ROOT, target)}`);
+    expect(broken, 'these links lead nowhere').toEqual([]);
+  });
+
+  it('finds enough links to be worth checking', () => {
+    expect(relativeLinks().length).toBeGreaterThan(20);
   });
 });
