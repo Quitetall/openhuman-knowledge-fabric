@@ -162,8 +162,8 @@ describe('the compiler syscall filter', () => {
         const child = spawn(BWRAP, probeArgs(true), { stdio: ['ignore', 'pipe', 'pipe', 'pipe'] });
         let stdout = '';
         let stderr = '';
-        child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString('utf8')));
-        child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString('utf8')));
+        child.stdout?.on('data', (chunk: Buffer) => (stdout += chunk.toString('utf8')));
+        child.stderr?.on('data', (chunk: Buffer) => (stderr += chunk.toString('utf8')));
         child.once('error', reject);
         child.once('close', (status) => resolve({ status, stdout, stderr }));
         (child.stdio[3] as NodeJS.WritableStream).end(compilerSeccompProgram(ARCH));
