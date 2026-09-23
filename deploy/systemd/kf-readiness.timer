@@ -2,6 +2,9 @@
 Description=Readiness check every fifteen minutes
 
 [Timer]
+# How long this may go without firing before scripts/timer-liveness.sh reports it (systemd
+# ignores X- keys). Every 15 minutes: 45 minutes silent means two checks were missed.
+X-KF-MaxSilenceSec=2700
 OnCalendar=*:0/15
 # Deliberately NOT Persistent: catching up on missed readiness checks tells you about a
 # machine that was off, which is not news.

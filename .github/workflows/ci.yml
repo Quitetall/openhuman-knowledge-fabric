@@ -107,7 +107,7 @@ jobs:
         run: pnpm test
 
       - name: Dependency advisories
-        run: pnpm audit --audit-level=high
+        run: pnpm audit --audit-level=moderate
 
   ontology:
     name: ontology consistent · generated/ current

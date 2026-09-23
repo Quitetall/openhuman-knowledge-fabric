@@ -34,6 +34,58 @@ kf_configure_postgres_client
 : "${PRESERVATION_SIGNING_KEY_ID:?set PRESERVATION_SIGNING_KEY_ID to its immutable key id}"
 : "${PRESERVATION_TRUST_STORE_DIR:?set PRESERVATION_TRUST_STORE_DIR to the historical public-key directory}"
 
+# A deployed host is one whose unit declares a deployment profile; the shipped kf-backup.service
+# sets KF_DEPLOYMENT_PROFILE=dogfood. There, two things that are optional on a workstation are
+# not: the checkpoint public keys (without them a restored audit log cannot be checked against
+# its signatures, which the restore drill then records as partial every month), and the
+# recipient key everything leaving this host is encrypted to.
+KF_DEPLOYED=false
+case "${KF_DEPLOYMENT_PROFILE:-}" in
+  ''|development) ;;
+  *) KF_DEPLOYED=true ;;
+esac
+if [ "$KF_DEPLOYED" = true ]; then
+  : "${CHECKPOINT_PUBLIC_KEY_DIR:?set CHECKPOINT_PUBLIC_KEY_DIR: a deployed backup must carry the checkpoint public keys}"
+  : "${KF_BACKUP_RECIPIENT_FILE:?set KF_BACKUP_RECIPIENT_FILE to the OpenPGP public key backups are encrypted to}"
+fi
+
+# Encryption to a PUBLIC key. The matching private key is held off this host by whoever runs
+# recovery; this host can produce ciphertext and cannot read it back, so a stolen off-site copy
+# and a compromised backup job are both just bytes. A recipient file that carries a secret key
+# is refused outright rather than used: putting it here would undo the whole arrangement.
+ENCRYPTION_KEYIDS=""
+GPG_HOME=""
+if [ -n "${KF_BACKUP_RECIPIENT_FILE:-}" ]; then
+  if [ ! -f "$KF_BACKUP_RECIPIENT_FILE" ] || [ -L "$KF_BACKUP_RECIPIENT_FILE" ]; then
+    echo "KF_BACKUP_RECIPIENT_FILE must be a regular file, not a link: $KF_BACKUP_RECIPIENT_FILE" >&2
+    exit 1
+  fi
+  if grep -q 'PRIVATE KEY BLOCK' "$KF_BACKUP_RECIPIENT_FILE"; then
+    echo "refusing KF_BACKUP_RECIPIENT_FILE: it contains a private key, which must not be on this host" >&2
+    exit 1
+  fi
+  command -v gpg >/dev/null 2>&1 || { echo "gpg is required to encrypt backups" >&2; exit 1; }
+  # A throwaway keyring: the recipient is named by file, never imported into anything that
+  # outlives this run, so the host holds no trust decisions an attacker could edit.
+  GPG_HOME="$(mktemp -d)"
+  chmod 700 "$GPG_HOME"
+  kf_at_exit 'rm -rf "$GPG_HOME"'
+  RECIPIENT_LISTING="$(gpg --batch --no-tty --homedir "$GPG_HOME" --with-colons \
+    --show-keys "$KF_BACKUP_RECIPIENT_FILE" 2>/dev/null)"
+  if printf '%s\n' "$RECIPIENT_LISTING" | grep -Eq '^(sec|ssb):'; then
+    echo "refusing KF_BACKUP_RECIPIENT_FILE: it contains a private key, which must not be on this host" >&2
+    exit 1
+  fi
+  # Key ids able to encrypt (capability field contains `e`). The archive is later checked to
+  # name one of these, so "encrypted" is measured rather than inferred from an exit code.
+  ENCRYPTION_KEYIDS="$(printf '%s\n' "$RECIPIENT_LISTING" \
+    | awk -F: '($1 == "pub" || $1 == "sub") && $12 ~ /e/ { print $5 }')"
+  if [ -z "$ENCRYPTION_KEYIDS" ]; then
+    echo "KF_BACKUP_RECIPIENT_FILE holds no key capable of encryption" >&2
+    exit 1
+  fi
+fi
+
 REQUESTED_DEST="${1:-backups/$(date -u +%Y%m%dT%H%M%SZ)}"
 STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -52,13 +104,82 @@ if [ -e "$FINAL_DEST" ]; then
   exit 1
 fi
 
+echo "==> retention: pruning local backups already safe elsewhere"
+# Local copies are plaintext, and until 2026-09-23 they were never removed: every night added
+# one more complete copy of every record to the database host's disk. Now the newest
+# KF_BACKUP_RETAIN_LOCAL (default 7) are kept, and an older one is removed only once the ledger
+# records an off-site copy of it — a backup whose only copy is here is never pruned, however
+# old. When the off-site path is broken this keeps everything, and the free-space check below
+# then fails loudly instead of the disk failing quietly.
+RETAIN_LOCAL="${KF_BACKUP_RETAIN_LOCAL:-7}"
+if [[ ! "$RETAIN_LOCAL" =~ ^[1-9][0-9]*$ ]]; then
+  echo "KF_BACKUP_RETAIN_LOCAL must be a positive integer" >&2
+  exit 1
+fi
+PRUNABLE="$("$KF_PSQL" "$DATABASE_URL" -v ON_ERROR_STOP=1 -tA \
+  -v parent="$DEST_PARENT/" -v keep="$RETAIN_LOCAL" <<'SQL'
+select r.location
+  from (select b.id, b.location,
+               row_number() over (order by b.finished_at desc, b.id desc) as newest
+          from ops.backup_run b
+         where starts_with(b.location, :'parent')) r
+ where r.newest > :'keep'::integer
+   and exists (select 1 from ops.backup_copy c where c.backup_run_id = r.id and c.offsite)
+ order by r.location;
+SQL
+)"
+while IFS= read -r PRUNE; do
+  [ -n "$PRUNE" ] || continue
+  PRUNE_NAME="$(basename -- "$PRUNE")"
+  # Only a plain child of this backup root, by a name backup.sh could have produced. The
+  # ledger is data; it does not get to name an arbitrary path for `rm -rf`.
+  if [ "$(dirname -- "$PRUNE")" != "$DEST_PARENT" ] ||
+     [[ ! "$PRUNE_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+    echo "retention: refusing to prune unexpected path $PRUNE" >&2
+    continue
+  fi
+  if [ -d "$PRUNE" ] && [ ! -L "$PRUNE" ]; then
+    rm -rf -- "$PRUNE"
+    echo "retention: pruned $PRUNE"
+  fi
+  rm -f -- "$PRUNE.tar.gpg"
+done <<< "$PRUNABLE"
+
+echo "==> checking free space"
+# Twice the previous backup (the plaintext bundle and its ciphertext), plus a reserve. The
+# first backup has no predecessor and uses the database size, which over-estimates a
+# compressed dump — the safe direction to be wrong in.
+ESTIMATE="$("$KF_PSQL" "$DATABASE_URL" -v ON_ERROR_STOP=1 -tA <<'SQL'
+select coalesce((select byte_size from ops.backup_run
+                  where database_name = current_database()
+                  order by finished_at desc, id desc limit 1),
+                pg_database_size(current_database()));
+SQL
+)"
+RESERVE="${KF_BACKUP_FREE_SPACE_RESERVE_BYTES:-1073741824}"
+if [[ ! "$ESTIMATE" =~ ^[0-9]+$ ]] || [[ ! "$RESERVE" =~ ^[0-9]+$ ]]; then
+  echo "could not estimate the space this backup needs" >&2
+  exit 1
+fi
+NEEDED=$(( 2 * ESTIMATE + RESERVE ))
+AVAILABLE="$(df --output=avail -B1 -- "$DEST_PARENT" | tail -n 1 | tr -d ' ')"
+if [[ ! "$AVAILABLE" =~ ^[0-9]+$ ]] || [ "$AVAILABLE" -lt "$NEEDED" ]; then
+  echo "refusing to start: $DEST_PARENT has ${AVAILABLE:-unknown} bytes free, this backup needs about $NEEDED" >&2
+  echo "a backup that fills the disk half-way fails, and takes the database's disk with it if shared" >&2
+  exit 1
+fi
+
 # Build beside final name. All bytes and metadata are flushed before one same-filesystem rename
 # publishes complete tree. A crash or failed command leaves no directory that looks finished.
 STAGING_DEST="$(mktemp -d "$DEST_PARENT/.${DEST_NAME}.partial.XXXXXX")"
 DEST="$STAGING_DEST"
+CIPHERTEXT_STAGING=""
 backup_staging_cleanup() {
   if [ -n "${STAGING_DEST:-}" ] && [ -d "$STAGING_DEST" ]; then
     rm -rf -- "$STAGING_DEST"
+  fi
+  if [ -n "${CIPHERTEXT_STAGING:-}" ]; then
+    rm -f -- "$CIPHERTEXT_STAGING"
   fi
 }
 kf_at_exit backup_staging_cleanup
@@ -246,11 +367,50 @@ echo "==> authenticating complete backup bundle through external trust store"
 node "$ROOT/packages/export/dist/cli.js" verify-backup "$DEST" \
   --trust-store "$PRESERVATION_TRUST_STORE_DIR"
 
+FINAL_CIPHERTEXT="$FINAL_DEST.tar.gpg"
+if [ -n "$ENCRYPTION_KEYIDS" ]; then
+  echo "==> encrypting the verified bundle for off-host copies"
+  # From the staging tree that was just authenticated, so the ciphertext holds exactly the
+  # bytes the signature covers. Archive root is the bundle's contents, not a directory name:
+  # whoever restores chooses where it lands.
+  if [ -e "$FINAL_CIPHERTEXT" ]; then
+    echo "refusing to overwrite existing encrypted archive: $FINAL_CIPHERTEXT" >&2
+    exit 1
+  fi
+  CIPHERTEXT_STAGING="$(mktemp "$DEST_PARENT/.${DEST_NAME}.tar.gpg.partial.XXXXXX")"
+  tar --create --file=- --directory="$STAGING_DEST" --sort=name --numeric-owner . \
+    | gpg --batch --no-tty --quiet --homedir "$GPG_HOME" --no-options --trust-model always \
+        --recipient-file "$KF_BACKUP_RECIPIENT_FILE" --encrypt --yes --output "$CIPHERTEXT_STAGING"
+  # What was produced, read back: the packets must be a public-key-encrypted session key for a
+  # configured recipient followed by integrity-protected data. `--list-packets` exits nonzero
+  # here by design — this host has no secret key — so its output is inspected, not its status.
+  PACKETS="$(gpg --batch --no-tty --homedir "$GPG_HOME" --list-packets "$CIPHERTEXT_STAGING" 2>/dev/null || true)"
+  ENCRYPTED_TO=""
+  while IFS= read -r KEYID; do
+    [ -n "$KEYID" ] || continue
+    if printf '%s\n' "$PACKETS" | grep -q ":pubkey enc packet: .* keyid $KEYID\$"; then
+      ENCRYPTED_TO="$KEYID"
+    fi
+  done <<< "$ENCRYPTION_KEYIDS"
+  if [ -z "$ENCRYPTED_TO" ] ||
+     ! printf '%s\n' "$PACKETS" | grep -Eq '^:(encrypted data packet|aead encrypted packet):'; then
+    echo "encryption produced no public-key-encrypted archive for the configured recipient" >&2
+    exit 1
+  fi
+  sync -f "$CIPHERTEXT_STAGING"
+fi
+
 echo "==> durably publishing complete backup"
 # GNU sync -f issues syncfs(2) for filesystem containing staging tree: payload data, signed
 # sidecars, nested directory entries, and metadata are durable before rename. Parent flush then
 # makes rename itself durable before ledger records success.
 sync -f "$STAGING_DEST"
+# Ciphertext first: the off-site job copies the newest DIRECTORY's archive, so the archive must
+# already exist when the directory appears.
+if [ -n "$CIPHERTEXT_STAGING" ]; then
+  mv -- "$CIPHERTEXT_STAGING" "$FINAL_CIPHERTEXT"
+  CIPHERTEXT_STAGING=""
+fi
 mv -- "$STAGING_DEST" "$FINAL_DEST"
 STAGING_DEST=""
 DEST="$FINAL_DEST"
@@ -284,11 +444,17 @@ SQL
 echo "==> done: $DEST"
 du -sh "$DEST"
 
+if [ -n "$ENCRYPTION_KEYIDS" ]; then
+  echo "encrypted archive for off-host copies: $FINAL_CIPHERTEXT (recipient key $ENCRYPTED_TO)"
+else
+  echo "NOT ENCRYPTED: KF_BACKUP_RECIPIENT_FILE is unset, so backup-offsite.sh will refuse to copy this backup" >&2
+fi
+
 cat <<'EOF'
 
 This backup is on the same host as the database. Until a copy reaches somewhere else,
 readiness reports it degraded — a backup beside the thing it backs up survives a dropped
 table and not a lost host.
 
-    scripts/backup-offsite.sh <this directory> <destination> <label>
+    scripts/backup-offsite.sh <this directory> <destination> <label> [--separate-domain <ref>]
 EOF

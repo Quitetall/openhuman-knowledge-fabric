@@ -1274,6 +1274,13 @@ describe('extended preservation coverage', () => {
           database_name: 'kf_fixture',
           recorded_at: LATER_AT,
         });
+        await insert(tx, 'ops.physical_failure_domain_evidence', {
+          domain_ref: 'fixture-domain-1',
+          evidence_ref: 'evidence://fixture/domain-1',
+          approved_by: fixtures.reviewerId,
+          approved_at: FIXED_AT,
+          valid_until: null,
+        });
         await insert(tx, 'ops.backup_copy', {
           id: ids.backupCopy,
           backup_run_id: ids.backupRun,
@@ -1281,6 +1288,9 @@ describe('extended preservation coverage', () => {
           offsite: true,
           copied_at: LATER_AT,
           manifest_digest: sha256(40),
+          offsite_basis: 'attested-domain',
+          failure_domain_ref: 'fixture-domain-1',
+          ciphertext_sha256: sha256(44),
         });
         await insert(tx, 'ops.restore_drill', {
           id: uuid(),
@@ -1297,13 +1307,6 @@ describe('extended preservation coverage', () => {
           object_store_verified: true,
           object_store_proof_ref: 'fixture://object-store/restore-proof',
           object_store_proof_sha256: sha256(43),
-        });
-        await insert(tx, 'ops.physical_failure_domain_evidence', {
-          domain_ref: 'fixture-domain-1',
-          evidence_ref: 'evidence://fixture/domain-1',
-          approved_by: fixtures.reviewerId,
-          approved_at: FIXED_AT,
-          valid_until: null,
         });
         await insert(tx, 'ops.encrypted_backup_evidence', {
           backup_copy_id: ids.backupCopy,
@@ -1658,7 +1661,9 @@ describe('extended preservation coverage', () => {
         promotionEvidence: false,
         promotionRevocations: false,
         physicalDomains: false,
-        encryptedCopies: false,
+        // The backup role records encryption evidence for copies it measured itself
+        // (backup-offsite.sh, 20260923100100). Approving a failure domain stays human-only.
+        encryptedCopies: true,
       });
 
       const first = authenticateExport(

@@ -279,6 +279,55 @@ run_dbmate() {
   "$dbmate_bin" --migrations-dir "$migration_directory" --no-dump-schema "$@"
 }
 
+# The receipt is authenticated with a key that exists only on this host, readable only by the
+# migrator identity. Until 2026-09-23 a receipt was plain text whose every field — manifest
+# digest, migration-set digest, dbmate version — could be derived from the release alone, so
+# anyone holding the release could write a receipt that authorised a production migration
+# without ever running the rehearsal. Now producing one needs this key, and the only code that
+# uses the key to sign is the rehearsal, after it has migrated, measured and rolled back.
+receipt_key_file() {
+  local key_file="${KF_REHEARSAL_RECEIPT_KEY_FILE:-}"
+  [ -n "$key_file" ] && [[ "$key_file" = /* ]] ||
+    fail 'KF_REHEARSAL_RECEIPT_KEY_FILE must be an absolute path to the host-local receipt key'
+  [ -f "$key_file" ] && [ ! -L "$key_file" ] ||
+    fail 'KF_REHEARSAL_RECEIPT_KEY_FILE must name a regular non-symlink file'
+  local key_mode
+  key_mode="$(stat -c '%a' "$key_file")"
+  [ $((8#$key_mode & 8#077)) -eq 0 ] ||
+    fail 'rehearsal receipt key must be readable by its owner only (chmod 600)'
+  [ "$(stat -c '%s' "$key_file")" -ge 32 ] ||
+    fail 'rehearsal receipt key must hold at least 32 bytes'
+  printf '%s' "$key_file"
+}
+
+# HMAC-SHA256 of a file's bytes, keyed by a file. Node reads both paths itself, so the key never
+# appears in argv, the environment, or this shell.
+receipt_hmac() {
+  local key_file="$1"
+  local body_file="$2"
+  require_command node
+  node -e '
+    const { createHmac } = require("node:crypto");
+    const { readFileSync } = require("node:fs");
+    const [keyFile, bodyFile] = process.argv.slice(1);
+    process.stdout.write(
+      createHmac("sha256", readFileSync(keyFile)).update(readFileSync(bodyFile)).digest("hex"),
+    );
+  ' "$key_file" "$body_file"
+}
+
+# What the rehearsal database looked like after every migration and the seed ran: columns,
+# constraints, indexes and function bodies, without OIDs or anything else that varies between
+# clusters. Recorded in the receipt, so the receipt describes a database that existed.
+schema_digest() {
+  local listing
+  listing="$(
+    "$psql_bin" "$DATABASE_URL" -X -A -t -v ON_ERROR_STOP=1 -c "select coalesce(string_agg(line, E'\\n' order by line), '') from (select 'column|' || table_schema || '.' || table_name || '.' || column_name || '|' || data_type || '|' || is_nullable || '|' || coalesce(column_default, '') as line from information_schema.columns where table_schema not in ('pg_catalog', 'information_schema') and table_schema !~ '^pg_toast' union all select 'constraint|' || n.nspname || '.' || c.conname || '|' || pg_get_constraintdef(c.oid) from pg_constraint c join pg_namespace n on n.oid = c.connamespace where n.nspname not in ('pg_catalog', 'information_schema') union all select 'index|' || schemaname || '.' || indexname || '|' || indexdef from pg_indexes where schemaname not in ('pg_catalog', 'information_schema') union all select 'function|' || n.nspname || '.' || p.proname || '|' || md5(pg_get_functiondef(p.oid)) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname not in ('pg_catalog', 'information_schema') and p.prokind in ('f', 'p')) catalog"
+  )"
+  [ -n "$listing" ] || fail 'rehearsal database has no schema to digest after migrating'
+  printf '%s' "$listing" | sha256sum | awk '{print $1}'
+}
+
 receipt_value() {
   local key="$1"
   local receipt="$2"
@@ -303,9 +352,26 @@ verify_receipt() {
   # either from before the floor existed or from a different set entirely. Either way it must
   # not authorise an apply, and the operator needs to be told which of the two it is.
   [ "$receipt_format" != 'kf-migration-rollback-rehearsal-v1' ] ||
-    fail 'rollback rehearsal receipt is v1, which claims full reversibility; re-run the rehearsal to produce a v2 receipt naming the forward-only floor'
-  [ "$receipt_format" = 'kf-migration-rollback-rehearsal-v2' ] ||
+    fail 'rollback rehearsal receipt is v1, which claims full reversibility; re-run the rehearsal to produce a v3 receipt naming the forward-only floor'
+  # v2 is refused by name too: it is unauthenticated and derivable from the release alone, so
+  # it proves nothing about whether a rehearsal ran.
+  [ "$receipt_format" != 'kf-migration-rollback-rehearsal-v2' ] ||
+    fail 'rollback rehearsal receipt is v2, which is unauthenticated; re-run the rehearsal on this host to produce a v3 receipt'
+  [ "$receipt_format" = 'kf-migration-rollback-rehearsal-v3' ] ||
     fail "rollback rehearsal receipt format is unsupported: $receipt_format"
+  # The MAC line is last and covers every byte before it. Anything after it, or a second one,
+  # is refused rather than ignored.
+  [ "$(tail -n 1 "$receipt" | cut -d= -f1)" = 'hmac_sha256' ] ||
+    fail 'rollback rehearsal receipt must end with its hmac_sha256 line'
+  receipt_mac="$(receipt_value hmac_sha256 "$receipt")"
+  [[ "$receipt_mac" =~ ^[0-9a-f]{64}$ ]] || fail 'rollback rehearsal receipt has a malformed MAC'
+  [[ "$(receipt_value post_migration_schema_sha256 "$receipt")" =~ ^[0-9a-f]{64}$ ]] ||
+    fail 'rollback rehearsal receipt has no post-migration schema digest'
+  receipt_body="$work_directory/receipt-body"
+  head -n -1 "$receipt" > "$receipt_body"
+  expected_mac="$(receipt_hmac "$(receipt_key_file)" "$receipt_body")"
+  [ "$receipt_mac" = "$expected_mac" ] ||
+    fail 'rollback rehearsal receipt was not produced by a rehearsal on this host (MAC does not verify)'
   [ "$(receipt_value manifest_sha256 "$receipt")" = "$actual_manifest_digest" ] ||
     fail 'rollback rehearsal receipt belongs to another release manifest'
   [ "$(receipt_value migration_set_sha256 "$receipt")" = "$migration_set_digest" ] ||
@@ -347,8 +413,12 @@ case "$command_name" in
       *) fail "rollback rehearsal target is reserved or not empty: $scratch_state" ;;
     esac
 
+    # The key is checked before anything is migrated: a rehearsal that cannot sign its receipt
+    # would migrate and roll back for nothing.
+    rehearsal_key_file="$(receipt_key_file)"
     run_dbmate up
     "$psql_bin" "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -q -f "$ontology_seed"
+    post_migration_schema_digest="$(schema_digest)"
 
     # Down to the floor, not to zero. With no forward-only migration the floor is 0 and this
     # is exactly the old behaviour.
@@ -393,8 +463,9 @@ case "$command_name" in
     # would be reading "reversible to a floor" as "reversible", which is the overclaim this
     # whole change exists to remove — so the format string moves rather than the fields being
     # added quietly.
+    # v3: authenticated, and bound to the database the rehearsal actually produced.
     cat > "$receipt_temp" <<EOF
-format=kf-migration-rollback-rehearsal-v2
+format=kf-migration-rollback-rehearsal-v3
 manifest_sha256=$actual_manifest_digest
 migration_set_sha256=$migration_set_digest
 dbmate_version=$expected_dbmate_version
@@ -403,7 +474,9 @@ scratch_label=$target_label
 migrations_total=$migration_count
 migrations_reverted=$reversible_count
 forward_only_floor=${forward_only_floor:-none}
+post_migration_schema_sha256=$post_migration_schema_digest
 EOF
+    printf 'hmac_sha256=%s\n' "$(receipt_hmac "$rehearsal_key_file" "$receipt_temp")" >> "$receipt_temp"
     # Hard-link creation is atomic and refuses an existing destination. `mv -n` reports
     # success when it skips, which would let a race retain somebody else's receipt.
     ln -- "$receipt_temp" "$receipt_path" || fail 'rehearsal receipt appeared concurrently'

@@ -111,11 +111,19 @@ The backup is current and sits beside the database it came from. That survives a
 and not a lost host.
 
 ```
-scripts/backup-offsite.sh /srv/kf-backups/<newest> <destination> <label>
+scripts/backup-offsite.sh /srv/kf-backups/<newest> <destination> <label> [--separate-domain <ref>]
 ```
 
+A LOCAL destination is recorded as not off-site (`offsite_basis = local-unattested`) unless a
+person has approved its failure domain in `ops.physical_failure_domain_evidence` and the copy
+names it with `--separate-domain` (or `KF_OFFSITE_FAILURE_DOMAIN` in `/etc/kf/offsite.env`). A
+second disk in the same machine is the same host; that is the check working. Look at
+`select destination_label, offsite, offsite_basis from ops.backup_copy order by copied_at desc`.
+
 If `kf-backup-offsite.service` is configured and this keeps recurring, the destination is
-probably unreachable — `journalctl -u kf-backup-offsite.service`.
+probably unreachable — `journalctl -u kf-backup-offsite.service`. A unit that fails before
+copying anything says why in its first line: an empty `KF_OFFSITE_DESTINATION`, or a local
+destination missing from `ReadWritePaths=`.
 
 ## `backup_freshness` degraded — never restored, or the drill has lapsed
 
@@ -125,9 +133,19 @@ probably unreachable — `journalctl -u kf-backup-offsite.service`.
 systemctl start kf-restore-drill.service      # or: scripts/restore-drill.sh
 ```
 
-The drill restores into a scratch database, compares a fresh export, verifies historical
-checkpoints, invokes configured external object-store verifier, records all three proof
-dimensions against production ledger, then drops scratch database.
+The drill pulls the newest off-site copy back from `KF_DRILL_OFFSITE_SOURCE`, refuses it
+unless its digest is the ciphertext the ledger recorded as sent, decrypts it with the sealed
+`backup-decryption-key` credential, and restores THAT — not the local original — into a
+throwaway PostgreSQL cluster it starts on a private Unix socket and its own port under
+`/var/lib/kf-restore-drill`. It compares a fresh export, verifies historical checkpoints, invokes
+the configured object-store verifier, records all three proof dimensions against the production
+ledger with `notes` naming which copy was restored, then deletes the cluster. Nothing is created
+in the production cluster.
+
+If the off-site copy cannot be pulled back (source unset, a pre-encryption copy, no decryption
+key) the drill refuses. `scripts/restore-drill.sh` with `--allow-local-fallback` restores the local
+original instead and records `notes = source=local-fallback ...`, so it never reads as an
+off-site drill.
 
 ## `backup_freshness` FAILED — latest restore is PARTIAL
 
@@ -204,6 +222,26 @@ the assessment directly and is unaffected.
 
 ---
 
+## `kf-readiness` failed on timer liveness — a timer is not firing
+
+`kf-readiness.service` also runs `scripts/timer-liveness.sh`, which asks systemd when each
+shipped `kf-*.timer` last fired and fails, naming it, when one is inactive or has been silent
+longer than the `X-KF-MaxSilenceSec=` its own file declares. A stopped or never-enabled timer
+fails nothing by itself — its service just stops running — so this is where that absence
+becomes an alert.
+
+```
+journalctl -u kf-readiness.service -n 30      # which timer, and how long silent
+systemctl list-timers 'kf-*'
+systemctl enable --now <timer>                # if it was stopped or never enabled
+```
+
+The readiness timer cannot report its own stop. `kf-alert-heartbeat.service` runs the same check
+for `kf-readiness.timer` first and withholds the daily heartbeat while it is not firing, so the
+receiver's missing-heartbeat rule is what notices.
+
+---
+
 ## Restoring
 
 ```
@@ -235,7 +273,9 @@ valid.
 1. Generate the new key where the API cannot reach it.
 2. Write the new public key to the external append-only trust directory as
    `<CHECKPOINT_SIGNING_KEY_ID>.pub`. Keep every prior file; never place private keys there.
-3. Point the signer at the new key; the next checkpoint uses it.
+3. Set a NEW `CHECKPOINT_SIGNING_KEY_ID` in `/etc/kf/checkpoint.env` and point the signer at
+   the new key; the next checkpoint uses it. Never reuse an id for a different key: `--run`
+   refuses when `<id>.pub` is missing or is not the public half of the configured private key.
 4. Set `CHECKPOINT_PUBLIC_KEY_DIR` for verification. It loads every regular `*.pub` file by
    signing-key id, refuses symlinks and non-Ed25519 keys, and reports `unknown_key` for any
    checkpoint whose historical key is absent.

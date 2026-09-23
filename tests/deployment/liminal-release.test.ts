@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
 import {
   chmodSync,
@@ -15,6 +16,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 const ROOT = join(import.meta.dirname, '..', '..');
 const ASSEMBLE = join(ROOT, 'scripts', 'deploy', 'assemble-liminal-runtime.sh');
+const PINS = join(ROOT, 'deploy', 'liminal', 'reviewed-digests.env');
 const VERIFY = join(ROOT, 'scripts', 'deploy', 'verify-liminal-runtime.sh');
 const temporaryDirectories: string[] = [];
 
@@ -53,11 +55,32 @@ function parseEnvironment(path: string): Record<string, string> {
   );
 }
 
-function assembleFixture(additionalEnvironment: Record<string, string> = {}): {
-  readonly release: string;
-  readonly runtimeFiles: readonly string[];
-  readonly environment: Record<string, string>;
-} {
+function sha256File(path: string): string {
+  return createHash('sha256').update(readFileSync(path)).digest('hex');
+}
+
+/**
+ * The assembly script copied into a scratch tree beside a pin file of the test's choosing.
+ *
+ * The repository's own pin is empty (nothing reviewed; ADR 0010), so the real script refuses
+ * every compiler — correctly. The copy is the same bytes, located the same way relative to its
+ * pin, so what is tested is the shipped script against a pin that names the fixture compiler.
+ */
+function pinnedAssembler(pins: { executable: string; cargoLock: string }): string {
+  const tree = temporaryDirectory('kf-liminal-tree-');
+  mkdirSync(join(tree, 'scripts', 'deploy'), { recursive: true });
+  mkdirSync(join(tree, 'deploy', 'liminal'), { recursive: true });
+  const script = join(tree, 'scripts', 'deploy', 'assemble-liminal-runtime.sh');
+  writeFileSync(script, readFileSync(ASSEMBLE));
+  writeFileSync(
+    join(tree, 'deploy', 'liminal', 'reviewed-digests.env'),
+    `LIMINAL_REVIEWED_EXECUTABLE_SHA256=${pins.executable}\n` +
+      `LIMINAL_REVIEWED_CARGO_LOCK_SHA256=${pins.cargoLock}\n`,
+  );
+  return script;
+}
+
+function fixtureInputs(): { root: string; release: string; compiler: string; cargoLock: string } {
   const root = temporaryDirectory('kf-liminal-release-');
   const release = join(root, 'release');
   const compiler = join(root, 'liminal-document-compiler');
@@ -66,10 +89,23 @@ function assembleFixture(additionalEnvironment: Record<string, string> = {}): {
   writeFileSync(compiler, readFileSync(process.execPath), { mode: 0o755 });
   chmodSync(compiler, 0o755);
   writeFileSync(cargoLock, 'version = 4\n');
+  return { root, release, compiler, cargoLock };
+}
+
+function assembleFixture(additionalEnvironment: Record<string, string> = {}): {
+  readonly release: string;
+  readonly runtimeFiles: readonly string[];
+  readonly environment: Record<string, string>;
+} {
+  const { release, compiler, cargoLock } = fixtureInputs();
   const runtimeFiles = nativeRuntimeClosure(process.execPath);
   expect(runtimeFiles.length).toBeGreaterThan(0);
+  const assembler = pinnedAssembler({
+    executable: sha256File(compiler),
+    cargoLock: sha256File(cargoLock),
+  });
 
-  const result = spawnSync('bash', [ASSEMBLE, release, compiler, cargoLock, ...runtimeFiles], {
+  const result = spawnSync('bash', [assembler, release, compiler, cargoLock, ...runtimeFiles], {
     cwd: ROOT,
     encoding: 'utf8',
     env: { ...process.env, ...additionalEnvironment },
@@ -141,6 +177,33 @@ describe('Liminal release runtime closure', { timeout: 90_000 }, () => {
     const result = verify(fixture);
     expect(result.code, result.output).toBe(0);
     expect(result.output).toContain('Liminal runtime verified');
+  });
+
+  it('refuses to package compiler bytes that are not the reviewed pin', () => {
+    const runtimeFiles = nativeRuntimeClosure(process.execPath);
+    const run = (script: string): { code: number; output: string } => {
+      const { release, compiler, cargoLock } = fixtureInputs();
+      const r = spawnSync('bash', [script, release, compiler, cargoLock, ...runtimeFiles], {
+        cwd: ROOT,
+        encoding: 'utf8',
+      });
+      // Refused means refused before anything was packaged, not merely a nonzero exit.
+      expect(existsSync(join(release, 'vendor', 'liminal'))).toBe(r.status === 0);
+      return { code: r.status ?? 1, output: `${r.stdout}${r.stderr}` };
+    };
+    const lock = sha256File(fixtureInputs().cargoLock);
+
+    const mismatched = run(pinnedAssembler({ executable: '0'.repeat(64), cargoLock: lock }));
+    expect(mismatched.code).not.toBe(0);
+    expect(mismatched.output).toContain('compiler digest does not match the reviewed pin');
+
+    const unpinned = run(pinnedAssembler({ executable: '', cargoLock: '' }));
+    expect(unpinned.code).not.toBe(0);
+    expect(unpinned.output).toContain('no reviewed digest is pinned');
+
+    // The repository's own pin names nothing yet, so the shipped script refuses every compiler.
+    expect(readFileSync(PINS, 'utf8')).toMatch(/^LIMINAL_REVIEWED_EXECUTABLE_SHA256=$/m);
+    expect(run(ASSEMBLE).code).not.toBe(0);
   });
 
   it('accepts a release that declares liminal=none with no pins, and refuses one with pins', () => {

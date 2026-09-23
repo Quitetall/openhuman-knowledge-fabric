@@ -2,6 +2,9 @@
 Description=Replicate and re-verify artifact copies daily
 
 [Timer]
+# How long this may go without firing before scripts/timer-liveness.sh reports it (systemd
+# ignores X- keys). Daily plus 10 minutes of spread: 26 hours silent means a day was missed.
+X-KF-MaxSilenceSec=93600
 OnCalendar=*-*-* 03:30:00
 RandomizedDelaySec=600
 # A missed run copies on the next start; the window in which a version has one copy is the

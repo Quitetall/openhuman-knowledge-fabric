@@ -81,6 +81,18 @@ runs:
         sudo apt-get install --yes python3
         python3 --version
 
+    # The backup path encrypts with gpg and ships with rsync, and its tests run the real
+    # programs rather than fakes, because encryption and transfer integrity are what they
+    # test. GitHub's image has both; the self-hosted image installs nothing, so they are
+    # named here rather than discovered by a red run.
+    - name: Provision backup encryption and transfer tools
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo apt-get install --yes gnupg rsync
+        gpg --version | head -1
+        rsync --version | head -1
+
     # Relaxing the sysctl weakens the RUNNER, which is an ephemeral VM, not the product: the
     # sandbox still passes `--disable-userns`, so nothing nested inside it gains the ability.
     # Proven rather than assumed — the probe below creates the namespace the compiler needs

@@ -53,9 +53,10 @@ export const IMPORT_ORDER = [
   'document-atoms',
   'recovery-objectives',
   'backup-runs',
+  // Before the copies: an attested copy names its failure domain by foreign key.
+  'physical-failure-domain-evidence',
   'backup-copies',
   'restore-drills',
-  'physical-failure-domain-evidence',
   'encrypted-backup-evidence',
   'initiative-projects',
   'milestones',

@@ -25,7 +25,7 @@
     "kf:declare-service-actor": "pnpm --filter @kf/api... build && node apps/api/dist/declare-service-actor.js",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "gate": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm audit --audit-level=high && pnpm ontology:check && pnpm ontology:registry-check && pnpm ontology:build && pnpm measurements:build && git diff --exit-code -- generated/ && pnpm build",
+    "gate": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm audit --audit-level=moderate && pnpm ontology:check && pnpm ontology:registry-check && pnpm ontology:build && pnpm measurements:build && git diff --exit-code -- generated/ && pnpm build",
     "gate:fast": "pnpm format:check && pnpm lint && pnpm typecheck",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

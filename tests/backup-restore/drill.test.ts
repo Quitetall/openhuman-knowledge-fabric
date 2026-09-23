@@ -9,6 +9,7 @@
  * Slow by nature: two containers, a real `pg_dump`, a real `pg_restore`.
  */
 
+import { createHash } from 'node:crypto';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -41,6 +42,7 @@ let preservationPrivateKeyPath: string;
 let preservationTrustStore: string;
 let checkpointPublicKeyDir: string;
 let objectStoreVerifierPath: string;
+let objectStoreVerifierDigest: string;
 let snapshotSentinelId: string;
 let urlFileSequence = 0;
 const spare: StartedPostgreSqlContainer[] = [];
@@ -65,6 +67,7 @@ function run(script: string, args: string[], env: Record<string, string> = {}): 
       PRESERVATION_TRUST_STORE_DIR: preservationTrustStore,
       CHECKPOINT_PUBLIC_KEY_DIR: checkpointPublicKeyDir,
       KF_OBJECT_STORE_VERIFY_PROGRAM: objectStoreVerifierPath,
+      KF_OBJECT_STORE_VERIFY_PROGRAM_SHA256: objectStoreVerifierDigest,
       KF_OBJECT_STORE_PROOF_REF: 'test://object-store/restore-proof',
       ...env,
     },
@@ -81,6 +84,7 @@ function scriptEnvironment(env: Record<string, string> = {}): NodeJS.ProcessEnv 
     PRESERVATION_TRUST_STORE_DIR: preservationTrustStore,
     CHECKPOINT_PUBLIC_KEY_DIR: checkpointPublicKeyDir,
     KF_OBJECT_STORE_VERIFY_PROGRAM: objectStoreVerifierPath,
+    KF_OBJECT_STORE_VERIFY_PROGRAM_SHA256: objectStoreVerifierDigest,
     KF_OBJECT_STORE_PROOF_REF: 'test://object-store/restore-proof',
     ...env,
   };
@@ -220,11 +224,53 @@ beforeAll(async () => {
   objectStoreVerifierPath = join(work, 'verify-object-store');
   mkdirSync(preservationTrustStore);
   mkdirSync(checkpointPublicKeyDir);
+  // Stand-in for the federated object store: what it would answer when each stored object is
+  // re-read. The verifier sees only the request (URI + version) and must look the digest up
+  // here — it is never handed the export, so it cannot echo the export's digests back.
+  const storeIndexPath = join(work, 'store-index.json');
+  const stored = await withTransaction(h.adminPool, (tx) =>
+    tx.query<{
+      storage_uri: string;
+      storage_version: string | null;
+      sha256: string;
+      size_bytes: string;
+    }>(
+      `select storage_uri, storage_version, sha256, size_bytes::text
+         from content.artifact_version where storage_uri is not null`,
+    ),
+  );
+  writeFileSync(
+    storeIndexPath,
+    JSON.stringify(
+      Object.fromEntries(
+        stored.map((row) => [
+          JSON.stringify([row.storage_uri, row.storage_version]),
+          { sha256: row.sha256, size_bytes: row.size_bytes },
+        ]),
+      ),
+    ),
+  );
   writeFileSync(
     objectStoreVerifierPath,
-    '#!/bin/sh\nset -eu\ntest -f "$1/artifact-versions.json"\nsha256sum "$1/artifact-versions.json" > "$2"\n',
+    `#!${process.execPath}
+const fs = require('node:fs');
+const [request, proof] = process.argv.slice(2);
+const store = JSON.parse(fs.readFileSync(${JSON.stringify(storeIndexPath)}, 'utf8'));
+const out = [];
+for (const line of fs.readFileSync(request, 'utf8').split('\\n')) {
+  if (line === '') continue;
+  const wanted = JSON.parse(line);
+  const hit = store[JSON.stringify([wanted.storage_uri, wanted.storage_version])];
+  if (hit === undefined) process.exit(3);
+  out.push(JSON.stringify({ ...wanted, ...hit }) + '\\n');
+}
+fs.writeFileSync(proof, out.join(''));
+`,
     { encoding: 'utf8', mode: 0o700 },
   );
+  objectStoreVerifierDigest = createHash('sha256')
+    .update(readFileSync(objectStoreVerifierPath))
+    .digest('hex');
 
   const preservationKey = generateSigningKey('backup-preservation-key');
   writeFileSync(

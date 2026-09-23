@@ -18,8 +18,17 @@ WorkingDirectory=/opt/kf
 # anything running as the same user and is printed in full by most crash reporters.
 Environment=DATABASE_URL_FILE=/etc/kf/checkpoint/database-url
 Environment=CHECKPOINT_SIGNING_KEY_PATH=/etc/kf/checkpoint/checkpoint-key
+# Production: no default key id, the trust directory is required, and a checkpoint that could
+# not be written to the external anchor fails the run after it is signed. Until 2026-09-23 the
+# unit set none of this, so every host signed as `checkpoint-1` and a swapped key reused the id.
+Environment=NODE_ENV=production
+Environment=CHECKPOINT_PUBLIC_KEY_DIR=/etc/kf/checkpoint-public-keys
+Environment=CHECKPOINT_S3_SECRET_ACCESS_KEY_FILE=/etc/kf/checkpoint/anchor-secret-access-key
+# CHECKPOINT_SIGNING_KEY_ID and the anchor's endpoint, region, access key id and bucket.
+EnvironmentFile=/etc/kf/checkpoint.env
 ExecStartPre=/usr/bin/test -s /etc/kf/checkpoint/database-url
 ExecStartPre=/usr/bin/test -s /etc/kf/checkpoint/checkpoint-key
+ExecStartPre=/usr/bin/test -d /etc/kf/checkpoint-public-keys
 ExecStart=/usr/bin/node /opt/kf/apps/checkpoint/dist/main.js --run
 
 # The signing key is the one secret in this system that nothing else may read: an attacker who

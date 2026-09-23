@@ -2,6 +2,9 @@
 Description=Daily proof that the alert path still works
 
 [Timer]
+# How long this may go without firing before scripts/timer-liveness.sh reports it (systemd
+# ignores X- keys). Daily plus up to an hour of spread: 27 hours silent means a day was missed.
+X-KF-MaxSilenceSec=97200
 OnCalendar=daily
 # Spread across the hour so a fleet does not arrive at the endpoint in one burst, and so the
 # receiver's "expect one per day" rule is not tied to a minute that drifts.

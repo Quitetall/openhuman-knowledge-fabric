@@ -1,0 +1,14 @@
+[Unit]
+Description=Verify checkpoint signatures daily
+
+[Timer]
+# How long this may go without firing before scripts/timer-liveness.sh reports it (systemd
+# ignores X- keys). Daily plus 15 minutes of spread: 26 hours silent means a day was missed.
+X-KF-MaxSilenceSec=93600
+OnCalendar=*-*-* 05:15:00
+RandomizedDelaySec=900
+# A host that was off at 05:15 verifies when it comes back rather than skipping a day.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,5 +1,5 @@
 [Unit]
-Description=Restore the newest off-site backup into a scratch database and prove it restored
+Description=Pull the newest off-site backup back, restore it into a throwaway cluster, prove it restored
 Documentation=file:///opt/kf/docs/operating-model/runbook.md
 OnFailure=kf-alert@%n.service
 
@@ -14,8 +14,21 @@ Environment=CHECKPOINT_PUBLIC_KEY_DIR=/etc/kf/checkpoint-public-keys
 ExecStartPre=/usr/bin/test -s /etc/kf/backup/preservation-manifest-key
 ExecStartPre=/usr/bin/test -d /etc/kf/preservation-trust.d
 ExecStartPre=/usr/bin/test -x /usr/local/libexec/kf-verify-object-store
-# Creates the scratch database, restores, compares, records the drill against the PRODUCTION
-# ledger, and drops the scratch database on the way out. The logic is in a script rather than
+# The key that decrypts off-site copies. Sealed with `systemd-creds encrypt` to this host, and
+# decrypted by systemd into this unit's private credential directory for the length of one run
+# only: it is never a plaintext file on disk, and kf-backup.service — which shares the uid but
+# not this unit — never names it. Hosts that can should run this unit on a separate recovery
+# machine instead; the script is the same there.
+LoadCredentialEncrypted=backup-decryption-key:/etc/kf/credstore.encrypted/backup-decryption-key
+Environment=KF_DRILL_DECRYPTION_KEY_FILE=%d/backup-decryption-key
+# The throwaway PostgreSQL cluster lives here, one private subdirectory per run, deleted on exit.
+StateDirectory=kf-restore-drill
+StateDirectoryMode=0700
+Environment=KF_DRILL_WORK_ROOT=/var/lib/kf-restore-drill
+# Pulls the off-site copy named by KF_DRILL_OFFSITE_SOURCE/LABEL (backup.env) back, checks it is
+# the ciphertext the ledger recorded as sent, decrypts, restores into a throwaway cluster on its
+# own socket and port, compares, records against the PRODUCTION ledger, and deletes the cluster.
+# It never creates a database in the production cluster. The logic is in a script rather than
 # inline here so that it can be read, and so `bash -n` covers it.
 ExecStart=/opt/kf/scripts/restore-drill.sh /srv/kf-backups
 # Three hours. A restore that has not finished by then is itself the finding.
@@ -24,7 +37,5 @@ TimeoutStartSec=3h
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ReadWritePaths=/srv/kf-backups
-ReadWritePaths=/run/kf
 ProtectHome=true
 UMask=0077

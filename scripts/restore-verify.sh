@@ -22,6 +22,10 @@
 #                 is discarded with it, and readiness keeps reporting that no backup has ever
 #                 been restored. Omitting it is allowed and says so at the end, loudly, because
 #                 the consequence is visible in readiness rather than only in this output.
+#
+# KF_RESTORE_LEDGER_LOCATION  the ledger location of the run being restored, when the
+#                 directory given is a copy unpacked elsewhere (restore-drill.sh sets it).
+# KF_RESTORE_DRILL_NOTES      recorded in ops.restore_drill.notes — which copy was restored.
 
 set -euo pipefail
 
@@ -175,7 +179,8 @@ echo "==> verifying external object-store recovery"
 OBJECT_STORE_VERIFIED=false
 OBJECT_STORE_PROOF_REF=""
 OBJECT_STORE_PROOF_SHA256=""
-OBJECT_STORE_PROOF="$WORK/object-store-proof"
+OBJECT_STORE_REQUEST="$WORK/object-store-request.jsonl"
+OBJECT_STORE_PROOF="$WORK/object-store-proof.jsonl"
 if [ -n "${KF_OBJECT_STORE_VERIFY_PROGRAM:-}" ]; then
   if [[ "$KF_OBJECT_STORE_VERIFY_PROGRAM" != /* ]] ||
      [ ! -f "$KF_OBJECT_STORE_VERIFY_PROGRAM" ] ||
@@ -194,22 +199,44 @@ if [ -n "${KF_OBJECT_STORE_VERIFY_PROGRAM:-}" ]; then
     echo "refusing group/world-writable object-store verifier" >&2
     exit 1
   fi
+  # The program is not in this repository, so the only thing that ties it to a review is its
+  # digest. Pinned in root-owned configuration; an unpinned or changed program is refused
+  # outright rather than recorded partial, because running unreviewed code with object-store
+  # credentials is the failure, not a missing proof.
+  if [[ ! "${KF_OBJECT_STORE_VERIFY_PROGRAM_SHA256:-}" =~ ^[0-9a-f]{64}$ ]]; then
+    echo "refusing object-store verifier: KF_OBJECT_STORE_VERIFY_PROGRAM_SHA256 must pin its reviewed digest" >&2
+    exit 1
+  fi
+  if [ "$(sha256sum -- "$KF_OBJECT_STORE_VERIFY_PROGRAM" | cut -d' ' -f1)" != "$KF_OBJECT_STORE_VERIFY_PROGRAM_SHA256" ]; then
+    echo "refusing object-store verifier: its digest is not the pinned reviewed digest" >&2
+    exit 1
+  fi
   if [[ ! "${KF_OBJECT_STORE_PROOF_REF:-}" =~ ^[A-Za-z0-9][A-Za-z0-9._:/+-]{0,511}$ ]]; then
     echo "KF_OBJECT_STORE_PROOF_REF must be a credential-free stable evidence reference" >&2
     exit 1
   fi
-  "$KF_OBJECT_STORE_VERIFY_PROGRAM" "$VERIFIED_BACKUP/export" "$OBJECT_STORE_PROOF"
-  if [ ! -f "$OBJECT_STORE_PROOF" ] || [ -L "$OBJECT_STORE_PROOF" ] || [ ! -s "$OBJECT_STORE_PROOF" ]; then
-    echo "object-store verifier did not write a non-empty regular proof file" >&2
+  # The program is told WHICH objects to read — storage URI and version — and never what they
+  # should contain. It must answer with the SHA-256 and size it measured; the answer is then
+  # checked here, in this repository's code, against the authenticated export. Until
+  # 2026-09-23 it was handed the export itself and trusted on its exit code, so a program that
+  # echoed the export's own digests, or read nothing, produced a `verified` drill.
+  REQUESTED="$(node "$ROOT/scripts/lib/object-store-proof.mjs" request \
+    "$VERIFIED_BACKUP/export" "$OBJECT_STORE_REQUEST")"
+  : > "$OBJECT_STORE_PROOF"
+  "$KF_OBJECT_STORE_VERIFY_PROGRAM" "$OBJECT_STORE_REQUEST" "$OBJECT_STORE_PROOF"
+  if [ ! -f "$OBJECT_STORE_PROOF" ] || [ -L "$OBJECT_STORE_PROOF" ]; then
+    echo "object-store verifier did not leave a regular proof file" >&2
     exit 1
   fi
-  if [ "$(stat -c '%s' "$OBJECT_STORE_PROOF")" -gt 16777216 ]; then
-    echo "object-store proof exceeds 16 MiB safety bound" >&2
-    exit 1
+  if MEASURED="$(node "$ROOT/scripts/lib/object-store-proof.mjs" check \
+       "$VERIFIED_BACKUP/export" "$OBJECT_STORE_PROOF")"; then
+    echo "object store: $MEASURED of $REQUESTED stored object(s) measured and matched"
+    OBJECT_STORE_VERIFIED=true
+    OBJECT_STORE_PROOF_REF="$KF_OBJECT_STORE_PROOF_REF"
+    OBJECT_STORE_PROOF_SHA256="$(sha256sum "$OBJECT_STORE_PROOF" | cut -d' ' -f1)"
+  else
+    echo "OBJECT STORE NOT VERIFIED: the verifier's measurements do not match the export" >&2
   fi
-  OBJECT_STORE_VERIFIED=true
-  OBJECT_STORE_PROOF_REF="$KF_OBJECT_STORE_PROOF_REF"
-  OBJECT_STORE_PROOF_SHA256="$(sha256sum "$OBJECT_STORE_PROOF" | cut -d' ' -f1)"
 else
   echo "SKIPPED: KF_OBJECT_STORE_VERIFY_PROGRAM absent — object bytes were NOT verified" >&2
 fi
@@ -229,7 +256,9 @@ echo "==> recording the drill"
 # having proved it. A failure exits earlier under `set -e` and leaves no row — which readiness
 # reads as "not restored recently", the correct reading of a drill that did not complete.
 if [ -n "$LEDGER" ]; then
-  LOCATION="$(cd "$BACKUP" && pwd)"
+  # The ledger names a backup by where backup.sh recorded it. A drill that restored a copy
+  # pulled back from off-site unpacked it somewhere else, and says which run it was here.
+  LOCATION="${KF_RESTORE_LEDGER_LOCATION:-$(cd "$BACKUP" && pwd)}"
   # On stdin: psql does not interpolate :'var' in a -c string.
   RUN_ID="$("$KF_PSQL" "$LEDGER" -v ON_ERROR_STOP=1 -tA -v location="$LOCATION" <<'SQL'
 select id from ops.backup_run where location = :'location';
@@ -253,14 +282,15 @@ SQL
       -v checkpoint_digest="$CHECKPOINT_PROOF_SHA256" \
       -v object_verified="$OBJECT_STORE_VERIFIED" \
       -v object_ref="$OBJECT_STORE_PROOF_REF" \
-      -v object_digest="$OBJECT_STORE_PROOF_SHA256" <<'SQL'
+      -v object_digest="$OBJECT_STORE_PROOF_SHA256" \
+      -v notes="${KF_RESTORE_DRILL_NOTES:-}" <<'SQL'
 insert into ops.restore_drill
-  (backup_run_id, target_label, outcome, recovery_seconds,
+  (backup_run_id, target_label, outcome, notes, recovery_seconds,
    database_verified, database_snapshot_sha256,
    checkpoint_verified, checkpoint_proof_sha256,
    object_store_verified, object_store_proof_ref, object_store_proof_sha256)
 values
-  (:'run'::uuid, :'label', :'outcome', :'recovery'::integer,
+  (:'run'::uuid, :'label', :'outcome', nullif(:'notes', ''), :'recovery'::integer,
    :'database_verified'::boolean, nullif(:'database_digest', ''),
    :'checkpoint_verified'::boolean, nullif(:'checkpoint_digest', ''),
    :'object_verified'::boolean, nullif(:'object_ref', ''), nullif(:'object_digest', ''));

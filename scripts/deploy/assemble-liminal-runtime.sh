@@ -39,6 +39,29 @@ cargo_lock_source="$(readlink -f -- "$cargo_lock_argument")"
 elf_magic="$(od -An -tx1 -N4 -- "$compiler_source" | tr -d ' \n')"
 [ "$elf_magic" = '7f454c46' ] || fail 'compiler must be a native ELF executable'
 
+# The bytes must be the REVIEWED bytes. The pin lives in the repository beside this script, so
+# changing what a release may seal is a reviewed commit rather than a build-machine argument.
+# Read by key, strictly: the file is data, never sourced.
+script_directory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+pin_file="$script_directory/../../deploy/liminal/reviewed-digests.env"
+[ -f "$pin_file" ] && [ ! -L "$pin_file" ] || fail "reviewed digest pin file is missing: $pin_file"
+reviewed_digest() {
+  local key="$1" count value
+  count="$(grep -c "^${key}=" "$pin_file" || true)"
+  [ "$count" -eq 1 ] || fail "$pin_file must define $key exactly once"
+  value="$(grep "^${key}=" "$pin_file" | cut -d= -f2-)"
+  [ -n "$value" ] ||
+    fail "no reviewed digest is pinned for $key in $pin_file; pin the reviewed bytes by commit first"
+  [[ "$value" =~ ^[0-9a-f]{64}$ ]] || fail "$key in $pin_file is not a SHA-256 digest"
+  printf '%s' "$value"
+}
+reviewed_compiler_digest="$(reviewed_digest LIMINAL_REVIEWED_EXECUTABLE_SHA256)"
+reviewed_cargo_lock_digest="$(reviewed_digest LIMINAL_REVIEWED_CARGO_LOCK_SHA256)"
+[ "$(sha256sum -- "$compiler_source" | awk '{print $1}')" = "$reviewed_compiler_digest" ] ||
+  fail "compiler digest does not match the reviewed pin in $pin_file"
+[ "$(sha256sum -- "$cargo_lock_source" | awk '{print $1}')" = "$reviewed_cargo_lock_digest" ] ||
+  fail "Cargo.lock digest does not match the reviewed pin in $pin_file"
+
 vendor_parent="$release_root/vendor"
 [ ! -L "$vendor_parent" ] || fail 'release vendor parent must not be a symbolic link'
 if [ -e "$vendor_parent" ]; then
@@ -138,6 +161,13 @@ NODE
 
 compiler_digest="$(sha256sum -- "$vendor_root/liminal-document-compiler" | awk '{print $1}')"
 cargo_lock_digest="$(sha256sum -- "$vendor_root/Cargo.lock" | awk '{print $1}')"
+# Re-checked on the installed copies: the source could have changed between the check above
+# and the copy, and the release must seal the reviewed bytes, not merely have seen them.
+[ "$compiler_digest" = "$reviewed_compiler_digest" ] ||
+  fail 'packaged compiler differs from the reviewed pin'
+[ "$cargo_lock_digest" = "$reviewed_cargo_lock_digest" ] ||
+  fail 'packaged Cargo.lock differs from the reviewed pin'
+
 runtime_path_list="$(IFS=:; printf '%s' "${runtime_paths[*]}")"
 
 cat > "$vendor_root/RUNTIME.env" <<EOF

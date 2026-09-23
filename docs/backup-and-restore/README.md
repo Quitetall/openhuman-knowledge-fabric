@@ -33,6 +33,28 @@ external. Verification uses the append-only multi-key `PRESERVATION_TRUST_STORE_
 cannot nominate its own trust root. The root manifest also repeats the exact authenticated inner
 `database_snapshot_sha256`, binding operational bundle to canonical database-row identity.
 
+### Encryption, retention and space
+
+Every backup is also written as `<backup>.tar.gpg` beside its directory: the signed bundle,
+tarred and encrypted with `gpg` to the OpenPGP **public** key in `KF_BACKUP_RECIPIENT_FILE`.
+That archive is the only thing `backup-offsite.sh` ships; plaintext never leaves the host. The
+matching private key is held by whoever performs recovery and is not on the database host —
+`backup.sh` refuses a recipient file containing one. After encrypting, the script reads the
+archive's packets back and requires a public-key-encrypted session key for a configured
+recipient, so "encrypted" is measured, not assumed from an exit code.
+
+On a deployed host (the unit sets `KF_DEPLOYMENT_PROFILE=dogfood`) the recipient and
+`CHECKPOINT_PUBLIC_KEY_DIR` are **required**; without them the script stops before touching the
+database. On a workstation both stay optional, and an unencrypted backup is reported as one the
+off-site job will refuse.
+
+Local copies are plaintext, so they are pruned: the newest `KF_BACKUP_RETAIN_LOCAL` (default 7)
+are kept, and an older one is removed only once the ledger records an off-site copy of it. A
+backup whose only copy is local is never pruned. Before taking a snapshot the script requires
+free space of twice the previous backup plus `KF_BACKUP_FREE_SPACE_RESERVE_BYTES` (default
+1 GiB), and refuses to start otherwise — a backup that fills the disk half-way fails anyway, and
+takes anything sharing that disk with it.
+
 Verify without database access:
 
 ```sh
@@ -69,10 +91,24 @@ The script:
 6. re-exports from the restored database and diffs **every file byte for byte** against the
    export taken at backup time;
 7. verifies the audit ledger against authenticated historical checkpoint keys;
-8. invokes `KF_OBJECT_STORE_VERIFY_PROGRAM <verified-export-dir> <proof-output-file>` to make
-   the configured federated object store re-read every referenced byte and verify its digest;
+8. invokes `KF_OBJECT_STORE_VERIFY_PROGRAM <request-file> <proof-output-file>` — only after its
+   SHA-256 matches `KF_OBJECT_STORE_VERIFY_PROGRAM_SHA256` — with a request naming each stored
+   object (`storage_uri`, `storage_version`) and nothing about its contents. The program answers
+   with the `sha256` and `size_bytes` it measured by re-reading each object, and
+   `scripts/lib/object-store-proof.mjs` checks that answer against the authenticated export: every
+   requested object exactly once, every digest and size equal;
 9. records separate database, checkpoint-trust, and object-store proof dimensions. Generic
    `verified` is legal only when all three pass. Missing proof records `partial` and exits nonzero.
+
+The scheduled drill (`scripts/restore-drill.sh`, run by `kf-restore-drill.service`) does not
+restore the local directory. It pulls the newest off-site `<backup>.tar.gpg` back, refuses it
+unless its SHA-256 equals the ciphertext digest `backup-offsite.sh` recorded at the destination,
+decrypts it with the recipient's private key (a sealed systemd credential, never a file the
+backup job can read), checks the decrypted root manifest against `ops.backup_run`, and runs the
+steps above against a **throwaway cluster** it initialises for the run: Unix socket only, in a
+0700 directory, on its own port, deleted on exit. The production cluster is never a restore
+target. `ops.restore_drill.notes` records which copy was restored; `--allow-local-fallback`
+restores the local original when the off-site copy is unavailable and says so there.
 
 Exercised end to end by `tests/backup-restore/drill.test.ts`, which runs these scripts —
 not a reimplementation of them — against real containers. A test that re-derived what
@@ -89,10 +125,16 @@ the vault after any restore. It is the only thing that can answer whether the tw
 agree; no amount of database integrity can.
 
 Production restore units must point `KF_OBJECT_STORE_VERIFY_PROGRAM` at an absolute,
-root-owned, non-writable adapter executable and set `KF_OBJECT_STORE_PROOF_REF` to a stable,
-credential-free evidence reference. Adapter exits zero only after full inventory verification
-and writes a bounded proof artifact to path supplied as second argument. KF stores proof digest
-and reference, never object-store credentials or PHI bytes.
+root-owned, non-writable adapter executable, pin its reviewed digest in
+`KF_OBJECT_STORE_VERIFY_PROGRAM_SHA256` (a mismatch refuses the restore outright), and set
+`KF_OBJECT_STORE_PROOF_REF` to a stable, credential-free evidence reference. The adapter reads
+the request file given as its first argument — one JSON object per line, `storage_uri` and
+`storage_version` — re-reads each object from the store, and writes one line per object to the
+second argument: the same two fields plus the `sha256` and `size_bytes` it measured. It is never
+given the export, so it cannot pass by repeating the digests the export records; the comparison
+happens in this repository's code. Until 2026-09-23 the adapter received the export and was
+trusted on its exit code. KF stores proof digest and reference, never object-store credentials
+or PHI bytes.
 
 ## Audit ledger verification
 
@@ -101,6 +143,10 @@ and reference, never object-store credentials or PHI bytes.
 Recomputes the hash chain from genesis, rebuilds each checkpoint's Merkle root from the events
 actually present, and verifies each signature. Exits non-zero on any finding — a verification
 that reports problems and exits 0 would be recorded by a scheduler as a clean audit.
+
+`kf-audit-verify.timer` runs exactly this daily against the live database, as its own
+identity holding only public keys, and fails into `kf-alert@` on any finding. Until 2026-09-23
+signatures were verified only inside the monthly restore drill.
 
 The three checks are independent, which is the point: a tamperer who fixes the chain still
 fails the root, and one who fixes both still cannot produce the signature.

@@ -45,7 +45,7 @@ describe('every workflow that runs the gate provisions the same host contract', 
     }
   });
 
-  it('the shared action still provisions all seven requirements', () => {
+  it('the shared action still provisions every requirement', () => {
     // Named individually rather than counted. A count passes when one is swapped for another,
     // and each of these cost a failed run to discover.
     const action = readFileSync(join(ROOT, ACTION, 'action.yml'), 'utf8');
@@ -58,6 +58,10 @@ describe('every workflow that runs the gate provisions the same host contract', 
       'postgresql-client-18',
       '/usr/bin/node',
       'apparmor_restrict_unprivileged_userns',
+      // The backup tests run real gpg and rsync (tests/backup-restore/*-hardening, offsite,
+      // restore-drill-source).
+      'gnupg',
+      'rsync',
     ]) {
       expect(action, `${ACTION} no longer provisions ${required}`).toContain(required);
     }

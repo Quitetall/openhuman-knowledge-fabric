@@ -34,6 +34,15 @@ The two private keys are each owned mode `0600` by the single identity that uses
 by `kf-backup`. No other identity — application or scheduled — can read either. Host must prove
 denial after install.
 
+The checkpoint signer runs with `NODE_ENV=production`, which removes the old `checkpoint-1`
+default: `CHECKPOINT_SIGNING_KEY_ID` in `/etc/kf/checkpoint.env` names the key, and `--run`
+refuses to sign unless `/etc/kf/checkpoint-public-keys/<id>.pub` exists and is the public half
+of the configured private key. Rotating a key therefore means a NEW id, its `.pub` installed
+first, then the id changed — never a new private key under an old id, which used to turn every
+earlier checkpoint into an unexplained `bad_signature`. Each checkpoint is also written to the
+external anchor (`CHECKPOINT_S3_*`); without one it is still signed into the database, and the
+run then exits nonzero so `OnFailure=` reports it every hour until an anchor is configured.
+
 This is stricter than it was. Until 2026-08-17 all five scheduled units ran as a shared `kf`,
 so both signing keys were readable by the backup, offsite, readiness and restore-drill jobs.
 `kf-commissioning` now refuses any host where units sharing an identity do not need the same
@@ -48,15 +57,16 @@ credential. Application start/restart never runs migrations.
 
 Five things have to happen on a schedule, and until they are scheduled they are habits:
 
-| Unit                        | Interval          | What stops being true without it                                                           |
-| --------------------------- | ----------------- | ------------------------------------------------------------------------------------------ |
-| `kf-checkpoint.timer`       | hourly            | The audit log is unsigned past the last run. A rewrite inside that window is undetectable. |
-| `kf-backup.timer`           | daily 02:00       | Everything exists in one place.                                                            |
-| `kf-backup-offsite.service` | after each backup | The copy is beside the original; a lost host loses both.                                   |
-| `kf-restore-drill.timer`    | monthly           | Nothing has proven the backups can be read.                                                |
-| `kf-readiness.timer`        | every 15 min      | Nothing notices when any of the above stops running.                                       |
-| `kf-alert-heartbeat.timer`  | daily             | Nothing notices when the thing that notices stops working.                                 |
-| `kf-storage.timer`          | daily 03:30       | Every artifact version has one copy, and nothing has re-hashed the copies that exist.      |
+| Unit                        | Interval          | What stops being true without it                                                            |
+| --------------------------- | ----------------- | ------------------------------------------------------------------------------------------- |
+| `kf-checkpoint.timer`       | hourly            | The audit log is unsigned past the last run. A rewrite inside that window is undetectable.  |
+| `kf-backup.timer`           | daily 02:00       | Everything exists in one place.                                                             |
+| `kf-backup-offsite.service` | after each backup | The copy is beside the original; a lost host loses both.                                    |
+| `kf-audit-verify.timer`     | daily 05:15       | A rewritten audit log or an unverifiable checkpoint goes unnoticed until the monthly drill. |
+| `kf-restore-drill.timer`    | monthly           | Nothing has proven the backups can be read.                                                 |
+| `kf-readiness.timer`        | every 15 min      | Nothing notices when any of the above stops running.                                        |
+| `kf-alert-heartbeat.timer`  | daily             | Nothing notices when the thing that notices stops working.                                  |
+| `kf-storage.timer`          | daily 03:30       | Every artifact version has one copy, and nothing has re-hashed the copies that exist.       |
 
 The last two are what make the others real. A backup timer that silently stops is
 indistinguishable from a backup timer that is working, right up until the restore — unless
@@ -69,6 +79,12 @@ way to catch an alerter that cannot report its own death.
 
 Enable both: `systemctl enable --now kf-alert-heartbeat.timer`. `kf-alert@.service` is a
 template pulled in by `OnFailure=` and is never enabled directly.
+
+Each timer declares in its own file how long it may go without firing (`X-KF-MaxSilenceSec=`,
+an `X-` key systemd ignores). `kf-readiness.service` runs `scripts/timer-liveness.sh` before the
+readiness checks and fails, naming the timer, when any is inactive or silent longer than that;
+`kf-alert-heartbeat.service` runs it for `kf-readiness.timer` alone and withholds the heartbeat
+while readiness itself is not firing. Until 2026-09-23 nothing noticed a timer that had stopped.
 
 ## Install
 
@@ -96,6 +112,9 @@ sudo install -m 0640 -o root -g kf-web web.env.example /etc/kf/web.env
 sudo install -m 0640 -o root -g kf-worker worker.env.example /etc/kf/worker.env
 sudo install -m 0640 -o root -g kf-migrator migrator.env.example /etc/kf/migrator.env
 sudo install -m 0640 -o root -g kf-backup backup.env.example /etc/kf/backup.env
+# The OpenPGP PUBLIC key backups are encrypted to (requires gnupg on the host). Its private key
+# stays with whoever performs recovery; backup.sh refuses a file that contains one.
+sudo install -m 0644 -o root -g root backup-recipient.asc /etc/kf/backup-recipient.asc
 
 sudo install -m 0600 -o kf-api -g kf-api /dev/null /etc/kf/api/database-url
 sudo install -m 0600 -o kf-api -g kf-api /dev/null /etc/kf/api/s3-secret-access-key
@@ -103,6 +122,10 @@ sudo install -m 0600 -o kf-web -g kf-web /dev/null /etc/kf/web/session-key
 sudo install -m 0600 -o kf-worker -g kf-worker /dev/null /etc/kf/worker/database-url
 sudo install -m 0600 -o kf-worker -g kf-worker /dev/null /etc/kf/worker/s3-secret-access-key
 sudo install -m 0600 -o kf-migrator -g kf-migrator /dev/null /etc/kf/migrator/database-url
+# Host-local key rehearsal receipts are authenticated with; apply refuses a receipt it did not
+# sign. See "Migration and rollback rehearsal" in docs/deployment/private-host.md.
+sudo install -m 0600 -o kf-migrator -g kf-migrator /dev/null /etc/kf/migrator/rehearsal-receipt-key
+sudo sh -c 'head -c 32 /dev/urandom > /etc/kf/migrator/rehearsal-receipt-key'
 
 # Scheduled-operation identities: one per set of secrets, not one shared `kf`. Until
 # 2026-08-17 all five scheduled units ran as `kf`, which made the checkpoint signing key and
@@ -123,6 +146,11 @@ sudo install -d -m 0750 -o root -g kf-storage /etc/kf/storage
 
 sudo install -m 0600 -o kf-checkpoint -g kf-checkpoint /dev/null /etc/kf/checkpoint/database-url
 sudo install -m 0600 -o kf-checkpoint -g kf-checkpoint /dev/null /etc/kf/checkpoint/checkpoint-key
+# Secret for the external anchor every signed checkpoint is also written to (required in
+# production), and the non-secret routing: CHECKPOINT_SIGNING_KEY_ID and the anchor endpoint.
+sudo install -m 0600 -o kf-checkpoint -g kf-checkpoint /dev/null \
+  /etc/kf/checkpoint/anchor-secret-access-key
+sudo install -m 0640 -o root -g kf-checkpoint checkpoint.env.example /etc/kf/checkpoint.env
 sudo install -m 0600 -o kf-backup -g kf-backup /dev/null /etc/kf/backup/database-url
 sudo install -m 0600 -o kf-backup -g kf-backup /dev/null /etc/kf/backup/preservation-manifest-key
 sudo install -m 0600 -o kf-offsite -g kf-offsite /dev/null /etc/kf/offsite/database-url
@@ -138,6 +166,14 @@ sudo install -m 0600 -o kf-storage -g kf-storage /dev/null /etc/kf/storage/s3-du
 sudo install -m 0600 -o kf-storage -g kf-storage /dev/null /etc/kf/storage/storage.env
 sudo install -m 0600 -o kf-readiness -g kf-readiness /dev/null /etc/kf/readiness/database-url
 
+# The daily checkpoint verifier. Public keys and a read connection, never the signing key. Its
+# database login needs the same cross-organization reads the signer uses to verify (today the
+# only role holding them is kf_checkpoint, so grant the login membership in it: it could insert
+# a checkpoint row but not sign one, and an unsigned row fails this very check).
+sudo useradd --system --user-group --home-dir /nonexistent --shell /usr/sbin/nologin kf-audit-verify
+sudo install -d -m 0750 -o root -g kf-audit-verify /etc/kf/audit-verify
+sudo install -m 0600 -o kf-audit-verify -g kf-audit-verify /dev/null /etc/kf/audit-verify/database-url
+
 # The alerter. Its own identity holding exactly one secret — the webhook URL — and no key,
 # no database credential. Every other unit routes OnFailure= here, so it must be the least
 # privileged thing on the host, not the most.
@@ -148,10 +184,16 @@ sudo install -d -m 0750 -o root -g kf-alert /etc/kf/alert
 # to anyone on the path.
 sudo install -m 0600 -o kf-alert -g kf-alert /dev/null /etc/kf/alert/webhook-url
 
-# Public trust material, read by the backup and restore-drill jobs. Public, so a shared group
-# is fine here in a way it is not for a signing key.
-sudo install -d -m 0750 -o root -g kf-backup /etc/kf/preservation-trust.d
-sudo install -d -m 0750 -o root -g kf-backup /etc/kf/checkpoint-public-keys
+# Public trust material, read by the backup, restore-drill, off-site, checkpoint and audit-verify
+# jobs — five identities. Public keys, so world-readable and root-owned: nobody but root may add a
+# key, and everybody who verifies may read one. (Until 2026-09-23 these were 0750 root:kf-backup,
+# which left kf-offsite unable to verify what it shipped.)
+sudo install -d -m 0755 -o root -g root /etc/kf/preservation-trust.d
+sudo install -d -m 0755 -o root -g root /etc/kf/checkpoint-public-keys
+
+# Off-site routing: destination, label, optional attested failure domain. Not a secret, but
+# closed to the one identity that reads it.
+sudo install -m 0640 -o root -g kf-offsite offsite.env.example /etc/kf/offsite.env
 
 # The archive: written by kf-backup, read by kf-offsite to ship it. Setgid so new archives stay
 # group-readable. Its contents are signed artifacts, not keys — kf-offsite holds no key at all.
@@ -217,9 +259,10 @@ the package first and only then uses the archived directory to verify historical
 Checkpoint private keys are never copied.
 
 Database restoration is only one proof dimension. Restore service also requires root-owned
-`/usr/local/libexec/kf-verify-object-store`; adapter receives authenticated export directory
-and a proof-output path, re-reads every external object named by registry, verifies each digest,
-then writes bounded evidence. `KF_OBJECT_STORE_PROOF_REF` names external custody evidence without
+`/usr/local/libexec/kf-verify-object-store`, pinned by `KF_OBJECT_STORE_VERIFY_PROGRAM_SHA256`;
+the adapter receives a request naming each stored object (URI and version, no digests) and a
+proof-output path, re-reads every object, and reports the digest and size it measured, which
+`scripts/lib/object-store-proof.mjs` then checks against the authenticated export. `KF_OBJECT_STORE_PROOF_REF` names external custody evidence without
 credentials. Database, checkpoint, and object-store results land separately in
 `ops.restore_drill`; only all three may use outcome `verified`. Missing adapter/key evidence is
 recorded `partial`, returns nonzero, and keeps readiness red. Adapter implementation remains a
@@ -230,7 +273,7 @@ Run migration procedure in private-host guide. Only after it and real-provider p
 ```sh
 sudo systemctl enable --now kf-api.service kf-worker.service kf-web.service
 sudo systemctl enable --now kf-checkpoint.timer kf-backup.timer \
-  kf-restore-drill.timer kf-readiness.timer
+  kf-audit-verify.timer kf-restore-drill.timer kf-readiness.timer
 ```
 
 Do not enable `kf-migrate.service`; start it once per reviewed release. Do not start nginx until
@@ -274,6 +317,13 @@ Each unit has `OnFailure=kf-alert@%n.service`. Write that unit for whatever this
 uses to reach a person — there is no default here, because a default that goes nowhere is
 worse than an absent one that fails to start.
 
+The long-running services (`kf-api`, `kf-web`, `kf-worker`) restart on failure, and restart
+alone never reaches `failed`: the unit loops in `activating (auto-restart)` and `OnFailure=`
+never fires. Each therefore sets `StartLimitIntervalSec=30min` / `StartLimitBurst=5` in `[Unit]`,
+so a sixth start inside half an hour stops the loop, fails the unit and alerts. After fixing the
+cause, `systemctl reset-failed <unit>` re-arms it. `tests/deployment/systemd-units.test.ts`
+refuses any unit with `Restart=` that lacks either.
+
 A timer whose service fails stays failed until it is looked at; `systemctl list-units --failed`
 is the query. `kf-readiness` exits non-zero on **degraded** as well as failed, so a stale index
 or a lapsed drill surfaces before it becomes the reason a restore does not work.
@@ -284,6 +334,39 @@ or a lapsed drill surfaces before it becomes the reason a restore does not work.
 `Wants=` from it, so the copy runs when a backup completes rather than on a clock of its own.
 A copy on a separate schedule copies whatever happens to be there, including nothing.
 
-The restore drill picks the most recent backup that has an off-site copy, restores it into a
-scratch database, and drops it afterwards. It records the drill against the **production**
-ledger — a drill recorded in the scratch database is discarded along with it.
+It ships the backup's encrypted archive (`<backup>.tar.gpg`), never the plaintext directory, and
+re-measures it at the destination before recording anything. It reads `/etc/kf/offsite.env`
+and refuses to start, in words, while `KF_OFFSITE_DESTINATION` or `KF_OFFSITE_LABEL` is empty
+or a local destination is not writable inside the unit (add `ReadWritePaths=` in a drop-in).
+Until 2026-09-23 it shipped with an empty destination and no trust store, and failed every
+night.
+
+Whether the copy counts as off-site is decided by what the destination is, and recorded in
+`ops.backup_copy.offsite_basis`: `user@host:/path` is `remote-host`; a local path is
+`local-unattested` and **not** off-site — a second disk in the same chassis is the same host —
+unless `KF_OFFSITE_FAILURE_DOMAIN` names a failure domain a person approved in
+`ops.physical_failure_domain_evidence` (`attested-domain`). An attested copy also writes its own
+`ops.encrypted_backup_evidence` row from the ciphertext digest it measured, carrying the domain
+approval's approver; nobody types that row by hand any more.
+
+The restore drill picks the most recent backup with an off-site copy at
+`KF_DRILL_OFFSITE_LABEL`, pulls that copy back from `KF_DRILL_OFFSITE_SOURCE`, checks it is the
+ciphertext recorded as sent, decrypts it, and restores it into a throwaway PostgreSQL cluster
+(socket-only, own port, under `StateDirectory=kf-restore-drill`) that it deletes afterwards. It
+never creates a database in the production cluster. It records the drill against the
+**production** ledger — a drill recorded in the throwaway cluster is discarded along with it.
+
+The decryption key reaches the drill as an encrypted systemd credential, sealed to the host:
+
+```sh
+sudo install -d -m 0700 -o root -g root /etc/kf/credstore.encrypted
+sudo systemd-creds encrypt --name=backup-decryption-key recovery-secret-key.asc \
+  /etc/kf/credstore.encrypted/backup-decryption-key
+shred -u recovery-secret-key.asc
+```
+
+It is decrypted into the drill's private credential directory for one run and is never a
+plaintext file on disk; `kf-backup.service` does not name it. Where a separate recovery host
+exists, run the drill there instead — the script and unit are the same. The drill also needs
+the PostgreSQL 18 server package (`KF_POSTGRES_SERVER_DIR`, for `initdb` and `pg_ctl`) and
+`gnupg`.

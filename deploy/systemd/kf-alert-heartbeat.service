@@ -14,6 +14,10 @@ Group=kf-alert
 WorkingDirectory=/opt/kf
 Environment=KF_ALERT_WEBHOOK_URL_FILE=/etc/kf/alert/webhook-url
 ExecStartPre=/usr/bin/test -s /etc/kf/alert/webhook-url
+# The readiness timer is what checks every other timer, so its own stop would be silent. The
+# heartbeat is withheld while it is not firing: the receiver's "expect one per day" rule then
+# notices, which is the one signal that does not depend on anything on this host still working.
+ExecStartPre=/opt/kf/scripts/timer-liveness.sh kf-readiness.timer
 ExecStart=/opt/kf/scripts/alert-dispatch.sh heartbeat
 
 NoNewPrivileges=true
