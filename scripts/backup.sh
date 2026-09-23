@@ -130,7 +130,12 @@ fi
 echo "==> logical dump"
 # Custom format: compressed, and selectively restorable, which matters when a restore has to
 # omit or reorder something.
+#
+# The context seal key's ROW is excluded, not just unreadable: seals last one transaction, so a
+# restored database needs a key rather than this one, and the first seal after a restore makes a
+# fresh one (20260923000100). Kept out, the key is not readable by whoever holds a dump.
 "$KF_PG_DUMP" --format=custom --no-owner --no-privileges --snapshot="$SNAPSHOT_ID" \
+  --exclude-table-data=core.context_seal_key \
   --file="$DEST/dump.pgcustom" "$DATABASE_URL"
 
 echo "==> canonical export"

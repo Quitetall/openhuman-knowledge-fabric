@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { ActionRejected } from '@kf/actions';
 import { IdentityRejected } from '@kf/authorization';
-import { setAccessContext, withTransaction } from '@kf/database';
+import { withTransaction, bindPrincipal } from '@kf/database';
 import { actionForMetricEventAppend, metricEventActionIdempotencyKey } from '@kf/integration';
 import { MetricEventJournal, MlRegistryRejected } from '@kf/ml-registry';
 import { CallerRejected, unidentified } from '../../actions.js';
@@ -70,10 +70,7 @@ export function registerMetricEventRoute(app: FastifyInstance, options: MlRoutes
 
       try {
         const result = await withTransaction(options.pool, async (tx) => {
-          await setAccessContext(tx, {
-            organizationId: caller.organizationId,
-            maxClassification: caller.maxClassification,
-          });
+          await bindPrincipal(tx, caller);
           await requireMlSchema(tx);
 
           const runRow = await tx.maybeOne<IngestRunRow>(

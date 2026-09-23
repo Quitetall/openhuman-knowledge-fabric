@@ -5,6 +5,7 @@ import { withTransaction } from '@kf/database';
 import { createDocumentActionAtoms } from '@kf/documents';
 import { createFabricDispatcher } from '@kf/orchestrator';
 import {
+  bindReader,
   createObject,
   seedFixtures,
   startHarness,
@@ -58,7 +59,8 @@ describe('verifying a record is an act, one record at a time', () => {
   const verify = (
     targets: readonly string[],
     payload: Readonly<Record<string, string>>,
-    reason = 'read it',
+    // A required reason is at least eight characters with some variety (assertMeaningfulReason).
+    reason = 'read it against the source',
   ) =>
     dispatcher()({
       actionType: 'verify_record',
@@ -74,7 +76,7 @@ describe('verifying a record is an act, one record at a time', () => {
 
   async function basisOf(objectId: string): Promise<string | undefined> {
     return withTransaction(harness.pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+      await bindReader(tx, f, f.reviewerId);
       const rows = await tx.query<{ basis: string }>(
         'select basis from core.object_verification where object_id = $1',
         [objectId],
@@ -121,6 +123,10 @@ describe('verifying a record is an act, one record at a time', () => {
     await expect(verify([target], { basis: 'reviewed_individually' }, '  ')).rejects.toThrow(
       /reason/,
     );
+    // A token reason is no reason: "ok" records that somebody typed something, not why.
+    await expect(verify([target], { basis: 'reviewed_individually' }, 'ok')).rejects.toThrow(
+      /reason/,
+    );
     expect(await basisOf(target)).toBeUndefined();
   });
 
@@ -141,7 +147,7 @@ describe('verifying a record is an act, one record at a time', () => {
     const target = await record('Traceable');
     await verify([target], { basis: 'reviewed_individually' });
     const row = await withTransaction(harness.pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+      await bindReader(tx, f, f.reviewerId);
       const rows = await tx.query<{ action_type: string; verified_by: string }>(
         `select a.action_type, v.verified_by
            from core.object_verification v

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { setAccessContext, withTransaction, type Pool } from '@kf/database';
+import { withTransaction, type Pool, bindPrincipal } from '@kf/database';
 import { readCoverage, reaches } from './documents/read-grant.js';
 import { searchIn } from '@kf/search';
 import type { IdentifyCaller } from './actions.js';
@@ -35,10 +35,7 @@ export async function registerSearchRoutes(
 
     try {
       const hits = await withTransaction(options.pool, async (tx) => {
-        await setAccessContext(tx, {
-          organizationId: caller.organizationId,
-          maxClassification: caller.maxClassification,
-        });
+        await bindPrincipal(tx, caller);
         const found = await searchIn(
           tx,
           {

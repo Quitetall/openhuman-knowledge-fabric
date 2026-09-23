@@ -62,6 +62,12 @@ function databaseBoundary(
       }
 
       calls.push({ sql, params });
+      // The route binds its caller as a principal (core.bind_principal, 20260923000100); the
+      // database answers with the ceiling it bound, which the fake takes as the one requested.
+      if (sql.includes('core.bind_principal')) {
+        const answered = rowsFor(sql, params);
+        return { rows: answered.length > 0 ? answered : [{ ceiling: params[3] }] };
+      }
       return { rows: rowsFor(sql, params) };
     }),
     release: vi.fn(),
@@ -120,9 +126,7 @@ function controlledDocumentRow(overrides: Record<string, unknown> = {}) {
 describe('POST /documents fabric-native source', () => {
   it('rejects unauthorized document authority before immutable object storage', async () => {
     const db = databaseBoundary((sql) => {
-      if (sql.includes('org.resolve_effective_classification')) {
-        return [{ requested_classification: 'internal' }];
-      }
+      if (sql.includes('core.bind_principal')) return [{ ceiling: 'internal' }];
       if (sql.includes('/* document.current-import-source */')) return [];
       if (sql.includes('registry.action_type')) {
         return [{ id: 'add_authored_fragment', transactional: true }];

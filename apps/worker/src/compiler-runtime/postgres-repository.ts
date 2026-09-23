@@ -1,4 +1,4 @@
-import { setAccessContext, setTransactionContext, withTransaction, type Pool } from '@kf/database';
+import { setTransactionContext, withTransaction, type Pool, bindPrincipal } from '@kf/database';
 import {
   canonicalCompilationRunPreimage,
   canonicalCompilationSemanticPreimage,
@@ -59,10 +59,7 @@ export function createPostgresCompilerRuntimeRepository(pool: Pool): CompilerRun
 
     async persist(request, run, views) {
       return withTransaction(pool, async (tx) => {
-        await setAccessContext(tx, {
-          organizationId: request.organizationId,
-          maxClassification: request.maxClassification,
-        });
+        await bindPrincipal(tx, request);
         await setTransactionContext(tx, {
           actorId: request.actorId,
           actingRoleId: request.actingRoleId,

@@ -1,4 +1,9 @@
-import { ActionRejected, type ActionEffect, type PreconditionCheck } from '@kf/actions';
+import {
+  ActionRejected,
+  assertMeaningfulReason,
+  type ActionEffect,
+  type PreconditionCheck,
+} from '@kf/actions';
 import { requireString } from '@kf/record-atoms';
 import { TECHNICAL_AUTHORITY_ROLE } from './action-types.js';
 import { assertDocumentRole } from './document-authority.js';
@@ -36,9 +41,7 @@ export function createVerificationActions(): VerificationActions {
         { targets: request.targetIds.length },
       );
     }
-    if (!request.reason?.trim()) {
-      throw new ActionRejected('reason_required', 'verify_record requires a nonblank reason');
-    }
+    assertMeaningfulReason(request);
 
     const basis = requireString(request.payload, 'basis');
     if (!(BASES as readonly string[]).includes(basis)) {

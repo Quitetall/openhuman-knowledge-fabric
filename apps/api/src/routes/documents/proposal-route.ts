@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { ActionRejected } from '@kf/actions';
-import { setAccessContext, withTransaction } from '@kf/database';
+import { withTransaction, bindPrincipal } from '@kf/database';
 import { unidentified } from '../actions.js';
 import type { DocumentRoutesOptions } from './contracts.js';
 import {
@@ -48,10 +48,7 @@ export function registerDocumentProposalRoute(
       try {
         const claim = parseDocumentProposalClaim(request.body ?? {});
         const result = await withTransaction(options.pool, async (tx) => {
-          await setAccessContext(tx, {
-            organizationId: identity.organizationId,
-            maxClassification: identity.maxClassification,
-          });
+          await bindPrincipal(tx, identity);
           const workspace = await resolveWorkspaceTarget(tx, request.params.id);
           if (workspace.status !== 'ready' || !proposalMatchesWorkspace(claim, workspace.row)) {
             return undefined;

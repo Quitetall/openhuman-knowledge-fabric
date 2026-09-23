@@ -90,6 +90,9 @@ function searchPool() {
         ],
       };
     }
+    // The caller is bound as a principal (core.bind_principal, 20260923000100); the database
+    // answers with the ceiling it bound, which the fake takes as the one requested.
+    if (sql.includes('core.bind_principal')) return { rows: [{ ceiling: params[3] }] };
     if (!sql.includes('with visible as')) return { rows: [] };
     const [organizationId, maxClassification, text, objectTypes, lifecycleStates, limit] =
       params as [string, string, string, string[] | null, string[] | null, number];

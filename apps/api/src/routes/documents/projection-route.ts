@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { setAccessContext, withTransaction } from '@kf/database';
+import { withTransaction, bindPrincipal } from '@kf/database';
 import { readGranted } from './read-grant.js';
 import { unidentified } from '../actions.js';
 import {
@@ -54,10 +54,7 @@ export function registerDocumentProjectionRoute(
       let projection;
       try {
         projection = await withTransaction(options.pool, async (tx) => {
-          await setAccessContext(tx, {
-            organizationId: identity.organizationId,
-            maxClassification: identity.maxClassification,
-          });
+          await bindPrincipal(tx, identity);
           if (!(await readGranted(tx, identity, request.params.id))) return undefined;
           const workspace = await resolveWorkspaceTarget(tx, request.params.id);
           if (workspace.status !== 'ready') return undefined;

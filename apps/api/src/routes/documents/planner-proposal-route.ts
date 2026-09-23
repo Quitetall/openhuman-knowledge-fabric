@@ -7,7 +7,7 @@ import {
   type AiProposalResult,
 } from '@kf/agent-tools';
 import { ActionRejected } from '@kf/actions';
-import { setAccessContext, withTransaction } from '@kf/database';
+import { withTransaction, bindPrincipal } from '@kf/database';
 import { unidentified } from '../actions.js';
 import type { DocumentRoutesOptions } from './contracts.js';
 import {
@@ -41,10 +41,7 @@ export function registerDocumentPlannerProposalRoute(
       try {
         const claim = parseDocumentPlannerProposal(request.body ?? {});
         const result = await withTransaction(options.pool, async (tx) => {
-          await setAccessContext(tx, {
-            organizationId: identity.organizationId,
-            maxClassification: identity.maxClassification,
-          });
+          await bindPrincipal(tx, identity);
           const workspace = await resolveWorkspaceTarget(tx, request.params.id);
           if (workspace.status !== 'ready' || !plannerClaimMatchesWorkspace(claim, workspace.row)) {
             return undefined;

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { setAccessContext, withTransaction } from '@kf/database';
+import { withTransaction, bindPrincipal } from '@kf/database';
 import { readGranted } from './read-grant.js';
 import { unidentified } from '../actions.js';
 import {
@@ -55,10 +55,7 @@ export function registerDocumentSourceRoute(
     let source;
     try {
       source = await withTransaction(options.pool, async (tx) => {
-        await setAccessContext(tx, {
-          organizationId: identity.organizationId,
-          maxClassification: identity.maxClassification,
-        });
+        await bindPrincipal(tx, identity);
         if (!(await readGranted(tx, identity, request.params.id))) return undefined;
         return documentSourceBytes(tx, request.params.id, maxBytes);
       });

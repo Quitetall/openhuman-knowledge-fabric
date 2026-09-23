@@ -237,6 +237,8 @@ export async function runRetireOrganization(
       [decision.organizationId],
     );
 
+    const retiredObjectIds = [decision.organizationId, ...peopleBefore.map((person) => person.id)];
+
     // Recorded BEFORE the object moves: the transition guard reads the action row to learn
     // which transition it is being asked to allow.
     await tx.query(
@@ -254,7 +256,11 @@ export async function runRetireOrganization(
           .digest('hex'),
         decision.decidedBy,
         BOOTSTRAP_IDENTITY,
-        [decision.organizationId],
+        // The same set the audit event commits to. Every verifier — checkpoint signing, export
+        // import, and since 20260923000200 the chain trigger itself — rebuilds an event's digest
+        // from its action's `target_ids`. Recording only the organization here while the event
+        // committed to the people too made every retirement an unverifiable link.
+        retiredObjectIds,
         JSON.stringify(payload),
         request.idempotencyKey,
         effectiveAt.toISOString(),
@@ -278,7 +284,7 @@ export async function runRetireOrganization(
       actionType: 'retire_organization',
       actorId: decision.decidedBy,
       actingRoleId: BOOTSTRAP_IDENTITY,
-      objectIds: [decision.organizationId, ...peopleBefore.map((person) => person.id)],
+      objectIds: retiredObjectIds,
       effectiveAt,
       requestId: 'kf-retire-organization',
       reason: decision.reason,

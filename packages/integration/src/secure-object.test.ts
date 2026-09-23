@@ -4,7 +4,7 @@ import { canonicalBytes } from '@kf/canonicalization';
 import { createDispatcher } from '@kf/actions';
 import {
   createPool,
-  setAccessContext,
+  bindPrincipal,
   setTransactionContext,
   withTransaction,
   type Tx,
@@ -123,7 +123,11 @@ async function withAction<T>(
     const actionId = (await tx.one<{ id: string }>('select uuidv7() as id')).id;
     const effectiveAt = options.effectiveAt ?? new Date();
 
-    await setAccessContext(tx, {
+    // The actor is bound as a principal (20260923000100), so the action row below is the one
+    // the sealed context names — its actor, role and organization — or the ledger refuses it.
+    await bindPrincipal(tx, {
+      actorId,
+      actingRoleId,
       organizationId: fixtures.organizationId,
       maxClassification: options.maxClassification ?? 'restricted',
     });
@@ -163,7 +167,9 @@ async function withAccess<T>(
   operation: (tx: Tx) => Promise<T>,
 ): Promise<T> {
   return withTransaction(h.pool, async (tx) => {
-    await setAccessContext(tx, {
+    await bindPrincipal(tx, {
+      actorId: fixtures.reviewerId,
+      actingRoleId: fixtures.reviewerRoleId,
       organizationId: fixtures.organizationId,
       maxClassification,
     });
@@ -443,7 +449,9 @@ describe('typed secure-object authority', () => {
 
     await expect(
       withTransaction(h.pool, async (tx) => {
-        await setAccessContext(tx, {
+        await bindPrincipal(tx, {
+          actorId: f.reviewerId,
+          actingRoleId: f.reviewerRoleId,
           organizationId: f.organizationId,
           maxClassification: 'restricted',
         });

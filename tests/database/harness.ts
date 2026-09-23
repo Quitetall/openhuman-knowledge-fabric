@@ -570,11 +570,44 @@ export async function bindContext(
   tx: Tx,
   f: Fixtures,
   actorId: string = f.performerId,
+  actingRoleId: string = roleOf(f, actorId),
 ): Promise<void> {
-  await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
-  await tx.query('select core.set_transaction_context($1, $1, $2, $3)', [
+  // The application binds a PRINCIPAL, not an organization (20260923000100): the organization
+  // and ceiling are derived from the person's live assignment and clearance, and the actor must
+  // be that person acting under that assignment. A direct write in a test is held to the same.
+  await tx.query('select core.bind_principal($1, $2, $3, $4)', [
     actorId,
+    actingRoleId,
+    f.organizationId,
+    'restricted',
+  ]);
+  await tx.query('select core.set_transaction_context($1, $2, $3, $4)', [
+    actorId,
+    actingRoleId,
     BOOTSTRAP_ACTION,
     'harness-direct-write',
   ]);
+}
+
+/** Bind a reader as one of the fixture people, at their full ceiling unless narrowed. */
+export async function bindReader(
+  tx: Tx,
+  f: Fixtures,
+  actorId: string = f.performerId,
+  ceiling = 'restricted',
+): Promise<void> {
+  await tx.query('select core.bind_principal($1, $2, $3, $4)', [
+    actorId,
+    roleOf(f, actorId),
+    f.organizationId,
+    ceiling,
+  ]);
+}
+
+function roleOf(f: Fixtures, actorId: string): string {
+  if (actorId === f.reviewerId) return f.reviewerRoleId;
+  if (actorId === f.performerId) return f.performerRoleId;
+  throw new Error(
+    `bindContext: ${actorId} is not a fixture person; pass the acting role assignment explicitly`,
+  );
 }

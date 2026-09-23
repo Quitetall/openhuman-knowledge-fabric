@@ -12,6 +12,7 @@
 export {
   ActionRejected,
   DEFAULT_REASON_REQUIRED,
+  MINIMUM_REASON_LENGTH,
   type ActionDispatcher,
   type ActionEffect,
   type ActionReceiptReader,
@@ -31,7 +32,7 @@ export {
 // clearance in an organization is granted outside it; it still has to extend the same chain,
 // with the same arithmetic, or the chain disagrees with itself.
 export { appendAuditEvent, type AuditChainEntry } from './internal/audit.js';
-export { createTransactionalPreflight } from './internal/authority.js';
+export { assertMeaningfulReason, createTransactionalPreflight } from './internal/authority.js';
 export { createDispatcher, createTransactionalDispatcher } from './internal/dispatcher.js';
 export { semanticActionRequestDigest } from './internal/idempotency.js';
 

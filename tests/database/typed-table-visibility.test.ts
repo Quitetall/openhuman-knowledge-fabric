@@ -18,6 +18,7 @@ import { createDispatcher } from '@kf/actions';
 import { withTransaction } from '@kf/database';
 import {
   bindContext,
+  bindReader,
   createObject,
   seedFixtures,
   startHarness,
@@ -102,7 +103,7 @@ describe('typed rows are visible exactly when their record is', () => {
 
   it('shows a bound session the substance of records it may see', async () => {
     const found = await withTransaction(h.pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+      await bindReader(tx, f);
       return tx.one<{ document_number: string; description: string }>(
         `select document.document_number, finding.description
            from quality.controlled_document document
@@ -132,7 +133,7 @@ describe('typed rows are visible exactly when their record is', () => {
     });
 
     const atLowerClearance = await withTransaction(h.pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'internal']);
+      await bindReader(tx, f, f.performerId, 'internal');
       return tx.one<{ n: string }>(
         'select count(*)::text as n from quality.nonconformity where id = $1',
         [nonconformityId],
@@ -141,7 +142,7 @@ describe('typed rows are visible exactly when their record is', () => {
     expect(Number(atLowerClearance.n), 'restricted substance at internal clearance').toBe(0);
 
     const atFullClearance = await withTransaction(h.pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+      await bindReader(tx, f);
       return tx.one<{ n: string }>(
         'select count(*)::text as n from quality.nonconformity where id = $1',
         [nonconformityId],
@@ -169,10 +170,8 @@ describe('typed rows are visible exactly when their record is', () => {
       'ops.physical_failure_domain_evidence',
       'ops.recovery_objective',
       'ops.restore_drill',
-      // kf_app still reads this one by design: sign-in resolves through it. The two roles
-      // that had no business reading it lost the grant in 20260816000600, which is a
-      // privilege rather than a policy, so the table stays on this list.
-      'org.external_identity',
+      // NOT org.external_identity: row security was enabled on it in 20260923000200, scoping
+      // kf_app's reads to the bound organization. Its grants are pinned separately below.
       'org.role',
       'quality.federated_source',
       'registry.action_type',
@@ -251,7 +250,7 @@ describe('typed rows are visible exactly when their record is', () => {
     });
 
     const bound = await withTransaction(h.pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+      await bindReader(tx, f);
       return tx.one<{ n: string }>('select count(*)::text as n from core.action');
     });
     expect(Number(bound.n), 'a bound session must still see its own ledger').toBeGreaterThan(0);

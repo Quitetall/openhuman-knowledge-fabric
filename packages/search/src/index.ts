@@ -24,7 +24,7 @@
  */
 
 import type { Pool, Tx } from '@kf/database';
-import { setAccessContext, withTransaction } from '@kf/database';
+import { bindPrincipal, withTransaction, type Principal } from '@kf/database';
 
 export interface SearchScope {
   readonly organizationId: string;
@@ -65,7 +65,7 @@ function normalise(text: string): string {
 
 export async function search(
   pool: Pool,
-  scope: SearchScope,
+  scope: SearchScope & Pick<Principal, 'actorId' | 'actingRoleId'>,
   query: SearchQuery,
 ): Promise<SearchHit[]> {
   return withTransaction(pool, async (tx) => {
@@ -79,7 +79,7 @@ export async function search(
     // `searchIn` deliberately does NOT do this: there the caller owns the transaction and has
     // already bound its own context, and overwriting it from a search argument would let one
     // query silently redefine the visibility of everything after it.
-    await setAccessContext(tx, scope);
+    await bindPrincipal(tx, scope);
     return searchIn(tx, scope, query);
   });
 }

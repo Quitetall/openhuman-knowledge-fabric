@@ -166,4 +166,6 @@ export const PRESERVATION_TABLE_EXCLUSIONS = {
   'core.migration030_rollback_state': 'path-local migration rollback metadata, not authority',
   'content.compiler_runtime_lease': 'ephemeral worker lease, invalid after restore',
   'content.document_basis_classifier_lease': 'ephemeral classifier lease, invalid after restore',
+  'core.context_seal_key':
+    'transaction-scoped seal key; a restore needs a key, not this one, and makes a fresh one',
 } as const;

@@ -79,6 +79,7 @@
     "ml.run_seal_signing_key_revocation",
     "org.access_grant",
     "org.engagement",
+    "org.external_identity",
     "org.organization",
     "org.person",
     "org.person_clearance",

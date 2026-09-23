@@ -45,6 +45,22 @@ export interface DatabaseConfig {
   readonly onIdleClientError?: (error: Error) => void;
 }
 
+/**
+ * The database refused to bind a principal: the assignment is not held live in that
+ * organization, or the requested ceiling exceeds the person's clearance. `reason` says which,
+ * because a dead assignment and a clearance refusal are different problems for whoever reads the
+ * refusal. Callers serving reads answer it as not-found — out of scope and nonexistent are the
+ * same answer (threat model T3).
+ */
+export class PrincipalRefused extends Error {
+  readonly reason: 'role_not_held' | 'classification_not_granted';
+  constructor(reason: 'role_not_held' | 'classification_not_granted', message: string) {
+    super(message);
+    this.name = 'PrincipalRefused';
+    this.reason = reason;
+  }
+}
+
 export class DatabaseError extends Error {
   // Uses the standard `cause` option rather than a field of its own, so the underlying
   // failure survives into stack traces and structured logs the way runtimes expect.
@@ -299,8 +315,16 @@ export async function setAccessContext(
 }
 
 /**
- * Resolve effective clearance at point of use, then bind the requested (possibly narrower)
- * ceiling. The caller never gets to bind an unverified classification directly.
+ * Bind the transaction to a PRINCIPAL: a person acting under a live role assignment in an
+ * organization. The database derives the organization's visibility and the ceiling from that
+ * person's assignment and clearance; the request may only narrow the ceiling. Returns the
+ * ceiling bound.
+ *
+ * Since 20260923000100 this is the only way the application binds a reader. It used to bind
+ * `restricted` provisionally and then the resolved ceiling through `set_access_context` —
+ * which meant the application role could bind any organization at any ceiling, and a
+ * compromised API could read every tenant. The database now does the resolution itself,
+ * inside `core.bind_principal`, and refuses the unbounded bind outright.
  */
 export async function setResolvedAccessContext(
   tx: Tx,
@@ -311,32 +335,49 @@ export async function setResolvedAccessContext(
     readonly requestedClassification: string;
   },
 ): Promise<string> {
-  // RESOLUTION RUNS UNDER A BOUND ORGANIZATION, OR IT RESOLVES NOTHING.
-  //
-  // `org.resolve_effective_classification` is SECURITY DEFINER and reads `org.person_clearance`
-  // and `core.object`, both of which FORCE row-level security — which binds the definer too
-  // unless its owner is a superuser. In the test harness it was; on a host it is the migrator
-  // login, and every dispatched action there failed with `classification clearance is not
-  // granted` before anything ran. The context bound here is provisional — this organization at
-  // the widest ceiling, for the resolver's own reads — and is replaced by the resolved ceiling
-  // before the caller's transaction touches a record.
-  await setAccessContext(tx, {
-    organizationId: ctx.organizationId,
-    maxClassification: 'restricted',
-  });
-  const resolved = await tx.maybeOne<{ requested_classification: string }>(
-    `select requested_classification
-       from org.resolve_effective_classification($1, $2, $3, $4)`,
-    [ctx.subjectId, ctx.organizationId, ctx.assignmentId, ctx.requestedClassification],
-  );
-  if (resolved === undefined || resolved.requested_classification.trim() === '') {
-    throw new DatabaseError('classification clearance resolver returned no decision');
+  let bound: { ceiling: string | null } | undefined;
+  try {
+    bound = await tx.maybeOne<{ ceiling: string | null }>(
+      'select core.bind_principal($1, $2, $3, $4) as ceiling',
+      [ctx.subjectId, ctx.assignmentId, ctx.organizationId, ctx.requestedClassification],
+    );
+  } catch (error: unknown) {
+    const code =
+      typeof error === 'object' && error !== null && 'code' in error
+        ? String((error as { code?: unknown }).code ?? '')
+        : '';
+    const message = error instanceof Error ? error.message : String(error);
+    if (code === '42501') {
+      throw new PrincipalRefused(
+        /not held live/.test(message) ? 'role_not_held' : 'classification_not_granted',
+        message,
+      );
+    }
+    throw error;
   }
-  await setAccessContext(tx, {
-    organizationId: ctx.organizationId,
-    maxClassification: resolved.requested_classification,
+  if (bound?.ceiling === undefined || bound.ceiling === null || bound.ceiling.trim() === '') {
+    throw new DatabaseError('principal binding returned no ceiling');
+  }
+  return bound.ceiling;
+}
+
+/** Who is reading or acting: a person, under a live assignment, in an organization. */
+export interface Principal {
+  readonly actorId: string;
+  readonly actingRoleId: string;
+  readonly organizationId: string;
+  /** The ceiling requested; the database clamps it to the person's clearance. */
+  readonly maxClassification: string;
+}
+
+/** `setResolvedAccessContext` for the shape every identified caller already has. */
+export async function bindPrincipal(tx: Tx, principal: Principal): Promise<string> {
+  return setResolvedAccessContext(tx, {
+    subjectId: principal.actorId,
+    assignmentId: principal.actingRoleId,
+    organizationId: principal.organizationId,
+    requestedClassification: principal.maxClassification,
   });
-  return resolved.requested_classification;
 }
 
 export const PACKAGE = {

@@ -176,6 +176,9 @@ export const DEFAULT_SEPARATION_OF_DUTY: Readonly<Record<string, readonly string
   issue_acceptance: ['work_execution'],
   accept_work_package: ['work_package'],
   approve_invoice: ['invoice'],
+  // Whoever admitted a record is the one person whose "I checked it" means least (RQ-230). The
+  // database refuses it too (20260923000200); this gives the refusal its proper name first.
+  verify_record: [],
 };
 
 /** Exported so callers can solicit required reason before dispatch. */
@@ -183,7 +186,16 @@ export const DEFAULT_REASON_REQUIRED: readonly string[] = [
   'correct_record',
   'reject_decision',
   'amend_work_order',
+  'verify_record',
+  'apply_document_proposal',
 ];
+
+/**
+ * The shortest reason that can carry a "why". Eight characters is "dup of 4" or "per CAPA";
+ * below it the field held ".", "x" and "ok" in practice, which record that somebody typed
+ * something, not why they acted.
+ */
+export const MINIMUM_REASON_LENGTH = 8;
 
 export interface ResolvedDispatcherOptions {
   readonly allowedActions: ReadonlySet<string> | undefined;

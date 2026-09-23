@@ -26,6 +26,7 @@ import {
 import { registerActionRoutes } from '../../apps/api/src/routes/actions.js';
 import {
   bindContext,
+  bindReader,
   seedFixtures,
   startHarness,
   type Fixtures,
@@ -303,7 +304,7 @@ describe('classification narrows rather than widens', () => {
     const counts = await Promise.all(
       ['internal', 'restricted'].map(async (clearance) =>
         withTransaction(h.pool, async (tx) => {
-          await tx.query('select core.set_access_context($1, $2)', [f.organizationId, clearance]);
+          await bindReader(tx, f, f.performerId, clearance);
           const row = await tx.one<{ n: string }>('select count(*)::text as n from core.object');
           return Number(row.n);
         }),

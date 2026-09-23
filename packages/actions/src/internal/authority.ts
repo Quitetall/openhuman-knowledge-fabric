@@ -1,6 +1,7 @@
-import { setResolvedAccessContext, type Tx } from '@kf/database';
+import { PrincipalRefused, setResolvedAccessContext, type Tx } from '@kf/database';
 import {
   ActionRejected,
+  MINIMUM_REASON_LENGTH,
   resolveDispatcherOptions,
   type ActionDefinition,
   type ActionRequest,
@@ -129,10 +130,22 @@ export async function assertActCovered(
 }
 
 export function assertReasonPresent(request: ActionRequest, reasonRequired: ReadonlySet<string>) {
-  if (reasonRequired.has(request.actionType) && !request.reason?.trim()) {
-    throw new ActionRejected('reason_required', `${request.actionType} requires a reason`, {
-      actionType: request.actionType,
-    });
+  if (reasonRequired.has(request.actionType)) assertMeaningfulReason(request);
+}
+
+/**
+ * A required reason must say something: at least MINIMUM_REASON_LENGTH characters once trimmed,
+ * and not one character repeated. Filler passes a presence check and defeats its purpose.
+ */
+export function assertMeaningfulReason(request: ActionRequest): void {
+  const reason = request.reason?.trim() ?? '';
+  const distinct = new Set(reason.replace(/\s+/g, '').toLowerCase()).size;
+  if (reason.length < MINIMUM_REASON_LENGTH || distinct < 3) {
+    throw new ActionRejected(
+      'reason_required',
+      `${request.actionType} requires a reason of at least ${MINIMUM_REASON_LENGTH} characters that says why`,
+      { actionType: request.actionType },
+    );
   }
 }
 
@@ -145,6 +158,12 @@ export async function bindResolvedAccessContext(tx: Tx, request: ActionRequest):
       requestedClassification: request.maxClassification,
     });
   } catch (error: unknown) {
+    if (error instanceof PrincipalRefused && error.reason === 'role_not_held') {
+      throw new ActionRejected(
+        'role_not_held',
+        'the acting role is not held live in this organization',
+      );
+    }
     const message = error instanceof Error ? error.message : String(error);
     const code =
       typeof error === 'object' && error !== null && 'code' in error

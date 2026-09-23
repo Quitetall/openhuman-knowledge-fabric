@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { withTransaction } from '@kf/database';
 import {
   bindContext,
+  bindReader,
   createObject,
   seedFixtures,
   startHarness,
@@ -75,7 +76,7 @@ describe('verification is orthogonal to lifecycle', () => {
 
   async function verificationOf(id: string): Promise<{ basis: string } | undefined> {
     return withTransaction(harness.pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+      await bindReader(tx, f);
       const rows = await tx.query<{ basis: string }>(
         'select basis from core.object_verification where object_id = $1',
         [id],
@@ -103,15 +104,18 @@ describe('verification is orthogonal to lifecycle', () => {
       withTransaction(harness.pool, async (tx) => {
         // Access context bound so row security admits the write, transaction context NOT bound.
         // Everything else about this insert is valid, so the guard trigger is the only thing left
-        // that can refuse it — which is what makes this a test of the guard.
-        await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+        // that can refuse it — which is what makes this a test of the guard. Bound as a principal
+        // (the application can no longer bind an organization alone), and verified by the
+        // reviewer, who did not create the record, so separation of duty is not what refuses.
+        await bindReader(tx, f, f.reviewerId);
         await tx.query(
           `insert into core.object_verification (object_id, verified_by, basis, recorded_by_action)
              values ($1, $2, 'reviewed_individually', $3)`,
-          [objectId, f.performerId, action],
+          [objectId, f.reviewerId, action],
         );
       }),
-    ).rejects.toThrow();
+      // Pinned to the guard: a bare toThrow() also passed when the refusal was the access bind.
+    ).rejects.toThrow(/no transaction context/);
   });
 
   it('refuses a basis that is neither individual review nor bulk promotion', async () => {
@@ -146,7 +150,7 @@ describe('verification is orthogonal to lifecycle', () => {
     // The point of the sidecar. A verification is not a lifecycle event, so the record's state and
     // its row version are exactly where they were — nothing changed about the object itself.
     const object = await withTransaction(harness.pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+      await bindReader(tx, f);
       const rows = await tx.query<{ lifecycle_state: string; row_version: string }>(
         'select lifecycle_state, row_version::text as row_version from core.object where id = $1',
         [objectId],
@@ -160,7 +164,7 @@ describe('verification is orthogonal to lifecycle', () => {
   it('reaches the master-record member, so a projection can label it (RQ-229)', async () => {
     const { enumeratePermissionSet } = await import('@kf/documents');
     const members = await withTransaction(harness.pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+      await bindReader(tx, f);
       return enumeratePermissionSet(tx, f.organizationId);
     });
     const subject = members.find((m) => m.objectId === objectId);
@@ -238,7 +242,7 @@ describe('verification is orthogonal to lifecycle', () => {
         createdBy: f.performerId,
       });
       const verdict = await withTransaction(harness.pool, async (tx) => {
-        await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+        await bindReader(tx, f);
         const rows = await tx.query<{ unverified: boolean }>(
           'select work.evidence_ref_is_unverified_record($1) as unverified',
           [unchecked],
@@ -250,7 +254,7 @@ describe('verification is orthogonal to lifecycle', () => {
 
     it('permits a record that has been verified', async () => {
       const verdict = await withTransaction(harness.pool, async (tx) => {
-        await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+        await bindReader(tx, f);
         const rows = await tx.query<{ unverified: boolean }>(
           'select work.evidence_ref_is_unverified_record($1) as unverified',
           [objectId],
@@ -264,7 +268,7 @@ describe('verification is orthogonal to lifecycle', () => {
       // Evidence is often a URL, a run id, a document number from a system that is not this one.
       // Those are §41's admissibility problem, not this trigger's.
       const verdicts = await withTransaction(harness.pool, async (tx) => {
-        await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+        await bindReader(tx, f);
         const rows = await tx.query<{ unverified: boolean }>(
           `select work.evidence_ref_is_unverified_record(r) as unverified
              from unnest(array['https://example.invalid/run/7', 'OH-DOC-000001-3-R01', 'not-a-uuid']) as r`,
@@ -316,7 +320,7 @@ describe('verification is orthogonal to lifecycle', () => {
     });
 
     const atLowerCeiling = await withTransaction(harness.pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'internal']);
+      await bindReader(tx, f, f.performerId, 'internal');
       const rows = await tx.query('select 1 from core.object_verification where object_id = $1', [
         objectId,
       ]);

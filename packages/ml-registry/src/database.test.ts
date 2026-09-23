@@ -1,6 +1,6 @@
 import { createHash, generateKeyPairSync, sign as edSign, type KeyObject } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { canonicalBytes, digest } from '@kf/canonicalization';
+import { auditChainDigest, canonicalBytes, digest, GENESIS_DIGEST } from '@kf/canonicalization';
 import { withTransaction, type Tx } from '@kf/database';
 import { createFabricDispatcher } from '@kf/orchestrator';
 import {
@@ -13,6 +13,7 @@ import {
 } from './index.js';
 import {
   bindContext,
+  bindReader,
   seedFixtures,
   startHarness,
   type Fixtures,
@@ -229,9 +230,22 @@ async function insertPromotionDecisionFixture(
   const head = await tx.maybeOne<{ digest: string }>(
     'select digest from core.audit_event order by seq desc limit 1',
   );
-  const auditDigest = createHash('sha256')
-    .update(`promotion-authority-audit:${actionId}`)
+  // The database recomputes every audit link (20260923000200) and refuses a digest it cannot
+  // reproduce, so the fixture computes the real one: over the action's own targets.
+  const stateDigest = createHash('sha256')
+    .update(`promotion-authority-state:${actionId}`)
     .digest('hex');
+  const prevDigest = head?.digest ?? GENESIS_DIGEST;
+  const auditDigest = auditChainDigest(prevDigest, {
+    action_id: actionId,
+    action_type: 'authorize_ml_promotion',
+    actor_id: actorId,
+    acting_role_id: roleId,
+    object_ids: [object.id],
+    effective_at: effectiveAt,
+    before_digest: stateDigest,
+    after_digest: stateDigest,
+  });
   await tx.query(
     `insert into core.audit_event
        (action_id, actor_id, acting_role_id, action_type, object_id, effective_at,
@@ -245,8 +259,8 @@ async function insertPromotionDecisionFixture(
       effectiveAt,
       requestId,
       reason,
-      createHash('sha256').update(`promotion-authority-state:${actionId}`).digest('hex'),
-      head?.digest ?? '0'.repeat(64),
+      stateDigest,
+      prevDigest,
       auditDigest,
     ],
   );
@@ -1494,11 +1508,11 @@ describe('organization-scoped ML registry database', () => {
     );
     expect(visible.privileges).toEqual({ canSelect: true, canWrite: false });
 
+    // A reader in another, real organization: the application can no longer bind an
+    // organization with nobody behind it (20260923000100).
+    const otherOrganization = await seedFixtures(harness.adminPool, { auditClearance: false });
     const hidden = await withTransaction(harness.pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [
-        OTHER_ORGANIZATION_ID,
-        'restricted',
-      ]);
+      await bindReader(tx, otherOrganization);
       return tx.query('select key_id from ml.promotion_verification_key where key_id = $1', [
         keyId,
       ]);

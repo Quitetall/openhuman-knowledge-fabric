@@ -12,6 +12,7 @@ import {
 } from '@kf/retrieval';
 import {
   bindContext,
+  bindReader,
   createObject,
   seedFixtures,
   startHarness,
@@ -97,7 +98,9 @@ describe('the band mask is derived from live records', () => {
    */
   async function coverageFor(ceiling: string): Promise<AccessCoverage> {
     return withTransaction(harness.pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [f.organizationId, ceiling]);
+      // The reader is the person whose coverage is asked for, bound as a principal: the
+      // application no longer binds an organization and a ceiling with nobody behind them.
+      await bindReader(tx, f, f.performerId, ceiling);
       return enumerateAccessCoverage(tx, f.performerId, f.organizationId);
     });
   }

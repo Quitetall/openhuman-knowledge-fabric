@@ -37,8 +37,16 @@ let percentWildcardNeighbour: string;
 let underscoreLiteral: string;
 let underscoreWildcardNeighbour: string;
 
-const internal = () => ({ organizationId: f.organizationId, maxClassification: 'internal' });
-const restricted = () => ({ organizationId: f.organizationId, maxClassification: 'restricted' });
+// A search runs as a principal (20260923000100): a person under a live assignment, whose
+// clearance the database clamps the requested ceiling to.
+const asPerformer = (maxClassification: string) => ({
+  actorId: f.performerId,
+  actingRoleId: f.performerRoleId,
+  organizationId: f.organizationId,
+  maxClassification,
+});
+const internal = () => asPerformer('internal');
+const restricted = () => asPerformer('restricted');
 
 beforeAll(async () => {
   h = await startHarness();
@@ -228,12 +236,28 @@ describe('visibility', () => {
   });
 
   it('hides everything from another organization', async () => {
+    // A real second organization with a real person in it: the application can no longer bind
+    // an organization nobody belongs to, so the reader there has to exist to ask at all.
+    const other = await seedFixtures(h.adminPool, { auditClearance: false });
     const hits = await search(
       h.pool,
-      { organizationId: '01930000-0000-7000-8000-00000000dead', maxClassification: 'restricted' },
+      {
+        actorId: other.performerId,
+        actingRoleId: other.performerRoleId,
+        organizationId: other.organizationId,
+        maxClassification: 'restricted',
+      },
       { text: 'leakage' },
     );
     expect(hits).toEqual([]);
+    // And an organization the caller does not belong to is refused, not answered empty.
+    await expect(
+      search(
+        h.pool,
+        { ...restricted(), organizationId: other.organizationId },
+        { text: 'leakage' },
+      ),
+    ).rejects.toThrow(/not held live/);
   });
 
   it('a classification the caller does not hold narrows, never widens', async () => {

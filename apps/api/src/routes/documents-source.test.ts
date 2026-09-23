@@ -21,6 +21,9 @@ function caller(): IdentifyCaller {
 function pool(row: Record<string, unknown> | undefined, asArtifact = false): Pool {
   const client = {
     query: vi.fn(async (sql: string, params?: readonly unknown[]) => {
+      // The caller is bound as a principal (core.bind_principal, 20260923000100); the database
+      // answers with the ceiling it bound, which the fake takes as the one requested.
+      if (sql.includes('core.bind_principal')) return { rows: [{ ceiling: params?.[3] }] };
       // Access is a grant on every read surface (ADR 0016). The fakes answer the two queries the
       // gate asks: the object's classification, and an organization-wide read grant.
       if (sql.includes('/* read-grant.classifications */')) {

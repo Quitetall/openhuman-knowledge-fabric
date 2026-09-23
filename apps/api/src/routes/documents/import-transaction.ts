@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { setAccessContext, withTransaction } from '@kf/database';
+import { withTransaction, bindPrincipal } from '@kf/database';
 import { artifactKindForDocumentClass } from '@kf/documents';
 import type { Caller } from '../actions.js';
 import {
@@ -26,10 +26,7 @@ export async function persistDocumentImport(
   common: DocumentActionContext,
 ): Promise<DocumentImportResult> {
   return withTransaction(options.pool, async (tx) => {
-    await setAccessContext(tx, {
-      organizationId: identity.organizationId,
-      maxClassification: identity.maxClassification,
-    });
+    await bindPrincipal(tx, identity);
     await lockDocumentImport(tx, identity.organizationId, sourceFacts.stableKey);
     const currentSource = await currentImportSource(
       tx,

@@ -1,4 +1,4 @@
-import { setAccessContext, withTransaction, type Pool } from '@kf/database';
+import { bindPrincipal, withTransaction, type Pool } from '@kf/database';
 import type { ObjectStore } from '@kf/artifacts';
 import type {
   DogfoodActionContext,
@@ -25,10 +25,7 @@ export async function loadDocumentConstitution(
   // Immutable, content-addressed blobs are staged before one authoritative transaction.
   // Failure leaves at most unreferenced bytes; never a partial constitution in PostgreSQL.
   return withTransaction(pool, async (tx) => {
-    await setAccessContext(tx, {
-      organizationId: identity.organizationId,
-      maxClassification: 'restricted',
-    });
+    await bindPrincipal(tx, { ...identity, maxClassification: 'restricted' });
     const common: DogfoodActionContext = {
       ...identity,
       maxClassification: 'restricted',

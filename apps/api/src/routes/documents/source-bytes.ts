@@ -5,7 +5,7 @@ import {
   type ObjectStore,
   type StoreRegistry,
 } from '@kf/artifacts';
-import { setAccessContext, withTransaction, type Pool, type Tx } from '@kf/database';
+import { bindPrincipal, withTransaction, type Pool, type Principal, type Tx } from '@kf/database';
 
 export interface VerifiedStoredBytes {
   /** The artifact version whose bytes these are — what the location ledger is keyed by. */
@@ -172,16 +172,13 @@ export async function readVerifiedDocumentBytes(
  */
 export function degradedReadFrom(
   pool: Pool,
-  identity: { readonly organizationId: string; readonly maxClassification: string },
+  identity: Principal,
   stores: StoreRegistry,
   versionId: string,
 ): () => Promise<{ bytes: Buffer; servedFrom: string } | undefined> {
   return () =>
     withTransaction(pool, async (tx) => {
-      await setAccessContext(tx, {
-        organizationId: identity.organizationId,
-        maxClassification: identity.maxClassification,
-      });
+      await bindPrincipal(tx, identity);
       const served = await readVersionBytes(tx, stores, versionId);
       return served === undefined
         ? undefined

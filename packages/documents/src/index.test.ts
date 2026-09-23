@@ -8,7 +8,13 @@ import {
   StoreRegistry,
 } from '@kf/artifacts';
 import { canonicalize, digest } from '@kf/canonicalization';
-import { setAccessContext, setTransactionContext, withTransaction, type Tx } from '@kf/database';
+import {
+  bindPrincipal,
+  setAccessContext,
+  setTransactionContext,
+  withTransaction,
+  type Tx,
+} from '@kf/database';
 import { createFabricDispatcher } from '@kf/orchestrator';
 import {
   artifactKindForDocumentClass,
@@ -665,7 +671,9 @@ describe('document action chain', () => {
       exporter: 'google-drive-api-v3 files.export mimeType=text/markdown',
     });
     const locators = await withTransaction(harness.pool, async (tx) => {
-      await setAccessContext(tx, {
+      await bindPrincipal(tx, {
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
         organizationId: fixtures.organizationId,
         maxClassification: 'restricted',
       });
@@ -724,7 +732,9 @@ describe('document action chain', () => {
       storage_uri: key,
     });
     const rows = await withTransaction(harness.pool, async (tx) => {
-      await setAccessContext(tx, {
+      await bindPrincipal(tx, {
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
         organizationId: fixtures.organizationId,
         maxClassification: 'restricted',
       });
@@ -846,7 +856,9 @@ describe('document action chain', () => {
       maxClassification: 'restricted',
     });
     const stored = await withTransaction(harness.pool, async (tx) => {
-      await setAccessContext(tx, {
+      await bindPrincipal(tx, {
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
         organizationId: fixtures.organizationId,
         maxClassification: 'restricted',
       });
@@ -928,7 +940,9 @@ describe('document action chain', () => {
     );
 
     const rows = await withTransaction(harness.pool, async (tx) => {
-      await setAccessContext(tx, {
+      await bindPrincipal(tx, {
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
         organizationId: fixtures.organizationId,
         maxClassification: 'restricted',
       });
@@ -1054,7 +1068,9 @@ describe('document action chain', () => {
 
     const readActivity = () =>
       withTransaction(harness.pool, async (tx) => {
-        await setAccessContext(tx, {
+        await bindPrincipal(tx, {
+          actorId: fixtures.reviewerId,
+          actingRoleId: fixtures.reviewerRoleId,
           organizationId: fixtures.organizationId,
           maxClassification: 'restricted',
         });
@@ -1160,7 +1176,9 @@ describe('document action chain', () => {
     });
     const readRelationActivity = () =>
       withTransaction(harness.pool, async (tx) => {
-        await setAccessContext(tx, {
+        await bindPrincipal(tx, {
+          actorId: fixtures.reviewerId,
+          actingRoleId: fixtures.reviewerRoleId,
           organizationId: fixtures.organizationId,
           maxClassification: 'restricted',
         });
@@ -1298,7 +1316,9 @@ describe('document action chain', () => {
 
     const readGateDebt = () =>
       withTransaction(harness.pool, async (tx) => {
-        await setAccessContext(tx, {
+        await bindPrincipal(tx, {
+          actorId: fixtures.reviewerId,
+          actingRoleId: fixtures.reviewerRoleId,
           organizationId: fixtures.organizationId,
           maxClassification: 'restricted',
         });
@@ -1433,7 +1453,9 @@ describe('document action chain', () => {
 
     await expect(
       withTransaction(harness.pool, async (tx) => {
-        await setAccessContext(tx, {
+        await bindPrincipal(tx, {
+          actorId: fixtures.reviewerId,
+          actingRoleId: fixtures.reviewerRoleId,
           organizationId: fixtures.organizationId,
           maxClassification: 'restricted',
         });
@@ -1454,7 +1476,9 @@ describe('document action chain', () => {
     const divergentRequestId = `divergent-holder-${divergentActionId}`;
     await expect(
       withTransaction(harness.pool, async (tx) => {
-        await setAccessContext(tx, {
+        await bindPrincipal(tx, {
+          actorId: fixtures.reviewerId,
+          actingRoleId: fixtures.reviewerRoleId,
           organizationId: fixtures.organizationId,
           maxClassification: 'restricted',
         });
@@ -1683,7 +1707,9 @@ describe('document action chain', () => {
       storage_uri: storageKey,
     });
     const artifactVersionId = await withTransaction(harness.pool, async (tx) => {
-      await setAccessContext(tx, {
+      await bindPrincipal(tx, {
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
         organizationId: fixtures.organizationId,
         maxClassification: 'restricted',
       });
@@ -2359,7 +2385,9 @@ describe('document action chain', () => {
       'author',
     );
     const proposalDigest = await withTransaction(harness.pool, async (tx) => {
-      await setAccessContext(tx, {
+      await bindPrincipal(tx, {
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
         organizationId: fixtures.organizationId,
         maxClassification: 'restricted',
       });
@@ -2369,15 +2397,85 @@ describe('document action chain', () => {
       );
     });
     expect(proposalDigest.model_provenance).toEqual(provenance);
-    const fragmentRevision3Id = uuid();
-    await call('apply_document_proposal', [fragmentId], {
-      proposal_id: proposalId,
-      proposal_digest: proposalDigest.proposal_digest,
-      revision_id: fragmentRevision3Id,
+    // Separation of duty: whoever records a proposal — here, asks a model for it — does not
+    // also apply it. The reviewer records a second proposal and is refused applying their own.
+    const ownProposalId = uuid();
+    await call(
+      'record_document_proposal',
+      [fragmentId],
+      {
+        proposal_id: ownProposalId,
+        basis_id: basisId,
+        proposal_kind: 'source_patch',
+        proposed_by_kind: 'model',
+        model_provider: 'local-test',
+        model_profile: 'deterministic-fixture',
+        model_request_id: 'request-test-only',
+        model_provenance: provenance,
+        base_fragment_revision_id: fragmentRevision2Id,
+        operations: [
+          {
+            operation: 'replace_fragment_source',
+            media_type: 'text/markdown',
+            classification: 'internal',
+            holder_id: uuid(),
+            previous_holder_id: fragmentRevisionHolderId,
+            holder: {
+              kind: 'git',
+              repository: 'local/openhuman',
+              commit_sha: commit('0'),
+              path: 'docs/atoms/purpose.md',
+              submodule_commit_sha: null,
+              content_digest: hexDigest('0'),
+            },
+          },
+        ],
+      },
+      'technical',
+    );
+    const ownDigest = await withTransaction(harness.pool, async (tx) => {
+      await bindPrincipal(tx, {
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
+        organizationId: fixtures.organizationId,
+        maxClassification: 'restricted',
+      });
+      return (
+        await tx.one<{ proposal_digest: string }>(
+          'select proposal_digest from content.proposal_overlay where id = $1',
+          [ownProposalId],
+        )
+      ).proposal_digest;
     });
+    await expect(
+      call(
+        'apply_document_proposal',
+        [fragmentId],
+        { proposal_id: ownProposalId, proposal_digest: ownDigest, revision_id: uuid() },
+        'technical',
+        'reviewed my own model proposal against the source',
+      ),
+    ).rejects.toMatchObject({ failure: 'separation_of_duty' });
+
+    const fragmentRevision3Id = uuid();
+    // Applying a proposal is reason-required, and by someone other than its author: the
+    // performer recorded it, the reviewer applies it.
+    await call(
+      'apply_document_proposal',
+      [fragmentId],
+      {
+        proposal_id: proposalId,
+        proposal_digest: proposalDigest.proposal_digest,
+        revision_id: fragmentRevision3Id,
+      },
+      'technical',
+      'reviewed the model proposal against the source',
+    );
 
     const appliedProposalState = await withTransaction(harness.pool, async (tx) => {
-      await setAccessContext(tx, {
+      await bindPrincipal(tx, {
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
         organizationId: fixtures.organizationId,
         maxClassification: 'restricted',
       });
@@ -2440,7 +2538,9 @@ describe('document action chain', () => {
     ).rejects.toMatchObject({ detail: { rule: 'KF-DOC-COMP-004' } });
 
     const facts = await withTransaction(harness.pool, async (tx) => {
-      await setAccessContext(tx, {
+      await bindPrincipal(tx, {
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
         organizationId: fixtures.organizationId,
         maxClassification: 'restricted',
       });

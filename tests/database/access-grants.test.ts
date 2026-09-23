@@ -13,6 +13,7 @@ import type { DocumentRoutesOptions } from '../../apps/api/src/routes/documents/
 import { readGranted, readGrantedSubset } from '../../apps/api/src/routes/documents/read-grant.js';
 import {
   bindContext,
+  bindReader,
   createObject,
   seedFixtures,
   startHarness,
@@ -97,10 +98,7 @@ const dispatcher = () =>
 
 async function permittedFor(personId: string): Promise<readonly string[]> {
   return withTransaction(harness.pool, async (tx) => {
-    await tx.query('select core.set_access_context($1, $2)', [
-      fixtures.organizationId,
-      'restricted',
-    ]);
+    await bindReader(tx, fixtures, fixtures.reviewerId);
     const members = await enumeratePermittedSet(tx, personId, fixtures.organizationId);
     return members.map((member) => member.objectId);
   });
@@ -108,10 +106,7 @@ async function permittedFor(personId: string): Promise<readonly string[]> {
 
 async function explainFor(personId: string, objectId: string): Promise<AccessExplanation> {
   return withTransaction(harness.pool, async (tx) => {
-    await tx.query('select core.set_access_context($1, $2)', [
-      fixtures.organizationId,
-      'restricted',
-    ]);
+    await bindReader(tx, fixtures, fixtures.reviewerId);
     return explainAccess(tx, { personId, organizationId: fixtures.organizationId, objectId });
   });
 }
@@ -138,10 +133,7 @@ function routeOptions(actorId: string, actingRoleId: string): DocumentRoutesOpti
 describe('access is a grant', () => {
   it('reads an organization-scoped role assignment as organization-wide read and act', async () => {
     const rows = await withTransaction(harness.pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [
-        fixtures.organizationId,
-        'restricted',
-      ]);
+      await bindReader(tx, fixtures, fixtures.reviewerId);
       return tx.query<{ capability: string; scope_object_id: string; source: string }>(
         `select source, capability, scope_object_id from org.effective_access_grant
           where principal_id = $1 order by capability`,
@@ -161,10 +153,7 @@ describe('access is a grant', () => {
       }),
     ]);
     const coverage = await withTransaction(harness.pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [
-        fixtures.organizationId,
-        'restricted',
-      ]);
+      await bindReader(tx, fixtures, fixtures.reviewerId);
       return enumerateAccessCoverage(tx, fixtures.performerId, fixtures.organizationId);
     });
     expect(coverage.organizationWide.map((grant) => grant.source)).toEqual(['role_assignment']);
@@ -192,10 +181,7 @@ describe('access is a grant', () => {
     // Every read surface asks the same question the master record asks (ADR 0016, applied
     // 2026-09-11): the grant reaches the probe and nothing else the outsider is cleared for.
     const reads = await withTransaction(harness.pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [
-        fixtures.organizationId,
-        'restricted',
-      ]);
+      await bindReader(tx, fixtures, fixtures.reviewerId);
       const identity = { actorId: outsider, organizationId: fixtures.organizationId };
       return {
         probe: await readGranted(tx, identity, probe),
@@ -414,10 +400,7 @@ describe('access is a grant', () => {
     const before = await explainFor(outsider, target);
     expect(before.decision).toBe('visible');
     const actBefore = await withTransaction(harness.pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [
-        fixtures.organizationId,
-        'restricted',
-      ]);
+      await bindReader(tx, fixtures, fixtures.reviewerId);
       return explainAccess(tx, {
         personId: outsider,
         organizationId: fixtures.organizationId,

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { DEFAULT_REASON_REQUIRED } from '@kf/actions';
-import { withTransaction, type Pool, type Tx } from '@kf/database';
+import { bindPrincipal, PrincipalRefused, withTransaction, type Pool, type Tx } from '@kf/database';
 import { projectProgress } from '@kf/work-control';
 import { unidentified } from './auth.js';
 import type { Caller, IdentifyCaller } from './contracts.js';
@@ -23,11 +23,15 @@ async function identifyCaller(
   return identify({ headers });
 }
 
-async function setAccessContext(tx: Tx, caller: Caller): Promise<void> {
-  await tx.query('select core.set_access_context($1, $2)', [
-    caller.organizationId,
-    caller.maxClassification,
-  ]);
+/** Bind the caller; false when the database refuses them this scope, which reads as 404. */
+async function setAccessContext(tx: Tx, caller: Caller): Promise<boolean> {
+  try {
+    await bindPrincipal(tx, caller);
+    return true;
+  } catch (error: unknown) {
+    if (error instanceof PrincipalRefused) return false;
+    throw error;
+  }
 }
 
 function registerProjectReadRoute(app: FastifyInstance, options: ReadRouteOptions): void {
@@ -40,7 +44,9 @@ function registerProjectReadRoute(app: FastifyInstance, options: ReadRouteOption
     }
 
     return withTransaction(options.pool, async (tx) => {
-      await setAccessContext(tx, caller);
+      if (!(await setAccessContext(tx, caller))) {
+        return reply.code(404).send({ error: 'not_found' });
+      }
       const project = await tx.maybeOne<Record<string, unknown>>(
         `select o.id, o.enterprise_id, o.title, o.lifecycle_state, o.row_version,
                 p.project_code, p.objective, p.sponsor_id, p.started_on, p.target_completion
@@ -78,7 +84,9 @@ function registerAvailableActionsRoute(app: FastifyInstance, options: ReadRouteO
     }
 
     return withTransaction(options.pool, async (tx) => {
-      await setAccessContext(tx, caller);
+      if (!(await setAccessContext(tx, caller))) {
+        return reply.code(404).send({ error: 'not_found' });
+      }
       const object = await tx.maybeOne<{ object_type: string; lifecycle_state: string }>(
         'select object_type, lifecycle_state from core.object where id = $1',
         [request.params.id],
@@ -126,7 +134,9 @@ function registerHistoryRoute(app: FastifyInstance, options: ReadRouteOptions): 
     }
 
     return withTransaction(options.pool, async (tx) => {
-      await setAccessContext(tx, caller);
+      if (!(await setAccessContext(tx, caller))) {
+        return reply.code(404).send({ error: 'not_found' });
+      }
       const visible = await tx.maybeOne<{ id: string }>(
         'select id from core.object where id = $1',
         [request.params.id],

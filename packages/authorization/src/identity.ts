@@ -23,7 +23,7 @@
 
 import { createRemoteJWKSet, jwtVerify, type JWTPayload, type JWTVerifyGetKey } from 'jose';
 import type { Pool, Tx } from '@kf/database';
-import { withTransaction } from '@kf/database';
+import { bindPrincipal, withTransaction } from '@kf/database';
 import { authenticationEvent, type AuthenticationEvent } from './step-up.js';
 
 export interface Caller {
@@ -169,16 +169,10 @@ export async function resolveCaller(
     const caller = await resolveIn(tx, { issuer, subject, authentication, ...request });
     // Only the database-derived effective ceiling reaches RLS. The request header may narrow
     // that ceiling, but can never widen it or become the value bound to the transaction.
-    await tx.query('select core.set_access_context($1, $2)', [
-      request.organizationId,
-      caller.maxClassification,
-    ]);
+    await bindPrincipal(tx, caller);
     return caller;
   });
 }
-
-/** The widest classification, used only while identity itself is being resolved. */
-const RESOLUTION_CEILING = 'restricted';
 
 /** The database half, separated so it can be tested without a token. */
 export async function resolveIn(
@@ -192,25 +186,15 @@ export async function resolveIn(
     readonly authentication?: AuthenticationEvent;
   },
 ): Promise<Caller> {
-  // RESOLUTION RUNS UNDER A BOUND ORGANIZATION, OR IT RESOLVES NOTHING.
+  // The resolvers bind their own provisional context for their lookups (20260923000100).
   //
-  // `org.resolve_identity_role` is SECURITY DEFINER and joins `core.object` for the role
-  // assignment's envelope — and `core.object` FORCES row-level security, which binds the
-  // definer too. With no organization bound, the envelope is invisible, `role_held` is false,
-  // and every real login was refused as `role_not_held`. Every database test bound a context
-  // before calling this, so none of them saw it; the first person to log in on the dogfood
-  // host did (2026-09-11).
-  //
-  // The context bound here is provisional: this organization, at the widest ceiling, for the
-  // resolution queries only. Nothing in this function returns record content — it returns who
-  // the caller is and what ceiling they hold — and `resolveCaller` re-binds the transaction to
-  // that derived ceiling before anything else runs. The requested ceiling cannot be used
-  // instead: a caller asking for `public` must still be able to have their `internal`
-  // assignment envelope seen.
-  await tx.query('select core.set_access_context($1, $2)', [
-    request.organizationId,
-    RESOLUTION_CEILING,
-  ]);
+  // `core.object` forces row-level security, which binds a SECURITY DEFINER function too, so
+  // the assignment envelope is invisible without an organization bound. This function used to
+  // bind one itself — this organization at `restricted`, before it knew who the caller was —
+  // which required the application role to be able to bind any organization at any ceiling.
+  // That ability is what let a compromised API read every tenant, and it is gone: the
+  // database binds, looks, and restores inside the resolver, and the provisional context never
+  // reaches this transaction.
   const identity = await tx.maybeOne<{
     person_id: string;
     identity_revoked: boolean;

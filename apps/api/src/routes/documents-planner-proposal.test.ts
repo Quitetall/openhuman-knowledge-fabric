@@ -69,7 +69,13 @@ function caller(): IdentifyCaller {
 
 function pool(rowsFor: (sql: string) => readonly Record<string, unknown>[]): Pool {
   const client = {
-    query: vi.fn(async (sql: string) => ({ rows: rowsFor(sql) })),
+    query: vi.fn(async (sql: string, params?: readonly unknown[]) =>
+      // The caller is bound as a principal (core.bind_principal, 20260923000100); the database
+      // answers with the ceiling it bound, which the fake takes as the one requested.
+      sql.includes('core.bind_principal')
+        ? { rows: [{ ceiling: params?.[3] }] }
+        : { rows: rowsFor(sql) },
+    ),
     release: vi.fn(),
   };
   return { connect: vi.fn(async () => client) } as unknown as Pool;

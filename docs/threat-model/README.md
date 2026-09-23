@@ -52,6 +52,58 @@ The API process is the largest attack surface. Assume it is fully controlled.
 | Financial invariants are triggers, not application code                        | `20260811001200_finance.sql`   | `tests/end-to-end/reference-scenario.test.ts` |
 | Aggregate checks run SECURITY DEFINER so a narrowed scope cannot hide a breach | same                           | same                                          |
 
+**Until 2026-09-23 the rows above were the whole of T2, and they held only against a buggy
+API, not a hostile one.** A red-team pass executed as `kf_app` showed the context those guards
+read was the API's to write: `set_config('kf.organization', …)` bound any tenant, the ceiling
+was whatever string the API passed, the actor was any uuid, and `core.action`,
+`core.audit_event`, `org.role_assignment`, `org.external_identity` and
+`core.object_verification` all accepted direct inserts or updates that no act had made. Every
+one of those was a success, not a refusal. The controls below close them, each in the database:
+
+| Control                                                                                                                                          | Where                                                                                    | Proven by                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- | ------------------------------------------ |
+| The context is **sealed**: an HMAC under a key no role with write grants can read binds it to the transaction; a raw `set_config` reads as unset | `core.context_mac`, `20260923000100`                                                     | `tests/database/principal-binding.test.ts` |
+| No function but the context accessors reads a `kf.*` setting, and internal flags are sealed the same way                                         | same                                                                                     | same                                       |
+| The actor must be a person holding the stated acting role live in the bound organization; the ceiling is clamped to their clearance              | `core.set_transaction_context`                                                           | same                                       |
+| The API binds a reader only as a principal; organization and ceiling come from the principal's live assignment and clearance                     | `core.bind_principal`                                                                    | same                                       |
+| An action row must be the one the sealed context names — its id, actor, role and organization                                                    | `action_scoped_insert` policy                                                            | same                                       |
+| An audit event's digest is recomputed by the database, and its actor and action must match the context                                           | `core.enforce_audit_chain_head`                                                          | same                                       |
+| Role assignments and clearances can only be end-dated, never re-targeted, reopened or extended                                                   | guard triggers, `20260923000200`                                                         | same                                       |
+| An external identity is linked or revoked only under a sealed actor, in that actor's organization                                                | `org.external_identity` RLS                                                              | same                                       |
+| A verification row must name the sealed actor and action as verifier and act, and the verifier is never the record's creator                     | `object_verification_write` policy                                                       | same                                       |
+| A shared-link bearer binds only the link's own organization and ceiling, resolved by the database from the token digest                          | `content.bind_master_record_link`                                                        | same                                       |
+| SECURITY DEFINER lookups that take an organization answer only for the bound one                                                                 | `slot_bands`, `person_lookup`, `organization_by_name`, `secure_object_capability_grants` | same                                       |
+| An unverified record cannot be cited as evidence by wrapping its id; every uuid in a reference is checked                                        | `work.evidence_ref_is_unverified_record`                                                 | same                                       |
+| An access-grant revocation writes only its own columns, at the database's time                                                                   | column grant + `access_grant_revoked_now`                                                | same                                       |
+
+Two application-level controls sit beside these, because the adversary they answer is a tired
+person rather than a hostile process: `verify_record` and `apply_document_proposal` refuse the
+person who created the record or made (or asked a model for) the proposal, and a required reason
+must say something — eight characters and more than one repeated key
+(`packages/actions`; proven in `packages/documents/src/index.test.ts` and
+`tests/database/verify-record-action.test.ts`).
+
+**Not mitigated, recorded so nobody assumes otherwise:**
+
+- **Which acts a role may perform is decided in the application, not the database.** A
+  compromised API holding a real principal can dispatch an act that principal's role should not
+  perform. It cannot mint authority — people, role assignments and identity links are written
+  only by the owner credential's admin commands, and nobody may grant themselves a clearance —
+  and the act is attributed and chained, so it is detectable, not prevented.
+- **Row security is still not FORCED on every governed table** (RQ-073 says it should be). The
+  unforced tables are safe only while the API is not the table owner, which the API now refuses
+  at startup (T8) — a startup check, not a policy.
+- **A verification's basis is declared by its caller.** `reviewed_individually` written by a
+  script five hundred times is recorded as such; it is traceable per actor, not refused. The
+  honest fix is a server-side bulk gesture that stamps `promoted_in_bulk` itself.
+
+**Residual risk, stated plainly.** The database still cannot authenticate a human: it checks
+that the actor the API names really holds the role and clearance it claims, not that the
+person is present. A fully compromised API can therefore still act **as any real person with
+that person's real authority** — the true-shaped lie below, now bounded by that person's
+authority rather than by nothing. Closing it needs the database to verify the token itself,
+recorded as open item 6.
+
 A compromised API can still record **true-shaped lies** — an action that really was performed,
 by an actor it really was authorised for, saying something false. Nothing here prevents that,
 and nothing can: the system records what it is told by someone entitled to tell it.
@@ -202,6 +254,7 @@ whoever deploys, and a false one produces exactly the exposure it claims to prev
 | 3   | Object store backup on the database's schedule                 | T4 residual |
 | 4   | Certificate issuance and renewal at the proxy                  | Service     |
 | 5   | A person confirming they receive an alert                      | T5, T8      |
+| 6   | The database verifying the bearer token itself                 | T2 residual |
 
 Items 1–4 are decisions for whoever operates this, not code that is missing.
 

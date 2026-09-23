@@ -41,7 +41,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { InMemoryObjectStore, digestOf } from '@kf/artifacts';
 import { digest } from '@kf/canonicalization';
-import { createPool, setAccessContext, withTransaction, type Pool } from '@kf/database';
+import { bindPrincipal, createPool, withTransaction, type Pool, type Tx } from '@kf/database';
 import { atomsFromPandoc, createDocumentActionAtoms, type DocumentParser } from '@kf/documents';
 import { createFabricDispatcher } from '@kf/orchestrator';
 import { seedFixtures, startHarness, type Fixtures, type Harness } from './harness.js';
@@ -110,14 +110,24 @@ const CONTEXTS = [
   { label: 'own org, public ceiling', maxClassification: 'public' as const },
 ];
 
-async function snapshot(pool: Pool, organizationId: string): Promise<readonly Visible[]> {
+/**
+ * Bind the fixture reviewer as the reader. The application binds a principal, not an
+ * organization (20260923000100); the reviewer is cleared to restricted in the one organization.
+ */
+async function bindReviewer(tx: Tx, maxClassification: string): Promise<void> {
+  await bindPrincipal(tx, {
+    actorId: fixtures.reviewerId,
+    actingRoleId: fixtures.reviewerRoleId,
+    organizationId: fixtures.organizationId,
+    maxClassification,
+  });
+}
+
+async function snapshot(pool: Pool): Promise<readonly Visible[]> {
   const out: Visible[] = [];
   for (const context of CONTEXTS) {
     const rows = await withTransaction(pool, async (tx) => {
-      await setAccessContext(tx, {
-        organizationId,
-        maxClassification: context.maxClassification,
-      });
+      await bindReviewer(tx, context.maxClassification);
       return tx.query<{ key: string }>(
         `select composition_revision_id || ':' || ordinal || ':' || input_role as key
            from content.composition_input
@@ -146,9 +156,9 @@ async function snapshot(pool: Pool, organizationId: string): Promise<readonly Vi
  * A wall-clock bound on a machine running 33 PostgreSQL containers is a flake generator, and
  * this repository has already paid for that lesson once (#156).
  */
-async function subplanCount(pool: Pool, organizationId: string): Promise<number> {
+async function subplanCount(pool: Pool): Promise<number> {
   const lines = await withTransaction(pool, async (tx) => {
-    await setAccessContext(tx, { organizationId, maxClassification: 'restricted' });
+    await bindReviewer(tx, 'restricted');
     return tx.query<Record<string, string>>(
       'explain (costs off) select count(*) from content.composition_input',
     );
@@ -224,10 +234,7 @@ beforeAll(async () => {
       },
     });
     return withTransaction(harness.pool, async (tx) => {
-      await setAccessContext(tx, {
-        organizationId: fixtures.organizationId,
-        maxClassification: 'restricted',
-      });
+      await bindReviewer(tx, 'restricted');
       return (
         await tx.one<{ id: string }>(
           'select id from content.artifact_version where artifact_id = $1',
@@ -381,8 +388,8 @@ beforeAll(async () => {
     resourceVersionId,
   };
 
-  before = await snapshot(harness.pool, fixtures.organizationId);
-  subplansBefore = await subplanCount(harness.pool, fixtures.organizationId);
+  before = await snapshot(harness.pool);
+  subplansBefore = await subplanCount(harness.pool);
 
   // Apply the migration under test to this same live database.
   const sql = readFileSync(join(process.cwd(), 'database/migrations', MIGRATION), 'utf8');
@@ -392,8 +399,8 @@ beforeAll(async () => {
   );
   await withTransaction(harness.adminPool, (tx) => tx.query(up));
 
-  after = await snapshot(harness.pool, fixtures.organizationId);
-  subplansAfter = await subplanCount(harness.pool, fixtures.organizationId);
+  after = await snapshot(harness.pool);
+  subplansAfter = await subplanCount(harness.pool);
 }, 300_000);
 
 afterAll(async () => {
@@ -549,10 +556,7 @@ describe('moving the composition_input predicate into a function', () => {
     ];
 
     const compared = await withTransaction(harness.pool, async (tx) => {
-      await setAccessContext(tx, {
-        organizationId: fixtures.organizationId,
-        maxClassification: 'restricted',
-      });
+      await bindReviewer(tx, 'restricted');
       const out: { label: string; original: boolean | null; replacement: boolean | null }[] = [];
       for (const [label, ...args] of tuples) {
         const row = await tx.one<{ original: boolean | null; replacement: boolean | null }>(
@@ -626,10 +630,7 @@ describe('moving the composition_input predicate into a function', () => {
       for (let round = 0; round < 8; round += 1) {
         for (const ceiling of ['restricted', 'public'] as const) {
           const rows = await withTransaction(single, async (tx) => {
-            await setAccessContext(tx, {
-              organizationId: fixtures.organizationId,
-              maxClassification: ceiling,
-            });
+            await bindReviewer(tx, ceiling);
             return tx.query<{ key: string }>(
               'select ordinal::text as key from content.composition_input',
             );

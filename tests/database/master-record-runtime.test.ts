@@ -34,7 +34,12 @@ import {
 } from '@kf/integration';
 import { createFabricDispatcher } from '@kf/orchestrator';
 import { drainOutbox } from '../../apps/worker/src/outbox.js';
-import { setAccessContext, setTransactionContext, withTransaction } from '@kf/database';
+import {
+  bindPrincipal,
+  setAccessContext,
+  setTransactionContext,
+  withTransaction,
+} from '@kf/database';
 import {
   createObject,
   bindContext,
@@ -145,7 +150,9 @@ describe('master-record runtime', () => {
 
     const membersFor = async (personId: string): Promise<readonly string[]> =>
       withTransaction(harness.pool, async (tx) => {
-        await setAccessContext(tx, {
+        await bindPrincipal(tx, {
+          actorId: fixtures.reviewerId,
+          actingRoleId: fixtures.reviewerRoleId,
           organizationId: fixtures.organizationId,
           maxClassification: 'restricted',
         });
@@ -269,7 +276,9 @@ describe('master-record runtime', () => {
     });
 
     const members = await withTransaction(harness.pool, async (tx) => {
-      await setAccessContext(tx, {
+      await bindPrincipal(tx, {
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
         organizationId: fixtures.organizationId,
         maxClassification: 'restricted',
       });
@@ -596,7 +605,9 @@ describe('master-record runtime', () => {
   it('releases an entitlement exclusion only through the typed action seam', async () => {
     const actionId = await unrecordedAction();
     const objectId = await withTransaction(harness.pool, async (tx) => {
-      await setAccessContext(tx, {
+      await bindPrincipal(tx, {
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
         organizationId: fixtures.organizationId,
         maxClassification: 'restricted',
       });
@@ -734,7 +745,9 @@ describe('master-record runtime', () => {
     });
 
     const withdrawn = await withTransaction(harness.pool, async (tx) => {
-      await setAccessContext(tx, {
+      await bindPrincipal(tx, {
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
         organizationId: fixtures.organizationId,
         maxClassification: 'restricted',
       });

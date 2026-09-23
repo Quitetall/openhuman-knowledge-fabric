@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { setAccessContext, withTransaction } from '@kf/database';
+import { withTransaction, bindPrincipal } from '@kf/database';
 import type { Caller } from '../actions.js';
 import {
   SourceHolderConflict,
@@ -19,10 +19,7 @@ export async function preflightDocumentImport(
   // cannot pass existing authority/precondition contract before writing bytes. This remains
   // only a TOCTOU-prone early gate: authoritative action repeats every check after storage.
   await withTransaction(options.pool, async (tx) => {
-    await setAccessContext(tx, {
-      organizationId: identity.organizationId,
-      maxClassification: identity.maxClassification,
-    });
+    await bindPrincipal(tx, identity);
     const currentSource = await currentImportSource(tx, identity.organizationId, source.stableKey);
     if (currentSource !== undefined && currentSource.holder_kind !== 'fabric_native') {
       throw new SourceHolderConflict();

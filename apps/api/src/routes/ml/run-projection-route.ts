@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { IdentityRejected } from '@kf/authorization';
-import { setAccessContext, withTransaction } from '@kf/database';
+import { withTransaction, bindPrincipal } from '@kf/database';
 import { CallerRejected, unidentified } from '../actions.js';
 import type { MlRoutesOptions } from '../ml.js';
 import { MlSchemaUnavailable, requireMlSchema } from '../../schema-contract.js';
@@ -52,10 +52,7 @@ export function registerRunProjectionRoute(app: FastifyInstance, options: MlRout
         // could appear between its query and the later receipt query, producing a response
         // that never existed. This route has no reason to permit writes in its transaction.
         await tx.query('set transaction isolation level repeatable read, read only');
-        await setAccessContext(tx, {
-          organizationId: caller.organizationId,
-          maxClassification: caller.maxClassification,
-        });
+        await bindPrincipal(tx, caller);
         await requireMlSchema(tx);
         return readRunProjection(tx, request.params.authorityId, request.params.revisionId, pages);
       });

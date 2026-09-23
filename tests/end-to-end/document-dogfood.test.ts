@@ -3,7 +3,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { InMemoryObjectStore, digestOf } from '@kf/artifacts';
 import { digest } from '@kf/canonicalization';
-import { setAccessContext, withTransaction } from '@kf/database';
+import { bindPrincipal, withTransaction } from '@kf/database';
 import {
   atomsFromPandoc,
   createDocumentActionAtoms,
@@ -125,7 +125,9 @@ describe('document constitution dogfood', { timeout: 120_000 }, () => {
     expect(replay.objectIds).toEqual(artifact.objectIds);
 
     const versionId = await withTransaction(harness.pool, async (tx) => {
-      await setAccessContext(tx, {
+      await bindPrincipal(tx, {
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
         organizationId: fixtures.organizationId,
         maxClassification: 'restricted',
       });
@@ -178,7 +180,9 @@ describe('document constitution dogfood', { timeout: 120_000 }, () => {
       },
     });
     const manifestVersionId = await withTransaction(harness.pool, async (tx) => {
-      await setAccessContext(tx, {
+      await bindPrincipal(tx, {
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
         organizationId: fixtures.organizationId,
         maxClassification: 'restricted',
       });
@@ -225,7 +229,9 @@ describe('document constitution dogfood', { timeout: 120_000 }, () => {
     const { detail, summaries, source, approvals, authorityActions } = await withTransaction(
       harness.pool,
       async (tx) => {
-        await setAccessContext(tx, {
+        await bindPrincipal(tx, {
+          actorId: fixtures.reviewerId,
+          actingRoleId: fixtures.reviewerRoleId,
           organizationId: fixtures.organizationId,
           maxClassification: 'restricted',
         });

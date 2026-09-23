@@ -13,6 +13,7 @@ import { registerMasterRecordRoute } from '../../apps/api/src/routes/documents/m
 import type { DocumentRoutesOptions } from '../../apps/api/src/routes/documents/contracts.js';
 import {
   bindContext,
+  bindReader,
   createObject,
   seedFixtures,
   startHarness,
@@ -243,10 +244,7 @@ describe('corpus projections over a real master record', () => {
       createdBy: fixtures.performerId,
     });
     const before = await withTransaction(harness.pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [
-        fixtures.organizationId,
-        'restricted',
-      ]);
+      await bindReader(tx, fixtures, fixtures.performerId);
       return latestMasterRecord(tx, fixtures.performerId, fixtures.organizationId);
     });
     const app = Fastify({ logger: false });
@@ -268,10 +266,7 @@ describe('corpus projections over a real master record', () => {
       const response = await app.inject({ method: 'GET', url: `/objects/${probe}` });
       expect(response.statusCode, response.body).toBe(200);
       const after = await withTransaction(harness.pool, async (tx) => {
-        await tx.query('select core.set_access_context($1, $2)', [
-          fixtures.organizationId,
-          'restricted',
-        ]);
+        await bindReader(tx, fixtures, fixtures.performerId);
         return latestMasterRecord(tx, fixtures.performerId, fixtures.organizationId);
       });
       expect(after?.['id']).not.toBe(before?.['id']);

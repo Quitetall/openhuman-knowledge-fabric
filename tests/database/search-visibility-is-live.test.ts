@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { withTransaction } from '@kf/database';
 import {
   bindContext,
+  bindReader,
   createObject,
   seedFixtures,
   startHarness,
@@ -50,7 +51,7 @@ describe('search visibility follows the record, not the index copy', () => {
 
   async function visibleAt(ceiling: string): Promise<number> {
     return withTransaction(harness.pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [f.organizationId, ceiling]);
+      await bindReader(tx, f, f.performerId, ceiling);
       const rows = await tx.query<{ n: string }>(
         'select count(*)::text as n from search.document where object_id = $1',
         [objectId],

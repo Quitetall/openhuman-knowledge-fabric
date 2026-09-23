@@ -1,5 +1,5 @@
 import { createDispatcher, type ActionRequest, ActionRejected } from '@kf/actions';
-import { withTransaction, type Pool, type Tx } from '@kf/database';
+import { bindPrincipal, withTransaction, type Pool, type Tx } from '@kf/database';
 import type { AgentScope } from './types.js';
 
 export interface Rehearsal {
@@ -40,10 +40,7 @@ export async function rehearseAction(
   };
   try {
     await withTransaction(pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [
-        scope.organizationId,
-        scope.maxClassification,
-      ]);
+      await bindPrincipal(tx, scope);
       const before = await stateSnapshot(tx, full.targetIds);
       const execute = createDispatcher(singleTransactionPool(tx), dispatcherOptions);
       const result = await execute(full);

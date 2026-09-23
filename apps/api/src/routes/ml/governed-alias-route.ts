@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { IdentityRejected } from '@kf/authorization';
-import { setAccessContext, withTransaction } from '@kf/database';
+import { withTransaction, bindPrincipal } from '@kf/database';
 import { CallerRejected, unidentified } from '../actions.js';
 import type { MlRoutesOptions } from '../ml.js';
 import { MlSchemaUnavailable, requireMlSchema } from '../../schema-contract.js';
@@ -35,10 +35,7 @@ export function registerGovernedAliasRoute(app: FastifyInstance, options: MlRout
       try {
         const projection = await withTransaction(options.pool, async (tx) => {
           await tx.query('set transaction isolation level repeatable read, read only');
-          await setAccessContext(tx, {
-            organizationId: caller.organizationId,
-            maxClassification: caller.maxClassification,
-          });
+          await bindPrincipal(tx, caller);
           await requireMlSchema(tx);
           return readGovernedAlias(tx, caller.organizationId, request.params.aliasId);
         });

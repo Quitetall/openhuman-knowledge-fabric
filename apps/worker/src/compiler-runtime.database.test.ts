@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { type ActionRequest } from '@kf/actions';
 import { digestOf, InMemoryObjectStore } from '@kf/artifacts';
 import { digest } from '@kf/canonicalization';
-import { createPool, setAccessContext, withTransaction, type Pool } from '@kf/database';
+import { bindPrincipal, createPool, withTransaction, type Pool } from '@kf/database';
 import {
   createAuthoredFragmentRevision,
   createCompilationBasis,
@@ -106,7 +106,9 @@ describe('compiler runtime database boundary', () => {
     });
     const artifactId = artifact.objectIds[0]!;
     const artifactVersionId = await withTransaction(harness.pool, async (tx) => {
-      await setAccessContext(tx, {
+      await bindPrincipal(tx, {
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
         organizationId: fixtures.organizationId,
         maxClassification: 'restricted',
       });

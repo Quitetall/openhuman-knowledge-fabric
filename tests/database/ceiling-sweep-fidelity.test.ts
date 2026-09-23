@@ -41,8 +41,10 @@ const RESTATED = [
   'content.adr_decision_body.adr_decision_body_read',
   'content.adr_decision_body.adr_decision_body_insert',
   'content.authored_fragment_revision.authored_fragment_revision_scope',
-  'content.compilation_basis.compilation_basis_read',
-  'content.compilation_basis.compilation_basis_finalize',
+  // NOT content.compilation_basis.compilation_basis_{read,finalize}, for the same reason as
+  // search_document_read below: 20260923000100 drops and recreates both (they read the actor,
+  // which is now sealed), in the hashable form, so the final schema is identical with and
+  // without the sweep. `RESTATED_LATER` pins that the restatement kept the hashed ceiling.
   'content.compilation_run.compilation_run_scope',
   'content.compiled_view.compiled_view_scope',
   'content.document_publication.document_publication_scope',
@@ -57,6 +59,12 @@ const RESTATED = [
   'secure_object.capability_request.capability_request_insert',
   'secure_object.erasure_request.erasure_request_read',
   'secure_object.erasure_request.erasure_request_insert',
+] as const;
+
+/** Swept here, then restated wholesale by a later migration; checked for the ceiling only. */
+const RESTATED_LATER = [
+  'content.compilation_basis.compilation_basis_read',
+  'content.compilation_basis.compilation_basis_finalize',
 ] as const;
 
 /**
@@ -211,6 +219,17 @@ describe('the ceiling sweep is a faithful transcription', () => {
       expect(after.get(key), `${key} does not carry the hashed ceiling after the sweep`).toMatch(
         /IN \(\s*SELECT classification\.id/,
       );
+    }
+    for (const key of RESTATED_LATER) {
+      for (const [side, text] of [
+        ['with', after.get(key)],
+        ['without', before.get(key)],
+      ] as const) {
+        expect(
+          text,
+          `${key} lost the hashed ceiling in its restatement (${side} the sweep)`,
+        ).toMatch(/IN \(\s*SELECT classification\.id/);
+      }
     }
   }, 300_000);
 });
