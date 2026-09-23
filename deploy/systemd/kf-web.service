@@ -4,6 +4,14 @@ Documentation=file:///opt/kf/docs/deployment/private-host.md
 Wants=network-online.target
 After=network-online.target kf-api.service
 OnFailure=kf-alert@%n.service
+# A crash loop must END in `failed`, because `failed` is the only state OnFailure= reacts to.
+# Restart=on-failure alone restarts forever: the unit sits in `activating (auto-restart)`, the
+# alert never fires, and a service that has not served a request in hours looks merely busy.
+# More than 5 starts inside 30 minutes stops the loop and alerts; `systemctl reset-failed`
+# after the fix re-arms it. A crash cycle slower than ~6 minutes never trips this — readiness
+# and the far-end heartbeat are what notice that one.
+StartLimitIntervalSec=30min
+StartLimitBurst=5
 
 [Service]
 Type=simple

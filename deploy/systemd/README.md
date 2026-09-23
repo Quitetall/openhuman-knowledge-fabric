@@ -271,6 +271,13 @@ Each unit has `OnFailure=kf-alert@%n.service`. Write that unit for whatever this
 uses to reach a person — there is no default here, because a default that goes nowhere is
 worse than an absent one that fails to start.
 
+The long-running services (`kf-api`, `kf-web`, `kf-worker`) restart on failure, and restart
+alone never reaches `failed`: the unit loops in `activating (auto-restart)` and `OnFailure=`
+never fires. Each therefore sets `StartLimitIntervalSec=30min` / `StartLimitBurst=5` in `[Unit]`,
+so a sixth start inside half an hour stops the loop, fails the unit and alerts. After fixing the
+cause, `systemctl reset-failed <unit>` re-arms it. `tests/deployment/systemd-units.test.ts`
+refuses any unit with `Restart=` that lacks either.
+
 A timer whose service fails stays failed until it is looked at; `systemctl list-units --failed`
 is the query. `kf-readiness` exits non-zero on **degraded** as well as failed, so a stale index
 or a lapsed drill surfaces before it becomes the reason a restore does not work.
