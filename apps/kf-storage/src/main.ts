@@ -4,6 +4,7 @@
  *   kf-storage --replicate         copy every version lacking a durable copy into S3_DURABLE_*
  *   kf-storage --verify [--older-than-days N]   re-verify locations not verified within N days
  *   kf-storage --collect-orphans [--grace-hours N]   remove evidence bytes no record references
+ *   kf-storage --check-permissions   may the working-store key collect orphans? (changes nothing)
  *
  * A separate one-shot behind a timer, in the shape of the checkpoint signer: its own unit,
  * its own uid, secrets from files. It acts as the declared SERVICE ACTOR named by
@@ -23,7 +24,13 @@ import {
 } from '@kf/artifacts';
 import { createPool } from '@kf/database';
 import { loadSecret } from '@kf/operations';
-import { sweepOrphanedEvidence } from './orphans.js';
+import { EVIDENCE_NAMESPACES, sweepOrphanedEvidence } from './orphans.js';
+import {
+  ORPHAN_POLICY_FILE,
+  ORPHAN_POLICY_NAME,
+  missingActions,
+  orphanPermissionRefusal,
+} from './permissions.js';
 import { runStorageSweep } from './sweep.js';
 
 function required(name: string): string {
@@ -56,7 +63,42 @@ function integerFlag(name: string, fallback: number): number {
   return value;
 }
 
+/**
+ * Probe, without removing anything, whether the working-store key may do what
+ * `--collect-orphans` needs. `provision-host.sh --check` runs this, so a missing policy is
+ * found at provisioning rather than by the first failed nightly run.
+ */
+async function checkPermissions(): Promise<number> {
+  const working = s3('S3', 'S3_BUCKET_ARTIFACTS');
+  if (working === undefined) throw new Error('S3_ENDPOINT (the working store) is required');
+  const organization = required('KF_STORAGE_ORGANIZATION');
+  const store = new S3SweepableObjectStore(working);
+  const missing = new Set<string>();
+  for (const namespace of EVIDENCE_NAMESPACES) {
+    for (const action of missingActions(
+      await store.probeCollectionPermissions(`${namespace}/${organization}/`),
+    )) {
+      missing.add(action);
+    }
+  }
+  const ok = missing.size === 0;
+  console.warn(
+    JSON.stringify({
+      action: 'check-permissions',
+      bucket: working.bucket,
+      access_key_id: working.accessKeyId,
+      policy: ORPHAN_POLICY_NAME,
+      policy_file: ORPHAN_POLICY_FILE,
+      missing: [...missing],
+      ok,
+    }),
+  );
+  if (!ok) console.error(orphanPermissionRefusal(working, [...missing]));
+  return ok ? 0 : 1;
+}
+
 async function main(): Promise<number> {
+  if (process.argv.includes('--check-permissions')) return checkPermissions();
   const wantsReplicate = process.argv.includes('--replicate');
   const wantsVerify = process.argv.includes('--verify');
   const wantsOrphans = process.argv.includes('--collect-orphans');
@@ -69,7 +111,7 @@ async function main(): Promise<number> {
         durable_store: process.env['S3_DURABLE_ENDPOINT'] ? 'configured' : 'absent',
         usage:
           'kf-storage --replicate | kf-storage --verify [--older-than-days N] | ' +
-          'kf-storage --collect-orphans [--grace-hours N]',
+          'kf-storage --collect-orphans [--grace-hours N] | kf-storage --check-permissions',
       }),
     );
     return 0;
@@ -118,6 +160,7 @@ async function main(): Promise<number> {
       ? await sweepOrphanedEvidence(pool, new S3SweepableObjectStore(working), actor, {
           graceHours: integerFlag('--grace-hours', 168),
           limit: integerFlag('--limit', 500),
+          accessDenied: orphanPermissionRefusal(working),
         })
       : { collected: [], kept: 0, refused: [] };
     const refused = [...report.refused, ...orphans.refused];

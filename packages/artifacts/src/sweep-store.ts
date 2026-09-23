@@ -9,6 +9,7 @@
  * unreferenced — this class decides nothing.
  */
 
+import { randomUUID } from 'node:crypto';
 import {
   DeleteObjectCommand,
   ListObjectVersionsCommand,
@@ -20,6 +21,34 @@ import type { S3Config } from './internal/store-contracts.js';
 export interface ListedObject {
   readonly key: string;
   readonly lastModified: Date;
+}
+
+/**
+ * Whether an S3 error is the store refusing this credential — as opposed to the object or the
+ * network. The SDK names the error after the S3 code; the status covers stores that do not.
+ */
+export function isAccessDenied(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const shaped = error as {
+    name?: unknown;
+    Code?: unknown;
+    $metadata?: { httpStatusCode?: unknown };
+  };
+  return (
+    shaped.name === 'AccessDenied' ||
+    shaped.Code === 'AccessDenied' ||
+    shaped.$metadata?.httpStatusCode === 403
+  );
+}
+
+/** What a credential may do for orphan collection, measured without removing anything. */
+export interface CollectionPermissions {
+  /** s3:ListBucket — listing current objects under the evidence prefixes. */
+  readonly listBucket: boolean;
+  /** s3:ListBucketVersions — finding every version of a key. */
+  readonly listBucketVersions: boolean;
+  /** s3:DeleteObjectVersion — removing a version, not only hiding it behind a marker. */
+  readonly deleteObjectVersion: boolean;
 }
 
 export interface SweepableObjectStore {
@@ -59,6 +88,64 @@ export class S3SweepableObjectStore implements SweepableObjectStore {
       }
       token = page.IsTruncated === true ? page.NextContinuationToken : undefined;
     } while (token !== undefined);
+  }
+
+  /**
+   * Ask the store whether this credential may list, list versions and delete versions under
+   * `prefix`, without touching any object. The delete names a random key that does not exist,
+   * with an explicit version: authorization is decided before existence, so a refusal is
+   * `AccessDenied` and anything else — success, or "no such version" — means permitted. An
+   * explicit-version delete never writes a delete marker, so a permitted probe changes nothing.
+   */
+  async probeCollectionPermissions(prefix: string): Promise<CollectionPermissions> {
+    const permitted = async (
+      probe: () => Promise<unknown>,
+      objectAnswerMeansPermitted = false,
+    ): Promise<boolean> => {
+      try {
+        await probe();
+        return true;
+      } catch (error: unknown) {
+        if (isAccessDenied(error)) return false;
+        const status = (error as { $metadata?: { httpStatusCode?: unknown } }).$metadata
+          ?.httpStatusCode;
+        // For the delete, a 4xx other than 403 is the store answering about the (absent)
+        // object, which it does only after authorizing. A list has no such excuse: a missing
+        // bucket is a failure to report, not a permission to claim.
+        if (
+          objectAnswerMeansPermitted &&
+          typeof status === 'number' &&
+          status >= 400 &&
+          status < 500
+        ) {
+          return true;
+        }
+        throw error;
+      }
+    };
+    return {
+      listBucket: await permitted(() =>
+        this.#client.send(
+          new ListObjectsV2Command({ Bucket: this.#bucket, Prefix: prefix, MaxKeys: 1 }),
+        ),
+      ),
+      listBucketVersions: await permitted(() =>
+        this.#client.send(
+          new ListObjectVersionsCommand({ Bucket: this.#bucket, Prefix: prefix, MaxKeys: 1 }),
+        ),
+      ),
+      deleteObjectVersion: await permitted(
+        () =>
+          this.#client.send(
+            new DeleteObjectCommand({
+              Bucket: this.#bucket,
+              Key: `${prefix}kf-permission-probe-${randomUUID()}`,
+              VersionId: 'null',
+            }),
+          ),
+        true,
+      ),
+    };
   }
 
   async deleteEveryVersion(key: string): Promise<number> {

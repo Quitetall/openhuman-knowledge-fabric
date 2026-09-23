@@ -1,0 +1,20 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "KfStorageListEvidence",
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket", "s3:ListBucketVersions"],
+      "Resource": ["arn:aws:s3:::KF_ARTIFACTS_BUCKET"]
+    },
+    {
+      "Sid": "KfStorageCollectOrphanedEvidence",
+      "Effect": "Allow",
+      "Action": ["s3:DeleteObjectVersion"],
+      "Resource": [
+        "arn:aws:s3:::KF_ARTIFACTS_BUCKET/ingest/*",
+        "arn:aws:s3:::KF_ARTIFACTS_BUCKET/document-imports/*"
+      ]
+    }
+  ]
+}

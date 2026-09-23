@@ -26,7 +26,7 @@
  * which makes the run exit non-zero and names the digest to re-ingest.
  */
 
-import type { SweepableObjectStore } from '@kf/artifacts';
+import { isAccessDenied, type SweepableObjectStore } from '@kf/artifacts';
 import { bindPrincipal, withTransaction, type Pool } from '@kf/database';
 import { assertServiceActor, type StorageActor } from './sweep.js';
 
@@ -41,6 +41,11 @@ export interface OrphanSweepOptions {
   /** Cap per run on keys removed, so a first run over a large backlog is bounded. */
   readonly limit?: number;
   readonly now?: Date;
+  /**
+   * Said instead of the store's bare "Access Denied." when it refuses this credential: which
+   * permissions are missing and the command that grants them. The run still fails.
+   */
+  readonly accessDenied?: string;
 }
 
 export interface OrphanSweepReport {
@@ -107,30 +112,46 @@ export async function sweepOrphanedEvidence(
   const refused: { subject: string; reason: string }[] = [];
   let kept = 0;
 
+  const explain = (error: unknown): string =>
+    isAccessDenied(error) && options.accessDenied !== undefined
+      ? options.accessDenied
+      : error instanceof Error
+        ? error.message
+        : String(error);
+
   for (const namespace of EVIDENCE_NAMESPACES) {
-    for await (const object of store.list(`${namespace}/${actor.organizationId}/`)) {
-      if (collected.length >= limit) break;
-      if (object.lastModified.getTime() >= cutoff || (await referenced(pool, actor, object.key))) {
-        kept += 1;
-        continue;
+    const prefix = `${namespace}/${actor.organizationId}/`;
+    try {
+      for await (const object of store.list(prefix)) {
+        if (collected.length >= limit) break;
+        if (
+          object.lastModified.getTime() >= cutoff ||
+          (await referenced(pool, actor, object.key))
+        ) {
+          kept += 1;
+          continue;
+        }
+        try {
+          await store.deleteEveryVersion(object.key);
+        } catch (error: unknown) {
+          refused.push({ subject: `object ${object.key}`, reason: explain(error) });
+          // The same refusal for every key after the first says nothing new; stop here.
+          if (isAccessDenied(error)) return { collected, kept, refused };
+          continue;
+        }
+        if (await referenced(pool, actor, object.key)) {
+          refused.push({
+            subject: `object ${object.key}`,
+            reason: 'became referenced while being collected; re-ingest these bytes',
+          });
+          continue;
+        }
+        collected.push(object.key);
       }
-      try {
-        await store.deleteEveryVersion(object.key);
-      } catch (error: unknown) {
-        refused.push({
-          subject: `object ${object.key}`,
-          reason: error instanceof Error ? error.message : String(error),
-        });
-        continue;
-      }
-      if (await referenced(pool, actor, object.key)) {
-        refused.push({
-          subject: `object ${object.key}`,
-          reason: 'became referenced while being collected; re-ingest these bytes',
-        });
-        continue;
-      }
-      collected.push(object.key);
+    } catch (error: unknown) {
+      if (!isAccessDenied(error)) throw error;
+      refused.push({ subject: `prefix ${prefix}`, reason: explain(error) });
+      return { collected, kept, refused };
     }
   }
   return { collected, kept, refused };

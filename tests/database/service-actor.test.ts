@@ -14,6 +14,7 @@ import { runDeclareServiceActor } from '../../apps/api/src/admin/declare-service
 import { EVIDENCE_KEY_NAMESPACES } from '@kf/documents';
 import type { ListedObject, SweepableObjectStore } from '@kf/artifacts';
 import { EVIDENCE_NAMESPACES, sweepOrphanedEvidence } from '../../apps/kf-storage/src/orphans.js';
+import { orphanPermissionRefusal } from '../../apps/kf-storage/src/permissions.js';
 import { runStorageSweep } from '../../apps/kf-storage/src/sweep.js';
 import {
   bindContext,
@@ -340,5 +341,58 @@ describe('orphaned evidence collection', () => {
       ),
     ).rejects.toThrow(/highest classification/);
     expect(store.deleted).toEqual([]);
+  });
+
+  it('names the missing permission and the command that grants it when the store refuses', async () => {
+    // A key without s3:DeleteObjectVersion used to fail every nightly run with the store's own
+    // "Access Denied." and nothing about which permission, which bucket or how to grant it.
+    // It still fails — loudly, non-zero — but says what to do.
+    const denied = (): Error =>
+      Object.assign(new Error('Access Denied.'), {
+        name: 'AccessDenied',
+        $metadata: { httpStatusCode: 403 },
+      });
+    const refusal = orphanPermissionRefusal({ bucket: 'kf-artifacts', accessKeyId: 'kf-storage' });
+    const actor = {
+      personId: steward.personId,
+      roleAssignmentId: steward.roleAssignmentId,
+      organizationId: fixtures.organizationId,
+      maxClassification: 'restricted',
+    };
+    const old = new Date('2020-01-01T00:00:00Z');
+
+    const cannotDelete = new (class extends AgedStore {
+      override async deleteEveryVersion(): Promise<number> {
+        throw denied();
+      }
+    })();
+    cannotDelete.objects.set(`ingest/${fixtures.organizationId}/${'e'.repeat(64)}`, old);
+    cannotDelete.objects.set(`ingest/${fixtures.organizationId}/${'d'.repeat(64)}`, old);
+    const deleteReport = await sweepOrphanedEvidence(harness.pool, cannotDelete, actor, {
+      graceHours: 168,
+      accessDenied: refusal,
+    });
+    // One refusal, not one per key: the second would say nothing the first did not.
+    expect(deleteReport.refused.map((entry) => entry.reason)).toEqual([refusal]);
+    expect(refusal).toContain('s3:DeleteObjectVersion');
+    expect(refusal).toContain('provision-host.sh --check');
+    expect(refusal).toContain('kf-storage-orphan-collection.policy.json');
+
+    const cannotList = new (class extends AgedStore {
+      override list(): AsyncIterable<ListedObject> {
+        return {
+          [Symbol.asyncIterator]: () => ({
+            next: () => Promise.reject(denied()),
+          }),
+        };
+      }
+    })();
+    const listReport = await sweepOrphanedEvidence(harness.pool, cannotList, actor, {
+      graceHours: 168,
+      accessDenied: refusal,
+    });
+    expect(listReport.refused).toEqual([
+      { subject: `prefix ingest/${fixtures.organizationId}/`, reason: refusal },
+    ]);
   });
 });

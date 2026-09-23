@@ -24,8 +24,10 @@ ExecStartPre=/usr/bin/test -s /etc/kf/storage/s3-durable-secret
 # runs last and removes evidence bytes no record references once they are a week old: an
 # ingest refused after its put leaves such bytes, and nothing else ever would remove them. It
 # needs the working-store credential to hold s3:ListBucketVersions and
-# s3:DeleteObjectVersion, and the actor's clearance to be the top classification; without
-# either the run refuses, exits non-zero, and kf-alert@ fires.
+# s3:DeleteObjectVersion (/opt/kf/deploy/object-store/kf-storage-orphan-collection.policy.json,
+# applied by scripts/deploy/provision-host.sh), and the actor's clearance to be the top
+# classification; without either the run refuses, exits non-zero, and kf-alert@ fires — naming
+# the missing permission, the policy and the command that grants it.
 ExecStart=/usr/bin/node /opt/kf/apps/kf-storage/dist/main.js --replicate --verify --older-than-days 30 --collect-orphans --grace-hours 168
 
 NoNewPrivileges=true
