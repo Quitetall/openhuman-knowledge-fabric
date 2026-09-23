@@ -6,7 +6,11 @@ import type {
   Caller,
   IdentifyCaller,
 } from './contracts.js';
-import { parseEffectiveAt } from './effective-at.js';
+import {
+  effectiveAtOutOfBounds,
+  parseEffectiveAt,
+  type EffectiveAtBounds,
+} from './effective-at.js';
 import { actionRejectionBody } from './errors.js';
 import { unidentified } from './auth.js';
 
@@ -15,6 +19,7 @@ interface ActionPostRouteOptions {
   readonly identify: IdentifyCaller;
   readonly stepUp: Readonly<Record<string, StepUpPolicy>>;
   readonly verifier: TokenVerifier | undefined;
+  readonly effectiveAtBounds: EffectiveAtBounds;
 }
 
 export function registerUnavailableActionRoute(app: FastifyInstance): void {
@@ -57,6 +62,16 @@ export function registerActionPostRoute(
         error: 'invalid_effective_at',
         message: 'effectiveAt must be a canonical four-digit-year RFC 3339 millisecond instant',
       });
+    }
+    if (effectiveAt !== undefined) {
+      const outOfBounds = effectiveAtOutOfBounds(
+        effectiveAt,
+        request.params.actionType,
+        options.effectiveAtBounds,
+      );
+      if (outOfBounds !== undefined) {
+        return reply.code(400).send({ error: 'effective_at_out_of_bounds', message: outOfBounds });
+      }
     }
 
     const stepUpReply = requireStepUp(caller, request.params.actionType, options);

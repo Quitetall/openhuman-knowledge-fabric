@@ -132,7 +132,12 @@ function dispatcherTx() {
     async one(sql: string) {
       statements.push(sql);
       if (sql.includes('core.audit_chain_head')) return { digest: GENESIS_DIGEST };
-      if (sql.includes('uuidv7()')) return { id: '77777777-7777-7777-8777-777777777777' };
+      if (sql.includes('uuidv7()')) {
+        return {
+          id: '77777777-7777-7777-8777-777777777777',
+          now: new Date('2026-08-14T12:00:00.000Z'),
+        };
+      }
       throw new Error(`unexpected one(): ${sql}`);
     },
     async maybeOne(sql: string) {

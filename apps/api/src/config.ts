@@ -46,6 +46,14 @@ export interface ApiConfig {
    */
   readonly readinessToken?: string;
   /**
+   * How far back a caller may date an action (KF_EFFECTIVE_AT_BACKDATE_DAYS, default 30), and
+   * which action types may go further (KF_EFFECTIVE_AT_BACKDATABLE_ACTIONS, comma-separated).
+   */
+  readonly effectiveAtBackdate?: {
+    readonly maxDays: number;
+    readonly backdatableActions: readonly string[];
+  };
+  /**
    * The compiled corpus-projection definitions (ADR 0013). A release tree carries generated/,
    * so the default resolves inside the checkout or release root the process runs from.
    */
@@ -354,6 +362,21 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     }
   }
 
+  const backdateRaw = env['KF_EFFECTIVE_AT_BACKDATE_DAYS'];
+  let backdateDays = 30;
+  if (backdateRaw !== undefined && backdateRaw !== '') {
+    backdateDays = Number(backdateRaw);
+    if (!Number.isInteger(backdateDays) || backdateDays < 0 || backdateDays > 3650) {
+      throw new ConfigError(
+        `KF_EFFECTIVE_AT_BACKDATE_DAYS must be an integer in 0..3650, got ${JSON.stringify(backdateRaw)}`,
+      );
+    }
+  }
+  const backdatableActions = (env['KF_EFFECTIVE_AT_BACKDATABLE_ACTIONS'] ?? '')
+    .split(',')
+    .map((action) => action.trim())
+    .filter((action) => action !== '');
+
   const origin = (name: string): string | undefined => {
     const value = env[name];
     if (value === undefined || value.trim() === '') return undefined;
@@ -403,6 +426,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     ...(durableStore === undefined ? {} : { durableStore }),
     ...(masterRecordLinkSecret === undefined ? {} : { masterRecordLinkSecret }),
     ...(readinessToken === undefined ? {} : { readinessToken }),
+    effectiveAtBackdate: { maxDays: backdateDays, backdatableActions },
   };
 }
 

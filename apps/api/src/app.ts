@@ -36,6 +36,7 @@ import { assessReadiness, type ReadinessReport } from '@kf/operations';
 import { timingSafeEqual } from 'node:crypto';
 import type { ApiConfig } from './config.js';
 import { createCallerIdentifier, registerActionRoutes } from './routes/actions.js';
+import { DEFAULT_EFFECTIVE_AT_BOUNDS } from './routes/actions/effective-at.js';
 import { registerDocumentRoutes } from './routes/documents.js';
 import type { ProjectionLinks } from '@kf/projections';
 import { registerMlRoutes } from './routes/ml.js';
@@ -350,6 +351,15 @@ export async function buildApp(
       execute,
       ...(verifier === undefined ? {} : { verifier }),
       trustHeaders,
+      ...(config.effectiveAtBackdate === undefined
+        ? {}
+        : {
+            effectiveAtBounds: {
+              ...DEFAULT_EFFECTIVE_AT_BOUNDS,
+              maxBackdateMs: config.effectiveAtBackdate.maxDays * 24 * 60 * 60 * 1000,
+              backdatableActions: new Set(config.effectiveAtBackdate.backdatableActions),
+            },
+          }),
     });
     await registerDocumentRoutes(app, {
       pool,

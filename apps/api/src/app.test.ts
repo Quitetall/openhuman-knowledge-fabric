@@ -110,6 +110,21 @@ describe('config', () => {
     ).toThrow(/cleartext dogfood.*loopback/);
   });
 
+  it('bounds how far back an action may be dated, and says which types may go further', () => {
+    const config = loadConfig({
+      ...baseEnv,
+      KF_EFFECTIVE_AT_BACKDATE_DAYS: '7',
+      KF_EFFECTIVE_AT_BACKDATABLE_ACTIONS: 'record_legacy_decision, import_record',
+    });
+    expect(config.effectiveAtBackdate).toEqual({
+      maxDays: 7,
+      backdatableActions: ['record_legacy_decision', 'import_record'],
+    });
+    expect(() => loadConfig({ ...baseEnv, KF_EFFECTIVE_AT_BACKDATE_DAYS: '-1' })).toThrow(
+      /KF_EFFECTIVE_AT_BACKDATE_DAYS/,
+    );
+  });
+
   it.each(['0', '65536', 'abc', '4000.5'])('rejects invalid PORT %s', (port) => {
     expect(() => loadConfig({ ...baseEnv, PORT: port })).toThrow(ConfigError);
   });
