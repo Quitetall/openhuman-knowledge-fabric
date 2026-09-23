@@ -7,6 +7,7 @@ export type ActionFailure =
   | 'actor_not_authorized'
   | 'classification_not_granted'
   | 'role_not_held'
+  | 'not_attested'
   | 'act_not_granted'
   | 'object_not_visible'
   | 'version_conflict'
@@ -47,6 +48,13 @@ export interface ActionRequest {
    */
   readonly organizationId: string;
   readonly maxClassification: string;
+  /**
+   * kf-attestor's proof that the actor is present (20260924001000), carried from the caller.
+   * The application login's bind is refused without one; service and administrator logins do
+   * not need it. Not part of the action's semantics: a retry carries a fresh one and must still
+   * replay, so the idempotency digest leaves it out.
+   */
+  readonly attestation?: string | undefined;
   /** When event occurred, which can differ from receipt time. */
   readonly effectiveAt?: Date;
   /** Row version caller read. Omit only for actions that create. */

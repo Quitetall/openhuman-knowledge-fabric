@@ -133,8 +133,19 @@ describe('the database binds the principal, and writes match it', () => {
     it('binds a person under their own live assignment, and sees their organization', async () => {
       const seen = await asApp(async (tx) => {
         const ceiling = await tx.one<{ c: string }>(
-          'select core.bind_principal($1, $2, $3, $4) as c',
-          [f.performerId, f.performerRoleId, f.organizationId, 'internal'],
+          'select core.bind_principal($1, $2, $3, $4, $5) as c',
+          [
+            f.performerId,
+            f.performerRoleId,
+            f.organizationId,
+            'internal',
+            await h.attest({
+              actorId: f.performerId,
+              actingRoleId: f.performerRoleId,
+              organizationId: f.organizationId,
+              maxClassification: 'internal',
+            }),
+          ],
         );
         const org = await tx.one<{ org: string }>(
           'select core.current_organization()::text as org',

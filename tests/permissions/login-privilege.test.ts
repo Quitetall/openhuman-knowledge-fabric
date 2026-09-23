@@ -50,9 +50,13 @@ beforeAll(async () => {
     await tx.query('alter table core.login_privilege_probe owner to kf_plain_owner');
     await tx.query(`create role kf_plain_owner_login login password '${PASSWORD}'`);
     await tx.query('grant kf_plain_owner to kf_plain_owner_login');
+    // An application login that also holds kf_service_actor: the storage sweep's shape, which
+    // binds service actors unattested. The API must never be it (20260924001000).
+    await tx.query(`create role kf_service_actor_login login password '${PASSWORD}'`);
+    await tx.query('grant kf_app, kf_service_actor to kf_service_actor_login');
     await tx.query(
       'grant connect on database kf_test to kf_bypass_login, kf_owner_member_login, ' +
-        'kf_plain_owner_login',
+        'kf_plain_owner_login, kf_service_actor_login',
     );
   });
 }, 180_000);
@@ -79,5 +83,50 @@ describe('database login privilege at API startup', () => {
     const app = await buildApp(configFor(url()));
     await expect(app.ready()).rejects.toThrow(/refusing to serve: database login/);
     await app.close().catch(() => undefined);
+  });
+
+  describe('under dogfood, a login that could vouch for people itself', () => {
+    const dogfood = (databaseUrl: string): ApiConfig => ({
+      ...configFor(databaseUrl),
+      deploymentProfile: 'dogfood',
+      identity: {
+        issuer: 'https://id.example.invalid/realms/kf',
+        audience: 'knowledge-fabric',
+        jwksUri: 'https://id.example.invalid/realms/kf/certs',
+      },
+      attestorSocket: '/nonexistent/kf-attestor.sock',
+    });
+
+    it('serves through a plain application login', async () => {
+      const app = await buildApp(dogfood(urlFor('kf_app_login')));
+      await app.ready();
+      await app.close();
+    });
+
+    it.each([
+      [
+        'a member of kf_attestor (the development login)',
+        () => h.developmentDatabaseUrl,
+        /kf_attestor/,
+      ],
+      ['a member of kf_service_actor', () => urlFor('kf_service_actor_login'), /kf_service_actor/],
+    ])('refuses to become ready as %s', async (_label, url, reason) => {
+      const app = await buildApp(dogfood(url()));
+      await expect(app.ready()).rejects.toThrow(reason);
+      await app.close().catch(() => undefined);
+    });
+
+    it('refuses to build at all without the attestor socket', async () => {
+      const { attestorSocket: _omitted, ...withoutSocket } = dogfood(urlFor('kf_app_login'));
+      await expect(buildApp(withoutSocket)).rejects.toThrow(/KF_ATTESTOR_SOCKET/);
+    });
+  });
+
+  it('lets the DEVELOPMENT profile serve through the development login', async () => {
+    const app = await buildApp(configFor(h.developmentDatabaseUrl));
+    await app.ready();
+    const res = await app.inject({ method: 'GET', url: '/ready' });
+    expect(res.json()).toMatchObject({ checks: { login: 'ok' } });
+    await app.close();
   });
 });

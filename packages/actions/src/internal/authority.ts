@@ -156,8 +156,15 @@ export async function bindResolvedAccessContext(tx: Tx, request: ActionRequest):
       assignmentId: request.actingRoleId,
       organizationId: request.organizationId,
       requestedClassification: request.maxClassification,
+      attestation: request.attestation,
     });
   } catch (error: unknown) {
+    if (error instanceof PrincipalRefused && error.reason === 'not_attested') {
+      throw new ActionRejected(
+        'not_attested',
+        'nobody attested that the actor is present; identify again',
+      );
+    }
     if (error instanceof PrincipalRefused && error.reason === 'role_not_held') {
       throw new ActionRejected(
         'role_not_held',

@@ -52,7 +52,8 @@ export async function registerActionRoutes(
   app: FastifyInstance,
   options: ActionRoutesOptions,
 ): Promise<void> {
-  const { pool, execute, verifier } = options;
+  const { pool, execute } = options;
+  const verifier = options.attestor ?? options.verifier;
   const stepUp = options.stepUp ?? DEFAULT_STEP_UP;
 
   /**

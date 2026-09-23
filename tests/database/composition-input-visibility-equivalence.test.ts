@@ -41,7 +41,14 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { InMemoryObjectStore, digestOf } from '@kf/artifacts';
 import { digest } from '@kf/canonicalization';
-import { bindPrincipal, createPool, withTransaction, type Pool, type Tx } from '@kf/database';
+import {
+  bindPrincipal,
+  createPool,
+  registerAttestationIssuer,
+  withTransaction,
+  type Pool,
+  type Tx,
+} from '@kf/database';
 import { atomsFromPandoc, createDocumentActionAtoms, type DocumentParser } from '@kf/documents';
 import { createFabricDispatcher } from '@kf/orchestrator';
 import { seedFixtures, startHarness, type Fixtures, type Harness } from './harness.js';
@@ -625,6 +632,8 @@ describe('moving the composition_input predicate into a function', () => {
     appUri.username = 'kf_app_login';
     appUri.password = 'test-only-not-a-secret';
     const single = createPool({ connectionString: appUri.toString(), maxConnections: 1 });
+    // The application login binds a person only on an attestation (20260924001000).
+    registerAttestationIssuer(single, harness.attest);
     try {
       const seen: { ceiling: string; count: number }[] = [];
       for (let round = 0; round < 8; round += 1) {

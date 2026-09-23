@@ -41,6 +41,7 @@ export async function registerSearchRoutes(
           {
             organizationId: caller.organizationId,
             maxClassification: caller.maxClassification,
+            attestation: caller.attestation,
           },
           query,
         );

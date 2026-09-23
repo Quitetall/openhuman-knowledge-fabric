@@ -60,6 +60,7 @@ export function registerDocumentImportRoute(
           actingRoleId: identity.actingRoleId,
           organizationId: identity.organizationId,
           maxClassification: identity.maxClassification,
+          attestation: identity.attestation,
           targetIds: [],
           requestId: String(request.id),
         };

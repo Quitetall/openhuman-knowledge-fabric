@@ -133,6 +133,7 @@ export function registerMasterRecordProjectionRoute(
           assignmentId: identity.actingRoleId,
           organizationId: identity.organizationId,
           requestedClassification: identity.maxClassification,
+          attestation: identity.attestation,
         });
         const record = await latestMasterRecord(tx, identity.actorId, identity.organizationId);
         if (record === undefined) return reply.code(404).send({ error: 'master_record_not_found' });

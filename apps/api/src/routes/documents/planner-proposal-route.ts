@@ -83,6 +83,7 @@ export function registerDocumentPlannerProposalRoute(
             actingRoleId: identity.actingRoleId,
             organizationId: identity.organizationId,
             maxClassification: identity.maxClassification,
+            attestation: identity.attestation,
             targetIds: [workspace.row.target_object_id],
             expectedVersion: claim.targetRowVersion,
             idempotencyKey: claim.idempotencyKey,

@@ -53,6 +53,7 @@ export function registerAccessExplanationRoute(
           assignmentId: identity.actingRoleId,
           organizationId: identity.organizationId,
           requestedClassification: identity.maxClassification,
+          attestation: identity.attestation,
         });
         const permitted = await enumeratePermittedSet(
           tx,

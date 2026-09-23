@@ -61,7 +61,9 @@ beforeAll(async () => {
       host: '127.0.0.1',
       port: 0,
       logLevel: process.env['LOG_LEVEL'] ?? 'silent',
-      databaseUrl: appUri.toString(),
+      // The DEVELOPMENT login (kf_app + kf_attestor, as `pnpm dogfood:load` provisions it): a
+      // development app attests its header callers in-process (20260924001000).
+      databaseUrl: h.developmentDatabaseUrl,
       environment: 'test',
       // The profile decides whether a fixed non-authoritative identity is permitted at all.
       // It became a required field and these call sites were never updated, so the harness
@@ -452,6 +454,7 @@ describe('identity', () => {
       deploymentProfile: 'dogfood',
       tlsTerminatedUpstream: false,
       identity: undefined,
+      attestorSocket: '/nonexistent/kf-attestor.sock',
     });
     await dogfood.ready();
     try {
@@ -484,6 +487,7 @@ describe('identity', () => {
       deploymentProfile: 'dogfood',
       tlsTerminatedUpstream: true,
       identity: undefined,
+      attestorSocket: '/nonexistent/kf-attestor.sock',
     });
     await prod.ready();
     try {

@@ -19,11 +19,17 @@
  *   expiry      with a small clock tolerance, no more
  *   subject     mapped to a live person in `org.external_identity`
  *   role        held by that person, live, in `org.role_assignment`
+ *
+ * and then the database is asked to ATTEST that the person is present (20260924001000): an
+ * attestation the application login must hand back to `core.bind_principal` before it may bind
+ * that person at all. This code therefore runs in the kf-attestor process, under a login that
+ * holds `kf_attestor` — not in the API, whose login may not attest. The API reaches it through
+ * an `Attestor` (attestor-client.ts); only the development profile runs it in-process.
  */
 
 import { createRemoteJWKSet, jwtVerify, type JWTPayload, type JWTVerifyGetKey } from 'jose';
 import type { Pool, Tx } from '@kf/database';
-import { bindPrincipal, withTransaction } from '@kf/database';
+import { issueAttestation, withTransaction } from '@kf/database';
 import { authenticationEvent, type AuthenticationEvent } from './step-up.js';
 
 export interface Caller {
@@ -41,6 +47,12 @@ export interface Caller {
    * this is not the same mistake in the other direction.
    */
   readonly authentication: AuthenticationEvent;
+  /**
+   * The database's attestation that this person presented this token (20260924001000), for
+   * this organization and assignment at or below this ceiling. Every transaction the request
+   * opens binds with it. Absent only from `resolveIn`, which proves nothing about presence.
+   */
+  readonly attestation?: string | undefined;
 }
 
 export type IdentityFailure =
@@ -145,10 +157,14 @@ export interface CallerRequest {
 }
 
 /**
- * Resolve a verified token into a caller.
+ * Resolve a verified token into an ATTESTED caller.
  *
- * Every step after verification reads the DATABASE. The token contributes a subject and
- * nothing else.
+ * Every step after verification reads the DATABASE. The token contributes a subject, an
+ * authentication event and an expiry, and nothing else.
+ *
+ * `pool` must be a login that may attest — kf-attestor's own (`kf_attestor`), or an
+ * administrator in tests. The application login cannot, by design: that is the whole point of
+ * running this in another process.
  */
 export async function resolveCaller(
   pool: Pool,
@@ -173,15 +189,22 @@ export async function resolveCaller(
     throw new IdentityRejected('invalid_token', 'token carries no subject');
   }
   const issuer = typeof payload.iss === 'string' ? payload.iss : '';
+  // `verify` refuses a token without a finite `exp`, so this is always a real instant.
+  const expiresAt = new Date((payload.exp as number) * 1000);
+  if (expiresAt.getTime() <= Date.now()) {
+    // Inside the verifier's clock tolerance, but past its own expiry by our clock. The
+    // database will not attest to it, and it is refused as the token failure it is.
+    throw new IdentityRejected('invalid_token', 'token rejected');
+  }
 
   const authentication = authenticationEvent(payload);
 
   return withTransaction(pool, async (tx) => {
     const caller = await resolveIn(tx, { issuer, subject, authentication, ...request });
-    // Only the database-derived effective ceiling reaches RLS. The request header may narrow
-    // that ceiling, but can never widen it or become the value bound to the transaction.
-    await bindPrincipal(tx, caller);
-    return caller;
+    // The database re-checks the assignment and clamps the ceiling again as it attests; the
+    // attestation expires with the token, or within a minute, whichever is first.
+    const attestation = await issueAttestation(tx, caller, expiresAt);
+    return { ...caller, attestation };
   });
 }
 

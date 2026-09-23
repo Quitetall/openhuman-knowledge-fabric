@@ -38,6 +38,7 @@ export async function registerIdentifierRoutes(
           assignmentId: identity.actingRoleId,
           organizationId: identity.organizationId,
           requestedClassification: identity.maxClassification,
+          attestation: identity.attestation,
         });
         const allocation = await allocationOf(tx, request.params.enterpriseId);
         if (allocation === undefined) return reply.code(404).send({ error: 'not_found' });

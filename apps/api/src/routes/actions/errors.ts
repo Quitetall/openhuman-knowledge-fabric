@@ -7,6 +7,8 @@ const STATUS: Record<ActionFailure, number> = {
   actor_not_authorized: 403,
   classification_not_granted: 403,
   role_not_held: 403,
+  // The attestation lapsed (a minute) or never existed: identify again, as for a bad token.
+  not_attested: 401,
   act_not_granted: 403,
   separation_of_duty: 403,
   object_not_visible: 404,

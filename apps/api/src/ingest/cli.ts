@@ -13,6 +13,8 @@ import { basename, resolve } from 'node:path';
 import { digest, digestBytes, type JsonValue } from '@kf/canonicalization';
 import {
   createPool,
+  issueAttestation,
+  registerAttestationIssuer,
   setResolvedAccessContext,
   withTransaction,
   type Pool,
@@ -364,7 +366,7 @@ async function resolveIdentity(
   args: IngestCliArgs,
   classification: string,
   env: NodeJS.ProcessEnv,
-  appPool: Pool,
+  ownerPool: Pool,
 ): Promise<ResolvedIdentity> {
   validateIdentityArgs(args);
   if (args.identity === 'dev') {
@@ -393,7 +395,8 @@ async function resolveIdentity(
     jwksUri: requiredEnv(env, 'OIDC_JWKS_URI'),
   };
   const token = readSecretFile(tokenFile, 'OIDC token file');
-  const caller: Caller = await resolveCaller(appPool, new TokenVerifier(config), {
+  // The same verification kf-attestor runs, in-process on the owner connection.
+  const caller: Caller = await resolveCaller(ownerPool, new TokenVerifier(config), {
     token,
     actingRoleId,
     organizationId,
@@ -417,6 +420,8 @@ async function assertClearance(
       assignmentId: identity.actingRoleId,
       organizationId: identity.organizationId,
       requestedClassification: classification,
+      // The OWNER connection: an administrator binds without an attestation.
+      attestation: undefined,
     });
     if (decision !== classification) {
       throw new IngestCliError(
@@ -662,7 +667,18 @@ export async function runIngest(
       });
       ownsApp = true;
     }
-    const identity = await resolveIdentity(args, classification, env, app);
+    const identity = await resolveIdentity(args, classification, env, owner);
+    // The application connection binds a person only on an attestation (20260924001000). This
+    // mode already holds the OWNER connection, whose operator could write the records directly,
+    // so attestations come from it — per bind, because staging bytes can outlast the one-minute
+    // life of a single attestation. Only on a pool this run created: a caller that hands in its
+    // own application pool (the tests) decides how that pool attests.
+    if (ownsApp) {
+      const attestingOwner = owner;
+      registerAttestationIssuer(app, (principal) =>
+        withTransaction(attestingOwner, (tx) => issueAttestation(tx, principal)),
+      );
+    }
     await assertClearance(owner, identity, classification);
 
     const staged: Array<{
