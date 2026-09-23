@@ -89,10 +89,14 @@ The script:
 5. `pg_restore --exit-on-error` (a restore that "succeeds" having skipped objects is worse
    than one that fails — it produces a database that looks restored);
 6. re-exports from the restored database and diffs **every file byte for byte** against the
-   export taken at backup time;
+   export taken at backup time. The re-export is signed with a key generated for the run, never
+   the preservation key: the comparison excludes the signature sidecar, the only file a key id
+   reaches, so that signature proves nothing and a restore needs no long-lived private key;
 7. verifies the audit ledger against authenticated historical checkpoint keys;
-8. invokes `KF_OBJECT_STORE_VERIFY_PROGRAM <request-file> <proof-output-file>` — only after its
-   SHA-256 matches `KF_OBJECT_STORE_VERIFY_PROGRAM_SHA256` — with a request naming each stored
+8. invokes the object-store verifier `<request-file> <proof-output-file>` — the one the release
+   ships (`apps/kf-storage/dist/verify-object-store.js`, reading `S3_*` and
+   `S3_SECRET_ACCESS_KEY_FILE`), or an override named in `KF_OBJECT_STORE_VERIFY_PROGRAM` whose
+   SHA-256 must match `KF_OBJECT_STORE_VERIFY_PROGRAM_SHA256` — with a request naming each stored
    object (`storage_uri`, `storage_version`) and nothing about its contents. The program answers
    with the `sha256` and `size_bytes` it measured by re-reading each object, and
    `scripts/lib/object-store-proof.mjs` checks that answer against the authenticated export: every
@@ -103,8 +107,9 @@ The script:
 The scheduled drill (`scripts/restore-drill.sh`, run by `kf-restore-drill.service`) does not
 restore the local directory. It pulls the newest off-site `<backup>.tar.gpg` back, refuses it
 unless its SHA-256 equals the ciphertext digest `backup-offsite.sh` recorded at the destination,
-decrypts it with the recipient's private key (a sealed systemd credential, never a file the
-backup job can read), checks the decrypted root manifest against `ops.backup_run`, and runs the
+decrypts it with the recipient's private key (a sealed systemd credential delivered only to
+`kf-restore-drill.service`, which runs as its own `kf-drill` uid — never the backup job's),
+checks the decrypted root manifest against `ops.backup_run`, and runs the
 steps above against a **throwaway cluster** it initialises for the run: Unix socket only, in a
 0700 directory, on its own port, deleted on exit. The production cluster is never a restore
 target. `ops.restore_drill.notes` records which copy was restored; `--allow-local-fallback`
@@ -124,10 +129,14 @@ things you no longer have.
 the vault after any restore. It is the only thing that can answer whether the two halves still
 agree; no amount of database integrity can.
 
-Production restore units must point `KF_OBJECT_STORE_VERIFY_PROGRAM` at an absolute,
-root-owned, non-writable adapter executable, pin its reviewed digest in
-`KF_OBJECT_STORE_VERIFY_PROGRAM_SHA256` (a mismatch refuses the restore outright), and set
-`KF_OBJECT_STORE_PROOF_REF` to a stable, credential-free evidence reference. The adapter reads
+The release ships the verifier (`apps/kf-storage/src/verify-object-store.ts`); the drill runs it
+with `/etc/kf/drill.env` and a read-only key in `/etc/kf/drill/s3-secret-access-key`, and records
+`kf-builtin-verifier:<bucket>` unless `KF_OBJECT_STORE_PROOF_REF` names other evidence. Until
+2026-09-23 every host had to supply its own. A store it cannot speak to can still be served by
+an override: point `KF_OBJECT_STORE_VERIFY_PROGRAM` at an absolute, root-owned, non-writable
+executable and pin its reviewed digest in `KF_OBJECT_STORE_VERIFY_PROGRAM_SHA256` (a mismatch
+refuses the restore outright) — it is the one verifier not covered by the release manifest.
+Either way the verifier reads
 the request file given as its first argument — one JSON object per line, `storage_uri` and
 `storage_version` — re-reads each object from the store, and writes one line per object to the
 second argument: the same two fields plus the `sha256` and `size_bytes` it measured. It is never

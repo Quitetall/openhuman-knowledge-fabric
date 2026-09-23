@@ -150,9 +150,11 @@ off-site drill.
 ## `backup_freshness` FAILED — latest restore is PARTIAL
 
 Database round-trip passed, but checkpoint trust or external object bytes were not proven.
-Read named missing dimensions in readiness output and restore journal. Configure reviewed
-root-owned `KF_OBJECT_STORE_VERIFY_PROGRAM` and credential-free `KF_OBJECT_STORE_PROOF_REF`, or
-restore authenticated checkpoint public-key history. Never relabel partial row as verified;
+Read named missing dimensions in readiness output and restore journal. For object bytes, fill
+`/etc/kf/drill.env` and `/etc/kf/drill/s3-secret-access-key` for the release's own verifier
+(`sudo /opt/kf/scripts/deploy/provision-host.sh --check` names what is missing), or configure a
+reviewed, digest-pinned `KF_OBJECT_STORE_VERIFY_PROGRAM` override; for checkpoint trust, restore
+authenticated checkpoint public-key history. Never relabel partial row as verified;
 rerun drill after missing substrate is available.
 Recording it anywhere else discards the evidence along with the database.
 

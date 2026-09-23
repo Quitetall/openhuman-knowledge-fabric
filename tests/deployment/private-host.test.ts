@@ -196,31 +196,23 @@ describe('private-host service boundary', () => {
     });
   }
 
-  it('gives no identity a secret that one of its units does not need', async () => {
-    // Checked against the shipped units in the repository, not only on a host at commissioning
-    // time. Until 2026-08-17 five scheduled units ran as a shared `kf`, so the checkpoint
-    // signing key and the preservation signing key were readable by the backup, offsite,
-    // readiness and restore-drill jobs — including the one whose whole purpose is moving bytes
-    // to another machine.
-    //
-    // The per-unit test above asserts kf-api/web/worker do not name CHECKPOINT_SIGNING_KEY, and
-    // it passed the entire time, because it asks about the three units that were never the
-    // problem. Sharing is allowed — kf-backup.service and kf-restore-drill.service share
-    // `kf-backup` on purpose — but only between units needing exactly the same secrets, because
-    // filesystem permissions cannot separate what one uid owns.
+  /** `<unit> (as <user>) also reaches <paths>` for every unit sharing a uid with a unit that
+   * needs different secrets — each one a key some unit can read and has no use for. */
+  async function surplusSecrets(directory: string): Promise<{
+    surplus: string[];
+    byUser: Map<string, string[]>;
+  }> {
     const { readUnits } =
       await import('../../packages/operations/src/internal/commissioning/units.js');
-    const units = await readUnits(join(ROOT, 'deploy', 'systemd'));
+    const units = await readUnits(directory);
     expect(units.length, 'no units parsed, so this check proves nothing').toBeGreaterThan(5);
-
-    const byUser = new Map<string, typeof units>();
+    const grouped = new Map<string, typeof units>();
     for (const unit of units) {
       if (unit.user === null) continue;
-      byUser.set(unit.user, [...(byUser.get(unit.user) ?? []), unit]);
+      grouped.set(unit.user, [...(grouped.get(unit.user) ?? []), unit]);
     }
-
     const surplus: string[] = [];
-    for (const [user, sharing] of byUser) {
+    for (const [user, sharing] of grouped) {
       if (sharing.length < 2) continue;
       const union = [...new Set(sharing.flatMap((unit) => unit.secretPaths))].sort();
       for (const unit of sharing) {
@@ -230,20 +222,63 @@ describe('private-host service boundary', () => {
         }
       }
     }
+    const byUser = new Map(
+      [...grouped].map(([user, sharing]) => [user, sharing.map((unit) => unit.name).sort()]),
+    );
+    return { surplus, byUser };
+  }
+
+  it('gives no identity a secret that one of its units does not need', async () => {
+    // Checked against the shipped units in the repository, not only on a host at commissioning
+    // time. Until 2026-08-17 five scheduled units ran as a shared `kf`, so the checkpoint
+    // signing key and the preservation signing key were readable by the backup, offsite,
+    // readiness and restore-drill jobs — including the one whose whole purpose is moving bytes
+    // to another machine.
+    //
+    // The per-unit test above asserts kf-api/web/worker do not name CHECKPOINT_SIGNING_KEY, and
+    // it passed the entire time, because it asks about the three units that were never the
+    // problem. Sharing is allowed only between units needing exactly the same secrets, because
+    // filesystem permissions cannot separate what one uid owns.
+    const { surplus } = await surplusSecrets(join(ROOT, 'deploy', 'systemd'));
     expect(
       surplus,
       'these units share a uid with a unit that needs different secrets, so at least one can ' +
         'read a key it has no use for. Give it its own identity.',
     ).toEqual([]);
+  });
 
-    // Non-vacuous: the property holds trivially of a fleet where nothing shares an identity,
-    // so the one intentional sharing is pinned by name.
-    expect(
-      byUser
-        .get('kf-backup')
-        ?.map((unit) => unit.name)
-        .sort(),
-    ).toEqual(['kf-backup.service', 'kf-restore-drill.service']);
+  it('keeps the backup decryption credential on the drill identity alone', async () => {
+    // Until 2026-09-23 kf-backup.service and kf-restore-drill.service shared `kf-backup`: the
+    // uid that writes and signs the archive could also have the key that decrypts it, and the
+    // only separation was which unit named the credential.
+    const directory = join(ROOT, 'deploy', 'systemd');
+    const { byUser } = await surplusSecrets(directory);
+    expect(byUser.get('kf-backup')).toEqual(['kf-backup.service']);
+    expect(byUser.get('kf-drill')).toEqual(['kf-restore-drill.service']);
+
+    const units = readdirSync(directory).filter((name) => name.endsWith('.service'));
+    const naming = units.filter((name) =>
+      readFileSync(join(directory, name), 'utf8').includes('LoadCredentialEncrypted='),
+    );
+    expect(naming).toEqual(['kf-restore-drill.service']);
+    const drill = readFileSync(join(directory, 'kf-restore-drill.service'), 'utf8');
+    // The drill signs nothing any more, so the signing key is not even named.
+    expect(drill).not.toContain('preservation-manifest-key');
+
+    // Non-vacuous: put the drill back on kf-backup and the surplus check names the credential.
+    const regressed = temporaryDirectory('kf-units-');
+    for (const name of units) {
+      writeFileSync(
+        join(regressed, name),
+        readFileSync(join(directory, name), 'utf8')
+          .replace(/^User=kf-drill$/m, 'User=kf-backup')
+          .replace(/^Group=kf-drill$/m, 'Group=kf-backup'),
+      );
+    }
+    const { surplus } = await surplusSecrets(regressed);
+    expect(surplus.join('\n')).toContain(
+      'kf-backup.service (as kf-backup) also reaches /etc/kf/credstore.encrypted/backup-decryption-key',
+    );
   });
 
   it('lets exactly one identity hold each private signing key', async () => {
@@ -766,6 +801,61 @@ describe('release migration command', () => {
       const result = apply(fixture);
       expect(result.code).not.toBe(0);
       expect(result.output).toContain('v2, which is unauthenticated');
+    });
+
+    it('prints, with the refusal, a rehearsal command that works exactly as printed', () => {
+      // An upgrade refuses the receipt the previous release was applied with. Until 2026-09-23
+      // the refusal said "re-run the rehearsal" and the operator rebuilt a twelve-variable
+      // command from the guide. The command is now printed, and this runs it verbatim.
+      const fixture = rehearsed();
+      const body = readFileSync(fixture.receipt, 'utf8')
+        .replace(
+          'format=kf-migration-rollback-rehearsal-v3',
+          'format=kf-migration-rollback-rehearsal-v2',
+        )
+        .replace(/^post_migration_schema_sha256=.*\n/m, '')
+        .replace(/^hmac_sha256=.*\n/m, '');
+      writeFileSync(fixture.receipt, body, { mode: 0o600 });
+      const scratch = join(temporaryDirectory('kf-rehearsal-secret-'), 'database-url');
+      writeFileSync(scratch, 'postgresql://kf_migrator@database.invalid/scratch\n', {
+        mode: 0o600,
+      });
+      const refused = apply(fixture, { KF_REHEARSAL_DATABASE_URL_FILE: scratch });
+      expect(refused.code).not.toBe(0);
+
+      const printed = refused.output.split('sudo -u kf-migrator env')[1];
+      expect(printed, `no rehearsal command in: ${refused.output}`).toBeDefined();
+      const tokens = printed!.split('\n\n')[0]!.replace(/\\\n/g, ' ').trim().split(/\s+/);
+      const environment: Record<string, string> = {};
+      const command: string[] = [];
+      for (const token of tokens) {
+        const assignment = /^([A-Z][A-Z0-9_]*)=(.*)$/.exec(token);
+        if (assignment !== null && command.length === 0) {
+          environment[assignment[1]!] = assignment[2]!;
+        } else {
+          command.push(token);
+        }
+      }
+      expect(environment['KF_EXPECTED_RELEASE_MANIFEST_SHA256']).toBe(
+        fixture.release.manifestDigest,
+      );
+      expect(command.slice(1, 3)).toEqual(['rehearse-rollback', fixture.release.release]);
+      expect(refused.output).not.toContain('database.invalid');
+
+      const rerun = spawnSync('bash', command, {
+        cwd: '/',
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          ...environment,
+          KF_PSQL_BIN: fixture.psql.executable,
+          KF_TEST_PSQL_LOG: fixture.psql.log,
+          KF_TEST_COMMAND_LOG: join(temporaryDirectory('kf-dbmate-log-'), 'calls.log'),
+        },
+      });
+      expect(rerun.status, `${rerun.stdout}${rerun.stderr}`).toBe(0);
+      const accepted = apply(fixture, { KF_ROLLBACK_REHEARSAL_RECEIPT: command.at(-1)! });
+      expect(accepted.code, accepted.output).toBe(0);
     });
 
     it('refuses to rehearse without a closed host key, before migrating anything', () => {

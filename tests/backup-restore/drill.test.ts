@@ -468,6 +468,8 @@ describe('restore drill', () => {
     const r = runRestore(backupDir, target, h.connectionString, {
       KF_OBJECT_STORE_VERIFY_PROGRAM: '',
       KF_OBJECT_STORE_PROOF_REF: '',
+      // No store to fall back to either: the in-release verifier needs S3_ENDPOINT.
+      S3_ENDPOINT: '',
     });
     expect(r.code).not.toBe(0);
     expect(r.output).toContain('RESTORE PARTIAL');

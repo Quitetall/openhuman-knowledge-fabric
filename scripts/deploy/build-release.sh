@@ -61,6 +61,7 @@ pnpm --filter @kf/api deploy --prod "$release_root/apps/api"
 pnpm --filter @kf/web deploy --prod "$release_root/apps/web"
 pnpm --filter @kf/worker deploy --prod "$release_root/apps/worker"
 pnpm --filter @kf/checkpoint deploy --prod "$release_root/apps/checkpoint"
+pnpm --filter @kf/storage deploy --prod "$release_root/apps/kf-storage"
 pnpm --filter @kf/operations deploy --prod "$release_root/packages/operations"
 pnpm --filter @kf/export deploy --prod "$release_root/packages/export"
 
