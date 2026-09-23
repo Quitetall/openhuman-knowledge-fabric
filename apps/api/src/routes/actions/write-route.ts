@@ -1,5 +1,10 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
-import { satisfiesStepUp, type StepUpPolicy, type TokenVerifier } from '@kf/authorization';
+import {
+  satisfiesStepUp,
+  type Attestor,
+  type StepUpPolicy,
+  type TokenVerifier,
+} from '@kf/authorization';
 import type {
   ActionRoutesOptions,
   ActionRequestBody,
@@ -18,7 +23,8 @@ interface ActionPostRouteOptions {
   readonly execute: ActionRoutesOptions['execute'];
   readonly identify: IdentifyCaller;
   readonly stepUp: Readonly<Record<string, StepUpPolicy>>;
-  readonly verifier: TokenVerifier | undefined;
+  /** How bearer tokens are identified; absent on the development header path. */
+  readonly verifier: Attestor | TokenVerifier | undefined;
   readonly effectiveAtBounds: EffectiveAtBounds;
 }
 
@@ -84,6 +90,7 @@ export function registerActionPostRoute(
         actingRoleId: caller.actingRoleId,
         organizationId: caller.organizationId,
         maxClassification: caller.maxClassification,
+        attestation: caller.attestation,
         targetIds: body.targetIds ?? [],
         idempotencyKey: body.idempotencyKey,
         requestId: String(request.id),

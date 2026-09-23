@@ -1,5 +1,12 @@
 import { S3ObjectStore } from '@kf/artifacts';
-import { createPool, setResolvedAccessContext, withTransaction, type Pool } from '@kf/database';
+import {
+  createPool,
+  issueAttestation,
+  registerAttestationIssuer,
+  setResolvedAccessContext,
+  withTransaction,
+  type Pool,
+} from '@kf/database';
 import { createDocumentActionAtoms, PandocDocumentParser } from '@kf/documents';
 import { createFabricTransactionalDispatcher } from '@kf/orchestrator';
 import { bootstrapIdentity, createAppLogin } from './bootstrap.js';
@@ -31,6 +38,8 @@ async function assertDogfoodIdentityReady(
         assignmentId: identity.actingRoleId,
         organizationId: identity.organizationId,
         requestedClassification: 'restricted',
+        // The OWNER connection: an administrator binds without an attestation.
+        attestation: undefined,
       });
       if (decision !== 'restricted') {
         throw new Error('classification resolver returned no restricted dogfood decision');
@@ -76,6 +85,12 @@ export async function runDocumentConstitutionDogfood(): Promise<void> {
     const urlFile = devDatabaseUrlFile();
     await writeOwnerOnly(urlFile, appUrl.toString());
     app = createPool({ connectionString: appUrl.toString(), maxConnections: 4 });
+    // The loader binds its operator through the development login, which attests in-process
+    // exactly as the development API does (createAppLogin granted it kf_attestor).
+    const attesting = app;
+    registerAttestationIssuer(attesting, (principal) =>
+      withTransaction(attesting, (tx) => issueAttestation(tx, principal)),
+    );
 
     const store = new S3ObjectStore({
       endpoint: process.env['S3_ENDPOINT'] ?? 'http://localhost:9000',

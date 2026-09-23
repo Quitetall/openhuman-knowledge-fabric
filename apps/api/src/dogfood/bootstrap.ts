@@ -28,6 +28,14 @@ export async function createAppLogin(owner: Pool, password: string): Promise<str
       [APP_LOGIN],
     );
     await tx.query(membership.sql);
+    // The development API attests in-process (header identity has no token to hand to
+    // kf-attestor), so its login may issue attestations. Only here: a dogfood API refuses to
+    // start through a login holding kf_attestor, and this loader refuses to run on a host.
+    const attests = await tx.one<{ sql: string }>(
+      `select format('grant kf_attestor to %I', $1::text) as sql`,
+      [APP_LOGIN],
+    );
+    await tx.query(attests.sql);
     const grant = await tx.one<{ sql: string }>(
       `select format('grant connect on database %I to %I', current_database(), $1::text) as sql`,
       [APP_LOGIN],

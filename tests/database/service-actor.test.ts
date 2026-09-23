@@ -33,9 +33,10 @@ import {
  *   2. It can never be linked to a login: the database refuses the link.
  *   3. It can never perform an institutional act: `requires: act` is refused for it even with
  *      an organization-wide role, by name.
- *   4. The storage sweep, run as it, replicates every version lacking a durable copy and
- *      re-verifies stale locations — each an audited action with the service actor as actor —
- *      and a second run does nothing.
+ *   4. The storage sweep, run as it through the storage login (`kf_app` + `kf_service_actor`,
+ *      which binds service actors without an attestation — 20260924001000), replicates every
+ *      version lacking a durable copy and re-verifies stale locations — each an audited action
+ *      with the service actor as actor — and a second run does nothing.
  */
 
 let harness: Harness;
@@ -120,7 +121,7 @@ describe('a declared service actor', () => {
       createdBy: fixtures.reviewerId,
     });
     await expect(
-      createFabricDispatcher(harness.pool)({
+      createFabricDispatcher(harness.storagePool)({
         actionType: 'allocate_enterprise_identifier',
         actorId: steward.personId,
         actingRoleId: steward.roleAssignmentId,
@@ -181,7 +182,7 @@ describe('a declared service actor', () => {
     });
 
     const execute = createFabricDispatcher(
-      harness.pool,
+      harness.storagePool,
       undefined,
       undefined,
       undefined,
@@ -193,7 +194,7 @@ describe('a declared service actor', () => {
       organizationId: fixtures.organizationId,
       maxClassification: 'restricted',
     };
-    const first = await runStorageSweep(harness.pool, execute, actor, {
+    const first = await runStorageSweep(harness.storagePool, execute, actor, {
       replicateTo: 'durable',
       verifyOlderThanDays: 0,
     });
@@ -217,7 +218,9 @@ describe('a declared service actor', () => {
     expect(actors.length).toBeGreaterThanOrEqual(2);
     expect(actors.every((a) => a.actor_id === steward.personId)).toBe(true);
 
-    const second = await runStorageSweep(harness.pool, execute, actor, { replicateTo: 'durable' });
+    const second = await runStorageSweep(harness.storagePool, execute, actor, {
+      replicateTo: 'durable',
+    });
     expect(second.replicated).toEqual([]);
     expect(second.refused).toEqual([]);
   });
@@ -306,7 +309,7 @@ describe('orphaned evidence collection', () => {
       organizationId: org,
       maxClassification: 'restricted',
     };
-    const report = await sweepOrphanedEvidence(harness.pool, store, actor, {
+    const report = await sweepOrphanedEvidence(harness.storagePool, store, actor, {
       graceHours: 168,
       now,
     });
@@ -408,7 +411,7 @@ describe('orphaned evidence collection', () => {
     );
     await expect(
       sweepOrphanedEvidence(
-        harness.pool,
+        harness.storagePool,
         store,
         {
           personId: steward.personId,

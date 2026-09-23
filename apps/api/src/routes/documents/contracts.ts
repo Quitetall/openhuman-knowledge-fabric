@@ -43,6 +43,8 @@ export interface DocumentActionContext {
   readonly actingRoleId: string;
   readonly organizationId: string;
   readonly maxClassification: string;
+  /** The caller's attestation (20260924001000), carried into every bind of the import. */
+  readonly attestation?: string | undefined;
   readonly targetIds: readonly string[];
   readonly requestId: string;
 }

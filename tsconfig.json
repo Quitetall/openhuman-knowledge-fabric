@@ -80,6 +80,9 @@
       "path": "./apps/kf-storage"
     },
     {
+      "path": "./apps/attestor"
+    },
+    {
       "path": "./packages/agent-tools"
     },
     {

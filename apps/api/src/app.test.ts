@@ -68,7 +68,9 @@ describe('config', () => {
       OIDC_ISSUER: 'http://localhost:8080/realms/knowledge-fabric',
       OIDC_AUDIENCE: 'knowledge-fabric-api',
       OIDC_JWKS_URI: 'http://localhost:8080/realms/knowledge-fabric/protocol/openid-connect/certs',
+      KF_ATTESTOR_SOCKET: '/run/kf-attestor/attestor.sock',
     });
+    expect(config.attestorSocket).toBe('/run/kf-attestor/attestor.sock');
 
     expect(config.deploymentProfile).toBe('dogfood');
     expect(config.identity).toEqual({
@@ -77,6 +79,26 @@ describe('config', () => {
       jwksUri: 'http://localhost:8080/realms/knowledge-fabric/protocol/openid-connect/certs',
     });
     expect(config.host).toBe('127.0.0.1');
+  });
+
+  it('refuses dogfood without the attestor socket, which is the only way to bind a person', () => {
+    const dogfood = {
+      NODE_ENV: 'development',
+      KF_DEPLOYMENT_PROFILE: 'dogfood',
+      OIDC_ISSUER: 'http://localhost:8080/realms/knowledge-fabric',
+      OIDC_AUDIENCE: 'knowledge-fabric-api',
+      OIDC_JWKS_URI: 'http://localhost:8080/realms/knowledge-fabric/protocol/openid-connect/certs',
+    };
+    expect(() => loadConfig(dogfood)).toThrow(/KF_ATTESTOR_SOCKET is required/);
+    expect(() => loadConfig({ ...dogfood, KF_ATTESTOR_SOCKET: 'attestor.sock' })).toThrow(
+      /KF_ATTESTOR_SOCKET must be an absolute path/,
+    );
+  });
+
+  it('needs no attestor in development, which attests in-process', () => {
+    expect(
+      loadConfig({ NODE_ENV: 'development', KF_DEPLOYMENT_PROFILE: 'development' }).attestorSocket,
+    ).toBeUndefined();
   });
 
   it.each([
@@ -286,6 +308,7 @@ describe('identity on every route, not only /actions', () => {
         DATABASE_URL: 'postgres://kf_app@127.0.0.1:1/kf',
       }),
       deploymentProfile: 'dogfood' as const,
+      attestorSocket: '/nonexistent/kf-attestor.sock',
     };
     const app = await buildApp(config);
     const res = await app.inject({

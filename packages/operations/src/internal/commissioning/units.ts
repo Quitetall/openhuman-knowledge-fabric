@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { lstat, readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CommissioningCheckFn, CommissioningInputs } from './contracts.js';
 
@@ -302,10 +302,12 @@ export const unitProvenance: CommissioningCheckFn = async (inputs: Commissioning
  * deployment creates. Reading both files is therefore not belt-and-braces — `/etc/group` alone
  * would report that `kf-api` cannot read its own group's files.
  */
-async function readerIndex(): Promise<ReadonlyMap<number, readonly string[]>> {
+async function readerIndex(
+  inputs: Pick<CommissioningInputs, 'passwdPath' | 'groupPath'>,
+): Promise<ReadonlyMap<number, readonly string[]>> {
   const [groupFile, passwdFile] = await Promise.all([
-    readFile('/etc/group', 'utf8'),
-    readFile('/etc/passwd', 'utf8'),
+    readFile(inputs.groupPath, 'utf8'),
+    readFile(inputs.passwdPath, 'utf8'),
   ]);
 
   const byGid = new Map<number, Set<string>>();
@@ -404,7 +406,7 @@ export const secretPosture: CommissioningCheckFn = async (inputs: CommissioningI
   // Read /etc/group and /etc/passwd ONCE. Five of the eighteen secret paths on a real host are
   // group-readable, so the previous shape re-read both files five times to answer five
   // questions about the same unchanging tables.
-  const readersByGid = await readerIndex();
+  const readersByGid = await readerIndex(inputs);
 
   const absent: string[] = [];
   const exposed: string[] = [];
@@ -462,6 +464,165 @@ export const secretPosture: CommissioningCheckFn = async (inputs: CommissioningI
   return {
     status: 'satisfied',
     detail: `All ${referenced.length} unit-referenced secret files exist and are readable by no identity beyond the unit that names them.`,
+    observed,
+  };
+};
+
+/** Account names by uid, from the passwd database. */
+async function namesByUid(
+  inputs: Pick<CommissioningInputs, 'passwdPath'>,
+): Promise<ReadonlyMap<number, string>> {
+  const byUid = new Map<number, string>();
+  for (const line of (await readFile(inputs.passwdPath, 'utf8')).split('\n')) {
+    const [name, , id] = line.split(':');
+    const uid = Number(id);
+    if (name !== undefined && name !== '' && Number.isInteger(uid)) byUid.set(uid, name);
+  }
+  return byUid;
+}
+
+/**
+ * kf-attestor is a separate identity, reachable by kf-api alone, holding a credential kf-api
+ * cannot read (20260924001000).
+ *
+ * The database binds a person for the API's login only on an attestation, and only
+ * `kf_attestor` may issue one. That separation is worth exactly as much as the host keeps it:
+ * an API user who can read the attestor's database credential, or who runs as the attestor,
+ * can attest to anybody it likes, and the whole arrangement is decoration. So, on the host:
+ *
+ *   - kf-attestor.service is installed and runs as a different user from kf-api.service;
+ *   - its socket exists, is a socket, is owned by that user, is closed to "other", and the
+ *     group it is open to holds kf-api and nobody but the two of them;
+ *   - no secret the attestor unit names is readable by kf-api — as owner, group or world.
+ *
+ * `secret_posture` already refuses a secret readable beyond its own unit, but it reasons about
+ * group and world bits only; this names the one reader that matters and includes ownership.
+ */
+export const attestorSeparation: CommissioningCheckFn = async (inputs: CommissioningInputs) => {
+  let installed: readonly UnitFacts[];
+  try {
+    installed = await readUnits(
+      inputs.systemdDirectory,
+      await shippedNames(inputs.shippedUnitDirectory),
+    );
+  } catch (error: unknown) {
+    return {
+      status: 'unverifiable',
+      detail: `Cannot read this release's installed units at ${inputs.systemdDirectory}: ${message(error)}`,
+    };
+  }
+  const api = installed.find((unit) => unit.name === 'kf-api.service');
+  const attestor = installed.find((unit) => unit.name === 'kf-attestor.service');
+  const observed: Record<string, string | null> = {
+    apiUser: api?.user ?? null,
+    attestorUser: attestor?.user ?? null,
+    socket: inputs.attestorSocketPath,
+  };
+  if (api?.user === undefined || api.user === null) {
+    return {
+      status: 'unverifiable',
+      detail:
+        'kf-api.service is not installed or names no User=, so there is no API identity to separate from.',
+      observed,
+    };
+  }
+  if (attestor?.user === undefined || attestor.user === null) {
+    return {
+      status: 'unsatisfied',
+      detail:
+        'kf-attestor.service is not installed or names no User=. Without it no bearer caller can ' +
+        'be bound, and with it running as root nothing separates it from anybody.',
+      observed,
+    };
+  }
+  if (attestor.user === api.user) {
+    return {
+      status: 'unsatisfied',
+      detail:
+        'kf-attestor and kf-api run as the same user, so the API holds the attestor credential ' +
+        'and can attest to any person itself.',
+      observed,
+    };
+  }
+
+  const [readersByGid, byUid] = await Promise.all([readerIndex(inputs), namesByUid(inputs)]);
+  const apiUser = api.user;
+  const canRead = (info: { uid: number; gid: number; mode: number }): boolean =>
+    (byUid.get(info.uid) === apiUser && (info.mode & 0o400) !== 0) ||
+    ((readersByGid.get(info.gid) ?? []).includes(apiUser) && (info.mode & 0o040) !== 0) ||
+    (info.mode & 0o004) !== 0;
+
+  let socket;
+  try {
+    socket = await lstat(inputs.attestorSocketPath);
+  } catch (error: unknown) {
+    return {
+      status: 'unverifiable',
+      detail:
+        `kf-attestor's socket cannot be inspected (${message(error)}). Is kf-attestor.service ` +
+        'running? Nothing can be bound until it is.',
+      observed,
+    };
+  }
+  const socketReaders = readersByGid.get(socket.gid) ?? [];
+  observed['socketMode'] = (socket.mode & 0o777).toString(8).padStart(3, '0');
+  observed['socketOwner'] = byUid.get(socket.uid) ?? String(socket.uid);
+  observed['socketGroupMembers'] = socketReaders.join(', ') || 'none';
+  const socketProblems: string[] = [];
+  if (!socket.isSocket()) socketProblems.push('is not a socket');
+  if ((socket.mode & 0o007) !== 0) socketProblems.push('is open to every account on the host');
+  if (byUid.get(socket.uid) !== attestor.user) {
+    socketProblems.push(`is not owned by ${attestor.user}`);
+  }
+  if (!socketReaders.includes(apiUser)) {
+    socketProblems.push(`is in a group ${apiUser} is not a member of, so the API cannot reach it`);
+  }
+  const strangers = socketReaders.filter(
+    (reader) => reader !== apiUser && reader !== attestor.user,
+  );
+  if (strangers.length > 0) {
+    socketProblems.push(`is also reachable by ${strangers.join(', ')}`);
+  }
+
+  const exposed: string[] = [];
+  const absent: string[] = [];
+  for (const path of attestor.secretPaths) {
+    try {
+      if (canRead(await stat(path))) exposed.push(path);
+    } catch (error: unknown) {
+      absent.push(`${path} (${message(error)})`);
+    }
+  }
+  observed['credentialsReadableByApi'] = exposed.join(', ') || 'none';
+  observed['credentialsUninspectable'] = absent.join('; ') || 'none';
+
+  if (socketProblems.length > 0 || exposed.length > 0) {
+    return {
+      status: 'unsatisfied',
+      detail: [
+        socketProblems.length > 0 ? `The attestor socket ${socketProblems.join(', ')}.` : '',
+        exposed.length > 0
+          ? `${apiUser} can read the attestor's ${exposed.join(', ')}, and with it attest to anybody.`
+          : '',
+      ]
+        .filter((part) => part !== '')
+        .join(' '),
+      observed,
+    };
+  }
+  if (absent.length > 0) {
+    return {
+      status: 'unverifiable',
+      detail: `${absent.length} secret file(s) kf-attestor names cannot be inspected.`,
+      observed,
+    };
+  }
+  return {
+    status: 'satisfied',
+    detail:
+      `kf-attestor runs as ${attestor.user}, apart from the API (${apiUser}); its socket is ` +
+      `reachable by ${apiUser} and closed to everybody else; ${apiUser} can read none of its ` +
+      `${attestor.secretPaths.length} secret file(s).`,
     observed,
   };
 };

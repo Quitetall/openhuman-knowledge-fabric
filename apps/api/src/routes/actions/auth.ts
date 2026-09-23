@@ -1,4 +1,4 @@
-import { IdentityRejected, resolveCaller, type TokenVerifier } from '@kf/authorization';
+import { IdentityRejected, LocalAttestor, TokenVerifier, type Attestor } from '@kf/authorization';
 import type { Pool } from '@kf/database';
 import type { Caller, IdentifyCaller } from './contracts.js';
 
@@ -78,11 +78,14 @@ export interface CallerIdentifierOptions {
  */
 export function createCallerIdentifier(
   pool: Pool,
-  verifier: TokenVerifier | undefined,
+  tokens: Attestor | TokenVerifier | undefined,
   options: CallerIdentifierOptions,
 ): IdentifyCaller {
+  // A bare verifier means "attest in-process over this pool", which only a pool whose login may
+  // attest can do: the development profile's, or a test's. Production hands in the socket.
+  const attestor = tokens instanceof TokenVerifier ? new LocalAttestor(pool, tokens) : tokens;
   return async (request): Promise<Caller> => {
-    if (verifier === undefined) {
+    if (attestor === undefined) {
       if (!options.trustHeaders) {
         throw new CallerRejected(
           'no identity provider is configured and header identity is not trusted',
@@ -101,7 +104,9 @@ export function createCallerIdentifier(
       const value = request.headers[name];
       return typeof value === 'string' ? value : '';
     };
-    return resolveCaller(pool, verifier, {
+    // The attestor verifies the token and returns the caller with the database's attestation
+    // that they are present, which every bind in this request then carries.
+    return attestor.identify({
       token,
       actingRoleId: header('x-kf-acting-role'),
       organizationId: header('x-kf-organization'),

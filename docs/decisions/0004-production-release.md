@@ -62,7 +62,7 @@ pnpm ontology:verify (2026-08-17)  release/knowledge-fabric-1.0.0-draft.2 → DR
 pnpm ontology:verify --key         same package → APPROVED, signed 2026-08-19
 kf-commissioning             never run against a host
 deployment profiles          development | dogfood        (no `production`)
-known blockers               7, of which 3 have no automated check
+known blockers               8, of which 3 have no automated check  (8th: attestor_separation, 2026-09-24)
 ```
 
 The second and third lines are the ones that changed what this record says. The 38 failures were

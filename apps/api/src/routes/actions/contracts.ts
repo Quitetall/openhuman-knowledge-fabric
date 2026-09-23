@@ -1,6 +1,6 @@
 import type { ActionRequest } from '@kf/actions';
 import type { Pool } from '@kf/database';
-import type { AuthenticationEvent, StepUpPolicy, TokenVerifier } from '@kf/authorization';
+import type { Attestor, AuthenticationEvent, StepUpPolicy, TokenVerifier } from '@kf/authorization';
 import type { EffectiveAtBounds } from './effective-at.js';
 
 /**
@@ -27,6 +27,11 @@ export interface Caller {
    * not applied there: every policy would fail, and the development path would be unusable.
    */
   readonly authentication: AuthenticationEvent;
+  /**
+   * kf-attestor's proof that this person presented a verified token (20260924001000). Every
+   * transaction the request opens binds with it; without it the application login binds nobody.
+   */
+  readonly attestation?: string | undefined;
 }
 
 export interface ActionRoutesOptions {
@@ -37,6 +42,12 @@ export interface ActionRoutesOptions {
    * activates exactly when the provider is unreachable.
    */
   readonly verifier?: TokenVerifier;
+  /**
+   * Where a bearer token becomes an attested caller: kf-attestor over its socket in production,
+   * or in-process in development. Takes precedence over `verifier`, which is the in-process form
+   * over `pool` (a login that may attest — tests and the development profile only).
+   */
+  readonly attestor?: Attestor;
   readonly execute: (request: ActionRequest) => Promise<{
     actionId: string;
     replayed: boolean;

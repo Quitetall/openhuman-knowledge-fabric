@@ -4,6 +4,8 @@ export interface AgentScope {
   /** Who the agent is acting for. Every read is scoped as that person, never as the agent. */
   readonly actorId: string;
   readonly actingRoleId: string;
+  /** That person's attestation that they are present (20260924001000); see `Principal`. */
+  readonly attestation?: string | undefined;
 }
 
 export interface ObjectSummary {

@@ -5,7 +5,7 @@
  * at boot with a precise message rather than at the first request that happens to need it.
  */
 
-import { resolve } from 'node:path';
+import { isAbsolute, resolve } from 'node:path';
 import { loadSecret } from '@kf/operations';
 import type { S3Config } from '@kf/artifacts';
 
@@ -34,6 +34,13 @@ export interface ApiConfig {
   /** Present only when an identity provider is configured. Absent means header identity. */
   readonly identity:
     { readonly issuer: string; readonly audience: string; readonly jwksUri: string } | undefined;
+  /**
+   * The kf-attestor socket (KF_ATTESTOR_SOCKET). The database binds a person for this process's
+   * login only on an attestation that they are present, which only kf-attestor may issue
+   * (20260924001000). Required under dogfood; absent in development, where the API attests
+   * in-process through a development login that holds `kf_attestor`.
+   */
+  readonly attestorSocket?: string;
   /** Evidence vault. Absent only in tests or intentionally metadata-only development. */
   readonly artifactStore?: S3Config;
   /** A second, durable store (ADR 0017): GCS via S3 interop, or any S3-wire bucket. */
@@ -249,6 +256,25 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     );
   }
 
+  const attestorSocket =
+    env['KF_ATTESTOR_SOCKET'] !== undefined && env['KF_ATTESTOR_SOCKET'] !== ''
+      ? env['KF_ATTESTOR_SOCKET']
+      : undefined;
+  if (attestorSocket !== undefined && !isAbsolute(attestorSocket)) {
+    throw new ConfigError(
+      `KF_ATTESTOR_SOCKET must be an absolute path, got ${JSON.stringify(attestorSocket)}`,
+    );
+  }
+  // Without the attestor the dogfood API could only attest to people itself, which its login
+  // may not — every request would be refused at the first bind. Refused here, at boot, with the
+  // reason, rather than as a wall of 401s.
+  if (deploymentProfile === 'dogfood' && attestorSocket === undefined) {
+    throw new ConfigError(
+      'KF_ATTESTOR_SOCKET is required when KF_DEPLOYMENT_PROFILE=dogfood: the database binds a ' +
+        'person for the API only on an attestation from kf-attestor (see kf-attestor.service).',
+    );
+  }
+
   const s3Endpoint = env['S3_ENDPOINT'];
   const s3Region = env['S3_REGION'];
   const s3AccessKeyId = env['S3_ACCESS_KEY_ID'];
@@ -422,6 +448,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     ...(publicOrigins === undefined ? {} : { publicOrigins }),
     tlsTerminatedUpstream,
     identity,
+    ...(attestorSocket === undefined ? {} : { attestorSocket }),
     ...(artifactStore === undefined ? {} : { artifactStore }),
     ...(durableStore === undefined ? {} : { durableStore }),
     ...(masterRecordLinkSecret === undefined ? {} : { masterRecordLinkSecret }),

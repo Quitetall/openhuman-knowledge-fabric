@@ -222,9 +222,11 @@ function fixtureRows(sql: string): Record<string, unknown>[] {
   return [];
 }
 
-const BIND_PRINCIPAL = 'select core.bind_principal($1, $2, $3, $4) as ceiling';
+const BIND_PRINCIPAL = 'select core.bind_principal($1, $2, $3, $4, $5) as ceiling';
 const CALLER_ACTOR = '44444444-4444-7444-8444-444444444444';
 const CALLER_ROLE = '55555555-5555-7555-8555-555555555555';
+/** kf-attestor's attestation for the caller; every bind must carry it (20260924001000). */
+const CALLER_ATTESTATION = 'a7'.repeat(32);
 
 function databaseBoundary(
   rowsFor: (sql: string, params: readonly unknown[]) => Record<string, unknown>[] = fixtureRows,
@@ -258,6 +260,7 @@ function caller(): IdentifyCaller {
     organizationId: ORGANIZATION_ID,
     maxClassification: 'internal',
     authentication: { authenticatedAt: undefined, assuranceLevel: undefined, methods: [] },
+    attestation: CALLER_ATTESTATION,
   }));
 }
 
@@ -607,6 +610,7 @@ describe('GET /ml/governed-aliases/:aliasId', () => {
       CALLER_ROLE,
       otherOrganization,
       'internal',
+      CALLER_ATTESTATION,
     ]);
     await app.close();
   });
@@ -818,7 +822,7 @@ describe('GET /ml/runs/:authorityId/revisions/:revisionId', () => {
     });
     expect(statements[1]).toEqual({
       sql: BIND_PRINCIPAL,
-      params: [CALLER_ACTOR, CALLER_ROLE, ORGANIZATION_ID, 'internal'],
+      params: [CALLER_ACTOR, CALLER_ROLE, ORGANIZATION_ID, 'internal', CALLER_ATTESTATION],
     });
     const lineageQuery = statements.find(({ sql }) => sql.includes('/* ml.run-lineage */'));
     expect(lineageQuery?.params).toEqual([RUN_AUTHORITY_ID, RUN_REVISION_ID]);
@@ -1271,6 +1275,7 @@ describe('POST /ml/runs/:authorityId/revisions/:revisionId/metrics/:metricAuthor
       idempotencyKey: `ml-event:${eventDigest as string}`,
       organizationId: ORGANIZATION_ID,
       maxClassification: 'internal',
+      attestation: CALLER_ATTESTATION,
       requestId: expect.any(String),
     });
 
@@ -1279,7 +1284,7 @@ describe('POST /ml/runs/:authorityId/revisions/:revisionId/metrics/:metricAuthor
     );
     expect(statements[0]).toEqual({
       sql: BIND_PRINCIPAL,
-      params: [CALLER_ACTOR, CALLER_ROLE, ORGANIZATION_ID, 'internal'],
+      params: [CALLER_ACTOR, CALLER_ROLE, ORGANIZATION_ID, 'internal', CALLER_ATTESTATION],
     });
     expect(statements.some(({ sql }) => sql.includes('set_transaction_context'))).toBe(false);
     expect(statements.find(({ sql }) => sql.includes('/* ml.ingest-run */'))?.params).toEqual([

@@ -123,22 +123,23 @@ describe('a valid token becomes a caller', () => {
     expect(caller.subject).toBe('auth0|reviewer');
   });
 
-  it('resolves through the APPLICATION login, which row-level security binds', async () => {
+  it('resolves through the ATTESTOR login, which row-level security binds', async () => {
     // `h.adminPool` is the container superuser and bypasses every policy, so the case above
     // could not see what the first real login on the dogfood host saw (2026-09-11): the
     // definer function joins `core.object`, which FORCES row-level security, and with no
     // organization bound at resolution time the assignment envelope was invisible — every
-    // login was refused as `role_not_held`. This pool is the role the API actually runs as.
-    const caller = await resolveCaller(h.pool, verifier, request({ token: await token() }));
+    // login was refused as `role_not_held`. Since 20260924001000 this resolution runs in
+    // kf-attestor, under the attestor's login, and that is the pool used here.
+    const caller = await resolveCaller(h.attestorPool, verifier, request({ token: await token() }));
     expect(caller.actorId).toBe(f.reviewerId);
     expect(caller.actingRoleId).toBe(f.reviewerRoleId);
   });
 
-  it('resolves at a requested ceiling BELOW the assignment envelope, through the app login', async () => {
+  it('resolves at a requested ceiling BELOW the assignment envelope, through the attestor login', async () => {
     // The envelope of a role assignment is `internal`. A caller asking to work at `public`
     // must still be recognised; the resolution context is not the requested ceiling.
     const caller = await resolveCaller(
-      h.pool,
+      h.attestorPool,
       verifier,
       request({ token: await token(), maxClassification: 'public' }),
     );
@@ -273,12 +274,13 @@ describe('organization scope', () => {
   it('refuses a valid token that claims an organization the person is not in', async () => {
     // The review asked whether an authenticated person could read another organization's data
     // by stating its id. Checked here rather than reasoned about.
-    // Both pools. h.pool is the UNPRIVILEGED role the API actually uses; h.adminPool is the
-    // container superuser, which bypasses row-level security even with FORCE RLS — so a
-    // property that held only on adminPool would be a property that does not hold at all,
-    // and one that held only on h.pool would be relying on RLS for something RLS is not.
+    // Both pools. h.attestorPool is the UNPRIVILEGED login kf-attestor resolves through;
+    // h.adminPool is the container superuser, which bypasses row-level security even with FORCE
+    // RLS — so a property that held only on adminPool would be a property that does not hold at
+    // all, and one that held only on the attestor's login would be relying on RLS for something
+    // RLS is not.
     for (const [name, pool] of [
-      ['unprivileged', h.pool],
+      ['unprivileged', h.attestorPool],
       ['superuser', h.adminPool],
     ] as const) {
       const err = await resolveCaller(
@@ -328,7 +330,7 @@ describe('classification narrows rather than widens', () => {
     });
     try {
       const caller = await resolveCaller(
-        h.pool,
+        h.attestorPool,
         verifier,
         request({ token: await token(), maxClassification: 'confidential' }),
       );

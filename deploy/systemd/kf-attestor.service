@@ -1,0 +1,65 @@
+[Unit]
+Description=Knowledge Fabric identity attestor (vouches to the database that a person is present)
+Documentation=file:///opt/kf/docs/deployment/private-host.md
+Wants=network-online.target
+After=network-online.target
+OnFailure=kf-alert@%n.service
+# The same crash-loop bound as kf-api: a loop must END in `failed`, the only state OnFailure=
+# reacts to. Without this process no bearer caller can be bound, so a silent loop here is an
+# outage that looks like a wall of 401s.
+StartLimitIntervalSec=30min
+StartLimitBurst=5
+
+[Service]
+Type=simple
+# Its own identity, holding the one credential the API must never hold: a database login in
+# kf_attestor. The PRIMARY group is kf-attest, which the socket is created in and which only
+# kf-api also belongs to; the credential below is 0600 kf-attestor and not group-readable.
+User=kf-attestor
+Group=kf-attest
+WorkingDirectory=/opt/kf/apps/attestor
+EnvironmentFile=/etc/kf/attestor.env
+UnsetEnvironment=NODE_OPTIONS NODE_PATH
+ExecStartPre=/usr/bin/test -s /etc/kf/attestor/database-url
+# /run/kf-attestor, 0710 kf-attestor:kf-attest: the API may traverse to the socket, and list
+# nothing. The socket inside is chmod 0660 by the process.
+RuntimeDirectory=kf-attestor
+RuntimeDirectoryMode=0710
+# Command-local values cannot be weakened by a value accidentally left in attestor.env.
+ExecStart=/usr/bin/env NODE_ENV=production DATABASE_URL_FILE=/etc/kf/attestor/database-url KF_ATTESTOR_SOCKET=/run/kf-attestor/attestor.sock /usr/bin/node /opt/kf/apps/attestor/dist/main.js
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=15s
+KillSignal=SIGTERM
+# It verifies a signature and makes one database round trip per request. A fraction of the API.
+MemoryHigh=256M
+MemoryMax=384M
+TasksMax=64
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectClock=true
+ProtectHostname=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectProc=invisible
+ProcSubset=pid
+# AF_INET/AF_INET6 for the issuer's keys (https) and the database; AF_UNIX for its socket.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

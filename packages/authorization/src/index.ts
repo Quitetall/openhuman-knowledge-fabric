@@ -28,6 +28,18 @@ export {
 } from './identity.js';
 
 export {
+  ATTESTOR_MAX_BODY_BYTES,
+  ATTESTOR_PATH,
+  LocalAttestor,
+  SocketAttestor,
+  encodeAttestedCaller,
+  encodeRefusal,
+  parseAttestorRequest,
+  type Attestor,
+  type SocketAttestorOptions,
+} from './attestor.js';
+
+export {
   DEFAULT_STEP_UP,
   authenticationEvent,
   satisfiesStepUp,

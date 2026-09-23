@@ -98,7 +98,7 @@ human() { HUMAN+=("$1|$2"); }
 # ---------------------------------------------------------------------------------------------
 
 USERS=(kf-api kf-web kf-worker kf-migrator kf-checkpoint kf-backup kf-offsite kf-readiness
-  kf-storage kf-audit-verify kf-alert kf-drill)
+  kf-storage kf-audit-verify kf-alert kf-drill kf-attestor)
 
 # Numeric ids from the account database, root included, so ownership is compared as the kernel
 # records it.
@@ -130,6 +130,25 @@ ensure_archive_group() {
   done
 }
 
+ensure_attest_group() {
+  # The attestor's socket group (20260924001000): kf-attestor serves on it, kf-api alone may
+  # connect. Nobody else is a member, so nothing else can ask for an attestation.
+  if ! getent group kf-attest >/dev/null; then
+    if [ "$MODE" = check ]; then
+      pending "group kf-attest"
+    else
+      groupadd --system kf-attest
+      created "group kf-attest"
+    fi
+  fi
+  for member in kf-attestor kf-api; do
+    if getent group kf-attest | cut -d: -f4 | tr ',' '\n' | grep -qx "$member"; then continue; fi
+    if [ "$MODE" = check ]; then pending "$member in group kf-attest"; continue; fi
+    usermod -aG kf-attest "$member"
+    created "$member in group kf-attest"
+  done
+}
+
 # ---------------------------------------------------------------------------------------------
 # Directories and files
 # ---------------------------------------------------------------------------------------------
@@ -149,6 +168,7 @@ DIRECTORIES=(
   "0750 root kf-audit-verify /etc/kf/audit-verify"
   "0750 root kf-alert /etc/kf/alert"
   "0750 root kf-drill /etc/kf/drill"
+  "0700 kf-attestor kf-attestor /etc/kf/attestor"
   "0700 root root /etc/kf/credstore.encrypted"
   "0755 root root /etc/kf/preservation-trust.d"
   "0755 root root /etc/kf/checkpoint-public-keys"
@@ -294,6 +314,7 @@ ENV_FILES=(
   "checkpoint.env.example /etc/kf/checkpoint.env 0640 root kf-checkpoint"
   "offsite.env.example /etc/kf/offsite.env 0640 root kf-offsite"
   "drill.env.example /etc/kf/drill.env 0640 root kf-drill"
+  "attestor.env.example /etc/kf/attestor.env 0640 root kf-attestor"
   "storage.env.example /etc/kf/storage/storage.env 0600 kf-storage kf-storage"
 )
 
@@ -344,6 +365,23 @@ inherit_store_routing() {
   done
 }
 
+# The attestor verifies the same tokens the API was configured for: copy the three OIDC values
+# over any template placeholder, never over a value an operator set.
+inherit_oidc() {
+  local dest source value name current
+  source="$(p /etc/kf/api.env)"
+  dest="$(p /etc/kf/attestor.env)"
+  [ -f "$source" ] && [ -f "$dest" ] || return 0
+  for name in OIDC_ISSUER OIDC_AUDIENCE OIDC_JWKS_URI; do
+    value="$(env_value "$source" "$name")"
+    [ -n "$value" ] && ! is_placeholder "$value" || continue
+    current="$(env_value "$dest" "$name")"
+    [ -z "$current" ] || is_placeholder "$current" || continue
+    if [ "$MODE" = check ]; then pending "/etc/kf/attestor.env: $name, copied from /etc/kf/api.env"; continue; fi
+    set_env_value "$dest" "$name" "$value" force
+  done
+}
+
 # The detected and defaulted values. Only ever fills a gap.
 complete_env_files() {
   local backup offsite client name value
@@ -379,6 +417,7 @@ complete_env_files() {
   inherit_store_routing /etc/kf/drill.env
   inherit_store_routing /etc/kf/worker.env
   inherit_store_routing /etc/kf/storage/storage.env
+  inherit_oidc
 }
 
 report_env_placeholders() {
@@ -635,6 +674,7 @@ check_verifier_override() {
 
 for user in "${USERS[@]}"; do ensure_user "$user"; done
 ensure_archive_group
+ensure_attest_group
 
 for entry in "${DIRECTORIES[@]}"; do
   read -r mode owner group path <<< "$entry"
@@ -670,7 +710,8 @@ if [ -d "$(p /etc/kf/migrator)" ]; then
   ensure_human_secret kf-backup /etc/kf/backup/preservation-manifest-key "the preservation Ed25519 PRIVATE key from its external custody; install its public half as /etc/kf/preservation-trust.d/<id>.pub and set PRESERVATION_SIGNING_KEY_ID=<id> in /etc/kf/backup.env"
   ensure_human_secret kf-offsite /etc/kf/offsite/database-url "connection string for the off-site copier's login"
   ensure_human_secret kf-readiness /etc/kf/readiness/database-url "connection string for the readiness login (read-only)"
-  ensure_human_secret kf-storage /etc/kf/storage/database-url "connection string for the storage sweep's login"
+  ensure_human_secret kf-storage /etc/kf/storage/database-url "connection string for the storage sweep's login (member of kf_app AND kf_service_actor)"
+  ensure_human_secret kf-attestor /etc/kf/attestor/database-url "connection string for the attestor's login (member of kf_attestor ONLY; the API's login must never be)"
   ensure_human_secret kf-storage /etc/kf/storage/s3-secret "secret for S3_ACCESS_KEY_ID in /etc/kf/storage/storage.env (the working store)"
   ensure_human_secret kf-storage /etc/kf/storage/s3-durable-secret "secret for S3_DURABLE_ACCESS_KEY_ID in /etc/kf/storage/storage.env"
   ensure_human_secret kf-audit-verify /etc/kf/audit-verify/database-url "connection string for the audit verifier's login (member of kf_checkpoint for its cross-organization reads)"

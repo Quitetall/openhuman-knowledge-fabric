@@ -144,6 +144,7 @@ export function registerMetricEventRoute(app: FastifyInstance, options: MlRoutes
             idempotencyKey: metricEventActionIdempotencyKey(candidate.eventDigest),
             organizationId: caller.organizationId,
             maxClassification: caller.maxClassification,
+            attestation: caller.attestation,
             requestId: request.id,
           });
 

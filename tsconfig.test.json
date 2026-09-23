@@ -15,6 +15,7 @@
     "apps/api/src/**/*.test.ts",
     "apps/worker/src/**/*.test.ts",
     "apps/checkpoint/src/**/*.test.ts",
+    "apps/attestor/src/**/*.test.ts",
     "tests/**/*.ts"
   ],
   "exclude": ["node_modules", "dist", "**/dist/**"]

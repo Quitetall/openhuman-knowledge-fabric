@@ -196,6 +196,43 @@ describe('private-host service boundary', () => {
     });
   }
 
+  it('runs kf-attestor as its own identity, reachable by kf-api alone (20260924001000)', () => {
+    // The database binds a person for the API's login only on an attestation from this process.
+    // That is worth what the separation is: an API that can read the attestor's credential, or
+    // runs as it, can attest to anybody.
+    const attestor = readFileSync(join(ROOT, 'deploy', 'systemd', 'kf-attestor.service'), 'utf8');
+    const api = readFileSync(join(ROOT, 'deploy', 'systemd', 'kf-api.service'), 'utf8');
+    expect(attestor).toContain('User=kf-attestor');
+    expect(attestor).toContain('Group=kf-attest');
+    expect(attestor).toContain('EnvironmentFile=/etc/kf/attestor.env');
+    expect(attestor).toContain('ExecStartPre=/usr/bin/test -s /etc/kf/attestor/database-url');
+    expect(attestor).toContain('RuntimeDirectory=kf-attestor');
+    expect(attestor).toContain('RuntimeDirectoryMode=0710');
+    expect(attestor).toMatch(
+      /^ExecStart=.*DATABASE_URL_FILE=\/etc\/kf\/attestor\/database-url KF_ATTESTOR_SOCKET=\/run\/kf-attestor\/attestor\.sock .*attestor\/dist\/main\.js$/m,
+    );
+    for (const hardening of [
+      'NoNewPrivileges=true',
+      'ProtectSystem=strict',
+      'ProtectHome=true',
+      'PrivateDevices=true',
+      'CapabilityBoundingSet=',
+      'UMask=0077',
+    ]) {
+      expect(attestor).toContain(hardening);
+    }
+    // The API never names the attestor's credential, and does name its socket.
+    expect(api).not.toContain('/etc/kf/attestor/');
+    expect(api).toMatch(/^ExecStart=.*KF_ATTESTOR_SOCKET=\/run\/kf-attestor\/attestor\.sock /m);
+    expect(api).toMatch(/^After=.*kf-attestor\.service/m);
+    expect(api).toContain('test -S /run/kf-attestor/attestor.sock');
+    // And the release carries the program the unit runs.
+    const recipe = readFileSync(join(ROOT, 'scripts', 'deploy', 'build-release.sh'), 'utf8');
+    expect(recipe).toContain(
+      'pnpm --filter @kf/attestor deploy --prod "$release_root/apps/attestor"',
+    );
+  });
+
   /** `<unit> (as <user>) also reaches <paths>` for every unit sharing a uid with a unit that
    * needs different secrets — each one a key some unit can read and has no use for. */
   async function surplusSecrets(directory: string): Promise<{

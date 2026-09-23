@@ -1,8 +1,8 @@
 [Unit]
 Description=Knowledge Fabric API
 Documentation=file:///opt/kf/docs/deployment/private-host.md
-Wants=network-online.target
-After=network-online.target
+Wants=network-online.target kf-attestor.service
+After=network-online.target kf-attestor.service
 OnFailure=kf-alert@%n.service
 # A crash loop must END in `failed`, because `failed` is the only state OnFailure= reacts to.
 # Restart=on-failure alone restarts forever: the unit sits in `activating (auto-restart)`, the
@@ -23,7 +23,12 @@ ExecStartPre=/usr/bin/test -s /etc/kf/api/database-url
 ExecStartPre=/usr/bin/test -s /etc/kf/api/s3-secret-access-key
 # Command-local values cannot be weakened by a value accidentally left in api.env.
 ExecStartPre=/usr/bin/test -s /opt/kf/generated/projections/knowledge-fabric.projections.json
-ExecStart=/usr/bin/env NODE_ENV=production KF_DEPLOYMENT_PROFILE=dogfood KF_TLS_TERMINATED_UPSTREAM=1 DATABASE_URL_FILE=/etc/kf/api/database-url S3_SECRET_ACCESS_KEY_FILE=/etc/kf/api/s3-secret-access-key KF_PROJECTIONS_ARTIFACT=/opt/kf/generated/projections/knowledge-fabric.projections.json HOST=127.0.0.1 PORT=4000 /usr/bin/node /opt/kf/apps/api/dist/server.js
+# The database binds a person for this login only on an attestation from kf-attestor
+# (20260924001000). Wait up to ten seconds for its socket rather than serving a wall of 401s;
+# kf-api reaches it as a member of kf-attest (docs/deployment/private-host.md). `$$` is systemd's
+# escape for a literal `$`.
+ExecStartPre=/bin/sh -c 'for i in $$(seq 1 50); do test -S /run/kf-attestor/attestor.sock && exit 0; sleep 0.2; done; echo "kf-attestor socket /run/kf-attestor/attestor.sock is absent" >&2; exit 1'
+ExecStart=/usr/bin/env NODE_ENV=production KF_DEPLOYMENT_PROFILE=dogfood KF_TLS_TERMINATED_UPSTREAM=1 DATABASE_URL_FILE=/etc/kf/api/database-url S3_SECRET_ACCESS_KEY_FILE=/etc/kf/api/s3-secret-access-key KF_ATTESTOR_SOCKET=/run/kf-attestor/attestor.sock KF_PROJECTIONS_ARTIFACT=/opt/kf/generated/projections/knowledge-fabric.projections.json HOST=127.0.0.1 PORT=4000 /usr/bin/node /opt/kf/apps/api/dist/server.js
 Restart=on-failure
 RestartSec=5s
 TimeoutStopSec=30s

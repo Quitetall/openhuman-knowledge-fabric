@@ -16,13 +16,16 @@ import {
 import {
   createPool,
   DatabaseError,
+  issueAttestation,
   loginPrivilegeProblems,
   PrincipalRefused,
   readLoginPrivilege,
+  registerAttestationIssuer,
   withTransaction,
+  type LoginPrivilegeAllowance,
   type Pool,
 } from '@kf/database';
-import { TokenVerifier } from '@kf/authorization';
+import { SocketAttestor, TokenVerifier, type Attestor } from '@kf/authorization';
 import {
   createDocumentActionAtoms,
   PandocDocumentParser,
@@ -92,6 +95,22 @@ export async function buildApp(
   config: ApiConfig,
   dependencies: AppDependencies = {},
 ): Promise<FastifyInstance> {
+  // loadConfig refuses this too; buildApp accepts any ApiConfig, so it is refused here as well.
+  if (config.deploymentProfile === 'dogfood' && config.attestorSocket === undefined) {
+    throw new Error(
+      'refusing to build a dogfood API without KF_ATTESTOR_SOCKET: the database binds a person ' +
+        'for this login only on an attestation from kf-attestor.',
+    );
+  }
+  // Only the development profile attests in-process, and so only its login may hold
+  // kf_attestor. Anywhere else a login that could attest to people itself makes kf-attestor
+  // decoration, and one that binds service actors unattested is the same hole by another door.
+  const loginAllowance: LoginPrivilegeAllowance = {
+    mayAttest: config.deploymentProfile === 'development',
+  };
+  const attestorClient =
+    config.attestorSocket === undefined ? undefined : new SocketAttestor(config.attestorSocket);
+
   const app = Fastify({
     logger: {
       level: config.logLevel,
@@ -191,8 +210,20 @@ export async function buildApp(
       let login: string;
       try {
         const privilege = await withTransaction(startupPool, (tx) => readLoginPrivilege(tx));
-        problems = loginPrivilegeProblems(privilege);
+        problems = loginPrivilegeProblems(privilege, loginAllowance);
         login = privilege.login;
+        if (
+          config.deploymentProfile === 'development' &&
+          attestorClient === undefined &&
+          !privilege.attests
+        ) {
+          app.log.warn(
+            { login },
+            'development login does not hold kf_attestor, so the in-process attestor cannot ' +
+              'vouch for anybody and every bind will be refused; re-run `pnpm dogfood:load`, ' +
+              'which grants it, or set KF_ATTESTOR_SOCKET',
+          );
+        }
       } catch (err: unknown) {
         app.log.warn({ err }, 'database login privileges could not be checked at startup');
         return;
@@ -200,8 +231,8 @@ export async function buildApp(
       if (problems.length > 0) {
         throw new DatabaseError(
           `refusing to serve: database login ${JSON.stringify(login)} ${problems.join(', ')}, ` +
-            'so row-level security does not bind it. DATABASE_URL must name an application ' +
-            'login that inherits kf_app and nothing more.',
+            'so row-level security or attestation does not bind it. DATABASE_URL must name an ' +
+            'application login that inherits kf_app and nothing more.',
         );
       }
     });
@@ -214,7 +245,12 @@ export async function buildApp(
       // The startup refusal covers the process's own boot; this keeps saying it for as long as
       // the process runs, so a probe never reports ready through a login RLS cannot bind.
       login: pool === undefined ? 'unconfigured' : 'failing',
+      // Present only when an attestor is configured: without it no bearer caller can be bound.
+      ...(attestorClient === undefined ? {} : { attestor: 'failing' as const }),
     };
+    if (attestorClient !== undefined) {
+      checks['attestor'] = (await attestorClient.healthy()) ? 'ok' : 'failing';
+    }
     if (pool !== undefined) {
       try {
         // A real round trip. "The pool object exists" is not readiness — it says nothing
@@ -224,7 +260,9 @@ export async function buildApp(
           checks['database'] = 'ok';
           checks['schema'] = (await hasRequiredSchema(tx)) ? 'ok' : 'failing';
           checks['login'] =
-            loginPrivilegeProblems(await readLoginPrivilege(tx)).length === 0 ? 'ok' : 'failing';
+            loginPrivilegeProblems(await readLoginPrivilege(tx), loginAllowance).length === 0
+              ? 'ok'
+              : 'failing';
         });
       } catch {
         checks['database'] = 'failing';
@@ -330,6 +368,23 @@ export async function buildApp(
       storageAtoms,
     );
     const verifier = config.identity === undefined ? undefined : new TokenVerifier(config.identity);
+    // Where a bearer token becomes an attested caller. kf-attestor over its socket whenever one
+    // is configured — always, under dogfood. Otherwise (development only; buildApp refused
+    // dogfood above) the same verification runs in-process over this pool, whose development
+    // login holds kf_attestor.
+    // No identity provider still means no bearer path at all, attestor or not.
+    const tokens: Attestor | TokenVerifier | undefined =
+      verifier === undefined ? undefined : (attestorClient ?? verifier);
+    if (config.deploymentProfile === 'development') {
+      // Header identity has no token to attest, and the development workspace is visibly
+      // non-authoritative: its binds get an attestation from this login directly. The database
+      // refuses the issue for any login without kf_attestor, which is every login but a
+      // development one, so this grants nothing the login did not already hold.
+      const attestingPool = pool;
+      registerAttestationIssuer(attestingPool, (principal) =>
+        withTransaction(attestingPool, (tx) => issueAttestation(tx, principal)),
+      );
+    }
     // Header-supplied identity is a development affordance and nothing else, and it is
     // reachable only when no identity provider is configured — the identifier ignores headers
     // entirely once a verifier exists, rather than falling back to them, because a fallback
@@ -352,11 +407,14 @@ export async function buildApp(
     const trustHeaders =
       config.deploymentProfile === 'development' &&
       (config.environment === 'development' || config.environment === 'test');
-    const identify = createCallerIdentifier(pool, verifier, { trustHeaders });
+    const identify = createCallerIdentifier(pool, tokens, { trustHeaders });
     await registerActionRoutes(app, {
       pool,
       execute,
       ...(verifier === undefined ? {} : { verifier }),
+      ...(verifier === undefined || attestorClient === undefined
+        ? {}
+        : { attestor: attestorClient }),
       trustHeaders,
       ...(config.effectiveAtBackdate === undefined
         ? {}

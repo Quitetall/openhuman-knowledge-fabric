@@ -72,6 +72,7 @@ async function serveObjectView(
       assignmentId: identity.actingRoleId,
       organizationId: identity.organizationId,
       requestedClassification: identity.maxClassification,
+      attestation: identity.attestation,
     });
     // An Object View is a reading over the viewer's master record, so it needs a current
     // claim. On the refresh POST, an absent or stale claim is compiled — as an act, as them,
@@ -114,6 +115,7 @@ async function serveObjectView(
           actingRoleId: identity.actingRoleId,
           organizationId: identity.organizationId,
           maxClassification: identity.maxClassification,
+          attestation: identity.attestation,
           targetIds: [identity.actorId],
           // Random on purpose: this is not a retry of anything. Two views racing on the
           // same stale claim both compile; the second finds the corpus unchanged and reuses

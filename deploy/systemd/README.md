@@ -21,7 +21,9 @@ KF_TLS_TERMINATED_UPSTREAM=1
 ```
 
 API also needs complete `OIDC_ISSUER` / `OIDC_AUDIENCE` / `OIDC_JWKS_URI` set and owner-only
-database/object-store secret files. Web needs reviewed public OIDC client plus owner-only
+database/object-store secret files, and `kf-attestor.service` running: the database binds a
+person for the API's login only on an attestation from it (`KF_ATTESTOR_SOCKET`, set on the
+API's command line). Web needs reviewed public OIDC client plus owner-only
 session key. Fixed `KF_DEV_*` identity is forbidden.
 
 Every unit uses a distinct unprivileged account. Command-local API/web listener settings prevent

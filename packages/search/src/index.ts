@@ -30,6 +30,8 @@ export interface SearchScope {
   readonly organizationId: string;
   /** The highest classification this caller may see. Never widened by omission. */
   readonly maxClassification: string;
+  /** The caller's attestation that they are present (20260924001000); see `Principal`. */
+  readonly attestation?: string | undefined;
 }
 
 export interface SearchQuery {
