@@ -425,6 +425,53 @@ describe.skipIf(process.platform !== 'linux' || !existsSync(TEST_BWRAP))(
       await expect(adapter.compile(request)).resolves.toEqual(response);
     });
 
+    it('runs the compiler under a sized root tmpfs and hard rlimits', async () => {
+      // Read back from inside the sandbox rather than asserted on the argv: a limit is only
+      // real if the process it is meant to bound can see it. Exit codes name the first check
+      // that failed. Filling the tmpfs proves the size is enforced, not merely reported.
+      const files = await fixture(`
+      const fs = require('node:fs');
+      const limits = fs.readFileSync('/proc/self/limits', 'utf8').split('\\n');
+      const soft = (name) => limits.find((line) => line.startsWith(name)).slice(26).trim().split(/\\s+/)[0];
+      if (soft('Max data size') !== '${String(1024 * 1024 * 1024)}') process.exit(51);
+      if (soft('Max file size') !== '${String(64 * 1024 * 1024)}') process.exit(52);
+      if (soft('Max open files') !== '128') process.exit(53);
+      if (soft('Max core file size') !== '0') process.exit(54);
+      const root = fs.statfsSync('/');
+      if (root.blocks * root.bsize !== ${String(8 * 1024 * 1024)}) process.exit(55);
+      try {
+        fs.writeFileSync('/tmp/fill', Buffer.alloc(${String(9 * 1024 * 1024)}));
+        process.exit(56);
+      } catch (error) {
+        if (error.code !== 'ENOSPC') process.exit(57);
+      }
+      process.stdin.resume();
+      process.stdin.on('end', () => process.stdout.write(${JSON.stringify(canonicalize(response))}));
+    `);
+      const adapter = new PinnedLiminalProcessAdapter({
+        ...files,
+        timeoutMs: 60_000,
+        sandboxTmpfsBytes: 8 * 1024 * 1024,
+        maxDataBytes: 1024 * 1024 * 1024,
+        maxFileBytes: 64 * 1024 * 1024,
+        maxOpenFiles: 128,
+        allowScriptExecutableForTests: true,
+      });
+      await expect(adapter.compile(request)).resolves.toEqual(response);
+    });
+
+    it('refuses an executable larger than the file-size limit before spawning it', async () => {
+      const files = await fixture(`process.exit(0)`);
+      const adapter = new PinnedLiminalProcessAdapter({
+        ...files,
+        maxFileBytes: 16,
+        allowScriptExecutableForTests: true,
+      });
+      await expect(adapter.compile(request)).rejects.toThrow(
+        /larger than the sandbox maxFileBytes/,
+      );
+    });
+
     it('kills a timed-out compiler', async () => {
       const files = await fixture(`setInterval(() => {}, 1000)`);
       const adapter = new PinnedLiminalProcessAdapter({

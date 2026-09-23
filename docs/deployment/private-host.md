@@ -134,6 +134,17 @@ contract. Install bubblewrap as `/usr/bin/bwrap`, and qualify the kernel and sys
 the user, mount, PID, IPC, network, UTS and cgroup namespaces plus mount syscalls permitted by
 `kf-worker.service`.
 
+Namespaces bound what the compiler can see, not what it can use, so the sandbox also carries
+resource ceilings (`packages/documents/src/liminal-adapter/limits.ts`). bubblewrap mounts a 64 MiB
+root tmpfs instead of an unbounded one (`--size`, which predates the `--disable-userns` the sandbox
+already requires), and util-linux `prlimit` at `/usr/bin/prlimit` starts bubblewrap with RLIMIT_DATA
+2 GiB, RLIMIT_FSIZE 256 MiB (it must exceed the compiler executable, which bubblewrap writes under
+it), RLIMIT_NOFILE 256 and no core dumps; `kf-worker.service` refuses to start without it. The
+process count is bounded by the unit's `TasksMax=` rather than RLIMIT_NPROC, which counts every
+process of the uid. No seccomp filter is loaded: bubblewrap accepts one (`--seccomp FD`) but it
+needs a compiled BPF program and there is no tooling here to build and review one; the unit's
+`SystemCallFilter=` is the syscall boundary until there is.
+
 The packaged Liminal compiler must be a native ELF executable for the target architecture and
 must load with its nonempty, reviewed interpreter/shared-library closure on that host. Linux
 procfs must provide `/proc/self/fd/<n>` descriptor semantics: the worker opens and hashes the

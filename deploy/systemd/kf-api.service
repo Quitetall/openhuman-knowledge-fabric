@@ -20,6 +20,13 @@ Restart=on-failure
 RestartSec=5s
 TimeoutStopSec=30s
 KillSignal=SIGTERM
+# Ceilings for the whole cgroup, pandoc children included. Document parsing runs here, one
+# pandoc per import capped at a 512 MiB GHC heap (KF_PANDOC_MAX_HEAP_MIB); these bound what
+# several at once, or anything else going wrong, can take from the host. MemoryHigh throttles
+# and reclaims first so MemoryMax (the OOM kill) is the last resort, not the first signal.
+MemoryHigh=2G
+MemoryMax=3G
+TasksMax=512
 
 NoNewPrivileges=true
 PrivateTmp=true

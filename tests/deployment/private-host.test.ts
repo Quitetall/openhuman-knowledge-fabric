@@ -260,6 +260,19 @@ describe('private-host service boundary', () => {
     expect(worker).toContain('ExecStartPre=/usr/bin/test -s /etc/kf/worker/s3-secret-access-key');
   });
 
+  it('bounds memory and task count for the services that run document parsers', () => {
+    // Without these a pathological document (pandoc) or compile (Liminal) is bounded only by
+    // the host: the OOM killer then chooses what dies, and it need not choose the culprit.
+    for (const name of ['kf-api.service', 'kf-worker.service']) {
+      const unit = readFileSync(join(ROOT, 'deploy', 'systemd', name), 'utf8');
+      expect(unit, name).toMatch(/^MemoryMax=\d+[KMG]$/m);
+      expect(unit, name).toMatch(/^MemoryHigh=\d+[KMG]$/m);
+      expect(unit, name).toMatch(/^TasksMax=\d+$/m);
+    }
+    const worker = readFileSync(join(ROOT, 'deploy', 'systemd', 'kf-worker.service'), 'utf8');
+    expect(worker).toContain('ExecStartPre=/usr/bin/test -x /usr/bin/prlimit');
+  });
+
   it('worker host policy permits only the namespace surface needed for compiler isolation', () => {
     const worker = readFileSync(join(ROOT, 'deploy', 'systemd', 'kf-worker.service'), 'utf8');
     const environment = readFileSync(join(ROOT, 'deploy', 'systemd', 'worker.env.example'), 'utf8');

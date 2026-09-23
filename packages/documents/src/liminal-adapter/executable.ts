@@ -19,6 +19,11 @@ export async function verifyLiminalExecutable(
   if (digestBytes(cargoLock) !== config.identity.cargoLockDigest) {
     throw new Error('Liminal Cargo.lock digest mismatch');
   }
+  // bubblewrap writes these bytes into the sandbox under RLIMIT_FSIZE; one that does not fit
+  // would fail there as "File too large", which names the wrong thing.
+  if (executableBytes.length > config.maxFileBytes) {
+    throw new Error('Liminal executable is larger than the sandbox maxFileBytes limit');
+  }
   if (!config.allowScriptExecutableForTests && !isElf(executableBytes)) {
     throw new Error('Pinned Liminal production execution requires a native Linux ELF binary');
   }
