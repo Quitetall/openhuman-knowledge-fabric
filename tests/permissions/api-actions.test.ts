@@ -30,6 +30,11 @@ import {
 let h: Harness;
 let f: Fixtures;
 let app: FastifyInstance;
+/**
+ * The application login. Every app built here connects as it: the API refuses to become ready
+ * through the harness's superuser, which row-level security does not bind.
+ */
+let appDatabaseUrl: string;
 const objectStore = new InMemoryObjectStore();
 
 /** The development headers. In production these are ignored and the routes refuse. */
@@ -49,6 +54,7 @@ beforeAll(async () => {
   const appUri = new URL(h.connectionString);
   appUri.username = 'kf_app_login';
   appUri.password = 'test-only-not-a-secret';
+  appDatabaseUrl = appUri.toString();
 
   app = await buildApp(
     {
@@ -441,7 +447,7 @@ describe('identity', () => {
       host: '127.0.0.1',
       port: 0,
       logLevel: process.env['LOG_LEVEL'] ?? 'silent',
-      databaseUrl: new URL(h.connectionString).toString(),
+      databaseUrl: appDatabaseUrl,
       environment: 'test',
       deploymentProfile: 'dogfood',
       tlsTerminatedUpstream: false,
@@ -473,7 +479,7 @@ describe('identity', () => {
       host: '127.0.0.1',
       port: 0,
       logLevel: process.env['LOG_LEVEL'] ?? 'silent',
-      databaseUrl: new URL(h.connectionString).toString(),
+      databaseUrl: appDatabaseUrl,
       environment: 'production',
       deploymentProfile: 'dogfood',
       tlsTerminatedUpstream: true,
