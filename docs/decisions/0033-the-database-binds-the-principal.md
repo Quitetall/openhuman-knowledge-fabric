@@ -36,8 +36,9 @@ API is fully controlled.
 ## Consequences
 
 - A compromised API is bounded to impersonating real people **with their real authority**. It
-  cannot invent an actor, a tenant or a ceiling. The database still cannot tell whether the
-  person is present; that needs it to verify the token itself (threat model open item 6).
+  cannot invent an actor, a tenant or a ceiling. Since `20260924001000` it also requires an attestation from `kf-attestor` that the person
+  presented a valid token within its lifetime; it still trusts the attestor's verification (threat
+  model open item 6).
 - Service logins (worker, readiness, backup) keep their credential as their authority, and the
   worker's actor must still hold the assignment it names.
 - The seal key's row is excluded from backups: seals last one transaction, so a restore needs a

@@ -60,25 +60,26 @@ was whatever string the API passed, the actor was any uuid, and `core.action`,
 `core.object_verification` all accepted direct inserts or updates that no act had made. Every
 one of those was a success, not a refusal. The controls below close them, each in the database:
 
-| Control                                                                                                                                                                                          | Where                                                                                    | Proven by                                     |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- | --------------------------------------------- |
-| The context is **sealed**: an HMAC under a key no role with write grants can read binds it to the transaction; a raw `set_config` reads as unset                                                 | `core.context_mac`, `20260923000100`                                                     | `tests/database/principal-binding.test.ts`    |
-| No function but the context accessors reads a `kf.*` setting, and internal flags are sealed the same way                                                                                         | same                                                                                     | same                                          |
-| The actor must be a person holding the stated acting role live in the bound organization; the ceiling is clamped to their clearance                                                              | `core.set_transaction_context`                                                           | same                                          |
-| The API binds a reader only as a principal; organization and ceiling come from the principal's live assignment and clearance                                                                     | `core.bind_principal`                                                                    | same                                          |
-| An action row must be the one the sealed context names — its id, actor, role and organization                                                                                                    | `action_scoped_insert` policy                                                            | same                                          |
-| An audit event's digest is recomputed by the database, and its actor and action must match the context                                                                                           | `core.enforce_audit_chain_head`                                                          | same                                          |
-| Role assignments and clearances can only be end-dated, never re-targeted, reopened or extended                                                                                                   | guard triggers, `20260923000200`                                                         | same                                          |
-| An external identity is linked or revoked only under a sealed actor, in that actor's organization                                                                                                | `org.external_identity` RLS                                                              | same                                          |
-| A verification row must name the sealed actor and action as verifier and act, and the verifier is never the record's creator                                                                     | `object_verification_write` policy                                                       | same                                          |
-| A shared-link bearer binds only the link's own organization and ceiling, resolved by the database from the token digest                                                                          | `content.bind_master_record_link`                                                        | same                                          |
-| SECURITY DEFINER lookups that take an organization answer only for the bound one                                                                                                                 | `slot_bands`, `person_lookup`, `organization_by_name`, `secure_object_capability_grants` | same                                          |
-| An unverified record cannot be cited as evidence by wrapping its id; every uuid in a reference is checked                                                                                        | `work.evidence_ref_is_unverified_record`                                                 | same                                          |
-| An access-grant revocation writes only its own columns, at the database's time                                                                                                                   | column grant + `access_grant_revoked_now`                                                | same                                          |
-| An institutional act (`requires: act`) must be covered by a live act grant, and is never a service actor's; the database asks `org.act_grant_reaches` on the ledger row                          | `action_requires_act_authority`, `20260924000100`                                        | `tests/database/act-authority.test.ts`        |
-| Every table that enables row security forces it, so a login inheriting the owner is bound too                                                                                                    | `20260924000200`                                                                         | `tests/database/row-security-forced.test.ts`  |
-| `reviewed_individually` twice by one verifier within `core.individual_review_interval()` (1 s) is refused, and `verified_at` is the database's clock; the bulk gesture stamps `promoted_in_bulk` | `object_verification_paced`, `20260924000300`, `POST /verifications/bulk`                | `tests/permissions/bulk-verification.test.ts` |
-| Every orphaned evidence key the storage sweep deletes is recorded in the append-only `content.orphan_collection`, written only through a definer seam as the bound service actor, and exported   | `20260924000400`                                                                         | `tests/database/service-actor.test.ts`        |
+| Control                                                                                                                                                                                          | Where                                                                                    | Proven by                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| The context is **sealed**: an HMAC under a key no role with write grants can read binds it to the transaction; a raw `set_config` reads as unset                                                 | `core.context_mac`, `20260923000100`                                                     | `tests/database/principal-binding.test.ts`                                           |
+| No function but the context accessors reads a `kf.*` setting, and internal flags are sealed the same way                                                                                         | same                                                                                     | same                                                                                 |
+| The actor must be a person holding the stated acting role live in the bound organization; the ceiling is clamped to their clearance                                                              | `core.set_transaction_context`                                                           | same                                                                                 |
+| The API binds a reader only as a principal; organization and ceiling come from the principal's live assignment and clearance                                                                     | `core.bind_principal`                                                                    | same                                                                                 |
+| The API binds a person only on a current attestation from `kf-attestor` matching person, assignment, organization and at least the ceiling                                                       | `core.bind_principal`, `core.issue_attestation`, `20260924001000`                        | `tests/database/principal-attestation.test.ts`, `tests/permissions/attestor.test.ts` |
+| An action row must be the one the sealed context names — its id, actor, role and organization                                                                                                    | `action_scoped_insert` policy                                                            | same                                                                                 |
+| An audit event's digest is recomputed by the database, and its actor and action must match the context                                                                                           | `core.enforce_audit_chain_head`                                                          | same                                                                                 |
+| Role assignments and clearances can only be end-dated, never re-targeted, reopened or extended                                                                                                   | guard triggers, `20260923000200`                                                         | same                                                                                 |
+| An external identity is linked or revoked only under a sealed actor, in that actor's organization                                                                                                | `org.external_identity` RLS                                                              | same                                                                                 |
+| A verification row must name the sealed actor and action as verifier and act, and the verifier is never the record's creator                                                                     | `object_verification_write` policy                                                       | same                                                                                 |
+| A shared-link bearer binds only the link's own organization and ceiling, resolved by the database from the token digest                                                                          | `content.bind_master_record_link`                                                        | same                                                                                 |
+| SECURITY DEFINER lookups that take an organization answer only for the bound one                                                                                                                 | `slot_bands`, `person_lookup`, `organization_by_name`, `secure_object_capability_grants` | same                                                                                 |
+| An unverified record cannot be cited as evidence by wrapping its id; every uuid in a reference is checked                                                                                        | `work.evidence_ref_is_unverified_record`                                                 | same                                                                                 |
+| An access-grant revocation writes only its own columns, at the database's time                                                                                                                   | column grant + `access_grant_revoked_now`                                                | same                                                                                 |
+| An institutional act (`requires: act`) must be covered by a live act grant, and is never a service actor's; the database asks `org.act_grant_reaches` on the ledger row                          | `action_requires_act_authority`, `20260924000100`                                        | `tests/database/act-authority.test.ts`                                               |
+| Every table that enables row security forces it, so a login inheriting the owner is bound too                                                                                                    | `20260924000200`                                                                         | `tests/database/row-security-forced.test.ts`                                         |
+| `reviewed_individually` twice by one verifier within `core.individual_review_interval()` (1 s) is refused, and `verified_at` is the database's clock; the bulk gesture stamps `promoted_in_bulk` | `object_verification_paced`, `20260924000300`, `POST /verifications/bulk`                | `tests/permissions/bulk-verification.test.ts`                                        |
+| Every orphaned evidence key the storage sweep deletes is recorded in the append-only `content.orphan_collection`, written only through a definer seam as the bound service actor, and exported   | `20260924000400`                                                                         | `tests/database/service-actor.test.ts`                                               |
 
 Two application-level controls sit beside these, because the adversary they answer is a tired
 person rather than a hostile process: `verify_record` and `apply_document_proposal` refuse the
@@ -91,12 +92,14 @@ must say something — eight characters and more than one repeated key
 claim `reviewed_individually`. The pace makes the false claim slow, and every claim is attributed
 to its verifier; it does not make it impossible.
 
-**Residual risk, stated plainly.** The database still cannot authenticate a human: it checks
-that the actor the API names really holds the role and clearance it claims, not that the
-person is present. A fully compromised API can therefore still act **as any real person with
-that person's real authority** — the true-shaped lie below, now bounded by that person's
-authority rather than by nothing. Closing it needs the database to verify the token itself,
-recorded as open item 6.
+**Residual risk, stated plainly.** Since `20260924001000` the database binds a person for the
+API's login only on an attestation issued by `kf-attestor` — a separate process with its own Unix
+user and a database login in `kf_attestor` — after it verified that person's bearer token. A
+fully compromised API can therefore act only as people currently sending it valid tokens, for the
+remaining life of those tokens (at most 300 s), with their real authority; it can no longer act
+as any real person it names. The database still does not verify RS256 itself; it trusts the
+attestor's login, and an attacker holding both the API and the attestor is back to the earlier
+position.
 
 A compromised API can still record **true-shaped lies** — an action that really was performed,
 by an actor it really was authorised for, saying something false. Nothing here prevents that,
@@ -275,14 +278,14 @@ whoever deploys, and a false one produces exactly the exposure it claims to prev
 
 ## Open items
 
-| #   | Item                                                           | Blocks      |
-| --- | -------------------------------------------------------------- | ----------- |
-| 1   | Identity provider selection; token lifetime and refresh policy | Service     |
-| 2   | Checkpoint key custody separated from database administration  | T1 residual |
-| 3   | Object store backup on the database's schedule                 | T4 residual |
-| 4   | Certificate issuance and renewal at the proxy                  | Service     |
-| 5   | A person confirming they receive an alert                      | T5, T8      |
-| 6   | The database verifying the bearer token itself                 | T2 residual |
+| #   | Item                                                                                                | Blocks      |
+| --- | --------------------------------------------------------------------------------------------------- | ----------- |
+| 1   | Identity provider selection; token lifetime and refresh policy                                      | Service     |
+| 2   | Checkpoint key custody separated from database administration                                       | T1 residual |
+| 3   | Object store backup on the database's schedule                                                      | T4 residual |
+| 4   | Certificate issuance and renewal at the proxy                                                       | Service     |
+| 5   | A person confirming they receive an alert                                                           | T5, T8      |
+| 6   | Narrowed by `kf-attestor` (`20260924001000`); the database still trusts the attestor's verification | T2 residual |
 
 Items 1–4 are decisions for whoever operates this, not code that is missing.
 
