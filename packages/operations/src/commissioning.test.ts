@@ -11,10 +11,12 @@ import { generateKeyPairSync, X509Certificate } from 'node:crypto';
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createServer, type Server } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   assessCommissioning,
   COMMISSIONING_CHECKS,
+  COMMISSIONING_DEFAULTS,
   formatCommissioning,
   parseUnit,
   type CommissioningInputs,
@@ -33,7 +35,14 @@ const SHIPPED_REALM = join(
 
 const roots: string[] = [];
 
+const sockets: Server[] = [];
+
 afterEach(async () => {
+  await Promise.all(
+    sockets
+      .splice(0)
+      .map((server) => new Promise<void>((resolve) => server.close(() => resolve()))),
+  );
   await Promise.all(
     roots.splice(0).map(async (root) => rm(root, { force: true, recursive: true })),
   );
@@ -65,6 +74,25 @@ Environment=CHECKPOINT_SIGNING_KEY_PATH=SECRET_DIR/checkpoint-key
 ExecStart=/usr/bin/node main.js --run
 `;
 
+const ATTESTOR_UNIT = `[Unit]
+Description=Knowledge Fabric identity attestor
+OnFailure=kf-alert@%n.service
+
+[Service]
+User=kf-attestor
+Group=kf-attest
+ExecStartPre=/usr/bin/test -s SECRET_DIR/attestor-database-url
+ExecStart=/usr/bin/env DATABASE_URL_FILE=SECRET_DIR/attestor-database-url /usr/bin/node main.js
+`;
+
+/** A listening Unix socket, as kf-attestor leaves one. */
+async function listeningSocket(path: string): Promise<void> {
+  const server = createServer();
+  sockets.push(server);
+  await new Promise<void>((resolve) => server.listen(path, resolve));
+  await chmod(path, 0o660);
+}
+
 /** A host where everything was done properly, so a failure below is the planted one. */
 async function commissionedHost(): Promise<{
   inputs: Partial<CommissioningInputs>;
@@ -84,11 +112,13 @@ async function commissionedHost(): Promise<{
     join(secrets, 'api.env'),
   );
   const checkpoint = CHECKPOINT_UNIT.replaceAll('SECRET_DIR', secrets);
+  const attestor = ATTESTOR_UNIT.replaceAll('SECRET_DIR', secrets);
   for (const directory of [shipped, systemd]) {
     await writeFile(join(directory, 'kf-api.service'), api);
     await writeFile(join(directory, 'kf-checkpoint.service'), checkpoint);
+    await writeFile(join(directory, 'kf-attestor.service'), attestor);
   }
-  for (const secret of ['api.env', 'database-url', 'checkpoint-key']) {
+  for (const secret of ['api.env', 'database-url', 'checkpoint-key', 'attestor-database-url']) {
     await writeFile(join(secrets, secret), 'not-a-real-secret\n');
     await chmod(join(secrets, secret), 0o600);
   }
@@ -121,6 +151,21 @@ server {
 `,
   );
 
+  // The accounts, described rather than created: this process's uid plays kf-attestor, which
+  // owns every file written here, and its gid plays kf-attest, which kf-api is a member of.
+  const uid = process.getuid?.() ?? 0;
+  const gid = process.getgid?.() ?? 0;
+  const passwd = join(root, 'passwd');
+  const group = join(root, 'group');
+  await writeFile(
+    passwd,
+    `kf-attestor:x:${uid}:${gid}::/nonexistent:/usr/sbin/nologin\n` +
+      `kf-api:x:${uid + 1}:${gid + 1}::/nonexistent:/usr/sbin/nologin\n`,
+  );
+  await writeFile(group, `kf-attest:x:${gid}:kf-api\nkf-api:x:${gid + 1}:\n`);
+  const attestorSocket = join(root, 'attestor.sock');
+  await listeningSocket(attestorSocket);
+
   const releaseId = 'kf-1.0.0';
   await writeFile(
     join(evidence, 'release-verification.json'),
@@ -150,6 +195,9 @@ server {
       identityPolicyPath: policy,
       identityPolicyDigest: await digestOf(policy),
       reverseProxyConfigPath: reverseProxy,
+      attestorSocketPath: attestorSocket,
+      passwdPath: passwd,
+      groupPath: group,
       evidenceDirectory: evidence,
       releaseId,
       expectedNodeVersion: process.versions.node,
@@ -307,6 +355,56 @@ describe('planted violations — commissioning must refuse', () => {
     const entry = check(await assessCommissioning(inputs), 'unit_provenance');
     expect(entry.status).toBe('satisfied');
     expect(String(entry.observed?.['withoutOnFailure'])).toBe('none');
+  });
+
+  it('an attestor socket open to every account on the host', async () => {
+    const { inputs } = await commissionedHost();
+    await chmod(inputs.attestorSocketPath!, 0o666);
+    const entry = check(await assessCommissioning(inputs), 'attestor_separation');
+    expect(entry.status).toBe('unsatisfied');
+    expect(entry.detail).toMatch(/open to every account/);
+  });
+
+  it('an attestor credential the API user can read', async () => {
+    const { inputs, secrets } = await commissionedHost();
+    await chmod(join(secrets, 'attestor-database-url'), 0o644);
+    const entry = check(await assessCommissioning(inputs), 'attestor_separation');
+    expect(entry.status).toBe('unsatisfied');
+    expect(entry.detail).toMatch(/kf-api can read the attestor's .*attestor-database-url/);
+  });
+
+  it('the attestor running as the API user', async () => {
+    const { inputs, systemd } = await commissionedHost();
+    for (const directory of [inputs.shippedUnitDirectory!, systemd]) {
+      const unit = join(directory, 'kf-attestor.service');
+      await writeFile(
+        unit,
+        (await readFile(unit, 'utf8')).replace('User=kf-attestor', 'User=kf-api'),
+      );
+    }
+    const entry = check(await assessCommissioning(inputs), 'attestor_separation');
+    expect(entry.status).toBe('unsatisfied');
+    expect(entry.detail).toMatch(/same user/);
+  });
+
+  it('an attestor socket in a group the API is not in', async () => {
+    const { inputs } = await commissionedHost();
+    await writeFile(inputs.groupPath!, `kf-attest:x:${process.getgid?.() ?? 0}:\n`);
+    const entry = check(await assessCommissioning(inputs), 'attestor_separation');
+    expect(entry.status).toBe('unsatisfied');
+    expect(entry.detail).toMatch(/API cannot reach it/);
+  });
+
+  it('no attestor socket at all, as unverifiable rather than satisfied', async () => {
+    const { inputs } = await commissionedHost();
+    const entry = check(
+      await assessCommissioning({
+        ...inputs,
+        attestorSocketPath: `${inputs.attestorSocketPath!}.absent`,
+      }),
+      'attestor_separation',
+    );
+    expect(entry.status).toBe('unverifiable');
   });
 
   it('a secret file the rest of the host can read', async () => {
@@ -533,10 +631,9 @@ describe('unit parsing', () => {
     const assess = async (root: string) => {
       const { secretPosture } = await import('./internal/commissioning/units.js');
       return secretPosture({
+        ...COMMISSIONING_DEFAULTS,
         systemdDirectory: root,
         shippedUnitDirectory: root,
-        certificateRenewalDays: 21,
-        rollbackRehearsalDays: 180,
       });
     };
 
@@ -664,10 +761,8 @@ describe('reverse proxy posture', () => {
   const assess = async (path: string | undefined) => {
     const { reverseProxyPosture } = await import('./internal/commissioning/host.js');
     return reverseProxyPosture({
+      ...COMMISSIONING_DEFAULTS,
       systemdDirectory: '/etc/systemd/system',
-      shippedUnitDirectory: 'deploy/systemd',
-      certificateRenewalDays: 21,
-      rollbackRehearsalDays: 180,
       ...(path === undefined ? {} : { reverseProxyConfigPath: path }),
     });
   };
@@ -775,10 +870,8 @@ describe('liminal runtime inventory', () => {
   const assess = async (releaseDirectory?: string) => {
     const { liminalRuntimeInventory } = await import('./internal/commissioning/host.js');
     return liminalRuntimeInventory({
+      ...COMMISSIONING_DEFAULTS,
       systemdDirectory: '/etc/systemd/system',
-      shippedUnitDirectory: 'deploy/systemd',
-      certificateRenewalDays: 21,
-      rollbackRehearsalDays: 180,
       ...(releaseDirectory === undefined ? {} : { releaseDirectory }),
     });
   };

@@ -13,7 +13,7 @@ import {
   runtimeVersion,
   tlsTermination,
 } from './host.js';
-import { secretPosture, unitProvenance } from './units.js';
+import { attestorSeparation, secretPosture, unitProvenance } from './units.js';
 
 /**
  * A check for most blockers in `docs/deployment/private-host.md`, in the order an operator
@@ -45,6 +45,13 @@ export const COMMISSIONING_CHECKS: readonly CommissioningCheckDefinition[] = [
     blocker:
       'no host evidence that each private key is readable only by the one identity that uses it',
     run: secretPosture,
+  },
+  {
+    id: 'attestor_separation',
+    blocker:
+      'no host evidence that kf-attestor runs apart from the API, that only the API can reach ' +
+      'its socket, and that the API cannot read its database credential',
+    run: attestorSeparation,
   },
   {
     id: 'tls_termination',

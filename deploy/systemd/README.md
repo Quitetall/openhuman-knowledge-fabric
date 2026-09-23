@@ -21,7 +21,9 @@ KF_TLS_TERMINATED_UPSTREAM=1
 ```
 
 API also needs complete `OIDC_ISSUER` / `OIDC_AUDIENCE` / `OIDC_JWKS_URI` set and owner-only
-database/object-store secret files. Web needs reviewed public OIDC client plus owner-only
+database/object-store secret files, and `kf-attestor.service` running: the database binds a
+person for the API's login only on an attestation from it (`KF_ATTESTOR_SOCKET`, set on the
+API's command line). Web needs reviewed public OIDC client plus owner-only
 session key. Fixed `KF_DEV_*` identity is forbidden.
 
 Every unit uses a distinct unprivileged account except `kf-backup.service` and
@@ -98,12 +100,18 @@ sudo useradd --system --user-group --home-dir /nonexistent --shell /usr/sbin/nol
 sudo useradd --system --user-group --home-dir /nonexistent --shell /usr/sbin/nologin kf-web
 sudo useradd --system --user-group --home-dir /nonexistent --shell /usr/sbin/nologin kf-worker
 sudo useradd --system --user-group --home-dir /nonexistent --shell /usr/sbin/nologin kf-migrator
+# The identity attestor (migration 20260924001000): its own user, holding the one database
+# credential the API must never hold, and a socket group only kf-api shares with it.
+sudo useradd --system --user-group --home-dir /nonexistent --shell /usr/sbin/nologin kf-attestor
+sudo groupadd --system kf-attest
+sudo usermod -aG kf-attest kf-api
 
 sudo install -d -m 0755 -o root -g root /etc/kf
 sudo install -d -m 0750 -o root -g kf-api /etc/kf/api
 sudo install -d -m 0750 -o root -g kf-web /etc/kf/web
 sudo install -d -m 0750 -o root -g kf-worker /etc/kf/worker
 sudo install -d -m 0750 -o root -g kf-migrator /etc/kf/migrator
+sudo install -d -m 0700 -o kf-attestor -g kf-attestor /etc/kf/attestor
 sudo install -d -m 0700 -o kf-worker -g kf-worker /var/lib/kf-worker
 sudo install -d -m 0700 -o kf-migrator -g kf-migrator /var/lib/kf-migrator
 
@@ -111,6 +119,7 @@ sudo install -m 0640 -o root -g kf-api api.env.example /etc/kf/api.env
 sudo install -m 0640 -o root -g kf-web web.env.example /etc/kf/web.env
 sudo install -m 0640 -o root -g kf-worker worker.env.example /etc/kf/worker.env
 sudo install -m 0640 -o root -g kf-migrator migrator.env.example /etc/kf/migrator.env
+sudo install -m 0640 -o root -g kf-attestor attestor.env.example /etc/kf/attestor.env
 sudo install -m 0640 -o root -g kf-backup backup.env.example /etc/kf/backup.env
 # The OpenPGP PUBLIC key backups are encrypted to (requires gnupg on the host). Its private key
 # stays with whoever performs recovery; backup.sh refuses a file that contains one.
@@ -122,6 +131,8 @@ sudo install -m 0600 -o kf-web -g kf-web /dev/null /etc/kf/web/session-key
 sudo install -m 0600 -o kf-worker -g kf-worker /dev/null /etc/kf/worker/database-url
 sudo install -m 0600 -o kf-worker -g kf-worker /dev/null /etc/kf/worker/s3-secret-access-key
 sudo install -m 0600 -o kf-migrator -g kf-migrator /dev/null /etc/kf/migrator/database-url
+# A login that inherits kf_attestor and nothing else. kf-api must not be able to read it.
+sudo install -m 0600 -o kf-attestor -g kf-attestor /dev/null /etc/kf/attestor/database-url
 # Host-local key rehearsal receipts are authenticated with; apply refuses a receipt it did not
 # sign. See "Migration and rollback rehearsal" in docs/deployment/private-host.md.
 sudo install -m 0600 -o kf-migrator -g kf-migrator /dev/null /etc/kf/migrator/rehearsal-receipt-key
