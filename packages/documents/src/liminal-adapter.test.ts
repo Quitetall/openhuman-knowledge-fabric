@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { chmod, mkdtemp, readFile, rm, truncate, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -455,6 +455,29 @@ describe.skipIf(process.platform !== 'linux' || !existsSync(TEST_BWRAP))(
         maxDataBytes: 1024 * 1024 * 1024,
         maxFileBytes: 64 * 1024 * 1024,
         maxOpenFiles: 128,
+        allowScriptExecutableForTests: true,
+      });
+      await expect(adapter.compile(request)).resolves.toEqual(response);
+    });
+
+    it('runs the compiler under its own syscall filter, on top of any the worker has', async () => {
+      // Read back from inside, like the limits above. The kernel counts the filters a process is
+      // under; the compiler must be under at least one more than the worker that spawned it,
+      // whether or not the worker itself runs under systemd's SystemCallFilter=.
+      const status = (text: string, field: string) =>
+        Number(new RegExp(`^${field}:\\s*(\\d+)`, 'm').exec(text)?.[1] ?? '0');
+      const own = status(readFileSync('/proc/self/status', 'utf8'), 'Seccomp_filters');
+      const files = await fixture(`
+      const text = require('node:fs').readFileSync('/proc/self/status', 'utf8');
+      const field = (name) => Number(new RegExp('^' + name + ':\\\\s*(\\\\d+)', 'm').exec(text)?.[1] ?? '0');
+      if (field('Seccomp') !== 2) process.exit(61);
+      if (field('Seccomp_filters') <= ${String(own)}) process.exit(62);
+      process.stdin.resume();
+      process.stdin.on('end', () => process.stdout.write(${JSON.stringify(canonicalize(response))}));
+    `);
+      const adapter = new PinnedLiminalProcessAdapter({
+        ...files,
+        timeoutMs: 60_000,
         allowScriptExecutableForTests: true,
       });
       await expect(adapter.compile(request)).resolves.toEqual(response);
