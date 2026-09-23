@@ -13,6 +13,7 @@ import {
   compositionRevisionCreatedByAction,
   currentCompositionSource,
   legacyArtifactMaterialization,
+  replayableEvidenceKey,
 } from './repository.js';
 import type { CurrentCompositionInput } from './repository.js';
 
@@ -65,7 +66,7 @@ export async function loadDogfoodComposition(
     manifestVersionId = legacyManifest.versionId;
     manifestArtifactReplayed = true;
   } else {
-    const manifestArtifact = await execute(tx, {
+    const request = {
       ...common,
       actionType: 'attach_evidence',
       idempotencyKey: manifestArtifactKey,
@@ -77,6 +78,12 @@ export async function loadDogfoodComposition(
         media_type: 'application/json',
         storage_uri: manifest.key,
       },
+    };
+    // A database loaded before the storage key was organization-scoped replays under its old key.
+    const storageUri = await replayableEvidenceKey(tx, request, manifest.sha256);
+    const manifestArtifact = await execute(tx, {
+      ...request,
+      payload: { ...request.payload, storage_uri: storageUri },
     });
     const createdArtifactId = manifestArtifact.objectIds[0];
     if (createdArtifactId === undefined) {

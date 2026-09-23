@@ -71,6 +71,13 @@ The loader is idempotent by construction: staging is content-addressed with cond
 so an unchanged rerun creates neither database duplicates nor new object-store versions. An
 occupied key holding _different_ bytes fails closed rather than overwriting.
 
+That includes a database loaded before 2026-09-23, when evidence storage keys became
+organization-scoped (`document-imports/<organization>/<sha256>`). A rerun there asks the ledger
+what it recorded and, when the only difference is the old unscoped key, replays that act instead
+of failing with `idempotency_conflict`. If the ledger holds an act that differs in anything else,
+the loader stops and prints the one command that starts the development database over:
+`DATABASE_URL="$DATABASE_OWNER_URL" pnpm db:reset && pnpm dogfood:load -- --source-dir <dir>`.
+
 It finishes by printing a paste-ready block:
 
 ```
@@ -118,6 +125,12 @@ pnpm dev                      # api :4000, web :3000, worker
 
 Then open <http://localhost:3000/documents>.
 
+Each app's `dev` script sets `NODE_ENV=development` itself. Since 2026-09-23 the API refuses to
+start with `NODE_ENV` unset rather than assuming `development`, so a unit file that forgets it
+fails at boot instead of trusting identity headers; the dev scripts say what they are so that the
+refusal stays on hosts. `KF_DEPLOYMENT_PROFILE`, the database and the `KF_DEV_*` values still come
+from `.env`.
+
 **This step was not observed working.** On the authoring machine all three apps died at startup
 with `ENOSPC: System limit for number of file watchers reached`. That was _not_ a Knowledge
 Fabric requirement and not a low limit — `fs.inotify.max_user_watches` was already 524288, the
@@ -132,7 +145,7 @@ The **built** API does run. On 2026-08-27 `node apps/api/dist/server.js` was sta
 verified a genuine Keycloak access token — see
 [`docs/deployment/identity-and-login.md`](deployment/identity-and-login.md). So `pnpm dev` is
 blocked by the watcher budget, not by anything in the application. `pnpm --filter @kf/api build`
-then `node apps/api/dist/server.js` sidesteps it entirely.
+then `NODE_ENV=development node apps/api/dist/server.js` sidesteps it entirely.
 
 If you hit `ENOSPC`, do not raise the limit reflexively — find the consumer first:
 

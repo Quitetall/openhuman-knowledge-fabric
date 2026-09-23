@@ -8,7 +8,11 @@ import type {
   DogfoodIdentity,
   StagedSource,
 } from '../contracts.js';
-import { artifactVersionCreatedByAction, legacyArtifactMaterialization } from '../repository.js';
+import {
+  artifactVersionCreatedByAction,
+  legacyArtifactMaterialization,
+  replayableEvidenceKey,
+} from '../repository.js';
 import type { LoadedArtifact } from './contracts.js';
 
 export async function loadArtifact(
@@ -47,7 +51,7 @@ export async function loadArtifact(
       replayed: true,
     };
   }
-  const artifact = await execute(tx, {
+  const request = {
     ...common,
     actionType: 'attach_evidence',
     idempotencyKey: artifactKey,
@@ -60,6 +64,12 @@ export async function loadArtifact(
       storage_uri: key,
       revision_label: entry.revision,
     },
+  };
+  // A database loaded before the storage key was organization-scoped replays under its old key.
+  const storageUri = await replayableEvidenceKey(tx, request, sha256);
+  const artifact = await execute(tx, {
+    ...request,
+    payload: { ...request.payload, storage_uri: storageUri },
   });
   const artifactId = artifact.objectIds[0];
   if (artifactId === undefined) throw new Error('attach_evidence returned no artifact id');
