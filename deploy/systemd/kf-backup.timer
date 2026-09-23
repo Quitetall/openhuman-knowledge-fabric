@@ -2,6 +2,9 @@
 Description=Daily backup
 
 [Timer]
+# How long this may go without firing before scripts/timer-liveness.sh reports it (systemd
+# ignores X- keys). Daily plus 10 minutes of spread: 26 hours silent means a night was missed.
+X-KF-MaxSilenceSec=93600
 OnCalendar=*-*-* 02:00:00
 RandomizedDelaySec=600
 Persistent=true

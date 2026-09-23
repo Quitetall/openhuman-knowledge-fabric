@@ -212,6 +212,24 @@ check keeps its own ID and does not erase or contaminate evidence from the other
 Read the message. It is usually a permission or a missing object, both of which mean something
 changed that nobody recorded.
 
+## `kf-readiness` failed on timer liveness — a timer is not firing
+
+`kf-readiness.service` also runs `scripts/timer-liveness.sh`, which asks systemd when each
+shipped `kf-*.timer` last fired and fails, naming it, when one is inactive or has been silent
+longer than the `X-KF-MaxSilenceSec=` its own file declares. A stopped or never-enabled timer
+fails nothing by itself — its service just stops running — so this is where that absence
+becomes an alert.
+
+```
+journalctl -u kf-readiness.service -n 30      # which timer, and how long silent
+systemctl list-timers 'kf-*'
+systemctl enable --now <timer>                # if it was stopped or never enabled
+```
+
+The readiness timer cannot report its own stop. `kf-alert-heartbeat.service` runs the same check
+for `kf-readiness.timer` first and withholds the daily heartbeat while it is not firing, so the
+receiver's missing-heartbeat rule is what notices.
+
 ---
 
 ## Restoring
@@ -245,7 +263,9 @@ valid.
 1. Generate the new key where the API cannot reach it.
 2. Write the new public key to the external append-only trust directory as
    `<CHECKPOINT_SIGNING_KEY_ID>.pub`. Keep every prior file; never place private keys there.
-3. Point the signer at the new key; the next checkpoint uses it.
+3. Set a NEW `CHECKPOINT_SIGNING_KEY_ID` in `/etc/kf/checkpoint.env` and point the signer at
+   the new key; the next checkpoint uses it. Never reuse an id for a different key: `--run`
+   refuses when `<id>.pub` is missing or is not the public half of the configured private key.
 4. Set `CHECKPOINT_PUBLIC_KEY_DIR` for verification. It loads every regular `*.pub` file by
    signing-key id, refuses symlinks and non-Ed25519 keys, and reports `unknown_key` for any
    checkpoint whose historical key is absent.

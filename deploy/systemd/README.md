@@ -80,6 +80,12 @@ way to catch an alerter that cannot report its own death.
 Enable both: `systemctl enable --now kf-alert-heartbeat.timer`. `kf-alert@.service` is a
 template pulled in by `OnFailure=` and is never enabled directly.
 
+Each timer declares in its own file how long it may go without firing (`X-KF-MaxSilenceSec=`,
+an `X-` key systemd ignores). `kf-readiness.service` runs `scripts/timer-liveness.sh` before the
+readiness checks and fails, naming the timer, when any is inactive or silent longer than that;
+`kf-alert-heartbeat.service` runs it for `kf-readiness.timer` alone and withholds the heartbeat
+while readiness itself is not firing. Until 2026-09-23 nothing noticed a timer that had stopped.
+
 ## Install
 
 Do not enable units until `/opt/kf` points at verified release, identities and owner-only files
