@@ -53,10 +53,12 @@ export function createTransactionalDispatcher(
 
     // The database clock, not this process's. `recorded_at` defaults to the database's now(),
     // so an effective time from a drifting application host could land before the moment the
-    // action was recorded, or after it. Truncated to milliseconds, the precision effective_at
-    // travels at everywhere else.
+    // action was recorded, or after it. Rounded UP to milliseconds, the precision effective_at
+    // travels at everywhere else: truncating put an act's effective time before the start of
+    // the transaction that recorded it, so rows the same act wrote at full precision sorted
+    // after the act itself.
     const clock = await tx.one<{ id: string; now: Date }>(
-      "select uuidv7() as id, date_trunc('milliseconds', now()) as now",
+      "select uuidv7() as id, date_trunc('milliseconds', now() + interval '999 microseconds') as now",
     );
     const actionId = clock.id;
     const effectiveAt = request.effectiveAt ?? clock.now;

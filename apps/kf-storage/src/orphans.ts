@@ -27,7 +27,7 @@
  */
 
 import type { SweepableObjectStore } from '@kf/artifacts';
-import { setAccessContext, withTransaction, type Pool } from '@kf/database';
+import { bindPrincipal, withTransaction, type Pool } from '@kf/database';
 import { assertServiceActor, type StorageActor } from './sweep.js';
 
 /** Mirrors `EVIDENCE_KEY_NAMESPACES` in @kf/documents; a test holds the two equal. */
@@ -51,7 +51,9 @@ export interface OrphanSweepReport {
 
 async function referenced(pool: Pool, actor: StorageActor, key: string): Promise<boolean> {
   return withTransaction(pool, async (tx) => {
-    await setAccessContext(tx, {
+    await bindPrincipal(tx, {
+      actorId: actor.personId,
+      actingRoleId: actor.roleAssignmentId,
       organizationId: actor.organizationId,
       maxClassification: actor.maxClassification,
     });
@@ -66,7 +68,9 @@ async function referenced(pool: Pool, actor: StorageActor, key: string): Promise
 
 async function assertFullCeiling(pool: Pool, actor: StorageActor): Promise<void> {
   const full = await withTransaction(pool, async (tx) => {
-    await setAccessContext(tx, {
+    await bindPrincipal(tx, {
+      actorId: actor.personId,
+      actingRoleId: actor.roleAssignmentId,
       organizationId: actor.organizationId,
       maxClassification: actor.maxClassification,
     });

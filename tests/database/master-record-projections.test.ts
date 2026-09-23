@@ -268,10 +268,7 @@ describe('corpus projections over a real master record', () => {
       expect(read.statusCode, read.body).toBe(409);
       expect(read.json()).toMatchObject({ error: 'master_record_stale' });
       const unchanged = await withTransaction(harness.pool, async (tx) => {
-        await tx.query('select core.set_access_context($1, $2)', [
-          fixtures.organizationId,
-          'restricted',
-        ]);
+        await bindReader(tx, fixtures, fixtures.performerId);
         return latestMasterRecord(tx, fixtures.performerId, fixtures.organizationId);
       });
       expect(unchanged?.['id']).toBe(before?.['id']);

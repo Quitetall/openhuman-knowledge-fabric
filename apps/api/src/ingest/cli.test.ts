@@ -234,7 +234,12 @@ const DEV_ENV = {
 /** Every query answers as the clearance resolver would for `internal`; nothing else is read. */
 function fakePool(): Pool {
   const client = {
-    query: vi.fn(async () => ({ rows: [{ requested_classification: 'internal' }], rowCount: 1 })),
+    // Answers the principal bind (`ceiling`) and the older resolver shape alike: the CLI binds
+    // its dev identity through core.bind_principal before it reads anything.
+    query: vi.fn(async () => ({
+      rows: [{ ceiling: 'internal', requested_classification: 'internal' }],
+      rowCount: 1,
+    })),
     release: vi.fn(),
   };
   return {

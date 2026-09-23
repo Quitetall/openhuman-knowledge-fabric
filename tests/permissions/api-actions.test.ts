@@ -639,7 +639,7 @@ describe('actions over HTTP', () => {
     expect(r.statusCode, r.body).toBe(201);
     const row = await withTransaction(h.adminPool, (tx) =>
       tx.one<{ same: boolean }>(
-        `select effective_at = date_trunc('milliseconds', recorded_at) as same
+        `select effective_at = date_trunc('milliseconds', recorded_at + interval '999 microseconds') as same
            from core.action where id = $1`,
         [r.json().actionId],
       ),

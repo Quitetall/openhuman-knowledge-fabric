@@ -124,12 +124,15 @@ every policy working while none was consulted.
 
 ## T4 — Evidence is altered underneath the record
 
-| Control                                                                                                    | Where                  | Proven by                              |
-| ---------------------------------------------------------------------------------------------------------- | ---------------------- | -------------------------------------- |
-| The server re-derives the digest from the stored bytes; the client's claim is only used to detect mismatch | `packages/artifacts`   | `tests/round-trip/export.test.ts`      |
-| Full bytes are read, never an ETag or a length                                                             | same                   | same                                   |
-| `verifyRecordedVersion` re-checks the vault against the record                                             | same                   | same                                   |
-| Federated content is pinned to a commit and digested as seen                                               | `packages/integration` | `tests/integration/federation.test.ts` |
+| Control                                                                                                             | Where                                        | Proven by                                      |
+| ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ---------------------------------------------- |
+| The server re-derives the digest from the stored bytes; the client's claim is only used to detect mismatch          | `packages/artifacts`                         | `tests/round-trip/export.test.ts`              |
+| Full bytes are read, never an ETag or a length                                                                      | same                                         | same                                           |
+| `verifyRecordedVersion` re-checks the vault against the record                                                      | same                                         | same                                           |
+| Federated content is pinned to a commit and digested as seen                                                        | `packages/integration`                       | `tests/integration/federation.test.ts`         |
+| The storage key is derived by the server from the bound organization and digest; a caller-named key is refused      | `evidenceStorageKey`, `@kf/documents`        | `packages/documents/src/index.test.ts`         |
+| pandoc parses under a sandbox, a heap ceiling, a wall-clock kill and an output cap, and refuses rather than hangs   | `packages/documents`                         | `packages/documents/src/pandoc-parser.test.ts` |
+| Nothing reaches the object store before the act could be refused; unreferenced bytes are swept after a grace period | ingest route, `kf-storage --collect-orphans` | `apps/api/src/ingest/content-policy.test.ts`   |
 
 **Not mitigated: the object store's own durability.** If the bucket is lost, the digests prove
 what the bytes _were_, and that is all. Backing up the bucket on the same schedule as the
@@ -137,17 +140,22 @@ database is an operational requirement — see [backup and restore](../backup-an
 
 ## T5 — Loss
 
-| Control                                                              | Where                                                    | Proven by                            |
-| -------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------ |
-| Canonical export round-trips through an empty database byte for byte | `packages/export`                                        | `tests/round-trip/export.test.ts`    |
-| Restore drill runs the shipped scripts against real containers       | `scripts/`                                               | `tests/backup-restore/drill.test.ts` |
-| Restore refuses a target that already holds records                  | `restore-verify.sh`                                      | same                                 |
-| Every derived index is rebuildable from the records                  | `search.rebuild()`                                       | `tests/integration/search.test.ts`   |
-| A declared recovery objective, or institutional readiness FAILS      | `ops.recovery_objective`                                 | `tests/database/readiness.test.ts`   |
-| Backups, off-site copies and drills are recorded and checked         | `ops.backup_run`, `ops.backup_copy`, `ops.restore_drill` | same                                 |
-| The objective cannot be edited into compliance — only superseded     | append-only trigger                                      | same                                 |
-| Continuous archiving is checked against the declared objective       | `pitr_readiness`                                         | same                                 |
-| Everything above runs on a timer, and a timer that stops is noticed  | `deploy/systemd/`                                        | —                                    |
+| Control                                                                                               | Where                                                    | Proven by                                           |
+| ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | --------------------------------------------------- |
+| Canonical export round-trips through an empty database byte for byte                                  | `packages/export`                                        | `tests/round-trip/export.test.ts`                   |
+| Restore drill runs the shipped scripts against real containers                                        | `scripts/`                                               | `tests/backup-restore/drill.test.ts`                |
+| Restore refuses a target that already holds records                                                   | `restore-verify.sh`                                      | same                                                |
+| Every derived index is rebuildable from the records                                                   | `search.rebuild()`                                       | `tests/integration/search.test.ts`                  |
+| A declared recovery objective, or institutional readiness FAILS                                       | `ops.recovery_objective`                                 | `tests/database/readiness.test.ts`                  |
+| Backups, off-site copies and drills are recorded and checked                                          | `ops.backup_run`, `ops.backup_copy`, `ops.restore_drill` | same                                                |
+| The objective cannot be edited into compliance — only superseded                                      | append-only trigger                                      | same                                                |
+| Continuous archiving is checked against the declared objective                                        | `pitr_readiness`                                         | same                                                |
+| Everything above runs on a timer, and a timer that stops is noticed                                   | `scripts/timer-liveness.sh`, `X-KF-MaxSilenceSec=`       | `tests/deployment/timer-liveness.test.ts`           |
+| A crash-looping service ends in `failed`, so its alert fires                                          | `StartLimitBurst=` on every restarting unit              | `tests/deployment/systemd-units.test.ts`            |
+| Backups are encrypted to a public key before they leave, and pruned only once an off-site copy exists | `scripts/backup.sh`                                      | `tests/backup-restore/backup-hardening.test.ts`     |
+| A local destination is not off-site unless a named failure domain says so                             | `scripts/backup-offsite.sh`                              | `tests/backup-restore/offsite-copy.test.ts`         |
+| The drill restores the off-site copy, into a throwaway cluster                                        | `scripts/restore-drill.sh`                               | `tests/backup-restore/restore-drill-source.test.ts` |
+| Checkpoint signatures are verified daily, by an identity holding no signing key                       | `kf-audit-verify.timer`                                  | `tests/deployment/systemd-units.test.ts`            |
 
 **The load-bearing part is the objective, not the schedule.** "Back up nightly" is an activity;
 an objective says how much work the organization has decided it can afford to lose. Until one
@@ -173,19 +181,22 @@ the property that makes an unnoticed failure of those units survivable rather th
 
 ## T7 — Identity
 
-| Control                                                                                  | Where                                   | Proven by                                                                 |
-| ---------------------------------------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------- |
-| Bearer tokens verified against the issuer's published keys                               | `packages/authorization`                | `tests/permissions/identity.test.ts`                                      |
-| Issuer AND audience checked — a token for another service is refused                     | same                                    | same                                                                      |
-| Role claims in the token are never read                                                  | same                                    | same                                                                      |
-| The subject maps to a person; a subject nobody linked is refused                         | `org.external_identity`                 | same                                                                      |
-| The acting role is checked live against `org.role_assignment`                            | same                                    | same                                                                      |
-| Revocation takes effect immediately, not at token expiry                                 | same                                    | same                                                                      |
-| Headers are ignored entirely once a verifier exists — no fallback                        | `apps/api`                              | same                                                                      |
-| The API refuses to boot outside development without a provider                           | `apps/api/src/config.ts`                | `apps/api/src/app.test.ts`                                                |
-| Money, release and control-withdrawal actions require a fresh, strong authentication     | `packages/authorization/src/step-up.ts` | `tests/permissions/step-up.test.ts`, `tests/permissions/identity.test.ts` |
-| Step-up fails closed on every unknown the provider does not report                       | same                                    | same                                                                      |
-| Step-up is checked before the action, and a refusal does not consume the idempotency key | `apps/api/src/routes/actions.ts`        | `tests/permissions/identity.test.ts`                                      |
+| Control                                                                                                                     | Where                                                | Proven by                                                                 |
+| --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------- |
+| Bearer tokens verified against the issuer's published keys                                                                  | `packages/authorization`                             | `tests/permissions/identity.test.ts`                                      |
+| Issuer AND audience checked — a token for another service is refused                                                        | same                                                 | same                                                                      |
+| Role claims in the token are never read                                                                                     | same                                                 | same                                                                      |
+| The subject maps to a person; a subject nobody linked is refused                                                            | `org.external_identity`                              | same                                                                      |
+| The acting role is checked live against `org.role_assignment`                                                               | same                                                 | same                                                                      |
+| Revocation takes effect immediately, not at token expiry                                                                    | same                                                 | same                                                                      |
+| Headers are ignored entirely once a verifier exists — no fallback                                                           | `apps/api`                                           | same                                                                      |
+| The API refuses to boot outside development without a provider                                                              | `apps/api/src/config.ts`                             | `apps/api/src/app.test.ts`                                                |
+| Money, release and control-withdrawal actions require a fresh, strong authentication                                        | `packages/authorization/src/step-up.ts`              | `tests/permissions/step-up.test.ts`, `tests/permissions/identity.test.ts` |
+| Step-up fails closed on every unknown the provider does not report                                                          | same                                                 | same                                                                      |
+| Step-up is checked before the action, and a refusal does not consume the idempotency key                                    | `apps/api/src/routes/actions.ts`                     | `tests/permissions/identity.test.ts`                                      |
+| Tokens are verified as RS256 only, against an HTTPS key set                                                                 | `packages/authorization`, `apps/web/src/lib/oidc.ts` | `apps/web/src/lib/oidc.test.ts`                                           |
+| The realm refuses weak settings at commissioning: brute force, password policy, MFA enrolment, refresh reuse, direct grants | `commissioning/environment.ts`                       | `tests/deployment/keycloak-realm.test.ts`                                 |
+| Logout ends the provider session too, and clears every local cookie on every branch                                         | `apps/web` logout route                              | `apps/web/src/lib/oidc.test.ts`                                           |
 
 **The design decision worth arguing about, made explicitly.** The identity provider answers one
 question — who is this — and the database answers everything else. Role claims are not
@@ -206,8 +217,9 @@ Every unknown fails closed. A provider that does not report `auth_time` cannot p
 is recent, and "cannot prove" has to mean no, or the control evaporates for exactly the
 providers least able to enforce it.
 
-**Not mitigated: token lifetime and refresh policy are still not written down.** They belong
-in the provider's own configuration, which this repository does not hold.
+**Token lifetime and refresh policy are now written down** in the shipped realm and checked at
+commissioning: 300-second access tokens, refresh tokens that cannot be reused, offline sessions
+capped at 3 days idle and 7 in total.
 
 **Residual risk.** A stolen unexpired token acts as its subject until it expires or the
 identity link is revoked. Revocation is immediate once somebody knows; nothing here shortens
@@ -217,7 +229,10 @@ it reading, and everything in T6's read surface is available to it.
 
 ## What is deliberately out of scope
 
-- **PHI.** Never enters this system in any form. Not a control — an absence.
+- **PHI.** Never enters this system in any form. Policy first; since 2026-09-23 ingest and sync
+  also refuse private keys, likely IBAN, SSN and card numbers and credential-shaped filenames
+  (`apps/api/src/ingest/content-policy.ts`). A backstop, not a guarantee: the scan cannot see
+  inside compressed DOCX, ODT or PDF streams, and it knows no pattern for health information.
 - **Bank details, tax identifiers, payroll.** Referenced, never copied.
 - **Vendor datasheets.** Third-party copyright; referenced by number, revision and digest.
 - **Complainant identity.** `quality.complaint` holds a reference, never a name — putting
@@ -225,16 +240,21 @@ it reading, and everything in T6's read surface is available to it.
 
 ## T8 — Transport and credentials
 
-| Control                                                                                                  | Where                                | Proven by                           |
-| -------------------------------------------------------------------------------------------------------- | ------------------------------------ | ----------------------------------- |
-| The process refuses to boot outside development unless the deployment asserts TLS is terminated upstream | `apps/api/src/config.ts`             | `apps/api/src/app.test.ts`          |
-| HSTS in staging and production; nosniff, DENY, no-referrer, no-store always                              | `apps/api/src/app.ts`                | same                                |
-| Secrets are read from files, not the environment                                                         | `packages/operations/src/secrets.ts` | `tests/permissions/secrets.test.ts` |
-| A secret file readable beyond its owner is REFUSED, not warned about                                     | same                                 | same                                |
-| An inline credential outside development is refused                                                      | same                                 | same                                |
-| The same rule applies to the checkpoint signing key                                                      | `readSecretFile`                     | same                                |
-| Failure messages never contain the secret                                                                | same                                 | same                                |
-| The shell scripts resolve credentials the same way                                                       | `scripts/lib/secret.sh`              | —                                   |
+| Control                                                                                                              | Where                                     | Proven by                                   |
+| -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------- |
+| The process refuses to boot outside development unless the deployment asserts TLS is terminated upstream             | `apps/api/src/config.ts`                  | `apps/api/src/app.test.ts`                  |
+| HSTS in staging and production; nosniff, DENY, no-referrer, no-store always                                          | `apps/api/src/app.ts`                     | same                                        |
+| Secrets are read from files, not the environment                                                                     | `packages/operations/src/secrets.ts`      | `tests/permissions/secrets.test.ts`         |
+| A secret file readable beyond its owner is REFUSED, not warned about                                                 | same                                      | same                                        |
+| An inline credential outside development is refused                                                                  | same                                      | same                                        |
+| The same rule applies to the checkpoint signing key                                                                  | `readSecretFile`                          | same                                        |
+| Failure messages never contain the secret                                                                            | same                                      | same                                        |
+| The shell scripts resolve credentials the same way                                                                   | `scripts/lib/secret.sh`                   | —                                           |
+| The API refuses to serve on a database login that is a superuser, bypasses row security, or can become a table owner | `@kf/database` `loginPrivilegeProblems`   | `tests/permissions/login-privilege.test.ts` |
+| The readiness report is whole only for loopback or a token holder; everyone else gets one boolean                    | `apps/api/src/app.ts`, nginx              | `apps/api/src/readiness-cache.test.ts`      |
+| `NODE_ENV` must be stated, and the development profile listens only on loopback                                      | `apps/api/src/config.ts`                  | `apps/api/src/app.test.ts`                  |
+| 5xx bodies carry a request id, never an error message                                                                | `setErrorHandler`                         | same                                        |
+| Per-address rate limits at the proxy; a nonce CSP and `frame-ancestors 'none'` on the web                            | `deploy/nginx`, `apps/web/src/lib/csp.ts` | `apps/web/src/lib/csp.test.ts`              |
 
 **TLS is not terminated by this application, and that is the intended design.** What changed is
 that it is no longer assumed: a deployment must state the posture, and a process that would
@@ -244,6 +264,18 @@ and renewal belong to the proxy.
 **Not mitigated: the proxy's own configuration.** Nothing here can verify that the thing in
 front of it actually terminates TLS — `KF_TLS_TERMINATED_UPSTREAM=1` is an assertion by
 whoever deploys, and a false one produces exactly the exposure it claims to prevent.
+
+## Accepted gaps from the 2026-09-23 hardening
+
+- **Deleting orphaned bytes is not an act.** No record exists to act on; the collected keys are
+  logged by `kf-storage`, not chained. ADR 0020 says every storage write is a typed action.
+- **No seccomp filter on the compiler sandbox.** bwrap takes one as a compiled BPF program and
+  nothing here builds one; `SystemCallFilter=` on the unit is the syscall boundary.
+- **The object-store verifier program is supplied by the host**, pinned by digest and asked for
+  measurements it cannot copy from the export — but not shipped here.
+- **The drill decrypts on the backup uid.** The key is a host-sealed credential, never a file;
+  running the drill on a separate recovery host is the documented recommendation.
+- **pandoc still parses inside the database transaction.** The deadline bounds how long.
 
 ## Open items
 

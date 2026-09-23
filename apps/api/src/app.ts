@@ -17,6 +17,7 @@ import {
   createPool,
   DatabaseError,
   loginPrivilegeProblems,
+  PrincipalRefused,
   readLoginPrivilege,
   withTransaction,
   type Pool,
@@ -141,6 +142,11 @@ export async function buildApp(
   // 4xx errors are Fastify's own refusals (malformed JSON, oversized body, unsupported media
   // type). Their messages describe the caller's request, not this server, so they are kept.
   app.setErrorHandler((error: FastifyError, request, reply) => {
+    // A principal the database refused to bind — no live assignment in that organization, or a
+    // ceiling above clearance — is out of scope, and out of scope reads as absent (T3).
+    if ((error as unknown) instanceof PrincipalRefused) {
+      return reply.code(404).send({ error: 'not_found', requestId: request.id });
+    }
     const status =
       typeof error.statusCode === 'number' && error.statusCode >= 400 && error.statusCode < 600
         ? error.statusCode
