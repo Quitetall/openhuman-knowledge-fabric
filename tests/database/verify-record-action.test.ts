@@ -130,7 +130,15 @@ describe('verifying a record is an act, one record at a time', () => {
     expect(await basisOf(target)).toBeUndefined();
   });
 
+  /**
+   * One verifier recording two individual reviews inside a second is refused (20260924000300):
+   * a person does not finish two in that time. These tests are one person reviewing records in
+   * sequence, so each waits the interval out rather than be refused for being a script.
+   */
+  const pastThePace = () => new Promise((resolve) => setTimeout(resolve, 1_100));
+
   it('refuses a second verification rather than silently replacing the first', async () => {
+    await pastThePace();
     const target = await record('Checked once');
     expect((await verify([target], { basis: 'reviewed_individually' })).status).toBe('applied');
     await expect(verify([target], { basis: 'promoted_in_bulk' })).rejects.toThrow(
@@ -144,6 +152,7 @@ describe('verifying a record is an act, one record at a time', () => {
   });
 
   it('names the act that recorded it', async () => {
+    await pastThePace();
     const target = await record('Traceable');
     await verify([target], { basis: 'reviewed_individually' });
     const row = await withTransaction(harness.pool, async (tx) => {

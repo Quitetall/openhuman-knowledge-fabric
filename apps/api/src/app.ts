@@ -43,6 +43,7 @@ import type { ProjectionLinks } from '@kf/projections';
 import { registerMlRoutes } from './routes/ml.js';
 import { registerSearchRoutes } from './routes/search.js';
 import { registerIdentifierRoutes } from './routes/identifiers.js';
+import { registerVerificationRoutes } from './routes/verifications.js';
 import { hasRequiredSchema } from './schema-contract.js';
 
 export const SERVICE_NAME = 'openhuman-knowledge-fabric-api';
@@ -367,6 +368,8 @@ export async function buildApp(
             },
           }),
     });
+    // The bulk verification gesture: stamps promoted_in_bulk itself, one act per record.
+    registerVerificationRoutes(app, { execute, identify });
     await registerDocumentRoutes(app, {
       pool,
       // Absent only for hand-built test configs; the projection routes then answer 503.

@@ -52,6 +52,24 @@ export function createVerificationActions(): VerificationActions {
       );
     }
 
+    // KF-SAS-RQ-231: two individual reviews inside the database's interval are not two reviews
+    // a person made. Asked here, before the insert, so the refusal names the bulk gesture as a
+    // precondition rather than surfacing as a database error; the same function also takes the
+    // verifier's lock, so a concurrent act waits and then sees this one (20260924000300). The
+    // trigger asks again for anyone who did not come through here.
+    if (basis === 'reviewed_individually') {
+      const pace = await tx.one<{ refusal: string | null }>(
+        'select core.individual_review_refusal($1) as refusal',
+        [request.actorId],
+      );
+      if (pace.refusal !== null) {
+        throw new ActionRejected('precondition_failed', pace.refusal, {
+          basis,
+          bulkGesture: 'POST /verifications/bulk',
+        });
+      }
+    }
+
     const target = objects[0]?.id;
     const already = await tx.maybeOne<{ basis: string }>(
       'select basis from core.object_verification where object_id = $1',
