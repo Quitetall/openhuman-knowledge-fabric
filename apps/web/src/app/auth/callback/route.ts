@@ -1,7 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import {
+  ID_TOKEN_HINT_COOKIE,
   OIDC_TRANSACTION_COOKIE,
   openOidcTransaction,
+  sealIdTokenHint,
   sealWebSession,
   publicUrl,
   SESSION_COOKIE,
@@ -48,8 +50,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const code = request.nextUrl.searchParams.get('code') ?? '';
   try {
     const metadata = await discoverOidc(config);
-    const session = await exchangeAuthorizationCode(metadata, config, transaction, code);
+    const { session, idToken } = await exchangeAuthorizationCode(
+      metadata,
+      config,
+      transaction,
+      code,
+    );
     const compact = await sealWebSession(session, config.sessionKey);
+    const hint = await sealIdTokenHint(idToken, session.expiresAt, config.sessionKey);
     const destination = publicUrl(request, '/session/select');
     destination.searchParams.set('next', transaction.returnTo);
     const response = clearTransaction(NextResponse.redirect(destination));
@@ -61,6 +69,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       priority: 'high',
       expires: new Date(session.expiresAt * 1000),
     });
+    if (hint !== undefined) {
+      response.cookies.set(ID_TOKEN_HINT_COOKIE, hint, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        path: '/',
+        expires: new Date(session.expiresAt * 1000),
+      });
+    }
     return response;
   } catch {
     return failed(request, 'token_rejected');

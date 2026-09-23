@@ -126,10 +126,15 @@ describe('OIDC authorization code client', () => {
         nowSeconds: now,
       }),
     ).resolves.toEqual({
-      version: 1,
-      accessToken: 'api-access',
-      subject: 'person-subject',
-      expiresAt: now + 3600,
+      session: {
+        version: 1,
+        accessToken: 'api-access',
+        subject: 'person-subject',
+        expiresAt: now + 3600,
+      },
+      // Kept for id_token_hint at logout, outside the session so it never rides with the
+      // access token.
+      idToken: token,
     });
 
     const wrongNonce = { ...transaction, nonce: 'wrong-nonce' };

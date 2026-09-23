@@ -1,5 +1,11 @@
 export const SESSION_COOKIE = '__Host-kf_session';
 export const OIDC_TRANSACTION_COOKIE = '__Host-kf_oidc_transaction';
+/**
+ * The provider's ID token, kept only to send as `id_token_hint` at logout. A cookie of its own
+ * rather than a field of the session: the session already carries the access token, and both
+ * together would not fit one cookie's budget.
+ */
+export const ID_TOKEN_HINT_COOKIE = '__Host-kf_id_token_hint';
 export const MAX_WEB_COOKIE_VALUE_BYTES = 3_800;
 export const CLASSIFICATIONS = ['public', 'internal', 'confidential', 'restricted'] as const;
 

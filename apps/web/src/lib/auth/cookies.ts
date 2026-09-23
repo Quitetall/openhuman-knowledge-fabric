@@ -2,7 +2,7 @@ import { EncryptJWT, jwtDecrypt, type JWTPayload } from 'jose';
 import { validateContextSelection } from './context';
 import { MAX_WEB_COOKIE_VALUE_BYTES, type OidcTransaction, type WebSession } from './types';
 
-type CookieKind = 'kf-web-session-v1' | 'kf-oidc-transaction-v1';
+type CookieKind = 'kf-web-session-v1' | 'kf-oidc-transaction-v1' | 'kf-id-token-hint-v1';
 
 async function seal(
   kind: CookieKind,
@@ -146,4 +146,32 @@ export async function openWebSession(
     }
   }
   return value as unknown as WebSession;
+}
+
+/**
+ * Seal the ID token for `id_token_hint` at logout, or return undefined if it will not fit.
+ *
+ * Without the hint the provider cannot tell which session is ending and asks the person to
+ * confirm, and one who closes that page leaves the SSO session alive for the next user of a
+ * shared machine. An ID token too large for a cookie degrades to exactly that prompt rather
+ * than failing a login that otherwise succeeded.
+ */
+export async function sealIdTokenHint(
+  idToken: string,
+  expiresAt: number,
+  key: Uint8Array,
+): Promise<string | undefined> {
+  const compact = await seal('kf-id-token-hint-v1', { idToken }, expiresAt, key);
+  return Buffer.byteLength(compact, 'utf8') > MAX_WEB_COOKIE_VALUE_BYTES ? undefined : compact;
+}
+
+export async function openIdTokenHint(
+  compact: string | undefined,
+  key: Uint8Array,
+): Promise<string | undefined> {
+  const envelope = await open(compact, 'kf-id-token-hint-v1', key);
+  const data = envelope?.['data'];
+  if (typeof data !== 'object' || data === null) return undefined;
+  const idToken = (data as Record<string, unknown>)['idToken'];
+  return typeof idToken === 'string' && idToken !== '' ? idToken : undefined;
 }

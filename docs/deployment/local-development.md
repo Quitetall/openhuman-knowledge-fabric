@@ -27,7 +27,11 @@ not turn fixed headers into shared identity.
 
 The web application implements OIDC authorization code with required PKCE, validates the
 signed ID token and nonce, stores the access token in an encrypted host-only session cookie,
-and forwards bearer identity to the API. It does not trust identity-provider role claims:
+and forwards bearer identity to the API. The verified ID token is kept in a second encrypted cookie
+(`__Host-kf_id_token_hint`) for one purpose: sign-out sends it as `id_token_hint`, so the
+provider ends its SSO session without asking for confirmation. Sign-out clears every local
+cookie on every path, including when configuration fails to load or the request is refused as
+cross-origin. It does not trust identity-provider role claims:
 selected KF authority context is validated by the API before it is retained in the session.
 
 ## Prerequisites
