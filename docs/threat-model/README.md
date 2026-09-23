@@ -60,21 +60,25 @@ was whatever string the API passed, the actor was any uuid, and `core.action`,
 `core.object_verification` all accepted direct inserts or updates that no act had made. Every
 one of those was a success, not a refusal. The controls below close them, each in the database:
 
-| Control                                                                                                                                          | Where                                                                                    | Proven by                                  |
-| ------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- | ------------------------------------------ |
-| The context is **sealed**: an HMAC under a key no role with write grants can read binds it to the transaction; a raw `set_config` reads as unset | `core.context_mac`, `20260923000100`                                                     | `tests/database/principal-binding.test.ts` |
-| No function but the context accessors reads a `kf.*` setting, and internal flags are sealed the same way                                         | same                                                                                     | same                                       |
-| The actor must be a person holding the stated acting role live in the bound organization; the ceiling is clamped to their clearance              | `core.set_transaction_context`                                                           | same                                       |
-| The API binds a reader only as a principal; organization and ceiling come from the principal's live assignment and clearance                     | `core.bind_principal`                                                                    | same                                       |
-| An action row must be the one the sealed context names — its id, actor, role and organization                                                    | `action_scoped_insert` policy                                                            | same                                       |
-| An audit event's digest is recomputed by the database, and its actor and action must match the context                                           | `core.enforce_audit_chain_head`                                                          | same                                       |
-| Role assignments and clearances can only be end-dated, never re-targeted, reopened or extended                                                   | guard triggers, `20260923000200`                                                         | same                                       |
-| An external identity is linked or revoked only under a sealed actor, in that actor's organization                                                | `org.external_identity` RLS                                                              | same                                       |
-| A verification row must name the sealed actor and action as verifier and act, and the verifier is never the record's creator                     | `object_verification_write` policy                                                       | same                                       |
-| A shared-link bearer binds only the link's own organization and ceiling, resolved by the database from the token digest                          | `content.bind_master_record_link`                                                        | same                                       |
-| SECURITY DEFINER lookups that take an organization answer only for the bound one                                                                 | `slot_bands`, `person_lookup`, `organization_by_name`, `secure_object_capability_grants` | same                                       |
-| An unverified record cannot be cited as evidence by wrapping its id; every uuid in a reference is checked                                        | `work.evidence_ref_is_unverified_record`                                                 | same                                       |
-| An access-grant revocation writes only its own columns, at the database's time                                                                   | column grant + `access_grant_revoked_now`                                                | same                                       |
+| Control                                                                                                                                                                                          | Where                                                                                    | Proven by                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- | --------------------------------------------- |
+| The context is **sealed**: an HMAC under a key no role with write grants can read binds it to the transaction; a raw `set_config` reads as unset                                                 | `core.context_mac`, `20260923000100`                                                     | `tests/database/principal-binding.test.ts`    |
+| No function but the context accessors reads a `kf.*` setting, and internal flags are sealed the same way                                                                                         | same                                                                                     | same                                          |
+| The actor must be a person holding the stated acting role live in the bound organization; the ceiling is clamped to their clearance                                                              | `core.set_transaction_context`                                                           | same                                          |
+| The API binds a reader only as a principal; organization and ceiling come from the principal's live assignment and clearance                                                                     | `core.bind_principal`                                                                    | same                                          |
+| An action row must be the one the sealed context names — its id, actor, role and organization                                                                                                    | `action_scoped_insert` policy                                                            | same                                          |
+| An audit event's digest is recomputed by the database, and its actor and action must match the context                                                                                           | `core.enforce_audit_chain_head`                                                          | same                                          |
+| Role assignments and clearances can only be end-dated, never re-targeted, reopened or extended                                                                                                   | guard triggers, `20260923000200`                                                         | same                                          |
+| An external identity is linked or revoked only under a sealed actor, in that actor's organization                                                                                                | `org.external_identity` RLS                                                              | same                                          |
+| A verification row must name the sealed actor and action as verifier and act, and the verifier is never the record's creator                                                                     | `object_verification_write` policy                                                       | same                                          |
+| A shared-link bearer binds only the link's own organization and ceiling, resolved by the database from the token digest                                                                          | `content.bind_master_record_link`                                                        | same                                          |
+| SECURITY DEFINER lookups that take an organization answer only for the bound one                                                                                                                 | `slot_bands`, `person_lookup`, `organization_by_name`, `secure_object_capability_grants` | same                                          |
+| An unverified record cannot be cited as evidence by wrapping its id; every uuid in a reference is checked                                                                                        | `work.evidence_ref_is_unverified_record`                                                 | same                                          |
+| An access-grant revocation writes only its own columns, at the database's time                                                                                                                   | column grant + `access_grant_revoked_now`                                                | same                                          |
+| An institutional act (`requires: act`) must be covered by a live act grant, and is never a service actor's; the database asks `org.act_grant_reaches` on the ledger row                          | `action_requires_act_authority`, `20260924000100`                                        | `tests/database/act-authority.test.ts`        |
+| Every table that enables row security forces it, so a login inheriting the owner is bound too                                                                                                    | `20260924000200`                                                                         | `tests/database/row-security-forced.test.ts`  |
+| `reviewed_individually` twice by one verifier within `core.individual_review_interval()` (1 s) is refused, and `verified_at` is the database's clock; the bulk gesture stamps `promoted_in_bulk` | `object_verification_paced`, `20260924000300`, `POST /verifications/bulk`                | `tests/permissions/bulk-verification.test.ts` |
+| Every orphaned evidence key the storage sweep deletes is recorded in the append-only `content.orphan_collection`, written only through a definer seam as the bound service actor, and exported   | `20260924000400`                                                                         | `tests/database/service-actor.test.ts`        |
 
 Two application-level controls sit beside these, because the adversary they answer is a tired
 person rather than a hostile process: `verify_record` and `apply_document_proposal` refuse the
@@ -83,19 +87,9 @@ must say something — eight characters and more than one repeated key
 (`packages/actions`; proven in `packages/documents/src/index.test.ts` and
 `tests/database/verify-record-action.test.ts`).
 
-**Not mitigated, recorded so nobody assumes otherwise:**
-
-- **Which acts a role may perform is decided in the application, not the database.** A
-  compromised API holding a real principal can dispatch an act that principal's role should not
-  perform. It cannot mint authority — people, role assignments and identity links are written
-  only by the owner credential's admin commands, and nobody may grant themselves a clearance —
-  and the act is attributed and chained, so it is detectable, not prevented.
-- **Row security is still not FORCED on every governed table** (RQ-073 says it should be). The
-  unforced tables are safe only while the API is not the table owner, which the API now refuses
-  at startup (T8) — a startup check, not a policy.
-- **A verification's basis is declared by its caller.** `reviewed_individually` written by a
-  script five hundred times is recorded as such; it is traceable per actor, not refused. The
-  honest fix is a server-side bulk gesture that stamps `promoted_in_bulk` itself.
+**What the pace does not do.** A script that waits more than a second between records can still
+claim `reviewed_individually`. The pace makes the false claim slow, and every claim is attributed
+to its verifier; it does not make it impossible.
 
 **Residual risk, stated plainly.** The database still cannot authenticate a human: it checks
 that the actor the API names really holds the role and clearance it claims, not that the
@@ -110,13 +104,13 @@ and nothing can: the system records what it is told by someone entitled to tell 
 
 ## T3 — Reading past your scope
 
-| Control                                                               | Where                           | Proven by                               |
-| --------------------------------------------------------------------- | ------------------------------- | --------------------------------------- |
-| FORCE ROW LEVEL SECURITY on `core.object`, `relation`, `audit_event`  | `20260811000400`                | `tests/database/kernel.test.ts`         |
-| Unset classification ranks **−1**, so a missing scope sees nothing    | `current_classification_rank()` | same                                    |
-| Search filters at query time on the same two axes                     | `packages/search`               | `tests/integration/search.test.ts`      |
-| Agent tools scope every read, including history and available actions | `packages/agent-tools`          | `tests/integration/agent-tools.test.ts` |
-| Not-visible and not-existing are the same answer                      | API + tools                     | `tests/permissions/api-actions.test.ts` |
+| Control                                                                    | Where                           | Proven by                               |
+| -------------------------------------------------------------------------- | ------------------------------- | --------------------------------------- |
+| FORCE ROW LEVEL SECURITY on every table that enables it (`20260924000200`) | `20260811000400`                | `tests/database/kernel.test.ts`         |
+| Unset classification ranks **−1**, so a missing scope sees nothing         | `current_classification_rank()` | same                                    |
+| Search filters at query time on the same two axes                          | `packages/search`               | `tests/integration/search.test.ts`      |
+| Agent tools scope every read, including history and available actions      | `packages/agent-tools`          | `tests/integration/agent-tools.test.ts` |
+| Not-visible and not-existing are the same answer                           | API + tools                     | `tests/permissions/api-actions.test.ts` |
 
 Tests connect as an **unprivileged login role**, not the container superuser — which bypasses
 even FORCE RLS. An earlier version of the harness did exactly that and would have reported
@@ -267,8 +261,6 @@ whoever deploys, and a false one produces exactly the exposure it claims to prev
 
 ## Accepted gaps from the 2026-09-23 hardening
 
-- **Deleting orphaned bytes is not an act.** No record exists to act on; the collected keys are
-  logged by `kf-storage`, not chained. ADR 0020 says every storage write is a typed action.
 - **No seccomp filter on the compiler sandbox.** bwrap takes one as a compiled BPF program and
   nothing here builds one; `SystemCallFilter=` on the unit is the syscall boundary.
 - **The object-store verifier program is supplied by the host**, pinned by digest and asked for

@@ -47,4 +47,5 @@ API is fully controlled.
   once per query (`20260923000300`), and the same read measures 5.9 ms. A bare call added later
   fails `tests/database/principal-binding.test.ts`.
 - One click to refresh a stale Object View, where there were none.
-- Which acts a role may perform is still decided in the application; recorded in T2.
+- Which acts a role may perform is decided in the application and, since `20260924000100`, again
+  by the database on the ledger row (`org.act_grant_reaches`).
