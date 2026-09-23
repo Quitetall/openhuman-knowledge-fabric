@@ -65,6 +65,13 @@ export function parseUnit(name: string, text: string): UnitFacts {
     if (key === 'User') user = value;
     else if (key === 'OnFailure') onFailure = value;
     else if (key === 'EnvironmentFile') secretPaths.add(value.replace(/^-/, ''));
+    // `LoadCredentialEncrypted=<id>:<path>` names a credential only its own unit receives —
+    // the restore drill's backup-decryption key. Counted as a secret so that two units sharing
+    // a uid, only one of which names it, show up as the surplus they are.
+    else if (key === 'LoadCredentialEncrypted' || key === 'LoadCredential') {
+      const path = value.slice(value.indexOf(':') + 1);
+      if (value.includes(':') && path.startsWith('/')) secretPaths.add(path);
+    }
     // `Environment=`, `ExecStart=` and `ExecStartPre=` all carry `*_FILE=` assignments in the
     // shipped units, because the deployment passes secrets as paths rather than as values.
     // Scanning the whole line rather than a fixed directive list means a secret moved from
@@ -111,6 +118,16 @@ export async function readUnits(
   }
   return units;
 }
+
+/**
+ * What an operator runs next. Every file these checks find missing is one the provisioning
+ * command creates or names — generated secrets it makes, the rest it lists with their paths —
+ * so a failure says where to go rather than only what is wrong.
+ */
+export const PROVISION_HINT =
+  'Run `sudo /opt/kf/scripts/deploy/provision-host.sh --check` to list every missing file and ' +
+  'the inputs only a person can supply; `sudo /opt/kf/scripts/deploy/provision-host.sh` ' +
+  'creates the rest.';
 
 /** The unit names this release ships, which is the entire scope of every check here. */
 async function shippedNames(directory: string): Promise<ReadonlySet<string>> {
@@ -227,7 +244,8 @@ export const unitProvenance: CommissioningCheckFn = async (inputs: Commissioning
       status: 'unsatisfied',
       detail:
         `The host is not running this release's units: ${missing.length} missing, ${altered.length} altered. ` +
-        'Every hardening, identity and alerting statement below describes a file that is not in force.',
+        'Every hardening, identity and alerting statement below describes a file that is not in force. ' +
+        PROVISION_HINT,
       observed,
     };
   }
@@ -430,7 +448,7 @@ export const secretPosture: CommissioningCheckFn = async (inputs: CommissioningI
   if (absent.length > 0) {
     return {
       status: 'unverifiable',
-      detail: `${absent.length} secret file(s) a unit depends on cannot be inspected, so their posture is unknown.`,
+      detail: `${absent.length} secret file(s) a unit depends on cannot be inspected, so their posture is unknown. ${PROVISION_HINT}`,
       observed,
     };
   }

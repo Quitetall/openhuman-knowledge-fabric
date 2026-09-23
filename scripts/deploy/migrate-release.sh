@@ -328,6 +328,46 @@ schema_digest() {
   printf '%s' "$listing" | sha256sum | awk '{print $1}'
 }
 
+# The exact command that produces a receipt `apply` will accept, for the refusals an upgrade
+# hits. An older receipt (v1, v2, or one made under another key) is refused, and until
+# 2026-09-23 the refusal said only "re-run the rehearsal" — the operator then had to rebuild a
+# twelve-variable command from the deployment guide, on the evening of an upgrade. Every value
+# below is one this process already verified or was given; the database URL stays a FILE path.
+rehearsal_command() {
+  local receipt_directory release_id
+  receipt_directory="$(dirname -- "${KF_ROLLBACK_REHEARSAL_RECEIPT:-/var/lib/kf-migrator/receipt}")"
+  release_id="${actual_manifest_digest:0:12}"
+  cat >&2 <<EOF
+
+Re-run the rehearsal on this host against a disposable PostgreSQL 18 cluster, then point
+KF_ROLLBACK_REHEARSAL_RECEIPT in /etc/kf/migrator.env at the receipt it writes:
+
+  cd / && sudo -u kf-migrator env \\
+    KF_DBMATE_BIN=$dbmate_bin \\
+    KF_EXPECTED_DBMATE_VERSION=$expected_dbmate_version \\
+    KF_EXPECTED_RELEASE_MANIFEST_SHA256=$actual_manifest_digest \\
+    KF_EXPECTED_RELEASE_OWNER_UID=$expected_owner_uid \\
+    KF_MIGRATION_LOCK_FILE=${KF_MIGRATION_LOCK_FILE:-/var/lib/kf-migrator/migration.lock} \\
+    KF_REHEARSAL_DATABASE_URL_FILE=${KF_REHEARSAL_DATABASE_URL_FILE:-/etc/kf/migrator/rehearsal-database-url} \\
+    KF_REHEARSAL_DISPOSABLE_CLUSTER_CONFIRMATION=dedicated-disposable-cluster \\
+    KF_REHEARSAL_TARGET_LABEL=disposable-rehearsal \\
+    KF_REHEARSAL_RECEIPT_KEY_FILE=${KF_REHEARSAL_RECEIPT_KEY_FILE:-/etc/kf/migrator/rehearsal-receipt-key} \\
+    $script_directory/migrate-release.sh rehearse-rollback \\
+    $release_root \\
+    $receipt_directory/rollback-rehearsal-$release_id.receipt
+
+The receipt key and the rehearsal database-url file are created by
+scripts/deploy/provision-host.sh; run it with --check to see which inputs are still missing.
+EOF
+}
+
+# A refusal that the rehearsal above cures.
+fail_rehearse() {
+  echo "migration refused: $*" >&2
+  rehearsal_command
+  exit 1
+}
+
 receipt_value() {
   local key="$1"
   local receipt="$2"
@@ -352,13 +392,13 @@ verify_receipt() {
   # either from before the floor existed or from a different set entirely. Either way it must
   # not authorise an apply, and the operator needs to be told which of the two it is.
   [ "$receipt_format" != 'kf-migration-rollback-rehearsal-v1' ] ||
-    fail 'rollback rehearsal receipt is v1, which claims full reversibility; re-run the rehearsal to produce a v3 receipt naming the forward-only floor'
+    fail_rehearse 'rollback rehearsal receipt is v1, which claims full reversibility; re-run the rehearsal to produce a v3 receipt naming the forward-only floor'
   # v2 is refused by name too: it is unauthenticated and derivable from the release alone, so
   # it proves nothing about whether a rehearsal ran.
   [ "$receipt_format" != 'kf-migration-rollback-rehearsal-v2' ] ||
-    fail 'rollback rehearsal receipt is v2, which is unauthenticated; re-run the rehearsal on this host to produce a v3 receipt'
+    fail_rehearse 'rollback rehearsal receipt is v2, which is unauthenticated; re-run the rehearsal on this host to produce a v3 receipt'
   [ "$receipt_format" = 'kf-migration-rollback-rehearsal-v3' ] ||
-    fail "rollback rehearsal receipt format is unsupported: $receipt_format"
+    fail_rehearse "rollback rehearsal receipt format is unsupported: $receipt_format"
   # The MAC line is last and covers every byte before it. Anything after it, or a second one,
   # is refused rather than ignored.
   [ "$(tail -n 1 "$receipt" | cut -d= -f1)" = 'hmac_sha256' ] ||
@@ -371,11 +411,11 @@ verify_receipt() {
   head -n -1 "$receipt" > "$receipt_body"
   expected_mac="$(receipt_hmac "$(receipt_key_file)" "$receipt_body")"
   [ "$receipt_mac" = "$expected_mac" ] ||
-    fail 'rollback rehearsal receipt was not produced by a rehearsal on this host (MAC does not verify)'
+    fail_rehearse 'rollback rehearsal receipt was not produced by a rehearsal on this host (MAC does not verify)'
   [ "$(receipt_value manifest_sha256 "$receipt")" = "$actual_manifest_digest" ] ||
-    fail 'rollback rehearsal receipt belongs to another release manifest'
+    fail_rehearse 'rollback rehearsal receipt belongs to another release manifest'
   [ "$(receipt_value migration_set_sha256 "$receipt")" = "$migration_set_digest" ] ||
-    fail 'rollback rehearsal receipt belongs to another migration set'
+    fail_rehearse 'rollback rehearsal receipt belongs to another migration set'
   [ "$(receipt_value dbmate_version "$receipt")" = "$expected_dbmate_version" ] ||
     fail 'rollback rehearsal receipt used another dbmate version'
 }

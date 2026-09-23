@@ -84,6 +84,7 @@ describe('dogfood composition Holder alignment', () => {
       },
       async maybeOne(sql: string) {
         if (sql.includes('/* dogfood.legacy-artifact-materialization */')) return undefined;
+        if (sql.includes('/* dogfood.prior-attach-evidence */')) return undefined;
         expect(sql).toContain('/* dogfood.current-composition-source */');
         expect(sql).toContain('revision_holder.id as "revisionHolderId"');
         expect(sql).toContain('revision_holder.recorded_by_action = r.created_by_action');

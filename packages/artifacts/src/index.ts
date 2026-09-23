@@ -36,7 +36,9 @@ export {
   type StoredObject,
 } from './store.js';
 export {
+  isAccessDenied,
   S3SweepableObjectStore,
+  type CollectionPermissions,
   type ListedObject,
   type SweepableObjectStore,
 } from './sweep-store.js';

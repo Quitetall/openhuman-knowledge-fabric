@@ -66,6 +66,13 @@ set -a; . ./.env; set +a
 pnpm dev
 ```
 
+`pnpm dev` sets `NODE_ENV=development` for the API, web and worker itself — the API no longer
+defaults it (2026-09-23) — so nothing beyond `.env` is needed. Re-running `pnpm dogfood:load`
+against a database it already loaded is a no-op, including one loaded before evidence storage keys
+became organization-scoped that day: the loader replays what it recorded under the old key. Only
+when the database holds acts a different loader made does it stop, printing
+`DATABASE_URL="$DATABASE_OWNER_URL" pnpm db:reset && pnpm dogfood:load -- --source-dir <dir>`.
+
 - API — <http://localhost:4000/health> and `/ready`
 - Web — <http://localhost:3000>
 - Document library — <http://localhost:3000/documents>

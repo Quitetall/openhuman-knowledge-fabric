@@ -15,22 +15,30 @@ describe('preservation key custody deployment contract', () => {
 
     for (const unit of [backup, restore]) {
       expect(unit).toContain('EnvironmentFile=/etc/kf/backup.env');
-      expect(unit).toContain(
-        'ExecStartPre=/usr/bin/test -s /etc/kf/backup/preservation-manifest-key',
-      );
       expect(unit).toContain('ExecStartPre=/usr/bin/test -d /etc/kf/preservation-trust.d');
     }
+    // Only the backup SIGNS. The drill verifies the backup's signature against the trust store
+    // and signs its throwaway re-export with a key made for the run, so it never names — and,
+    // as kf-drill, cannot read — the preservation private key.
+    expect(backup).toContain(
+      'ExecStartPre=/usr/bin/test -s /etc/kf/backup/preservation-manifest-key',
+    );
+    expect(restore).not.toContain('preservation-manifest-key');
     expect(backup).toContain('CHECKPOINT_PUBLIC_KEY_DIR=/etc/kf/checkpoint-public-keys');
     expect(environment).toContain('PRESERVATION_SIGNING_KEY_ID=replace-with-immutable-key-id');
     expect(environment).toContain(
       'PRESERVATION_SIGNING_KEY_PATH=/etc/kf/backup/preservation-manifest-key',
     );
     expect(environment).toContain('PRESERVATION_TRUST_STORE_DIR=/etc/kf/preservation-trust.d');
+    // The object-store verifier ships in the release; a host-supplied program is an override,
+    // not a prerequisite, so the drill no longer refuses to start without one.
+    expect(restore).not.toContain('/usr/local/libexec/kf-verify-object-store');
+    expect(restore).toContain('EnvironmentFile=/etc/kf/drill.env');
     expect(restore).toContain(
-      'ExecStartPre=/usr/bin/test -x /usr/local/libexec/kf-verify-object-store',
+      'Environment=S3_SECRET_ACCESS_KEY_FILE=/etc/kf/drill/s3-secret-access-key',
     );
-    expect(environment).toContain(
-      'KF_OBJECT_STORE_VERIFY_PROGRAM=/usr/local/libexec/kf-verify-object-store',
+    expect(environment).toMatch(
+      /^# KF_OBJECT_STORE_VERIFY_PROGRAM=\/usr\/local\/libexec\/kf-verify-object-store$/m,
     );
     expect(environment).not.toMatch(/BEGIN [A-Z ]*PRIVATE KEY/);
   });

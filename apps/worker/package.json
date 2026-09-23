@@ -6,7 +6,7 @@
   "description": "Background job runner \u2014 outbox delivery, digest verification, projections",
   "main": "./dist/main.js",
   "scripts": {
-    "dev": "tsx watch src/main.ts",
+    "dev": "NODE_ENV=development tsx watch src/main.ts",
     "start": "node dist/main.js",
     "build": "tsc --build",
     "clean": "rm -rf dist *.tsbuildinfo"

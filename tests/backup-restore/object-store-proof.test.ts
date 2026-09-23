@@ -118,7 +118,7 @@ describe('restore-verify.sh uses it', () => {
     const pin = restore.indexOf('KF_OBJECT_STORE_VERIFY_PROGRAM_SHA256');
     const request = restore.indexOf('object-store-proof.mjs" request');
     const invoke = restore.indexOf(
-      '"$KF_OBJECT_STORE_VERIFY_PROGRAM" "$OBJECT_STORE_REQUEST" "$OBJECT_STORE_PROOF"',
+      '"${VERIFY_COMMAND[@]}" "$OBJECT_STORE_REQUEST" "$OBJECT_STORE_PROOF"',
     );
     const check = restore.indexOf('object-store-proof.mjs" check');
     const verified = restore.indexOf('OBJECT_STORE_VERIFIED=true');
@@ -131,7 +131,12 @@ describe('restore-verify.sh uses it', () => {
     expect(check).toBeLessThan(verified);
     // The export itself is never an argument to the host's program.
     expect(restore).not.toContain('"$KF_OBJECT_STORE_VERIFY_PROGRAM" "$VERIFIED_BACKUP/export"');
+    expect(restore).not.toContain('"${VERIFY_COMMAND[@]}" "$VERIFIED_BACKUP/export"');
+    // An operator-supplied override is still pinned: it is the one program not in the release.
+    expect(restore.indexOf('VERIFY_COMMAND=("$KF_OBJECT_STORE_VERIFY_PROGRAM")')).toBeGreaterThan(
+      pin,
+    );
     const environment = readFileSync(join(ROOT, 'deploy', 'systemd', 'backup.env.example'), 'utf8');
-    expect(environment).toMatch(/^KF_OBJECT_STORE_VERIFY_PROGRAM_SHA256=/m);
+    expect(environment).toMatch(/^# KF_OBJECT_STORE_VERIFY_PROGRAM_SHA256=/m);
   });
 });
