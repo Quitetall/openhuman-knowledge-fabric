@@ -1,7 +1,4 @@
-import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -132,169 +129,43 @@ describe('preservation key custody deployment contract', () => {
 
   it('flushes off-site transfer bytes before recording copy evidence', () => {
     const copy = readFileSync(join(ROOT, 'scripts', 'backup-offsite.sh'), 'utf8');
-    expect(copy).toContain('rsync --archive --checksum --delete --delay-updates --fsync');
-    expect(copy).toContain('sync -f -- "$DESTINATION/$NAME"');
+    expect(copy).toContain('rsync --checksum --times --fsync');
+    expect(copy).toContain('sync -f -- "$DESTINATION/$NAME.tar.gpg"');
     expect(copy).toContain('ssh "$REMOTE_HOST" "sync -f -- $REMOTE_DIRECTORY_QUOTED"');
-    expect(copy.indexOf('sync -f -- "$DESTINATION/$NAME"')).toBeLessThan(
+    expect(copy.indexOf('sync -f -- "$DESTINATION/$NAME.tar.gpg"')).toBeLessThan(
       copy.indexOf('insert into ops.backup_copy'),
     );
   });
 
-  it('authenticates the complete off-site bundle and records the root manifest digest', () => {
+  it('authenticates the source, ships only ciphertext, and re-measures it at the destination', () => {
     const copy = readFileSync(join(ROOT, 'scripts', 'backup-offsite.sh'), 'utf8');
     const sourceVerify = copy.indexOf('verify-backup "$LOCATION"');
-    const localVerify = copy.indexOf('verify-backup "$DESTINATION/$NAME"');
-    const localRootDigest = copy.indexOf('sha256sum "$DESTINATION/$NAME/backup.manifest.json"');
-    const remoteRootDigest = copy.indexOf(
-      'sha256sum $REMOTE_DIRECTORY_QUOTED/backup.manifest.json',
-    );
-    const remoteSignatureDigest = copy.indexOf(
-      'sha256sum $REMOTE_DIRECTORY_QUOTED/backup.manifest.signature.json',
-    );
-    const remoteSumsDigest = copy.indexOf('sha256sum $REMOTE_DIRECTORY_QUOTED/SHA256SUMS');
+    const ledgerCheck = copy.indexOf('"$SOURCE_MANIFEST_DIGEST" != "$RUN_MANIFEST_DIGEST"');
+    const transfer = copy.indexOf('rsync --checksum');
+    const localDigest = copy.indexOf('sha256sum -- "$DESTINATION/$NAME.tar.gpg"');
+    const remoteDigest = copy.indexOf('sha256sum -- $REMOTE_FILE_QUOTED');
+    const compare = copy.indexOf('"$DESTINATION_DIGEST" != "$CIPHERTEXT_DIGEST"');
     const insert = copy.indexOf('insert into ops.backup_copy');
-
     for (const marker of [
       sourceVerify,
-      localVerify,
-      localRootDigest,
-      remoteRootDigest,
-      remoteSignatureDigest,
-      remoteSumsDigest,
+      ledgerCheck,
+      transfer,
+      localDigest,
+      remoteDigest,
+      compare,
       insert,
     ]) {
       expect(marker).toBeGreaterThanOrEqual(0);
     }
-    expect(copy).toContain('--trust-store "$PRESERVATION_TRUST_STORE_DIR"');
-    expect(copy).not.toContain('REMOTE_TRUST_STORE_QUOTED');
-    expect(copy).not.toContain('REMOTE_ROOT_QUOTED');
-    expect(copy).not.toContain('SOURCE_DIGEST="$(sha256sum "$LOCATION/SHA256SUMS"');
-    expect(sourceVerify).toBeLessThan(localVerify);
-    expect(localVerify).toBeLessThan(localRootDigest);
-    expect(localRootDigest).toBeLessThan(insert);
-    expect(remoteRootDigest).toBeLessThan(insert);
-    expect(remoteSignatureDigest).toBeLessThan(insert);
-    expect(remoteSumsDigest).toBeLessThan(insert);
-    expect(copy).toContain('-v digest="$DIGEST"');
-  });
-
-  it('refuses to record an off-site copy when a destination sidecar is corrupted', () => {
-    const work = mkdtempSync(join(tmpdir(), 'kf-offsite-sidecar-'));
-    try {
-      const backup = join(work, 'backup');
-      const destination = join(work, 'destination');
-      const bin = join(work, 'bin');
-      const trust = join(work, 'trust');
-      const recorded = join(work, 'recorded-copy');
-      mkdirSync(backup);
-      mkdirSync(destination);
-      mkdirSync(bin);
-      mkdirSync(trust);
-      writeFileSync(join(backup, 'payload.txt'), 'payload\n');
-      writeFileSync(join(backup, 'backup.manifest.json'), 'valid-root\n');
-      writeFileSync(join(backup, 'backup.manifest.signature.json'), 'valid-signature\n');
-      const payloadDigest = spawnSync('sha256sum', [join(backup, 'payload.txt')], {
-        encoding: 'utf8',
-      }).stdout.split(' ')[0]!;
-      writeFileSync(join(backup, 'SHA256SUMS'), `${payloadDigest}  payload.txt\n`);
-      const manifestDigest = spawnSync('sha256sum', [join(backup, 'backup.manifest.json')], {
-        encoding: 'utf8',
-      }).stdout.split(' ')[0]!;
-
-      writeFileSync(
-        join(bin, 'node'),
-        `#!/usr/bin/env bash
-set -euo pipefail
-if [ "\${2:-}" != verify-backup ]; then
-  echo "unexpected node invocation: $*" >&2
-  exit 2
-fi
-dir="\${3:?missing backup directory}"
-if ! grep -qx 'valid-root' "$dir/backup.manifest.json"; then
-  echo "backup manifest corrupt at $dir" >&2
-  exit 3
-fi
-if ! grep -qx 'valid-signature' "$dir/backup.manifest.signature.json"; then
-  echo "backup manifest signature corrupt at $dir" >&2
-  exit 4
-fi
-`,
-        { mode: 0o700 },
-      );
-      writeFileSync(
-        join(bin, 'rsync'),
-        `#!/usr/bin/env bash
-set -euo pipefail
-src="\${@: -2:1}"
-dst="\${@: -1}"
-mkdir -p "$dst"
-cp -a "$src". "$dst"
-printf 'corrupt-signature\\n' > "$dst/backup.manifest.signature.json"
-`,
-        { mode: 0o700 },
-      );
-      writeFileSync(
-        join(bin, 'psql'),
-        `#!/usr/bin/env bash
-set -euo pipefail
-if [ "\${1:-}" = --version ]; then
-  echo 'psql (PostgreSQL) 18.0'
-  exit 0
-fi
-sql="$(cat)"
-case "$sql" in
-  *'select id, manifest_digest from ops.backup_run'*)
-    printf '11111111-1111-4111-8111-111111111111\\t%s\\n' "$KF_TEST_MANIFEST_DIGEST"
-    ;;
-  *'insert into ops.backup_copy'*)
-    printf 'inserted\\n' > "$KF_TEST_RECORDED_COPY"
-    ;;
-  *)
-    echo "unexpected psql SQL: $sql" >&2
-    exit 5
-    ;;
-esac
-`,
-        { mode: 0o700 },
-      );
-      for (const tool of ['pg_dump', 'pg_dumpall', 'pg_restore']) {
-        writeFileSync(
-          join(bin, tool),
-          `#!/usr/bin/env bash
-set -euo pipefail
-echo '${tool} (PostgreSQL) 18.0'
-`,
-          { mode: 0o700 },
-        );
-      }
-
-      const result = spawnSync(
-        'bash',
-        [join(ROOT, 'scripts', 'backup-offsite.sh'), backup, destination, 'sidecar-corrupt-test'],
-        {
-          cwd: ROOT,
-          env: {
-            ...process.env,
-            PATH: `${bin}:${process.env.PATH ?? ''}`,
-            DATABASE_URL: 'postgres://kf@localhost/kf',
-            KF_POSTGRES_CLIENT_DIR: bin,
-            KF_TEST_MANIFEST_DIGEST: manifestDigest,
-            KF_TEST_RECORDED_COPY: recorded,
-            PRESERVATION_TRUST_STORE_DIR: trust,
-          },
-          encoding: 'utf8',
-        },
-      );
-
-      expect(result.status).not.toBe(0);
-      expect(`${result.stdout}${result.stderr}`).toContain('backup manifest signature corrupt');
-      expect(existsSync(join(destination, 'backup', 'backup.manifest.signature.json'))).toBe(true);
-      expect(existsSync(recorded), 'ops.backup_copy insert ran after failed verification').toBe(
-        false,
-      );
-    } finally {
-      rmSync(work, { recursive: true, force: true });
-    }
+    expect(sourceVerify).toBeLessThan(transfer);
+    expect(ledgerCheck).toBeLessThan(transfer);
+    expect(localDigest).toBeLessThan(compare);
+    expect(remoteDigest).toBeLessThan(compare);
+    expect(compare).toBeLessThan(insert);
+    // The plaintext directory is never a transfer source.
+    expect(copy).not.toContain('"$LOCATION/" "$DESTINATION/$NAME/"');
+    expect(copy).toContain('-- "$CIPHERTEXT" "$DESTINATION/$NAME.tar.gpg"');
+    expect(copy).toContain('-v digest="$RUN_MANIFEST_DIGEST"');
   });
 
   it('documents append-only external trust custody and forbids private-key backup', () => {

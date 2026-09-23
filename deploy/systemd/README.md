@@ -148,10 +148,16 @@ sudo install -d -m 0750 -o root -g kf-alert /etc/kf/alert
 # to anyone on the path.
 sudo install -m 0600 -o kf-alert -g kf-alert /dev/null /etc/kf/alert/webhook-url
 
-# Public trust material, read by the backup and restore-drill jobs. Public, so a shared group
-# is fine here in a way it is not for a signing key.
-sudo install -d -m 0750 -o root -g kf-backup /etc/kf/preservation-trust.d
-sudo install -d -m 0750 -o root -g kf-backup /etc/kf/checkpoint-public-keys
+# Public trust material, read by the backup, restore-drill, off-site, checkpoint and audit-verify
+# jobs — five identities. Public keys, so world-readable and root-owned: nobody but root may add a
+# key, and everybody who verifies may read one. (Until 2026-09-23 these were 0750 root:kf-backup,
+# which left kf-offsite unable to verify what it shipped.)
+sudo install -d -m 0755 -o root -g root /etc/kf/preservation-trust.d
+sudo install -d -m 0755 -o root -g root /etc/kf/checkpoint-public-keys
+
+# Off-site routing: destination, label, optional attested failure domain. Not a secret, but
+# closed to the one identity that reads it.
+sudo install -m 0640 -o root -g kf-offsite offsite.env.example /etc/kf/offsite.env
 
 # The archive: written by kf-backup, read by kf-offsite to ship it. Setgid so new archives stay
 # group-readable. Its contents are signed artifacts, not keys — kf-offsite holds no key at all.
@@ -290,6 +296,21 @@ or a lapsed drill surfaces before it becomes the reason a restore does not work.
 `kf-backup-offsite.service` is `Requires=`+`After=` the backup and pulled in by
 `Wants=` from it, so the copy runs when a backup completes rather than on a clock of its own.
 A copy on a separate schedule copies whatever happens to be there, including nothing.
+
+It ships the backup's encrypted archive (`<backup>.tar.gpg`), never the plaintext directory, and
+re-measures it at the destination before recording anything. It reads `/etc/kf/offsite.env`
+and refuses to start, in words, while `KF_OFFSITE_DESTINATION` or `KF_OFFSITE_LABEL` is empty
+or a local destination is not writable inside the unit (add `ReadWritePaths=` in a drop-in).
+Until 2026-09-23 it shipped with an empty destination and no trust store, and failed every
+night.
+
+Whether the copy counts as off-site is decided by what the destination is, and recorded in
+`ops.backup_copy.offsite_basis`: `user@host:/path` is `remote-host`; a local path is
+`local-unattested` and **not** off-site — a second disk in the same chassis is the same host —
+unless `KF_OFFSITE_FAILURE_DOMAIN` names a failure domain a person approved in
+`ops.physical_failure_domain_evidence` (`attested-domain`). An attested copy also writes its own
+`ops.encrypted_backup_evidence` row from the ciphertext digest it measured, carrying the domain
+approval's approver; nobody types that row by hand any more.
 
 The restore drill picks the most recent backup that has an off-site copy, restores it into a
 scratch database, and drops it afterwards. It records the drill against the **production**
