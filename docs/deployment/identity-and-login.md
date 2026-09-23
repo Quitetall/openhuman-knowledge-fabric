@@ -256,3 +256,17 @@ Compiling a master record has not been exercised through an authenticated sessio
 step 4.
 
 This is step 3 of [`docs/path-to-daily-use.md`](../path-to-daily-use.md).
+
+## Realm hardening
+
+The committed realm enables brute-force protection (temporary lockout after 10 failures),
+requires passwords of at least 14 characters that are not the username or email, makes every
+new account enrol TOTP before its first login (`CONFIGURE_TOTP` is a default action; the browser
+flow's conditional 2FA then demands it), revokes a refresh token once used, caps offline
+sessions at 3 days idle and 7 days in total, and disables the password grant on `admin-cli`.
+Commissioning (`identity_provider_policy`) refuses a realm that reverts any of these.
+
+`scripts/deploy/create-dev-user.sh` clears required actions on the loopback development
+account it creates, so that account does not enrol a second factor. It refuses any non-loopback
+Keycloak, which is what keeps that exception on the workstation. Its password must now satisfy
+the realm policy: 14 characters or more.

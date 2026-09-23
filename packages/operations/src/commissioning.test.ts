@@ -8,7 +8,7 @@
  */
 
 import { generateKeyPairSync, X509Certificate } from 'node:crypto';
-import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -20,6 +20,16 @@ import {
   type CommissioningInputs,
   type CommissioningReport,
 } from './index.js';
+
+const SHIPPED_REALM = join(
+  import.meta.dirname,
+  '..',
+  '..',
+  '..',
+  'deploy',
+  'keycloak',
+  'knowledge-fabric-realm.json',
+);
 
 const roots: string[] = [];
 
@@ -84,8 +94,10 @@ async function commissionedHost(): Promise<{
   }
 
   const { certificatePath, keyPath } = await selfSigned(root, 'fabric.example.org');
+  // The realm this repository ships, byte for byte: commissioning must accept it, and each
+  // planted weakness below is one reverted setting away from it.
   const policy = join(root, 'realm-policy.json');
-  await writeFile(policy, '{"requiredAcr":"mfa","implicitFlow":false}\n');
+  await writeFile(policy, await readFile(SHIPPED_REALM));
 
   // A correctly configured reverse proxy: cleartext redirects rather than proxies, the
   // upstream is loopback, TLS 1.0/1.1 are refused and the original scheme is forwarded.
@@ -339,6 +351,57 @@ describe('planted violations — commissioning must refuse', () => {
     const entry = check(await assessCommissioning(inputs), 'identity_provider_policy');
     expect(entry.status).toBe('unsatisfied');
     expect(entry.detail).toMatch(/not the one that was reviewed/);
+  });
+
+  it.each([
+    ['brute-force protection off', { bruteForceProtected: false }, /bruteForceProtected/],
+    ['a generous lockout threshold', { failureFactor: 30 }, /failureFactor/],
+    ['no password policy', { passwordPolicy: undefined }, /passwordPolicy/],
+    ['a short password policy', { passwordPolicy: 'length(8) and notUsername' }, /length\(12\)/],
+    ['offline sessions with no maximum', { offlineSessionMaxLifespanEnabled: false }, /offline/],
+    ['a month-long offline idle', { offlineSessionIdleTimeout: 2592000 }, /offlineSessionIdle/],
+    ['refresh tokens that survive use', { revokeRefreshToken: false }, /revokeRefreshToken/],
+  ])('a reviewed realm with %s', async (_label, change, reason) => {
+    // Reviewed and sound are different claims. Each of these digests exactly as reviewed, so
+    // only the policy reading can refuse it.
+    const { inputs } = await commissionedHost();
+    const realm = JSON.parse(await readFile(inputs.identityPolicyPath!, 'utf8')) as Record<
+      string,
+      unknown
+    >;
+    await writeFile(inputs.identityPolicyPath!, JSON.stringify({ ...realm, ...change }));
+    const entry = check(
+      await assessCommissioning({
+        ...inputs,
+        identityPolicyDigest: await digestOf(inputs.identityPolicyPath!),
+      }),
+      'identity_provider_policy',
+    );
+    expect(entry.status).toBe('unsatisfied');
+    expect(entry.detail).toMatch(reason);
+  });
+
+  it('a reviewed realm where MFA is optional or admin-cli takes passwords', async () => {
+    const { inputs } = await commissionedHost();
+    const realm = JSON.parse(await readFile(inputs.identityPolicyPath!, 'utf8')) as {
+      requiredActions: { alias: string; defaultAction: boolean }[];
+      clients: { clientId: string; directAccessGrantsEnabled: boolean }[];
+    };
+    for (const action of realm.requiredActions) action.defaultAction = false;
+    for (const client of realm.clients) {
+      if (client.clientId === 'admin-cli') client.directAccessGrantsEnabled = true;
+    }
+    await writeFile(inputs.identityPolicyPath!, JSON.stringify(realm));
+    const entry = check(
+      await assessCommissioning({
+        ...inputs,
+        identityPolicyDigest: await digestOf(inputs.identityPolicyPath!),
+      }),
+      'identity_provider_policy',
+    );
+    expect(entry.status).toBe('unsatisfied');
+    expect(entry.detail).toMatch(/MFA is optional/);
+    expect(entry.detail).toMatch(/"admin-cli" allows direct access grants/);
   });
 
   it('a runtime other than the one the release was tested on', async () => {
