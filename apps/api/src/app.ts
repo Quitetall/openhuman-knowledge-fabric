@@ -13,7 +13,14 @@ import {
   createStorageActionAtoms,
   type ObjectStore,
 } from '@kf/artifacts';
-import { createPool, withTransaction, type Pool } from '@kf/database';
+import {
+  createPool,
+  DatabaseError,
+  loginPrivilegeProblems,
+  readLoginPrivilege,
+  withTransaction,
+  type Pool,
+} from '@kf/database';
 import { TokenVerifier } from '@kf/authorization';
 import {
   createDocumentActionAtoms,
@@ -128,8 +135,38 @@ export async function buildApp(
   let pool: Pool | undefined;
   if (config.databaseUrl !== undefined && config.databaseUrl !== '') {
     pool = createPool({ connectionString: config.databaseUrl });
+    const startupPool = pool;
     app.addHook('onClose', async () => {
       await pool?.end();
+    });
+    // Refuse to serve through a login that row-level security cannot bind.
+    //
+    // Every tenant and classification boundary in this schema is a policy, and a superuser, a
+    // BYPASSRLS role or the table owner walks past all of them. A wrong credential file —
+    // the migrator's URL where the application's belonged — therefore silently disabled every
+    // one while /ready stayed green. Checked when the app becomes ready (listen), before any
+    // request is taken.
+    //
+    // An UNREACHABLE database is not refused here: that is an outage, not a misconfiguration,
+    // and /ready already reports it. Only a reachable, over-privileged login stops startup.
+    app.addHook('onReady', async () => {
+      let problems: string[];
+      let login: string;
+      try {
+        const privilege = await withTransaction(startupPool, (tx) => readLoginPrivilege(tx));
+        problems = loginPrivilegeProblems(privilege);
+        login = privilege.login;
+      } catch (err: unknown) {
+        app.log.warn({ err }, 'database login privileges could not be checked at startup');
+        return;
+      }
+      if (problems.length > 0) {
+        throw new DatabaseError(
+          `refusing to serve: database login ${JSON.stringify(login)} ${problems.join(', ')}, ` +
+            'so row-level security does not bind it. DATABASE_URL must name an application ' +
+            'login that inherits kf_app and nothing more.',
+        );
+      }
     });
   }
 
@@ -137,6 +174,9 @@ export async function buildApp(
     const checks: Record<string, 'ok' | 'unconfigured' | 'failing'> = {
       database: pool === undefined ? 'unconfigured' : 'failing',
       schema: pool === undefined ? 'unconfigured' : 'failing',
+      // The startup refusal covers the process's own boot; this keeps saying it for as long as
+      // the process runs, so a probe never reports ready through a login RLS cannot bind.
+      login: pool === undefined ? 'unconfigured' : 'failing',
     };
     if (pool !== undefined) {
       try {
@@ -146,10 +186,13 @@ export async function buildApp(
           await tx.query('select 1');
           checks['database'] = 'ok';
           checks['schema'] = (await hasRequiredSchema(tx)) ? 'ok' : 'failing';
+          checks['login'] =
+            loginPrivilegeProblems(await readLoginPrivilege(tx)).length === 0 ? 'ok' : 'failing';
         });
       } catch {
         checks['database'] = 'failing';
         checks['schema'] = 'failing';
+        checks['login'] = 'failing';
       }
     }
     const ready = Object.values(checks).every((v) => v === 'ok');

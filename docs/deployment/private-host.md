@@ -604,9 +604,9 @@ Before any shared user is admitted:
    HTTP to HTTPS and application ports reject non-loopback connections.
 3. Verify a valid bearer token succeeds, a wrong issuer fails, a wrong audience fails, an
    unknown `sub` fails, a revoked identity fails and fixed identity headers are ignored.
-4. Verify `/health` reports process liveness, `/ready` performs a database round trip and
-   `/readiness` reports separate service and institutional verdicts. Service `degraded`, `failed`
-   or `unknown` is a failed service preflight. Any institutional blocker still fails the governed
+4. Verify `/health` reports process liveness, `/ready` performs a database round trip (and
+   reports `checks.login`) and `/readiness` reports separate service and institutional
+   verdicts. Service `degraded`, `failed` or `unknown` is a failed service preflight. Any institutional blocker still fails the governed
    operation or commissioning claim it protects even when HTTP status is `200`; never treat service
    availability as institutional approval.
 5. Run and record a backup, off-host copy and restore drill using the declared recovery
@@ -618,8 +618,12 @@ Before any shared user is admitted:
 8. Verify `verify-liminal-runtime.sh /opt/kf` succeeds under `kf-worker`, then prove a changed
    compiler, lock or runtime-library copy fails before worker start. Preserve failure output;
    never convert it into a qualification receipt.
-9. Reboot host and re-run checks. Service that works only in install shell is not
-   deployed.
+9. Verify the API refuses to start when `/etc/kf/api/database-url` names a superuser, a
+   `BYPASSRLS` login or a member of the schema owner (the migrator URL is the usual mistake): it
+   logs `refusing to serve: database login …` and exits. Row-level security does not bind such
+   a login, so serving through it would silently disable every tenant and classification policy.
+10. Reboot host and re-run checks. Service that works only in install shell is not
+    deployed.
 
 ## Commissioning: run it, do not read it
 
