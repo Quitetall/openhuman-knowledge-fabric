@@ -18,13 +18,14 @@ const work = mkdtempSync(join(tmpdir(), 'kf-login-token-'));
 afterAll(() => rmSync(work, { recursive: true, force: true }));
 
 function run(env: Record<string, string>): { status: number | null; stderr: string } {
-  const result = spawnSync('bash', [SCRIPT, 'someone', join(work, 'token')], {
+  // setsid: a new session has no controlling terminal, so /dev/tty cannot be opened and the
+  // script can never block on a prompt, whatever terminal the test runner was started from.
+  const result = spawnSync('setsid', ['-w', 'bash', SCRIPT, 'someone', join(work, 'token')], {
     // No issuer, so a run that gets past the password stops at the next check without touching
     // the network. stdin is closed and there is no terminal, so nothing can prompt.
     env: { PATH: process.env['PATH'] ?? '/usr/bin:/bin', ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
     encoding: 'utf8',
-    detached: true,
   });
   return { status: result.status, stderr: result.stderr };
 }
