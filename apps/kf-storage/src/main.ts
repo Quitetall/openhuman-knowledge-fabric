@@ -127,8 +127,9 @@ async function main(): Promise<number> {
         replicated: report.replicated.length,
         verified: report.verified.length,
         verification_failures: report.verified.filter((v) => !v.ok).length,
-        // Named, not only counted: collecting bytes is not an act on any record (there is no
-        // record — that is what makes them orphans), so this line in the journal is the trail.
+        // Named, not only counted. Collecting bytes is not an act on any record (there is no
+        // record — that is what makes them orphans); each one is recorded in
+        // content.orphan_collection, and this line says which, for whoever reads the journal.
         orphans_collected: orphans.collected,
         refused,
       }),

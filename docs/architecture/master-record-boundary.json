@@ -38,6 +38,7 @@
     "content.master_record_link_access",
     "content.master_record_link_revocation",
     "content.master_record_withholding",
+    "content.orphan_collection",
     "content.person_entitlement_exclusion",
     "content.proposal_overlay",
     "content.typed_binding",

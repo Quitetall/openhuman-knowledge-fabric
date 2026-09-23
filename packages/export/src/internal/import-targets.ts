@@ -39,6 +39,7 @@ export const PRESERVATION_IMPORT_TARGETS = {
   'artifact-stores': 'content.artifact_store',
   'artifact-locations': 'content.artifact_location',
   'artifact-relationships': 'content.artifact_relationship',
+  'orphan-collections': 'content.orphan_collection',
   'external-identifiers': 'content.external_locator',
   'recovery-objectives': 'ops.recovery_objective',
   'backup-runs': 'ops.backup_run',

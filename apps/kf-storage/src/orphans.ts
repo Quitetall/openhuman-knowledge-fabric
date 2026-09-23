@@ -24,6 +24,13 @@
  * at it. The window is one round trip, and it is detected rather than hidden: the reference is
  * checked again after the delete, and a key that became referenced is reported as a refusal,
  * which makes the run exit non-zero and names the digest to re-ingest.
+ *
+ * EVERY DELETION IS RECORDED (20260924000400). Right after the delete, before anything else,
+ * `content.record_orphan_collection` appends the key, the store, how many versions went and why
+ * to `content.orphan_collection`, attributed by the database to the bound service actor. That
+ * table is append-only and exported; the journal line is no longer the only trail. A deletion
+ * that could not be recorded is a refusal — the bytes are gone and the record is not, which is
+ * the outcome that must fail the run rather than pass quietly.
  */
 
 import type { SweepableObjectStore } from '@kf/artifacts';
@@ -41,6 +48,8 @@ export interface OrphanSweepOptions {
   /** Cap per run on keys removed, so a first run over a large backlog is bounded. */
   readonly limit?: number;
   readonly now?: Date;
+  /** The `content.artifact_store` id of the store being swept. Defaults to `working`. */
+  readonly storeId?: string;
 }
 
 export interface OrphanSweepReport {
@@ -63,6 +72,28 @@ async function referenced(pool: Pool, actor: StorageActor, key: string): Promise
       [key],
     );
     return row.referenced;
+  });
+}
+
+/** Append the collection to `content.orphan_collection`; the database names who did it. */
+async function recordCollection(
+  pool: Pool,
+  actor: StorageActor,
+  entry: { storeId: string; key: string; versionsRemoved: number; reason: string },
+): Promise<void> {
+  await withTransaction(pool, async (tx) => {
+    await bindPrincipal(tx, {
+      actorId: actor.personId,
+      actingRoleId: actor.roleAssignmentId,
+      organizationId: actor.organizationId,
+      maxClassification: actor.maxClassification,
+    });
+    await tx.one('select content.record_orphan_collection($1, $2, $3, $4) as id', [
+      entry.storeId,
+      entry.key,
+      entry.versionsRemoved,
+      entry.reason,
+    ]);
   });
 }
 
@@ -106,6 +137,10 @@ export async function sweepOrphanedEvidence(
   const collected: string[] = [];
   const refused: { subject: string; reason: string }[] = [];
   let kept = 0;
+  const storeId = options.storeId ?? 'working';
+  const reason =
+    `no artifact version or location referenced these bytes for ${String(options.graceHours)} ` +
+    'hours (kf-storage --collect-orphans)';
 
   for (const namespace of EVIDENCE_NAMESPACES) {
     for await (const object of store.list(`${namespace}/${actor.organizationId}/`)) {
@@ -114,12 +149,29 @@ export async function sweepOrphanedEvidence(
         kept += 1;
         continue;
       }
+      let versionsRemoved: number;
       try {
-        await store.deleteEveryVersion(object.key);
+        versionsRemoved = await store.deleteEveryVersion(object.key);
       } catch (error: unknown) {
         refused.push({
           subject: `object ${object.key}`,
           reason: error instanceof Error ? error.message : String(error),
+        });
+        continue;
+      }
+      try {
+        await recordCollection(pool, actor, {
+          storeId,
+          key: object.key,
+          versionsRemoved,
+          reason,
+        });
+      } catch (error: unknown) {
+        refused.push({
+          subject: `object ${object.key}`,
+          reason:
+            'deleted but NOT recorded in content.orphan_collection: ' +
+            (error instanceof Error ? error.message : String(error)),
         });
         continue;
       }
