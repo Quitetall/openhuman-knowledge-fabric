@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Pool } from '@kf/database';
-import { CallerRejected, createCallerIdentifier } from './auth.js';
+import { IdentityRejected } from '@kf/authorization';
+import { CallerRejected, createCallerIdentifier, unidentified } from './auth.js';
 
 // Never touched on the header path; a verifier-less identifier must not reach the database.
 const NO_POOL = {} as Pool;
@@ -27,5 +28,27 @@ describe('createCallerIdentifier', () => {
       actorId: HEADERS['x-kf-actor'],
       maxClassification: 'restricted',
     });
+  });
+});
+
+describe('unidentified', () => {
+  it('does not echo text it did not author', () => {
+    // A pool timeout or pg error from the role lookup lands here, and its message is about the
+    // server. A 401 body is read by exactly the people it should not be read by.
+    const body = unidentified(new Error('password authentication failed for user "kf_owner"'));
+    expect(body).toEqual({
+      error: 'caller_unidentified',
+      message: 'The caller could not be identified.',
+    });
+  });
+
+  it('keeps the authored reasons a caller needs', () => {
+    expect(unidentified(new IdentityRejected('invalid_token', 'token rejected'))).toEqual({
+      error: 'invalid_token',
+      message: 'token rejected',
+    });
+    expect(unidentified(new CallerRejected('x-kf-actor is required')).message).toBe(
+      'x-kf-actor is required',
+    );
   });
 });

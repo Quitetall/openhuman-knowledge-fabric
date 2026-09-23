@@ -6,7 +6,7 @@
  */
 
 import { loadProjectionDefinitions } from '@kf/projections';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 import {
   S3ObjectStore,
   StoreRegistry,
@@ -94,6 +94,27 @@ export async function buildApp(
     void reply.header('x-frame-options', 'DENY');
     void reply.header('referrer-policy', 'no-referrer');
     void reply.header('cache-control', 'no-store');
+  });
+
+  // One shape for every unhandled failure. Fastify's default handler returns `err.message` on a
+  // 500, and a message from pg or the S3 client names hosts, ports, roles and SQL: free
+  // reconnaissance, and sometimes a record's contents quoted back in a constraint error. The
+  // detail goes to the server log under the request id; the caller gets the id to quote.
+  //
+  // 4xx errors are Fastify's own refusals (malformed JSON, oversized body, unsupported media
+  // type). Their messages describe the caller's request, not this server, so they are kept.
+  app.setErrorHandler((error: FastifyError, request, reply) => {
+    const status =
+      typeof error.statusCode === 'number' && error.statusCode >= 400 && error.statusCode < 600
+        ? error.statusCode
+        : 500;
+    if (status >= 500) {
+      request.log.error({ err: error }, 'unhandled error');
+      return reply.code(status).send({ error: 'internal_error', requestId: request.id });
+    }
+    return reply
+      .code(status)
+      .send({ error: error.code ?? 'bad_request', message: error.message, requestId: request.id });
   });
 
   app.get('/health', async () => ({

@@ -44,12 +44,19 @@ export function callerFrom(headers: Record<string, unknown>): Caller {
  * for a role, or give up. The token verifier's own reasons are deliberately collapsed into one
  * — telling an attacker whether the signature or the audience was wrong tells them which part
  * of a forged token to fix next.
+ *
+ * Only messages this code authored are echoed. Anything else reaching here — a pool timeout, a
+ * pg error from the role lookup — carries text about the server (hosts, roles, SQL), and a 401
+ * body is read by exactly the people it should not be read by.
  */
 export function unidentified(err: unknown): { error: string; message: string } {
   if (err instanceof IdentityRejected) {
     return { error: err.failure, message: err.message };
   }
-  return { error: 'caller_unidentified', message: (err as Error).message };
+  if (err instanceof CallerRejected) {
+    return { error: 'caller_unidentified', message: err.message };
+  }
+  return { error: 'caller_unidentified', message: 'The caller could not be identified.' };
 }
 
 export interface CallerIdentifierOptions {

@@ -270,3 +270,32 @@ describe('identity on every route, not only /actions', () => {
     await app.close();
   });
 });
+
+describe('error bodies', () => {
+  it('answers an unhandled failure with a request id, never the error text', async () => {
+    // Fastify's default handler returned err.message on a 500. From pg that names the host,
+    // port and role; from a constraint it can quote the row.
+    const app = await buildApp(loadConfig({ ...baseEnv, LOG_LEVEL: 'silent' }));
+    app.get('/boom', async () => {
+      throw new Error('connect ECONNREFUSED 10.0.0.5:5432 as kf_owner');
+    });
+    const res = await app.inject({ method: 'GET', url: '/boom' });
+    expect(res.statusCode).toBe(500);
+    expect(res.json()).toEqual({ error: 'internal_error', requestId: res.headers['x-request-id'] });
+    await app.close();
+  });
+
+  it('keeps Fastify refusals about the request itself as 4xx', async () => {
+    const app = await buildApp(loadConfig({ ...baseEnv, LOG_LEVEL: 'silent' }));
+    app.post('/echo', async () => ({ ok: true }));
+    const res = await app.inject({
+      method: 'POST',
+      url: '/echo',
+      headers: { 'content-type': 'application/json' },
+      payload: '{not json',
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ requestId: res.headers['x-request-id'] });
+    await app.close();
+  });
+});
