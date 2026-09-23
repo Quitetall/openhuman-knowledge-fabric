@@ -161,6 +161,11 @@ swallow the second.
   apply the same policy, because the CLI check is skippable and the server's is not. A batch
   above 250 files is refused (sync's ceiling; `acceptBulk` there now lifts it to 2 000 and no
   further).
+- Since 2026-09-23, a copy-mode batch is parsed (pandoc) one file at a time after the rehearsal
+  and before the act transaction opens, so a slow or hostile source holds no database
+  connection; a source the parser refuses refuses the batch before a byte is stored. Each
+  `attach_evidence` effect uses the pre-parse only if it was computed over the exact bytes it
+  verified, and refuses the act otherwise (`packages/documents/src/internal/preparse.ts`).
 - A reference-mode ingest produces an `artifact_version` with `storage_uri IS NULL` and a
   non-null `revision_label`, plus one `content.external_locator` row.
 - Re-running the same batch does not duplicate objects. `attach_evidence` staging is already

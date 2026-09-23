@@ -72,8 +72,14 @@ id.
 
 The child runs under limits a hostile source cannot choose, because pandoc's Markdown reader is
 super-linear on some inputs: 10 KB of nested blockquotes drove it to 8.5 GB RSS, and 30 000
-nested link brackets ran past two minutes, both while holding the `attach_evidence` transaction
-open. `--sandbox` denies the reader file and network access; `+RTS -M` caps the GHC heap
+nested link brackets ran past two minutes, both — until 2026-09-23 — while holding the
+`attach_evidence` transaction open. `POST /ingest`, `POST /documents` and `kf ingest` now parse
+before their transaction opens and before a byte is stored
+(`packages/documents/src/internal/preparse.ts`); the act inside the transaction only checks that
+the parse was computed over the exact bytes it verified (SHA-256 and media type) and refuses it
+otherwise. The pre-parse travels in-process, never in the payload, and only `preparseDocument`
+can make one. An act dispatched with no pre-parse (the generic `/actions` route, the dogfood
+loaders) still parses inside its transaction, bounded as below. `--sandbox` denies the reader file and network access; `+RTS -M` caps the GHC heap
 (`KF_PANDOC_MAX_HEAP_MIB`, default 512); a wall-clock deadline SIGKILLs the child
 (`KF_PANDOC_TIMEOUT_MS`, default 30 000); stderr kept for diagnostics is capped
 (`KF_PANDOC_MAX_STDERR_BYTES`, default 64 KiB). A source that trips one is answered
