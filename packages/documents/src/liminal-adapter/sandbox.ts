@@ -32,6 +32,15 @@ export function sandboxCommand(
   };
 }
 
+/**
+ * The descriptor bubblewrap reads the syscall filter from: after stdin/stdout/stderr, the
+ * compiler bytes on 3, and one descriptor per runtime file from 4. The spawner writes
+ * {@link compilerSeccompProgram} to it (`seccomp.ts`).
+ */
+export function seccompDescriptor(runtimeFilePaths: readonly string[]): number {
+  return 4 + runtimeFilePaths.length;
+}
+
 export function sandboxArguments(
   runtimeFilePaths: readonly string[],
   pathEnvironment: string,
@@ -58,6 +67,10 @@ export function sandboxArguments(
     path,
   ]);
   return [
+    // Loaded by bubblewrap after it has built the sandbox and just before it execs the
+    // compiler, so it binds the compiler and never bubblewrap itself.
+    '--seccomp',
+    String(seccompDescriptor(runtimeFilePaths)),
     '--unshare-all',
     '--unshare-user',
     '--disable-userns',

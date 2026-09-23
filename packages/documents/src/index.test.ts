@@ -27,8 +27,11 @@ import {
   evidenceStorageKey,
   mediaTypeForDocumentFile,
   PANDOC_PROJECTION_CONTRACT,
+  preparseDocument,
   projectionFromPandoc,
   validateParsedDocument,
+  withPreparsedDocuments,
+  type DocumentParser,
 } from './index.js';
 import {
   seedFixtures,
@@ -916,6 +919,116 @@ describe('document action chain', () => {
       projection_preimage:
         '{"atoms":[{"attributes":{},"kind":"heading","level":1,"ordinal":1,"text":"Title"}],"conversionLoss":[],"projectionContract":"kf.pandoc-atoms.v2"}',
       atom_preimage: '{"attributes":{},"kind":"heading","level":1,"ordinal":1,"text":"Title"}',
+    });
+  });
+
+  describe('a parse made before the transaction', () => {
+    const fixtureParser = (sourceDigest: string): DocumentParser => ({
+      async parse() {
+        return {
+          parser: 'fixture-parser',
+          parserVersion: '1.0.0',
+          projectionContract: PANDOC_PROJECTION_CONTRACT,
+          sourceDigest,
+          atoms: [
+            {
+              ordinal: 1,
+              kind: 'heading',
+              level: 1,
+              text: 'Title',
+              attributes: {},
+              digest: '0dc5c1997e1a8d452a41403404c7487e26c729d392755ef115bbaa06cff65697',
+            },
+          ],
+          conversionLoss: [],
+          lossDigest: '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945',
+          contentDigest: '56037c158bffc40a5833337e3c0d200b7cf979e3355c51a345c2b83d055dd49c',
+        };
+      },
+    });
+    /** The parser the act itself holds: any call means it parsed inside the transaction. */
+    const refusingInTransaction: DocumentParser = {
+      async parse() {
+        throw new Error('the parser ran inside the act transaction');
+      },
+    };
+    const attach = (execute: ReturnType<typeof createFabricDispatcher>, source: Buffer) => {
+      const sourceDigest = digestOf(source);
+      return execute({
+        actionType: 'attach_evidence',
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
+        targetIds: [],
+        payload: {
+          title: 'pre-parsed.md',
+          artifact_kind: 'document',
+          sha256: sourceDigest,
+          size_bytes: source.length,
+          media_type: 'text/markdown',
+          storage_uri: evidenceStorageKey('ingest', fixtures.organizationId, sourceDigest),
+        },
+        idempotencyKey: `preparse-${uuid()}`,
+        organizationId: fixtures.organizationId,
+        maxClassification: 'restricted',
+      });
+    };
+
+    it('persists the pre-parse bound to the verified bytes without parsing in the transaction', async () => {
+      const source = Buffer.from('# Title\n\npre-parsed\n');
+      const sourceDigest = digestOf(source);
+      await store.put(
+        evidenceStorageKey('ingest', fixtures.organizationId, sourceDigest),
+        source,
+        'text/markdown',
+      );
+      const preparsed = await preparseDocument(
+        fixtureParser(sourceDigest),
+        source,
+        'text/markdown',
+      );
+      const execute = createFabricDispatcher(
+        harness.pool,
+        createDocumentActionAtoms({ store, parser: refusingInTransaction }),
+      );
+      const result = await withPreparsedDocuments([preparsed], () => attach(execute, source));
+      const parse = await withTransaction(harness.pool, async (tx) => {
+        await bindPrincipal(tx, {
+          actorId: fixtures.reviewerId,
+          actingRoleId: fixtures.reviewerRoleId,
+          organizationId: fixtures.organizationId,
+          maxClassification: 'restricted',
+        });
+        return tx.one<{ parser: string; source_digest: string }>(
+          `select p.parser, p.source_digest
+             from content.artifact_version v
+             join content.document_parse p on p.artifact_version_id = v.id
+            where v.artifact_id = $1`,
+          [result.objectIds[0]],
+        );
+      });
+      expect(parse).toEqual({ parser: 'fixture-parser', source_digest: sourceDigest });
+    });
+
+    it('refuses a pre-parse computed over different bytes', async () => {
+      const source = Buffer.from('# Title\n\nthe stored bytes\n');
+      const other = Buffer.from('# Title\n\nsome other bytes\n');
+      await store.put(
+        evidenceStorageKey('ingest', fixtures.organizationId, digestOf(source)),
+        source,
+        'text/markdown',
+      );
+      const preparsed = await preparseDocument(
+        fixtureParser(digestOf(other)),
+        other,
+        'text/markdown',
+      );
+      const execute = createFabricDispatcher(
+        harness.pool,
+        createDocumentActionAtoms({ store, parser: refusingInTransaction }),
+      );
+      await expect(
+        withPreparsedDocuments([preparsed], () => attach(execute, source)),
+      ).rejects.toThrow(/exact bytes this act verified/);
     });
   });
 

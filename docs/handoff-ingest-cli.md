@@ -147,11 +147,25 @@ swallow the second.
   dotfile or passes through a dot-directory, or is `*.pem`, `*.key`, `id_rsa*` and its
   siblings, `*.kdbx`, `*.p12` or `*.pfx`, refuses the whole batch; in copy mode so do bytes
   carrying a private-key header or text that validates as an IBAN, a US SSN or a payment card
-  (Luhn). The refusal names the file, the rule and the line, never the matched text. The CLI
+  (Luhn). The byte scan reads inside compressed documents: every part of a ZIP package (DOCX,
+  ODT, XLSX, PPTX, ODS, a plain `.zip`, nested to three levels) and every FlateDecode stream of a
+  PDF, with the strings a PDF draws decoded (`apps/api/src/ingest/content-extract.ts`). All of
+  it is bounded — 64 MiB expanded per file, 10 000 parts, 250:1 past 1 MiB — and enforced by
+  the inflater, not by the sizes the file declares; a file past a bound, or a ZIP the scan
+  cannot read (encrypted, ZIP64, another compression method, malformed), is refused under
+  `archive-<bound>`. PDF syntax itself (width tables, offsets) is held to the private-key rule
+  only, because its space-separated numbers read as Luhn-valid cards one time in ten. The
+  refusal names the file, the rule and the line — or, inside a container, the part (ZIP entry
+  or `stream@<offset>`) — never the matched text. The CLI
   scans before any preflight or upload; `POST /ingest`, `POST /documents` and the sync planner
   apply the same policy, because the CLI check is skippable and the server's is not. A batch
   above 250 files is refused (sync's ceiling; `acceptBulk` there now lifts it to 2 000 and no
   further).
+- Since 2026-09-23, a copy-mode batch is parsed (pandoc) one file at a time after the rehearsal
+  and before the act transaction opens, so a slow or hostile source holds no database
+  connection; a source the parser refuses refuses the batch before a byte is stored. Each
+  `attach_evidence` effect uses the pre-parse only if it was computed over the exact bytes it
+  verified, and refuses the act otherwise (`packages/documents/src/internal/preparse.ts`).
 - A reference-mode ingest produces an `artifact_version` with `storage_uri IS NULL` and a
   non-null `revision_label`, plus one `content.external_locator` row.
 - Re-running the same batch does not duplicate objects. `attach_evidence` staging is already

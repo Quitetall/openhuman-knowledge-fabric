@@ -6,6 +6,7 @@ import { ActionRejected } from '@kf/actions';
 import { InMemoryObjectStore } from '@kf/artifacts';
 import { digestBytes } from '@kf/canonicalization';
 import type { Pool } from '@kf/database';
+import { activePreparsedDocuments, type DocumentParser } from '@kf/documents';
 import {
   parseIngestArgs,
   parseReferenceManifest,
@@ -293,6 +294,62 @@ describe('kf ingest over the database path', () => {
         undefined,
       );
     }
+  });
+
+  it('parses every copy with no transaction open, and hands each act its own parse', async () => {
+    const dir = await batchDirectory({ 'one.md': '# one\n', 'two.md': '# two\n' });
+    let open = 0;
+    const client = {
+      query: vi.fn(async (sql: string) => {
+        const statement = sql.trim().toLowerCase();
+        if (statement === 'begin') open += 1;
+        if (statement === 'commit' || statement === 'rollback') open -= 1;
+        return { rows: [{ ceiling: 'internal', requested_classification: 'internal' }] };
+      }),
+      release: vi.fn(),
+    };
+    const appPool = {
+      connect: vi.fn(async () => client),
+      query: client.query,
+      end: vi.fn(async () => undefined),
+    } as unknown as Pool;
+    const openAtParse: number[] = [];
+    const parser: DocumentParser = {
+      async parse() {
+        openAtParse.push(open);
+        return undefined;
+      },
+    };
+    const seen: string[][] = [];
+    const execute = vi.fn(async () => {
+      seen.push((activePreparsedDocuments() ?? []).map((document) => document.sourceDigest));
+      throw new ActionRejected('act_not_granted', 'fixture stops at the act');
+    });
+    await expect(
+      runIngest(
+        {
+          mode: 'copy',
+          classification: 'internal',
+          identity: 'dev',
+          json: false,
+          paths: [join(dir, 'one.md'), join(dir, 'two.md')],
+        },
+        DEV_ENV,
+        dir,
+        {
+          ownerPool: fakePool(),
+          appPool,
+          store: new InMemoryObjectStore(),
+          parser,
+          executeInTransaction: execute,
+          preflightInTransaction: vi.fn(async () => undefined),
+        },
+      ),
+    ).rejects.toMatchObject({ failure: 'act_not_granted' });
+    expect(openAtParse).toEqual([0, 0]);
+    expect(seen).toEqual([
+      [digestBytes(Buffer.from('# one\n')), digestBytes(Buffer.from('# two\n'))],
+    ]);
   });
 
   it('refuses the whole batch on a secret in any file, before any preflight or put', async () => {

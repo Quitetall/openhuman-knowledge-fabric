@@ -52,10 +52,10 @@ const MAX_PANDOC_JSON_BYTES = 64 * 1024 * 1024;
  * Limits on the pandoc child, all of which a hostile source could otherwise choose for us.
  *
  * Measured on pandoc 3.10.2: a 10 KB gfm source of 5 000 nested blockquotes drove the process
- * to 8.5 GB RSS, and 30 000 nested link brackets ran past 120 s. The parse runs inside the
- * attach_evidence transaction, so either one also holds a database connection and row locks
- * for as long as it runs. The byte cap on the SOURCE says nothing about either: both inputs are
- * tiny. So the child gets a heap ceiling (GHC RTS `-M`, which makes pandoc exit rather than
+ * to 8.5 GB RSS, and 30 000 nested link brackets ran past 120 s. The ingest and import paths
+ * parse before their transaction opens (preparse.ts); an act with no pre-parse still parses
+ * inside the attach_evidence transaction, holding a connection and row locks for as long as it
+ * runs. The byte cap on the SOURCE says nothing about either input: both are tiny. So the child gets a heap ceiling (GHC RTS `-M`, which makes pandoc exit rather than
  * swap the host), a wall-clock deadline that SIGKILLs, and a cap on how much stderr we keep.
  */
 const DEFAULT_TIMEOUT_MS = 30_000;

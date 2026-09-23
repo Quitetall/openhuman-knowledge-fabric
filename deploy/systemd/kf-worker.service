@@ -60,7 +60,19 @@ RestrictNamespaces=user mnt pid ipc net uts cgroup
 RestrictRealtime=true
 RestrictSUIDSGID=true
 LockPersonality=true
+# The worker's syscall boundary, and — because seccomp filters are inherited across fork and
+# exec and can only be added to — the floor under the Liminal sandbox too: bubblewrap and the
+# compiler it starts run under every line here, and the compiler additionally under its own
+# filter (packages/documents/src/liminal-adapter/seccomp.ts, `bwrap --seccomp`).
+# @system-service is the node worker; @mount is bubblewrap building the sandbox. The second line
+# takes back what neither needs; the third re-admits the two @privileged calls bubblewrap does
+# need — measured with systemd-run on systemd 261: without capset it dies with SIGSYS, without
+# pivot_root it cannot enter its root. tests/deployment/worker-syscall-filter.test.ts runs a
+# real sandbox under exactly these lines.
 SystemCallFilter=@system-service @mount
+SystemCallFilter=~@privileged @debug @module @raw-io @reboot @swap @clock @cpu-emulation @obsolete @keyring userfaultfd kcmp process_vm_readv process_vm_writev
+SystemCallFilter=capset pivot_root
+SystemCallErrorNumber=EPERM
 SystemCallArchitectures=native
 CapabilityBoundingSet=
 AmbientCapabilities=
