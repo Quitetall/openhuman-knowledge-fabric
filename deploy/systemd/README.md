@@ -132,6 +132,9 @@ sudo install -m 0600 -o kf-storage -g kf-storage /dev/null /etc/kf/storage/s3-du
 # storage.env: S3_* for the working store, S3_DURABLE_* for the durable one (endpoints, regions,
 # access-key ids, buckets — secrets come from the two files above), KF_STORAGE_ORGANIZATION,
 # and KF_STORAGE_ACTOR / KF_STORAGE_ROLE as printed by `pnpm kf:declare-service-actor`.
+# The unit also runs --collect-orphans (evidence bytes no record references, older than a
+# week): declare the actor at `restricted` and give the working-store key
+# s3:ListBucketVersions + s3:DeleteObjectVersion on the artifacts bucket, or every run refuses.
 sudo install -m 0600 -o kf-storage -g kf-storage /dev/null /etc/kf/storage/storage.env
 sudo install -m 0600 -o kf-readiness -g kf-readiness /dev/null /etc/kf/readiness/database-url
 

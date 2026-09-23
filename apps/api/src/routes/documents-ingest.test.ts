@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
+import { ActionRejected } from '@kf/actions';
 import { InMemoryObjectStore } from '@kf/artifacts';
 import { digestBytes } from '@kf/canonicalization';
 import type { Pool } from '@kf/database';
+import { DocumentParseRefused } from '@kf/documents';
 import { registerIngestRoute } from './documents/ingest-route.js';
 import type { DocumentRoutesOptions } from './documents/contracts.js';
 
@@ -32,6 +34,7 @@ function pool(): Pool {
 function options(
   store: InMemoryObjectStore | undefined,
   execute: DocumentRoutesOptions['executeInTransaction'],
+  preflight: DocumentRoutesOptions['preflightInTransaction'] = vi.fn(async () => undefined),
 ): DocumentRoutesOptions {
   return {
     pool: pool(),
@@ -43,7 +46,7 @@ function options(
       maxClassification: 'internal',
       authentication: { authenticatedAt: undefined, assuranceLevel: undefined, methods: [] },
     }),
-    preflightInTransaction: vi.fn(async () => undefined),
+    preflightInTransaction: preflight,
     executeInTransaction: execute,
   };
 }
@@ -162,5 +165,104 @@ describe('POST /ingest', () => {
       },
     });
     expect(response.statusCode).toBe(503);
+  });
+
+  const VALID = {
+    title: 'truck-7-maintenance-log.md',
+    artifactKind: 'document',
+    classification: 'internal',
+    mediaType: 'text/markdown',
+    contentBase64: FILE.toString('base64'),
+  };
+
+  it('stores nothing when the act would be refused: authority is rehearsed before the put', async () => {
+    // The bytes used to be written first and the act checked after, so every refused ingest
+    // left an object behind that nothing referenced and nothing would ever remove.
+    const store = new InMemoryObjectStore();
+    const execute = vi.fn();
+    const preflight = vi.fn(async () => {
+      throw new ActionRejected('act_not_granted', 'this role may not attach evidence');
+    });
+    const app = Fastify({ logger: false });
+    registerIngestRoute(
+      app,
+      options(store, execute as DocumentRoutesOptions['executeInTransaction'], preflight),
+    );
+    const response = await app.inject({ method: 'POST', url: '/ingest', payload: VALID });
+    expect(response.statusCode, response.body).toBe(422);
+    expect(preflight).toHaveBeenCalledOnce();
+    expect(execute).not.toHaveBeenCalled();
+    expect(await store.head(`ingest/${ORG}/${digestBytes(FILE)}`)).toBeUndefined();
+  });
+
+  it('stores nothing for a classification above the session ceiling', async () => {
+    const store = new InMemoryObjectStore();
+    const execute = vi.fn();
+    const app = Fastify({ logger: false });
+    registerIngestRoute(
+      app,
+      options(store, execute as DocumentRoutesOptions['executeInTransaction']),
+    );
+    const response = await app.inject({
+      method: 'POST',
+      url: '/ingest',
+      payload: { ...VALID, classification: 'restricted' },
+    });
+    expect(response.statusCode, response.body).toBe(403);
+    expect(execute).not.toHaveBeenCalled();
+    expect(await store.head(`ingest/${ORG}/${digestBytes(FILE)}`)).toBeUndefined();
+  });
+
+  it('answers a parser refusal as 422 document_refused, not a 500', async () => {
+    const store = new InMemoryObjectStore();
+    const execute = vi.fn(async () => {
+      throw new DocumentParseRefused('timeout', 'pandoc exceeded the 30000 ms parse deadline');
+    });
+    const app = Fastify({ logger: false });
+    registerIngestRoute(
+      app,
+      options(store, execute as DocumentRoutesOptions['executeInTransaction']),
+    );
+    const response = await app.inject({ method: 'POST', url: '/ingest', payload: VALID });
+    expect(response.statusCode, response.body).toBe(422);
+    expect(response.json()).toMatchObject({
+      error: 'document_refused',
+      detail: { reason: 'timeout' },
+    });
+  });
+
+  it('refuses a secret-bearing file as content_refused without storing or echoing it', async () => {
+    const store = new InMemoryObjectStore();
+    const execute = vi.fn();
+    const preflight = vi.fn(async () => undefined);
+    const app = Fastify({ logger: false });
+    registerIngestRoute(
+      app,
+      options(store, execute as DocumentRoutesOptions['executeInTransaction'], preflight),
+    );
+    const card = ['4111', '1111', '1111', '1111'].join('');
+    const body = Buffer.from(`# Expenses\n\nCard ${card} was charged.\n`);
+    const response = await app.inject({
+      method: 'POST',
+      url: '/ingest',
+      payload: { ...VALID, contentBase64: body.toString('base64') },
+    });
+    expect(response.statusCode, response.body).toBe(422);
+    expect(response.json()).toMatchObject({
+      error: 'content_refused',
+      detail: { rule: 'payment-card', line: 3 },
+    });
+    expect(response.body).not.toContain(card);
+    expect(preflight).not.toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
+    expect(await store.head(`ingest/${ORG}/${digestBytes(body)}`)).toBeUndefined();
+
+    const dotenv = await app.inject({
+      method: 'POST',
+      url: '/ingest',
+      payload: { ...VALID, title: '.env' },
+    });
+    expect(dotenv.statusCode).toBe(422);
+    expect(dotenv.json()).toMatchObject({ error: 'content_refused', detail: { rule: 'dotfile' } });
   });
 });

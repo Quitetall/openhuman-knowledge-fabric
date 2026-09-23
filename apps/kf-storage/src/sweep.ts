@@ -80,16 +80,12 @@ function request(
   };
 }
 
-export async function runStorageSweep(
-  pool: Pool,
-  execute: ActionDispatcher,
-  actor: StorageActor,
-  options: SweepOptions,
-): Promise<SweepReport> {
-  const limit = options.limit ?? 500;
-  // The sweep acts only as a declared service actor (ADR 0020). A human person id here
-  // would make every copy an act by a human at 03:30, which is the thing this exists to
-  // prevent — refused before anything is dispatched.
+/**
+ * The sweep acts only as a declared service actor (ADR 0020). A human person id here would
+ * make every copy an act by a human at 03:30, which is the thing this exists to prevent —
+ * refused before anything is dispatched.
+ */
+export async function assertServiceActor(pool: Pool, actor: StorageActor): Promise<void> {
   const kind = await withTransaction(pool, async (tx) => {
     await bindPrincipal(tx, principalOf(actor));
     return tx.maybeOne<{ person_kind: string }>(
@@ -103,6 +99,16 @@ export async function runStorageSweep(
         'declare one with kf:declare-service-actor',
     );
   }
+}
+
+export async function runStorageSweep(
+  pool: Pool,
+  execute: ActionDispatcher,
+  actor: StorageActor,
+  options: SweepOptions,
+): Promise<SweepReport> {
+  const limit = options.limit ?? 500;
+  await assertServiceActor(pool, actor);
   const replicated: { versionId: string; artifactId: string; actionId: string }[] = [];
   const verified: { locationId: string; role: string; actionId: string; ok: boolean }[] = [];
   const refused: { subject: string; reason: string }[] = [];

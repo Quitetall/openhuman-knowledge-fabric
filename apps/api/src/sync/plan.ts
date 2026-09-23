@@ -1,4 +1,5 @@
 import { isAbsolute, normalize, relative } from 'node:path';
+import { deniedPathRule, formatContentRefusal, scanContent } from '../ingest/content-policy.js';
 
 /**
  * What a sync would do, decided before anything happens (§48A, KF-SAS-RQ-227).
@@ -18,6 +19,12 @@ export interface LocalFile {
   /** Path relative to the sync root, using forward slashes. */
   readonly path: string;
   readonly digest: string;
+  /**
+   * The file's bytes, for the content policy (`ingest/content-policy.ts`). Required for any
+   * file that would become an add or an update: bytes that cannot be scanned are refused
+   * rather than admitted unscanned. Reading them is the caller's job, so this stays pure.
+   */
+  readonly content?: Buffer;
 }
 
 /** One record as the downloaded projection had it, with the object it came from. */
@@ -75,6 +82,15 @@ export type SyncPlan =
   | { readonly ok: false; readonly refusals: readonly string[] };
 
 export const DEFAULT_BULK_CEILING = 250;
+
+/**
+ * The ceiling `acceptBulk` lifts to, and no further.
+ *
+ * `acceptBulk` used to lift the ceiling to nothing at all, so one confirmation admitted a sync
+ * of any size — the ten-thousand-file wrong directory included, since confirming is what a
+ * person does when a prompt is in the way. Above this, split the sync.
+ */
+export const MAX_BULK_CEILING = 2_000;
 
 /** A path that leaves the sync root, or is absolute, names something the caller did not offer. */
 function escapesRoot(path: string): boolean {
@@ -143,8 +159,31 @@ export function planSync(request: SyncRequest): SyncPlan {
     });
   }
 
-  const ceiling = request.bulkCeiling ?? DEFAULT_BULK_CEILING;
-  if (acts.length > ceiling && request.acceptBulk !== true) {
+  // Every file that would enter KF is held to the content policy: by its path, and by its
+  // bytes, which must be supplied — a file that cannot be scanned is not admitted unscanned.
+  for (const act of acts) {
+    if (act.kind === 'propose_withdrawal') continue;
+    const denied = deniedPathRule(act.path);
+    if (denied !== undefined) {
+      refusals.push(formatContentRefusal(denied));
+      continue;
+    }
+    const content = localByPath.get(act.path)?.content;
+    if (content === undefined) {
+      refusals.push(`refusing ${act.path}: its bytes were not supplied, so it cannot be scanned`);
+      continue;
+    }
+    const found = scanContent(act.path, content);
+    if (found !== undefined) refusals.push(formatContentRefusal(found));
+  }
+
+  const ceiling = Math.min(request.bulkCeiling ?? DEFAULT_BULK_CEILING, MAX_BULK_CEILING);
+  if (acts.length > MAX_BULK_CEILING) {
+    refusals.push(
+      `this sync would dispatch ${String(acts.length)} acts, above the hard limit of ` +
+        `${String(MAX_BULK_CEILING)} that no confirmation lifts. Split it.`,
+    );
+  } else if (acts.length > ceiling && request.acceptBulk !== true) {
     refusals.push(
       `this sync would dispatch ${String(acts.length)} acts, above the ceiling of ` +
         `${String(ceiling)}. A sync pointed at the wrong directory looks exactly like this one. ` +

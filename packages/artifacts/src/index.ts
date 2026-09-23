@@ -35,6 +35,11 @@ export {
   type S3Config,
   type StoredObject,
 } from './store.js';
+export {
+  S3SweepableObjectStore,
+  type ListedObject,
+  type SweepableObjectStore,
+} from './sweep-store.js';
 
 export const PACKAGE = {
   name: '@kf/artifacts',

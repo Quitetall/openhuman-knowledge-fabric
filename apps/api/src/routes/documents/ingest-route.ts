@@ -13,12 +13,16 @@
  * insert policy, exactly as everywhere else.
  */
 
+import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { ActionRejected } from '@kf/actions';
 import { ArtifactRejected, verifyUpload } from '@kf/artifacts';
 import { digestBytes } from '@kf/canonicalization';
 import { withTransaction } from '@kf/database';
+import { DocumentParseRefused, evidenceStorageKey } from '@kf/documents';
+import { deniedPathRule, formatContentRefusal, scanContent } from '../../ingest/content-policy.js';
 import { unidentified } from '../actions.js';
+import { documentParseRefusalBody } from '../actions/errors.js';
 import { DOCUMENT_IMPORT_BODY_LIMIT_BYTES, type DocumentRoutesOptions } from './contracts.js';
 
 export interface IngestBody {
@@ -58,6 +62,18 @@ interface ParsedIngest {
   readonly revisionLabel?: string;
   readonly reason?: string;
   readonly idempotencyKey?: string;
+}
+
+const CLASSIFICATION_RANK: Readonly<Record<string, number>> = {
+  public: 0,
+  internal: 1,
+  confidential: 2,
+  restricted: 3,
+};
+
+/** Unknown names rank above everything, so an unrecognised label never passes a ceiling. */
+function classificationRank(value: string): number {
+  return CLASSIFICATION_RANK[value] ?? Number.POSITIVE_INFINITY;
 }
 
 function text(value: unknown, field: string, max = 512): string {
@@ -121,9 +137,61 @@ export function registerIngestRoute(app: FastifyInstance, options: DocumentRoute
       const store = options.store;
       try {
         const source = parseIngest(request.body ?? {});
+        // What never enters KF (credentials, bank details, tax identifiers), refused before the
+        // bytes go anywhere. The CLI checks too; this is the check that cannot be skipped.
+        const refused = deniedPathRule(source.title) ?? scanContent(source.title, source.bytes);
+        if (refused !== undefined) {
+          return reply.code(422).send({
+            error: 'content_refused',
+            message: formatContentRefusal(refused),
+            detail: {
+              rule: refused.ruleId,
+              ...(refused.line === undefined ? {} : { line: refused.line }),
+            },
+          });
+        }
+        // Everything that can refuse this request without the bytes being stored runs BEFORE
+        // the put. The object store is outside the transaction and immutable: bytes written
+        // for a request that is then refused stay there, unreferenced, until the sweep finds
+        // them. So the classification ceiling and the act's authority are rehearsed first.
+        // Passing is not authority — the dispatcher below repeats every check.
+        if (
+          classificationRank(source.classification) > classificationRank(identity.maxClassification)
+        ) {
+          return reply.code(403).send({
+            error: 'classification_not_granted',
+            message: 'the classification is above what this session may create',
+          });
+        }
+        await withTransaction(options.pool, (tx) =>
+          options.preflightInTransaction(
+            tx,
+            {
+              actionType: 'attach_evidence',
+              actorId: identity.actorId,
+              actingRoleId: identity.actingRoleId,
+              organizationId: identity.organizationId,
+              maxClassification: identity.maxClassification,
+              targetIds: [],
+              idempotencyKey: 'kf-ingest-http-preflight',
+              requestId: String(request.id),
+              ...(source.reason === undefined ? {} : { reason: source.reason }),
+            },
+            [
+              {
+                id: randomUUID(),
+                object_type: 'artifact',
+                lifecycle_state: 'draft',
+                row_version: '0',
+                organization_id: identity.organizationId,
+                created_by: identity.actorId,
+              },
+            ],
+          ),
+        );
         // Content-addressed under the organization, as the CLI keys it: the same bytes ingested
         // twice occupy one object, and a different file can never overwrite them.
-        const storageKey = `ingest/${identity.organizationId}/${source.sha256}`;
+        const storageKey = evidenceStorageKey('ingest', identity.organizationId, source.sha256);
         const uploaded = await store.putIfAbsent(storageKey, source.bytes, source.mediaType);
         await verifyUpload(store, {
           key: storageKey,
@@ -196,6 +264,9 @@ export function registerIngestRoute(app: FastifyInstance, options: DocumentRoute
             failure: error.failure,
             message: error.message,
           });
+        }
+        if (error instanceof DocumentParseRefused) {
+          return reply.code(422).send(documentParseRefusalBody(error));
         }
         if (error instanceof ActionRejected) {
           return reply.code(error.failure === 'idempotency_conflict' ? 409 : 422).send({

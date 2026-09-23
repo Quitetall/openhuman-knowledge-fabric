@@ -11,6 +11,9 @@ import {
 import { withTransaction } from '@kf/database';
 import { createFabricDispatcher } from '@kf/orchestrator';
 import { runDeclareServiceActor } from '../../apps/api/src/admin/declare-service-actor.js';
+import { EVIDENCE_KEY_NAMESPACES } from '@kf/documents';
+import type { ListedObject, SweepableObjectStore } from '@kf/artifacts';
+import { EVIDENCE_NAMESPACES, sweepOrphanedEvidence } from '../../apps/kf-storage/src/orphans.js';
 import { runStorageSweep } from '../../apps/kf-storage/src/sweep.js';
 import {
   bindContext,
@@ -216,5 +219,126 @@ describe('a declared service actor', () => {
     const second = await runStorageSweep(harness.pool, execute, actor, { replicateTo: 'durable' });
     expect(second.replicated).toEqual([]);
     expect(second.refused).toEqual([]);
+  });
+});
+
+/** A bucket listing with controllable ages; deletion is recorded rather than performed. */
+class AgedStore implements SweepableObjectStore {
+  readonly objects = new Map<string, Date>();
+  readonly deleted: string[] = [];
+
+  async *list(prefix: string): AsyncIterable<ListedObject> {
+    for (const [key, lastModified] of this.objects) {
+      if (key.startsWith(prefix)) yield { key, lastModified };
+    }
+  }
+
+  async deleteEveryVersion(key: string): Promise<number> {
+    this.deleted.push(key);
+    this.objects.delete(key);
+    return 1;
+  }
+}
+
+describe('orphaned evidence collection', () => {
+  it('names the same evidence namespaces the documents package derives keys in', () => {
+    expect([...EVIDENCE_NAMESPACES]).toEqual([...EVIDENCE_KEY_NAMESPACES]);
+  });
+
+  it('removes only old, unreferenced keys under its own organization', async () => {
+    const now = new Date('2026-09-23T03:30:00Z');
+    const old = new Date(now.getTime() - 8 * 24 * 3_600_000);
+    const young = new Date(now.getTime() - 3_600_000);
+    const org = fixtures.organizationId;
+    const hex = (n: number): string => n.toString(16).padStart(64, '0');
+
+    // A referenced key: a real version row points at it, however old the object is.
+    const body = Buffer.from('bytes a record was signed against');
+    const referencedKey = `ingest/${org}/${digestOf(body)}`;
+    const artifactId = await createObject(harness.adminPool, fixtures, {
+      type: 'artifact',
+      domain: 'content',
+      state: 'draft',
+      title: 'Referenced evidence',
+      createdBy: fixtures.reviewerId,
+    });
+    await withTransaction(harness.adminPool, async (tx) => {
+      await bindContext(tx, fixtures, fixtures.reviewerId);
+      await tx.query(
+        `insert into content.artifact (id, artifact_kind, source_system) values ($1, 'document', 'object_store')`,
+        [artifactId],
+      );
+      await tx.query(
+        `insert into content.artifact_version
+           (id, artifact_id, version_no, revision_label, sha256, size_bytes, media_type,
+            storage_uri, storage_version, created_by, created_by_action)
+         values ($1, $2, 1, 'R01', $3, $4, 'text/plain', $5, 'v1', $6, $7)`,
+        [
+          randomUUID(),
+          artifactId,
+          digestOf(body),
+          body.length,
+          referencedKey,
+          fixtures.reviewerId,
+          fixtures.clearanceActionId,
+        ],
+      );
+    });
+
+    const store = new AgedStore();
+    const orphanIngest = `ingest/${org}/${hex(1)}`;
+    const orphanImport = `document-imports/${org}/${hex(2)}`;
+    const youngOrphan = `ingest/${org}/${hex(3)}`;
+    const otherOrganization = `ingest/0badc0de-0000-4000-8000-000000000001/${hex(4)}`;
+    const legacyUnscoped = `document-imports/${hex(5)}`;
+    const notEvidence = `artifacts/${org}/${hex(6)}`;
+    for (const key of [referencedKey, orphanIngest, orphanImport, otherOrganization]) {
+      store.objects.set(key, old);
+    }
+    store.objects.set(legacyUnscoped, old);
+    store.objects.set(notEvidence, old);
+    store.objects.set(youngOrphan, young);
+
+    const actor = {
+      personId: steward.personId,
+      roleAssignmentId: steward.roleAssignmentId,
+      organizationId: org,
+      maxClassification: 'restricted',
+    };
+    const report = await sweepOrphanedEvidence(harness.pool, store, actor, {
+      graceHours: 168,
+      now,
+    });
+    expect(report.refused).toEqual([]);
+    expect([...store.deleted].sort()).toEqual([orphanImport, orphanIngest].sort());
+    expect(store.objects.has(referencedKey), 'a referenced key was collected').toBe(true);
+    expect(store.objects.has(youngOrphan), 'a key inside the grace period was collected').toBe(
+      true,
+    );
+    expect(store.objects.has(otherOrganization)).toBe(true);
+    expect(store.objects.has(legacyUnscoped)).toBe(true);
+    expect(store.objects.has(notEvidence)).toBe(true);
+  });
+
+  it('refuses to collect below the top classification, where records could be invisible', async () => {
+    const store = new AgedStore();
+    store.objects.set(
+      `ingest/${fixtures.organizationId}/${'f'.repeat(64)}`,
+      new Date('2020-01-01T00:00:00Z'),
+    );
+    await expect(
+      sweepOrphanedEvidence(
+        harness.pool,
+        store,
+        {
+          personId: steward.personId,
+          roleAssignmentId: steward.roleAssignmentId,
+          organizationId: fixtures.organizationId,
+          maxClassification: 'internal',
+        },
+        { graceHours: 168 },
+      ),
+    ).rejects.toThrow(/highest classification/);
+    expect(store.deleted).toEqual([]);
   });
 });

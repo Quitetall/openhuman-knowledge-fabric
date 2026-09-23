@@ -14,6 +14,7 @@ import {
   type DocumentParser,
 } from './parse-contract.js';
 import { requireSha256 } from './action-types.js';
+import { requireDerivedEvidenceKey } from './evidence-storage-key.js';
 
 interface EvidenceActions {
   readonly attachEvidence: ActionMaterializer;
@@ -24,8 +25,17 @@ export function createEvidenceActions(options: {
   readonly store: ObjectStore;
   readonly parser: DocumentParser;
 }): EvidenceActions {
+  /** Refused before any object is created, and again before any byte is read. */
+  const derivedKey = (request: Parameters<ActionMaterializer>[1]): string =>
+    requireDerivedEvidenceKey(
+      requireString(request.payload, 'storage_uri'),
+      request.organizationId,
+      requireSha256(request.payload),
+    );
+
   const attachEvidence: ActionMaterializer = async (tx, request) => {
     if (request.targetIds.length > 0) return [];
+    derivedKey(request);
     const classification = optionalString(request.payload, 'classification') ?? undefined;
     const id = await createControlledObject(tx, {
       ...classificationFrom(request.payload),
@@ -52,7 +62,7 @@ export function createEvidenceActions(options: {
   const recordEvidence: ActionEffect = async (tx, request, objects, ctx) => {
     const artifact = objects.find((object) => object.object_type === 'artifact');
     if (artifact === undefined) throw new Error('attach_evidence created no artifact target');
-    const key = requireString(request.payload, 'storage_uri');
+    const key = derivedKey(request);
     const mediaType = requireString(request.payload, 'media_type');
     const verified: VerifiedUpload = await verifyUpload(options.store, {
       key,

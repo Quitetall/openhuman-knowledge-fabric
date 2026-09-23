@@ -7,7 +7,7 @@ import type { VerifiedRuntimeFile } from './contracts.js';
 import { boundedMessage } from './limits.js';
 import type { LiminalProcessConfig } from './options.js';
 import { killProcessTree } from './process-control.js';
-import { sandboxArguments } from './sandbox.js';
+import { sandboxCommand } from './sandbox.js';
 
 export async function runLiminalCompiler(
   config: LiminalProcessConfig,
@@ -44,19 +44,13 @@ async function spawnCompiler(
   let stderrBytes = 0;
   let limitFailure: Error | undefined;
   return await new Promise((resolve, reject) => {
-    const child = spawn(
-      config.bubblewrapPath,
-      sandboxArguments(config.runtimeFilePaths, config.pathEnvironment, [
-        '--protocol',
-        config.identity.protocol,
-      ]),
-      {
-        cwd: '/',
-        detached: true,
-        env: {},
-        stdio: ['pipe', 'pipe', 'pipe', 'pipe', ...runtimeFiles.map(({ file }) => file.fd)],
-      },
-    );
+    const sandbox = sandboxCommand(config, ['--protocol', config.identity.protocol]);
+    const child = spawn(sandbox.command, sandbox.argv, {
+      cwd: '/',
+      detached: true,
+      env: {},
+      stdio: ['pipe', 'pipe', 'pipe', 'pipe', ...runtimeFiles.map(({ file }) => file.fd)],
+    });
     const childStdin = child.stdin;
     const childStdout = child.stdout;
     const childStderr = child.stderr;

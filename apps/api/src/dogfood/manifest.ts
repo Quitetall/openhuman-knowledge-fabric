@@ -1,7 +1,7 @@
 import { readFile, realpath } from 'node:fs/promises';
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { digestOf, verifyUpload, type ObjectStore } from '@kf/artifacts';
-import { mediaTypeForDocumentFile } from '@kf/documents';
+import { evidenceStorageKey, mediaTypeForDocumentFile } from '@kf/documents';
 import type { ManifestEntry, StagedConstitution, StagedSource } from './contracts.js';
 
 const ROOT = join(import.meta.dirname, '..', '..', '..', '..');
@@ -66,6 +66,7 @@ async function stageContentAddressedObject(
 export async function stageDocumentConstitution(
   directory: string,
   store: ObjectStore,
+  organizationId: string,
 ): Promise<StagedConstitution> {
   const manifest = await readManifest();
   const sources: StagedSource[] = [];
@@ -74,12 +75,12 @@ export async function stageDocumentConstitution(
     const mediaType = mediaTypeForDocumentFile(entry.file);
     if (mediaType === undefined) throw new Error(`Unsupported document file: ${entry.file}`);
     const sha256 = digestOf(bytes);
-    const key = `document-imports/${sha256}`;
+    const key = evidenceStorageKey('document-imports', organizationId, sha256);
     await stageContentAddressedObject(store, key, bytes, mediaType);
     sources.push({ entry, bytes, mediaType, sha256, key });
   }
   const manifestSha256 = digestOf(manifest.bytes);
-  const manifestKey = `document-imports/${manifestSha256}`;
+  const manifestKey = evidenceStorageKey('document-imports', organizationId, manifestSha256);
   await stageContentAddressedObject(store, manifestKey, manifest.bytes, 'application/json');
   return {
     sources,

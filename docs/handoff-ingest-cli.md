@@ -114,7 +114,10 @@ never write the bytes into the object store.
 **`--mode=copy`** — we hold the bytes. Use `attach_evidence`
 (`packages/documents/src/internal/evidence-actions.ts`), unchanged. Note it hardcodes
 `source_system='object_store'` and requires a `storage_uri`; that is correct for this path and is
-the reason the other action had to exist.
+the reason the other action had to exist. Since 2026-09-23 that `storage_uri` must be exactly
+`ingest/<organization>/<sha256>` or `document-imports/<organization>/<sha256>` for the act's own
+organization (`evidenceStorageKey`, refused `KF-ART-KEY` otherwise): a caller-named key let
+anyone who knew another organization's digest and size attach, then download, its bytes.
 
 ## The spine to copy, not invent
 
@@ -140,6 +143,15 @@ swallow the second.
 - A `--mode=copy` run over a path containing `vendor`, `vendors`, `supplier`, `suppliers`,
   `third-party`, `thirdparty`, `datasheets`, or a filename containing `datasheet`, refuses **the
   whole batch** and names the file and the rule.
+- Since 2026-09-23 (`apps/api/src/ingest/content-policy.ts`), in either mode a path that is a
+  dotfile or passes through a dot-directory, or is `*.pem`, `*.key`, `id_rsa*` and its
+  siblings, `*.kdbx`, `*.p12` or `*.pfx`, refuses the whole batch; in copy mode so do bytes
+  carrying a private-key header or text that validates as an IBAN, a US SSN or a payment card
+  (Luhn). The refusal names the file, the rule and the line, never the matched text. The CLI
+  scans before any preflight or upload; `POST /ingest`, `POST /documents` and the sync planner
+  apply the same policy, because the CLI check is skippable and the server's is not. A batch
+  above 250 files is refused (sync's ceiling; `acceptBulk` there now lifts it to 2 000 and no
+  further).
 - A reference-mode ingest produces an `artifact_version` with `storage_uri IS NULL` and a
   non-null `revision_label`, plus one `content.external_locator` row.
 - Re-running the same batch does not duplicate objects. `attach_evidence` staging is already

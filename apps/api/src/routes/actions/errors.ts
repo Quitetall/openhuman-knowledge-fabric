@@ -1,4 +1,5 @@
 import { ActionRejected, type ActionFailure } from '@kf/actions';
+import { DocumentParseRefused } from '@kf/documents';
 
 /** How each refusal maps to a status code. */
 const STATUS: Record<ActionFailure, number> = {
@@ -32,6 +33,21 @@ function ruleViolation(err: unknown): { id: string; message: string } | undefine
   return match === null ? undefined : { id: match[1]!, message: e.message };
 }
 
+/**
+ * A source the parser declined — too slow, too much memory, too much output, or unparseable.
+ *
+ * 422 rather than 500: the document is the cause, and retrying the same bytes will be refused
+ * the same way. The message is generic on purpose; pandoc's own stderr is logged by nothing
+ * here and returned to nobody, because it can quote the source back.
+ */
+export function documentParseRefusalBody(err: DocumentParseRefused): Record<string, unknown> {
+  return {
+    error: 'document_refused',
+    message: 'the document parser refused this source',
+    detail: { reason: err.reason },
+  };
+}
+
 export function actionRejectionBody(err: unknown):
   | {
       readonly status: number;
@@ -43,6 +59,9 @@ export function actionRejectionBody(err: unknown):
       status: STATUS[err.failure] ?? 422,
       body: { error: err.failure, message: err.message, detail: err.detail },
     };
+  }
+  if (err instanceof DocumentParseRefused) {
+    return { status: 422, body: documentParseRefusalBody(err) };
   }
   // A financial invariant refused by its TRIGGER rather than by its precondition. Both
   // layers guard the same rules on purpose, and under concurrency the database is the

@@ -11,7 +11,13 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { planIngest, referenceOnlyRuleFor, artifactKindFor, mediaTypeFor } from './plan.js';
+import {
+  DEFAULT_INGEST_CEILING,
+  planIngest,
+  referenceOnlyRuleFor,
+  artifactKindFor,
+  mediaTypeFor,
+} from './plan.js';
 
 describe('a batch that does not state its intent is refused', () => {
   it('refuses when no mode is given, rather than choosing one', () => {
@@ -184,5 +190,56 @@ describe('a Drive source is a copy with its origin recorded (ADR 0022)', () => {
     expect(plan.ok).toBe(false);
     if (plan.ok) return;
     expect(plan.refusals.join('\n')).toContain('--mode=reference cannot take --drive');
+  });
+});
+
+describe('what never enters KF, by name', () => {
+  it('refuses credentials by path in either mode, naming file and rule', () => {
+    for (const mode of ['copy', 'reference'] as const) {
+      const plan = planIngest({
+        mode,
+        classification: 'internal',
+        revisionLabel: 'R01',
+        paths: ['/work/notes.md', '/work/.env', '/work/tls/server.key', '/work/id_rsa'],
+      });
+      expect(plan.ok, mode).toBe(false);
+      if (plan.ok) continue;
+      expect(plan.refusals, mode).toEqual([
+        'refusing /work/.env: rule dotfile — dotfiles and dot-directories hold configuration and credentials, not records',
+        'refusing /work/tls/server.key: rule key-file — a .key file is a key',
+        'refusing /work/id_rsa: rule ssh-identity — an SSH identity file is a private key, or its public half named like one',
+      ]);
+    }
+  });
+});
+
+describe('an ingest batch has a ceiling', () => {
+  const paths = (n: number) => Array.from({ length: n }, (_, i) => `/work/f${String(i)}.md`);
+
+  it('admits a batch at the ceiling and refuses one above it', () => {
+    const at = planIngest({
+      mode: 'copy',
+      classification: 'internal',
+      paths: paths(DEFAULT_INGEST_CEILING),
+    });
+    expect(at.ok).toBe(true);
+    const above = planIngest({
+      mode: 'copy',
+      classification: 'internal',
+      paths: paths(DEFAULT_INGEST_CEILING + 1),
+    });
+    expect(above.ok).toBe(false);
+    expect(!above.ok && above.refusals.join('\n')).toMatch(/above the ceiling of 250/);
+  });
+
+  it('counts Drive sources toward the ceiling, and a caller cannot raise it', () => {
+    const plan = planIngest({
+      mode: 'copy',
+      classification: 'internal',
+      paths: paths(DEFAULT_INGEST_CEILING),
+      driveRefs: ['F1234567890'],
+      batchCeiling: 10_000,
+    });
+    expect(plan.ok).toBe(false);
   });
 });

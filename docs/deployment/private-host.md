@@ -55,15 +55,33 @@ userland behavior such as `readlink -f`, `realpath -ms`, `stat -Lc`, `find -prin
 `sha256sum`, `install` and FHS locations under `/opt`, `/etc`, `/var/lib`, `/run` and
 `/usr/bin`.
 
-Install **pandoc**, on `PATH`, for the process that serves document import.
+Install **pandoc** in `/usr/local/bin`, `/usr/bin` or `/bin`, or set `KF_PANDOC_PATH` to its
+absolute path, for the process that serves document import. The inherited `PATH` is not searched:
+a writable directory early on a service account's `PATH` would otherwise choose the program that
+parses evidence.
 Install a **LaTeX engine** beside it — `pdflatex`, from `texlive-latex-base
 texlive-latex-recommended texlive-fonts-recommended lmodern` on Debian/Ubuntu — for the process
 that renders master records to PDF: pandoc produces a PDF only through an engine, and it is a
 separate package. Prove both exactly as CI does:
 `printf '# probe\n\nOne paragraph.\n' | pandoc --from=gfm --to=pdf --standalone -o /tmp/probe.pdf`.
-`packages/documents/src/internal/pandoc-parser.ts` runs `pandoc --from=<format> --to=json` as a
-child process, so a host without it answers every document import with HTTP 500 and logs
-`spawn pandoc ENOENT` — the API deliberately does not tell the caller more than a request id.
+`packages/documents/src/internal/pandoc-parser.ts` runs
+`pandoc --sandbox --from=<format> --to=json +RTS -M512m -RTS` as a child process, so a host
+without it answers every document import with HTTP 500 and logs `pandoc not found in
+/usr/local/bin:/usr/bin:/bin` — the API deliberately does not tell the caller more than a request
+id.
+
+The child runs under limits a hostile source cannot choose, because pandoc's Markdown reader is
+super-linear on some inputs: 10 KB of nested blockquotes drove it to 8.5 GB RSS, and 30 000
+nested link brackets ran past two minutes, both while holding the `attach_evidence` transaction
+open. `--sandbox` denies the reader file and network access; `+RTS -M` caps the GHC heap
+(`KF_PANDOC_MAX_HEAP_MIB`, default 512); a wall-clock deadline SIGKILLs the child
+(`KF_PANDOC_TIMEOUT_MS`, default 30 000); stderr kept for diagnostics is capped
+(`KF_PANDOC_MAX_STDERR_BYTES`, default 64 KiB). A source that trips one is answered
+`422 document_refused` with `detail.reason` of `timeout`, `memory`, `output_limit` or
+`parser_failed`, never with pandoc's stderr, which can quote the source. The RTS flag is the one
+pandoc's own manual recommends in its security notes; a build linked without `-rtsopts` would
+fail every parse with "Most RTS options are disabled" — loudly, rather than parsing unbounded.
+Measured accepted on 3.10.2; the CI host's 3.1.3 runs the same flag in the parser tests.
 
 **This requirement was undocumented until 2026-08-18**, when CI ran the suite on a machine that
 was not the workstation and three import tests failed opaquely. It had always been satisfied here
@@ -115,6 +133,17 @@ path; an `nvm`, `asdf`, shell alias or PATH-only Node installation does not sati
 contract. Install bubblewrap as `/usr/bin/bwrap`, and qualify the kernel and systemd unit with
 the user, mount, PID, IPC, network, UTS and cgroup namespaces plus mount syscalls permitted by
 `kf-worker.service`.
+
+Namespaces bound what the compiler can see, not what it can use, so the sandbox also carries
+resource ceilings (`packages/documents/src/liminal-adapter/limits.ts`). bubblewrap mounts a 64 MiB
+root tmpfs instead of an unbounded one (`--size`, which predates the `--disable-userns` the sandbox
+already requires), and util-linux `prlimit` at `/usr/bin/prlimit` starts bubblewrap with RLIMIT_DATA
+2 GiB, RLIMIT_FSIZE 256 MiB (it must exceed the compiler executable, which bubblewrap writes under
+it), RLIMIT_NOFILE 256 and no core dumps; `kf-worker.service` refuses to start without it. The
+process count is bounded by the unit's `TasksMax=` rather than RLIMIT_NPROC, which counts every
+process of the uid. No seccomp filter is loaded: bubblewrap accepts one (`--seccomp FD`) but it
+needs a compiled BPF program and there is no tooling here to build and review one; the unit's
+`SystemCallFilter=` is the syscall boundary until there is.
 
 The packaged Liminal compiler must be a native ELF executable for the target architecture and
 must load with its nonempty, reviewed interpreter/shared-library closure on that host. Linux

@@ -61,7 +61,7 @@ describe('compiler runtime database boundary', () => {
     store = new InMemoryObjectStore();
     sourceBytes = Buffer.from('# Runtime constitution\n');
     const sourceDigest = digestOf(sourceBytes);
-    const sourceKey = `compiler-runtime-source/${sourceDigest}`;
+    const sourceKey = `ingest/${fixtures.organizationId}/${sourceDigest}`;
     await store.put(sourceKey, sourceBytes, 'text/markdown');
 
     const execute = createFabricDispatcher(

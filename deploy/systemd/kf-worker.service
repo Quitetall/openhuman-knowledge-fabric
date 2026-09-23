@@ -15,6 +15,7 @@ UnsetEnvironment=NODE_OPTIONS NODE_PATH
 ExecStartPre=/usr/bin/test -s /etc/kf/worker/database-url
 ExecStartPre=/usr/bin/test -s /etc/kf/worker/s3-secret-access-key
 ExecStartPre=/usr/bin/test -x /usr/bin/bwrap
+ExecStartPre=/usr/bin/test -x /usr/bin/prlimit
 ExecStartPre=/usr/bin/test -d /var/lib/kf-worker
 ExecStartPre=/opt/kf/scripts/deploy/verify-liminal-runtime.sh /opt/kf
 ExecStart=/usr/bin/env NODE_ENV=production DATABASE_URL_FILE=/etc/kf/worker/database-url /usr/bin/node /opt/kf/apps/worker/dist/main.js
@@ -22,6 +23,13 @@ Restart=on-failure
 RestartSec=5s
 TimeoutStopSec=2min
 KillSignal=SIGTERM
+# Ceilings for the whole cgroup. The Liminal child runs with RLIMIT_DATA 2 GiB and a 64 MiB
+# tmpfs root (packages/documents/src/liminal-adapter/limits.ts); those bound one compile, this
+# bounds the service. TasksMax is also the process-count limit for the sandbox: RLIMIT_NPROC
+# counts every process of the uid, not the sandbox's tree, so the pids cgroup does that job.
+MemoryHigh=3G
+MemoryMax=4G
+TasksMax=256
 StateDirectory=kf-worker
 StateDirectoryMode=0700
 

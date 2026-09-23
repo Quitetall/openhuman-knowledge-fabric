@@ -53,7 +53,7 @@ describe('document constitution dogfood', { timeout: 120_000 }, () => {
     const bytes = Buffer.from('# Constitution\n\nOne fact, one owner.\n');
     const sha256 = digestOf(bytes);
     const store = new InMemoryObjectStore();
-    const key = `document-imports/${sha256}`;
+    const key = `document-imports/${fixtures.organizationId}/${sha256}`;
     await store.put(key, bytes, 'text/markdown');
 
     const parser: DocumentParser = {
@@ -164,7 +164,7 @@ describe('document constitution dogfood', { timeout: 120_000 }, () => {
       JSON.stringify([{ documentNumber: 'OH-DOC-TEST-001', revision: 'R01' }]),
     );
     const manifestSha256 = digestOf(manifestBytes);
-    const manifestKey = `document-imports/${manifestSha256}`;
+    const manifestKey = `document-imports/${fixtures.organizationId}/${manifestSha256}`;
     await store.put(manifestKey, manifestBytes, 'application/json');
     const manifestArtifact = await execute({
       ...caller,

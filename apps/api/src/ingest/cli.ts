@@ -7,6 +7,7 @@
  * through the constrained application connection in one transaction.
  */
 
+import { randomUUID } from 'node:crypto';
 import { readFile, lstat } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
 import { digest, digestBytes, type JsonValue } from '@kf/canonicalization';
@@ -21,12 +22,27 @@ import { S3ObjectStore, verifyUpload, type ObjectStore } from '@kf/artifacts';
 import { resolveCaller, TokenVerifier, type Caller, type IdentityConfig } from '@kf/authorization';
 import {
   createDocumentActionAtoms,
+  evidenceStorageKey,
   PandocDocumentParser,
   type DocumentParser,
 } from '@kf/documents';
-import { createFabricTransactionalDispatcher } from '@kf/orchestrator';
+import {
+  createFabricTransactionalDispatcher,
+  createFabricTransactionalPreflight,
+} from '@kf/orchestrator';
 import { loadSecret, readSecretFile } from '@kf/operations';
-import type { ActionResult, TransactionalActionDispatcher } from '@kf/actions';
+import type {
+  ActionRequest,
+  ActionResult,
+  TransactionalActionDispatcher,
+  TransactionalActionPreflight,
+} from '@kf/actions';
+import {
+  deniedPathRule,
+  formatContentRefusal,
+  scanContent,
+  type ContentRefusal,
+} from './content-policy.js';
 import { planIngest, type IngestMode, type IngestPlan } from './plan.js';
 import { driveClientFromEnv, type DriveClient, type DriveFetched } from './drive.js';
 
@@ -287,6 +303,7 @@ interface IngestRuntimeDeps {
   readonly store?: ObjectStore;
   readonly parser?: DocumentParser;
   readonly executeInTransaction?: TransactionalActionDispatcher;
+  readonly preflightInTransaction?: TransactionalActionPreflight;
   readonly readFile?: (path: string) => Promise<Buffer>;
   /** Drive client (ADR 0022); defaults to a service-account client from KF_DRIVE_SERVICE_ACCOUNT_FILE. */
   readonly drive?: DriveClient;
@@ -480,6 +497,17 @@ async function versionForAction(tx: Tx, artifactId: string, actionId: string): P
   ).id;
 }
 
+/** Refuse the whole batch on every content finding at once, naming files and rules only. */
+function refuseContent(findings: ReadonlyArray<ContentRefusal | undefined>): void {
+  const refusals = findings
+    .filter((finding): finding is ContentRefusal => finding !== undefined)
+    .map(formatContentRefusal);
+  if (refusals.length > 0) throw new IngestCliError(refusals.join('\n'), refusals);
+}
+
+/** Thrown to roll back a rehearsal transaction; never escapes `runIngest`. */
+const ROLLBACK = Symbol('rollback');
+
 /** Execute one complete ingest batch. Dependencies are injectable for seam tests. */
 /**
  * Over the API, as the person whose token this is. The same plan, the same refusals, the same
@@ -521,9 +549,15 @@ export async function runIngestViaApi(
     throw new IngestCliError('KF_API_ORIGIN is required for --via=api');
   const token = readSecretFile(args.tokenFile, 'OIDC token file');
   const base = origin.replace(/\/+$/, '');
+  // Every file is read and scanned before the first request, so a refusal refuses the batch
+  // rather than arriving after half of it was uploaded. The server scans again; this is only
+  // so the answer comes before anything leaves the machine.
+  const read = await Promise.all(
+    planned.items.map(async (item) => ({ item, bytes: await readFile(resolve(cwd, item.path)) })),
+  );
+  refuseContent(read.map(({ item, bytes }) => scanContent(item.path, bytes)));
   const items: IngestItemResult[] = [];
-  for (const item of planned.items) {
-    const bytes = await readFile(resolve(cwd, item.path));
+  for (const { item, bytes } of read) {
     const response = await fetchImpl(`${base}/ingest`, {
       method: 'POST',
       headers: {
@@ -661,7 +695,7 @@ export async function runIngest(
           item: { ...item, mediaType: fetched.mediaType },
           bytes: fetched.bytes,
           sha256,
-          storeKey: `ingest/${identity.organizationId}/${sha256}`,
+          storeKey: evidenceStorageKey('ingest', identity.organizationId, sha256),
           drive: fetched,
         });
         continue;
@@ -674,7 +708,9 @@ export async function runIngest(
       if (bytes.length === 0) throw new IngestCliError(`ingest path is empty: ${item.path}`);
       const sha256 = digestBytes(bytes);
       const storeKey =
-        planned.mode === 'copy' ? `ingest/${identity.organizationId}/${sha256}` : undefined;
+        planned.mode === 'copy'
+          ? evidenceStorageKey('ingest', identity.organizationId, sha256)
+          : undefined;
       const reference = manifest?.get(absolutePath);
       if (planned.mode === 'reference' && reference === undefined) {
         throw new IngestCliError(`no manifest entry for ${item.path}`);
@@ -688,16 +724,78 @@ export async function runIngest(
       });
     }
 
+    // Copy mode holds the bytes, so the bytes are scanned; a Drive file is also held to the
+    // path rules by its Drive name, which the planner could not see.
+    if (planned.mode === 'copy') {
+      refuseContent(
+        staged.flatMap((source) => [
+          source.drive === undefined ? undefined : deniedPathRule(source.drive.name),
+          scanContent(source.item.path, source.bytes),
+        ]),
+      );
+    }
     const store =
       deps.store ?? (planned.mode === 'copy' ? configuredStore(env) : referenceOnlyStore());
     const parser = deps.parser ?? new PandocDocumentParser();
-    const execute =
-      deps.executeInTransaction ??
-      createFabricTransactionalDispatcher(createDocumentActionAtoms({ store, parser }));
+    const atoms = createDocumentActionAtoms({ store, parser });
+    const execute = deps.executeInTransaction ?? createFabricTransactionalDispatcher(atoms);
+    const preflight = deps.preflightInTransaction ?? createFabricTransactionalPreflight(atoms);
     if (app === undefined) throw new IngestCliError('application database pool was not created');
+    const acts = staged.map((source) => {
+      const payload = actionPayload(
+        planned.mode,
+        source.item,
+        source.bytes,
+        source.drive === undefined ? args.revisionLabel : source.drive.revisionId,
+        source.reference,
+        source.storeKey,
+        identity.organizationId,
+        classification,
+        source.drive,
+      );
+      const request: ActionRequest = {
+        actionType: planned.mode === 'copy' ? 'attach_evidence' : 'register_external_artifact',
+        actorId: identity.actorId,
+        actingRoleId: identity.actingRoleId,
+        targetIds: [],
+        payload,
+        ...(args.reason === undefined ? {} : { reason: args.reason }),
+        idempotencyKey: `kf-ingest-v1-${digest({
+          mode: planned.mode,
+          organization_id: identity.organizationId,
+          path: resolve(cwd, source.item.path),
+          sha256: source.sha256,
+          payload,
+        })}`,
+        organizationId: identity.organizationId,
+        maxClassification: classification,
+      };
+      return { source, request };
+    });
+    // Rehearse every act BEFORE any byte is stored. The store is outside the transaction and
+    // immutable, so a batch refused at its third act used to leave the first two files' bytes
+    // behind with nothing referencing them. Passing is not authority: each act below repeats
+    // every check under the final transaction. Rolled back — it writes nothing.
+    await withTransaction(app, async (tx) => {
+      for (const { request } of acts) {
+        await preflight(tx, request, [
+          {
+            id: randomUUID(),
+            object_type: 'artifact',
+            lifecycle_state: 'draft',
+            row_version: '0',
+            organization_id: identity.organizationId,
+            created_by: identity.actorId,
+          },
+        ]);
+      }
+      throw ROLLBACK;
+    }).catch((error: unknown) => {
+      if (error !== ROLLBACK) throw error;
+    });
     const items = await withTransaction(app, async (tx) => {
       const results: IngestItemResult[] = [];
-      for (const source of staged) {
+      for (const { source, request } of acts) {
         if (planned.mode === 'copy') {
           const uploaded = await store.putIfAbsent(
             source.storeKey!,
@@ -715,36 +813,7 @@ export async function runIngest(
             );
           }
         }
-        const reference = source.reference;
-        const payload = actionPayload(
-          planned.mode,
-          source.item,
-          source.bytes,
-          source.drive === undefined ? args.revisionLabel : source.drive.revisionId,
-          reference,
-          source.storeKey,
-          identity.organizationId,
-          classification,
-          source.drive,
-        );
-        const idempotencyKey = `kf-ingest-v1-${digest({
-          mode: planned.mode,
-          organization_id: identity.organizationId,
-          path: resolve(cwd, source.item.path),
-          sha256: source.sha256,
-          payload,
-        })}`;
-        const action: ActionResult = await execute(tx, {
-          actionType: planned.mode === 'copy' ? 'attach_evidence' : 'register_external_artifact',
-          actorId: identity.actorId,
-          actingRoleId: identity.actingRoleId,
-          targetIds: [],
-          payload,
-          ...(args.reason === undefined ? {} : { reason: args.reason }),
-          idempotencyKey,
-          organizationId: identity.organizationId,
-          maxClassification: classification,
-        });
+        const action: ActionResult = await execute(tx, request);
         const artifactId = action.objectIds[0];
         if (artifactId === undefined)
           throw new IngestCliError(`action returned no artifact for ${source.item.path}`);

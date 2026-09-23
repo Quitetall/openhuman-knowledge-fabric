@@ -1,7 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import { ActionRejected } from '@kf/actions';
 import { ArtifactRejected, verifyUpload } from '@kf/artifacts';
+import { DocumentParseRefused } from '@kf/documents';
+import { deniedPathRule, formatContentRefusal, scanContent } from '../../ingest/content-policy.js';
 import { unidentified } from '../actions.js';
+import { documentParseRefusalBody } from '../actions/errors.js';
 import {
   DOCUMENT_IMPORT_BODY_LIMIT_BYTES,
   ImportIdempotencyConflict,
@@ -39,6 +42,19 @@ export function registerDocumentImportRoute(
 
       try {
         const source = parseDocumentImport(request.body ?? {}, identity.organizationId);
+        // The same content policy as ingest: an import is bytes entering KF by another door.
+        const refused =
+          deniedPathRule(source.fileName) ?? scanContent(source.fileName, source.bytes);
+        if (refused !== undefined) {
+          return reply.code(422).send({
+            error: 'content_refused',
+            message: formatContentRefusal(refused),
+            detail: {
+              rule: refused.ruleId,
+              ...(refused.line === undefined ? {} : { line: refused.line }),
+            },
+          });
+        }
         const common: DocumentActionContext = {
           actorId: identity.actorId,
           actingRoleId: identity.actingRoleId,
@@ -76,6 +92,9 @@ export function registerDocumentImportRoute(
         }
         if (error instanceof TypeError) {
           return reply.code(400).send({ error: 'invalid_document', message: error.message });
+        }
+        if (error instanceof DocumentParseRefused) {
+          return reply.code(422).send(documentParseRefusalBody(error));
         }
         if (error instanceof ActionRejected) {
           return reply.code(error.failure === 'idempotency_conflict' ? 409 : 422).send({

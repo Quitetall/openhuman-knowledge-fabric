@@ -21,8 +21,12 @@
  * saves a re-run to find out. Resolved as task #151 — no pandoc pin required.
  */
 
-import { describe, expect, it } from 'vitest';
+import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PandocDocumentParser } from './internal/pandoc-parser.js';
+import { DocumentParseRefused } from './internal/parse-contract.js';
 
 /** Deliberately dull constructs: a heading and a paragraph, whose parse should be stable. */
 const SOURCE = Buffer.from('# Heading\n\nOne fact, one owner.\n');
@@ -208,5 +212,87 @@ describe('the real pandoc parser', () => {
     const second = await parser.parse(SOURCE, 'text/markdown');
     expect(second!.contentDigest).toBe(first!.contentDigest);
     expect(second!.parserVersion).toBe(first!.parserVersion);
+  });
+});
+
+/**
+ * The limits on the pandoc child. Each case is sized so that WITHOUT the limit under test it
+ * still finishes on a shared box (a few hundred MiB, a few seconds of a stub), and WITH it the
+ * refusal fires fast: the production pathologies (8.5 GB, >120 s) are never run here.
+ */
+describe('pandoc runs under limits a hostile source cannot choose', () => {
+  let stubDirectory: string;
+
+  beforeAll(async () => {
+    stubDirectory = await mkdtemp(join(tmpdir(), 'kf-pandoc-stub-'));
+  });
+  afterAll(async () => {
+    await rm(stubDirectory, { recursive: true, force: true });
+  });
+
+  async function stub(name: string, body: string): Promise<string> {
+    const path = join(stubDirectory, name);
+    await writeFile(path, `#!/bin/sh\n${body}\n`);
+    await chmod(path, 0o755);
+    return path;
+  }
+
+  it('refuses a source that exhausts the heap ceiling, typed as memory', async () => {
+    // 1 000 nested blockquotes peak near 300 MiB unbounded (measured, pandoc 3.10.2); the
+    // production case was 5 000 and 8.5 GB. A 32 MiB ceiling makes the same shape refuse.
+    const source = Buffer.from(`${'> '.repeat(1000)}x`);
+    const parser = new PandocDocumentParser({ maxHeapMiB: 32 });
+    const outcome = await parser.parse(source, 'text/markdown').then(
+      () => 'parsed',
+      (error: unknown) => error,
+    );
+    expect(outcome).toBeInstanceOf(DocumentParseRefused);
+    expect((outcome as DocumentParseRefused).reason).toBe('memory');
+  });
+
+  it('SIGKILLs a parse that outlives the deadline, typed as timeout', async () => {
+    const sleeper = await stub('sleeper', 'exec sleep 30');
+    const started = Date.now();
+    const outcome = await new PandocDocumentParser({ pandocPath: sleeper, timeoutMs: 300 })
+      .parse(SOURCE, 'text/markdown')
+      .then(
+        () => 'parsed',
+        (error: unknown) => error,
+      );
+    expect(outcome).toBeInstanceOf(DocumentParseRefused);
+    expect((outcome as DocumentParseRefused).reason).toBe('timeout');
+    expect(Date.now() - started, 'the deadline did not bound the wait').toBeLessThan(5_000);
+  }, 10_000);
+
+  it('keeps only a bounded prefix of stderr', async () => {
+    // 4 MiB of diagnostics; the error message must carry at most the configured slice.
+    const noisy = await stub('noisy', 'head -c 4194304 /dev/zero | tr "\\0" e >&2; exit 3');
+    const outcome = await new PandocDocumentParser({ pandocPath: noisy, maxStderrBytes: 1024 })
+      .parse(SOURCE, 'text/markdown')
+      .then(
+        () => 'parsed',
+        (error: unknown) => error,
+      );
+    expect(outcome).toBeInstanceOf(DocumentParseRefused);
+    expect((outcome as DocumentParseRefused).reason).toBe('parser_failed');
+    expect((outcome as Error).message.length).toBeLessThan(2048);
+  });
+
+  it('passes --sandbox and an RTS heap ceiling to the binary', async () => {
+    const echo = await stub('echo-args', 'echo "$@" >&2; exit 2');
+    const outcome = await new PandocDocumentParser({ pandocPath: echo, maxHeapMiB: 77 })
+      .parse(SOURCE, 'text/markdown')
+      .then(
+        () => 'parsed',
+        (error: unknown) => error,
+      );
+    expect((outcome as Error).message).toContain('--sandbox');
+    expect((outcome as Error).message).toContain('+RTS -M77m -RTS');
+  });
+
+  it('refuses a relative pandoc path rather than searching PATH for it', async () => {
+    await expect(
+      new PandocDocumentParser({ pandocPath: 'pandoc' }).parse(SOURCE, 'text/markdown'),
+    ).rejects.toThrow(/absolute/);
   });
 });

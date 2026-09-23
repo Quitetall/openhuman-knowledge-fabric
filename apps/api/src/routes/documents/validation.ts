@@ -1,5 +1,5 @@
 import { digestOf } from '@kf/artifacts';
-import { mediaTypeForDocumentFile } from '@kf/documents';
+import { evidenceStorageKey, mediaTypeForDocumentFile } from '@kf/documents';
 import type { DocumentImportBody, ParsedDocumentImport } from './contracts.js';
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
@@ -85,7 +85,9 @@ export function parseDocumentImport(
     idempotencyKey,
     bytes,
     sha256,
-    storageKey: `document-imports/${sha256}`,
+    // Scoped by organization: unscoped, every organization's imports shared one namespace and
+    // a digest was enough to name another organization's bytes.
+    storageKey: evidenceStorageKey('document-imports', organizationId, sha256),
     stableKey: importStableKey(organizationId, documentNumber),
   };
 }

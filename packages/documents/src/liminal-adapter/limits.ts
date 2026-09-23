@@ -5,6 +5,33 @@ export const DEFAULT_MAX_DIAGNOSTIC_BYTES = 1024 * 1024;
 export const DEFAULT_CLEANUP_TIMEOUT_MS = 1_000;
 
 /**
+ * Resource ceilings on the sandboxed compiler, beyond the namespaces bubblewrap gives it.
+ *
+ * Namespaces decide what the compiler can SEE; none of them decides how much it can USE. The
+ * root was an unbounded tmpfs — backed by the worker's memory — and the process had no
+ * rlimits, so a compiler bug or a hostile basis could fill memory or disk from inside a
+ * sandbox that was otherwise tight.
+ *
+ * - tmpfs: the sandbox root. The compiler is handed its bytes through a bind, not this tmpfs,
+ *   so the size bounds scratch space only.
+ * - data (RLIMIT_DATA), not address space: RLIMIT_AS also counts PROT_NONE reservations, which
+ *   runtimes make by the gigabyte without using them; RLIMIT_DATA counts private writable
+ *   mappings, which is what a runaway allocation actually grows.
+ * - fsize: bubblewrap itself writes the compiler bytes into the sandbox under this limit, so it
+ *   must exceed the executable; the executable is refused up front when it does not.
+ * - nofile, and core=0 so a crash cannot write the compiler's memory to disk.
+ *
+ * Not RLIMIT_NPROC: it counts every process of the real uid, the Node worker's threads
+ * included, rather than this tree. `TasksMax=` on kf-worker.service bounds the whole tree
+ * through the pids cgroup instead, which is the right tool for it.
+ */
+export const DEFAULT_SANDBOX_TMPFS_BYTES = 64 * 1024 * 1024;
+export const DEFAULT_MAX_DATA_BYTES = 2 * 1024 * 1024 * 1024;
+export const DEFAULT_MAX_FILE_BYTES = 256 * 1024 * 1024;
+export const DEFAULT_MAX_OPEN_FILES = 256;
+export const DEFAULT_PRLIMIT_PATH = '/usr/bin/prlimit';
+
+/**
  * Default deadline for the host sandbox probe. Overridable per adapter.
  *
  * Was a fixed, unconfigurable 5s, which is not a deliberate value for what it bounds. The

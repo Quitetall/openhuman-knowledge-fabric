@@ -9,7 +9,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDispatcher } from '@kf/actions';
-import { withTransaction } from '@kf/database';
+import { withTransaction, type Pool } from '@kf/database';
 import { InMemoryObjectStore } from '@kf/artifacts';
 import { generateSigningKey, verifyCheckpoint } from '../../apps/checkpoint/src/sign.js';
 import { runCheckpoint, verifyLedger } from '../../apps/checkpoint/src/run.js';
@@ -163,6 +163,68 @@ describe('checkpoint runs', () => {
       /already exists .* refusing to replace/,
     );
     // And the failed run wrote nothing: the transaction rolled back with it.
+    expect(await verifyLedger(h.adminPool, keys)).toEqual([]);
+  });
+});
+
+/** The admin pool, except that the first `commit` it is asked for is lost. */
+function poolLosingFirstCommit(pool: Pool): Pool {
+  let lost = false;
+  return {
+    connect: async () => {
+      const client = await pool.connect();
+      return new Proxy(client, {
+        get(target, property) {
+          if (property === 'query') {
+            return (sql: unknown, ...rest: unknown[]) => {
+              if (sql === 'commit' && !lost) {
+                lost = true;
+                return Promise.reject(new Error('connection lost at commit'));
+              }
+              return (target.query as (...args: unknown[]) => unknown).call(target, sql, ...rest);
+            };
+          }
+          const value = Reflect.get(target, property) as unknown;
+          return typeof value === 'function' ? (value as () => unknown).bind(target) : value;
+        },
+      });
+    },
+  } as unknown as Pool;
+}
+
+describe('a checkpoint run that fails after writing its object', () => {
+  it('does not wedge the next run on the object it left behind', async () => {
+    // The object used to be written before the row was inserted. A run that stored its object
+    // and then lost its transaction left the key occupied; the next run computed the same range
+    // and refused to replace it — every hour, with the log unsigned from then on.
+    // A set: the in-memory putIfAbsent creates through put, so one write passes both.
+    const written = new Set<string>();
+    const store = new (class extends InMemoryObjectStore {
+      override async put(k: string, body: Buffer, mediaType: string) {
+        written.add(k);
+        return super.put(k, body, mediaType);
+      }
+      override async putIfAbsent(k: string, body: Buffer, mediaType: string) {
+        written.add(k);
+        return super.putIfAbsent(k, body, mediaType);
+      }
+    })();
+    await doWork(2, 'wedge');
+    await expect(runCheckpoint(poolLosingFirstCommit(h.adminPool), key, { store })).rejects.toThrow(
+      /connection lost at commit/,
+    );
+    // The probe is only worth something if the failed run really left its object behind.
+    expect(written.size, 'the failed run wrote no object, so nothing was tested').toBe(1);
+    const [leftBehind] = [...written];
+    expect(await store.head(leftBehind!)).toBeDefined();
+    const retried = await runCheckpoint(h.adminPool, key, { store });
+    expect(retried.status).toBe('signed');
+    expect(retried.checkpoint!.storageUri).toBe(leftBehind);
+    const bytes = await store.read(retried.checkpoint!.storageUri!);
+    expect(JSON.parse(bytes.toString('utf8'))).toMatchObject({
+      merkleRoot: retried.checkpoint!.merkleRoot,
+      signature: retried.checkpoint!.signature,
+    });
     expect(await verifyLedger(h.adminPool, keys)).toEqual([]);
   });
 });

@@ -73,7 +73,7 @@ export async function runDocumentConstitutionDogfood(): Promise<void> {
     const execute = createFabricTransactionalDispatcher(
       createDocumentActionAtoms({ store, parser: new PandocDocumentParser() }),
     );
-    const staged = await stageDocumentConstitution(directory, store);
+    const staged = await stageDocumentConstitution(directory, store, identity.organizationId);
     const result = await loadDocumentConstitution(app, store, execute, identity, staged);
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 

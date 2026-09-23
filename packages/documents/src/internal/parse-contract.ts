@@ -48,6 +48,26 @@ export class DocumentParseIntegrityError extends Error {
   }
 }
 
+/**
+ * Why a parser declined a source, as opposed to failing to run.
+ *
+ * `timeout` and `memory` are the two a hostile source can reach on purpose: pandoc's Markdown
+ * reader is super-linear on some inputs (5 000 nested blockquotes took 8.5 GB; 30 000 nested
+ * link brackets ran past two minutes). Naming them lets a caller report "this document was
+ * refused" instead of reporting a crashed worker, and lets a test pin which limit fired.
+ */
+export type DocumentParseRefusalReason = 'timeout' | 'memory' | 'output_limit' | 'parser_failed';
+
+export class DocumentParseRefused extends Error {
+  constructor(
+    readonly reason: DocumentParseRefusalReason,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'DocumentParseRefused';
+  }
+}
+
 const DOCUMENT_ATOM_KINDS = new Set<DocumentAtomKind>([
   'heading',
   'paragraph',

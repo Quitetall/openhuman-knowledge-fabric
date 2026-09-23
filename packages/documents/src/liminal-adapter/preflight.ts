@@ -5,7 +5,7 @@ import type { Writable } from 'node:stream';
 import type { VerifiedExecutable, VerifiedRuntimeFile } from './contracts.js';
 import { boundedMessage, MAX_PREFLIGHT_RESPONSE_BYTES, PREFLIGHT_RESPONSE } from './limits.js';
 import { killProcessTree } from './process-control.js';
-import { sandboxArguments } from './sandbox.js';
+import { sandboxCommand } from './sandbox.js';
 import { closeVerifiedExecutable, verifyLiminalExecutable } from './executable.js';
 import { closeRuntimeFiles, openRuntimeFiles } from './runtime-files.js';
 import type { LiminalProcessConfig } from './options.js';
@@ -32,13 +32,17 @@ async function assertHostPreflightPaths(config: LiminalProcessConfig): Promise<v
     throw new Error('Pinned Liminal execution requires Linux /proc file-descriptor support');
   }
   await access('/proc/self/fd', fsConstants.R_OK | fsConstants.X_OK);
-  const [sandboxStat] = await Promise.all([
-    stat(config.bubblewrapPath),
-    access(config.bubblewrapPath, fsConstants.X_OK),
-  ]);
-  if (!sandboxStat.isFile()) throw new Error('bubblewrapPath must name a regular executable');
-  if ((sandboxStat.mode & 0o022) !== 0) {
-    throw new Error('bubblewrapPath must not be group- or world-writable');
+  // prlimit runs before bubblewrap with the same authority over the sandbox, so it is held to
+  // the same checks: a writable prlimit is a writable sandbox.
+  for (const [name, path] of [
+    ['bubblewrapPath', config.bubblewrapPath],
+    ['prlimitPath', config.prlimitPath],
+  ] as const) {
+    const [pathStat] = await Promise.all([stat(path), access(path, fsConstants.X_OK)]);
+    if (!pathStat.isFile()) throw new Error(`${name} must name a regular executable`);
+    if ((pathStat.mode & 0o022) !== 0) {
+      throw new Error(`${name} must not be group- or world-writable`);
+    }
   }
 }
 
@@ -48,20 +52,13 @@ async function runPreflightProbe(
   runtimeFiles: readonly VerifiedRuntimeFile[],
 ): Promise<void> {
   await new Promise<void>((resolve, reject) => {
-    const child = spawn(
-      config.bubblewrapPath,
-      sandboxArguments(config.runtimeFilePaths, config.pathEnvironment, [
-        '--protocol',
-        config.identity.protocol,
-        '--preflight',
-      ]),
-      {
-        cwd: '/',
-        detached: true,
-        env: {},
-        stdio: ['ignore', 'pipe', 'pipe', 'pipe', ...runtimeFiles.map(({ file }) => file.fd)],
-      },
-    );
+    const sandbox = sandboxCommand(config, ['--protocol', config.identity.protocol, '--preflight']);
+    const child = spawn(sandbox.command, sandbox.argv, {
+      cwd: '/',
+      detached: true,
+      env: {},
+      stdio: ['ignore', 'pipe', 'pipe', 'pipe', ...runtimeFiles.map(({ file }) => file.fd)],
+    });
     const compilerInput = child.stdio[3] as Writable | null;
     const stdout: Buffer[] = [];
     let stdoutBytes = 0;

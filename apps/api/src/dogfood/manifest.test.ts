@@ -5,6 +5,8 @@ import { InMemoryObjectStore, digestOf, type StoredObject } from '@kf/artifacts'
 import { describe, expect, it } from 'vitest';
 import { stageDocumentConstitution } from './manifest.js';
 
+const ORGANIZATION_ID = '33333333-3333-4333-8333-333333333333';
+
 class CountingStore extends InMemoryObjectStore {
   putCount = 0;
 
@@ -42,9 +44,9 @@ describe('dogfood content-addressed staging', () => {
       }
       const store = new CountingStore();
 
-      await stageDocumentConstitution(directory, store);
+      await stageDocumentConstitution(directory, store, ORGANIZATION_ID);
       const firstPutCount = store.putCount;
-      await stageDocumentConstitution(directory, store);
+      await stageDocumentConstitution(directory, store, ORGANIZATION_ID);
 
       expect(firstPutCount).toBe(entries.length + 1);
       expect(store.putCount).toBe(firstPutCount);
@@ -72,7 +74,7 @@ describe('dogfood content-addressed staging', () => {
         await writeFile(path, Buffer.from(`${entry.file}\n`));
       }
       const firstBytes = Buffer.from(`${entries[0]!.file}\n`);
-      const occupiedKey = `document-imports/${digestOf(firstBytes)}`;
+      const occupiedKey = `document-imports/${ORGANIZATION_ID}/${digestOf(firstBytes)}`;
       const store = new CountingStore();
       await store.put(
         occupiedKey,
@@ -80,7 +82,9 @@ describe('dogfood content-addressed staging', () => {
         'application/octet-stream',
       );
 
-      await expect(stageDocumentConstitution(directory, store)).rejects.toMatchObject({
+      await expect(
+        stageDocumentConstitution(directory, store, ORGANIZATION_ID),
+      ).rejects.toMatchObject({
         failure: 'digest_mismatch',
       });
       expect(store.putCount).toBe(1);
@@ -109,7 +113,7 @@ describe('dogfood content-addressed staging', () => {
       }
 
       await expect(
-        stageDocumentConstitution(directory, new UnversionedStore()),
+        stageDocumentConstitution(directory, new UnversionedStore(), ORGANIZATION_ID),
       ).rejects.toMatchObject({ failure: 'unversioned_storage' });
     } finally {
       await rm(directory, { recursive: true, force: true });
