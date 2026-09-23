@@ -168,6 +168,7 @@ const AUTHORITATIVE_TARGETS = {
   'secure-object-erasure-tombstones': 'secure_object.erasure_tombstone',
   'document-parses': 'content.document_parse',
   'document-atoms': 'content.document_atom',
+  'orphan-collections': 'content.orphan_collection',
 } as const;
 
 describe('extended preservation coverage', () => {
@@ -1318,6 +1319,17 @@ describe('extended preservation coverage', () => {
           approved_at: LATER_AT,
           valid_until: null,
         });
+        await insert(tx, 'content.orphan_collection', {
+          id: uuid(),
+          organization_id: fixtures.organizationId,
+          store_id: 'working',
+          storage_key: `ingest/${fixtures.organizationId}/${sha256(45)}`,
+          sha256: sha256(45),
+          versions_removed: 2,
+          collected_at: LATER_AT,
+          collected_by: fixtures.reviewerId,
+          reason: 'fixture: unreferenced for a week',
+        });
 
         await tx.query('select core.set_transaction_context($1, $2, $3, $4)', [
           fixtures.performerId,
@@ -1720,6 +1732,7 @@ describe('extended preservation coverage', () => {
         'restore-drills': 1,
         'physical-failure-domain-evidence': 1,
         'encrypted-backup-evidence': 1,
+        'orphan-collections': 1,
         'secure-object-authority-signing-keys': 2,
         'secure-object-authority-signing-key-revocations': 1,
         'secure-object-capability-requests': 2,

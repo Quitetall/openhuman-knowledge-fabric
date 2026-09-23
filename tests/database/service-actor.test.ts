@@ -318,6 +318,85 @@ describe('orphaned evidence collection', () => {
     expect(store.objects.has(otherOrganization)).toBe(true);
     expect(store.objects.has(legacyUnscoped)).toBe(true);
     expect(store.objects.has(notEvidence)).toBe(true);
+
+    // Every deletion is recorded, in the same run, and attributed by the database to the bound
+    // service actor; the digest is read from the key, not from the caller (20260924000400).
+    const recorded = await withTransaction(harness.adminPool, (tx) =>
+      tx.query<{
+        storage_key: string;
+        sha256: string | null;
+        store_id: string;
+        versions_removed: number;
+        collected_by: string;
+        organization_id: string;
+      }>(
+        `select storage_key, sha256, store_id, versions_removed, collected_by, organization_id
+           from content.orphan_collection order by storage_key`,
+      ),
+    );
+    expect(recorded).toEqual(
+      [orphanImport, orphanIngest].sort().map((key) => ({
+        storage_key: key,
+        sha256: key.slice(-64),
+        store_id: 'working',
+        versions_removed: 1,
+        collected_by: steward.personId,
+        organization_id: org,
+      })),
+    );
+  });
+
+  it('records collections only through its seam, only as a service actor, and never edits one', async () => {
+    const org = fixtures.organizationId;
+    const key = `ingest/${org}/${'e'.repeat(64)}`;
+    // The application role holds no INSERT: a hand-written row is refused outright.
+    await expect(
+      withTransaction(harness.pool, async (tx) => {
+        await bindContext(tx, fixtures, fixtures.reviewerId);
+        await tx.query(
+          `insert into content.orphan_collection
+             (organization_id, store_id, storage_key, versions_removed, collected_by, reason)
+           values ($1, 'working', $2, 1, $3, 'a forged collection record')`,
+          [org, key, fixtures.reviewerId],
+        );
+      }),
+    ).rejects.toThrow(/permission denied/);
+    // A human principal is not a collector (ADR 0020).
+    await expect(
+      withTransaction(harness.pool, async (tx) => {
+        await bindContext(tx, fixtures, fixtures.reviewerId);
+        await tx.query("select content.record_orphan_collection('working', $1, 1, $2)", [
+          key,
+          'a human claiming a sweep',
+        ]);
+      }),
+    ).rejects.toThrow(/service actor/);
+    // Nor may the collector name a key outside its own organization's evidence prefixes.
+    const asSteward = <T>(sql: string, params: unknown[]) =>
+      withTransaction(harness.pool, async (tx) => {
+        await tx.query('select core.bind_principal($1, $2, $3, $4)', [
+          steward.personId,
+          steward.roleAssignmentId,
+          org,
+          'restricted',
+        ]);
+        return tx.query<T & Record<string, unknown>>(sql, params);
+      });
+    await expect(
+      asSteward("select content.record_orphan_collection('working', $1, 1, $2)", [
+        `artifacts/${org}/${'e'.repeat(64)}`,
+        'outside the evidence prefixes',
+      ]),
+    ).rejects.toThrow(/evidence prefixes/);
+    // And once written, a record is not the owner's to change either.
+    await expect(
+      withTransaction(harness.adminPool, (tx) =>
+        tx.query("update content.orphan_collection set reason = 'rewritten afterwards'"),
+      ),
+    ).rejects.toThrow(/append-only/);
+    await expect(
+      withTransaction(harness.adminPool, (tx) => tx.query('delete from content.orphan_collection')),
+    ).rejects.toThrow(/append-only/);
   });
 
   it('refuses to collect below the top classification, where records could be invisible', async () => {

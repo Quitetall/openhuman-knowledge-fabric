@@ -34,6 +34,9 @@ export const IMPORT_ORDER = [
   'artifact-versions',
   'artifact-stores',
   'artifact-locations',
+  // After the stores it names and the people who collected: a collection has no record to
+  // follow, so nothing else orders it.
+  'orphan-collections',
   'warrant-preflights',
   'warrant-dispatches',
   'warrant-runtime-receipts',

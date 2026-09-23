@@ -94,6 +94,14 @@ export const CORE_SECTIONS = [
             from content.artifact_location order by version_id, role, store_id, id`,
   },
   {
+    // 20260924000400: bytes the storage sweep deleted because no record referenced them. The
+    // bytes are gone by definition; this is the only evidence that they existed and went.
+    name: 'orphan-collections',
+    sql: `select id, organization_id, store_id, storage_key, sha256, versions_removed,
+                 collected_at, collected_by, reason
+            from content.orphan_collection order by collected_at, id`,
+  },
+  {
     name: 'artifact-relationships',
     sql: `select id, from_version, to_version, relationship, created_at
             from content.artifact_relationship order by id`,
