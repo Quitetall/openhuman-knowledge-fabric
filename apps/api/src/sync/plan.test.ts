@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_BULK_CEILING, planSync, type ProjectedFile, type SyncRequest } from './plan.js';
+import {
+  DEFAULT_BULK_CEILING,
+  MAX_BULK_CEILING,
+  planSync,
+  type ProjectedFile,
+  type SyncRequest,
+} from './plan.js';
 
 const CLEAN = Buffer.from('# A plain record\n\nNothing here but prose.\n');
 
@@ -150,5 +156,22 @@ describe('planning a sync', () => {
       'refusing notes.md (line 2): rule private-key — contains a private key',
       'refusing unread.md: its bytes were not supplied, so it cannot be scanned',
     ]);
+  });
+
+  it('bounds even a confirmed bulk sync', () => {
+    const many = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({
+        path: `f${String(i)}.md`,
+        digest: 'x',
+        content: CLEAN,
+      }));
+    expect(planSync(request({ local: many(MAX_BULK_CEILING), acceptBulk: true })).ok).toBe(true);
+    const beyond = planSync(request({ local: many(MAX_BULK_CEILING + 1), acceptBulk: true }));
+    expect(beyond.ok, 'acceptBulk must not lift the ceiling without limit').toBe(false);
+    expect(!beyond.ok && beyond.refusals.join(' ')).toMatch(/no confirmation lifts/);
+    const raised = planSync(
+      request({ local: many(MAX_BULK_CEILING + 1), bulkCeiling: 1_000_000, acceptBulk: true }),
+    );
+    expect(raised.ok, 'a caller-supplied ceiling must not exceed the hard limit').toBe(false);
   });
 });

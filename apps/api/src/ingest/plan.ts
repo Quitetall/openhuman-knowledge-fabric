@@ -159,7 +159,18 @@ export interface IngestRequest {
   readonly artifactKind?: string;
   /** Required in reference mode: which revision of the external thing this digest describes. */
   readonly revisionLabel?: string;
+  /** Files per batch; defaults to DEFAULT_INGEST_CEILING and may be lowered, never raised. */
+  readonly batchCeiling?: number;
 }
+
+/**
+ * Files per ingest batch. The same number sync refuses above by default, for the same reason:
+ * a glob pointed at the wrong directory proposes thousands of acts, and every one of them reads,
+ * hashes and (in copy mode) stores a file before anyone looks. Unlike sync there is no
+ * confirmation flag — an ingest that genuinely needs more is several batches, each a decision.
+ */
+export const DEFAULT_INGEST_CEILING = 250;
+
 export interface PlannedItem {
   readonly path: string;
   readonly artifactKind: string;
@@ -243,6 +254,15 @@ export function planIngest(request: IngestRequest): IngestPlan {
   for (const path of request.paths) {
     const denied = deniedPathRule(path);
     if (denied !== undefined) refusals.push(formatContentRefusal(denied));
+  }
+
+  const ceiling = Math.min(request.batchCeiling ?? DEFAULT_INGEST_CEILING, DEFAULT_INGEST_CEILING);
+  const count = request.paths.length + driveRefs.length;
+  if (count > ceiling) {
+    refusals.push(
+      `this ingest names ${String(count)} files, above the ceiling of ${String(ceiling)}. ` +
+        'A glob pointed at the wrong directory looks exactly like this one; split the batch.',
+    );
   }
 
   if (refusals.length > 0) return { ok: false, refusals };

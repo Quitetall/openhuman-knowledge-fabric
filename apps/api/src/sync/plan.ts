@@ -83,6 +83,15 @@ export type SyncPlan =
 
 export const DEFAULT_BULK_CEILING = 250;
 
+/**
+ * The ceiling `acceptBulk` lifts to, and no further.
+ *
+ * `acceptBulk` used to lift the ceiling to nothing at all, so one confirmation admitted a sync
+ * of any size — the ten-thousand-file wrong directory included, since confirming is what a
+ * person does when a prompt is in the way. Above this, split the sync.
+ */
+export const MAX_BULK_CEILING = 2_000;
+
 /** A path that leaves the sync root, or is absolute, names something the caller did not offer. */
 function escapesRoot(path: string): boolean {
   if (isAbsolute(path)) return true;
@@ -168,8 +177,13 @@ export function planSync(request: SyncRequest): SyncPlan {
     if (found !== undefined) refusals.push(formatContentRefusal(found));
   }
 
-  const ceiling = request.bulkCeiling ?? DEFAULT_BULK_CEILING;
-  if (acts.length > ceiling && request.acceptBulk !== true) {
+  const ceiling = Math.min(request.bulkCeiling ?? DEFAULT_BULK_CEILING, MAX_BULK_CEILING);
+  if (acts.length > MAX_BULK_CEILING) {
+    refusals.push(
+      `this sync would dispatch ${String(acts.length)} acts, above the hard limit of ` +
+        `${String(MAX_BULK_CEILING)} that no confirmation lifts. Split it.`,
+    );
+  } else if (acts.length > ceiling && request.acceptBulk !== true) {
     refusals.push(
       `this sync would dispatch ${String(acts.length)} acts, above the ceiling of ` +
         `${String(ceiling)}. A sync pointed at the wrong directory looks exactly like this one. ` +

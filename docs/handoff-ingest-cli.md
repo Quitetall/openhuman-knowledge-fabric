@@ -149,7 +149,9 @@ swallow the second.
   carrying a private-key header or text that validates as an IBAN, a US SSN or a payment card
   (Luhn). The refusal names the file, the rule and the line, never the matched text. The CLI
   scans before any preflight or upload; `POST /ingest`, `POST /documents` and the sync planner
-  apply the same policy, because the CLI check is skippable and the server's is not.
+  apply the same policy, because the CLI check is skippable and the server's is not. A batch
+  above 250 files is refused (sync's ceiling; `acceptBulk` there now lifts it to 2 000 and no
+  further).
 - A reference-mode ingest produces an `artifact_version` with `storage_uri IS NULL` and a
   non-null `revision_label`, plus one `content.external_locator` row.
 - Re-running the same batch does not duplicate objects. `attach_evidence` staging is already
