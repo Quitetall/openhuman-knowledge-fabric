@@ -20,6 +20,7 @@ import { ArtifactRejected, verifyUpload } from '@kf/artifacts';
 import { digestBytes } from '@kf/canonicalization';
 import { withTransaction } from '@kf/database';
 import { DocumentParseRefused, evidenceStorageKey } from '@kf/documents';
+import { deniedPathRule, formatContentRefusal, scanContent } from '../../ingest/content-policy.js';
 import { unidentified } from '../actions.js';
 import { documentParseRefusalBody } from '../actions/errors.js';
 import { DOCUMENT_IMPORT_BODY_LIMIT_BYTES, type DocumentRoutesOptions } from './contracts.js';
@@ -136,6 +137,19 @@ export function registerIngestRoute(app: FastifyInstance, options: DocumentRoute
       const store = options.store;
       try {
         const source = parseIngest(request.body ?? {});
+        // What never enters KF (credentials, bank details, tax identifiers), refused before the
+        // bytes go anywhere. The CLI checks too; this is the check that cannot be skipped.
+        const refused = deniedPathRule(source.title) ?? scanContent(source.title, source.bytes);
+        if (refused !== undefined) {
+          return reply.code(422).send({
+            error: 'content_refused',
+            message: formatContentRefusal(refused),
+            detail: {
+              rule: refused.ruleId,
+              ...(refused.line === undefined ? {} : { line: refused.line }),
+            },
+          });
+        }
         // Everything that can refuse this request without the bytes being stored runs BEFORE
         // the put. The object store is outside the transaction and immutable: bytes written
         // for a request that is then refused stay there, unreferenced, until the sweep finds

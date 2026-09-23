@@ -196,6 +196,40 @@ describe('POST /documents fabric-native source', () => {
     expect(executeInTransaction).toHaveBeenCalledOnce();
   });
 
+  it('refuses a secret-bearing import before preflight, storage or action', async () => {
+    const db = databaseBoundary(() => []);
+    const executeInTransaction = vi.fn();
+    const preflightInTransaction = vi.fn(async () => undefined);
+    const store = new InMemoryObjectStore();
+    const putIfAbsent = vi.spyOn(store, 'putIfAbsent');
+    const app = Fastify({ logger: false });
+    await registerDocumentRoutes(app, {
+      pool: db.pool,
+      identify: caller(),
+      store,
+      preflightInTransaction,
+      executeInTransaction,
+    });
+    const ssn = ['123', '45', '6789'].join('-');
+    const response = await app.inject({
+      method: 'POST',
+      url: '/documents',
+      payload: {
+        ...importBody('api-document-secret-refused-01'),
+        contentBase64: Buffer.from(`Payroll\nEmployee SSN ${ssn}\n`).toString('base64'),
+      },
+    });
+    expect(response.statusCode, response.body).toBe(422);
+    expect(response.json()).toMatchObject({
+      error: 'content_refused',
+      detail: { rule: 'us-ssn', line: 2 },
+    });
+    expect(response.body).not.toContain(ssn);
+    expect(preflightInTransaction).not.toHaveBeenCalled();
+    expect(putIfAbsent).not.toHaveBeenCalled();
+    expect(executeInTransaction).not.toHaveBeenCalled();
+  });
+
   it('rejects a source one byte above 10 MiB before action execution', async () => {
     const db = databaseBoundary(() => []);
     const executeInTransaction = vi.fn();

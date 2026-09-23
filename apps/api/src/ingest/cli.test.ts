@@ -289,4 +289,65 @@ describe('kf ingest over the database path', () => {
       );
     }
   });
+
+  it('refuses the whole batch on a secret in any file, before any preflight or put', async () => {
+    const header = ['-----BEGIN', 'RSA', 'PRIVATE', 'KEY-----'].join(' ');
+    const dir = await batchDirectory({ 'fine.md': '# fine\n', 'notes.md': `# notes\n${header}\n` });
+    const store = new InMemoryObjectStore();
+    const preflight = vi.fn();
+    const error = await runIngest(
+      {
+        mode: 'copy',
+        classification: 'internal',
+        identity: 'dev',
+        json: false,
+        paths: [join(dir, 'fine.md'), join(dir, 'notes.md')],
+      },
+      DEV_ENV,
+      dir,
+      {
+        ownerPool: fakePool(),
+        appPool: fakePool(),
+        store,
+        executeInTransaction: vi.fn(),
+        preflightInTransaction: preflight,
+      },
+    ).catch((caught: unknown) => caught);
+    expect((error as { refusals?: readonly string[] }).refusals).toEqual([
+      `refusing ${join(dir, 'notes.md')} (line 2): rule private-key — contains a private key`,
+    ]);
+    expect(String((error as Error).message)).not.toContain('RSA');
+    expect(preflight).not.toHaveBeenCalled();
+    expect(await store.head(`ingest/${DEV_ORG}/${digestBytes(Buffer.from('# fine\n'))}`)).toBe(
+      undefined,
+    );
+  });
+});
+
+describe('kf ingest --via=api refuses content before uploading anything', () => {
+  it('sends no request when any file carries what validates as an IBAN', async () => {
+    const iban = ['GB82', 'WEST', '1234', '5698', '7654', '32'].join(' ');
+    const dir = await batchDirectory({ 'a.md': '# a\n', 'b.csv': `payee,iban\nACME,${iban}\n` });
+    await writeFile(join(dir, 'token'), 'tok.en\n', { mode: 0o600 });
+    const fetchImpl = vi.fn();
+    const error = await runIngestViaApi(
+      {
+        mode: 'copy',
+        classification: 'internal',
+        identity: 'oidc',
+        organizationId: DEV_ORG,
+        actingRoleId: '66666666-6666-7666-8666-666666666666',
+        tokenFile: join(dir, 'token'),
+        json: false,
+        paths: [join(dir, 'a.md'), join(dir, 'b.csv')],
+        via: 'api',
+      },
+      { KF_API_ORIGIN: 'https://api.kf.internal' },
+      dir,
+      fetchImpl as unknown as typeof fetch,
+    ).catch((caught: unknown) => caught);
+    expect((error as { refusals?: readonly string[] }).refusals?.[0]).toMatch(/rule iban/);
+    expect(String((error as Error).message)).not.toContain('WEST');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
 });

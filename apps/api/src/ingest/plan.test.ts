@@ -186,3 +186,23 @@ describe('a Drive source is a copy with its origin recorded (ADR 0022)', () => {
     expect(plan.refusals.join('\n')).toContain('--mode=reference cannot take --drive');
   });
 });
+
+describe('what never enters KF, by name', () => {
+  it('refuses credentials by path in either mode, naming file and rule', () => {
+    for (const mode of ['copy', 'reference'] as const) {
+      const plan = planIngest({
+        mode,
+        classification: 'internal',
+        revisionLabel: 'R01',
+        paths: ['/work/notes.md', '/work/.env', '/work/tls/server.key', '/work/id_rsa'],
+      });
+      expect(plan.ok, mode).toBe(false);
+      if (plan.ok) continue;
+      expect(plan.refusals, mode).toEqual([
+        'refusing /work/.env: rule dotfile — dotfiles and dot-directories hold configuration and credentials, not records',
+        'refusing /work/tls/server.key: rule key-file — a .key file is a key',
+        'refusing /work/id_rsa: rule ssh-identity — an SSH identity file is a private key, or its public half named like one',
+      ]);
+    }
+  });
+});

@@ -22,6 +22,7 @@
  * be proven without a harness and cannot be excused by "the environment was odd".
  */
 
+import { deniedPathRule, formatContentRefusal } from './content-policy.js';
 import { parseDriveRef } from './drive.js';
 import { basename, extname, sep } from 'node:path';
 
@@ -159,7 +160,6 @@ export interface IngestRequest {
   /** Required in reference mode: which revision of the external thing this digest describes. */
   readonly revisionLabel?: string;
 }
-
 export interface PlannedItem {
   readonly path: string;
   readonly artifactKind: string;
@@ -235,6 +235,14 @@ export function planIngest(request: IngestRequest): IngestPlan {
         );
       }
     }
+  }
+
+  // In either mode: a reference to `.env` records its name and digest, and neither belongs
+  // here. The byte scan runs where the bytes are read (cli.ts, the ingest route), not here —
+  // this planner reads nothing.
+  for (const path of request.paths) {
+    const denied = deniedPathRule(path);
+    if (denied !== undefined) refusals.push(formatContentRefusal(denied));
   }
 
   if (refusals.length > 0) return { ok: false, refusals };

@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { ActionRejected } from '@kf/actions';
 import { ArtifactRejected, verifyUpload } from '@kf/artifacts';
 import { DocumentParseRefused } from '@kf/documents';
+import { deniedPathRule, formatContentRefusal, scanContent } from '../../ingest/content-policy.js';
 import { unidentified } from '../actions.js';
 import { documentParseRefusalBody } from '../actions/errors.js';
 import {
@@ -41,6 +42,19 @@ export function registerDocumentImportRoute(
 
       try {
         const source = parseDocumentImport(request.body ?? {}, identity.organizationId);
+        // The same content policy as ingest: an import is bytes entering KF by another door.
+        const refused =
+          deniedPathRule(source.fileName) ?? scanContent(source.fileName, source.bytes);
+        if (refused !== undefined) {
+          return reply.code(422).send({
+            error: 'content_refused',
+            message: formatContentRefusal(refused),
+            detail: {
+              rule: refused.ruleId,
+              ...(refused.line === undefined ? {} : { line: refused.line }),
+            },
+          });
+        }
         const common: DocumentActionContext = {
           actorId: identity.actorId,
           actingRoleId: identity.actingRoleId,

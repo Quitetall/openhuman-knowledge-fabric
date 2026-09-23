@@ -230,4 +230,39 @@ describe('POST /ingest', () => {
       detail: { reason: 'timeout' },
     });
   });
+
+  it('refuses a secret-bearing file as content_refused without storing or echoing it', async () => {
+    const store = new InMemoryObjectStore();
+    const execute = vi.fn();
+    const preflight = vi.fn(async () => undefined);
+    const app = Fastify({ logger: false });
+    registerIngestRoute(
+      app,
+      options(store, execute as DocumentRoutesOptions['executeInTransaction'], preflight),
+    );
+    const card = ['4111', '1111', '1111', '1111'].join('');
+    const body = Buffer.from(`# Expenses\n\nCard ${card} was charged.\n`);
+    const response = await app.inject({
+      method: 'POST',
+      url: '/ingest',
+      payload: { ...VALID, contentBase64: body.toString('base64') },
+    });
+    expect(response.statusCode, response.body).toBe(422);
+    expect(response.json()).toMatchObject({
+      error: 'content_refused',
+      detail: { rule: 'payment-card', line: 3 },
+    });
+    expect(response.body).not.toContain(card);
+    expect(preflight).not.toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
+    expect(await store.head(`ingest/${ORG}/${digestBytes(body)}`)).toBeUndefined();
+
+    const dotenv = await app.inject({
+      method: 'POST',
+      url: '/ingest',
+      payload: { ...VALID, title: '.env' },
+    });
+    expect(dotenv.statusCode).toBe(422);
+    expect(dotenv.json()).toMatchObject({ error: 'content_refused', detail: { rule: 'dotfile' } });
+  });
 });

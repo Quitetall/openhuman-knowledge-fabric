@@ -37,6 +37,12 @@ import type {
   TransactionalActionDispatcher,
   TransactionalActionPreflight,
 } from '@kf/actions';
+import {
+  deniedPathRule,
+  formatContentRefusal,
+  scanContent,
+  type ContentRefusal,
+} from './content-policy.js';
 import { planIngest, type IngestMode, type IngestPlan } from './plan.js';
 import { driveClientFromEnv, type DriveClient, type DriveFetched } from './drive.js';
 
@@ -491,6 +497,14 @@ async function versionForAction(tx: Tx, artifactId: string, actionId: string): P
   ).id;
 }
 
+/** Refuse the whole batch on every content finding at once, naming files and rules only. */
+function refuseContent(findings: ReadonlyArray<ContentRefusal | undefined>): void {
+  const refusals = findings
+    .filter((finding): finding is ContentRefusal => finding !== undefined)
+    .map(formatContentRefusal);
+  if (refusals.length > 0) throw new IngestCliError(refusals.join('\n'), refusals);
+}
+
 /** Thrown to roll back a rehearsal transaction; never escapes `runIngest`. */
 const ROLLBACK = Symbol('rollback');
 
@@ -535,9 +549,15 @@ export async function runIngestViaApi(
     throw new IngestCliError('KF_API_ORIGIN is required for --via=api');
   const token = readSecretFile(args.tokenFile, 'OIDC token file');
   const base = origin.replace(/\/+$/, '');
+  // Every file is read and scanned before the first request, so a refusal refuses the batch
+  // rather than arriving after half of it was uploaded. The server scans again; this is only
+  // so the answer comes before anything leaves the machine.
+  const read = await Promise.all(
+    planned.items.map(async (item) => ({ item, bytes: await readFile(resolve(cwd, item.path)) })),
+  );
+  refuseContent(read.map(({ item, bytes }) => scanContent(item.path, bytes)));
   const items: IngestItemResult[] = [];
-  for (const item of planned.items) {
-    const bytes = await readFile(resolve(cwd, item.path));
+  for (const { item, bytes } of read) {
     const response = await fetchImpl(`${base}/ingest`, {
       method: 'POST',
       headers: {
@@ -704,6 +724,16 @@ export async function runIngest(
       });
     }
 
+    // Copy mode holds the bytes, so the bytes are scanned; a Drive file is also held to the
+    // path rules by its Drive name, which the planner could not see.
+    if (planned.mode === 'copy') {
+      refuseContent(
+        staged.flatMap((source) => [
+          source.drive === undefined ? undefined : deniedPathRule(source.drive.name),
+          scanContent(source.item.path, source.bytes),
+        ]),
+      );
+    }
     const store =
       deps.store ?? (planned.mode === 'copy' ? configuredStore(env) : referenceOnlyStore());
     const parser = deps.parser ?? new PandocDocumentParser();
