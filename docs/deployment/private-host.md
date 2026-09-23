@@ -147,9 +147,28 @@ already requires), and util-linux `prlimit` at `/usr/bin/prlimit` starts bubblew
 2 GiB, RLIMIT_FSIZE 256 MiB (it must exceed the compiler executable, which bubblewrap writes under
 it), RLIMIT_NOFILE 256 and no core dumps; `kf-worker.service` refuses to start without it. The
 process count is bounded by the unit's `TasksMax=` rather than RLIMIT_NPROC, which counts every
-process of the uid. No seccomp filter is loaded: bubblewrap accepts one (`--seccomp FD`) but it
-needs a compiled BPF program and there is no tooling here to build and review one; the unit's
-`SystemCallFilter=` is the syscall boundary until there is.
+process of the uid.
+
+The compiler runs under two syscall filters. **Its own**: bubblewrap loads
+`packages/documents/src/liminal-adapter/seccomp.ts` through `--seccomp FD` just before it execs
+the compiler — a classic-BPF deny list assembled in TypeScript (no libseccomp or C toolchain at
+build time) that refuses mount, ptrace and `process_vm_*`, module, reboot, swap, raw I/O, clock,
+keyring, `unshare`/`setns`/`clone` with any `CLONE_NEW*` flag, `bpf`, `userfaultfd` and the rest
+of the kernel-admin surface with EPERM, and `clone3`/io_uring with ENOSYS so libc and libuv fall
+back. It is defined for x86_64 and aarch64; on any other architecture the worker refuses to run
+the compiler rather than run it unfiltered, and the startup preflight loads the same filter, so
+a host that cannot load it fails at start. **The unit's**, by inheritance — seccomp filters pass
+across fork and exec and can only be added to, so everything `kf-worker.service` denies,
+bubblewrap and the compiler are denied too. That unit filter is `@system-service @mount` minus
+`@privileged @debug @module @raw-io @reboot @swap @clock @cpu-emulation @obsolete @keyring`
+(and `userfaultfd kcmp process_vm_readv process_vm_writev`), re-admitting only `capset` and
+`pivot_root`, which bubblewrap was measured to need (systemd 261: without `capset` it dies of
+SIGSYS, without `pivot_root` it cannot enter its root), with `SystemCallErrorNumber=EPERM`.
+`tests/deployment/worker-syscall-filter.test.ts` runs a real sandbox under exactly those lines
+with `systemd-run --user` where that works, and `packages/documents/src/seccomp.test.ts` runs a
+probe under bubblewrap with and without the compiler filter. If a host's systemd names a call
+bubblewrap needs differently, the preflight fails at start with bubblewrap's error; add the call
+to the re-admit line with a measurement, never widen the groups.
 
 The packaged Liminal compiler must be a native ELF executable for the target architecture and
 must load with its nonempty, reviewed interpreter/shared-library closure on that host. Linux
