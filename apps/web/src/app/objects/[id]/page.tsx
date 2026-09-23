@@ -10,6 +10,7 @@
  */
 
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import {
   get,
@@ -22,6 +23,7 @@ import {
 import { formatInstant, formatState } from '@kf/ui';
 import { webCaller } from '../../../lib/session';
 import { Badge } from '../../components/badge';
+import { loadObjectView } from './object-view-load';
 
 export async function generateMetadata({
   params,
@@ -56,31 +58,36 @@ export default async function ObjectPage({ params }: { params: Promise<{ id: str
   const { id } = await params;
   const caller = await webCaller(`/objects/${id}`);
 
-  let view: ObjectView;
-  try {
-    view = await get(`/objects/${encodeURIComponent(id)}`, caller, parseObjectView);
-  } catch (err: unknown) {
-    if (err instanceof ApiError && err.code === 'master_record_stale') {
-      // Compiling the record is an act recorded as this person, so it happens only when they
-      // ask: this page is a GET, and a GET is what any site can send them to.
-      async function refresh(): Promise<void> {
-        'use server';
-        await refreshObjectView(id, await webCaller(`/objects/${id}`));
-        redirect(`/objects/${encodeURIComponent(id)}`);
-      }
-      return (
-        <main style={{ maxWidth: '52rem', margin: '0 auto', padding: '3rem 1.5rem' }}>
-          <h1 style={{ fontSize: '1.25rem' }}>Your master record is out of date</h1>
-          <p role="status" className="kf-status kf-status-neutral">
-            Records you can see have changed since your master record was last compiled. Refreshing
-            it is recorded as an action taken by you.
-          </p>
-          <form action={refresh}>
-            <button type="submit">Refresh my master record and view this object</button>
-          </form>
-        </main>
-      );
+  // A stale master record is refreshed without a click only when this request is the person's
+  // own navigation (object-view-load.ts); a cross-site link still gets the button.
+  const outcome = await loadObjectView(
+    await headers(),
+    () => get(`/objects/${encodeURIComponent(id)}`, caller, parseObjectView),
+    () => refreshObjectView(id, caller),
+  );
+  if (outcome.kind === 'stale') {
+    // Compiling the record is an act recorded as this person, so it happens only when they
+    // ask: this request did not come from them, and a GET is what any site can send them to.
+    async function refresh(): Promise<void> {
+      'use server';
+      await refreshObjectView(id, await webCaller(`/objects/${id}`));
+      redirect(`/objects/${encodeURIComponent(id)}`);
     }
+    return (
+      <main style={{ maxWidth: '52rem', margin: '0 auto', padding: '3rem 1.5rem' }}>
+        <h1 style={{ fontSize: '1.25rem' }}>Your master record is out of date</h1>
+        <p role="status" className="kf-status kf-status-neutral">
+          Records you can see have changed since your master record was last compiled. Refreshing it
+          is recorded as an action taken by you.
+        </p>
+        <form action={refresh}>
+          <button type="submit">Refresh my master record and view this object</button>
+        </form>
+      </main>
+    );
+  }
+  if (outcome.kind === 'failed') {
+    const err = outcome.error;
     const refusal = err instanceof ApiError && err.isRefusal;
     return (
       <main style={{ maxWidth: '52rem', margin: '0 auto', padding: '3rem 1.5rem' }}>
@@ -93,6 +100,7 @@ export default async function ObjectPage({ params }: { params: Promise<{ id: str
       </main>
     );
   }
+  const view: ObjectView = outcome.view;
 
   const { subject } = view;
   const byId = new Map(view.relationships.map((m) => [m.objectId, m]));
