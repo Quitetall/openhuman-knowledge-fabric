@@ -87,6 +87,31 @@ describe('the database binds the principal, and writes match it', () => {
     });
   });
 
+  it('asks for the sealed context once per query, never once per row', async () => {
+    // 20260923000300: an accessor call bare in a policy is a per-row filter that pays for the
+    // HMAC on every row (17 ms became 296 ms over 12,000 rows). Wrapped in a scalar subquery it
+    // is an InitPlan, asked once. A policy added later in the bare form fails here.
+    const bare = await withTransaction(h.adminPool, (tx) =>
+      tx.query<{ policy: string }>(
+        `select polrelid::regclass::text || '.' || polname as policy
+           from pg_policy
+          where coalesce(pg_get_expr(polqual, polrelid), '')
+                || coalesce(pg_get_expr(polwithcheck, polrelid), '')
+                ~ '(?<!SELECT )core\\.current_[a-z_]+\\(\\)'`,
+      ),
+    );
+    expect(bare).toEqual([]);
+    const bareViews = await withTransaction(h.adminPool, (tx) =>
+      tx.query<{ view: string }>(
+        `select c.oid::regclass::text as view
+           from pg_class c join pg_namespace n on n.oid = c.relnamespace
+          where c.relkind = 'v' and n.nspname not in ('pg_catalog', 'information_schema')
+            and pg_get_viewdef(c.oid) ~ '(?<!SELECT )core\\.current_[a-z_]+\\(\\)'`,
+      ),
+    );
+    expect(bareViews).toEqual([]);
+  });
+
   describe('the application binds a principal, not an organization', () => {
     it('refuses an organization and ceiling with nobody behind them', async () => {
       await expect(

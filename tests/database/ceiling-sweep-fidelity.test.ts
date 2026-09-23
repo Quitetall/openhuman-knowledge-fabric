@@ -74,8 +74,12 @@ const RESTATED_LATER = [
  * it is kept inside the marker rather than erased with the rest. `classification` becoming
  * `classification_id` in some policy would then still read as a difference.
  */
-function normalizeCeiling(expression: string | null, table: string): string | null {
-  if (expression === null) return null;
+function normalizeCeiling(raw: string | null, table: string): string | null {
+  if (raw === null) return null;
+  // 20260923000300 wraps every context accessor as a scalar subquery so it is asked once per
+  // query, in both databases alike. That is orthogonal to the sweep, so it is undone here
+  // before the comparison rather than taught to every pattern below.
+  const expression = raw.replace(/\(\s*SELECT core\.(current_\w+)\(\) AS \1\)/g, 'core.$1()');
   /**
    * Drop the policy's OWN table qualifier from the bounded column, and only that.
    *

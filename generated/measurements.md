@@ -12,10 +12,10 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 
 | Measure | Count | Derived from |
 | --- | ---: | --- |
-| migrations | 98 | files under `database/migrations/` |
+| migrations | 99 | files under `database/migrations/` |
 | tables created | 172 | in migration up-sections |
 | row-security policies | 452 | in migration up-sections |
-| definer functions | 154 | in migration up-sections |
+| definer functions | 155 | in migration up-sections |
 | action types | 152 | declared in `ontology/action-types.yaml` |
 | object types | 39 | declared in `ontology/object-types.yaml` |
 | relation types | 41 | declared in `ontology/relation-types.yaml` |

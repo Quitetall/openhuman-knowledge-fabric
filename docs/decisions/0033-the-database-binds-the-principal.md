@@ -42,5 +42,9 @@ API is fully controlled.
   worker's actor must still hold the assignment it names.
 - The seal key's row is excluded from backups: seals last one transaction, so a restore needs a
   key, not this one.
+- Each accessor now verifies an HMAC, and a bare call in a policy is paid per row: a
+  policy-governed read of 12,000 rows went from 17 ms to 296 ms. Every policy and view now asks
+  once per query (`20260923000300`), and the same read measures 5.9 ms. A bare call added later
+  fails `tests/database/principal-binding.test.ts`.
 - One click to refresh a stale Object View, where there were none.
 - Which acts a role may perform is still decided in the application; recorded in T2.
