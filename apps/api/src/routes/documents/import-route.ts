@@ -52,6 +52,7 @@ export function registerDocumentImportRoute(
             detail: {
               rule: refused.ruleId,
               ...(refused.line === undefined ? {} : { line: refused.line }),
+              ...(refused.part === undefined ? {} : { part: refused.part }),
             },
           });
         }

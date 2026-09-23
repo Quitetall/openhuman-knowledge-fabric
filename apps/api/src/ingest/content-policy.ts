@@ -20,20 +20,34 @@
  * printed, logged and returned over HTTP; echoing the secret there would leak it to exactly the
  * places this exists to keep it out of.
  *
- * THE LIMIT, stated so nobody over-reads it: the byte scan reads the file as stored. Text,
- * Markdown, CSV and JSON are scanned in full. A DOCX, ODT or PDF keeps its text in compressed
- * streams, so the scan sees little of it; those rely on the path rules and on whoever chose to
- * ingest them. This is a net for the common accident, not a data-loss-prevention product.
+ * WHAT THE BYTE SCAN SEES. Text, Markdown, CSV and JSON are scanned as stored. A ZIP package
+ * (DOCX, ODT, XLSX, PPTX, ODS, a plain .zip) is opened and every part is scanned — XML parts
+ * both as stored and as their character data, so a number Word split across runs is seen whole.
+ * A PDF's FlateDecode streams are inflated and scanned, with the literal and hex strings they
+ * draw decoded. All of it is bounded (`content-extract.ts`: 64 MiB expanded, 10 000 parts, a
+ * 250:1 ratio past 1 MiB); a file that trips a bound, or a ZIP the scan cannot read (encrypted,
+ * ZIP64, an exotic compression method), is refused and the bound is named.
+ *
+ * THE LIMIT, stated so nobody over-reads it: text a PDF draws through a font with a custom
+ * encoding (CID/Identity-H, common for non-Latin text) is glyph ids, not characters, and an
+ * encrypted PDF's streams are ciphertext; the scan sees neither. Images are pixels. This is a
+ * net for the common accident, not a data-loss-prevention product.
  */
 
 import { basename } from 'node:path';
+import { ExtractionRefused, extractHiddenText, isPdf } from './content-extract.js';
 
 export interface ContentRefusal {
   readonly path: string;
   readonly ruleId: string;
   readonly reason: string;
-  /** 1-based line of the first match, for a byte rule; absent for a path rule. */
+  /**
+   * 1-based line of the first match, for a byte rule read from the file as stored; absent for a
+   * path rule and for text extracted from a compressed part, where a line means nothing.
+   */
   readonly line?: number;
+  /** The ZIP entry or PDF stream the match or the bound was in, when there was one. */
+  readonly part?: string;
 }
 
 interface PathRule {
@@ -203,12 +217,45 @@ function lineOf(text: string, index: number): number {
 }
 
 /**
- * The first byte rule `bytes` trips, or undefined. Read as latin1 so every byte maps to one
- * character and no decoding error can hide a match.
+ * The first byte rule `bytes` trips, or undefined: first the file as stored, then whatever a
+ * ZIP or a PDF keeps compressed inside it. Read as latin1 so every byte maps to one character
+ * and no decoding error can hide a match.
+ *
+ * A PDF's own syntax is held to the private-key rule only. Its body is mostly numbers separated
+ * by single spaces — font width tables, coordinates, cross-reference offsets — and a run like
+ * `556 556 556 556 556 5` is sixteen digits with a Mastercard prefix, which Luhn passes one time
+ * in ten. Measured on 40 PDFs shipped under /usr/share on the workstation: the scan as it stood
+ * refused 6 of them for a card number none of them contained, and every rule over the inflated
+ * streams refused 14. The text a PDF DRAWS is its strings, and those get every rule; with that
+ * split, all 40 pass and a card number typeset by pandoc is still caught.
  */
 export function scanContent(path: string, bytes: Buffer): ContentRefusal | undefined {
-  const text = bytes.toString('latin1');
+  const pdf = isPdf(bytes);
+  const stored = scanText(path, bytes.toString('latin1'), pdf ? 'keys' : 'all');
+  if (stored !== undefined) return stored;
+  let parts;
+  try {
+    parts = extractHiddenText(bytes);
+  } catch (error: unknown) {
+    if (!(error instanceof ExtractionRefused)) throw error;
+    return {
+      path,
+      ruleId: `archive-${error.limit}`,
+      reason: `${error.message}; the scan cannot vouch for what it cannot read`,
+      ...(error.part === undefined ? {} : { part: error.part }),
+    };
+  }
+  for (const { part, text, syntax } of parts) {
+    const found = scanText(path, text, syntax ? 'keys' : 'all');
+    if (found !== undefined) {
+      const { line: _line, ...withoutLine } = found;
+      return { ...withoutLine, part };
+    }
+  }
+  return undefined;
+}
 
+function scanText(path: string, text: string, rules: 'all' | 'keys'): ContentRefusal | undefined {
   const key = PRIVATE_KEY.exec(text);
   if (key !== null) {
     return {
@@ -218,6 +265,7 @@ export function scanContent(path: string, bytes: Buffer): ContentRefusal | undef
       line: lineOf(text, key.index),
     };
   }
+  if (rules === 'keys') return undefined;
   for (const match of text.matchAll(IBAN_CANDIDATE)) {
     if (ibanValid(match[1]!)) {
       return {
@@ -259,8 +307,16 @@ export function scanContent(path: string, bytes: Buffer): ContentRefusal | undef
   return undefined;
 }
 
-/** One line per refusal, naming the file, the rule and the line — never the matched text. */
+/**
+ * One line per refusal, naming the file, the rule, and the line or the part — never the matched
+ * text.
+ */
 export function formatContentRefusal(refusal: ContentRefusal): string {
-  const where = refusal.line === undefined ? '' : ` (line ${String(refusal.line)})`;
+  const where =
+    refusal.part !== undefined
+      ? ` (part ${refusal.part})`
+      : refusal.line === undefined
+        ? ''
+        : ` (line ${String(refusal.line)})`;
   return `refusing ${refusal.path}${where}: rule ${refusal.ruleId} — ${refusal.reason}`;
 }

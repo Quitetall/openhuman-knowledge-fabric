@@ -147,6 +147,7 @@ export function registerIngestRoute(app: FastifyInstance, options: DocumentRoute
             detail: {
               rule: refused.ruleId,
               ...(refused.line === undefined ? {} : { line: refused.line }),
+              ...(refused.part === undefined ? {} : { part: refused.part }),
             },
           });
         }
