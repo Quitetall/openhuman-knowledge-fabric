@@ -1,6 +1,6 @@
 # ADR 0033 — The database binds the principal; the application only names one
 
-- **Status:** proposed 2026-09-23
+- **Status:** accepted 2026-09-23; proposed 2026-09-23
 - **Amends:** [ADR 0015](0015-object-views.md) in one respect: reading an Object View no longer
   compiles a stale master record. `GET /objects/:id` answers `409 master_record_stale`, and
   `POST /objects/:id/refresh` performs the compile as an explicit act.
