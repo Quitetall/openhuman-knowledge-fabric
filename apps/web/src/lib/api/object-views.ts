@@ -1,3 +1,10 @@
+import {
+  apiBaseUrl,
+  callerHeaders,
+  decodeSuccessfulResponse,
+  parseResponse,
+  type Caller,
+} from './client';
 import { record } from './validation';
 
 /**
@@ -125,4 +132,21 @@ export function parseObjectView(value: unknown): ObjectView {
     history: events,
     availableActions: actions,
   };
+}
+
+/**
+ * Bring the caller's master record up to date and read the Object View — a recorded act.
+ *
+ * Only ever called from a form the person submitted (a server action). `GET /objects/:id`
+ * reports a stale record as `master_record_stale` instead of compiling it, because a GET is
+ * what a cross-site link produces.
+ */
+export async function refreshObjectView(id: string, caller: Caller): Promise<ObjectView> {
+  const response = await fetch(`${apiBaseUrl()}/objects/${encodeURIComponent(id)}/refresh`, {
+    method: 'POST',
+    headers: callerHeaders(caller),
+    body: '{}',
+    cache: 'no-store',
+  });
+  return decodeSuccessfulResponse(await parseResponse(response), parseObjectView);
 }

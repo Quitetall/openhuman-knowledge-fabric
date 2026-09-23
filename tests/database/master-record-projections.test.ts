@@ -231,10 +231,11 @@ describe('corpus projections over a real master record', () => {
     }
   }, 60_000);
 
-  it('refreshes a stale claim on demand to serve an Object View, as an act, rather than 409', async () => {
-    // The corpus moves under the viewer's claim. A person following a link is not sent away
-    // to compile something first: the view compiles their record — recorded, as them — and
-    // answers. (Found by the fixture workflow: every view answered 409 after any change.)
+  it('never compiles on GET; refreshes a stale claim only on the POST, as an act', async () => {
+    // The corpus moves under the viewer's claim. A GET is what a link is, and the web page
+    // behind it is reachable by a cross-site navigation carrying the session cookie, so a GET
+    // that compiled let any site make the reader perform a recorded act. The GET reports the
+    // stale claim; the refresh POST compiles it — recorded, as them — and answers.
     await createObject(harness.adminPool, fixtures, {
       type: 'decision_record',
       domain: 'engineering',
@@ -265,7 +266,19 @@ describe('corpus projections over a real master record', () => {
     });
     await app.ready();
     try {
-      const response = await app.inject({ method: 'GET', url: `/objects/${probe}` });
+      const read = await app.inject({ method: 'GET', url: `/objects/${probe}` });
+      expect(read.statusCode, read.body).toBe(409);
+      expect(read.json()).toMatchObject({ error: 'master_record_stale' });
+      const unchanged = await withTransaction(harness.pool, async (tx) => {
+        await tx.query('select core.set_access_context($1, $2)', [
+          fixtures.organizationId,
+          'restricted',
+        ]);
+        return latestMasterRecord(tx, fixtures.performerId, fixtures.organizationId);
+      });
+      expect(unchanged?.['id']).toBe(before?.['id']);
+
+      const response = await app.inject({ method: 'POST', url: `/objects/${probe}/refresh` });
       expect(response.statusCode, response.body).toBe(200);
       const after = await withTransaction(harness.pool, async (tx) => {
         await tx.query('select core.set_access_context($1, $2)', [
