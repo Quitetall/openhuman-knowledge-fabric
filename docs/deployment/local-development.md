@@ -57,9 +57,9 @@ DATABASE_URL="$DATABASE_OWNER_URL" pnpm db:migrate
 pnpm dogfood:load -- --source-dir /path/to/OpenHuman_Technologies
 ```
 
-The loader's JSON output includes `identity.actorId`, `identity.actingRoleId` and
-`identity.organizationId`. Copy those UUIDs into `KF_DEV_ACTOR`, `KF_DEV_ACTING_ROLE` and
-`KF_DEV_ORGANIZATION` in `.env`, then reload it and start the applications:
+The loader ends with a paste-ready block: `KF_DEV_ORGANIZATION`, `KF_DEV_ACTOR`,
+`KF_DEV_ACTING_ROLE` and `DATABASE_URL_FILE`. Copy it into `.env`, then reload it and start the
+applications:
 
 ```sh
 set -a; . ./.env; set +a
@@ -72,7 +72,11 @@ pnpm dev
 - MinIO console — <http://localhost:9001>
 - Keycloak — <http://localhost:8080>
 
-The loader creates the constrained `kf_api_dev` login and a visibly synthetic local operator,
+The loader refuses to run on a provisioned host (one where `/etc/kf` exists). It creates the
+constrained `kf_api_dev` login with a fresh random password on every run, writes that login's
+connection string owner-only (0600) to `$XDG_STATE_HOME/knowledge-fabric/dev-database-url`
+(default `~/.local/state/…`; override with `KF_DEV_DATABASE_URL_FILE`), and never prints the
+password. It also creates a visibly synthetic local operator,
 then imports the manifest sources as drafts. It never approves them, makes them effective or
 allocates an enterprise identifier. Reruns are idempotent. Current actions use strict semantic
 receipt replay. Pre-contract materializations require migration-owned provenance, exact action
