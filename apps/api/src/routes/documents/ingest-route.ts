@@ -18,7 +18,9 @@ import { ActionRejected } from '@kf/actions';
 import { ArtifactRejected, verifyUpload } from '@kf/artifacts';
 import { digestBytes } from '@kf/canonicalization';
 import { withTransaction } from '@kf/database';
+import { DocumentParseRefused } from '@kf/documents';
 import { unidentified } from '../actions.js';
+import { documentParseRefusalBody } from '../actions/errors.js';
 import { DOCUMENT_IMPORT_BODY_LIMIT_BYTES, type DocumentRoutesOptions } from './contracts.js';
 
 export interface IngestBody {
@@ -196,6 +198,9 @@ export function registerIngestRoute(app: FastifyInstance, options: DocumentRoute
             failure: error.failure,
             message: error.message,
           });
+        }
+        if (error instanceof DocumentParseRefused) {
+          return reply.code(422).send(documentParseRefusalBody(error));
         }
         if (error instanceof ActionRejected) {
           return reply.code(error.failure === 'idempotency_conflict' ? 409 : 422).send({

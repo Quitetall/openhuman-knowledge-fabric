@@ -1,7 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import { ActionRejected } from '@kf/actions';
 import { ArtifactRejected, verifyUpload } from '@kf/artifacts';
+import { DocumentParseRefused } from '@kf/documents';
 import { unidentified } from '../actions.js';
+import { documentParseRefusalBody } from '../actions/errors.js';
 import {
   DOCUMENT_IMPORT_BODY_LIMIT_BYTES,
   ImportIdempotencyConflict,
@@ -76,6 +78,9 @@ export function registerDocumentImportRoute(
         }
         if (error instanceof TypeError) {
           return reply.code(400).send({ error: 'invalid_document', message: error.message });
+        }
+        if (error instanceof DocumentParseRefused) {
+          return reply.code(422).send(documentParseRefusalBody(error));
         }
         if (error instanceof ActionRejected) {
           return reply.code(error.failure === 'idempotency_conflict' ? 409 : 422).send({

@@ -55,15 +55,33 @@ userland behavior such as `readlink -f`, `realpath -ms`, `stat -Lc`, `find -prin
 `sha256sum`, `install` and FHS locations under `/opt`, `/etc`, `/var/lib`, `/run` and
 `/usr/bin`.
 
-Install **pandoc**, on `PATH`, for the process that serves document import.
+Install **pandoc** in `/usr/local/bin`, `/usr/bin` or `/bin`, or set `KF_PANDOC_PATH` to its
+absolute path, for the process that serves document import. The inherited `PATH` is not searched:
+a writable directory early on a service account's `PATH` would otherwise choose the program that
+parses evidence.
 Install a **LaTeX engine** beside it — `pdflatex`, from `texlive-latex-base
 texlive-latex-recommended texlive-fonts-recommended lmodern` on Debian/Ubuntu — for the process
 that renders master records to PDF: pandoc produces a PDF only through an engine, and it is a
 separate package. Prove both exactly as CI does:
 `printf '# probe\n\nOne paragraph.\n' | pandoc --from=gfm --to=pdf --standalone -o /tmp/probe.pdf`.
-`packages/documents/src/internal/pandoc-parser.ts` runs `pandoc --from=<format> --to=json` as a
-child process, so a host without it answers every document import with HTTP 500 and logs
-`spawn pandoc ENOENT` — the API deliberately does not tell the caller more than a request id.
+`packages/documents/src/internal/pandoc-parser.ts` runs
+`pandoc --sandbox --from=<format> --to=json +RTS -M512m -RTS` as a child process, so a host
+without it answers every document import with HTTP 500 and logs `pandoc not found in
+/usr/local/bin:/usr/bin:/bin` — the API deliberately does not tell the caller more than a request
+id.
+
+The child runs under limits a hostile source cannot choose, because pandoc's Markdown reader is
+super-linear on some inputs: 10 KB of nested blockquotes drove it to 8.5 GB RSS, and 30 000
+nested link brackets ran past two minutes, both while holding the `attach_evidence` transaction
+open. `--sandbox` denies the reader file and network access; `+RTS -M` caps the GHC heap
+(`KF_PANDOC_MAX_HEAP_MIB`, default 512); a wall-clock deadline SIGKILLs the child
+(`KF_PANDOC_TIMEOUT_MS`, default 30 000); stderr kept for diagnostics is capped
+(`KF_PANDOC_MAX_STDERR_BYTES`, default 64 KiB). A source that trips one is answered
+`422 document_refused` with `detail.reason` of `timeout`, `memory`, `output_limit` or
+`parser_failed`, never with pandoc's stderr, which can quote the source. The RTS flag is the one
+pandoc's own manual recommends in its security notes; a build linked without `-rtsopts` would
+fail every parse with "Most RTS options are disabled" — loudly, rather than parsing unbounded.
+Measured accepted on 3.10.2; the CI host's 3.1.3 runs the same flag in the parser tests.
 
 **This requirement was undocumented until 2026-08-18**, when CI ran the suite on a machine that
 was not the workstation and three import tests failed opaquely. It had always been satisfied here

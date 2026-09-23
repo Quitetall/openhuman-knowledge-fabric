@@ -31,15 +31,18 @@ export {
   artifactKindForDocumentClass,
   mediaTypeForDocumentFile,
   PandocDocumentParser,
+  type PandocParserOptions,
 } from './internal/pandoc-parser.js';
 export { atomsFromPandoc, projectionFromPandoc } from './internal/pandoc-projection.js';
 export {
   DocumentParseIntegrityError,
+  DocumentParseRefused,
   PANDOC_PROJECTION_CONTRACT,
   validateParsedDocument,
   type DocumentAtom,
   type DocumentAtomKind,
   type DocumentParseLoss,
+  type DocumentParseRefusalReason,
   type DocumentParser,
   type ParsedDocument,
 } from './internal/parse-contract.js';
