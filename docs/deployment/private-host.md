@@ -353,6 +353,13 @@ Command rejects changed bytes, extra files/directories/symlinks, changed or esca
 special filesystem entries, wrong ownership, group/other-writable paths, unpinned dbmate and
 malformed migration pairs.
 
+`assemble-liminal-runtime.sh` refuses a compiler or `Cargo.lock` whose SHA-256 is not the one
+pinned in [`../../deploy/liminal/reviewed-digests.env`](../../deploy/liminal/reviewed-digests.env).
+Until 2026-09-23 the sealed digest was computed from whatever binary the build machine was
+given, so it faithfully described bytes nobody had reviewed. The pin is empty today (ADR 0010
+defers the compiler), so a sealed Liminal release first needs a reviewed commit that pins the
+digests, with the provenance of those bytes in its message.
+
 Copy the six `LIMINAL_*` pin values from `vendor/liminal/RUNTIME.env` into reviewed worker
 configuration. Do not source that file as shell code. Before worker starts,
 `verify-liminal-runtime.sh` requires configured compiler and lock paths to resolve to packaged
