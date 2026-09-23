@@ -36,7 +36,15 @@ psql_scoped() { psql_owner "select core.set_access_context($(q "$org"), 'restric
 person_id() { psql_scoped "select p.id from org.person p where p.organization = $(q "$org") and p.display_name = $(q "$1") order by p.id limit 1"; }
 assignment_of() { psql_scoped "select id from org.role_assignment where subject_id = $(q "$1") and scope_id = $(q "$org") and valid_from <= now() and (valid_to is null or valid_to > now()) order by valid_from desc limit 1"; }
 artifact_id() { psql_scoped "select id from core.object where organization_id = $(q "$org") and object_type = 'artifact' and title = $(q "$1") order by id limit 1"; }
-token_for() { local var="PW_${1//./_}"; KF_LOGIN_PASSWORD="$(grep "^$var=" "$secrets/passwords.env" | cut -d= -f2-)" "$login" "$1" "$tokens/$1" >/dev/null; cat "$tokens/$1"; }
+# login-token.sh reads a password only from a prompt or an owner-only file, never the environment.
+token_for() {
+  local var="PW_${1//./_}" pwfile
+  pwfile="$(umask 077; mktemp "$secrets/.pw.XXXXXX")"
+  grep "^$var=" "$secrets/passwords.env" | cut -d= -f2- > "$pwfile"
+  KF_LOGIN_PASSWORD_FILE="$pwfile" "$login" "$1" "$tokens/$1" >/dev/null || { rm -f "$pwfile"; return 1; }
+  rm -f "$pwfile"
+  cat "$tokens/$1"
+}
 
 pass=0; fail=0
 check() { # check <label> <expected-status> <actual-status> [body]

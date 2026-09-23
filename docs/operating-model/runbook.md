@@ -194,6 +194,14 @@ check keeps its own ID and does not erase or contaminate evidence from the other
 Read the message. It is usually a permission or a missing object, both of which mean something
 changed that nobody recorded.
 
+The message is in the full report, which `GET /readiness` gives only to a direct loopback
+connection (`curl http://127.0.0.1:4000/readiness` on the host) or to a caller sending
+`X-KF-Readiness-Token` (the value of `KF_READINESS_TOKEN_FILE`, at least 32 bytes). Everyone
+else, including anything arriving through nginx, gets `{"ready": …}` and nothing more; nginx
+refuses `/readiness` from off-host outright. The report is assessed at most once per 10 seconds
+and shared by concurrent callers, so a response can be that old. `kf-readiness.service` runs
+the assessment directly and is unaffected.
+
 ---
 
 ## Restoring

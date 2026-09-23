@@ -11,9 +11,27 @@ describe('config', () => {
   it('defaults port and host in development', () => {
     const c = loadConfig({ NODE_ENV: 'development', KF_DEPLOYMENT_PROFILE: 'development' });
     expect(c.port).toBe(4000);
-    expect(c.host).toBe('0.0.0.0');
+    // Loopback: the development profile trusts identity headers, so nothing else may dial it.
+    expect(c.host).toBe('127.0.0.1');
     expect(c.deploymentProfile).toBe('development');
   });
+
+  it.each([undefined, ''])('refuses to guess an unset NODE_ENV (%j)', (nodeEnv) => {
+    // An unset NODE_ENV used to become `development`, the header-trusting posture. A unit file
+    // that forgot the variable therefore booted the most permissive mode there is.
+    const env: NodeJS.ProcessEnv = { KF_DEPLOYMENT_PROFILE: 'development' };
+    if (nodeEnv !== undefined) env['NODE_ENV'] = nodeEnv;
+    expect(() => loadConfig(env)).toThrow(/NODE_ENV is required/);
+  });
+
+  it.each(['0.0.0.0', '::', '192.0.2.10'])(
+    'refuses a non-loopback listener under the header-trusting development profile (%s)',
+    (host) => {
+      expect(() =>
+        loadConfig({ NODE_ENV: 'development', KF_DEPLOYMENT_PROFILE: 'development', HOST: host }),
+      ).toThrow(/development profile .* only on loopback/);
+    },
+  );
 
   it('requires an explicit deployment profile', () => {
     expect(() => loadConfig({ NODE_ENV: 'development' })).toThrow(
@@ -61,6 +79,23 @@ describe('config', () => {
     expect(config.host).toBe('127.0.0.1');
   });
 
+  it.each([
+    ['OIDC_ISSUER', 'http://idp.example.internal/realms/knowledge-fabric'],
+    ['OIDC_JWKS_URI', 'http://idp.example.internal/realms/knowledge-fabric/certs'],
+  ])('refuses %s over plain http off loopback', (name, value) => {
+    // Whoever is on the path of a cleartext JWKS fetch supplies the keys, and so every identity.
+    expect(() =>
+      loadConfig({
+        NODE_ENV: 'test',
+        KF_DEPLOYMENT_PROFILE: 'dogfood',
+        OIDC_ISSUER: 'https://idp.example.internal/realms/knowledge-fabric',
+        OIDC_AUDIENCE: 'knowledge-fabric-api',
+        OIDC_JWKS_URI: 'https://idp.example.internal/realms/knowledge-fabric/certs',
+        [name]: value,
+      }),
+    ).toThrow(new RegExp(`${name} must use https unless it is loopback`));
+  });
+
   it('refuses cleartext dogfood on a non-loopback listener', () => {
     expect(() =>
       loadConfig({
@@ -73,6 +108,21 @@ describe('config', () => {
           'http://localhost:8080/realms/knowledge-fabric/protocol/openid-connect/certs',
       }),
     ).toThrow(/cleartext dogfood.*loopback/);
+  });
+
+  it('bounds how far back an action may be dated, and says which types may go further', () => {
+    const config = loadConfig({
+      ...baseEnv,
+      KF_EFFECTIVE_AT_BACKDATE_DAYS: '7',
+      KF_EFFECTIVE_AT_BACKDATABLE_ACTIONS: 'record_legacy_decision, import_record',
+    });
+    expect(config.effectiveAtBackdate).toEqual({
+      maxDays: 7,
+      backdatableActions: ['record_legacy_decision', 'import_record'],
+    });
+    expect(() => loadConfig({ ...baseEnv, KF_EFFECTIVE_AT_BACKDATE_DAYS: '-1' })).toThrow(
+      /KF_EFFECTIVE_AT_BACKDATE_DAYS/,
+    );
   });
 
   it.each(['0', '65536', 'abc', '4000.5'])('rejects invalid PORT %s', (port) => {
@@ -221,5 +271,121 @@ describe('health endpoints', () => {
     // Distinct per request, or it cannot correlate anything.
     expect(first.headers['x-request-id']).not.toBe(second.headers['x-request-id']);
     await app.close();
+  });
+});
+
+describe('identity on every route, not only /actions', () => {
+  it('refuses header identity on /search when the profile does not trust headers', async () => {
+    // A hand-built dogfood config with no identity provider: exactly the case loadConfig
+    // refuses but buildApp accepts. Only /actions used to honour trustHeaders; /search took
+    // the same x-kf-* headers as the caller and went on to the database.
+    const config = {
+      ...loadConfig({
+        ...baseEnv,
+        LOG_LEVEL: 'silent',
+        DATABASE_URL: 'postgres://kf_app@127.0.0.1:1/kf',
+      }),
+      deploymentProfile: 'dogfood' as const,
+    };
+    const app = await buildApp(config);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/search?q=pump',
+      headers: {
+        'x-kf-actor': '01930000-0000-7000-8000-000000000001',
+        'x-kf-acting-role': '01930000-0000-7000-8000-000000000002',
+        'x-kf-organization': '01930000-0000-7000-8000-000000000003',
+        'x-kf-classification': 'restricted',
+      },
+    });
+    expect(res.statusCode).toBe(401);
+    await app.close();
+  });
+});
+
+describe('error bodies', () => {
+  it('answers an unhandled failure with a request id, never the error text', async () => {
+    // Fastify's default handler returned err.message on a 500. From pg that names the host,
+    // port and role; from a constraint it can quote the row.
+    const app = await buildApp(loadConfig({ ...baseEnv, LOG_LEVEL: 'silent' }));
+    app.get('/boom', async () => {
+      throw new Error('connect ECONNREFUSED 10.0.0.5:5432 as kf_owner');
+    });
+    const res = await app.inject({ method: 'GET', url: '/boom' });
+    expect(res.statusCode).toBe(500);
+    expect(res.json()).toEqual({ error: 'internal_error', requestId: res.headers['x-request-id'] });
+    await app.close();
+  });
+
+  it('keeps Fastify refusals about the request itself as 4xx', async () => {
+    const app = await buildApp(loadConfig({ ...baseEnv, LOG_LEVEL: 'silent' }));
+    app.post('/echo', async () => ({ ok: true }));
+    const res = await app.inject({
+      method: 'POST',
+      url: '/echo',
+      headers: { 'content-type': 'application/json' },
+      payload: '{not json',
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ requestId: res.headers['x-request-id'] });
+    await app.close();
+  });
+});
+
+describe('deep readiness exposure', () => {
+  // Unreachable on purpose: every check then fails with the pg connection error as its
+  // detail, which is exactly the raw text that must not reach a remote caller.
+  const unreachable = {
+    ...baseEnv,
+    LOG_LEVEL: 'silent',
+    DATABASE_URL: 'postgres://kf_app@127.0.0.1:1/kf',
+  };
+
+  it('gives a forwarded (remote) caller the bare verdict and nothing else', async () => {
+    const app = await buildApp(loadConfig(unreachable));
+    const res = await app.inject({
+      method: 'GET',
+      url: '/readiness',
+      headers: { 'x-forwarded-for': '203.0.113.9' },
+    });
+    expect(res.statusCode).toBe(503);
+    // toEqual: an extra key here is a leak, and toMatchObject would let it through.
+    expect(res.json()).toEqual({ ready: false });
+    await app.close();
+  });
+
+  it('gives a non-loopback peer the bare verdict', async () => {
+    const app = await buildApp(loadConfig(unreachable));
+    const res = await app.inject({ method: 'GET', url: '/readiness', remoteAddress: '192.0.2.4' });
+    expect(res.json()).toEqual({ ready: false });
+    await app.close();
+  });
+
+  it('gives a direct loopback caller, or a token holder, the full report', async () => {
+    const token = 'r'.repeat(40);
+    const app = await buildApp(loadConfig({ ...unreachable, KF_READINESS_TOKEN: token }));
+    const local = await app.inject({ method: 'GET', url: '/readiness' });
+    expect(local.json()).toHaveProperty('service');
+    const remote = await app.inject({
+      method: 'GET',
+      url: '/readiness',
+      remoteAddress: '192.0.2.4',
+      headers: { 'x-kf-readiness-token': token },
+    });
+    expect(remote.json()).toHaveProperty('institutional');
+    const wrong = await app.inject({
+      method: 'GET',
+      url: '/readiness',
+      remoteAddress: '192.0.2.4',
+      headers: { 'x-kf-readiness-token': 'x'.repeat(40) },
+    });
+    expect(wrong.json()).toEqual({ ready: false });
+    await app.close();
+  });
+
+  it('refuses a readiness token too short to be a secret', () => {
+    expect(() => loadConfig({ ...baseEnv, KF_READINESS_TOKEN: 'short' })).toThrow(
+      /KF_READINESS_TOKEN must be at least 32 bytes/,
+    );
   });
 });

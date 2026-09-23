@@ -1,6 +1,7 @@
 import type { ActionRequest } from '@kf/actions';
 import type { Pool } from '@kf/database';
 import type { AuthenticationEvent, StepUpPolicy, TokenVerifier } from '@kf/authorization';
+import type { EffectiveAtBounds } from './effective-at.js';
 
 /**
  * Who is calling and what they may see.
@@ -53,6 +54,8 @@ export interface ActionRoutesOptions {
    * development path unusable, so step-up is not applied when there is no verifier at all.
    */
   readonly stepUp?: Readonly<Record<string, StepUpPolicy>>;
+  /** Bounds on a caller-supplied effectiveAt. Defaults to DEFAULT_EFFECTIVE_AT_BOUNDS. */
+  readonly effectiveAtBounds?: EffectiveAtBounds;
 }
 
 export type IdentifyCaller = (request: { headers: Record<string, unknown> }) => Promise<Caller>;

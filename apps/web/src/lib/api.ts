@@ -20,7 +20,7 @@ export type {
 } from './api/operations';
 export { parseAvailableActionsView, parseHistoryView, parseProjectView } from './api/project-views';
 export type { AvailableActionsView, HistoryView, ProjectView } from './api/project-views';
-export { parseObjectView } from './api/object-views';
+export { parseObjectView, refreshObjectView } from './api/object-views';
 export type { ObjectView, ObjectViewMember } from './api/object-views';
 export { parseDocumentDetail, parseDocumentsResponse } from './api/document-views';
 export type {

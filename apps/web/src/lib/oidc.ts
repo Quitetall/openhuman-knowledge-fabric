@@ -33,6 +33,14 @@ function endpoint(raw: unknown, name: string): string {
 const MAX_OIDC_RESPONSE_BYTES = 128 * 1024;
 
 /**
+ * The only JWS algorithm an ID token may use: what the realm signs with
+ * (deploy/keycloak/knowledge-fabric-realm.json, `defaultSignatureAlgorithm`). Without a list the
+ * token's own header chooses, limited only by which keys the set holds. Mirrors the API's
+ * OIDC_SIGNING_ALGORITHMS in @kf/authorization.
+ */
+const ID_TOKEN_ALGORITHMS = ['RS256'];
+
+/**
  * Read a response body, refusing to hold more than the cap in memory.
  *
  * `await response.text()` then checking `.length` bounds what is ACCEPTED and not what is
@@ -166,13 +174,20 @@ function validatedSubject(payload: JWTPayload, nonce: string): string {
   return payload.sub;
 }
 
+/** A verified login: the session to seal, and the ID token kept only for logout. */
+export interface AuthenticatedLogin {
+  readonly session: WebSession;
+  /** Sent back as `id_token_hint` so logout ends the provider session without a prompt. */
+  readonly idToken: string;
+}
+
 export async function exchangeAuthorizationCode(
   metadata: OidcMetadata,
   config: DogfoodIdentityConfig,
   transaction: OidcTransaction,
   code: string,
   options: ExchangeOptions = {},
-): Promise<WebSession> {
+): Promise<AuthenticatedLogin> {
   if (code === '' || code.length > 4096) throw new Error('OIDC authorization code is invalid');
   const fetcher = options.fetcher ?? fetch;
   const token = await json(
@@ -210,6 +225,7 @@ export async function exchangeAuthorizationCode(
   const verified = await jwtVerify(idToken, keys, {
     issuer: config.issuer,
     audience: config.clientId,
+    algorithms: ID_TOKEN_ALGORITHMS,
     currentDate: new Date(nowSeconds * 1000),
     clockTolerance: 30,
   });
@@ -218,23 +234,35 @@ export async function exchangeAuthorizationCode(
   // eight hours even if a provider is misconfigured with an unexpectedly long lifetime.
   const lifetime = Math.min(expiresIn as number, 8 * 60 * 60);
   return {
-    version: 1,
-    accessToken,
-    subject,
-    expiresAt: nowSeconds + lifetime,
+    session: {
+      version: 1,
+      accessToken,
+      subject,
+      expiresAt: nowSeconds + lifetime,
+    },
+    idToken,
   };
 }
 
+/**
+ * RP-initiated logout at the provider.
+ *
+ * `id_token_hint` names the session being ended. Without it Keycloak cannot tell which session
+ * is meant and asks the person to confirm; one who closes that page leaves the SSO session
+ * alive, and on a shared machine the next person to press "sign in" is signed in as them.
+ */
 export function logoutUrl(
   metadata: OidcMetadata,
   config: DogfoodIdentityConfig,
   destination: string,
+  idTokenHint?: string,
 ): URL | undefined {
   if (metadata.endSessionEndpoint === undefined) return undefined;
   const url = new URL(metadata.endSessionEndpoint);
   url.search = new URLSearchParams({
     client_id: config.clientId,
     post_logout_redirect_uri: destination,
+    ...(idTokenHint === undefined ? {} : { id_token_hint: idTokenHint }),
   }).toString();
   return url;
 }

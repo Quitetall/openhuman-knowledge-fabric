@@ -317,6 +317,41 @@ describe('private-host service boundary', () => {
     expect(body).not.toMatch(/proxy_pass http:\/\/(?!127\.0\.0\.1)/);
   });
 
+  it('keeps the deep readiness scan off the public edge', () => {
+    // The full report names organizations and backup posture, and every request walks the
+    // audit chain. The API redacts for forwarded callers; nginx refuses them the scan itself.
+    const nginx = readFileSync(join(ROOT, 'deploy', 'nginx', 'knowledge-fabric.conf'), 'utf8');
+    const block = /location = \/readiness \{([\s\S]*?)\n {4}\}/.exec(nginx)?.[1];
+    expect(block).toBeDefined();
+    expect(block).toContain('allow 127.0.0.1;');
+    expect(block).toMatch(/deny all;/);
+  });
+
+  it('rate-limits the expensive and guessable paths, and refuses framing at the edge', () => {
+    const nginx = readFileSync(join(ROOT, 'deploy', 'nginx', 'knowledge-fabric.conf'), 'utf8');
+    const block = (location: string): string | undefined =>
+      new RegExp(`location ${location.replace(/[/.]/g, '\\$&')} \\{([\\s\\S]*?)\\n    \\}`).exec(
+        nginx,
+      )?.[1];
+    for (const [location, zone] of [
+      ['= /ingest', 'kf_ingest'],
+      ['/documents', 'kf_read'],
+      ['= /search', 'kf_read'],
+      ['= /readiness', 'kf_ready'],
+      ['/auth/', 'kf_login'],
+    ] as const) {
+      expect(block(location), `location ${location}`).toMatch(
+        new RegExp(`limit_req zone=${zone} `),
+      );
+      expect(nginx).toMatch(new RegExp(`limit_req_zone \\S+ zone=${zone}:`));
+    }
+    const webServer = nginx.slice(
+      nginx.indexOf('server_name fabric.example.internal;'),
+      nginx.indexOf('server_name api.fabric.example.internal;'),
+    );
+    expect(webServer).toMatch(/Content-Security-Policy "[^"]*frame-ancestors 'none'/);
+  });
+
   it('carries a 10 MiB document through multipart and API transport limits', async () => {
     const nextConfig = (await import(join(ROOT, 'apps', 'web', 'next.config.mjs'))).default;
     expect(nextConfig.experimental?.serverActions?.bodySizeLimit).toBe('11mb');

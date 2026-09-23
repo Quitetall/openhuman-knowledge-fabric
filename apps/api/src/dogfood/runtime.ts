@@ -3,7 +3,16 @@ import { createPool, setResolvedAccessContext, withTransaction, type Pool } from
 import { createDocumentActionAtoms, PandocDocumentParser } from '@kf/documents';
 import { createFabricTransactionalDispatcher } from '@kf/orchestrator';
 import { bootstrapIdentity, createAppLogin } from './bootstrap.js';
-import { APP_LOGIN, APP_PASSWORD, requiredOwnerUrl, sourceDirectory } from './config.js';
+import {
+  APP_LOGIN,
+  assertNotPrivateHost,
+  DEV_S3_SECRET,
+  devDatabaseUrlFile,
+  generateAppPassword,
+  requiredOwnerUrl,
+  sourceDirectory,
+  writeOwnerOnly,
+} from './config.js';
 import { loadDocumentConstitution } from './load.js';
 import { stageDocumentConstitution } from './manifest.js';
 
@@ -46,6 +55,7 @@ async function assertDogfoodIdentityReady(
 }
 
 export async function runDocumentConstitutionDogfood(): Promise<void> {
+  assertNotPrivateHost();
   const directory = sourceDirectory();
   const ownerUrl = requiredOwnerUrl();
   const owner = createPool({ connectionString: ownerUrl, maxConnections: 2 });
@@ -55,18 +65,23 @@ export async function runDocumentConstitutionDogfood(): Promise<void> {
     // Validate authority before staging bytes. A missing clearance is an expected fail-closed
     // operator state, not a reason to write unreferenced object-store data first.
     await assertDogfoodIdentityReady(owner, identity);
-    const database = await createAppLogin(owner);
+    const password = generateAppPassword();
+    const database = await createAppLogin(owner, password);
     const appUrl = new URL(ownerUrl);
     appUrl.username = APP_LOGIN;
-    appUrl.password = APP_PASSWORD;
+    appUrl.password = password;
     appUrl.pathname = `/${database}`;
+    // Written before use, so a run that fails later still leaves the API a working credential
+    // for the login it just re-keyed.
+    const urlFile = devDatabaseUrlFile();
+    await writeOwnerOnly(urlFile, appUrl.toString());
     app = createPool({ connectionString: appUrl.toString(), maxConnections: 4 });
 
     const store = new S3ObjectStore({
       endpoint: process.env['S3_ENDPOINT'] ?? 'http://localhost:9000',
       region: process.env['S3_REGION'] ?? 'us-east-1',
       accessKeyId: process.env['S3_ACCESS_KEY_ID'] ?? 'kf-dev-access-key',
-      secretAccessKey: process.env['S3_SECRET_ACCESS_KEY'] ?? APP_PASSWORD,
+      secretAccessKey: process.env['S3_SECRET_ACCESS_KEY'] ?? DEV_S3_SECRET,
       bucket: process.env['S3_BUCKET_ARTIFACTS'] ?? 'kf-artifacts',
       forcePathStyle: process.env['S3_FORCE_PATH_STYLE'] !== 'false',
     });
@@ -94,6 +109,9 @@ export async function runDocumentConstitutionDogfood(): Promise<void> {
         `KF_DEV_ORGANIZATION=${identity.organizationId}`,
         `KF_DEV_ACTOR=${identity.actorId}`,
         `KF_DEV_ACTING_ROLE=${identity.actingRoleId}`,
+        // The login's password changes on every run and is never printed; the API reads the
+        // connection string from this owner-only file.
+        `DATABASE_URL_FILE=${urlFile}`,
         '',
       ].join('\n'),
     );

@@ -30,6 +30,11 @@ import {
 let h: Harness;
 let f: Fixtures;
 let app: FastifyInstance;
+/**
+ * The application login. Every app built here connects as it: the API refuses to become ready
+ * through the harness's superuser, which row-level security does not bind.
+ */
+let appDatabaseUrl: string;
 const objectStore = new InMemoryObjectStore();
 
 /** The development headers. In production these are ignored and the routes refuse. */
@@ -49,6 +54,7 @@ beforeAll(async () => {
   const appUri = new URL(h.connectionString);
   appUri.username = 'kf_app_login';
   appUri.password = 'test-only-not-a-secret';
+  appDatabaseUrl = appUri.toString();
 
   app = await buildApp(
     {
@@ -441,7 +447,7 @@ describe('identity', () => {
       host: '127.0.0.1',
       port: 0,
       logLevel: process.env['LOG_LEVEL'] ?? 'silent',
-      databaseUrl: new URL(h.connectionString).toString(),
+      databaseUrl: appDatabaseUrl,
       environment: 'test',
       deploymentProfile: 'dogfood',
       tlsTerminatedUpstream: false,
@@ -473,7 +479,7 @@ describe('identity', () => {
       host: '127.0.0.1',
       port: 0,
       logLevel: process.env['LOG_LEVEL'] ?? 'silent',
-      databaseUrl: new URL(h.connectionString).toString(),
+      databaseUrl: appDatabaseUrl,
       environment: 'production',
       deploymentProfile: 'dogfood',
       tlsTerminatedUpstream: true,
@@ -611,6 +617,49 @@ describe('actions over HTTP', () => {
     expect(r.statusCode).toBe(200);
     expect(r.json().replayed).toBe(true);
     expect(r.json().actionId).toBeTruthy();
+  });
+
+  it('dates an action by the database clock when the caller states no effective time', async () => {
+    // recorded_at is the database's now(). An effective time from this process's clock could
+    // land before the recording or after it; from the same clock, in the same transaction, it
+    // is the recording instant at the millisecond precision effective_at travels at.
+    const r = await app.inject({
+      method: 'POST',
+      url: '/actions/create_initiative',
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+      payload: {
+        idempotencyKey: 'api-effective-at-db-clock-01',
+        payload: {
+          title: 'Dated by the database',
+          objective: 'effective_at defaults to the database clock.',
+          sponsor_id: f.reviewerId,
+        },
+      },
+    });
+    expect(r.statusCode, r.body).toBe(201);
+    const row = await withTransaction(h.adminPool, (tx) =>
+      tx.one<{ same: boolean }>(
+        `select effective_at = date_trunc('milliseconds', recorded_at) as same
+           from core.action where id = $1`,
+        [r.json().actionId],
+      ),
+    );
+    expect(row.same).toBe(true);
+  });
+
+  it('refuses an effective time a year ahead, before dispatch', async () => {
+    const r = await app.inject({
+      method: 'POST',
+      url: '/actions/create_initiative',
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+      payload: {
+        idempotencyKey: 'api-effective-at-future-01',
+        effectiveAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+        payload: { title: 'must not dispatch' },
+      },
+    });
+    expect(r.statusCode).toBe(400);
+    expect(r.json()).toMatchObject({ error: 'effective_at_out_of_bounds' });
   });
 
   it('refuses reuse of an idempotency key for different mutation semantics', async () => {

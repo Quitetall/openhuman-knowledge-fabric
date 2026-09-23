@@ -22,6 +22,12 @@
  * `expectedVersion` is the row version the caller read. Drift is refused as `version_conflict`
  * with HTTP 409; it never overwrites.
  *
+ * `effectiveAt` is when the change took effect, as opposed to when it was recorded. Absent, it
+ * is the database clock at dispatch. Present, it must be canonical and within bounds: at most
+ * five minutes ahead of this host, and no further back than KF_EFFECTIVE_AT_BACKDATE_DAYS
+ * (default 30) unless the action type is listed in KF_EFFECTIVE_AT_BACKDATABLE_ACTIONS.
+ * Anything else is refused as `effective_at_out_of_bounds` with HTTP 400, before dispatch.
+ *
  * Read routes are separate and plural, because reading is not the inverse of writing here:
  * a work order is written by an action and read as a projection over several tables.
  */
@@ -35,6 +41,7 @@ import {
   unidentified,
 } from './actions/auth.js';
 import type { ActionRoutesOptions, Caller, IdentifyCaller } from './actions/contracts.js';
+import { DEFAULT_EFFECTIVE_AT_BOUNDS } from './actions/effective-at.js';
 import { registerReadRoutes } from './actions/read-routes.js';
 import { registerActionPostRoute, registerUnavailableActionRoute } from './actions/write-route.js';
 
@@ -55,13 +62,19 @@ export async function registerActionRoutes(
    * had one and headers otherwise would let anybody who could omit a header downgrade the
    * whole authentication scheme.
    */
-  const identify = createCallerIdentifier(pool, verifier);
+  const identify = createCallerIdentifier(pool, verifier, { trustHeaders: options.trustHeaders });
 
   if (verifier === undefined && !options.trustHeaders) {
     registerUnavailableActionRoute(app);
     return;
   }
 
-  registerActionPostRoute(app, { execute, identify, stepUp, verifier });
+  registerActionPostRoute(app, {
+    execute,
+    identify,
+    stepUp,
+    verifier,
+    effectiveAtBounds: options.effectiveAtBounds ?? DEFAULT_EFFECTIVE_AT_BOUNDS,
+  });
   registerReadRoutes(app, { pool, identify });
 }

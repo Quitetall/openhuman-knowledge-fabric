@@ -380,6 +380,58 @@ export async function bindPrincipal(tx: Tx, principal: Principal): Promise<strin
   });
 }
 
+/**
+ * What the connected login can do that row-level security cannot stop.
+ *
+ * A superuser ignores every policy, FORCE included; so does a role with BYPASSRLS; and a table
+ * owner is exempt from its own table's policies unless FORCE is set on each one, and can switch
+ * FORCE off. Membership counts as well as the attribute, because a login that may SET ROLE to
+ * any of these is one statement away from being it.
+ */
+export interface LoginPrivilege {
+  readonly login: string;
+  readonly superuser: boolean;
+  readonly bypassesRls: boolean;
+  /** A member of (or is) the role that owns a table in the fabric's schemas. */
+  readonly ownsSchema: boolean;
+}
+
+export async function readLoginPrivilege(tx: Tx): Promise<LoginPrivilege> {
+  const row = await tx.one<{
+    login: string;
+    superuser: boolean;
+    bypasses: boolean;
+    owns: boolean;
+  }>(
+    `select current_user::text as login,
+            exists (select from pg_roles r
+                     where r.rolsuper and pg_has_role(current_user, r.oid, 'MEMBER')) as superuser,
+            exists (select from pg_roles r
+                     where r.rolbypassrls and pg_has_role(current_user, r.oid, 'MEMBER')) as bypasses,
+            exists (select from pg_class c
+                      join pg_namespace n on n.oid = c.relnamespace
+                     where n.nspname not in ('pg_catalog', 'information_schema')
+                       and n.nspname !~ '^pg_'
+                       and c.relkind in ('r', 'p')
+                       and pg_has_role(current_user, c.relowner, 'MEMBER')) as owns`,
+  );
+  return {
+    login: row.login,
+    superuser: row.superuser,
+    bypassesRls: row.bypasses,
+    ownsSchema: row.owns,
+  };
+}
+
+/** Why a login must not serve application traffic; empty when it may. */
+export function loginPrivilegeProblems(privilege: LoginPrivilege): string[] {
+  const problems: string[] = [];
+  if (privilege.superuser) problems.push('is (or can become) a superuser');
+  if (privilege.bypassesRls) problems.push('is (or can become) a role with BYPASSRLS');
+  if (privilege.ownsSchema) problems.push('is (or is a member of) a table owner');
+  return problems;
+}
+
 export const PACKAGE = {
   name: '@kf/database',
   role: 'PostgreSQL access boundary',

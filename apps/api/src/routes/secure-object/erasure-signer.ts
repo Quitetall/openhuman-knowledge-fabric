@@ -52,6 +52,48 @@ function transportRejected(detail: string): SecureObjectRejected {
 }
 
 /**
+ * Read at most MAX_RESPONSE_BYTES of the body, refusing — and cancelling the stream — beyond it.
+ *
+ * `await response.text()` followed by a length check bounds what is ACCEPTED, not what is
+ * buffered: the whole body is already in memory when the check runs, so an authority streaming
+ * an endless error page made this process hold all of it first. (And `.length` counted UTF-16
+ * units, not bytes.) Falls back to `text()` only when there is no stream — a test double — with
+ * the same cap in bytes.
+ */
+async function boundedBody(response: Response): Promise<string> {
+  const stream = response.body;
+  if (stream === null) {
+    const whole = await response.text();
+    if (Buffer.byteLength(whole, 'utf8') > MAX_RESPONSE_BYTES) {
+      throw transportRejected('returned an oversized response');
+    }
+    return whole;
+  }
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_RESPONSE_BYTES) {
+        // Cancel rather than drain: nothing more of this body will ever be read.
+        await reader.cancel().catch(() => undefined);
+        throw transportRejected('returned an oversized response');
+      }
+      chunks.push(value);
+    }
+  } catch (error: unknown) {
+    if (error instanceof SecureObjectRejected) throw error;
+    throw transportRejected('response could not be read');
+  } finally {
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+/**
  * Decode base64 and require the encoding to have been canonical.
  *
  * `Buffer.from(x, 'base64')` is lenient: it accepts missing padding, wrong padding and stray
@@ -103,6 +145,9 @@ export class HttpErasureAuthoritySigner {
         headers: { accept: 'application/json', 'content-type': 'application/json' },
         body,
         signal: input.signal,
+        // The configured endpoint is the authority. A redirect would send the tombstone bytes
+        // somewhere nobody configured and take the answer from there; refused, not followed.
+        redirect: 'error',
       });
     } catch {
       throw transportRejected('could not be reached');
@@ -110,14 +155,13 @@ export class HttpErasureAuthoritySigner {
 
     if (!response.ok) {
       // The status is named; the body is not. A 502 from someone else's proxy is their
-      // incident, and its HTML has no business in this system's error path.
+      // incident, and its HTML has no business in this system's error path. Cancelled, so the
+      // connection is not held open by a body nobody will read.
+      await response.body?.cancel().catch(() => undefined);
       throw transportRejected(`returned HTTP ${response.status}`);
     }
 
-    const text = await response.text();
-    if (text.length > MAX_RESPONSE_BYTES) {
-      throw transportRejected('returned an oversized response');
-    }
+    const text = await boundedBody(response);
 
     let parsed: unknown;
     try {

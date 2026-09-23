@@ -624,6 +624,15 @@ HTTP, terminates TLS, rejects unknown virtual hosts and proxies only to loopback
 hostnames with reviewed names and certificate paths; run `nginx -t`; do not generate or enroll
 certificates from this repository.
 
+The template also rate-limits per client address and answers the excess with `429`: `/ingest`
+at 10 requests a minute (burst 5), `/documents` and `/search` at 10 a second (burst 40), the
+web's `/auth/` login paths at 10 a minute (burst 5), `/readiness` at 1 a second and to loopback
+only, and at most 50 concurrent connections per address on each site. Its zone declarations
+(`limit_req_zone`, `limit_conn_zone`) sit at the top of the file and therefore require it to be
+included at `http{}` level, as `sites-enabled`/`conf.d` are. The web site sends a
+`Content-Security-Policy` floor of `frame-ancestors 'none'` plus `X-Frame-Options: DENY`; the
+application itself sends the full nonce-based policy on every page (`apps/web/src/proxy.ts`).
+
 ## Host preflight and evidence
 
 Before any shared user is admitted:
@@ -633,9 +642,11 @@ Before any shared user is admitted:
    HTTP to HTTPS and application ports reject non-loopback connections.
 3. Verify a valid bearer token succeeds, a wrong issuer fails, a wrong audience fails, an
    unknown `sub` fails, a revoked identity fails and fixed identity headers are ignored.
-4. Verify `/health` reports process liveness, `/ready` performs a database round trip and
-   `/readiness` reports separate service and institutional verdicts. Service `degraded`, `failed`
-   or `unknown` is a failed service preflight. Any institutional blocker still fails the governed
+4. Verify `/health` reports process liveness, `/ready` performs a database round trip (and
+   reports `checks.login`) and `/readiness` reports separate service and institutional
+   verdicts (from the host: `curl http://127.0.0.1:4000/readiness`; through nginx the endpoint
+   is refused, and a forwarded caller without `X-KF-Readiness-Token` gets only
+   `{"ready": …}`). Service `degraded`, `failed` or `unknown` is a failed service preflight. Any institutional blocker still fails the governed
    operation or commissioning claim it protects even when HTTP status is `200`; never treat service
    availability as institutional approval.
 5. Run and record a backup, off-host copy and restore drill using the declared recovery
@@ -647,8 +658,12 @@ Before any shared user is admitted:
 8. Verify `verify-liminal-runtime.sh /opt/kf` succeeds under `kf-worker`, then prove a changed
    compiler, lock or runtime-library copy fails before worker start. Preserve failure output;
    never convert it into a qualification receipt.
-9. Reboot host and re-run checks. Service that works only in install shell is not
-   deployed.
+9. Verify the API refuses to start when `/etc/kf/api/database-url` names a superuser, a
+   `BYPASSRLS` login or a member of the schema owner (the migrator URL is the usual mistake): it
+   logs `refusing to serve: database login …` and exits. Row-level security does not bind such
+   a login, so serving through it would silently disable every tenant and classification policy.
+10. Reboot host and re-run checks. Service that works only in install shell is not
+    deployed.
 
 ## Commissioning: run it, do not read it
 
@@ -723,6 +738,15 @@ looked and it was wrong" is never confused with "we could not look". A verifier 
 missing certificate as compliant would be worse than no verifier, because somebody would cite
 it.
 
+`identity_provider_policy` reads the realm export as well as digesting it, and refuses one that
+has brute-force protection off or `failureFactor` above 10; a `passwordPolicy` without
+`length(12)` or more and `notUsername`; no second factor enrolled by default (`CONFIGURE_TOTP`
+or `webauthn-register` with `defaultAction: true`); an offline idle timeout above 7 days or no
+enabled offline maximum lifespan of at most 30 days; `revokeRefreshToken` off; or any client
+with `directAccessGrantsEnabled` or `implicitFlowEnabled`. The shipped
+`deploy/keycloak/knowledge-fabric-realm.json` passes; record its digest at review as
+`KF_IDENTITY_POLICY_SHA256`.
+
 What each check reads, and the blocker it closes:
 
 | check                       | reads                                                                                                                                                                 | blocker                                                             |
@@ -730,7 +754,7 @@ What each check reads, and the blocker it closes:
 | `unit_provenance`           | installed units against the ones this release ships, byte for byte; `User=` on the API and checkpoint units; `OnFailure=` on each                                     | units installed, identities separated, alerting wired               |
 | `secret_posture`            | every path a shipped unit names as `EnvironmentFile=` or `*_FILE=`/`*_KEY_PATH=`: exists, regular file, no group or other bits                                        | checkpoint key isolation from the API                               |
 | `tls_termination`           | the certificate for the public hostname — SAN coverage, validity window, renewal margin — and the private key's mode                                                  | site hostname, certificate, TLS termination                         |
-| `identity_provider_policy`  | issuer is https, client is named, and the reviewed realm policy on disk still digests to what was reviewed                                                            | reviewed reproducible Keycloak realm/client policy                  |
+| `identity_provider_policy`  | issuer is https, client is named, the reviewed realm policy on disk still digests to what was reviewed, and that realm is not weak (see below)                        | reviewed reproducible Keycloak realm/client policy                  |
 | `runtime_version`           | the Node version this process runs, against the tested one                                                                                                            | host uses the exact tested runtime                                  |
 | `reverse_proxy_posture`     | the installed nginx configuration: refuses a cleartext server that proxies, a non-loopback upstream, TLS 1.0/1.1, and a proxying block that drops the original scheme | installed nginx validation                                          |
 | `liminal_runtime_inventory` | the compiler and its runtime closure on this host, via the release's own `verify-liminal-runtime.sh`                                                                  | reviewed compiler artifact and runtime-closure inventory            |

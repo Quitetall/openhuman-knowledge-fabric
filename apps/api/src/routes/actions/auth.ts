@@ -44,20 +44,52 @@ export function callerFrom(headers: Record<string, unknown>): Caller {
  * for a role, or give up. The token verifier's own reasons are deliberately collapsed into one
  * — telling an attacker whether the signature or the audience was wrong tells them which part
  * of a forged token to fix next.
+ *
+ * Only messages this code authored are echoed. Anything else reaching here — a pool timeout, a
+ * pg error from the role lookup — carries text about the server (hosts, roles, SQL), and a 401
+ * body is read by exactly the people it should not be read by.
  */
 export function unidentified(err: unknown): { error: string; message: string } {
   if (err instanceof IdentityRejected) {
     return { error: err.failure, message: err.message };
   }
-  return { error: 'caller_unidentified', message: (err as Error).message };
+  if (err instanceof CallerRejected) {
+    return { error: 'caller_unidentified', message: err.message };
+  }
+  return { error: 'caller_unidentified', message: 'The caller could not be identified.' };
 }
 
+export interface CallerIdentifierOptions {
+  /**
+   * Whether x-kf-* headers may name the caller when no verifier is configured. Only the
+   * development profile says yes (see app.ts).
+   */
+  readonly trustHeaders: boolean;
+}
+
+/**
+ * The one way every route learns who is calling.
+ *
+ * Header trust is an explicit input, not an inference from "no verifier". This identifier used
+ * to fall back to headers whenever the verifier was absent, and it is handed to the document,
+ * ML, search and identifier routes as well as /actions — so only /actions honoured
+ * `trustHeaders`, and a verifier-less app believed headers everywhere else. With neither a
+ * verifier nor header trust there is no way to identify anybody, and every request is refused.
+ */
 export function createCallerIdentifier(
   pool: Pool,
   verifier: TokenVerifier | undefined,
+  options: CallerIdentifierOptions,
 ): IdentifyCaller {
   return async (request): Promise<Caller> => {
-    if (verifier === undefined) return callerFrom(request.headers);
+    if (verifier === undefined) {
+      if (!options.trustHeaders) {
+        throw new CallerRejected(
+          'no identity provider is configured and header identity is not trusted',
+        );
+      }
+      return callerFrom(request.headers);
+    }
 
     const authorization = request.headers['authorization'];
     const token =

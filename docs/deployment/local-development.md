@@ -8,7 +8,12 @@ fixed credentials on loopback; it is not a private-host topology. See
 
 `KF_DEPLOYMENT_PROFILE` is mandatory. It describes whether records can carry authenticated
 human provenance; `NODE_ENV` still controls framework behavior, TLS posture and secret loading.
-Neither variable substitutes for the other.
+Neither variable substitutes for the other, and neither has a default: the API refuses to start
+when `NODE_ENV` is unset rather than assuming `development`.
+
+The `development` profile believes whatever `x-kf-*` headers say, so the API refuses it on any
+listener other than loopback. `HOST` defaults to `127.0.0.1` under every profile; `0.0.0.0` must
+be asked for, and is refused under `development`.
 
 | Profile       | Identity path                                            | Where it is allowed                          | Authority claim |
 | ------------- | -------------------------------------------------------- | -------------------------------------------- | --------------- |
@@ -22,7 +27,11 @@ not turn fixed headers into shared identity.
 
 The web application implements OIDC authorization code with required PKCE, validates the
 signed ID token and nonce, stores the access token in an encrypted host-only session cookie,
-and forwards bearer identity to the API. It does not trust identity-provider role claims:
+and forwards bearer identity to the API. The verified ID token is kept in a second encrypted cookie
+(`__Host-kf_id_token_hint`) for one purpose: sign-out sends it as `id_token_hint`, so the
+provider ends its SSO session without asking for confirmation. Sign-out clears every local
+cookie on every path, including when configuration fails to load or the request is refused as
+cross-origin. It does not trust identity-provider role claims:
 selected KF authority context is validated by the API before it is retained in the session.
 
 ## Prerequisites
@@ -48,9 +57,9 @@ DATABASE_URL="$DATABASE_OWNER_URL" pnpm db:migrate
 pnpm dogfood:load -- --source-dir /path/to/OpenHuman_Technologies
 ```
 
-The loader's JSON output includes `identity.actorId`, `identity.actingRoleId` and
-`identity.organizationId`. Copy those UUIDs into `KF_DEV_ACTOR`, `KF_DEV_ACTING_ROLE` and
-`KF_DEV_ORGANIZATION` in `.env`, then reload it and start the applications:
+The loader ends with a paste-ready block: `KF_DEV_ORGANIZATION`, `KF_DEV_ACTOR`,
+`KF_DEV_ACTING_ROLE` and `DATABASE_URL_FILE`. Copy it into `.env`, then reload it and start the
+applications:
 
 ```sh
 set -a; . ./.env; set +a
@@ -63,7 +72,11 @@ pnpm dev
 - MinIO console — <http://localhost:9001>
 - Keycloak — <http://localhost:8080>
 
-The loader creates the constrained `kf_api_dev` login and a visibly synthetic local operator,
+The loader refuses to run on a provisioned host (one where `/etc/kf` exists). It creates the
+constrained `kf_api_dev` login with a fresh random password on every run, writes that login's
+connection string owner-only (0600) to `$XDG_STATE_HOME/knowledge-fabric/dev-database-url`
+(default `~/.local/state/…`; override with `KF_DEV_DATABASE_URL_FILE`), and never prints the
+password. It also creates a visibly synthetic local operator,
 then imports the manifest sources as drafts. It never approves them, makes them effective or
 allocates an enterprise identifier. Reruns are idempotent. Current actions use strict semantic
 receipt replay. Pre-contract materializations require migration-owned provenance, exact action

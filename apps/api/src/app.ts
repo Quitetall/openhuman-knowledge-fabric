@@ -6,14 +6,21 @@
  */
 
 import { loadProjectionDefinitions } from '@kf/projections';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyError, type FastifyInstance, type FastifyRequest } from 'fastify';
 import {
   S3ObjectStore,
   StoreRegistry,
   createStorageActionAtoms,
   type ObjectStore,
 } from '@kf/artifacts';
-import { createPool, withTransaction, type Pool } from '@kf/database';
+import {
+  createPool,
+  DatabaseError,
+  loginPrivilegeProblems,
+  readLoginPrivilege,
+  withTransaction,
+  type Pool,
+} from '@kf/database';
 import { TokenVerifier } from '@kf/authorization';
 import {
   createDocumentActionAtoms,
@@ -25,9 +32,11 @@ import {
   createFabricTransactionalDispatcher,
   createFabricTransactionalPreflight,
 } from '@kf/orchestrator';
-import { assessReadiness } from '@kf/operations';
+import { assessReadiness, type ReadinessReport } from '@kf/operations';
+import { timingSafeEqual } from 'node:crypto';
 import type { ApiConfig } from './config.js';
 import { createCallerIdentifier, registerActionRoutes } from './routes/actions.js';
+import { DEFAULT_EFFECTIVE_AT_BOUNDS } from './routes/actions/effective-at.js';
 import { registerDocumentRoutes } from './routes/documents.js';
 import type { ProjectionLinks } from '@kf/projections';
 import { registerMlRoutes } from './routes/ml.js';
@@ -36,6 +45,34 @@ import { registerIdentifierRoutes } from './routes/identifiers.js';
 import { hasRequiredSchema } from './schema-contract.js';
 
 export const SERVICE_NAME = 'openhuman-knowledge-fabric-api';
+
+/** How long one deep-readiness assessment answers for. */
+const READINESS_TTL_MS = 10_000;
+
+const LOOPBACK_PEERS: ReadonlySet<string> = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+
+/**
+ * Whether this request may see the full readiness report.
+ *
+ * Loopback means a DIRECT loopback connection. The TLS proxy also connects from loopback, so a
+ * forwarded request (any forwarding header present) is judged as the remote caller it is. A
+ * local process that adds such a header only downgrades itself.
+ */
+function mayReadReadinessDetail(request: FastifyRequest, token: string | undefined): boolean {
+  if (token !== undefined) {
+    const presented = request.headers['x-kf-readiness-token'];
+    if (typeof presented === 'string') {
+      const a = Buffer.from(presented);
+      const b = Buffer.from(token);
+      if (a.length === b.length && timingSafeEqual(a, b)) return true;
+    }
+  }
+  const forwarded =
+    request.headers['x-forwarded-for'] !== undefined ||
+    request.headers['forwarded'] !== undefined ||
+    request.headers['x-real-ip'] !== undefined;
+  return !forwarded && LOOPBACK_PEERS.has(request.socket.remoteAddress ?? '');
+}
 
 /**
  * Liveness and readiness are deliberately different questions.
@@ -96,6 +133,27 @@ export async function buildApp(
     void reply.header('cache-control', 'no-store');
   });
 
+  // One shape for every unhandled failure. Fastify's default handler returns `err.message` on a
+  // 500, and a message from pg or the S3 client names hosts, ports, roles and SQL: free
+  // reconnaissance, and sometimes a record's contents quoted back in a constraint error. The
+  // detail goes to the server log under the request id; the caller gets the id to quote.
+  //
+  // 4xx errors are Fastify's own refusals (malformed JSON, oversized body, unsupported media
+  // type). Their messages describe the caller's request, not this server, so they are kept.
+  app.setErrorHandler((error: FastifyError, request, reply) => {
+    const status =
+      typeof error.statusCode === 'number' && error.statusCode >= 400 && error.statusCode < 600
+        ? error.statusCode
+        : 500;
+    if (status >= 500) {
+      request.log.error({ err: error }, 'unhandled error');
+      return reply.code(status).send({ error: 'internal_error', requestId: request.id });
+    }
+    return reply
+      .code(status)
+      .send({ error: error.code ?? 'bad_request', message: error.message, requestId: request.id });
+  });
+
   app.get('/health', async () => ({
     service: SERVICE_NAME,
     status: 'ok',
@@ -107,8 +165,38 @@ export async function buildApp(
   let pool: Pool | undefined;
   if (config.databaseUrl !== undefined && config.databaseUrl !== '') {
     pool = createPool({ connectionString: config.databaseUrl });
+    const startupPool = pool;
     app.addHook('onClose', async () => {
       await pool?.end();
+    });
+    // Refuse to serve through a login that row-level security cannot bind.
+    //
+    // Every tenant and classification boundary in this schema is a policy, and a superuser, a
+    // BYPASSRLS role or the table owner walks past all of them. A wrong credential file —
+    // the migrator's URL where the application's belonged — therefore silently disabled every
+    // one while /ready stayed green. Checked when the app becomes ready (listen), before any
+    // request is taken.
+    //
+    // An UNREACHABLE database is not refused here: that is an outage, not a misconfiguration,
+    // and /ready already reports it. Only a reachable, over-privileged login stops startup.
+    app.addHook('onReady', async () => {
+      let problems: string[];
+      let login: string;
+      try {
+        const privilege = await withTransaction(startupPool, (tx) => readLoginPrivilege(tx));
+        problems = loginPrivilegeProblems(privilege);
+        login = privilege.login;
+      } catch (err: unknown) {
+        app.log.warn({ err }, 'database login privileges could not be checked at startup');
+        return;
+      }
+      if (problems.length > 0) {
+        throw new DatabaseError(
+          `refusing to serve: database login ${JSON.stringify(login)} ${problems.join(', ')}, ` +
+            'so row-level security does not bind it. DATABASE_URL must name an application ' +
+            'login that inherits kf_app and nothing more.',
+        );
+      }
     });
   }
 
@@ -116,6 +204,9 @@ export async function buildApp(
     const checks: Record<string, 'ok' | 'unconfigured' | 'failing'> = {
       database: pool === undefined ? 'unconfigured' : 'failing',
       schema: pool === undefined ? 'unconfigured' : 'failing',
+      // The startup refusal covers the process's own boot; this keeps saying it for as long as
+      // the process runs, so a probe never reports ready through a login RLS cannot bind.
+      login: pool === undefined ? 'unconfigured' : 'failing',
     };
     if (pool !== undefined) {
       try {
@@ -125,10 +216,13 @@ export async function buildApp(
           await tx.query('select 1');
           checks['database'] = 'ok';
           checks['schema'] = (await hasRequiredSchema(tx)) ? 'ok' : 'failing';
+          checks['login'] =
+            loginPrivilegeProblems(await readLoginPrivilege(tx)).length === 0 ? 'ok' : 'failing';
         });
       } catch {
         checks['database'] = 'failing';
         checks['schema'] = 'failing';
+        checks['login'] = 'failing';
       }
     }
     const ready = Object.values(checks).every((v) => v === 'ok');
@@ -143,9 +237,35 @@ export async function buildApp(
      * request", and answering that with a full chain verification would take a database
      * outage and turn it into a restart loop. This one answers "is the system in the state
      * it is supposed to be in", which is a slower and much more interesting question.
+     *
+     * Two audiences, two bodies. The full report names every organization by id, counts its
+     * records, states backup and checkpoint posture and quotes the text of any check that
+     * could not run — reconnaissance for anybody else. An operator on this host (a direct
+     * loopback connection, which is how the web app and a shell reach it) or a caller holding
+     * KF_READINESS_TOKEN gets the report; everybody else gets the bare verdict.
+     *
+     * And one assessment per interval, not per request. The report walks the whole audit
+     * chain, so an endpoint that recomputed it on every GET was a CPU and I/O lever for
+     * anybody who could reach it. Concurrent callers share one run.
      */
-    app.get('/readiness', async (_request, reply) => {
-      const report = await assessReadiness(pool);
+    let cachedReadiness:
+      { readonly at: number; readonly report: Promise<ReadinessReport> } | undefined;
+    const readinessReport = (): Promise<ReadinessReport> => {
+      const now = Date.now();
+      if (cachedReadiness === undefined || now - cachedReadiness.at >= READINESS_TTL_MS) {
+        const report = assessReadiness(pool);
+        const entry = { at: now, report };
+        cachedReadiness = entry;
+        // A failed run is not cached: the next caller measures again rather than being told
+        // about a failure that may already be over.
+        report.catch(() => {
+          if (cachedReadiness === entry) cachedReadiness = undefined;
+        });
+      }
+      return cachedReadiness.report;
+    };
+    app.get('/readiness', async (request, reply) => {
+      const report = await readinessReport();
       // BOTH partitions, not `report.ready`.
       //
       // `report.ready` is a compatibility alias for `service.ready` — it narrowed when
@@ -158,7 +278,11 @@ export async function buildApp(
       // this endpoint asks is the question in its docstring — is the system in the state it
       // is supposed to be in — and that is the union.
       const inOrder = report.service.ready && report.institutional.ready;
-      return reply.code(inOrder ? 200 : 503).send(report);
+      const status = inOrder ? 200 : 503;
+      if (!mayReadReadinessDetail(request, config.readinessToken)) {
+        return reply.code(status).send({ ready: inOrder });
+      }
+      return reply.code(status).send(report);
     });
 
     const objectStore =
@@ -199,29 +323,43 @@ export async function buildApp(
       storageAtoms,
     );
     const verifier = config.identity === undefined ? undefined : new TokenVerifier(config.identity);
-    const identify = createCallerIdentifier(pool, verifier);
+    // Header-supplied identity is a development affordance and nothing else, and it is
+    // reachable only when no identity provider is configured — the identifier ignores headers
+    // entirely once a verifier exists, rather than falling back to them, because a fallback
+    // activates exactly when the provider is unreachable.
+    //
+    // Keyed on the DEPLOYMENT PROFILE, not on NODE_ENV. config.ts states the rule — "the
+    // development profile is the only place header-supplied identity can exist" — and this
+    // is the point of use that has to implement it. Keyed on `environment` alone, a dogfood
+    // app built with NODE_ENV=test trusted headers, which is the one thing the profile
+    // exists to forbid. `loadConfig` happens to prevent that combination reaching
+    // production by requiring an identity provider under dogfood, but buildApp accepts any
+    // ApiConfig, so relying on that made the guarantee depend on which constructor a caller
+    // happened to use.
+    //
+    // The environment clause stays as well: both must agree before a header is a caller.
+    //
+    // ONE decision, handed to every route. It used to reach /actions only; the identifier
+    // given to the document, ML, search and identifier routes trusted headers whenever the
+    // verifier was absent, whatever the profile said.
+    const trustHeaders =
+      config.deploymentProfile === 'development' &&
+      (config.environment === 'development' || config.environment === 'test');
+    const identify = createCallerIdentifier(pool, verifier, { trustHeaders });
     await registerActionRoutes(app, {
       pool,
       execute,
       ...(verifier === undefined ? {} : { verifier }),
-      // Header-supplied identity is a development affordance and nothing else, and it is
-      // reachable only when no identity provider is configured — `registerActionRoutes`
-      // ignores headers entirely once a verifier exists, rather than falling back to them,
-      // because a fallback activates exactly when the provider is unreachable.
-      //
-      // Keyed on the DEPLOYMENT PROFILE, not on NODE_ENV. config.ts states the rule — "the
-      // development profile is the only place header-supplied identity can exist" — and this
-      // is the point of use that has to implement it. Keyed on `environment` alone, a dogfood
-      // app built with NODE_ENV=test trusted headers, which is the one thing the profile
-      // exists to forbid. `loadConfig` happens to prevent that combination reaching
-      // production by requiring an identity provider under dogfood, but buildApp accepts any
-      // ApiConfig, so relying on that made the guarantee depend on which constructor a caller
-      // happened to use.
-      //
-      // The environment clause stays as well: both must agree before a header is a caller.
-      trustHeaders:
-        config.deploymentProfile === 'development' &&
-        (config.environment === 'development' || config.environment === 'test'),
+      trustHeaders,
+      ...(config.effectiveAtBackdate === undefined
+        ? {}
+        : {
+            effectiveAtBounds: {
+              ...DEFAULT_EFFECTIVE_AT_BOUNDS,
+              maxBackdateMs: config.effectiveAtBackdate.maxDays * 24 * 60 * 60 * 1000,
+              backdatableActions: new Set(config.effectiveAtBackdate.backdatableActions),
+            },
+          }),
     });
     await registerDocumentRoutes(app, {
       pool,

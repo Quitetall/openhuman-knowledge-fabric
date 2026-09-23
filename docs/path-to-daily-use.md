@@ -124,7 +124,11 @@ digest across all three.
 
 Every first-class object now has a page with no per-type code: `GET /objects/:id` and
 `apps/web/src/app/objects/[id]` render the `object_view` projection — the record, everything
-that links to or from it, actions from its state, and its audit history (ADR 0015).
+that links to or from it, actions from its state, and its audit history (ADR 0015). The GET
+never writes: when the reader's master record is stale it answers `409 master_record_stale`, and
+the page offers a button that POSTs `/objects/:id/refresh`, which compiles the record (a recorded
+act, as the reader) and returns the view. A GET that compiled could be triggered by any site
+linking a signed-in person to an object.
 
 **Written down:** ADR 0011, "Runtime surfaces"; ADR 0013 for identity; ADR 0014 for projections;
 ADR 0015 for Object Views.

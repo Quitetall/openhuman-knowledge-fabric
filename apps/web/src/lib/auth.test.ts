@@ -111,6 +111,27 @@ describe('web OIDC boundary', () => {
     );
   });
 
+  it.each([
+    '/.//evil.com',
+    '/a/..//evil.com',
+    '/%2e//evil.com',
+    '/./\\evil.com',
+    '/.//evil.com/x?y',
+  ])('refuses a return path that normalises into another host (%s)', (candidate) => {
+    // Each passes a check on the raw input and collapses to `//evil.com` once normalised.
+    const returned = makePkceTransaction(candidate).returnTo;
+    expect(returned).toBe('/documents');
+  });
+
+  it.each(['/documents/doc-1?tab=metrics', '/search?q=a:b', '/a/../documents', '/.//evil.com'])(
+    'returns a fixed point: sanitising the result again changes nothing (%s)',
+    (candidate) => {
+      const once = makePkceTransaction(candidate).returnTo;
+      expect(once.startsWith('//')).toBe(false);
+      expect(makePkceTransaction(once).returnTo).toBe(once);
+    },
+  );
+
   it('round-trips encrypted transaction and session cookies and rejects tampering', async () => {
     const config = loadWebIdentityConfig({
       KF_DEPLOYMENT_PROFILE: 'dogfood',

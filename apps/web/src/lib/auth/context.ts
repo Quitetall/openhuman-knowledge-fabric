@@ -19,14 +19,26 @@ export function sanitizeReturnTo(value: string | null | undefined): string {
   ) {
     return '/documents';
   }
+  let normalised: string;
   try {
     const url = new URL(value, 'https://knowledge-fabric.invalid');
-    return url.origin === 'https://knowledge-fabric.invalid'
-      ? `${url.pathname}${url.search}${url.hash}`
-      : '/documents';
+    if (url.origin !== 'https://knowledge-fabric.invalid') return '/documents';
+    normalised = `${url.pathname}${url.search}${url.hash}`;
   } catch {
     return '/documents';
   }
+  // The checks above ran on the input; what leaves is the NORMALISED path, and normalising can
+  // manufacture what they refused. `/.//evil.com`, `/a/..//evil.com` and `/%2e//evil.com` all
+  // collapse to `//evil.com`, which a browser reads as another host. So the output is checked
+  // again, and it must be a fixed point: sanitising it once more changes nothing.
+  if (
+    normalised.startsWith('//') ||
+    normalised.includes('\\') ||
+    /^\/*[a-z][a-z0-9+.-]*:/i.test(normalised)
+  ) {
+    return '/documents';
+  }
+  return normalised;
 }
 
 /** Create one-use authorization transaction. Verifier never leaves encrypted HttpOnly cookie. */

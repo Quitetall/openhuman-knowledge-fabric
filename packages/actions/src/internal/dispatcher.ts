@@ -51,8 +51,15 @@ export function createTransactionalDispatcher(
     const replay = await replayPriorAction(tx, request, requestDigest, resolved.receipts);
     if (replay !== undefined) return replay;
 
-    const actionId = (await tx.one<{ id: string }>('select uuidv7() as id')).id;
-    const effectiveAt = request.effectiveAt ?? new Date();
+    // The database clock, not this process's. `recorded_at` defaults to the database's now(),
+    // so an effective time from a drifting application host could land before the moment the
+    // action was recorded, or after it. Truncated to milliseconds, the precision effective_at
+    // travels at everywhere else.
+    const clock = await tx.one<{ id: string; now: Date }>(
+      "select uuidv7() as id, date_trunc('milliseconds', now()) as now",
+    );
+    const actionId = clock.id;
+    const effectiveAt = request.effectiveAt ?? clock.now;
     const ctx: EffectContext = { actionId, effectiveAt };
     await setTransactionContext(tx, {
       actorId: request.actorId,

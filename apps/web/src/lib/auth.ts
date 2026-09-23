@@ -2,6 +2,7 @@
 
 export {
   CLASSIFICATIONS,
+  ID_TOKEN_HINT_COOKIE,
   MAX_WEB_COOKIE_VALUE_BYTES,
   OIDC_TRANSACTION_COOKIE,
   SESSION_COOKIE,
@@ -18,8 +19,10 @@ export { loadWebIdentityConfig } from './auth/config';
 export { publicOrigin, publicUrl } from './auth/origin';
 export { makePkceTransaction, sanitizeReturnTo, validateContextSelection } from './auth/context';
 export {
+  openIdTokenHint,
   openOidcTransaction,
   openWebSession,
+  sealIdTokenHint,
   sealOidcTransaction,
   sealWebSession,
 } from './auth/cookies';

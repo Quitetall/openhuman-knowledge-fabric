@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fetchMasterRecord, parseMasterRecordArgs } from './cli.js';
+import { fetchMasterRecord, parseMasterRecordArgs, runMasterRecordCommand } from './cli.js';
+import { Writable } from 'node:stream';
 
 /**
  * The command is three requests and nothing else. What it sends is asserted exactly — the
@@ -34,9 +35,64 @@ describe('fetchMasterRecord', () => {
   async function tokenFile(): Promise<string> {
     const dir = await mkdtemp(join(tmpdir(), 'kf-mr-'));
     const path = join(dir, 'token');
-    await writeFile(path, 'tok.en.value\n');
+    await writeFile(path, 'tok.en.value\n', { mode: 0o600 });
     return path;
   }
+
+  it('refuses a token file other users on the host can read', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'kf-mr-'));
+    const path = join(dir, 'token');
+    await writeFile(path, 'tok.en.value\n', { mode: 0o644 });
+    await expect(
+      fetchMasterRecord(
+        {
+          tokenFile: path,
+          organizationId: ORG,
+          actingRoleId: ROLE,
+          projection: 'master_sections',
+          format: 'html',
+          compile: false,
+        },
+        { KF_API_ORIGIN: 'https://api.kf.internal' },
+        (async () => {
+          throw new Error('must not be reached');
+        }) as typeof fetch,
+      ),
+    ).rejects.toThrow(/chmod 600/);
+  });
+
+  it('writes --out owner-only, even over an existing world-readable file', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'kf-mr-'));
+    const out = join(dir, 'record.html');
+    await writeFile(out, 'old', { mode: 0o644 });
+    const fake = (async (input: string | URL | Request) =>
+      String(input).endsWith('/master-record')
+        ? new Response(JSON.stringify({ corpus_digest: 'c0ffee' }), { status: 200 })
+        : new Response('<p>record</p>', {
+            status: 200,
+            headers: { 'x-kf-projection-digest': 'p1', 'x-kf-corpus-digest': 'c0ffee' },
+          })) as typeof fetch;
+    const sink = new Writable({ write: (_chunk, _enc, done) => done() });
+    const code = await runMasterRecordCommand(
+      [
+        '--token-file',
+        await tokenFile(),
+        '--organization',
+        ORG,
+        '--acting-role',
+        ROLE,
+        '--no-compile',
+        '--out',
+        out,
+      ],
+      { KF_API_ORIGIN: 'https://api.kf.internal' },
+      sink,
+      sink,
+      fake,
+    );
+    expect(code).toBe(0);
+    expect((await stat(out)).mode & 0o777).toBe(0o600);
+  });
 
   it('compiles, reads the claim, and returns the rendering byte for byte', async () => {
     const calls: Array<{ url: string; init: RequestInit | undefined }> = [];

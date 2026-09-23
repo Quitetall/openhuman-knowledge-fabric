@@ -6,20 +6,21 @@ import {
   type Pool,
   type Tx,
 } from '@kf/database';
-import { APP_LOGIN, APP_PASSWORD } from './config.js';
+import { APP_LOGIN } from './config.js';
 import type { DogfoodIdentity } from './contracts.js';
 
 const BOOTSTRAP_IDENTITY = '01930000-0000-7000-8000-00000000b007';
 const BOOTSTRAP_ACTION = '01930000-0000-7000-8000-00000000ac10';
 
-export async function createAppLogin(owner: Pool): Promise<string> {
+/** Create or re-key the development login with this run's password. */
+export async function createAppLogin(owner: Pool, password: string): Promise<string> {
   return withTransaction(owner, async (tx) => {
     const role = await tx.one<{ sql: string }>(
       `select case when exists (select from pg_roles where rolname = $1)
               then format('alter role %I login password %L inherit', $1::text, $2::text)
               else format('create role %I login password %L inherit', $1::text, $2::text)
               end as sql`,
-      [APP_LOGIN, APP_PASSWORD],
+      [APP_LOGIN, password],
     );
     await tx.query(role.sql);
     const membership = await tx.one<{ sql: string }>(

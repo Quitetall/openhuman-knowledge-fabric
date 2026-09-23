@@ -120,6 +120,12 @@ verifier returns `400 invalid_grant — PKCE verification failed: Code mismatch`
 ### The API verifies the token
 
 Run with `KF_DEPLOYMENT_PROFILE=dogfood`, `HOST=127.0.0.1`, and the three `OIDC_*` variables set.
+`OIDC_ISSUER` and `OIDC_JWKS_URI` must be `https://` unless they are loopback (`localhost`,
+`127.0.0.1`, `[::1]`), as the web client already required: whoever is on the path of a cleartext
+key fetch supplies the keys. Both the API and the web client accept only `RS256` signatures, the
+realm's `defaultSignatureAlgorithm`; changing the realm's algorithm means changing
+`OIDC_SIGNING_ALGORITHMS` (`packages/authorization`) and `ID_TOKEN_ALGORITHMS`
+(`apps/web/src/lib/oidc.ts`) with it.
 `GET /master-record`, with `x-kf-acting-role` and `x-kf-organization` supplied:
 
 | token presented                         | status | body                                                          |
@@ -231,6 +237,12 @@ PKCE login the table above walked, with curl against the realm's login form, and
 access token 0600. It is the token the person would hold after logging in themselves; `kf
 ingest --identity=oidc` and `kf master-record` take it as `--token-file`.
 
+The password is read from the terminal without echo, or from `KF_LOGIN_PASSWORD_FILE`, which
+must be owner-only (0600). `KF_LOGIN_PASSWORD` is refused: set on a command line it lands in shell
+history, and exported it is inherited by every child of the shell. `kf master-record` likewise
+refuses a `--token-file` readable beyond its owner, and writes `--out` as 0600, including over
+an existing file.
+
 ### Why this is not a dispatched action
 
 Because it cannot be. Dispatch binds authoritative clearance before effects run, so granting the
@@ -250,3 +262,17 @@ Compiling a master record has not been exercised through an authenticated sessio
 step 4.
 
 This is step 3 of [`docs/path-to-daily-use.md`](../path-to-daily-use.md).
+
+## Realm hardening
+
+The committed realm enables brute-force protection (temporary lockout after 10 failures),
+requires passwords of at least 14 characters that are not the username or email, makes every
+new account enrol TOTP before its first login (`CONFIGURE_TOTP` is a default action; the browser
+flow's conditional 2FA then demands it), revokes a refresh token once used, caps offline
+sessions at 3 days idle and 7 days in total, and disables the password grant on `admin-cli`.
+Commissioning (`identity_provider_policy`) refuses a realm that reverts any of these.
+
+`scripts/deploy/create-dev-user.sh` clears required actions on the loopback development
+account it creates, so that account does not enrol a second factor. It refuses any non-loopback
+Keycloak, which is what keeps that exception on the workstation. Its password must now satisfy
+the realm policy: 14 characters or more.
