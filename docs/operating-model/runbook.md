@@ -143,7 +143,7 @@ ledger with `notes` naming which copy was restored, then deletes the cluster. No
 in the production cluster.
 
 If the off-site copy cannot be pulled back (source unset, a pre-encryption copy, no decryption
-key) the drill refuses. `scripts/restore-drill.sh --allow-local-fallback` restores the local
+key) the drill refuses. `scripts/restore-drill.sh` with `--allow-local-fallback` restores the local
 original instead and records `notes = source=local-fallback ...`, so it never reads as an
 off-site drill.
 
