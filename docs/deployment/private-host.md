@@ -483,6 +483,15 @@ release-tree fault. It does not widen any search — every `find` in the script 
 release or migration directory explicitly — it only gives the process a cwd it can return to.
 Measured on this host, 2026-08-26.
 
+Both `rehearse-rollback` and `apply` run `dbmate up --strict`: dbmate refuses to apply a
+migration whose version is older than one already applied, instead of quietly inserting it into
+history out of order. Before 2026-09-25 neither passed `--strict`, so a migration added with a
+back-dated version applied on hosts that already had its successors, and the schema then depended
+on which order a host happened to receive them in. After seeding, both read
+`registry.schema_release` (current) and refuse unless its `ontology_digest` equals the
+`-- source_digest:` the release's generated seed declares — the fresh-install digest check
+KF-SAS-RQ-081 requires.
+
 Rehearsal refuses reserved/nonempty databases, applies every migration, seeds exact generated
 ontology, then rolls back **to the forward-only floor** and verifies it stopped exactly there —
 both the number of migrations still applied and the version sitting on top. Migrations
