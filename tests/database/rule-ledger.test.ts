@@ -367,7 +367,7 @@ describe('rules enforced by the action path', () => {
   it('refuses to approve a change that cites no decision', async () => {
     const change = await createObject(h.adminPool, f, {
       type: 'change_record',
-      domain: 'engineering',
+      domain: 'configuration',
       state: 'impact_assessment',
       title: 'A change with no rationale',
       createdBy: f.performerId,
