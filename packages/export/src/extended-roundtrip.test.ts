@@ -1780,6 +1780,18 @@ describe('extended preservation coverage', () => {
       // of the deliberately tiny reconstructed/ephemeral categories. A new table cannot become
       // authoritative merely by being forgotten here.
       await withTransaction(source.adminPool, async (tx) => {
+        // The schemas come from the catalog, not from a list. A hard-coded list of thirteen
+        // omitted `retrieval` (added 2026-09-14), so its table was never asked about: an
+        // inventory that only covers the schemas somebody remembered is not closed.
+        const schemas = (
+          await tx.query<{ nspname: string }>(
+            `select nspname from pg_namespace
+              where nspname not in ('pg_catalog', 'information_schema')
+                and nspname !~ '^pg_'
+              order by nspname`,
+          )
+        ).map((row) => row.nspname);
+        expect(schemas).toEqual(expect.arrayContaining(['core', 'retrieval', 'search', 'ml']));
         const liveTables = (
           await tx.query<{ qualified_name: string }>(
             `select table_schema || '.' || table_name as qualified_name
@@ -1787,23 +1799,7 @@ describe('extended preservation coverage', () => {
               where table_type = 'BASE TABLE'
                 and table_schema = any($1::text[])
               order by table_schema, table_name`,
-            [
-              [
-                'core',
-                'org',
-                'content',
-                'work',
-                'finance',
-                'product',
-                'engineering',
-                'quality',
-                'ops',
-                'ml',
-                'secure_object',
-                'registry',
-                'search',
-              ],
-            ],
+            [schemas],
           )
         ).map((row) => row.qualified_name);
         // `Set<string>`, not the literal union `PRESERVATION_IMPORT_TARGETS` infers. Both

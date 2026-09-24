@@ -43,6 +43,13 @@ import {
   type Harness,
 } from '../../../tests/database/harness.js';
 
+/** A store that keeps something other than the bytes it was handed: a copy that cannot verify. */
+class LyingStore extends InMemoryObjectStore {
+  override async putIfAbsent(key: string, _body: Buffer, mediaType: string) {
+    return this.put(key, Buffer.from('not the bytes that were published'), mediaType);
+  }
+}
+
 const REQUIRED_DOCUMENT_ACTIONS = [
   'accept_document_compilation',
   'add_authored_fragment',
@@ -608,7 +615,9 @@ describe('document action chain', () => {
           },
         },
         // ADR 0021: a publication target may name a public store; `public` is one.
-        stores: new StoreRegistry({ working: store, public: publicStore }),
+        // `lying` is declared public below and stores something other than it was given, so
+        // the copy can be written and then fail its own verification (KF-DOC-PUBLISH-008).
+        stores: new StoreRegistry({ working: store, public: publicStore, lying: new LyingStore() }),
       }),
     );
     qualityRoleAssignmentId = await createObject(harness.adminPool, fixtures, {
@@ -2314,6 +2323,63 @@ describe('document action chain', () => {
         );
       }),
     ).rejects.toThrow(/written only by publish_document_view/);
+    // Nor into a store that is not public, even by the publication act itself (KF-SAS-RQ-134).
+    await expect(
+      withTransaction(harness.adminPool, async (tx) => {
+        await bindContext(tx, fixtures, fixtures.reviewerId);
+        await tx.query(
+          `insert into content.artifact_location (version_id, store_id, role, uri, recorded_by_action)
+           values ($1, 'working', 'public_copy', 'into-working', $2)`,
+          [artifactVersionId, publishedWithBytes.actionId],
+        );
+      }),
+    ).rejects.toThrow(/only be written into a store declared public/);
+
+    // The act's own two refusals. Each target names a store the database accepts as public; the
+    // instance either cannot reach it, or reaches it and the bytes that land do not verify.
+    // Either way the publication is refused by name and leaves no public copy behind.
+    const refusedTarget = async (storeId: string, targetKey: string): Promise<string> => {
+      const targetId = uuid();
+      await withTransaction(harness.adminPool, async (tx) => {
+        await bindContext(tx, fixtures, fixtures.reviewerId);
+        await declareStore(tx, { id: storeId, kind: 'memory', label: `Public ${storeId}` });
+        await tx.query('update content.artifact_store set public = true where id = $1', [storeId]);
+        await tx.query(
+          `insert into content.document_publication_target
+             (id, organization_id, target_key, max_classification, policy_digest, registered_by, public_store_id)
+           values ($1,$2,$3,'internal',$4,$5,$6)`,
+          [
+            targetId,
+            fixtures.organizationId,
+            targetKey,
+            hexDigest('b'),
+            fixtures.reviewerId,
+            storeId,
+          ],
+        );
+      });
+      return targetId;
+    };
+    const publicCopiesIn = async (storeId: string) =>
+      (await withTransaction(harness.adminPool, (tx) => locationsOf(tx, artifactVersionId))).filter(
+        (location) => location.role === 'public_copy' && location.store_id === storeId,
+      );
+    const unreachableTarget = await refusedTarget('offsite-public', 'unreachable-public-site');
+    await expect(
+      call('publish_document_view', [compositionId], {
+        ...publicationPayload,
+        publication_target_id: unreachableTarget,
+      }),
+    ).rejects.toMatchObject({ detail: { rule: 'KF-DOC-PUBLISH-007' } });
+    expect(await publicCopiesIn('offsite-public')).toEqual([]);
+    const lyingTarget = await refusedTarget('lying', 'non-verifying-public-site');
+    await expect(
+      call('publish_document_view', [compositionId], {
+        ...publicationPayload,
+        publication_target_id: lyingTarget,
+      }),
+    ).rejects.toMatchObject({ detail: { rule: 'KF-DOC-PUBLISH-008' } });
+    expect(await publicCopiesIn('lying')).toEqual([]);
 
     // Migration 007 must re-audit historical runs at acceptance. Simulate a pre-007
     // partial-provenance row by extending its immutable Basis behind legacy trigger bypass:

@@ -333,6 +333,9 @@ importers:
       '@kf/domain':
         specifier: workspace:*
         version: link:../domain
+      '@kf/record-atoms':
+        specifier: workspace:*
+        version: link:../record-atoms
     devDependencies:
       '@types/node':
         specifier: ^24.13.3

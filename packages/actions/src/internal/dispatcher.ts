@@ -24,6 +24,7 @@ import {
   replayPriorAction,
   semanticActionRequestDigest,
 } from './idempotency.js';
+import { asActionRefusal } from './refusals.js';
 import { prepareActionState } from './state.js';
 
 /** Build transactional action kernel over explicitly composed action atoms. */
@@ -33,6 +34,14 @@ export function createTransactionalDispatcher(
   const resolved = resolveDispatcherOptions(options);
 
   return async function executeAction(tx: Tx, request: ActionRequest): Promise<ActionResult> {
+    try {
+      return await dispatch(tx, request);
+    } catch (error: unknown) {
+      throw asActionRefusal(error);
+    }
+  };
+
+  async function dispatch(tx: Tx, request: ActionRequest): Promise<ActionResult> {
     assertActionAvailable(request.actionType, resolved.allowedActions);
     assertCanonicalEffectiveAt(request);
     const requestDigest = semanticActionRequestDigest(request);
@@ -84,13 +93,19 @@ export function createTransactionalDispatcher(
       auditDigest,
       ...(receipt === undefined ? {} : { receipt }),
     };
-  };
+  }
 }
 
 /** Standalone action seam: exactly one action and audit receipt per transaction. */
 export function createDispatcher(pool: Pool, options: DispatcherOptions = {}): ActionDispatcher {
   const executeInTransaction = createTransactionalDispatcher(options);
   return async function executeAction(request: ActionRequest): Promise<ActionResult> {
-    return withTransaction(pool, (tx) => executeInTransaction(tx, request));
+    try {
+      return await withTransaction(pool, (tx) => executeInTransaction(tx, request));
+    } catch (error: unknown) {
+      // Again outside the transaction: a deferred constraint trigger refuses at COMMIT, after
+      // the transactional dispatcher has already returned.
+      throw asActionRefusal(error);
+    }
   };
 }
