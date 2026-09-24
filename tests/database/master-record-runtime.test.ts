@@ -753,7 +753,7 @@ describe('master-record runtime', () => {
         maxClassification: 'restricted',
       });
       // The application's compile writes rows, so it records its act in this transaction
-      // (20260925020000); the admin-recorded `actionId` above belongs to an earlier one.
+      // (20260925011000); the admin-recorded `actionId` above belongs to an earlier one.
       const compile = await recordAct(tx, fixtures, fixtures.reviewerId, undefined, {
         deferAudit: true,
       });

@@ -128,7 +128,7 @@ describe('a typed row is the type its table is about', () => {
     // A typed table is one whose single-column primary key references core.object (id): the
     // row IS that object. Each must also carry a constant object_type and the composite key
     // (id, object_type) → core.object (id, object_type). Two were keyed on the id alone until
-    // 20260925030000 — work.warrant and ml.promotion_authority_decision — and nothing noticed,
+    // 20260925012000 — work.warrant and ml.promotion_authority_decision — and nothing noticed,
     // because the earlier tests named their tables one by one.
     //
     // Keyed on an object of ANY type by design, so they have no single type to be:
@@ -277,7 +277,7 @@ describe('a record’s authority domain is its type’s (RQ-001, RQ-010)', () =>
     // The five materializers corrected with this migration filed records under `project` and
     // `engineering`. A host that ran them holds such rows; the migration must neither refuse
     // the deploy nor claim the key covers them.
-    const MIGRATION = '20260925040000_the_authority_domain_is_the_types.sql';
+    const MIGRATION = '20260925013000_the_authority_domain_is_the_types.sql';
     const old = await startHarness({ skipMigrations: new Set([MIGRATION]) });
     try {
       const of = await seedFixtures(old.adminPool);

@@ -173,6 +173,6 @@ export const PRESERVATION_TABLE_EXCLUSIONS = {
     'transient proof a person was present (20260924001000): digests only, expired within 60 s, ' +
     'never evidence of an act — the action and audit rows are',
   'core.write_guard_exemption':
-    'schema configuration written by migration 20260925020000 and pinned by its test; a restore ' +
+    'schema configuration written by migration 20260925011000 and pinned by its test; a restore ' +
     'into a migrated database already holds it',
 } as const;

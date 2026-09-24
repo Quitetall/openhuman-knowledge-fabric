@@ -341,7 +341,7 @@ model T2).
 
 ## A write is refused: "must be performed by an act" or "not an act this transaction recorded"
 
-Since `20260925020000` every table the application or the worker can write refuses a row that no
+Since `20260925011000` every table the application or the worker can write refuses a row that no
 recorded act accounts for (threat model T2). The dispatcher always records its act in the same
 transaction as the writes, so neither refusal is reachable through it:
 
@@ -368,7 +368,7 @@ the rows when the key is added. A database holding a row that breaks it refuses 
 atomically, so nothing is half-applied — rather than carrying the row forward.
 
 - `warrant_is_warrant` or `promotion_authority_decision_is_ml_promotion_decision`
-  (`20260925030000`): a warrant or an ML promotion decision is keyed on an object of another type,
+  (`20260925012000`): a warrant or an ML promotion decision is keyed on an object of another type,
   so one object is two records. Find them, as the owner:
 
       select w.id, o.object_type from work.warrant w join core.object o on o.id = w.id
@@ -376,7 +376,7 @@ atomically, so nothing is half-applied — rather than carrying the row forward.
       select d.object_id, o.object_type from ml.promotion_authority_decision d
         join core.object o on o.id = d.object_id where o.object_type <> 'ml_promotion_decision';
 
-- `object_authority_domain_is_the_types` (`20260925040000`) does not refuse: it warns
+- `object_authority_domain_is_the_types` (`20260925013000`) does not refuse: it warns
   `N record(s) carry an authority domain their type does not declare`, and leaves the key
   holding for every new and changed row but unvalidated for the old ones. Until 2026-09-25 five
   kinds of record were filed under the wrong domain by the code itself (work orders, work

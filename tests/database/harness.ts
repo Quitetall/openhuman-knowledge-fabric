@@ -684,7 +684,7 @@ export async function bindContext(
       maxClassification: 'restricted',
     })) ?? null,
   ]);
-  // An administrator session is exempt from the act requirement (20260925020000) and binds the
+  // An administrator session is exempt from the act requirement (20260925011000) and binds the
   // bootstrap action as it always did: owner-credential fixtures build ledgers and chains of
   // their own, and an extra act would move them. Every other session records a real act.
   const { administrator } = await tx.one<{ administrator: boolean }>(
@@ -706,7 +706,7 @@ export async function bindContext(
  * Record an act in the ledger and bind it as this transaction's action.
  *
  * Every row the application writes belongs to an act the ledger records in the same transaction
- * (20260925020000), so a direct write records one: a `correct_record` by the bound person, on the
+ * (20260925011000), so a direct write records one: a `correct_record` by the bound person, on the
  * organization, with its audit-chain link. It is a real act, and a test counting actions or
  * events sees it. The principal must
  * already be bound (`bindPrincipal`/`bindReader`), as the dispatcher binds before it records.
