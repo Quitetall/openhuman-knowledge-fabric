@@ -129,8 +129,8 @@ realm's `defaultSignatureAlgorithm`; changing the realm's algorithm means changi
 
 Since migration `20260924001000` the dogfood API also needs `KF_ATTESTOR_SOCKET` naming a running
 `kf-attestor`, and it refuses to start through a login that holds `kf_attestor` — which
-`kf_api_dev`, the login `pnpm dogfood:load` creates, does. Re-walking this today needs a separate
-API login and the attestor started as
+`kf_api_dev`, the login `pnpm dogfood:load` creates, does. Re-walking this today is
+`pnpm dogfood:logins` once, then `pnpm dev:dogfood`, as
 [`local-development.md`](local-development.md#dogfood-profile-local-identity-rehearsal) describes;
 the table below was observed before that change.
 
