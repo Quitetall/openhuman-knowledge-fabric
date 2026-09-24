@@ -7,7 +7,7 @@ resolved for one caller, and is recomputed rather than stored. A band bitmap is 
 authorization input, which KF-SAS-RQ-223 permits only for the life of the process holding it —
 so nothing in this package may be written to durable storage of any kind, and the check that
 proves it is a test rather than a convention (`src/no-durable-state.test.ts`: no filesystem
-import and no SQL other than `select` in this package; `tests/database/retrieval-schema.test.ts`:
+import and no SQL other than `select` in this package; `tests/database/transient-observations.test.ts`:
 no bitmap-, mask- or bit-typed column anywhere in the `retrieval` schema).
 
 ## What crosses the socket

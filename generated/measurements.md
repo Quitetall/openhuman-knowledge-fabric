@@ -12,17 +12,17 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 
 | Measure | Count | Derived from |
 | --- | ---: | --- |
-| migrations | 112 | files under `database/migrations/` |
+| migrations | 114 | files under `database/migrations/` |
 | forward-only migrations | 25 | migrations declaring `-- kf:forward-only <reason>` in their down-section |
 | schemas | 14 | distinct `create schema` names in migration up-sections |
-| tables created | 175 | in migration up-sections |
-| row-security policies | 455 | in migration up-sections |
+| tables created | 181 | in migration up-sections |
+| row-security policies | 459 | in migration up-sections |
 | triggers created | 176 | literal `create trigger` statements in migration up-sections |
-| security definer declarations | 140 | in migration up-sections; a function redefined is declared again |
+| security definer declarations | 148 | in migration up-sections; a function redefined is declared again |
 | views | 13 | distinct view names in migration up-sections |
-| indexes created | 89 | explicit `create index` statements in migration up-sections |
-| foreign-key references | 468 | `references` clauses in migration up-sections |
-| check constraints | 745 | `check (` clauses in migration up-sections |
+| indexes created | 92 | explicit `create index` statements in migration up-sections |
+| foreign-key references | 470 | `references` clauses in migration up-sections |
+| check constraints | 757 | `check (` clauses in migration up-sections |
 | group roles | 11 | distinct `NOLOGIN` roles created in migration up-sections |
 | workspace packages | 31 | 25 libraries under `packages/`, 6 executables under `apps/` |
 | systemd services | 14 | `*.service` units under `deploy/systemd/`, the `kf-alert@` template counted once |
@@ -32,4 +32,4 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 | relation types | 41 | declared in `ontology/relation-types.yaml` |
 | decision records | 37 | under `docs/decisions/` — 33 accepted, 4 proposed |
 | architecture requirements | 170 | distinct identifiers in §106 |
-| test files | 220 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
+| test files | 226 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
