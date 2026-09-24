@@ -12,6 +12,63 @@ relation_types:
       person_anchor: false,
       propagation_class: composition_down,
       anchor_depth: 8,
+      source_types:
+        [
+          organization,
+          product_system,
+          configuration_item,
+          baseline,
+          release,
+          initiative_project,
+          work_package,
+          work_order,
+          document_composition,
+          controlled_document,
+          artifact,
+        ],
+      target_types:
+        &any_type [
+          organization,
+          person,
+          role_assignment,
+          engagement,
+          product_system,
+          initiative_project,
+          work_package,
+          work_order,
+          work_execution,
+          decision_record,
+          change_record,
+          deliverable,
+          artifact,
+          acceptance_record,
+          invoice,
+          payment,
+          requirement,
+          risk,
+          test,
+          release,
+          baseline,
+          configuration_item,
+          interface_contract,
+          physical_binding,
+          controlled_document,
+          authored_fragment,
+          document_composition,
+          ml_promotion_decision,
+          nonconformity,
+          capa,
+          supplier,
+          equipment,
+          complaint,
+          risk_control,
+          test_definition,
+          test_execution,
+          milestone,
+          work_order_amendment,
+          warrant,
+          observation,
+        ],
     }
   - {
       id: decomposes_into,
@@ -20,6 +77,28 @@ relation_types:
       person_anchor: false,
       propagation_class: composition_down,
       anchor_depth: 8,
+      source_types:
+        [
+          initiative_project,
+          work_package,
+          product_system,
+          configuration_item,
+          requirement,
+          risk,
+          test,
+        ],
+      target_types:
+        [
+          initiative_project,
+          work_package,
+          product_system,
+          configuration_item,
+          requirement,
+          risk,
+          test,
+          milestone,
+          deliverable,
+        ],
     }
   - {
       id: affects,
@@ -27,6 +106,8 @@ relation_types:
       person_anchor: false,
       propagation_class: lateral_none,
       anchor_depth: 0,
+      source_types: *any_type,
+      target_types: *any_type,
     }
   - {
       id: authorizes,
@@ -34,6 +115,21 @@ relation_types:
       person_anchor: true,
       propagation_class: authority_one_hop_up,
       anchor_depth: 1,
+      source_types:
+        [
+          person,
+          role_assignment,
+          organization,
+          work_order,
+          decision_record,
+          change_record,
+          acceptance_record,
+          engagement,
+          initiative_project,
+          warrant,
+          work_order_amendment,
+        ],
+      target_types: *any_type,
     }
   - {
       id: executes,
@@ -41,6 +137,19 @@ relation_types:
       person_anchor: true,
       propagation_class: composition_down,
       anchor_depth: 8,
+      source_types:
+        [person, organization, role_assignment, work_execution, test_execution, warrant],
+      target_types:
+        [
+          work_order,
+          work_package,
+          initiative_project,
+          test_definition,
+          test,
+          change_record,
+          warrant,
+          capa,
+        ],
     }
   - {
       id: produces,
@@ -48,6 +157,20 @@ relation_types:
       person_anchor: true,
       propagation_class: composition_down,
       anchor_depth: 8,
+      source_types:
+        [
+          person,
+          organization,
+          role_assignment,
+          work_execution,
+          test_execution,
+          initiative_project,
+          work_package,
+          work_order,
+          warrant,
+          change_record,
+        ],
+      target_types: *any_type,
     }
   - {
       id: consumes,
@@ -55,6 +178,17 @@ relation_types:
       person_anchor: true,
       propagation_class: composition_down,
       anchor_depth: 8,
+      source_types:
+        [
+          person,
+          organization,
+          work_execution,
+          test_execution,
+          work_package,
+          initiative_project,
+          warrant,
+        ],
+      target_types: *any_type,
     }
   - {
       id: proposes,
@@ -62,6 +196,27 @@ relation_types:
       person_anchor: true,
       propagation_class: authority_one_hop_up,
       anchor_depth: 1,
+      source_types:
+        [
+          person,
+          organization,
+          role_assignment,
+          work_execution,
+          initiative_project,
+          work_package,
+          warrant,
+          observation,
+        ],
+      target_types:
+        [
+          decision_record,
+          change_record,
+          work_order_amendment,
+          initiative_project,
+          requirement,
+          risk_control,
+          capa,
+        ],
     }
   - {
       id: governs,
@@ -69,6 +224,17 @@ relation_types:
       person_anchor: true,
       propagation_class: authority_one_hop_up,
       anchor_depth: 1,
+      source_types:
+        [
+          decision_record,
+          controlled_document,
+          requirement,
+          change_record,
+          interface_contract,
+          baseline,
+          release,
+        ],
+      target_types: *any_type,
     }
   - {
       id: implements,
@@ -76,6 +242,20 @@ relation_types:
       person_anchor: true,
       propagation_class: provenance_backward,
       anchor_depth: 8,
+      source_types:
+        [
+          change_record,
+          work_package,
+          work_order,
+          configuration_item,
+          product_system,
+          risk_control,
+          test_definition,
+          capa,
+          warrant,
+        ],
+      target_types:
+        [decision_record, requirement, risk_control, capa, change_record, interface_contract],
     }
   - {
       id: satisfies,
@@ -83,6 +263,18 @@ relation_types:
       person_anchor: true,
       propagation_class: provenance_backward,
       anchor_depth: 8,
+      source_types:
+        [
+          configuration_item,
+          product_system,
+          test_execution,
+          test_definition,
+          deliverable,
+          work_package,
+          release,
+          artifact,
+        ],
+      target_types: [requirement, interface_contract, deliverable],
     }
   - {
       id: verifies,
@@ -90,6 +282,19 @@ relation_types:
       person_anchor: true,
       propagation_class: authority_one_hop_up,
       anchor_depth: 1,
+      source_types: [test_execution, test_definition, test, acceptance_record, person, artifact],
+      target_types:
+        [
+          requirement,
+          risk_control,
+          interface_contract,
+          configuration_item,
+          change_record,
+          deliverable,
+          product_system,
+          capa,
+          test,
+        ],
     }
   - {
       id: mitigates,
@@ -97,6 +302,8 @@ relation_types:
       person_anchor: false,
       propagation_class: lateral_none,
       anchor_depth: 0,
+      source_types: [risk_control, capa, change_record, decision_record, requirement],
+      target_types: [risk, nonconformity, complaint],
     }
   - {
       id: accepts,
@@ -104,6 +311,8 @@ relation_types:
       person_anchor: true,
       propagation_class: authority_one_hop_up,
       anchor_depth: 1,
+      source_types: [acceptance_record, person],
+      target_types: [work_execution, deliverable, work_package, work_order],
     }
   - {
       id: bills,
@@ -111,6 +320,8 @@ relation_types:
       person_anchor: false,
       propagation_class: composition_down,
       anchor_depth: 8,
+      source_types: [invoice],
+      target_types: [work_order, acceptance_record, work_execution, engagement],
     }
   - {
       id: settles,
@@ -118,6 +329,8 @@ relation_types:
       person_anchor: false,
       propagation_class: composition_down,
       anchor_depth: 8,
+      source_types: [payment],
+      target_types: [invoice],
     }
   - {
       id: allocates_to,
@@ -125,6 +338,8 @@ relation_types:
       person_anchor: false,
       propagation_class: composition_down,
       anchor_depth: 8,
+      source_types: [payment, invoice],
+      target_types: [work_order, invoice, initiative_project, work_package],
     }
   - {
       id: originated_from,
@@ -132,6 +347,8 @@ relation_types:
       person_anchor: true,
       propagation_class: provenance_backward,
       anchor_depth: 8,
+      source_types: *any_type,
+      target_types: *any_type,
     }
   - {
       id: supersedes,
@@ -140,6 +357,8 @@ relation_types:
       person_anchor: false,
       propagation_class: version_both,
       anchor_depth: 8,
+      source_types: *any_type,
+      target_types: *any_type,
     }
   - {
       id: derived_from,
@@ -147,6 +366,8 @@ relation_types:
       person_anchor: true,
       propagation_class: provenance_backward,
       anchor_depth: 8,
+      source_types: *any_type,
+      target_types: *any_type,
     }
   - {
       id: evidences,
@@ -154,6 +375,18 @@ relation_types:
       person_anchor: true,
       propagation_class: provenance_backward,
       anchor_depth: 8,
+      source_types:
+        [
+          artifact,
+          controlled_document,
+          authored_fragment,
+          document_composition,
+          test_execution,
+          work_execution,
+          observation,
+          physical_binding,
+        ],
+      target_types: *any_type,
     }
   - {
       id: assigned_to,
@@ -161,6 +394,8 @@ relation_types:
       person_anchor: true,
       propagation_class: authority_one_hop_up,
       anchor_depth: 1,
+      source_types: *any_type,
+      target_types: &agent_type [person, organization, role_assignment, engagement, supplier],
     }
   - {
       id: scoped_to,
@@ -168,6 +403,17 @@ relation_types:
       person_anchor: true,
       propagation_class: authority_one_hop_up,
       anchor_depth: 1,
+      source_types: *any_type,
+      target_types:
+        [
+          organization,
+          initiative_project,
+          work_package,
+          work_order,
+          product_system,
+          configuration_item,
+          engagement,
+        ],
     }
   - {
       id: depends_on,
@@ -176,6 +422,8 @@ relation_types:
       person_anchor: false,
       propagation_class: lateral_none,
       anchor_depth: 0,
+      source_types: *any_type,
+      target_types: *any_type,
     }
   - {
       id: blocks,
@@ -183,6 +431,8 @@ relation_types:
       person_anchor: false,
       propagation_class: lateral_none,
       anchor_depth: 0,
+      source_types: *any_type,
+      target_types: *any_type,
     }
   - {
       id: released_by,
@@ -190,6 +440,9 @@ relation_types:
       person_anchor: true,
       propagation_class: authority_one_hop_up,
       anchor_depth: 1,
+      source_types: *any_type,
+      target_types:
+        [release, person, organization, role_assignment, decision_record, change_record],
     }
   - {
       id: baseline_contains,
@@ -197,6 +450,8 @@ relation_types:
       person_anchor: false,
       propagation_class: composition_down,
       anchor_depth: 8,
+      source_types: [baseline, release],
+      target_types: *any_type,
     }
   - {
       id: performed_by,
@@ -204,6 +459,8 @@ relation_types:
       person_anchor: true,
       propagation_class: authority_one_hop_up,
       anchor_depth: 1,
+      source_types: [work_execution, test_execution, work_package, warrant, acceptance_record],
+      target_types: *agent_type,
     }
   - {
       id: owned_by,
@@ -211,6 +468,8 @@ relation_types:
       person_anchor: true,
       propagation_class: authority_one_hop_up,
       anchor_depth: 1,
+      source_types: *any_type,
+      target_types: *agent_type,
     }
   - {
       id: linked_to,
@@ -219,6 +478,8 @@ relation_types:
       person_anchor: false,
       propagation_class: lateral_none,
       anchor_depth: 0,
+      source_types: *any_type,
+      target_types: *any_type,
     }
   - {
       id: amends,
@@ -227,6 +488,8 @@ relation_types:
       person_anchor: false,
       propagation_class: version_both,
       anchor_depth: 8,
+      source_types: *any_type,
+      target_types: *any_type,
     }
   - {
       id: extends,
@@ -235,6 +498,24 @@ relation_types:
       person_anchor: false,
       propagation_class: version_both,
       anchor_depth: 8,
+      source_types:
+        [
+          decision_record,
+          controlled_document,
+          document_composition,
+          authored_fragment,
+          requirement,
+          interface_contract,
+        ],
+      target_types:
+        [
+          decision_record,
+          controlled_document,
+          document_composition,
+          authored_fragment,
+          requirement,
+          interface_contract,
+        ],
     }
   - {
       id: generated_by,
@@ -242,6 +523,8 @@ relation_types:
       person_anchor: true,
       propagation_class: provenance_backward,
       anchor_depth: 8,
+      source_types: *any_type,
+      target_types: *any_type,
     }
   - {
       id: used,
@@ -249,6 +532,8 @@ relation_types:
       person_anchor: true,
       propagation_class: provenance_backward,
       anchor_depth: 8,
+      source_types: *any_type,
+      target_types: *any_type,
     }
   - {
       id: was_associated_with,
@@ -256,6 +541,8 @@ relation_types:
       person_anchor: false,
       propagation_class: lateral_none,
       anchor_depth: 0,
+      source_types: *any_type,
+      target_types: *agent_type,
     }
   # ── Gate 6 ──────────────────────────────────────────────────────────────────────────────
   - {
@@ -264,6 +551,8 @@ relation_types:
       person_anchor: false,
       propagation_class: lateral_none,
       anchor_depth: 0,
+      source_types: [configuration_item, physical_binding, product_system],
+      target_types: [interface_contract, controlled_document, requirement],
     }
   - {
       id: bound_to,
@@ -271,6 +560,8 @@ relation_types:
       person_anchor: false,
       propagation_class: lateral_none,
       anchor_depth: 0,
+      source_types: [physical_binding],
+      target_types: [configuration_item, interface_contract, physical_binding],
     }
   - {
       id: supplied_by,
@@ -278,6 +569,17 @@ relation_types:
       person_anchor: true,
       propagation_class: composition_down,
       anchor_depth: 8,
+      source_types:
+        [
+          configuration_item,
+          physical_binding,
+          artifact,
+          equipment,
+          product_system,
+          person,
+          organization,
+        ],
+      target_types: [supplier, organization],
     }
   - {
       id: calibrated_with,
@@ -285,6 +587,8 @@ relation_types:
       person_anchor: false,
       propagation_class: lateral_none,
       anchor_depth: 0,
+      source_types: [equipment, test_execution],
+      target_types: [equipment, artifact, controlled_document],
     }
   - {
       id: raised_against,
@@ -292,6 +596,8 @@ relation_types:
       person_anchor: true,
       propagation_class: authority_one_hop_up,
       anchor_depth: 1,
+      source_types: [nonconformity, complaint, capa],
+      target_types: *any_type,
     }
   - {
       id: remediated_by,
@@ -299,6 +605,8 @@ relation_types:
       person_anchor: true,
       propagation_class: provenance_backward,
       anchor_depth: 8,
+      source_types: [nonconformity, complaint, risk],
+      target_types: [capa, change_record, risk_control, work_package],
     }
   # ADR 0034 (proposed): what an observation is about. Source is the observation, target the
   # record it concerns. Lateral: being mentioned in an observation does not make a record
@@ -309,4 +617,6 @@ relation_types:
       person_anchor: false,
       propagation_class: lateral_none,
       anchor_depth: 0,
+      source_types: [observation],
+      target_types: *any_type,
     }

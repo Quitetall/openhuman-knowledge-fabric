@@ -53,10 +53,11 @@ describe('the real ontology is clean', () => {
   });
 
   it('raises only the expected KIND of warning', () => {
-    // ONT-012 counts relations still missing edge typing; ONT-009 flags actions that drive
-    // no lifecycle. Any other warning means something new appeared unreviewed.
+    // ONT-009 flags actions that drive no lifecycle. ONT-012 was the other kind until draft.8,
+    // counting untyped relations; every relation now declares both ends and a missing one is an
+    // error. Any other warning means something new appeared unreviewed.
     const kinds = [...new Set(checkOntology(base).map((f) => f.rule))].sort();
-    expect(kinds).toEqual(['ONT-009', 'ONT-012']);
+    expect(kinds).toEqual(['ONT-009']);
   });
 });
 
@@ -397,6 +398,15 @@ describe('planted violations are detected', () => {
         (o.relationTypes as Mutable<Ontology['relationTypes'][number]>[])[0]!.sourceTypes = [
           'spacecraft',
         ];
+        return o;
+      }),
+    ).toContain('ONT-012');
+  });
+
+  it('ONT-012 a relation that does not declare an end, which nothing would constrain', () => {
+    expect(
+      errorsFor((o) => {
+        delete (o.relationTypes[0] as { sourceTypes?: unknown }).sourceTypes;
         return o;
       }),
     ).toContain('ONT-012');

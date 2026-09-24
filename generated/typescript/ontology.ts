@@ -1,11 +1,11 @@
 // GENERATED from ontology/ — do not edit.
 // ontology_version: 1.2.0-draft.1
-// source_digest: 904be1e72a41e99c040dca316b146c9708cf981ac678db2e4b6295ef59954ac0
+// source_digest: 5b2025426f53e1417aad9d374aac0f6cc2b9603a9a0e0f35beb348af173a26a5
 
 /* eslint-disable */
 
 export const SCHEMA_VERSION = '1.2.0-draft.1' as const;
-export const ONTOLOGY_SOURCE_DIGEST = '904be1e72a41e99c040dca316b146c9708cf981ac678db2e4b6295ef59954ac0' as const;
+export const ONTOLOGY_SOURCE_DIGEST = '5b2025426f53e1417aad9d374aac0f6cc2b9603a9a0e0f35beb348af173a26a5' as const;
 
 export const CLASSIFICATIONS = ['public', 'internal', 'confidential', 'restricted'] as const;
 export type Classifications = (typeof CLASSIFICATIONS)[number];

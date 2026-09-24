@@ -51,13 +51,23 @@ spec §1.2 makes a contradiction between prose and machine artifacts release-blo
 **R01 should not be approved as issued.** These five corrections belong in the pack before
 it becomes normative.
 
-## Known gap — edge typing
+## Edge typing
 
-The R01 pack does not declare `source_types` / `target_types` on relations, so nothing
-currently stops an edge connecting two objects that have no business being connected. Every
-relation raises **ONT-012** at warning severity, so the gap is counted on every run
-rather than living in a comment. Typing lands in Gate 6, alongside the object-type
-extension where the full inventory is known.
+Every relation in `relation-types.yaml` declares `source_types` and `target_types` (SAS §100.2,
+closed in draft.8). The seed mirrors them into `registry.relation_type_endpoint`, and
+`core.relation`'s endpoint trigger (`20260925030300`) refuses an edge whose source or target type
+is not declared for its end — against seeded data, so the ontology stays the authority. A relation
+that omits either end is an ONT-012 **error**; it was a warning, counted on every run, while R01's
+relations were untyped.
+
+The generic relations (`linked_to`, `supersedes`, `derived_from`, `depends_on` and the PROV
+relations) admit any type at both ends, written as the YAML anchor `*any_type` so the breadth is
+declared rather than implied. `supersedes` in particular admits a pair of different types; a
+same-type rule is not expressible in this grammar yet.
+
+This narrows R01, which admitted every pair. `tests/conformance/edge-typing.test.ts` holds the
+narrowing to two conditions — no R01 edge carried typing to be redefined, and every edge of R01's
+own example graph is admitted — and the r01-golden comparison strips the typing only under them.
 
 ## Every type is created by an act
 

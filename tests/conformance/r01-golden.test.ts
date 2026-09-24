@@ -457,7 +457,21 @@ const WIDENABLE_ENUMS = [
 // stripped only for the R01 byte-preservation comparison below; the ontology compiler and its
 // registry checks validate the metadata itself, so adding it cannot redefine the pinned edge
 // semantics while still letting the compiler read one authoritative policy.
-const RELATION_POLICY_FIELDS = new Set(['person_anchor', 'propagation_class', 'anchor_depth']);
+//
+// Endpoint typing (`source_types`, `target_types`, SAS §100.2) is stripped for the same comparison
+// and for a reason that has to be stated, because unlike relevance policy it NARROWS: R01 declared
+// no endpoints on any edge, so every pair was admissible, and typing refuses some. That is a
+// declared tightening of R01 edge semantics, not a silent one, and it is held to two conditions in
+// `tests/conformance/edge-typing.test.ts`: no R01 edge carried endpoint typing to be redefined, and
+// R01's own example graph — every edge of it — still satisfies the typing. It is also one of the
+// changes the pack owner signs when the pack is re-cut.
+const RELATION_POLICY_FIELDS = new Set([
+  'person_anchor',
+  'propagation_class',
+  'anchor_depth',
+  'source_types',
+  'target_types',
+]);
 
 function withoutRelationPolicy(value: Json): Json {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return value;

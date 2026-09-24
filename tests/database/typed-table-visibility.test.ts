@@ -184,6 +184,8 @@ describe('typed rows are visible exactly when their record is', () => {
       'registry.object_state',
       'registry.object_type',
       'registry.relation_type',
+      // Seeded ontology data (SAS §100.2): which types each relation may connect.
+      'registry.relation_type_endpoint',
       'registry.retention_class',
       'registry.rule_definition',
       'registry.schema_release',
