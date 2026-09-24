@@ -14,6 +14,13 @@
  * A service actor can never be linked to a login (the database refuses it) and can never
  * perform a `requires: act` action (the dispatcher refuses it): it does routine work under
  * authority somebody else granted, and nothing institutional.
+ *
+ * Its role assignment is a DELEGATION (`delegated_by` is the decider), so the database holds it
+ * to depth one: a decider who holds that role only through a delegation of their own is refused
+ * (ADR 0036). And like every new assignment it ends: `--valid-to`, at most 366 days away, one
+ * year by default — ADR 0020 already said a service actor's assignment "has a `valid_to` like any
+ * other". Renewal is `kf:grant-authority --person <the actor> --renew`, whose new assignment id
+ * replaces `KF_STORAGE_ROLE`.
  */
 
 import { createHash, randomUUID } from 'node:crypto';
@@ -27,6 +34,7 @@ import {
   type Tx,
 } from '@kf/database';
 import { createControlledObject } from '@kf/record-atoms';
+import { resolveAssignmentEnd } from './assignment-end.js';
 
 export interface DeclareServiceActorRequest {
   readonly organizationId?: string;
@@ -35,12 +43,21 @@ export interface DeclareServiceActorRequest {
   readonly classification?: string;
   readonly declaredBy?: string;
   readonly reason?: string;
+  /** When the role assignment ends. Omitted, one year from the run (ADR 0036). */
+  readonly validTo?: string;
+}
+
+/** What a plan resolves to: every field stated, and the assignment's end as an instant. */
+export interface ServiceActorDeclaration extends Required<
+  Omit<DeclareServiceActorRequest, 'validTo'>
+> {
+  readonly validTo: Date;
 }
 
 export interface DeclareServiceActorPlan {
   readonly ok: boolean;
   readonly refusals: readonly string[];
-  readonly declaration?: Required<DeclareServiceActorRequest>;
+  readonly declaration?: ServiceActorDeclaration;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -48,6 +65,7 @@ const NAME = /^[a-z][a-z0-9-]{2,63}$/;
 
 export function planDeclareServiceActor(
   request: DeclareServiceActorRequest,
+  now: Date = new Date(),
 ): DeclareServiceActorPlan {
   const refusals: string[] = [];
   if (request.organizationId === undefined || !UUID.test(request.organizationId)) {
@@ -68,11 +86,14 @@ export function planDeclareServiceActor(
   if (request.reason === undefined || request.reason.trim() === '') {
     refusals.push('--reason is required: a principal that acts unattended needs a stated why');
   }
-  if (refusals.length > 0) return { ok: false, refusals };
+  const end = resolveAssignmentEnd(request.validTo, now);
+  if (!end.ok) refusals.push(end.refusal);
+  if (refusals.length > 0 || !end.ok) return { ok: false, refusals };
   return {
     ok: true,
     refusals: [],
     declaration: {
+      validTo: end.validTo,
       organizationId: request.organizationId!,
       name: request.name!,
       roleId: request.roleId!.trim(),
@@ -100,6 +121,7 @@ export function parseDeclareServiceActorArgs(argv: readonly string[]): DeclareSe
     ...(out['classification'] === undefined ? {} : { classification: out['classification'] }),
     ...(out['declared-by'] === undefined ? {} : { declaredBy: out['declared-by'] }),
     ...(out['reason'] === undefined ? {} : { reason: out['reason'] }),
+    ...(out['valid-to'] === undefined ? {} : { validTo: out['valid-to'] }),
   };
 }
 
@@ -109,12 +131,14 @@ export interface DeclareServiceActorResult {
   readonly clearanceId: string;
   readonly actionId: string;
   readonly reused: boolean;
+  /** When the role assignment ends; null only for one declared before ADR 0036. */
+  readonly roleAssignmentValidTo: Date | null;
 }
 
 /** Declare (or find already declared) the service actor; idempotent on (organization, name). */
 export async function runDeclareServiceActor(
   owner: Pool,
-  declaration: Required<DeclareServiceActorRequest>,
+  declaration: ServiceActorDeclaration,
 ): Promise<DeclareServiceActorResult> {
   return withTransaction(owner, async (tx: Tx) => {
     await setAccessContext(tx, {
@@ -154,8 +178,12 @@ export async function runDeclareServiceActor(
       // Reuse means "the same declaration": a LIVE role assignment for the requested role and
       // a live clearance at the requested ceiling. A different role or ceiling under the same
       // name is a different declaration, refused rather than silently answered with the old one.
-      const assignment = await tx.maybeOne<{ id: string; role_id: string }>(
-        `select id, role_id from org.role_assignment
+      const assignment = await tx.maybeOne<{
+        id: string;
+        role_id: string;
+        valid_to: Date | null;
+      }>(
+        `select id, role_id, valid_to from org.role_assignment
           where subject_id = $1 and scope_id = $2
             and valid_from <= now() and (valid_to is null or valid_to > now())
           order by valid_from desc limit 1`,
@@ -193,6 +221,7 @@ export async function runDeclareServiceActor(
         clearanceId: clearance.id,
         actionId: clearance.granted_by_action,
         reused: true,
+        roleAssignmentValidTo: assignment.valid_to === null ? null : new Date(assignment.valid_to),
       };
     }
 
@@ -227,14 +256,15 @@ export async function runDeclareServiceActor(
       createdBy: declaration.declaredBy,
     });
     await tx.query(
-      `insert into org.role_assignment (id, subject_id, role_id, scope_id, delegated_by)
-       values ($1, $2, $3, $4, $5)`,
+      `insert into org.role_assignment (id, subject_id, role_id, scope_id, delegated_by, valid_to)
+       values ($1, $2, $3, $4, $5, $6)`,
       [
         roleAssignmentId,
         personId,
         declaration.roleId,
         declaration.organizationId,
         declaration.declaredBy,
+        declaration.validTo.toISOString(),
       ],
     );
     const requestDigest = createHash('sha256')
@@ -295,6 +325,13 @@ export async function runDeclareServiceActor(
       grantedByAction: actionId,
       reason: declaration.reason,
     });
-    return { personId, roleAssignmentId, clearanceId, actionId, reused: false };
+    return {
+      personId,
+      roleAssignmentId,
+      clearanceId,
+      actionId,
+      reused: false,
+      roleAssignmentValidTo: declaration.validTo,
+    };
   });
 }

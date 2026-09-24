@@ -9,6 +9,9 @@ import {
   classificationFrom,
 } from '@kf/record-atoms';
 import {
+  documentAtomPreimage,
+  documentConversionLossPreimage,
+  documentProjectionPreimage,
   DocumentParseIntegrityError,
   validateParsedDocument,
   type DocumentParser,
@@ -123,12 +126,12 @@ export function createEvidenceActions(options: {
     if (parserResult === undefined) return;
     const parsed = validateParsedDocument(parserResult, sourceBytes);
     const atomClaims = parsed.atoms.map(({ digest: _digest, ...claim }) => claim);
-    const lossPreimage = canonicalize(parsed.conversionLoss);
-    const projectionPreimage = canonicalize({
-      projectionContract: parsed.projectionContract,
-      atoms: atomClaims,
-      conversionLoss: parsed.conversionLoss,
-    });
+    // kf-document-parse-v2 preimages, each carrying its tag. The row's digest_format is left to
+    // the database, which sets it and checks these shapes under it (20260925114000).
+    const lossPreimage = canonicalize(documentConversionLossPreimage(parsed.conversionLoss));
+    const projectionPreimage = canonicalize(
+      documentProjectionPreimage(parsed.projectionContract, atomClaims, parsed.conversionLoss),
+    );
     const parse = await tx.one<{ id: string }>(
       `insert into content.document_parse
          (artifact_version_id, parser, parser_version, projection_contract, conversion_loss,
@@ -165,13 +168,7 @@ export function createEvidenceActions(options: {
           atom.text,
           JSON.stringify(atom.attributes),
           atom.digest,
-          canonicalize({
-            ordinal: atom.ordinal,
-            kind: atom.kind,
-            level: atom.level,
-            text: atom.text,
-            attributes: atom.attributes,
-          }),
+          canonicalize(documentAtomPreimage(atom)),
         ],
       );
     }

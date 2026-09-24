@@ -1,9 +1,12 @@
 import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { OBJECT_HISTORY_SQL } from '@kf/actions';
 import { setResolvedAccessContext, withTransaction } from '@kf/database';
 import {
   assertPermissionSetInvariant,
+  CURRENT_MASTER_RECORD_MEMBER_FORMAT,
   enumeratePermittedSet,
+  masterRecordMemberFormat,
   enumerateRelevanceGraph,
   latestMasterRecord,
   type MasterRecordManifest,
@@ -81,7 +84,20 @@ async function serveObjectView(
     // link. (The fixture workflow, 2026-09-11, found every view answering 409 after any
     // corpus change with no way forward; the POST is that way forward.)
     let record = await latestMasterRecord(tx, identity.actorId, identity.organizationId);
-    let permitted = await enumeratePermittedSet(tx, identity.actorId, identity.organizationId);
+    // Under the member format the claim RECORDED (KF-SAS-RQ-016); with no claim yet, the
+    // current one, which is what a compilation will write.
+    const permittedFor = (
+      claim: Record<string, unknown> | undefined,
+    ): ReturnType<typeof enumeratePermittedSet> =>
+      enumeratePermittedSet(
+        tx,
+        identity.actorId,
+        identity.organizationId,
+        claim === undefined
+          ? CURRENT_MASTER_RECORD_MEMBER_FORMAT
+          : masterRecordMemberFormat(claim['manifest']),
+      );
+    let permitted = await permittedFor(record);
     const current = (claim: Record<string, unknown> | undefined): boolean => {
       if (claim === undefined) return false;
       const m = claim['manifest'] as MasterRecordManifest;
@@ -130,7 +146,7 @@ async function serveObjectView(
         throw error;
       }
       record = await latestMasterRecord(tx, identity.actorId, identity.organizationId);
-      permitted = await enumeratePermittedSet(tx, identity.actorId, identity.organizationId);
+      permitted = await permittedFor(record);
       if (!current(record)) return answer(409, { error: 'master_record_stale' });
     }
     if (record === undefined) return answer(404, { error: 'master_record_not_found' });
@@ -166,15 +182,9 @@ async function serveObjectView(
       throw error;
     }
 
-    const history = await tx.query<Record<string, unknown>>(
-      `select e.seq, e.action_type, e.actor_id, e.acting_role_id, e.recorded_at,
-              e.effective_at, e.reason, e.digest
-         from core.audit_event e
-        where e.object_id = $1 or $1 = any(
-                select unnest(a.target_ids) from core.action a where a.id = e.action_id)
-        order by e.seq`,
-      [request.params.id],
-    );
+    const history = await tx.query<Record<string, unknown>>(OBJECT_HISTORY_SQL, [
+      request.params.id,
+    ]);
     const subject = result.sections[0]?.members[0];
     const transitions =
       subject === undefined

@@ -32,6 +32,12 @@ export interface Caller {
    * transaction the request opens binds with it; without it the application login binds nobody.
    */
   readonly attestation?: string | undefined;
+  /**
+   * The declared agent client acting for this person (ADR 0035), when the token was obtained by
+   * token exchange. For logs and answers only: `core.action.agent_participation` is written by
+   * the database from the attestation, and nothing the API passes can set it.
+   */
+  readonly agent?: string | undefined;
 }
 
 export interface ActionRoutesOptions {
@@ -69,7 +75,15 @@ export interface ActionRoutesOptions {
   readonly effectiveAtBounds?: EffectiveAtBounds;
 }
 
-export type IdentifyCaller = (request: { headers: Record<string, unknown> }) => Promise<Caller>;
+export type IdentifyCaller = (request: {
+  headers: Record<string, unknown>;
+  /**
+   * With no `x-kf-acting-role`, act under the caller's ONLY live assignment in the organization
+   * rather than refusing (ADR 0034 §2). Several, or none, is still refused — as
+   * `assignment_ambiguous` listing them, or `no_live_assignment`. The capture route alone asks.
+   */
+  deriveAssignment?: boolean;
+}) => Promise<Caller>;
 
 export interface ActionRequestBody {
   readonly targetIds?: string[];

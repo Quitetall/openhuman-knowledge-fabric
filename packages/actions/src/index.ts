@@ -12,6 +12,7 @@
 export {
   ActionRejected,
   DEFAULT_REASON_REQUIRED,
+  DEFAULT_SEPARATION_OF_DUTY,
   MINIMUM_REASON_LENGTH,
   type ActionDispatcher,
   type ActionEffect,
@@ -35,6 +36,9 @@ export { appendAuditEvent, type AuditChainEntry } from './internal/audit.js';
 export { assertMeaningfulReason, createTransactionalPreflight } from './internal/authority.js';
 export { createDispatcher, createTransactionalDispatcher } from './internal/dispatcher.js';
 export { semanticActionRequestDigest } from './internal/idempotency.js';
+export { ACTION_STATE_FORMAT, actionStateDigest } from './internal/state.js';
+export { asActionRefusal } from './internal/refusals.js';
+export { OBJECT_HISTORY_SQL, type ObjectHistoryRow } from './internal/history.js';
 
 export const PACKAGE = {
   name: '@kf/actions',

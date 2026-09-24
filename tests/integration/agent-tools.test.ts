@@ -210,6 +210,91 @@ describe('scope: an agent sees what its principal sees', () => {
 });
 
 /**
+ * Row-level security says what a principal is CLEARED for; a live grant says what they may READ
+ * (ADR 0027, KF-SAS-RQ-039). An agent reads as its principal, so a principal cleared for
+ * everything and granted one project reads that project and nothing else — no title, no history,
+ * no hit, no edge, no verification, not even that the record exists.
+ */
+describe('scope: an agent reads only what a grant reaches', () => {
+  let outsider: AgentScope;
+  let project: string;
+
+  beforeAll(async () => {
+    const person = await createObject(h.adminPool, f, {
+      type: 'person',
+      domain: 'organization',
+      state: 'active',
+      title: 'Cleared, granted one project',
+      createdBy: f.reviewerId,
+    });
+    project = await createObject(h.adminPool, f, {
+      type: 'initiative_project',
+      domain: 'project',
+      state: 'captured',
+      title: 'The resistor project the outsider works on',
+      createdBy: f.reviewerId,
+    });
+    const role = await createObject(h.adminPool, f, {
+      type: 'role_assignment',
+      domain: 'organization',
+      state: 'active',
+      title: 'performer on one project',
+      createdBy: f.reviewerId,
+    });
+    await withTransaction(h.adminPool, async (tx) => {
+      await bindContext(tx, f, f.reviewerId);
+      await tx.query('insert into org.person (id, display_name, organization) values ($1,$2,$3)', [
+        person,
+        'Cleared, granted one project',
+        f.organizationId,
+      ]);
+      await tx.query(
+        `insert into org.person_clearance
+           (subject_id, organization_id, max_classification, granted_by, granted_by_action, reason)
+         values ($1, $2, 'restricted', $3, $4, 'cleared for everything, granted one project')`,
+        [person, f.organizationId, f.reviewerId, f.clearanceActionId],
+      );
+      await tx.query(
+        "insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to) values ($1,$2,$3,$4,now() + interval '1 year')",
+        [role, person, 'performer', project],
+      );
+      await indexObject(tx, project);
+    });
+    outsider = {
+      organizationId: f.organizationId,
+      maxClassification: 'restricted',
+      actorId: person,
+      actingRoleId: role,
+    };
+  }, 60_000);
+
+  it('reads the granted project', async () => {
+    expect((await readRecord(h.pool, outsider, project))?.title).toBe(
+      'The resistor project the outsider works on',
+    );
+    const hits = await findRecords(h.pool, outsider, { text: 'resistor' });
+    expect(hits.map((x) => x.objectId)).toEqual([project]);
+  });
+
+  it('learns nothing about a record it is cleared for but not granted', async () => {
+    // Not vacuous: the fixture reviewer, whose grant is organization-wide, reads all of it.
+    expect(await readRecord(h.pool, scope(), decision)).toBeDefined();
+    expect((await traceRelations(h.pool, scope(), successor)).length).toBeGreaterThan(0);
+
+    expect(await readRecord(h.pool, outsider, decision)).toBeUndefined();
+    expect(await readHistory(h.pool, outsider, decision)).toEqual([]);
+    expect(await availableActions(h.pool, outsider, successor)).toEqual([]);
+    expect(await traceRelations(h.pool, outsider, successor)).toEqual([]);
+    expect(await verificationOf(h.pool, outsider, decision)).toBeUndefined();
+    expect(await externalCitations(h.pool, outsider, decision)).toEqual([]);
+    expect(await evidenceFor(h.pool, outsider, decision)).toEqual([]);
+    const hits = await findRecords(h.pool, outsider, { text: 'resistor' });
+    expect(hits.map((x) => x.objectId)).not.toContain(decision);
+    expect(hits.map((x) => x.objectId)).not.toContain(successor);
+  });
+});
+
+/**
  * An agent's context says a record is unverified in the words a person's page uses
  * (KF-SAS-RQ-229): every read that returns a record carries its verification. And a record the
  * principal cannot see contributes nothing — not even the fact that somebody checked it.

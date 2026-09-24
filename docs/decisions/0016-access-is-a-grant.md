@@ -11,6 +11,16 @@ answered
 > **UPDATED 2026-09-24.** The `requires: act` rule below is now also enforced by the database: a
 > trigger on `core.action` asks `org.act_grant_reaches` the dispatcher's question and refuses a
 > service actor outright (`20260924000100_the_database_checks_act_authority.sql`).
+>
+> **UPDATED 2026-09-25.** The explanation now walks every bar the dispatcher applies, not only the
+> grant path (KF-SAS-RQ-042). A `principal_kind` step follows organization membership: for `act`
+> it fails for a service actor (ADR 0020), whatever grants reach it, and the explanation then
+> ends `deniedBy: 'service_actor'` — the fact that decided, not the name of the question. Given
+> an action type (`explainAccess({ actionType })`, `GET /objects/:id/access?capability=act&action=`),
+> a `separation_of_duty` step follows grant coverage wherever the dispatcher's separation-of-duty
+> rule covers that action and the object's type, and fails when the person created the record
+> (`deniedBy: 'separation_of_duty'`). For `read` the principal-kind step passes: a service actor
+> reads like anyone.
 
 ## The problem, measured
 

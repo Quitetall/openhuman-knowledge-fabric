@@ -26,6 +26,7 @@ import {
   type Caller,
   type CallerRequest,
   type IdentityFailure,
+  type LiveAssignment,
   type TokenVerifier,
 } from './identity.js';
 
@@ -61,6 +62,9 @@ const IDENTITY_FAILURES: ReadonlySet<IdentityFailure> = new Set<IdentityFailure>
   'role_not_held',
   'classification_not_granted',
   'no_role_requested',
+  'assignment_ambiguous',
+  'no_live_assignment',
+  'undeclared_agent',
 ]);
 
 /** Read a request body as the attestor accepts it, or undefined for anything else. */
@@ -81,7 +85,38 @@ export function parseAttestorRequest(body: unknown): CallerRequest | undefined {
   ) {
     return undefined;
   }
-  return { token, actingRoleId, organizationId, maxClassification };
+  const derive = record['deriveAssignment'];
+  if (derive !== undefined && typeof derive !== 'boolean') return undefined;
+  return {
+    token,
+    actingRoleId,
+    organizationId,
+    maxClassification,
+    ...(derive === true ? { deriveAssignment: true } : {}),
+  };
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The assignments a refusal listed, or undefined for anything that is not such a list. */
+function decodeAssignments(value: unknown): LiveAssignment[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const out: LiveAssignment[] = [];
+  for (const item of value) {
+    if (typeof item !== 'object' || item === null) return undefined;
+    const a = item as Record<string, unknown>;
+    if (
+      typeof a['assignmentId'] !== 'string' ||
+      !UUID.test(a['assignmentId']) ||
+      typeof a['roleId'] !== 'string' ||
+      typeof a['scopeId'] !== 'string' ||
+      !UUID.test(a['scopeId'])
+    ) {
+      return undefined;
+    }
+    out.push({ assignmentId: a['assignmentId'], roleId: a['roleId'], scopeId: a['scopeId'] });
+  }
+  return out;
 }
 
 /** A caller as it crosses the socket: dates as ISO strings, absent values as null. */
@@ -93,6 +128,7 @@ export function encodeAttestedCaller(caller: Caller): Record<string, unknown> {
     maxClassification: caller.maxClassification,
     subject: caller.subject,
     attestation: caller.attestation ?? null,
+    agent: caller.agent ?? null,
     authentication: {
       authenticatedAt: caller.authentication.authenticatedAt?.toISOString() ?? null,
       assuranceLevel: caller.authentication.assuranceLevel ?? null,
@@ -118,6 +154,11 @@ function decodeAttestedCaller(body: unknown): Caller {
   if (!Array.isArray(methods) || !methods.every((m) => typeof m === 'string')) return refuse();
   const attestation = text('attestation');
   if (!/^[0-9a-f]{64}$/.test(attestation)) return refuse();
+  // Absent from an attestor older than ADR 0035, null for a person's own token.
+  const agent = record['agent'];
+  if (agent !== undefined && agent !== null && (typeof agent !== 'string' || agent === '')) {
+    return refuse();
+  }
   return {
     actorId: text('actorId'),
     actingRoleId: text('actingRoleId'),
@@ -125,6 +166,7 @@ function decodeAttestedCaller(body: unknown): Caller {
     maxClassification: text('maxClassification'),
     subject: text('subject'),
     attestation,
+    ...(typeof agent === 'string' ? { agent } : {}),
     authentication: {
       authenticatedAt: typeof at === 'string' ? new Date(at) : undefined,
       assuranceLevel: typeof level === 'string' ? level : undefined,
@@ -138,7 +180,14 @@ export function encodeRefusal(err: IdentityRejected): {
   status: number;
   body: Record<string, unknown>;
 } {
-  return { status: 401, body: { failure: err.failure, message: err.message } };
+  return {
+    status: 401,
+    body: {
+      failure: err.failure,
+      message: err.message,
+      ...(err.assignments === undefined ? {} : { assignments: err.assignments }),
+    },
+  };
 }
 
 /**
@@ -213,7 +262,7 @@ export class SocketAttestor implements Attestor {
     if (request.token.trim() === '') {
       throw new IdentityRejected('no_token', 'no bearer token was supplied');
     }
-    if (request.actingRoleId.trim() === '') {
+    if (request.actingRoleId.trim() === '' && request.deriveAssignment !== true) {
       throw new IdentityRejected(
         'no_role_requested',
         'the acting role must be stated; holding a role is not the same as acting under it',
@@ -228,6 +277,9 @@ export class SocketAttestor implements Attestor {
         throw new IdentityRejected(
           failure as IdentityFailure,
           typeof message === 'string' ? message : 'identity rejected',
+          failure === 'assignment_ambiguous'
+            ? decodeAssignments((body as Record<string, unknown>)['assignments'])
+            : undefined,
         );
       }
     }

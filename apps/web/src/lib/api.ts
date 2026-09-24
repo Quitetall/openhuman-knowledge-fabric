@@ -8,6 +8,13 @@
 export { ApiError, get } from './api/client';
 export type { Caller, Decoder } from './api/client';
 export { act, addDocument, getOperationalReadiness } from './api/operations';
+export {
+  captureInputFromForm,
+  captureObservation,
+  captureRequestBody,
+  parseCaptureOutcome,
+} from './api/capture';
+export type { CaptureInput, CaptureOutcome } from './api/capture';
 export type {
   ActionOutcome,
   AddDocumentInput,
@@ -68,5 +75,21 @@ export type {
 } from './api/document-proposal';
 export type { DocumentProposalOutcome } from './api/document-operations';
 export type { MetricPanel, MetricView } from './api/metrics';
-export { getSearchResults, parseSearchResponse } from './api/search';
-export type { SearchHit, SearchRequest, SearchResponse } from './api/search';
+export {
+  getOwnRecordedQueries,
+  getSearchResults,
+  parseSearchResponse,
+  replayOrganizationDemand,
+  replayRecordedQuery,
+} from './api/search';
+export type {
+  DemandedRecord,
+  DemandReplay,
+  OwnRecordedQuery,
+  RecordedQueryReplay,
+  SearchHit,
+  SearchRequest,
+  SearchResponse,
+  SemanticSearchHit,
+  WithholdingNote,
+} from './api/search';

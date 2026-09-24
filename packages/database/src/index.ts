@@ -433,15 +433,23 @@ export async function issueAttestation(
   tx: Tx,
   principal: Principal,
   tokenExpiry?: Date,
+  delegation: {
+    /** The token's `act.client_id`: the agent acting for the person (ADR 0035). */
+    readonly agentClientId?: string | undefined;
+    /** The token's `azp`, so the database can refuse a declared agent's token without `act`. */
+    readonly authorizedParty?: string | undefined;
+  } = {},
 ): Promise<string> {
   const row = await tx.one<{ attestation: string }>(
-    'select core.issue_attestation($1, $2, $3, $4, $5) as attestation',
+    'select core.issue_attestation($1, $2, $3, $4, $5, $6, $7) as attestation',
     [
       principal.actorId,
       principal.actingRoleId,
       principal.organizationId,
       principal.maxClassification,
       tokenExpiry ?? null,
+      delegation.agentClientId ?? null,
+      delegation.authorizedParty ?? null,
     ],
   );
   return row.attestation;

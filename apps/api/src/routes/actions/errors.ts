@@ -1,4 +1,4 @@
-import { ActionRejected, type ActionFailure } from '@kf/actions';
+import { ActionRejected, asActionRefusal, type ActionFailure } from '@kf/actions';
 import { DocumentParseRefused } from '@kf/documents';
 
 /** How each refusal maps to a status code. */
@@ -18,22 +18,6 @@ const STATUS: Record<ActionFailure, number> = {
   precondition_failed: 422,
   reason_required: 400,
 };
-
-/**
- * Recognise a named invariant refused by a database trigger.
- *
- * The triggers raise `check_violation` with a message beginning with the rule id, so the rule
- * is identified from the raised text rather than from which statement happened to fail. Only
- * `check_violation` qualifies: a message that merely mentions a rule id is not a refusal by
- * that rule.
- */
-function ruleViolation(err: unknown): { id: string; message: string } | undefined {
-  if (typeof err !== 'object' || err === null) return undefined;
-  const e = err as { code?: string; message?: string };
-  if (e.code !== '23514' || typeof e.message !== 'string') return undefined;
-  const match = /^(KF-[A-Z]+-\d+):/.exec(e.message);
-  return match === null ? undefined : { id: match[1]!, message: e.message };
-}
 
 /**
  * A source the parser declined — too slow, too much memory, too much output, or unparseable.
@@ -56,28 +40,20 @@ export function actionRejectionBody(err: unknown):
       readonly body: Record<string, unknown>;
     }
   | undefined {
-  if (err instanceof ActionRejected) {
+  // The dispatcher already turns a payload refusal and a trigger-raised rule violation into an
+  // ActionRejected, so every surface gets the same refusal (RQ-012). Applied again here only
+  // for an error that reached the route by some other path — a deferred check at commit in a
+  // route that owns its transaction — and it returns anything else unchanged: a fault stays a
+  // 500 that names nothing but a correlation id.
+  const refusal = asActionRefusal(err);
+  if (refusal instanceof ActionRejected) {
     return {
-      status: STATUS[err.failure] ?? 422,
-      body: { error: err.failure, message: err.message, detail: err.detail },
+      status: STATUS[refusal.failure] ?? 422,
+      body: { error: refusal.failure, message: refusal.message, detail: refusal.detail },
     };
   }
   if (err instanceof DocumentParseRefused) {
     return { status: 422, body: documentParseRefusalBody(err) };
   }
-  // A financial invariant refused by its TRIGGER rather than by its precondition. Both
-  // layers guard the same rules on purpose, and under concurrency the database is the
-  // one that wins — two acceptances can each pass the application check and only one
-  // survive the row lock. That is the control working, so it must reach the caller as a
-  // refusal they can act on, not as a 500 they retry forever.
-  const rule = ruleViolation(err);
-  if (rule === undefined) return undefined;
-  return {
-    status: 422,
-    body: {
-      error: 'precondition_failed',
-      message: rule.message,
-      detail: { rule: rule.id, enforcedBy: 'database' },
-    },
-  };
+  return undefined;
 }

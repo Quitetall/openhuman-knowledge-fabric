@@ -50,7 +50,18 @@ Functional now:
   `record_document_proposal` action, with exact target, row-version, revision, current Holder,
   Basis id, and Basis digest preconditions
 - `GET /search` for classification-aware canonical search; the API limits results to the selected
-  organization and caller classification ceiling before returning them
+  organization and caller classification ceiling before returning them. `/search` renders the
+  composed answer (KF-SAS-RQ-224): the lexical and semantic lists apart, each under its ranking's
+  name; near misses only when the reader ticks for them, labelled with their scoring function
+  (RQ-217); the withheld count as one sentence in ADR 0037's terms; and why the semantic ranking is
+  missing when the engine could not rank (RQ-216)
+- `GET /search/recorded-queries` and `POST /search/recorded-queries/:id/replay` behind
+  `/search/recorded`: the reader's own recorded queries, and a replay of one at their ceiling now,
+  which shows what the original ceiling withheld and counts toward access demand (RQ-221)
+- `POST /search/demand/replay` behind the same page: replays every recorded query asked below the
+  reader's ceiling, at that ceiling, and shows only the records the reader may read with how many
+  distinct people wanted each — never a query's text, id, time or asker (ADR 0029, amended
+  2026-09-24). Other people's recorded queries are deliberately never listed
 - `GET /publications/:publicationId/revisions/:controlledRevisionId/views/:compiledViewId` is a
   read-only API delivery boundary for an already-authorized signed public bundle. It is
   fail-closed until operators supply immutable signed-bundle storage and trusted public
@@ -66,6 +77,15 @@ Functional now:
 - `POST /actions/:actionType`
 - `POST /verifications/bulk`, one `verify_record` act per record with basis `promoted_in_bulk`,
   answered per record (API only; this client has no control for it yet)
+- `POST /capture/observation` from the capture form at `/capture` (ADR 0034, KF-SAS-RQ-200/203).
+  The form asks for the note and, optionally, tags and the objects it is about; it sends no role,
+  idempotency key or row version in the body. The session's selected role travels as the
+  `x-kf-acting-role` header, as on every request; the API forms the idempotency key from a
+  gesture id this page generates once per form render (so a double submit replays) and the note's
+  digest. The result shows the observation's verification label exactly as the API returned it,
+  which at capture is the unverified label. This app writes nothing itself:
+  `tests/conformance/capture-surfaces.test.ts` refuses a database driver, `@kf/database`, the
+  dispatcher, or a SQL write statement anywhere under `apps/web`.
 - `GET /ml/runs/:authorityId/revisions/:revisionId` with independent event, lineage-member,
   segment, and promotion-receipt cursors (`limit`/`afterSequence`, `memberLimit`/`afterMember`,
   `segmentLimit`/`afterOrdinal`, `promotionLimit`/`afterReceiptDigest`)

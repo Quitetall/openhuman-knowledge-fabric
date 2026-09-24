@@ -14,6 +14,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { appendAuditEvent } from '@kf/actions';
 import { auditChainDigest, CURRENT_AUDIT_LINK_FORMAT, GENESIS_DIGEST } from '@kf/canonicalization';
 import {
   attestationFor,
@@ -443,6 +444,14 @@ export interface SeedFixtureOptions {
   readonly auditClearance?: boolean;
 }
 
+/**
+ * A role assignment's end one year out: the default the admin commands apply (ADR 0036), for
+ * tests that call them with a declaration rather than through a plan.
+ */
+export function aYearFromNow(): Date {
+  return new Date(Date.now() + 365 * 86_400_000);
+}
+
 export async function seedFixtures(
   pool: Pool,
   options: SeedFixtureOptions = {},
@@ -548,7 +557,7 @@ export async function seedFixtures(
         schemaVersion: version,
       });
       await tx.query(
-        'insert into org.role_assignment (id, subject_id, role_id, scope_id) values ($1,$2,$3,$4)',
+        "insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to) values ($1,$2,$3,$4,now() + interval '1 year')",
         [id, subject, role, orgObj],
       );
       return id;
@@ -687,12 +696,85 @@ export async function bindContext(
       maxClassification: 'restricted',
     })) ?? null,
   ]);
+  // An administrator session is exempt from the act requirement (20260925011000) and binds the
+  // bootstrap action as it always did: owner-credential fixtures build ledgers and chains of
+  // their own, and an extra act would move them. Every other session records a real act.
+  const { administrator } = await tx.one<{ administrator: boolean }>(
+    'select core.session_is_administrator() as administrator',
+  );
+  if (administrator) {
+    await tx.query('select core.set_transaction_context($1, $2, $3, $4)', [
+      actorId,
+      actingRoleId,
+      BOOTSTRAP_ACTION,
+      'harness-direct-write',
+    ]);
+    return;
+  }
+  await recordAct(tx, f, actorId, actingRoleId);
+}
+
+/**
+ * Record an act in the ledger and bind it as this transaction's action.
+ *
+ * Every row the application writes belongs to an act the ledger records in the same transaction
+ * (20260925011000), so a direct write records one: a `correct_record` by the bound person, on the
+ * organization, with its audit-chain link. It is a real act, and a test counting actions or
+ * events sees it. The principal must
+ * already be bound (`bindPrincipal`/`bindReader`), as the dispatcher binds before it records.
+ */
+export async function recordAct(
+  tx: Tx,
+  f: Fixtures,
+  actorId: string = f.performerId,
+  actingRoleId: string = roleOf(f, actorId),
+  options: {
+    /**
+     * Leave the chain link to the caller, via the returned `audit()`. For writes that must come
+     * before the act's audit event, as the dispatcher orders them (a master record's insert
+     * policy refuses one whose act is already audited).
+     */
+    readonly deferAudit?: boolean;
+  } = {},
+): Promise<{ readonly actionId: string; audit(): Promise<void> }> {
+  const actionId = randomUUID();
   await tx.query('select core.set_transaction_context($1, $2, $3, $4)', [
     actorId,
     actingRoleId,
-    BOOTSTRAP_ACTION,
+    actionId,
     'harness-direct-write',
   ]);
+  // The database's clock, rounded up to the wire's millisecond, as the dispatcher does.
+  const { effective_at: effectiveAt } = await tx.one<{ effective_at: Date }>(
+    "select date_trunc('milliseconds', now() + interval '999 microseconds') as effective_at",
+  );
+  await tx.query(
+    `insert into core.action
+       (id, organization_id, request_digest, action_type, actor_id, acting_role_id, target_ids,
+        idempotency_key, effective_at, reason, result_status)
+     values ($1::uuid, $2::uuid,
+             encode(sha256(convert_to('harness-direct-write:' || $1::text, 'UTF8')), 'hex'),
+             'correct_record', $3::uuid, $4::uuid, array[$2::uuid], 'harness-direct-write-' || $1::text,
+             $5, 'harness direct write', 'applied')`,
+    [actionId, f.organizationId, actorId, actingRoleId, effectiveAt],
+  );
+  // And its chain link, through the one implementation of the chain arithmetic: an act with no
+  // audit receipt is refused by the preservation importer, rightly.
+  const audit = async (): Promise<void> => {
+    await appendAuditEvent(tx, {
+      actionId,
+      actionType: 'correct_record',
+      actorId,
+      actingRoleId,
+      objectIds: [f.organizationId],
+      effectiveAt,
+      reason: 'harness direct write',
+      beforeDigest: null,
+      afterDigest: null,
+    });
+  };
+  if (options.deferAudit !== true) await audit();
+  return { actionId, audit };
 }
 
 /** Bind a reader as one of the fixture people, at their full ceiling unless narrowed. */

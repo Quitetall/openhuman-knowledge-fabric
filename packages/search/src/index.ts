@@ -106,25 +106,18 @@ export async function searchIn(
   scope: SearchScope,
   query: SearchQuery,
 ): Promise<SearchHit[]> {
-  const text = normalise(query.text);
-  if (text === '') return [];
+  return searchAmong(tx, scope, query, undefined);
+}
 
-  const limit = Math.min(Math.max(1, query.limit ?? DEFAULT_LIMIT), MAX_LIMIT);
-
-  const rows = await tx.query<{
-    object_id: string;
-    object_type: string;
-    title: string;
-    lifecycle_state: string;
-    classification: string;
-    rank: number;
-    matched_by: string;
-    record_visible: boolean;
-    verified_at: Date | null;
-    verified_by: string | null;
-    verification_basis: string | null;
-  }>(
-    `with visible as (
+/**
+ * The matching rows, as common table expressions over `$1`..`$6`: organization, ceiling, text,
+ * object types, lifecycle states, and an optional id restriction.
+ *
+ * One definition of "matches", shared by the ranked page and by the unranked match set that
+ * counts what was withheld (ADR 0037) — two definitions would disagree about which records a
+ * query found, and the count would describe a different query from the one answered.
+ */
+const MATCHES = `with visible as (
        select d.*
          from search.document d
          join registry.classification c on c.id = d.classification
@@ -136,6 +129,7 @@ export async function searchIn(
           and c.rank <= mine.rank
           and ($4::text[] is null or d.object_type = any($4))
           and ($5::text[] is null or d.lifecycle_state = any($5))
+          and ($6::uuid[] is null or d.object_id = any($6))
      ),
      needle as (
        -- ILIKE patterns are not search syntax. Escape their metacharacters so an identifier
@@ -157,7 +151,79 @@ export async function searchIn(
         where (v.title ilike '%' || n.pattern || '%' escape '!'
                or v.body ilike '%' || n.pattern || '%' escape '!')
           and v.object_id not in (select object_id from full_text)
-     )
+     )`;
+
+function matchParameters(
+  scope: SearchScope,
+  text: string,
+  query: SearchQuery,
+  only: readonly string[] | undefined,
+): unknown[] {
+  return [
+    scope.organizationId,
+    scope.maxClassification,
+    text,
+    query.objectTypes === undefined ? null : [...query.objectTypes],
+    query.lifecycleStates === undefined ? null : [...query.lifecycleStates],
+    only === undefined ? null : [...only],
+  ];
+}
+
+/**
+ * Every record the query matches that the caller's session can see, unranked and unlimited: an
+ * id and a classification, nothing else.
+ *
+ * For counting, never for display. Under row security the set stops at the caller's ceiling, so a
+ * count taken from it can never describe a record above that ceiling (ADR 0037).
+ */
+export async function matchesIn(
+  tx: Tx,
+  scope: SearchScope,
+  query: SearchQuery,
+): Promise<{ readonly objectId: string; readonly classification: string }[]> {
+  const text = normalise(query.text);
+  if (text === '') return [];
+  const rows = await tx.query<{ object_id: string; classification: string }>(
+    `${MATCHES}
+     select object_id, classification from full_text
+     union all
+     select object_id, classification from partial`,
+    matchParameters(scope, text, query, undefined),
+  );
+  return rows.map((row) => ({ objectId: row.object_id, classification: row.classification }));
+}
+
+/**
+ * The ranked page, optionally restricted to `only` — the ids a caller's grants reach, so that a
+ * page of `limit` is a page of records the caller may read rather than a page some of which is
+ * then removed.
+ */
+export async function searchAmong(
+  tx: Tx,
+  scope: SearchScope,
+  query: SearchQuery,
+  only: readonly string[] | undefined,
+): Promise<SearchHit[]> {
+  const text = normalise(query.text);
+  if (text === '') return [];
+  if (only !== undefined && only.length === 0) return [];
+
+  const limit = Math.min(Math.max(1, query.limit ?? DEFAULT_LIMIT), MAX_LIMIT);
+
+  const rows = await tx.query<{
+    object_id: string;
+    object_type: string;
+    title: string;
+    lifecycle_state: string;
+    classification: string;
+    rank: number;
+    matched_by: string;
+    record_visible: boolean;
+    verified_at: Date | null;
+    verified_by: string | null;
+    verification_basis: string | null;
+  }>(
+    `${MATCHES}
      select hits.object_id, hits.object_type, hits.title, hits.lifecycle_state,
             hits.classification, hits.rank, hits.matched_by,
             -- Verification is a fact about the record, so it is read through the record: both
@@ -169,15 +235,8 @@ export async function searchIn(
        left join core.object o on o.id = hits.object_id
        left join core.object_verification v on v.object_id = o.id
       order by hits.rank desc, hits.title
-      limit $6`,
-    [
-      scope.organizationId,
-      scope.maxClassification,
-      text,
-      query.objectTypes === undefined ? null : [...query.objectTypes],
-      query.lifecycleStates === undefined ? null : [...query.lifecycleStates],
-      limit,
-    ],
+      limit $7`,
+    [...matchParameters(scope, text, query, only), limit],
   );
 
   return rows.map((r) => ({
@@ -190,19 +249,27 @@ export async function searchIn(
     matchedBy: r.matched_by === 'full_text' ? 'full_text' : 'partial_identifier',
     // Fail closed on a row that does not say: a record not positively visible is not looked up,
     // and a verification missing any of its facts is not one this code may repeat.
-    verification: recordVerification(
-      [r.verified_at, r.verified_by, r.verification_basis].some(
-        (v) => v === null || v === undefined,
-      )
-        ? undefined
-        : {
-            basis: r.verification_basis as string,
-            verifiedAt: r.verified_at as Date,
-            verifiedBy: r.verified_by as string,
-          },
-      { visible: r.record_visible === true },
-    ),
+    verification: verificationOf(r),
   }));
+}
+
+/** A record's verification as a hit carries it, failing closed on anything incomplete. */
+export function verificationOf(r: {
+  readonly record_visible: boolean;
+  readonly verified_at: Date | null;
+  readonly verified_by: string | null;
+  readonly verification_basis: string | null;
+}): RecordVerification {
+  return recordVerification(
+    [r.verified_at, r.verified_by, r.verification_basis].some((v) => v === null || v === undefined)
+      ? undefined
+      : {
+          basis: r.verification_basis as string,
+          verifiedAt: r.verified_at as Date,
+          verifiedBy: r.verified_by as string,
+        },
+    { visible: r.record_visible === true },
+  );
 }
 
 /** Index one object. Called from the outbox worker after an action commits. */
@@ -222,6 +289,9 @@ export async function rebuild(pool: Pool): Promise<number> {
     return Number(row.rebuild);
   });
 }
+
+export * from './compose.js';
+export * from './transient.js';
 
 export const PACKAGE = {
   name: '@kf/search',

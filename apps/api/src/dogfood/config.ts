@@ -102,3 +102,29 @@ export function requiredOwnerUrl(): string {
   }
   return value;
 }
+
+/**
+ * The deploying organization's legal name, from `KF_ORGANIZATION_LEGAL_NAME`.
+ *
+ * KF-SAS-RQ-192: the deploying organization's identity is configuration and is not compiled into
+ * the product's source. It was three string literals in `bootstrap.ts` (SAS §100.16). Required,
+ * with no default: a default would be exactly the compiled-in name this replaces. Control
+ * characters are refused because the value becomes a record title shown to people.
+ */
+export function requiredOrganizationLegalName(env: NodeJS.ProcessEnv = process.env): string {
+  const value = env['KF_ORGANIZATION_LEGAL_NAME']?.trim();
+  if (value === undefined || value === '') {
+    throw new Error(
+      'KF_ORGANIZATION_LEGAL_NAME is required: the legal name of the organization this ' +
+        'deployment seeds. It is configuration, not source (KF-SAS-RQ-192); see .env.example.',
+    );
+  }
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001f\u007f]/.test(value)) {
+    throw new Error('KF_ORGANIZATION_LEGAL_NAME contains a control character');
+  }
+  if (value.length > 200) {
+    throw new Error('KF_ORGANIZATION_LEGAL_NAME is longer than 200 characters');
+  }
+  return value;
+}

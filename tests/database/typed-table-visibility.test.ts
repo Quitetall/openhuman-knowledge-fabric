@@ -46,14 +46,14 @@ beforeAll(async () => {
 
   documentId = await createObject(h.adminPool, f, {
     type: 'controlled_document',
-    domain: 'quality',
+    domain: 'qms',
     state: 'draft',
     title: 'Electrode cleaning procedure',
     createdBy: f.performerId,
   });
   nonconformityId = await createObject(h.adminPool, f, {
     type: 'nonconformity',
-    domain: 'quality',
+    domain: 'qms',
     state: 'open',
     title: 'Electrode impedance out of tolerance',
     createdBy: f.performerId,
@@ -184,6 +184,8 @@ describe('typed rows are visible exactly when their record is', () => {
       'registry.object_state',
       'registry.object_type',
       'registry.relation_type',
+      // Seeded ontology data (SAS §100.2): which types each relation may connect.
+      'registry.relation_type_endpoint',
       'registry.retention_class',
       'registry.rule_definition',
       'registry.schema_release',

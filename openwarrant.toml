@@ -6,6 +6,8 @@
 #
 # KF itself is a pnpm/TypeScript workspace and gains no Rust dependency from this: `war` is
 # used to propose, accept and check the SAS, and `pnpm gate` never invokes it.
+# CI's `sas` job does: it builds `war` from a pinned OpenWarrant commit and runs
+# `war check --generated` (.github/workflows/ci.yml, scripts/war-check-gate.mjs).
 
 schema = "oh.war/repository-config/v1"
 

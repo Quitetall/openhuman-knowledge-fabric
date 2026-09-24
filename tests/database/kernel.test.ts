@@ -6,6 +6,7 @@
  * the happy path would pass just as well against a kernel with every check removed.
  */
 
+import { createHash } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDispatcher, ActionRejected } from '@kf/actions';
 import { createPool, withTransaction } from '@kf/database';
@@ -88,6 +89,21 @@ describe('the kernel applies a legitimate action', () => {
         [result.actionId],
       );
       expect(Number(audit.n)).toBe(1);
+
+      // The state the link commits to is tagged (KF-SAS-RQ-016): kf-action-state-v1, spelled
+      // out byte for byte here rather than computed by the code under test.
+      const state = (lifecycle: string): string =>
+        createHash('sha256')
+          .update(
+            `{"format":"kf-action-state-v1","objects":[{"id":"${id}","state":"${lifecycle}"}]}`,
+          )
+          .digest('hex');
+      const link = await tx.one<{ before_digest: string; after_digest: string }>(
+        'select before_digest, after_digest from core.audit_event where action_id = $1',
+        [result.actionId],
+      );
+      expect(link.before_digest).toBe(state('proposed'));
+      expect(link.after_digest).toBe(state('accepted'));
 
       const outbox = await tx.one<{ n: string }>(
         'select count(*) as n from core.outbox where action_id = $1',
@@ -543,7 +559,7 @@ describe('the registry constrains the domain', () => {
           [f.schemaVersion, f.organizationId, f.performerId],
         );
         await tx.query(
-          'insert into org.role_assignment (id, subject_id, role_id, scope_id) values ($1,$2,$3,$4)',
+          "insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to) values ($1,$2,$3,$4,now() + interval '1 year')",
           [row.id, f.reviewerId, 'technical_authority', f.organizationId],
         );
       }),

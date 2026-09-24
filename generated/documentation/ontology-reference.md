@@ -1,9 +1,9 @@
 <!-- GENERATED from ontology/ — do not edit. -->
-<!-- ontology_version: 1.2.0-draft.1 · source_digest: 322a61ec8fc9ea00b0d5381f97a4a48c58de1d6031a1b7362c1c1baa1e398ea2 -->
+<!-- ontology_version: 1.2.0-draft.1 · source_digest: acea0b4f8ca21738e4b6de0bf1e7382b76f39d11cc8ac745ab6a25e9e3166e94 -->
 
 # Ontology reference
 
-Compiled from `ontology/`. 39 object types, 41 relation types, 153 action types, 24 state machines, 15 invariants, 4 corpus projections.
+Compiled from `ontology/`. 40 object types, 42 relation types, 170 action types, 26 state machines, 16 invariants, 4 corpus projections.
 
 ## Object types
 
@@ -12,7 +12,7 @@ Compiled from `ontology/`. 39 object types, 41 relation types, 153 action types,
 | `organization` | organization | — | organization | 3 |
 | `person` | organization | — | person | 2 |
 | `role_assignment` | organization | — | — | 3 |
-| `engagement` | commercial | — | — | 5 |
+| `engagement` | commercial | — | engagement | 5 |
 | `product_system` | configuration | ITM | — | 5 |
 | `initiative_project` | project | PRJ *(proposed)* | initiative_project | 10 |
 | `work_package` | project | — | work_package | 8 |
@@ -48,6 +48,7 @@ Compiled from `ontology/`. 39 object types, 41 relation types, 153 action types,
 | `milestone` | project | MST | — | 4 |
 | `work_order_amendment` | commercial | AMD | — | 3 |
 | `warrant` | project | WAR | warrant | 7 |
+| `observation` | project | — | observation | 3 |
 
 ## Relation types
 
@@ -94,6 +95,7 @@ Compiled from `ontology/`. 39 object types, 41 relation types, 153 action types,
 | `calibrated_with` | calibrates |  |
 | `raised_against` | raised |  |
 | `remediated_by` | remediates |  |
+| `concerns` | concerned_in |  |
 
 ## Actions
 
@@ -149,7 +151,7 @@ Compiled from `ontology/`. 39 object types, 41 relation types, 153 action types,
 | `retire_authored_fragment` | authored_fragment | role only |
 | `add_document_composition` | — | role only |
 | `revise_document_composition` | — | role only |
-| `change_document_source_holder` | — | role only |
+| `change_document_source_holder` | — | act |
 | `request_document_compilation` | — | role only |
 | `compile_master_record` | — | role only |
 | `accept_document_compilation` | — | act |
@@ -220,6 +222,23 @@ Compiled from `ontology/`. 39 object types, 41 relation types, 153 action types,
 | `execute_test` | test_execution | role only |
 | `record_test_result` | test_execution | role only |
 | `invalidate_test_execution` | test_execution | act |
+| `record_observation` | — | role only |
+| `promote_observation` | observation | act |
+| `withdraw_observation` | observation | role only |
+| `register_product_system` | — | role only |
+| `define_requirement` | — | role only |
+| `identify_risk` | — | role only |
+| `register_test` | — | role only |
+| `define_baseline` | — | role only |
+| `define_release` | — | role only |
+| `record_engagement` | — | role only |
+| `plan_milestone` | — | role only |
+| `define_deliverable` | — | role only |
+| `activate_engagement` | engagement | role only |
+| `suspend_engagement` | engagement | role only |
+| `resume_engagement` | engagement | role only |
+| `close_engagement` | engagement | role only |
+| `terminate_engagement` | engagement | role only |
 | `create_warrant_draft` | — | role only |
 | `revise_warrant_draft` | — | role only |
 | `submit_warrant` | warrant | role only |
@@ -652,6 +671,38 @@ stateDiagram-v2
     active --> inactive: retire_organization
 ```
 
+### `observation`
+
+Initial: `captured` · Terminal: `promoted`, `withdrawn`
+
+```mermaid
+stateDiagram-v2
+    [*] --> captured
+    captured --> promoted: promote_observation
+    captured --> withdrawn: withdraw_observation
+    promoted --> [*]
+    withdrawn --> [*]
+```
+
+### `engagement`
+
+Initial: `draft` · Terminal: `closed`, `terminated`
+
+```mermaid
+stateDiagram-v2
+    [*] --> draft
+    draft --> active: activate_engagement
+    active --> suspended: suspend_engagement
+    suspended --> active: resume_engagement
+    active --> closed: close_engagement
+    suspended --> closed: close_engagement
+    draft --> terminated: terminate_engagement
+    active --> terminated: terminate_engagement
+    suspended --> terminated: terminate_engagement
+    closed --> [*]
+    terminated --> [*]
+```
+
 ## Invariants
 
 | Rule | Enforced at | Statement |
@@ -671,6 +722,7 @@ stateDiagram-v2
 | `KF-DOC-003` | database_constraint, action_precondition, validator | Each document subject has one immutable authoritative document policy that callers cannot weaken; Holder transfer, compilation acceptance and publication require scoped technical authority plus any quality authority required by that policy. |
 | `KF-DOC-004` | database_constraint, action_precondition, validator | A Proposal Overlay is append-only; applying one requires a human-authorized typed action, an applied fragment remains a live draft, and no result is official before controlled review, effectivity and publication. |
 | `KF-DOC-005` | database_constraint, action_precondition, validator | Every official document publication has one append-only receipt binding the exact accepted compiler result, effective controlled content revision and registered destination policy that authorized it. |
+| `KF-ENG-001` | database_constraint, action_precondition | An engagement is not closed or terminated while a work order under it is in a non-terminal state, and no work order is placed under a closed or terminated engagement. |
 
 ## Corpus projections
 

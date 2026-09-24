@@ -80,3 +80,8 @@ rules:
     severity: error
     description: Every official document publication has one append-only receipt binding the exact accepted compiler result, effective controlled content revision and registered destination policy that authorized it.
     implementation: [database_constraint, action_precondition, validator]
+
+  - id: KF-ENG-001
+    severity: error
+    description: An engagement is not closed or terminated while a work order under it is in a non-terminal state, and no work order is placed under a closed or terminated engagement.
+    implementation: [database_constraint, action_precondition]

@@ -27,7 +27,7 @@ let h: Harness;
 let f: Fixtures;
 let execute: ReturnType<typeof createDispatcher>;
 
-/** The engagement the work is ordered under. Bootstrapped, as a contract signed off-system is. */
+/** The engagement the work is ordered under, recorded by `record_engagement` (RQ-142). */
 let engagementId: string;
 let contractorId: string;
 
@@ -95,9 +95,10 @@ beforeAll(async () => {
     preconditions: WORK_CONTROL_PRECONDITIONS,
   });
 
-  // The contractor and the engagement are bootstrap facts: a signed agreement exists outside
-  // this system, and contractors have neither repository nor database access. Everything
-  // AFTER this point goes through actions.
+  // The contractor organization is a bootstrap fact: organizations are created by the bootstrap
+  // tier, never dispatched (create-act-coverage.test.ts records why), and contractors have
+  // neither repository nor database access. The engagement with it is NOT seeded here: since
+  // draft.8 it is recorded by an act, below. Everything AFTER this point goes through actions.
   await withTransaction(h.adminPool, async (tx) => {
     await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
     await tx.query('select core.set_transaction_context($1, $1, $2, $3)', [
@@ -123,22 +124,6 @@ beforeAll(async () => {
     );
     contractorId = org.id;
 
-    const eng = await tx.one<{ id: string }>(
-      `insert into core.object
-         (object_type, authority_domain, lifecycle_state, classification, retention_class,
-          schema_version, organization_id, title, created_by, updated_by)
-       values ('engagement','organization','active','restricted','project_record',$1,$2,
-               'Meridian mechanical design engagement',$3,$3) returning id`,
-      [version, f.organizationId, f.performerId],
-    );
-    await tx.query(
-      `insert into org.engagement
-         (id, principal_organization, counterparty, engagement_kind, starts_on)
-       values ($1, $2, $3, 'contractor', current_date)`,
-      [eng.id, f.organizationId, contractorId],
-    );
-    engagementId = eng.id;
-
     const person = await tx.one<{ id: string }>(
       `insert into core.object
          (object_type, authority_domain, lifecycle_state, classification, retention_class,
@@ -163,7 +148,7 @@ beforeAll(async () => {
       [version, f.organizationId, f.performerId],
     );
     await tx.query(
-      'insert into org.role_assignment (id, subject_id, role_id, scope_id) values ($1,$2,$3,$4)',
+      "insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to) values ($1,$2,$3,$4,now() + interval '1 year')",
       [assignment.id, plannerId, 'project_owner', f.organizationId],
     );
     plannerRoleId = assignment.id;
@@ -280,6 +265,104 @@ describe('2. work is packaged and ordered', () => {
       targetIds: [packageId],
     });
     expect(await stateOf(packageId)).toBe('active');
+  });
+
+  it('records the engagement, plans a milestone and defines a deliverable through actions', async () => {
+    // KF-SAS-RQ-142: these three had no act, so this file used to seed its engagement with an
+    // owner insert. None has a state machine; each is born in its first declared state.
+    const engagement = await act({
+      actionType: 'record_engagement',
+      actorId: plannerId,
+      actingRoleId: plannerRoleId,
+      targetIds: [],
+      payload: {
+        title: 'Meridian mechanical design engagement',
+        counterparty: contractorId,
+        engagement_kind: 'contractor',
+        starts_on: '2026-09-01',
+        classification: 'restricted',
+      },
+    });
+    engagementId = engagement.objectIds[0]!;
+    expect(await stateOf(engagementId)).toBe('draft');
+    expect(
+      await read<{ principal_organization: string; counterparty: string; engagement_kind: string }>(
+        `select principal_organization, counterparty, engagement_kind
+           from org.engagement where id = $1`,
+        [engagementId],
+      ),
+    ).toEqual({
+      principal_organization: f.organizationId,
+      counterparty: contractorId,
+      engagement_kind: 'contractor',
+    });
+
+    const milestone = await act({
+      actionType: 'plan_milestone',
+      actorId: plannerId,
+      actingRoleId: plannerRoleId,
+      targetIds: [],
+      payload: {
+        title: 'Design review passed',
+        project_id: projectId,
+        planned_on: '2026-11-30',
+        criterion: 'The drawing package passes design review with no open actions.',
+      },
+    });
+    const milestoneId = milestone.objectIds[0]!;
+    expect(await stateOf(milestoneId)).toBe('planned');
+    expect(
+      await read<{ project_id: string; criterion: string }>(
+        'select project_id, criterion from work.milestone where id = $1',
+        [milestoneId],
+      ),
+    ).toMatchObject({ project_id: projectId });
+
+    const deliverable = await act({
+      actionType: 'define_deliverable',
+      actorId: plannerId,
+      actingRoleId: plannerRoleId,
+      targetIds: [],
+      payload: {
+        title: 'Enclosure STEP assembly',
+        work_package_id: packageId,
+        description: 'STEP assembly of the enclosure, with its drawing package.',
+        acceptance_criteria: [
+          'STEP assembly opens cleanly',
+          'Geometry matches the drawing package',
+        ],
+        due_date: '2026-11-30',
+      },
+    });
+    const deliverableId = deliverable.objectIds[0]!;
+    expect(await stateOf(deliverableId)).toBe('planned');
+    expect(
+      await read<{ work_package_id: string; acceptance_criteria: string[]; due_date: string }>(
+        `select work_package_id, acceptance_criteria, due_date::text
+           from work.deliverable where id = $1`,
+        [deliverableId],
+      ),
+    ).toEqual({
+      work_package_id: packageId,
+      acceptance_criteria: ['STEP assembly opens cleanly', 'Geometry matches the drawing package'],
+      due_date: '2026-11-30',
+    });
+
+    // An engagement with the organization itself is refused as the caller's input.
+    await expect(
+      act({
+        actionType: 'record_engagement',
+        actorId: plannerId,
+        actingRoleId: plannerRoleId,
+        targetIds: [],
+        payload: {
+          title: 'An engagement with ourselves',
+          counterparty: f.organizationId,
+          engagement_kind: 'contractor',
+          starts_on: '2026-09-01',
+        },
+      }),
+    ).rejects.toMatchObject({ name: 'ActionRejected', failure: 'precondition_failed' });
   });
 
   it('issues a work order against exactly one project and one engagement', async () => {

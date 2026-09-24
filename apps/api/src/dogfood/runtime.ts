@@ -16,6 +16,7 @@ import {
   DEV_S3_SECRET,
   devDatabaseUrlFile,
   generateAppPassword,
+  requiredOrganizationLegalName,
   requiredOwnerUrl,
   sourceDirectory,
   writeOwnerOnly,
@@ -67,10 +68,11 @@ export async function runDocumentConstitutionDogfood(): Promise<void> {
   assertNotPrivateHost();
   const directory = sourceDirectory();
   const ownerUrl = requiredOwnerUrl();
+  const legalName = requiredOrganizationLegalName();
   const owner = createPool({ connectionString: ownerUrl, maxConnections: 2 });
   let app: Pool | undefined;
   try {
-    const identity = await bootstrapIdentity(owner);
+    const identity = await bootstrapIdentity(owner, legalName);
     // Validate authority before staging bytes. A missing clearance is an expected fail-closed
     // operator state, not a reason to write unreferenced object-store data first.
     await assertDogfoodIdentityReady(owner, identity);

@@ -5,5 +5,9 @@
  */
 
 export * from './proposal/contracts.js';
-export { validateDocumentProposalModelProvenance } from './proposal/model-provenance.js';
+export {
+  documentProposalContextDigest,
+  requireCurrentDocumentProposalContextFormat,
+  validateDocumentProposalModelProvenance,
+} from './proposal/model-provenance.js';
 export { validateDocumentProposalOperation } from './proposal/operation.js';

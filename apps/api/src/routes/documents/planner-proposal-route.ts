@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { JsonValue } from '@kf/canonicalization';
 import {
   planAndDispatchAiProposal,
@@ -17,6 +17,7 @@ import {
 import { DocumentPlannerRepository } from './planner-proposal-repository.js';
 import { actionRejectionBody } from '../actions/errors.js';
 import { resolveWorkspaceTarget, type WorkspaceTargetRow } from './workspace-repository.js';
+import { agentContextReader, type AgentContextOutcome } from './agent-context.js';
 
 export function registerDocumentPlannerProposalRoute(
   app: FastifyInstance,
@@ -38,6 +39,7 @@ export function registerDocumentPlannerProposalRoute(
         });
       }
 
+      const readAgentContext = options.agentContext ?? agentContextReader(options.projections);
       try {
         const claim = parseDocumentPlannerProposal(request.body ?? {});
         const result = await withTransaction(options.pool, async (tx) => {
@@ -46,6 +48,10 @@ export function registerDocumentPlannerProposalRoute(
           if (workspace.status !== 'ready' || !plannerClaimMatchesWorkspace(claim, workspace.row)) {
             return undefined;
           }
+          // KF-SAS-RQ-115: the model's context is drawn from the reader's agent_context
+          // projection and nothing else; the planner keeps only its members.
+          const context = await readAgentContext(tx, identity, claim.tokenBudget);
+          if (context.status !== 'ready') return { refused: context };
           const seedSubjectIds = [...new Set([...claim.seedSubjectIds, workspace.row.subject_id])];
           if (seedSubjectIds.length > 64) {
             throw new TypeError('seedSubjectIds plus target subject exceeds 64 items');
@@ -69,12 +75,14 @@ export function registerDocumentPlannerProposalRoute(
               tokenBudget: claim.tokenBudget,
               query: claim.query,
               seedSubjectIds,
+              projection: context.projection,
             },
             options.aiRoutingPolicy!,
           );
           assertPlannerResultMatchesWorkspace(planned.result, workspace.row);
           const payload = recordDocumentProposalPayload({
             proposalId: claim.proposalId,
+            plan: planned.plan,
             result: planned.result,
           });
           return options.executeInTransaction(tx, {
@@ -95,6 +103,7 @@ export function registerDocumentPlannerProposalRoute(
         if (result === undefined) {
           return reply.code(409).send({ error: 'stale_document_workspace' });
         }
+        if ('refused' in result) return refuseWithoutContext(reply, result.refused);
         return reply.code(result.replayed ? 200 : 201).send({
           proposalId: claim.proposalId,
           actionId: result.actionId,
@@ -134,6 +143,30 @@ export function registerDocumentPlannerProposalRoute(
       }
     },
   );
+}
+
+/** Why no agent context could be given, as the projection routes would answer it. */
+function refuseWithoutContext(
+  reply: FastifyReply,
+  outcome: Exclude<AgentContextOutcome, { readonly status: 'ready' }>,
+): FastifyReply {
+  switch (outcome.status) {
+    case 'projections_unavailable':
+      return reply.code(503).send({
+        error: 'projections_unavailable',
+        message: 'no compiled agent_context definition',
+      });
+    case 'master_record_not_found':
+      return reply.code(404).send({ error: 'master_record_not_found' });
+    case 'master_record_stale':
+      return reply.code(409).send({ error: 'master_record_stale' });
+    case 'projection_refused':
+      return reply.code(400).send({
+        error: 'invalid_ai_planner_request',
+        reason: outcome.reason,
+        message: outcome.message,
+      });
+  }
 }
 
 function plannerClaimMatchesWorkspace(

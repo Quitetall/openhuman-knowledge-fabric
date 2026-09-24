@@ -128,7 +128,7 @@ check "  …his clearance is retired with a reason" retired "$( [ "$(psql_scoped
 as 'Jim Miller' jim.miller restricted
 act reactivate_person "$ryan" "re-engaged for Q4"; check "Jim reactivates Ryan (restores NOTHING by itself)" 201 "$STATUS" "$BODY"
 kf grant-authority --person "$ryan" --organization "$org" --role performer --clearance internal --granted-by "$jim" --reason "re-engaged for Q4: fresh authority, fresh reason" >/dev/null 2> "$secrets/regrant.err"
-check "  …and re-grants him; a fresh assignment and clearance" 1 "$(psql_scoped "select count(*) from org.role_assignment where subject_id = $(q "$ryan") and valid_to is null")" "$(head -c 200 "$secrets/regrant.err")"
+check "  …and re-grants him; a fresh assignment and clearance" 1 "$(psql_scoped "select count(*) from org.role_assignment where subject_id = $(q "$ryan") and valid_from <= now() and valid_to > now() and valid_to <= now() + interval '366 days'")" "$(head -c 200 "$secrets/regrant.err")"
 as 'Ryan Temp' ryan.temp internal
 req GET "/master-record";               check "Ryan's new session is a session again (his old claim is stale or absent)" session "$( [ "$STATUS" = 404 ] || [ "$STATUS" = 409 ] && echo session || echo "$STATUS")" "$BODY"
 

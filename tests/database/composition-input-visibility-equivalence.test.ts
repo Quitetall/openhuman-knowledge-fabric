@@ -40,7 +40,6 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { InMemoryObjectStore, digestOf } from '@kf/artifacts';
-import { digest } from '@kf/canonicalization';
 import {
   bindPrincipal,
   createPool,
@@ -49,7 +48,13 @@ import {
   type Pool,
   type Tx,
 } from '@kf/database';
-import { atomsFromPandoc, createDocumentActionAtoms, type DocumentParser } from '@kf/documents';
+import {
+  atomsFromPandoc,
+  createDocumentActionAtoms,
+  documentConversionLossDigest,
+  documentProjectionDigest,
+  type DocumentParser,
+} from '@kf/documents';
 import { createFabricDispatcher } from '@kf/orchestrator';
 import { seedFixtures, startHarness, type Fixtures, type Harness } from './harness.js';
 
@@ -197,12 +202,8 @@ beforeAll(async () => {
         sourceDigest: digestOf(sourceBytes),
         atoms,
         conversionLoss: [],
-        lossDigest: digest([]),
-        contentDigest: digest({
-          projectionContract: 'test.atoms.v1',
-          atoms: atomClaims,
-          conversionLoss: [],
-        }),
+        lossDigest: documentConversionLossDigest([]),
+        contentDigest: documentProjectionDigest('test.atoms.v1', atomClaims, []),
       };
     },
   };

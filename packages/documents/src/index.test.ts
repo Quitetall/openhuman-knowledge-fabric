@@ -26,6 +26,13 @@ import {
   compileAdrProjections,
   evidenceStorageKey,
   mediaTypeForDocumentFile,
+  documentAtomDigest,
+  documentAtomPreimage,
+  documentConversionLossDigest,
+  documentConversionLossPreimage,
+  documentLossSourceDigest,
+  documentProjectionDigest,
+  documentProjectionPreimage,
   PANDOC_PROJECTION_CONTRACT,
   preparseDocument,
   projectionFromPandoc,
@@ -42,6 +49,13 @@ import {
   type Fixtures,
   type Harness,
 } from '../../../tests/database/harness.js';
+
+/** A store that keeps something other than the bytes it was handed: a copy that cannot verify. */
+class LyingStore extends InMemoryObjectStore {
+  override async putIfAbsent(key: string, _body: Buffer, mediaType: string) {
+    return this.put(key, Buffer.from('not the bytes that were published'), mediaType);
+  }
+}
 
 const REQUIRED_DOCUMENT_ACTIONS = [
   'accept_document_compilation',
@@ -510,12 +524,12 @@ describe('document atoms', () => {
           level: 1,
           text: 'Title',
           attributes: {},
-          digest: '0dc5c1997e1a8d452a41403404c7487e26c729d392755ef115bbaa06cff65697',
+          digest: 'aca45802d619d7f9cf466f15a83b502872aec6de0edb5acea65861f78ebcc215',
         },
       ],
       conversionLoss: [],
-      lossDigest: '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945',
-      contentDigest: '56037c158bffc40a5833337e3c0d200b7cf979e3355c51a345c2b83d055dd49c',
+      lossDigest: '4590b58188b243fcce16669e06b8c5d61322a94014fe50a8bd0fb7d5b46b6e8f',
+      contentDigest: '98e5c7fe674d62703a50115438dfad40f8ee682c4d5a8f0340f71612936b50fc',
     };
 
     expect(validateParsedDocument(valid, source)).toEqual(valid);
@@ -534,6 +548,53 @@ describe('document atoms', () => {
     expect(() =>
       validateParsedDocument({ ...valid, contentDigest: '0'.repeat(64) }, source),
     ).toThrow(/projection digest/i);
+  });
+
+  it('takes every receipt digest under its own format tag (kf-document-parse-v2)', () => {
+    // Goldens recomputed independently in Python (sorted keys, compact separators, sha256).
+    const claim = { ordinal: 1, kind: 'heading' as const, level: 1, text: 'Title', attributes: {} };
+    expect(documentAtomDigest(claim)).toBe(
+      'aca45802d619d7f9cf466f15a83b502872aec6de0edb5acea65861f78ebcc215',
+    );
+    expect(documentConversionLossDigest([])).toBe(
+      '4590b58188b243fcce16669e06b8c5d61322a94014fe50a8bd0fb7d5b46b6e8f',
+    );
+    expect(documentProjectionDigest(PANDOC_PROJECTION_CONTRACT, [claim], [])).toBe(
+      '98e5c7fe674d62703a50115438dfad40f8ee682c4d5a8f0340f71612936b50fc',
+    );
+    expect(documentLossSourceDigest({ t: 'RawBlock', c: ['html', '<div>'] })).toBe(
+      '86a169fced7fe65d532f9ef827c2fa0f7f7e08f7a326195064f5cb95f93b4697',
+    );
+    // The recorded preimages are exactly what each digest hashes, so the database can recompute
+    // them from the stored text alone.
+    expect(digest(documentAtomPreimage(claim))).toBe(documentAtomDigest(claim));
+    expect(digest(documentConversionLossPreimage([]))).toBe(documentConversionLossDigest([]));
+    expect(digest(documentProjectionPreimage(PANDOC_PROJECTION_CONTRACT, [claim], []))).toBe(
+      documentProjectionDigest(PANDOC_PROJECTION_CONTRACT, [claim], []),
+    );
+    // And none is the untagged kf-document-parse-v1 value a receipt carried before.
+    expect(documentAtomDigest(claim)).not.toBe(digest(claim));
+    expect(documentConversionLossDigest([])).not.toBe(digest([]));
+  });
+
+  it('refuses a receipt computed under the untagged v1 digests', () => {
+    const source = Buffer.from('# Title\n');
+    const claim = { ordinal: 1, kind: 'heading' as const, level: 1, text: 'Title', attributes: {} };
+    const untagged = {
+      parser: 'fixture',
+      parserVersion: '1.0.0',
+      projectionContract: PANDOC_PROJECTION_CONTRACT,
+      sourceDigest: 'e01b17ff9af77056792f67c57e3d1908795b9d1ae4cfe72421d0a2838991b740',
+      atoms: [{ ...claim, digest: digest(claim) }],
+      conversionLoss: [],
+      lossDigest: digest([]),
+      contentDigest: digest({
+        projectionContract: PANDOC_PROJECTION_CONTRACT,
+        atoms: [claim],
+        conversionLoss: [],
+      }),
+    };
+    expect(() => validateParsedDocument(untagged, source)).toThrow(/atom digest/i);
   });
 });
 
@@ -558,6 +619,7 @@ describe('document action chain', () => {
     subjectId: string,
     revisionId: string,
     contentDigest: string,
+    format: 'v2' | 'legacy-v1' = 'v2',
   ) => {
     const contextClaim = {
       tokenizer: 'fixture-tokenizer-v1',
@@ -589,8 +651,28 @@ describe('document action chain', () => {
         policy_id: 'fixture-local-policy-v1',
         decision: { locality: 'local' as const, classification_ceiling: 'internal' as const },
       },
-      context: { ...contextClaim, context_digest: digest(contextClaim) },
+      // v2 (kf-ai-proposal-context-v2) names the agent_context projection and carries its tag in
+      // the digest's preimage; v1 is the untagged form proposals recorded before it carry.
+      context:
+        format === 'legacy-v1'
+          ? { ...contextClaim, context_digest: digest(contextClaim) }
+          : {
+              format: 'kf-ai-proposal-context-v2' as const,
+              projection: agentContextProjection,
+              ...contextClaim,
+              context_digest: digest({
+                ...contextClaim,
+                projection: agentContextProjection,
+                format: 'kf-ai-proposal-context-v2',
+              }),
+            },
     };
+  };
+  const agentContextProjection = {
+    definition_id: 'agent_context' as const,
+    definition_version: 1,
+    corpus_digest: hexDigest('6'),
+    projection_digest: hexDigest('7'),
   };
 
   beforeAll(async () => {
@@ -608,7 +690,9 @@ describe('document action chain', () => {
           },
         },
         // ADR 0021: a publication target may name a public store; `public` is one.
-        stores: new StoreRegistry({ working: store, public: publicStore }),
+        // `lying` is declared public below and stores something other than it was given, so
+        // the copy can be written and then fail its own verification (KF-DOC-PUBLISH-008).
+        stores: new StoreRegistry({ working: store, public: publicStore, lying: new LyingStore() }),
       }),
     );
     qualityRoleAssignmentId = await createObject(harness.adminPool, fixtures, {
@@ -621,8 +705,8 @@ describe('document action chain', () => {
     await withTransaction(harness.adminPool, async (tx) => {
       await bindContext(tx, fixtures, fixtures.reviewerId);
       await tx.query(
-        `insert into org.role_assignment (id, subject_id, role_id, scope_id)
-         values ($1,$2,'quality_authority',$3)`,
+        `insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to)
+         values ($1,$2,'quality_authority',$3,now() + interval '1 year')`,
         [qualityRoleAssignmentId, fixtures.reviewerId, fixtures.organizationId],
       );
     });
@@ -808,7 +892,7 @@ describe('document action chain', () => {
                 },
               ],
               conversionLoss: [],
-              lossDigest: digest([]),
+              lossDigest: documentConversionLossDigest([]),
               contentDigest: hexDigest('1'),
             };
           },
@@ -860,12 +944,12 @@ describe('document action chain', () => {
                   level: 1,
                   text: 'Title',
                   attributes: {},
-                  digest: '0dc5c1997e1a8d452a41403404c7487e26c729d392755ef115bbaa06cff65697',
+                  digest: 'aca45802d619d7f9cf466f15a83b502872aec6de0edb5acea65861f78ebcc215',
                 },
               ],
               conversionLoss: [],
-              lossDigest: '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945',
-              contentDigest: '56037c158bffc40a5833337e3c0d200b7cf979e3355c51a345c2b83d055dd49c',
+              lossDigest: '4590b58188b243fcce16669e06b8c5d61322a94014fe50a8bd0fb7d5b46b6e8f',
+              contentDigest: '98e5c7fe674d62703a50115438dfad40f8ee682c4d5a8f0340f71612936b50fc',
             };
           },
         },
@@ -901,9 +985,11 @@ describe('document action chain', () => {
         content_digest: string;
         projection_preimage: string;
         atom_preimage: string;
+        loss_preimage: string;
+        digest_format: string;
       }>(
         `select p.source_digest, p.loss_digest, p.content_digest, p.projection_preimage,
-                a.atom_preimage
+                a.atom_preimage, p.loss_preimage, p.digest_format
            from content.artifact_version v
            join content.document_parse p on p.artifact_version_id = v.id
            join content.document_atom a on a.parse_id = p.id
@@ -914,12 +1000,78 @@ describe('document action chain', () => {
 
     expect(stored).toEqual({
       source_digest: sourceDigest,
-      loss_digest: '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945',
-      content_digest: '56037c158bffc40a5833337e3c0d200b7cf979e3355c51a345c2b83d055dd49c',
+      loss_digest: '4590b58188b243fcce16669e06b8c5d61322a94014fe50a8bd0fb7d5b46b6e8f',
+      content_digest: '98e5c7fe674d62703a50115438dfad40f8ee682c4d5a8f0340f71612936b50fc',
       projection_preimage:
-        '{"atoms":[{"attributes":{},"kind":"heading","level":1,"ordinal":1,"text":"Title"}],"conversionLoss":[],"projectionContract":"kf.pandoc-atoms.v2"}',
-      atom_preimage: '{"attributes":{},"kind":"heading","level":1,"ordinal":1,"text":"Title"}',
+        '{"atoms":[{"attributes":{},"format":"kf-document-atom-v1","kind":"heading","level":1,"ordinal":1,"text":"Title"}],"conversionLoss":[],"format":"kf-document-projection-v1","projectionContract":"kf.pandoc-atoms.v2"}',
+      atom_preimage:
+        '{"attributes":{},"format":"kf-document-atom-v1","kind":"heading","level":1,"ordinal":1,"text":"Title"}',
+      loss_preimage: '{"conversionLoss":[],"format":"kf-document-conversion-loss-v1"}',
+      digest_format: 'kf-document-parse-v2',
     });
+  });
+
+  it('refuses, in the database, a new parse or atom recorded under the untagged v1 receipt', async () => {
+    // Planted: the exact v1 receipt the writer produced before 20260925114000, inserted beside a
+    // verified parse. The triggers must refuse it three ways — naming v1 outright, taking the v2
+    // default over v1 preimages, and an untagged atom under a v2 parse.
+    const source = Buffer.from('# Title\n');
+    const sourceDigest = digestOf(source);
+    const version = await withTransaction(harness.adminPool, (tx) =>
+      tx.one<{ id: string; parse_id: string; action_id: string }>(
+        `select v.id, p.id as parse_id, p.created_by_action as action_id
+           from content.artifact_version v
+           join content.document_parse p on p.artifact_version_id = v.id
+          where v.sha256 = $1
+          order by p.created_at desc limit 1`,
+        [sourceDigest],
+      ),
+    );
+    const claim = '{"attributes":{},"kind":"heading","level":1,"ordinal":1,"text":"Title"}';
+    const projection =
+      `{"atoms":[${claim}],"conversionLoss":[],` + '"projectionContract":"kf.pandoc-atoms.v2"}';
+    const sha = (text: string): string => digestOf(Buffer.from(text, 'utf8'));
+    const plant = (sql: string, parameters: unknown[]): Promise<unknown> =>
+      withTransaction(harness.adminPool, async (tx) => {
+        await setTransactionContext(tx, {
+          actorId: fixtures.reviewerId,
+          actingRoleId: fixtures.reviewerRoleId,
+          actionId: version.action_id,
+        });
+        await tx.query(sql, parameters);
+      });
+    const parseInsert = (format: string | null): Promise<unknown> =>
+      plant(
+        `insert into content.document_parse
+           (artifact_version_id, parser, parser_version, projection_contract, conversion_loss,
+            source_digest, loss_digest, loss_preimage, projection_preimage, content_digest,
+            created_by, created_by_action${format === null ? '' : ', digest_format'})
+         values ($1,'planted','1','kf.pandoc-atoms.v2','[]'::jsonb,$2,$3,'[]',$4,$5,$6,$7
+                 ${format === null ? '' : ", '" + format + "'"})`,
+        [
+          version.id,
+          sourceDigest,
+          sha('[]'),
+          projection,
+          sha(projection),
+          fixtures.reviewerId,
+          version.action_id,
+        ],
+      );
+
+    await expect(parseInsert('kf-document-parse-v1')).rejects.toThrow(
+      /is not kf-document-parse-v2/,
+    );
+    await expect(parseInsert(null)).rejects.toThrow(/loss digest or preimage/);
+    await expect(
+      plant(
+        `insert into content.document_atom
+           (parse_id, ordinal, atom_kind, heading_level, text_content, attributes, atom_digest,
+            atom_preimage)
+         values ($1, 2, 'heading', 1, 'Title', '{}'::jsonb, $2, $3)`,
+        [version.parse_id, sha(claim), claim],
+      ),
+    ).rejects.toThrow(/atom digest or preimage/);
   });
 
   describe('a parse made before the transaction', () => {
@@ -937,12 +1089,12 @@ describe('document action chain', () => {
               level: 1,
               text: 'Title',
               attributes: {},
-              digest: '0dc5c1997e1a8d452a41403404c7487e26c729d392755ef115bbaa06cff65697',
+              digest: 'aca45802d619d7f9cf466f15a83b502872aec6de0edb5acea65861f78ebcc215',
             },
           ],
           conversionLoss: [],
-          lossDigest: '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945',
-          contentDigest: '56037c158bffc40a5833337e3c0d200b7cf979e3355c51a345c2b83d055dd49c',
+          lossDigest: '4590b58188b243fcce16669e06b8c5d61322a94014fe50a8bd0fb7d5b46b6e8f',
+          contentDigest: '98e5c7fe674d62703a50115438dfad40f8ee682c4d5a8f0340f71612936b50fc',
         };
       },
     });
@@ -2314,6 +2466,63 @@ describe('document action chain', () => {
         );
       }),
     ).rejects.toThrow(/written only by publish_document_view/);
+    // Nor into a store that is not public, even by the publication act itself (KF-SAS-RQ-134).
+    await expect(
+      withTransaction(harness.adminPool, async (tx) => {
+        await bindContext(tx, fixtures, fixtures.reviewerId);
+        await tx.query(
+          `insert into content.artifact_location (version_id, store_id, role, uri, recorded_by_action)
+           values ($1, 'working', 'public_copy', 'into-working', $2)`,
+          [artifactVersionId, publishedWithBytes.actionId],
+        );
+      }),
+    ).rejects.toThrow(/only be written into a store declared public/);
+
+    // The act's own two refusals. Each target names a store the database accepts as public; the
+    // instance either cannot reach it, or reaches it and the bytes that land do not verify.
+    // Either way the publication is refused by name and leaves no public copy behind.
+    const refusedTarget = async (storeId: string, targetKey: string): Promise<string> => {
+      const targetId = uuid();
+      await withTransaction(harness.adminPool, async (tx) => {
+        await bindContext(tx, fixtures, fixtures.reviewerId);
+        await declareStore(tx, { id: storeId, kind: 'memory', label: `Public ${storeId}` });
+        await tx.query('update content.artifact_store set public = true where id = $1', [storeId]);
+        await tx.query(
+          `insert into content.document_publication_target
+             (id, organization_id, target_key, max_classification, policy_digest, registered_by, public_store_id)
+           values ($1,$2,$3,'internal',$4,$5,$6)`,
+          [
+            targetId,
+            fixtures.organizationId,
+            targetKey,
+            hexDigest('b'),
+            fixtures.reviewerId,
+            storeId,
+          ],
+        );
+      });
+      return targetId;
+    };
+    const publicCopiesIn = async (storeId: string) =>
+      (await withTransaction(harness.adminPool, (tx) => locationsOf(tx, artifactVersionId))).filter(
+        (location) => location.role === 'public_copy' && location.store_id === storeId,
+      );
+    const unreachableTarget = await refusedTarget('offsite-public', 'unreachable-public-site');
+    await expect(
+      call('publish_document_view', [compositionId], {
+        ...publicationPayload,
+        publication_target_id: unreachableTarget,
+      }),
+    ).rejects.toMatchObject({ detail: { rule: 'KF-DOC-PUBLISH-007' } });
+    expect(await publicCopiesIn('offsite-public')).toEqual([]);
+    const lyingTarget = await refusedTarget('lying', 'non-verifying-public-site');
+    await expect(
+      call('publish_document_view', [compositionId], {
+        ...publicationPayload,
+        publication_target_id: lyingTarget,
+      }),
+    ).rejects.toMatchObject({ detail: { rule: 'KF-DOC-PUBLISH-008' } });
+    expect(await publicCopiesIn('lying')).toEqual([]);
 
     // Migration 007 must re-audit historical runs at acceptance. Simulate a pre-007
     // partial-provenance row by extending its immutable Basis behind legacy trigger bypass:
@@ -2494,6 +2703,49 @@ describe('document action chain', () => {
         'author',
       ),
     ).rejects.toMatchObject({ detail: { rule: 'KF-DOC-PROPOSAL-014' } });
+    // A claim under the superseded untagged context digest, naming no projection, verifies (it is
+    // what stored proposals carry) and is refused as a NEW record (KF-SAS-RQ-016, RQ-115).
+    await expect(
+      call(
+        'record_document_proposal',
+        [fragmentId],
+        {
+          proposal_id: uuid(),
+          basis_id: basisId,
+          proposal_kind: 'source_patch',
+          proposed_by_kind: 'model',
+          model_provider: 'local-test',
+          model_profile: 'deterministic-fixture',
+          model_request_id: 'request-test-only',
+          model_provenance: modelProvenance(
+            basisId,
+            fragmentId,
+            fragmentRevision2Id,
+            fragmentRevisionDigest,
+            'legacy-v1',
+          ),
+          base_fragment_revision_id: fragmentRevision2Id,
+          operations: [
+            {
+              operation: 'replace_fragment_source',
+              media_type: 'text/markdown',
+              classification: 'internal',
+              holder_id: uuid(),
+              previous_holder_id: fragmentRevisionHolderId,
+              holder: {
+                kind: 'git',
+                repository: 'local/openhuman',
+                commit_sha: commit('0'),
+                path: 'docs/atoms/purpose.md',
+                submodule_commit_sha: null,
+                content_digest: hexDigest('0'),
+              },
+            },
+          ],
+        },
+        'author',
+      ),
+    ).rejects.toMatchObject({ detail: { rule: 'KF-DOC-PROPOSAL-017' } });
     await call(
       'record_document_proposal',
       [fragmentId],

@@ -47,6 +47,15 @@ machines are not corpus members and are not projected; `GET /objects/:id` attach
 the Result using the same queries `/objects/:id/history` and `/objects/:id/available-actions`
 already run. One engine for membership; existing reads for what is not membership.
 
+_Amended 2026-09-24:_ the history is one query, `OBJECT_HISTORY_SQL` in `@kf/actions`, shared by
+both routes and the agent tools' `readHistory`, and it is read by index. It had filtered every
+audit event through a per-event subquery on `core.action.target_ids`, so each object view cost
+O(ledger); it is now a union of `audit_by_object` and the acts that targeted the object, found by
+the GIN index `action_by_target` through `core.actions_targeting` (row security would not let the
+application's non-leakproof `@>` use the index) with fast update off (a pending list is scanned
+by every lookup). `tests/database/history-plan.test.ts` holds the buffers flat while unrelated
+acts grow tenfold; the old query went from 3,076 to 33,633 buffers on the same data.
+
 **Every object type gets the page with no per-type code.** `apps/web/src/app/objects/[id]`
 renders the Result generically — envelope, typed payload as rows, relationships with direction
 and relation type, actions from this state, history. A type added to the ontology is browsable
@@ -76,3 +85,10 @@ corpus, and changes digest on a new backlink. `tests/database/master-record-proj
 drives `GET /objects/:id` against a real database: the anchor and its backlink appear, the
 facets are present, the digest header matches, and an object outside the corpus is 404.
 `tests/ontology/planted-violations.test.ts` plants ONT-017 both ways.
+`tests/database/object-view-every-type.test.ts` is the acceptance test the design names
+(KF-SAS-RQ-117, added 2026-09-25): one record of every type in `registry.object_type` — read from
+the database, so a new type that nobody makes fails it — and `GET /objects/:id` answers each with
+an `object_view` Result anchored at that record. Records are made by their create acts where one
+act makes one; the bootstrap types come from the harness fixtures, and the types whose acts need
+a lifecycle walk or the document or ML pipelines are admin fixtures, each naming the test that
+proves its act.

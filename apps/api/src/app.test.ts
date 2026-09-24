@@ -95,6 +95,26 @@ describe('config', () => {
     );
   });
 
+  it('reads the retrieval engine socket, absent by default, and refuses a relative one', () => {
+    expect(
+      loadConfig({ NODE_ENV: 'development', KF_DEPLOYMENT_PROFILE: 'development' }).retrievalSocket,
+    ).toBeUndefined();
+    expect(
+      loadConfig({
+        NODE_ENV: 'development',
+        KF_DEPLOYMENT_PROFILE: 'development',
+        KF_RETRIEVAL_SOCKET: '/run/kf/retrieval.sock',
+      }).retrievalSocket,
+    ).toBe('/run/kf/retrieval.sock');
+    expect(() =>
+      loadConfig({
+        NODE_ENV: 'development',
+        KF_DEPLOYMENT_PROFILE: 'development',
+        KF_RETRIEVAL_SOCKET: 'retrieval.sock',
+      }),
+    ).toThrow(/KF_RETRIEVAL_SOCKET must be an absolute path/);
+  });
+
   it('needs no attestor in development, which attests in-process', () => {
     expect(
       loadConfig({ NODE_ENV: 'development', KF_DEPLOYMENT_PROFILE: 'development' }).attestorSocket,

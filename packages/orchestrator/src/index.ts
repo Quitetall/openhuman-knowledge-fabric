@@ -40,6 +40,9 @@ import {
   PRODUCT_QUALITY_PRECONDITIONS,
 } from '@kf/product-quality';
 import {
+  OBSERVATION_ACTION_IDS,
+  OBSERVATION_EFFECTS,
+  OBSERVATION_MATERIALIZERS,
   WORK_CONTROL_ACTION_IDS,
   WORK_CONTROL_EFFECTS,
   WORK_CONTROL_MATERIALIZERS,
@@ -151,6 +154,14 @@ const BUILT_IN_ATOMS: readonly ActionAtoms[] = [
     materializers: WORK_CONTROL_MATERIALIZERS,
     effects: WORK_CONTROL_EFFECTS,
     preconditions: WORK_CONTROL_PRECONDITIONS,
+  },
+  {
+    // ADR 0034 (proposed): capture is cheap, promotion is institutional. Its own group so the
+    // capture seam's ownership is visible here rather than folded into work control's list.
+    name: 'observations',
+    ownedActions: OBSERVATION_ACTION_IDS,
+    materializers: OBSERVATION_MATERIALIZERS,
+    effects: OBSERVATION_EFFECTS,
   },
   {
     name: 'product-quality',

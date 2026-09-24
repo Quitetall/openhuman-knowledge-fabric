@@ -8,6 +8,15 @@
 > `core.action` for a `requires: act` action type is refused unless a live `act` grant reaches the
 > actor (`20260924000100_the_database_checks_act_authority.sql`). Read grants are still applied at
 > the API, as the last consequence below says.
+>
+> **UPDATED 2026-09-25.** The read gate moved to `@kf/authorization` (`readGranted`,
+> `readGrantedSubset`), so a surface outside the API can ask it. The three action-side reads that
+> still answered on row-level security alone — `GET /projects/:id` (and its package list),
+> `GET /objects/:id/history` and `GET /objects/:id/available-actions` — now ask it and answer not
+> found for an ungranted record, and so does every agent read tool (`@kf/agent-tools`): a record,
+> its history, what can be done to it, a search hit, a traced edge, its verification, citations
+> and evidence. A person cleared for a record but not granted it no longer learns its title,
+> history or existence through any of them (KF-SAS-RQ-039, RQ-041).
 
 ## Context
 
@@ -37,8 +46,8 @@ an act stated, so every decision record, configuration item and project was `int
 assignment's ceiling. The assignment ceiling means what `org.effective_access_grant` always
 said: the cap on the organization-wide read grant that a role assignment is.
 
-**Every read surface checks the grant.** `apps/api/src/routes/documents/read-grant.ts`
-answers one question — does a live grant reach this object at its classification — from the
+**Every read surface checks the grant.** `packages/authorization/src/read-grant.ts`
+(re-exported from `apps/api/src/routes/documents/read-grant.ts`) answers one question — does a live grant reach this object at its classification — from the
 same view the master record uses, and the document read, source bytes, workbench,
 projection, list and search routes all ask it. Not granted reads as not found, deliberately:
 the difference between "no such record" and "not yours" is itself information.

@@ -38,6 +38,7 @@
     "content.master_record_link_access",
     "content.master_record_link_revocation",
     "content.master_record_withholding",
+    "content.observation",
     "content.orphan_collection",
     "content.person_entitlement_exclusion",
     "content.proposal_overlay",
@@ -53,7 +54,10 @@
     "core.snapshot",
     "engineering.change_item",
     "engineering.decision_alternative",
+    "engineering.requirement",
+    "engineering.risk",
     "engineering.risk_control",
+    "engineering.test",
     "engineering.test_definition",
     "engineering.test_execution",
     "engineering.test_execution_equipment",
@@ -75,6 +79,9 @@
     "ml.promotion_signing_key_revocation",
     "ml.registry_registration",
     "ml.run_lineage",
+    "ml.run_lineage_input",
+    "ml.run_lineage_output",
+    "ml.run_lineage_parent_model",
     "ml.run_seal",
     "ml.run_seal_signing_key",
     "ml.run_seal_signing_key_revocation",
@@ -87,12 +94,15 @@
     "org.person_clearance_retirement",
     "org.project_membership",
     "org.role_assignment",
+    "product.baseline",
     "product.baseline_item",
     "product.configuration_item",
     "product.effectivity",
     "product.interface_conformance",
     "product.interface_contract",
     "product.physical_binding",
+    "product.product_system",
+    "product.release",
     "product.release_item",
     "quality.calibration",
     "quality.capa",
@@ -143,9 +153,30 @@
     "work.work_order",
     "work.work_order_amendment",
     "work.work_order_scope",
-    "work.work_package"
+    "work.work_package",
+    "org.access_demand",
+    "work.deliverable_retired_attribute"
   ],
-  "derivedTables": ["search.document", "retrieval.band_version"],
+  "derivedTables": ["search.document", "retrieval.band_version", "retrieval.embed_pending"],
   "liveExternalTables": [],
-  "liveExternalDecision": "No live external table is a permission member. quality federated rows and content.external_locator are materialized metadata only; external bytes must be imported into a governed artifact version before membership."
+  "liveExternalDecision": "No live external table is a permission member. quality federated rows and content.external_locator are materialized metadata only; external bytes must be imported into a governed artifact version before membership.",
+  "transientTables": [
+    {
+      "table": "search.recorded_query",
+      "expiry": "90 days"
+    },
+    {
+      "table": "search.demand_contribution",
+      "expiry": "90 days"
+    },
+    {
+      "table": "search.asker_key",
+      "expiry": "90 days"
+    },
+    {
+      "table": "retrieval.disclosure",
+      "expiry": "90 days"
+    }
+  ],
+  "transientDecision": "Transient observations (§64B, ADR 0029) are neither permission members nor rebuildable projections: they are kept for their stated expiry and then swept, and are excluded from the preservation export, checkpoint coverage and backup data, so no copy outlives the window."
 }

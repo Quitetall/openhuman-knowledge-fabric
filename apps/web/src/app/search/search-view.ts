@@ -37,6 +37,13 @@ function resultLimit(value: string | readonly string[] | undefined): number {
   return limit;
 }
 
+/** The near-miss checkbox: `true` when ticked, absent otherwise; anything else is refused. */
+function nearMissFlag(value: string | readonly string[] | undefined): boolean {
+  if (value === undefined) return false;
+  if (value === 'true') return true;
+  throw new Error('invalid nearMisses');
+}
+
 export function parseSearchPageParams(params: SearchPageParams): ParsedSearchPage {
   const query = params['q'];
   if (query === undefined) return { status: 'idle' };
@@ -44,11 +51,13 @@ export function parseSearchPageParams(params: SearchPageParams): ParsedSearchPag
   try {
     const objectTypes = filterList(params['objectType']);
     const lifecycleStates = filterList(params['lifecycleState']);
+    const nearMisses = nearMissFlag(params['nearMisses']);
     return {
       status: 'submitted',
       request: {
         text: query,
         limit: resultLimit(params['limit']),
+        ...(nearMisses ? { nearMisses } : {}),
         ...(objectTypes === undefined ? {} : { objectTypes }),
         ...(lifecycleStates === undefined ? {} : { lifecycleStates }),
       },

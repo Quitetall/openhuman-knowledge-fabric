@@ -1,4 +1,5 @@
 import type { CheckDefinition } from './contracts.js';
+import { assignmentReviewDates } from './authority-checks.js';
 import { backupFreshness } from './backup-check.js';
 import { federationFreshness, outboxHealth, searchComplete } from './freshness-checks.js';
 import {
@@ -33,6 +34,7 @@ export const INSTITUTIONAL_CHECKS: readonly CheckDefinition[] = [
   },
   { id: 'backup_freshness', scope: 'institutional', run: backupFreshness },
   { id: 'pitr_readiness', scope: 'institutional', run: pitrReadiness },
+  { id: 'assignment_review_dates', scope: 'institutional', run: assignmentReviewDates },
 ];
 
 export const CHECKS: readonly CheckDefinition[] = [...SERVICE_CHECKS, ...INSTITUTIONAL_CHECKS];

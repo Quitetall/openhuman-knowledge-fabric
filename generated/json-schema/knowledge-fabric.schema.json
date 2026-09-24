@@ -5,7 +5,7 @@
   "description": "Normative machine-readable graph envelope for the organizational graph and work-control specification.",
   "x-generated-from": {
     "ontology_version": "1.2.0-draft.1",
-    "source_digest": "322a61ec8fc9ea00b0d5381f97a4a48c58de1d6031a1b7362c1c1baa1e398ea2"
+    "source_digest": "acea0b4f8ca21738e4b6de0bf1e7382b76f39d11cc8ac745ab6a25e9e3166e94"
   },
   "type": "object",
   "properties": {
@@ -145,6 +145,9 @@
           },
           {
             "$ref": "#/$defs/WarrantNode"
+          },
+          {
+            "$ref": "#/$defs/ObservationNode"
           }
         ]
       }
@@ -320,7 +323,8 @@
             "supplied_by",
             "calibrated_with",
             "raised_against",
-            "remediated_by"
+            "remediated_by",
+            "concerns"
           ]
         },
         "source": {
@@ -544,6 +548,23 @@
             "execute_test",
             "record_test_result",
             "invalidate_test_execution",
+            "record_observation",
+            "promote_observation",
+            "withdraw_observation",
+            "register_product_system",
+            "define_requirement",
+            "identify_risk",
+            "register_test",
+            "define_baseline",
+            "define_release",
+            "record_engagement",
+            "plan_milestone",
+            "define_deliverable",
+            "activate_engagement",
+            "suspend_engagement",
+            "resume_engagement",
+            "close_engagement",
+            "terminate_engagement",
             "create_warrant_draft",
             "revise_warrant_draft",
             "submit_warrant",
@@ -7634,6 +7655,156 @@
             "outcome",
             "currency",
             "standing"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "node_id",
+        "node_type",
+        "title",
+        "state",
+        "classification",
+        "owner",
+        "created_at",
+        "created_by",
+        "updated_at",
+        "updated_by",
+        "source_authority",
+        "attributes"
+      ],
+      "additionalProperties": false
+    },
+    "ObservationNode": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "const": "1.2.0-draft.1"
+        },
+        "node_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "node_type": {
+          "const": "observation"
+        },
+        "enterprise_id": {
+          "type": "string",
+          "anyOf": [
+            {
+              "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+            },
+            {
+              "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+            }
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "captured",
+            "promoted",
+            "withdrawn"
+          ]
+        },
+        "classification": {
+          "type": "string",
+          "enum": [
+            "public",
+            "internal",
+            "confidential",
+            "restricted"
+          ]
+        },
+        "owner": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "created_by": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_by": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "source_authority": {
+          "type": "string",
+          "enum": [
+            "knowledge_fabric",
+            "plm",
+            "qms",
+            "finance",
+            "hr",
+            "git",
+            "external"
+          ]
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "uniqueItems": true,
+          "default": []
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+          },
+          "uniqueItems": true,
+          "default": []
+        },
+        "external_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ExternalReference"
+          },
+          "default": []
+        },
+        "extensions": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+          },
+          "additionalProperties": true,
+          "default": {}
+        },
+        "attributes": {
+          "type": "object",
+          "properties": {
+            "body": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000
+            },
+            "observed_at": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          "required": [
+            "body",
+            "observed_at"
           ],
           "additionalProperties": false
         }

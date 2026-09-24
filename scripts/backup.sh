@@ -254,9 +254,27 @@ echo "==> logical dump"
 #
 # The context seal key's ROW is excluded, not just unreadable: seals last one transaction, so a
 # restored database needs a key rather than this one, and the first seal after a restore makes a
-# fresh one (20260923000100). Kept out, the key is not readable by whoever holds a dump.
+# fresh one (20260923000100). Kept out, the key is not readable by whoever holds a dump. The
+# same holds for person attestations: each is a sixty-second proof of presence, and a restored
+# host must mint its own rather than inherit any (20260924001000, 20260925130000).
+#
+# Row security is enabled rather than bypassed: the backup login is kf_backup, which row security
+# binds, and it reads each table through a policy granting it the whole table (20260925130000).
+# Without the flag pg_dump refuses every such table; with it and a table lacking that policy, the
+# dump would be silently short — tests/backup-restore/drill.test.ts refuses both.
+#
+# Transient observations (§64B, ADR 0029) are excluded the same way: they expire after 90 days,
+# and a dump retained longer would keep them past it (KF-SAS-RQ-220). One line per table declared
+# under `transientTables` in docs/architecture/master-record-boundary.json;
+# tests/conformance/transient-observations.test.ts refuses a declared table missing here.
 "$KF_PG_DUMP" --format=custom --no-owner --no-privileges --snapshot="$SNAPSHOT_ID" \
+  --enable-row-security \
   --exclude-table-data=core.context_seal_key \
+  --exclude-table-data=core.principal_attestation \
+  --exclude-table-data=search.recorded_query \
+  --exclude-table-data=search.demand_contribution \
+  --exclude-table-data=search.asker_key \
+  --exclude-table-data=retrieval.disclosure \
   --file="$DEST/dump.pgcustom" "$DATABASE_URL"
 
 echo "==> canonical export"

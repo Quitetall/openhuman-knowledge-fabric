@@ -26,7 +26,7 @@ import {
 
 const BITMAPS: BandBitmaps = {
   organizationId: '01a08b19-44b4-7e35-b465-d6c9a1f07f99',
-  bandVersion: 7n,
+  bandVersion: '7',
   generation: 'tv-0001',
   slotCount: 3,
   bands: {
@@ -179,6 +179,7 @@ describe('the retrieval client refuses rather than answering short', () => {
     const refusing = (code: string) =>
       engine((socket, line) => {
         const message: { type: string } = JSON.parse(line);
+        if (message.type === 'hello') socket.write(encode(HELLO_OK));
         if (message.type === 'search')
           socket.write(encode({ type: 'error', code, detail: code } as ServerMessage));
       });
@@ -203,6 +204,7 @@ describe('the retrieval client refuses rather than answering short', () => {
     const path = engine((socket, line) => {
       const message: { type: string } = JSON.parse(line);
       // A hostile engine: results AND an error, in that order.
+      if (message.type === 'hello') socket.write(encode(HELLO_OK));
       if (message.type === 'search') {
         socket.write(encode({ type: 'error', code: 'internal', detail: 'fell over' }));
       }
@@ -230,6 +232,132 @@ describe('the retrieval client refuses rather than answering short', () => {
       entry?.reason,
       'a ledger entry carries its basis; a boolean carries only itself',
     ).toBeTruthy();
+  });
+});
+
+/** An engine that records every message type it received, answering as `wellBehaved` does. */
+function recording(hello: ServerMessage = HELLO_OK): { path: string; received: string[] } {
+  const received: string[] = [];
+  const answer = wellBehaved(hello);
+  const path = engine((socket, line) => {
+    const message: { type: string; objectId?: string } = JSON.parse(line);
+    received.push(message.type);
+    if (message.type === 'write_vector') {
+      socket.write(
+        encode({
+          type: 'write_vector_ok',
+          objectId: message.objectId ?? '',
+          generation: 'tv-0001',
+        }),
+      );
+      return;
+    }
+    answer(socket, line);
+  });
+  return { path, received };
+}
+
+const SEARCH = {
+  organizationId: BITMAPS.organizationId,
+  bandVersion: '7',
+  generation: 'tv-0001',
+  ceiling: 'internal',
+  allow: [],
+  deny: [],
+  query: 'supplier qualification',
+  k: 10,
+} as const;
+
+describe('the handshake is checked before anything else leaves the process', () => {
+  it('never sends the query to an engine whose embedder is not local', async () => {
+    const { path, received } = recording({
+      ...HELLO_OK,
+      embedder: { identity: 'openai:text-embedding-3-small', local: false },
+    });
+    const outcome = await new RetrievalClient({ socketPath: path, timeoutMs: 500 }).search(SEARCH);
+    expect(outcome.status).toBe('unavailable');
+    expect(received, 'the query text reached a non-local embedder').toEqual(['hello']);
+  });
+
+  it('pins the first embedder identity and refuses a different one later (KF-SAS-RQ-218)', async () => {
+    let identity = 'local:bge-small';
+    const path = engine((socket, line) => {
+      const message: { type: string } = JSON.parse(line);
+      if (message.type === 'hello')
+        socket.write(encode({ ...HELLO_OK, embedder: { identity, local: true } }));
+      if (message.type === 'search') wellBehaved()(socket, line);
+    });
+    const client = new RetrievalClient({ socketPath: path, timeoutMs: 500 });
+    expect(await client.search(SEARCH)).toMatchObject({ status: 'ranked' });
+    expect(client.embedderIdentity).toBe('local:bge-small');
+
+    identity = 'local:e5-large';
+    const second = await client.search(SEARCH);
+    expect(second.status, 'a second, differing identity must be refused').toBe('unavailable');
+    expect((second as { reason: string }).reason).toMatch(/bge-small.*e5-large/);
+    expect(client.embedderIdentity, 'the pin is not replaced by the refusal').toBe(
+      'local:bge-small',
+    );
+
+    identity = 'local:bge-small';
+    expect(await client.search(SEARCH)).toMatchObject({ status: 'ranked' });
+  });
+
+  it('names the ranking that produced the hits (KF-SAS-RQ-224)', async () => {
+    const outcome = await new RetrievalClient({ socketPath: engine(wellBehaved()) }).search(SEARCH);
+    expect(outcome).toMatchObject({ status: 'ranked', ranking: 'engine:fake/0.1' });
+  });
+
+  it('refuses a ranking that carries no trace digest (KF-SAS-RQ-219)', async () => {
+    const path = engine((socket, line) => {
+      const message: { type: string } = JSON.parse(line);
+      if (message.type === 'hello') socket.write(encode(HELLO_OK));
+      if (message.type === 'search')
+        socket.write(`${JSON.stringify({ type: 'results', hits: [], traceDigest: '' })}\n`);
+    });
+    const outcome = await new RetrievalClient({ socketPath: path, timeoutMs: 500 }).search(SEARCH);
+    expect(outcome).toMatchObject({ status: 'unavailable' });
+  });
+});
+
+describe('record text goes only to a vectors-only write path (KF-SAS-RQ-225)', () => {
+  const WRITE = {
+    organizationId: BITMAPS.organizationId,
+    objectId: '01a00000-0000-7000-8000-000000000001',
+    text: 'Second source qualification, commercial terms',
+  };
+
+  it('refuses an engine that does not declare vectors_only_write, before sending the text', async () => {
+    const { path, received } = recording();
+    const client = new RetrievalClient({ socketPath: path, timeoutMs: 500 });
+    expect(await client.probe('vectors_only_write')).toMatchObject({ status: 'unavailable' });
+    const outcome = await client.writeVector(WRITE);
+    expect(outcome).toMatchObject({ status: 'unavailable' });
+    expect((outcome as { reason: string }).reason).toMatch(/vectors_only_write/);
+    expect(received, 'record text reached a path that may persist it').not.toContain(
+      'write_vector',
+    );
+  });
+
+  it('writes through an engine that declares it', async () => {
+    const { path, received } = recording({ ...HELLO_OK, capabilities: ['vectors_only_write'] });
+    const client = new RetrievalClient({ socketPath: path, timeoutMs: 500 });
+    expect(await client.probe('vectors_only_write')).toMatchObject({ ok: true });
+    expect(await client.writeVector(WRITE)).toMatchObject({ ok: true, generation: 'tv-0001' });
+    expect(received).toEqual(['hello', 'hello', 'write_vector']);
+  });
+
+  it('refuses the write when the embedder is not local, even with the capability', async () => {
+    const { path, received } = recording({
+      ...HELLO_OK,
+      capabilities: ['vectors_only_write'],
+      embedder: { identity: 'openai:text-embedding-3-small', local: false },
+    });
+    const outcome = await new RetrievalClient({ socketPath: path, timeoutMs: 500 }).writeVector(
+      WRITE,
+    );
+    expect(outcome).toMatchObject({ status: 'unavailable' });
+    expect(received).toEqual(['hello']);
   });
 });
 

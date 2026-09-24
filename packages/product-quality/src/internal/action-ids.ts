@@ -53,4 +53,11 @@ export const PRODUCT_QUALITY_ACTION_IDS = [
   'execute_test',
   'record_test_result',
   'invalidate_test_execution',
+  // KF-SAS-RQ-143: the R01 product and quality records' create acts.
+  'register_product_system',
+  'define_requirement',
+  'identify_risk',
+  'register_test',
+  'define_baseline',
+  'define_release',
 ] as const;

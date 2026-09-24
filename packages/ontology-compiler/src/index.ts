@@ -5,7 +5,7 @@
  * drift, because a hand-edited generated file is an ontology change nobody reviewed.
  */
 
-export { loadOntology, OntologyError } from './model.js';
+export { loadOntology, OntologyError, PROJECTION_GRAMMAR_LIMITS } from './model.js';
 export type {
   ActionType,
   Field,

@@ -1,8 +1,10 @@
 import { spawn } from 'node:child_process';
 import { accessSync, constants } from 'node:fs';
 import { isAbsolute } from 'node:path';
-import { digest, digestBytes } from '@kf/canonicalization';
+import { digestBytes } from '@kf/canonicalization';
 import {
+  documentConversionLossDigest,
+  documentProjectionDigest,
   DocumentParseRefused,
   PANDOC_PROJECTION_CONTRACT,
   type DocumentParser,
@@ -313,12 +315,8 @@ export class PandocDocumentParser implements DocumentParser {
       sourceDigest: digestBytes(bytes),
       atoms,
       conversionLoss,
-      lossDigest: digest(conversionLoss),
-      contentDigest: digest({
-        projectionContract: PANDOC_PROJECTION_CONTRACT,
-        atoms: claims,
-        conversionLoss,
-      }),
+      lossDigest: documentConversionLossDigest(conversionLoss),
+      contentDigest: documentProjectionDigest(PANDOC_PROJECTION_CONTRACT, claims, conversionLoss),
     };
   }
 }

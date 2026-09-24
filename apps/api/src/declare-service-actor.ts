@@ -4,19 +4,18 @@
  * See `./admin/declare-service-actor.ts` for what it creates and why it is an operator command.
  */
 import { createPool } from '@kf/database';
+
+import { ownerUrl as loadOwnerUrl } from './admin/commands.js';
 import {
   parseDeclareServiceActorArgs,
   planDeclareServiceActor,
   runDeclareServiceActor,
 } from './admin/declare-service-actor.js';
 
-const ownerUrl = process.env['DATABASE_OWNER_URL'];
-if (ownerUrl === undefined || ownerUrl.trim() === '') {
-  console.error(
-    'DATABASE_OWNER_URL is required: this creates a principal and needs the owner role',
-  );
-  process.exit(1);
-}
+// The same loader as the other owner-tier commands: DATABASE_OWNER_URL_FILE, inline only in
+// development and test (RQ-151).
+const ownerUrl = loadOwnerUrl(process.env, process.stderr);
+if (ownerUrl === undefined) process.exit(1);
 
 let request;
 try {
@@ -41,10 +40,13 @@ runDeclareServiceActor(pool, plan.declaration).then(
           service_actor: plan.declaration?.name,
           person_id: result.personId,
           role_assignment_id: result.roleAssignmentId,
+          role_assignment_valid_to: result.roleAssignmentValidTo?.toISOString() ?? null,
           clearance_id: result.clearanceId,
           action_id: result.actionId,
           reused: result.reused,
-          next: 'set KF_STORAGE_ACTOR=<person_id> KF_STORAGE_ROLE=<role_assignment_id> for kf-storage',
+          next:
+            'set KF_STORAGE_ACTOR=<person_id> KF_STORAGE_ROLE=<role_assignment_id> for kf-storage; ' +
+            'renew before role_assignment_valid_to with kf:grant-authority --renew (ADR 0036)',
         },
         null,
         2,

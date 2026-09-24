@@ -6,6 +6,7 @@ export const PRESERVATION_IMPORT_TARGETS = {
   'legacy-action-provenance': 'core.action_migration019_legacy',
   approvals: 'core.approval',
   'object-verifications': 'core.object_verification',
+  'access-demand': 'org.access_demand',
   snapshots: 'core.snapshot',
   'audit-events': 'core.audit_event',
   'audit-checkpoints': 'core.audit_checkpoint',
@@ -120,6 +121,7 @@ export const PRESERVATION_IMPORT_TARGETS = {
   'work-order-scopes': 'work.work_order_scope',
   'work-order-amendments': 'work.work_order_amendment',
   deliverables: 'work.deliverable',
+  'deliverable-retired-attributes': 'work.deliverable_retired_attribute',
   'work-executions': 'work.work_execution',
   'deliverable-submissions': 'work.deliverable_submission',
   'acceptance-records': 'work.acceptance_record',
@@ -128,20 +130,27 @@ export const PRESERVATION_IMPORT_TARGETS = {
   'invoice-lines': 'finance.invoice_line',
   payments: 'finance.payment',
   'payment-allocations': 'finance.payment_allocation',
+  'product-systems': 'product.product_system',
   'configuration-items': 'product.configuration_item',
   'interface-contracts': 'product.interface_contract',
   'interface-conformances': 'product.interface_conformance',
   'physical-bindings': 'product.physical_binding',
+  baselines: 'product.baseline',
+  releases: 'product.release',
   'baseline-items': 'product.baseline_item',
   'release-items': 'product.release_item',
   effectivities: 'product.effectivity',
   'decision-alternatives': 'engineering.decision_alternative',
   'change-items': 'engineering.change_item',
+  requirements: 'engineering.requirement',
+  risks: 'engineering.risk',
+  tests: 'engineering.test',
   'risk-controls': 'engineering.risk_control',
   'test-definitions': 'engineering.test_definition',
   'test-executions': 'engineering.test_execution',
   'test-execution-equipment': 'engineering.test_execution_equipment',
   'verification-links': 'engineering.verification_link',
+  observations: 'content.observation',
   'federated-sources': 'quality.federated_source',
   'federated-references': 'quality.federated_reference',
   'federated-links': 'quality.federated_link',
@@ -163,13 +172,36 @@ export const IMPORT_TARGETS: Readonly<Record<string, string>> = PRESERVATION_IMP
 export const PRESERVATION_TABLE_EXCLUSIONS = {
   'registry.*': 'deterministic ontology seed carried in ontology/registry.json',
   'search.document': 'derived search projection rebuilt from authoritative records',
+  'retrieval.band_version':
+    'derived cache-invalidation counter (§64A); band membership is re-derived from core.object ' +
+    'on every mask build, and a missing row reads as version 0 until the next band-moving write',
   'core.audit_chain_head': 'derived global append cursor rebuilt from verified audit history',
   'core.migration030_rollback_state': 'path-local migration rollback metadata, not authority',
   'content.compiler_runtime_lease': 'ephemeral worker lease, invalid after restore',
   'content.document_basis_classifier_lease': 'ephemeral classifier lease, invalid after restore',
   'core.context_seal_key':
     'transaction-scoped seal key; a restore needs a key, not this one, and makes a fresh one',
+  'retrieval.embed_pending':
+    'derived embedding queue (§64A); enqueueing every object again rebuilds it, and a lost row ' +
+    'delays one embedding without disclosing anything',
+  // Transient observations (§64B, ADR 0029, KF-SAS-RQ-220). The export's retention is unbounded,
+  // so carrying any of these would keep them forever by the back door. Held to this list by
+  // tests/conformance/transient-observations.test.ts.
+  'search.recorded_query': 'transient observation (§64B): a query somebody ran; expires in 90 days',
+  'search.demand_contribution':
+    'transient observation (§64B): which pseudonymous askers were counted; expires in 90 days',
+  'search.asker_key': 'transient observation (§64B): the pseudonym key; rotates every 90 days',
+  'retrieval.disclosure':
+    'transient observation (§64B): digests of served semantic answers; expire in 90 days',
   'core.principal_attestation':
     'transient proof a person was present (20260924001000): digests only, expired within 60 s, ' +
     'never evidence of an act — the action and audit rows are',
+  'org.declared_agent':
+    'deployment trust configuration (ADR 0035, 20260925100000): which OAuth clients of THIS ' +
+    "deployment's realm may act for people. A restore target has its own realm and its owner " +
+    'declares its own agents; the participation each act recorded travels in actions.json. Kept ' +
+    'out also so that a format-2 archive written before it existed still verifies and restores',
+  'core.write_guard_exemption':
+    'schema configuration written by migration 20260925011000 and pinned by its test; a restore ' +
+    'into a migrated database already holds it',
 } as const;

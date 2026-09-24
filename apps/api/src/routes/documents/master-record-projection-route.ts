@@ -3,6 +3,7 @@ import { setResolvedAccessContext, withTransaction } from '@kf/database';
 import {
   assertPermissionSetInvariant,
   enumeratePermittedSet,
+  masterRecordMemberFormat,
   enumerateRelevanceGraph,
   latestMasterRecord,
   type MasterRecordManifest,
@@ -182,6 +183,7 @@ export function registerMasterRecordProjectionRoute(
           tx,
           identity.actorId,
           identity.organizationId,
+          masterRecordMemberFormat(manifest),
         );
         try {
           assertPermissionSetInvariant(

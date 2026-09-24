@@ -1,9 +1,12 @@
 import { canonicalize, digest } from '@kf/canonicalization';
 import {
+  DOCUMENT_PROPOSAL_CONTEXT_FORMAT,
+  documentProposalContextDigest,
   validateDocumentProposalModelProvenance,
   validateDocumentProposalOperation,
 } from '@kf/documents';
 import type {
+  AiContextProjectionRecord,
   AiProposalProvenance,
   AiProposalRequest,
   AiProposalResult,
@@ -44,10 +47,16 @@ export function validateProposal(value: unknown, request: AiProposalRequest): Ai
   return Object.freeze({ summary, operations: Object.freeze([envelope]) });
 }
 
+/**
+ * The exact claim recorded with a model proposal. The context digest is the tagged v2 form
+ * (KF-SAS-RQ-016) and names the `agent_context` Result the planner drew the context from
+ * (KF-SAS-RQ-115), so a verifier can tell which reading of the corpus the model was given.
+ */
 export function proposalProvenance(
   provider: AiProvider,
   request: AiProposalRequest,
   authorization: { readonly policyId: string; readonly decision: AiProviderPolicyDecision },
+  source: AiContextProjectionRecord,
 ): AiProposalProvenance {
   const includedItems = request.context.map((item) => ({
     subject_id: item.subjectId,
@@ -60,7 +69,14 @@ export function proposalProvenance(
   }));
   const omittedSubjectIds = [...request.omittedSubjectIds];
   const instructionDigest = digest(request.instruction);
-  const contextDigest = digest({
+  const projection = {
+    definition_id: source.definitionId,
+    definition_version: source.definitionVersion,
+    corpus_digest: source.corpusDigest,
+    projection_digest: source.projectionDigest,
+  };
+  const contextDigest = documentProposalContextDigest({
+    projection,
     tokenizer: request.tokenizer,
     token_budget: request.tokenBudget,
     instruction_digest: instructionDigest,
@@ -81,6 +97,8 @@ export function proposalProvenance(
       decision: authorization.decision,
     },
     context: {
+      format: DOCUMENT_PROPOSAL_CONTEXT_FORMAT,
+      projection,
       tokenizer: request.tokenizer,
       token_budget: request.tokenBudget,
       instruction_digest: instructionDigest,

@@ -13,9 +13,13 @@ import type {
 import {
   buildWithheldLedger,
   compileMasterRecord,
+  CURRENT_MASTER_RECORD_MEMBER_FORMAT,
+  masterRecordMemberDigest,
+  masterRecordPayloadFormat,
   relevanceClosureWithMetrics,
   sectionMasterRecord,
   type MasterRecordManifest,
+  type MasterRecordMemberFormat,
   type MasterRecordSections,
 } from './master-record.js';
 
@@ -108,21 +112,33 @@ function contentDigests(value: unknown, result = new Set<string>()): Set<string>
 export async function enumeratePermissionSet(
   tx: Tx,
   organizationId: string,
+  // A stored claim is re-checked under the member format it RECORDED
+  // (`masterRecordMemberFormat(manifest)`); a new compilation uses the current one.
+  memberFormat: MasterRecordMemberFormat = CURRENT_MASTER_RECORD_MEMBER_FORMAT,
 ): Promise<readonly PermissionMember[]> {
+  // The payloads are read in ONE call over every visible id, never once per row: the one-object
+  // form walks the catalog and plans ~235 statements per object, which made every Object View
+  // cost ~65 ms per object in the organization (KF-SAS-RQ-201; 20260925121500). The reading is
+  // the one the member format names (20260925121600): v1 for claims that recorded it, v2 anew.
   const rows = await tx.query<ObjectRow>(
-    `select /* master-record.permission-set */
-            o.id, o.object_type, o.organization_id, o.classification, o.title,
-            o.lifecycle_state, o.row_version::text,
-            content.master_record_payload(o.id) as content_payload,
-            -- Left join, because absence IS the unverified state (KF-SAS-RQ-228). An inner join
-            -- would drop every unchecked record from the corpus, which is the silent omission
-            -- RQ-229 forbids, arriving as a query shape rather than as a decision.
-            v.verified_at, v.verified_by, v.basis as verified_basis
-       from core.object o
-       left join core.object_verification v on v.object_id = o.id
-      where o.organization_id = $1
-      order by o.id`,
-    [organizationId],
+    `with visible as materialized (
+       select /* master-record.permission-set */
+              o.id, o.object_type, o.organization_id, o.classification, o.title,
+              o.lifecycle_state, o.row_version::text as row_version,
+              -- Left join, because absence IS the unverified state (KF-SAS-RQ-228). An inner join
+              -- would drop every unchecked record from the corpus, which is the silent omission
+              -- RQ-229 forbids, arriving as a query shape rather than as a decision.
+              v.verified_at, v.verified_by, v.basis as verified_basis
+         from core.object o
+         left join core.object_verification v on v.object_id = o.id
+        where o.organization_id = $1
+     )
+     select visible.*, payloads.payload as content_payload
+       from visible
+       join content.master_record_payloads(array(select visible.id from visible), $2) payloads
+         on payloads.object_id = visible.id
+      order by visible.id`,
+    [organizationId, masterRecordPayloadFormat(memberFormat)],
   );
   return rows.map((row) => ({
     objectId: row.id,
@@ -146,16 +162,19 @@ export async function enumeratePermissionSet(
     // Verification is NOT in this digest. It is a fact about the member, not about which records
     // the person may see, so a verification does not move the corpus identity — the same place
     // `withdrawnAt` sits relative to the digest line.
-    contentDigest: digest({
-      id: row.id,
-      objectType: row.object_type,
-      organizationId: row.organization_id,
-      classification: row.classification,
-      title: row.title,
-      lifecycleState: row.lifecycle_state,
-      rowVersion: row.row_version,
-      content: row.content_payload,
-    }),
+    contentDigest: masterRecordMemberDigest(
+      {
+        id: row.id,
+        objectType: row.object_type,
+        organizationId: row.organization_id,
+        classification: row.classification,
+        title: row.title,
+        lifecycleState: row.lifecycle_state,
+        rowVersion: row.row_version,
+        content: row.content_payload,
+      },
+      memberFormat,
+    ),
   }));
 }
 
@@ -164,8 +183,9 @@ export async function enumeratePermittedSet(
   tx: Tx,
   personId: string,
   organizationId: string,
+  memberFormat: MasterRecordMemberFormat = CURRENT_MASTER_RECORD_MEMBER_FORMAT,
 ): Promise<readonly PermissionMember[]> {
-  const visible = await enumeratePermissionSet(tx, organizationId);
+  const visible = await enumeratePermissionSet(tx, organizationId, memberFormat);
   const coverage = await enumerateAccessCoverage(tx, personId, organizationId);
   const excluded = await tx.query<{ object_id: string } & Record<string, unknown>>(
     `select object_id from content.person_entitlement_exclusion

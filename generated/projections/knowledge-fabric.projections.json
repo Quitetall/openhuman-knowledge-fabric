@@ -2,7 +2,7 @@
   "schema_version": "1.2.0-draft.1",
   "x-generated-from": {
     "ontology_version": "1.2.0-draft.1",
-    "source_digest": "322a61ec8fc9ea00b0d5381f97a4a48c58de1d6031a1b7362c1c1baa1e398ea2"
+    "source_digest": "acea0b4f8ca21738e4b6de0bf1e7382b76f39d11cc8ac745ab6a25e9e3166e94"
   },
   "projection_definitions": [
     {
@@ -42,7 +42,8 @@
         "object_id"
       ],
       "budgets": {
-        "maxMembers": 100000
+        "maxMembers": 100000,
+        "maxRuntimeMs": 5000
       }
     },
     {
@@ -62,7 +63,8 @@
         "object_id"
       ],
       "budgets": {
-        "maxMembers": 100000
+        "maxMembers": 100000,
+        "maxRuntimeMs": 5000
       }
     },
     {
@@ -110,7 +112,8 @@
         "object_id"
       ],
       "budgets": {
-        "maxMembers": 20000
+        "maxMembers": 20000,
+        "maxRuntimeMs": 5000
       }
     },
     {
@@ -154,7 +157,8 @@
         "object_id"
       ],
       "budgets": {
-        "maxMembers": 5000
+        "maxMembers": 5000,
+        "maxRuntimeMs": 1000
       }
     }
   ]

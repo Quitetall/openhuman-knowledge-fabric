@@ -208,6 +208,8 @@ const DECLARED_ADDITIONS = {
     'milestone',
     'ml_promotion_decision',
     'nonconformity',
+    // ADR 0034 (proposed): an observation is captured, then promoted.
+    'observation',
     'physical_binding',
     'risk_control',
     'supplier',
@@ -220,6 +222,8 @@ const DECLARED_ADDITIONS = {
   edge_types: [
     'bound_to',
     'calibrated_with',
+    // ADR 0034 (proposed): what an observation is about.
+    'concerns',
     'conforms_to',
     // Document and ADR relations (ADR 0002). R01 has `supersedes` and `amends`, which say a
     // later record REPLACES or CHANGES an earlier one. Neither describes a record that adds to
@@ -233,6 +237,8 @@ const DECLARED_ADDITIONS = {
   ],
   action_types: [
     'accept_document_compilation',
+    // The engagement lifecycle (2026-09-24). R01 declared its states and no transitions.
+    'activate_engagement',
     'add_authored_fragment',
     'add_controlled_document',
     'add_document_composition',
@@ -261,6 +267,7 @@ const DECLARED_ADDITIONS = {
     'check_capa_effectiveness',
     'close_capa',
     'close_complaint',
+    'close_engagement',
     'close_nonconformity',
     'compile_master_record',
     'consume_secure_object_capability',
@@ -270,6 +277,12 @@ const DECLARED_ADDITIONS = {
     // `state_machine: null`, so an organization could be created and never retired.
     'deactivate_organization',
     'deactivate_person',
+    // KF-SAS-RQ-143: create acts for the R01 product and quality records, which had none.
+    'define_baseline',
+    // KF-SAS-RQ-142: create acts for the work-control records that had none.
+    'define_deliverable',
+    'define_release',
+    'define_requirement',
     'define_test',
     'deprecate_interface_contract',
     'deprecate_warrant',
@@ -290,6 +303,7 @@ const DECLARED_ADDITIONS = {
     // effects run and there is none yet to bind; that one is an owner-credential bootstrap act
     // recording this same type.
     'grant_person_clearance',
+    'identify_risk',
     'implement_capa',
     'implement_risk_control',
     'invalidate_test_execution',
@@ -301,8 +315,11 @@ const DECLARED_ADDITIONS = {
     'open_warrant_blocker',
     'pause_warrant',
     'place_equipment_in_service',
+    'plan_milestone',
     'plan_test_execution',
     'promote_configuration_item',
+    // ADR 0034 (proposed): capture is not institutional; promotion is.
+    'promote_observation',
     'propose_risk_control',
     'propose_warrant_amendment',
     'propose_warrant_deviation',
@@ -315,6 +332,8 @@ const DECLARED_ADDITIONS = {
     'reactivate_person',
     'receive_complaint',
     'record_document_proposal',
+    'record_engagement',
+    'record_observation',
     'record_physical_binding',
     'record_secure_object_erasure',
     'record_test_result',
@@ -339,8 +358,10 @@ const DECLARED_ADDITIONS = {
     'register_ml_metric_definition',
     'register_ml_metric_segment',
     'register_ml_run_lineage',
+    'register_product_system',
     'register_secure_object_authority_key',
     'register_supplier',
+    'register_test',
     'register_warrant_artifact',
     'register_warrant_evidence',
     'register_warrant_submission',
@@ -359,6 +380,7 @@ const DECLARED_ADDITIONS = {
     'resolve_warrant_blocker',
     'resolve_warrant_dispute',
     'restrict_supplier',
+    'resume_engagement',
     'resume_warrant',
     'retire_authored_fragment',
     'retire_configuration_item',
@@ -381,6 +403,8 @@ const DECLARED_ADDITIONS = {
     'supersede_controlled_document',
     'supersede_test_definition',
     'supersede_warrant',
+    'suspend_engagement',
+    'terminate_engagement',
     'triage_complaint',
     // Storage locations (ADR 0017): re-hash one location; the outcome is recorded either way.
     'verify_artifact_location',
@@ -389,6 +413,7 @@ const DECLARED_ADDITIONS = {
     'withdraw_controlled_document',
     'withdraw_interface_contract',
 
+    'withdraw_observation',
     'withdraw_warrant_proposal',
   ],
 } as const;
@@ -400,6 +425,7 @@ const DECLARED_INVARIANT_ADDITIONS = [
   'Each document subject has one immutable authoritative document policy that callers cannot weaken; Holder transfer, compilation acceptance and publication require scoped technical authority plus any quality authority required by that policy.',
   'A Proposal Overlay is append-only; applying one requires a human-authorized typed action, an applied fragment remains a live draft, and no result is official before controlled review, effectivity and publication.',
   'Every official document publication has one append-only receipt binding the exact accepted compiler result, effective controlled content revision and registered destination policy that authorized it.',
+  'An engagement is not closed or terminated while a work order under it is in a non-terminal state, and no work order is placed under a closed or terminated engagement.',
 ] as const;
 
 /**
@@ -428,6 +454,10 @@ const DECLARED_MACHINE_ADDITIONS: Readonly<Record<string, string>> = {
     'organization could be created and never retired. With no uniqueness rule on legal name ' +
     'that made unlimited permanent duplicates reachable without breaking a rule — a bootstrap ' +
     'defect produced eight in one session. The transitions use only R01 states and invent none.',
+  engagement:
+    'R01 declared states `draft, active, suspended, closed, terminated` and `state_machine: ' +
+    'null`, and `record_engagement` creates one in `draft`, where it then stayed whatever became ' +
+    'of the agreement. The transitions use only R01 states and invent none.',
   person:
     'R01 declared states `active, inactive` and `state_machine: null`, so a person could never ' +
     'leave. Retiring an organization then had nowhere to put its people: the first retirement, ' +
@@ -445,7 +475,21 @@ const WIDENABLE_ENUMS = [
 // stripped only for the R01 byte-preservation comparison below; the ontology compiler and its
 // registry checks validate the metadata itself, so adding it cannot redefine the pinned edge
 // semantics while still letting the compiler read one authoritative policy.
-const RELATION_POLICY_FIELDS = new Set(['person_anchor', 'propagation_class', 'anchor_depth']);
+//
+// Endpoint typing (`source_types`, `target_types`, SAS §100.2) is stripped for the same comparison
+// and for a reason that has to be stated, because unlike relevance policy it NARROWS: R01 declared
+// no endpoints on any edge, so every pair was admissible, and typing refuses some. That is a
+// declared tightening of R01 edge semantics, not a silent one, and it is held to two conditions in
+// `tests/conformance/edge-typing.test.ts`: no R01 edge carried endpoint typing to be redefined, and
+// R01's own example graph — every edge of it — still satisfies the typing. It is also one of the
+// changes the pack owner signs when the pack is re-cut.
+const RELATION_POLICY_FIELDS = new Set([
+  'person_anchor',
+  'propagation_class',
+  'anchor_depth',
+  'source_types',
+  'target_types',
+]);
 
 function withoutRelationPolicy(value: Json): Json {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return value;

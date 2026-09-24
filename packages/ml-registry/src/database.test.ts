@@ -34,6 +34,7 @@ const FIXTURE_RUN_SEAL_SPKI = Buffer.concat([
   Buffer.alloc(32, 9),
 ]);
 
+const BOOTSTRAP_IDENTITY = '01930000-0000-7000-8000-00000000b007';
 let harness: Harness;
 let fixtures: Fixtures;
 let fixtureRunSealKeyRegistryId: string;
@@ -444,24 +445,37 @@ beforeAll(async () => {
         where id = $1`,
       [fixtures.reviewerRoleId],
     );
-    const insertQualityRole = async (subjectId: string, title: string): Promise<string> => {
-      const roleObject = await tx.one<{ id: string }>(
-        `insert into core.object
-           (object_type, authority_domain, lifecycle_state, classification, retention_class,
-            schema_version, organization_id, title, created_by, updated_by)
-         values ('role_assignment','organization','active','internal','project_record',
-                 $1,$2,$3,$4,$4)
-         returning id`,
-        [fixtures.schemaVersion, fixtures.organizationId, title, fixtures.reviewerId],
-      );
-      await tx.query(
-        `insert into org.role_assignment
-           (id, subject_id, role_id, scope_id, valid_from)
-         values ($1,$2,'quality_authority',$3,'2020-01-01T00:00:00.000Z')`,
-        [roleObject.id, subjectId, fixtures.organizationId],
-      );
-      return roleObject.id;
-    };
+    // Authority that predates every promotion these tests date (2026-08-14), written as fixture
+    // bootstrap — its own transaction under the bootstrap identity, like seedFixtures — because
+    // an assignment live since 2020 is exactly what ADR 0036 no longer lets anyone else create.
+    const insertQualityRole = (subjectId: string, title: string): Promise<string> =>
+      withTransaction(harness.adminPool, async (btx) => {
+        await btx.query('select core.set_access_context($1, $2)', [
+          fixtures.organizationId,
+          'restricted',
+        ]);
+        await btx.query('select core.set_transaction_context($1, $1, $2, $3)', [
+          BOOTSTRAP_IDENTITY,
+          fixtures.clearanceActionId,
+          'ml-fixture-bootstrap',
+        ]);
+        const roleObject = await btx.one<{ id: string }>(
+          `insert into core.object
+             (object_type, authority_domain, lifecycle_state, classification, retention_class,
+              schema_version, organization_id, title, created_by, updated_by)
+           values ('role_assignment','organization','active','internal','project_record',
+                   $1,$2,$3,$4,$4)
+           returning id`,
+          [fixtures.schemaVersion, fixtures.organizationId, title, BOOTSTRAP_IDENTITY],
+        );
+        await btx.query(
+          `insert into org.role_assignment
+             (id, subject_id, role_id, scope_id, valid_from)
+           values ($1,$2,'quality_authority',$3,'2020-01-01T00:00:00.000Z')`,
+          [roleObject.id, subjectId, fixtures.organizationId],
+        );
+        return roleObject.id;
+      });
     return {
       distinctHuman: await insertQualityRole(
         fixtures.performerId,

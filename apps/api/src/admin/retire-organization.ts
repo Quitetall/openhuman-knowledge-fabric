@@ -311,7 +311,8 @@ export function retireOrganizationUsage(): string {
     '  kf retire-organization --organization <uuid> --decided-by <person uuid> \\',
     '      --reason "<why, in a sentence>" [--successor <uuid>] [--with-people]',
     '',
-    'Needs DATABASE_OWNER_URL. An organization with a live role assignment is refused here:',
+    'Needs DATABASE_OWNER_URL_FILE (inline DATABASE_OWNER_URL only in development and test).',
+    'An organization with a live role assignment is refused here:',
     'dispatch retire_organization through the API as that person instead. With active people,',
     '--with-people states that they become inactive under this act (they cannot move).',
   ].join('\n');

@@ -18,6 +18,27 @@ Produces:
 | `backup.manifest.json`           | Closed file set, sizes and SHA-256 | Commits to every file above, including `SHA256SUMS`                   |
 | `backup.manifest.signature.json` | Ed25519 root-manifest signature    | Authenticates restore inputs against external historical trust        |
 
+**What a backup does not carry.** Transient observations (§64B, ADR 0029) — recorded queries,
+their pseudonym key, the per-person demand contributions and retrieval-trace digests — expire
+after 90 days, and a backup retained longer than that would keep them past their window. Their
+**data** is therefore left out of the dump (`--exclude-table-data`, one per table declared under
+`transientTables` in `docs/architecture/master-record-boundary.json`), and they are excluded from
+the canonical export. The tables themselves are restored empty. A restore that finds rows in them
+has found a defect, not a success. The same holds for the context seal key and for person
+attestations (sixty-second proofs of presence): a restored host mints its own.
+
+**Who takes it.** A deployed host runs `backup.sh` as a login holding `kf_backup` and nothing
+else, and row-level security binds that login. So the dump runs with `--enable-row-security`,
+and every table whose rows it carries has a policy letting `kf_backup` read the whole table;
+`kf_backup` reads the derived search and retrieval tables the same way, because nothing in the
+restore path rebuilds them. The tables whose rows are left out are granted `MAINTAIN` — enough
+for `pg_dump` to lock them, not to read them — so dropping an exclusion from the script makes the
+dump fail rather than keep what it must not. Until 2026-09-24 none of this held: `kf_backup` could
+not reach `search` or `retrieval`, could not lock thirteen tables or read any sequence, and had no
+policy on `core.object`, so a backup as that login failed outright, and an export as it would have
+held no records. The drill ran as the superuser and passed. It now also runs the whole script as
+a `kf_backup` login (`tests/backup-restore/drill.test.ts`, "backup as the backup login").
+
 Neither the dump nor the export substitutes for the other. The dump answers "get us running
 again this afternoon". The export answers "can this still be read in 2045". The backup
 coordinator opens one `REPEATABLE READ READ ONLY` transaction, exports one PostgreSQL snapshot,
@@ -118,6 +139,30 @@ restores the local original when the off-site copy is unavailable and says so th
 Exercised end to end by `tests/backup-restore/drill.test.ts`, which runs these scripts —
 not a reimplementation of them — against real containers. A test that re-derived what
 `backup.sh` does would pass while `backup.sh` was broken.
+
+## An older export still imports
+
+A canonical export is the record that outlives the engine, so `importExport` restores every
+archive an earlier exporter signed, not only one cut by today's. Where a table changed shape
+without an export format bump, the importer moves the archive's rows exactly as the migration
+moved the live rows, keyed on what the archive carries rather than on a date:
+
+- an audit event with no `link_format` is an untagged `kf-audit-link-v1` link, a document parse
+  with no `digest_format` an untagged `kf-document-parse-v1` preimage, an act with no
+  `agent_participation` one no agent took part in;
+- a deliverable that names `deliverable_kind` and `definition_of_done` (before `20260925130100`)
+  gets `definition_of_done` as its description and its one acceptance criterion, and both old
+  values become its `work.deliverable_retired_attribute` row, stamped when the restore retired
+  them. An archive that mixes the two shapes, or carries old rows and a retired-attributes section,
+  was written by no exporter and is refused;
+- a section added later without a format bump (`object-verifications`, `access-demand`,
+  `deliverable-retired-attributes`, named in `packages/export/src/internal/section-eras.ts`) may be
+  absent — file, manifest entry and count together — and the snapshot identity is recomputed over
+  the sections the archive's exporter wrote. Any other missing section is still a truncated export
+  and refused.
+
+`tests/round-trip/deliverable-upconversion.test.ts` cuts an old-shape archive from a current one,
+restores it, and holds the re-export byte-equal to the original.
 
 ## The object store is not in here
 

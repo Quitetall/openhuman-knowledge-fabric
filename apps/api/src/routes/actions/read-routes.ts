@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
-import { DEFAULT_REASON_REQUIRED } from '@kf/actions';
+import { DEFAULT_REASON_REQUIRED, OBJECT_HISTORY_SQL } from '@kf/actions';
+import { readGranted, readGrantedSubset } from '@kf/authorization';
 import { bindPrincipal, PrincipalRefused, withTransaction, type Pool, type Tx } from '@kf/database';
 import { projectProgress } from '@kf/work-control';
 import { refuseUnidentified } from './auth.js';
@@ -34,6 +35,16 @@ async function setAccessContext(tx: Tx, caller: Caller): Promise<boolean> {
   }
 }
 
+/**
+ * Bind the caller and ask the read gate (ADR 0027, KF-SAS-RQ-039): true only when row-level
+ * security shows the object AND a live grant reaches it. Row security alone answers "cleared
+ * for", not "granted": a person with clearance and no grant would otherwise learn a project's
+ * title, an object's history, or merely that it exists. Every "no" reads as 404, whichever it was.
+ */
+async function bindAndGranted(tx: Tx, caller: Caller, objectId: string): Promise<boolean> {
+  return (await setAccessContext(tx, caller)) && readGranted(tx, caller, objectId);
+}
+
 function registerProjectReadRoute(app: FastifyInstance, options: ReadRouteOptions): void {
   app.get<{ Params: { id: string } }>('/projects/:id', async (request, reply) => {
     let caller: Caller;
@@ -44,7 +55,7 @@ function registerProjectReadRoute(app: FastifyInstance, options: ReadRouteOption
     }
 
     return withTransaction(options.pool, async (tx) => {
-      if (!(await setAccessContext(tx, caller))) {
+      if (!(await bindAndGranted(tx, caller, request.params.id))) {
         return reply.code(404).send({ error: 'not_found' });
       }
       const project = await tx.maybeOne<Record<string, unknown>>(
@@ -57,7 +68,7 @@ function registerProjectReadRoute(app: FastifyInstance, options: ReadRouteOption
       );
       if (project === undefined) return reply.code(404).send({ error: 'not_found' });
 
-      const packages = await tx.query<Record<string, unknown>>(
+      const packages = await tx.query<{ id: string } & Record<string, unknown>>(
         `select o.id, o.title, o.lifecycle_state, wp.sequence_no, wp.acceptance_criterion
            from work.work_package wp
            join core.object o on o.id = wp.id
@@ -67,7 +78,9 @@ function registerProjectReadRoute(app: FastifyInstance, options: ReadRouteOption
 
       return reply.send({
         ...project,
-        packages,
+        // A grant on the project reaches the project; each package is its own object and is
+        // listed only where a grant reaches it too.
+        packages: await readGrantedSubset(tx, caller, packages),
         progress: await projectProgress(tx, request.params.id),
       });
     });
@@ -84,7 +97,7 @@ function registerAvailableActionsRoute(app: FastifyInstance, options: ReadRouteO
     }
 
     return withTransaction(options.pool, async (tx) => {
-      if (!(await setAccessContext(tx, caller))) {
+      if (!(await bindAndGranted(tx, caller, request.params.id))) {
         return reply.code(404).send({ error: 'not_found' });
       }
       const object = await tx.maybeOne<{ object_type: string; lifecycle_state: string }>(
@@ -134,24 +147,15 @@ function registerHistoryRoute(app: FastifyInstance, options: ReadRouteOptions): 
     }
 
     return withTransaction(options.pool, async (tx) => {
-      if (!(await setAccessContext(tx, caller))) {
+      // The gate answers false for an object the session cannot see, so it is the visibility
+      // check as well as the grant check.
+      if (!(await bindAndGranted(tx, caller, request.params.id))) {
         return reply.code(404).send({ error: 'not_found' });
       }
-      const visible = await tx.maybeOne<{ id: string }>(
-        'select id from core.object where id = $1',
-        [request.params.id],
-      );
-      if (visible === undefined) return reply.code(404).send({ error: 'not_found' });
 
-      const events = await tx.query<Record<string, unknown>>(
-        `select e.seq, e.action_type, e.actor_id, e.acting_role_id, e.recorded_at,
-                e.effective_at, e.reason, e.digest
-           from core.audit_event e
-          where e.object_id = $1 or $1 = any(
-                  select unnest(a.target_ids) from core.action a where a.id = e.action_id)
-          order by e.seq`,
-        [request.params.id],
-      );
+      const events = await tx.query<Record<string, unknown>>(OBJECT_HISTORY_SQL, [
+        request.params.id,
+      ]);
       return reply.send({ objectId: request.params.id, events });
     });
   });

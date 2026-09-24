@@ -38,13 +38,27 @@ export async function createControlledObject(tx: Tx, spec: NewObject): Promise<s
   return row.id;
 }
 
+/**
+ * A payload field the act needs is missing or malformed. The caller's input is the cause, so
+ * the dispatcher turns this into a `precondition_failed` refusal naming the field; before it
+ * existed these were plain Errors and reached an HTTP caller as a 500 they would retry forever.
+ */
+export class PayloadInvalid extends Error {
+  readonly field: string;
+  constructor(field: string, message: string) {
+    super(message);
+    this.name = 'PayloadInvalid';
+    this.field = field;
+  }
+}
+
 export function requireString(
   payload: Readonly<Record<string, unknown>> | undefined,
   key: string,
 ): string {
   const value = payload?.[key];
   if (typeof value !== 'string' || value.trim() === '') {
-    throw new Error(`${key} is required and must be a non-empty string`);
+    throw new PayloadInvalid(key, `${key} is required and must be a non-empty string`);
   }
   return value;
 }
@@ -64,7 +78,8 @@ export function requireInteger(
 ): number {
   const value = payload?.[key];
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < minimum) {
-    throw new Error(
+    throw new PayloadInvalid(
+      key,
       `${key} is required and must be an integer greater than or equal to ${minimum}`,
     );
   }
@@ -77,7 +92,10 @@ export function requireMinor(
 ): number {
   const value = payload?.[key];
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
-    throw new Error(`${key} is required and must be a non-negative integer in minor units`);
+    throw new PayloadInvalid(
+      key,
+      `${key} is required and must be a non-negative integer in minor units`,
+    );
   }
   return value;
 }
@@ -88,7 +106,7 @@ export function requireCurrency(
 ): string {
   const value = requireString(payload, key);
   if (!/^[A-Z]{3}$/.test(value)) {
-    throw new Error(`${key} must be a three-letter ISO 4217 code`);
+    throw new PayloadInvalid(key, `${key} must be a three-letter ISO 4217 code`);
   }
   return value;
 }

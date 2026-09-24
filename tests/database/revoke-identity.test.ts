@@ -215,7 +215,7 @@ describe('kf revoke-identity', () => {
     const err = sink();
     const code = await runRevokeIdentityCommand(
       ['--issuer', ISSUER, '--subject', 'auth0|no-reason', '--revoked-by', f.performerId],
-      { DATABASE_OWNER_URL: h.connectionString },
+      { NODE_ENV: 'test', DATABASE_OWNER_URL: h.connectionString },
       out,
       err,
     );
@@ -243,7 +243,12 @@ describe('kf revoke-identity', () => {
       '--reason=link made in error',
     ];
     expect(
-      await runRevokeIdentityCommand(argv, { DATABASE_OWNER_URL: h.connectionString }, out, err),
+      await runRevokeIdentityCommand(
+        argv,
+        { NODE_ENV: 'test', DATABASE_OWNER_URL: h.connectionString },
+        out,
+        err,
+      ),
     ).toBe(0);
     expect(out.text()).toMatch(/identity revoked, and recorded/);
     expect(out.text()).toMatch(/revoke_external_identity/);
@@ -251,7 +256,7 @@ describe('kf revoke-identity', () => {
     expect(
       await runRevokeIdentityCommand(
         argv,
-        { DATABASE_OWNER_URL: h.connectionString },
+        { NODE_ENV: 'test', DATABASE_OWNER_URL: h.connectionString },
         sink(),
         again,
       ),

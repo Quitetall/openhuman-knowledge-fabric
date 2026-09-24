@@ -11,6 +11,8 @@ export function neighbourhood(
   edges: readonly RelevanceEdge[],
   maxDepth: number,
   allowedRelations?: ReadonlySet<string>,
+  /** Called once per node expanded; the engine's runtime deadline (KF-SAS-RQ-116). */
+  tick: () => void = () => undefined,
 ): { readonly ids: ReadonlySet<string>; readonly edges: readonly RelevanceEdge[] } {
   const touching = new Map<string, RelevanceEdge[]>();
   for (const edge of edges) {
@@ -24,6 +26,7 @@ export function neighbourhood(
   for (let depth = 0; depth < maxDepth && frontier.length > 0; depth += 1) {
     const next: string[] = [];
     for (const id of frontier) {
+      tick();
       for (const edge of touching.get(id) ?? []) {
         crossed.set(`${edge.relationType}\u0000${edge.sourceId}\u0000${edge.targetId}`, edge);
         const other = edge.sourceId === id ? edge.targetId : edge.sourceId;

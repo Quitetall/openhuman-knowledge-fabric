@@ -1,29 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { formatState } from '@kf/ui';
-import { ApiError, getSearchResults, type SearchHit } from '../../lib/api';
+import { ApiError, getSearchResults, type SearchResponse } from '../../lib/api';
 import { webCaller } from '../../lib/session';
-import { Badge } from '../components/badge';
-import { VerificationNote } from '../components/verification-note';
-import { parseSearchPageParams, recordHref, type SearchPageParams } from './search-view';
+import { SearchResults } from './search-results';
+import { parseSearchPageParams, type SearchPageParams } from './search-view';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Search' };
-
-function ResultTitle({ hit }: { readonly hit: SearchHit }) {
-  const href = recordHref(hit.objectType, hit.objectId);
-  return (
-    <h3 style={{ fontSize: '1rem', margin: 0 }}>
-      {href === undefined ? (
-        hit.title
-      ) : (
-        <Link href={href} style={{ color: '#0f766e' }}>
-          {hit.title}
-        </Link>
-      )}
-    </h3>
-  );
-}
 
 export default async function SearchPage({
   searchParams,
@@ -32,12 +15,12 @@ export default async function SearchPage({
 }) {
   const parsed = parseSearchPageParams(await searchParams);
   const caller = await webCaller('/search');
-  let hits: readonly SearchHit[] = [];
+  let response: SearchResponse | undefined;
   let loadError: string | undefined;
 
   if (parsed.status === 'submitted' && parsed.request.text.trim() !== '') {
     try {
-      hits = (await getSearchResults(caller, parsed.request)).hits;
+      response = await getSearchResults(caller, parsed.request);
     } catch (error: unknown) {
       loadError =
         error instanceof ApiError && error.status === 400
@@ -55,8 +38,10 @@ export default async function SearchPage({
         </p>
         <h1 style={{ margin: '0.25rem 0 0.5rem', fontSize: '2rem' }}>Search knowledge fabric</h1>
         <p style={{ color: '#475569', marginTop: 0 }}>
-          Full-text and partial-identifier matches from current organization, limited to current
-          classification ceiling. Hidden records stay absent—not counted or redacted.
+          Exact matches and, when the retrieval engine is running, records related by meaning —
+          shown as two lists, each named by its ranking. Records above your clearance stay absent
+          and uncounted; matching records within it that nobody has granted you are counted, never
+          named. <Link href="/search/recorded">Your recorded queries</Link>.
         </p>
       </div>
 
@@ -113,6 +98,15 @@ export default async function SearchPage({
             className="kf-control"
           />
         </label>
+        <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <input
+            type="checkbox"
+            name="nearMisses"
+            value="true"
+            defaultChecked={request?.nearMisses === true}
+          />
+          <span>Also show near misses (records ranked just below the related list)</span>
+        </label>
         <button type="submit" className="kf-button kf-button-primary">
           Search
         </button>
@@ -120,7 +114,7 @@ export default async function SearchPage({
 
       <section style={{ marginTop: '2.5rem' }} aria-labelledby="search-results-heading">
         <h2 id="search-results-heading" style={{ fontSize: '1.1rem' }}>
-          Visible results
+          Results
         </h2>
         {parsed.status === 'idle' ? (
           <p style={{ color: '#64748b' }}>Enter search text to query canonical records.</p>
@@ -136,42 +130,12 @@ export default async function SearchPage({
           <p role="status" aria-live="polite" className="kf-status kf-status-warning">
             {loadError}
           </p>
-        ) : hits.length === 0 ? (
-          <p role="status" aria-live="polite" className="kf-status kf-status-neutral">
-            No visible matches in current access context.
-          </p>
-        ) : (
-          <div style={{ display: 'grid', gap: '0.75rem' }}>
-            <p role="status" aria-live="polite" style={{ color: '#475569', margin: 0 }}>
-              Showing {hits.length} visible match{hits.length === 1 ? '' : 'es'} (request limit{' '}
-              {request?.limit ?? 50}).
-            </p>
-            {hits.map((hit) => (
-              <article
-                key={hit.objectId}
-                style={{ border: '1px solid #cbd5e1', borderRadius: '0.65rem', padding: '1rem' }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: '0.75rem',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}
-                >
-                  <ResultTitle hit={hit} />
-                  <Badge state={hit.lifecycleState} />
-                </div>
-                <p style={{ color: '#475569', margin: '0.45rem 0 0', fontSize: '0.85rem' }}>
-                  {formatState(hit.objectType)} · {formatState(hit.classification)} ·{' '}
-                  {hit.matchedBy === 'full_text' ? 'Full-text match' : 'Partial-identifier match'}
-                </p>
-                <VerificationNote verification={hit.verification} />
-                <code style={{ color: '#64748b', fontSize: '0.78rem' }}>{hit.objectId}</code>
-              </article>
-            ))}
-          </div>
+        ) : response === undefined ? null : (
+          <SearchResults
+            response={response}
+            nearMissesRequested={request?.nearMisses === true}
+            limit={request?.limit ?? 50}
+          />
         )}
       </section>
     </main>

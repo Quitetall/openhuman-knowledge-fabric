@@ -1,0 +1,42 @@
+{
+  "schema": "kf/sas-owner-pending/v1",
+  "purpose": "Owner-pending governance findings, one entry each, dated. Read by tests/conformance/sas-governance.test.ts (an accepted SAS revision needs a signed response OR an entry here) and by scripts/war-check-gate.mjs (the CI job that runs `war check --generated`: an ERROR is tolerated only when an entry here names its rule and file, and not after review_by). An entry whose finding no longer occurs fails both, so this list cannot outlive what it excuses. It is never a blanket ignore: there is no wildcard, and a rule is excused only for the one file named.",
+  "entries": [
+    {
+      "subject": "SAS-0.1.0-draft.4",
+      "rule": "authority.unsigned",
+      "file": "docs/sas/revisions/0.1.0-draft.4.toml",
+      "recorded": "2026-09-24",
+      "review_by": "2026-10-31",
+      "pending_on": "Brian Lam",
+      "reason": "0.1.0-draft.4 is recorded as accepted in its revision file, and no signed oh.war/sas-acceptance-response/v1 exists under docs/authority/responses/. Signing is the owner's act (`war sign SAS-0.1.0-draft.4 --ssh-sign`); no agent performs it, so the finding stays visible here until the owner signs or withdraws the acceptance."
+    },
+    {
+      "subject": "SAS-0.1.0-draft.5",
+      "rule": "authority.unsigned",
+      "file": "docs/sas/revisions/0.1.0-draft.5.toml",
+      "recorded": "2026-09-24",
+      "review_by": "2026-10-31",
+      "pending_on": "Brian Lam",
+      "reason": "0.1.0-draft.5 is recorded as accepted in its revision file, and no signed oh.war/sas-acceptance-response/v1 exists under docs/authority/responses/. Signing is the owner's act (`war sign SAS-0.1.0-draft.5 --ssh-sign`); no agent performs it, so the finding stays visible here until the owner signs or withdraws the acceptance."
+    },
+    {
+      "subject": "SAS-0.1.0-draft.6",
+      "rule": "authority.unsigned",
+      "file": "docs/sas/revisions/0.1.0-draft.6.toml",
+      "recorded": "2026-09-24",
+      "review_by": "2026-10-31",
+      "pending_on": "Brian Lam",
+      "reason": "0.1.0-draft.6 is recorded as accepted in its revision file, and no signed oh.war/sas-acceptance-response/v1 exists under docs/authority/responses/. Signing is the owner's act (`war sign SAS-0.1.0-draft.6 --ssh-sign`); no agent performs it, so the finding stays visible here until the owner signs or withdraws the acceptance."
+    },
+    {
+      "subject": "SAS-0.1.0-draft.7",
+      "rule": "authority.unsigned",
+      "file": "docs/sas/revisions/0.1.0-draft.7.toml",
+      "recorded": "2026-09-24",
+      "review_by": "2026-10-31",
+      "pending_on": "Brian Lam",
+      "reason": "0.1.0-draft.7 is recorded as accepted in its revision file, and no signed oh.war/sas-acceptance-response/v1 exists under docs/authority/responses/. Signing is the owner's act (`war sign SAS-0.1.0-draft.7 --ssh-sign`); no agent performs it, so the finding stays visible here until the owner signs or withdraws the acceptance."
+    }
+  ]
+}

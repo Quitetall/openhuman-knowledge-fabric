@@ -6,6 +6,7 @@ import type {
   DocumentProposalOperation,
   DocumentProposalProviderPolicyDecision,
 } from '@kf/documents';
+import type { ProjectionResult } from '@kf/projections';
 
 export type AiClassification = DocumentProposalClassification;
 export type AiContextKind = DocumentProposalContextKind;
@@ -41,6 +42,12 @@ export interface AiContextPlannerScope {
 export type AiContextChannel = 'lexical' | 'typed_relation' | 'derived_vector';
 
 export interface AiContextCandidate extends AiContextItem {
+  /**
+   * The corpus member (`core.object`) this candidate is content of. A subject may be finer than
+   * a record — a document fragment — so membership of the `agent_context` projection is judged
+   * on this, never on `subjectId`. Not sent to the provider.
+   */
+  readonly objectId: string;
   readonly sourceDigest: string;
   readonly updatedAt: string;
   readonly verified: boolean;
@@ -78,6 +85,7 @@ export type AiOmissionReason =
   | 'duplicate_subject'
   | 'invalid_candidate'
   | 'not_authorized'
+  | 'outside_projection'
   | 'token_budget';
 
 export interface AiOmittedContextRecord {
@@ -98,12 +106,27 @@ export interface AiContextPlannerInput {
   readonly tokenBudget: number;
   readonly query: string;
   readonly seedSubjectIds: readonly string[];
+  /**
+   * The principal's `agent_context` Result (KF-SAS-RQ-115). Agent context is a projection, so the
+   * planner may use only content of its included members: every other candidate is omitted as
+   * `outside_projection`. A Result that is not this principal's intact `agent_context` is refused.
+   */
+  readonly projection: ProjectionResult;
+}
+
+/** Which projection a plan's context was drawn from — recorded, so it can be checked later. */
+export interface AiContextProjectionRecord {
+  readonly definitionId: 'agent_context';
+  readonly definitionVersion: number;
+  readonly corpusDigest: string;
+  readonly projectionDigest: string;
 }
 
 export interface AiContextPlan {
   readonly request: AiProposalRequest;
   readonly selected: readonly AiPlannedContextCandidate[];
   readonly omitted: readonly AiOmittedContextRecord[];
+  readonly projection: AiContextProjectionRecord;
 }
 
 export interface AiProposalOperation {

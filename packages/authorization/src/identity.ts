@@ -19,6 +19,8 @@
  *   expiry      with a small clock tolerance, no more
  *   subject     mapped to a live person in `org.external_identity`
  *   role        held by that person, live, in `org.role_assignment`
+ *   agent       an `act` claim, when present, is exactly `{ client_id }`, one level deep, and
+ *               names the client the token was issued to (`azp`) — ADR 0035; see `agentOf`
  *
  * and then the database is asked to ATTEST that the person is present (20260924001000): an
  * attestation the application login must hand back to `core.bind_principal` before it may bind
@@ -53,6 +55,13 @@ export interface Caller {
    * opens binds with it. Absent only from `resolveIn`, which proves nothing about presence.
    */
   readonly attestation?: string | undefined;
+  /**
+   * The declared agent client this person is acting through (ADR 0035): the `act.client_id` of
+   * a token obtained by token exchange, or undefined for the person's own token. Informational
+   * for the API — the DATABASE records participation from the attestation, and nothing the API
+   * does with this field reaches the ledger.
+   */
+  readonly agent?: string | undefined;
 }
 
 export type IdentityFailure =
@@ -62,15 +71,33 @@ export type IdentityFailure =
   | 'revoked_identity'
   | 'role_not_held'
   | 'classification_not_granted'
-  | 'no_role_requested';
+  | 'no_role_requested'
+  /** Asked to derive the assignment (ADR 0034 §2), and the person holds several live. */
+  | 'assignment_ambiguous'
+  /** Asked to derive the assignment, and the person holds none live in the organization. */
+  | 'no_live_assignment'
+  | 'undeclared_agent';
+
+/** One of the caller's own live assignments, as a refusal to guess between them lists it. */
+export interface LiveAssignment {
+  readonly assignmentId: string;
+  readonly roleId: string;
+  readonly scopeId: string;
+}
 
 export class IdentityRejected extends Error {
   readonly failure: IdentityFailure;
+  /**
+   * The caller's own live assignments, on `assignment_ambiguous` only: the refusal says what
+   * they may choose between, since they are the one who must choose. Never another person's.
+   */
+  readonly assignments: readonly LiveAssignment[] | undefined;
 
-  constructor(failure: IdentityFailure, message: string) {
+  constructor(failure: IdentityFailure, message: string, assignments?: readonly LiveAssignment[]) {
     super(message);
     this.name = 'IdentityRejected';
     this.failure = failure;
+    this.assignments = assignments;
   }
 }
 
@@ -135,6 +162,9 @@ export class TokenVerifier {
       if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp)) {
         throw new Error('token has no finite expiration');
       }
+      // A malformed delegation is a token defect like any other, refused here so the operator's
+      // log carries the reason and the caller sees the one collapsed code.
+      agentOf(payload);
       return payload;
     } catch (err: unknown) {
       const reason = err instanceof Error ? err.message : 'not verifiable';
@@ -146,6 +176,55 @@ export class TokenVerifier {
   }
 }
 
+/** What an agent client id may look like: Keycloak client ids, conservatively. */
+const CLIENT_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,254}$/;
+
+/**
+ * The agent a verified token names, or undefined for a person's own token (ADR 0035).
+ *
+ * RFC 8693 §4.1 puts the acting party in an `act` claim. Keycloak 26.4's standard token exchange
+ * emits none of its own: it records the exchanging client only as `azp` (measured against the
+ * pinned image, docs/deployment/identity-and-login.md). The realm therefore stamps
+ * `act.client_id` on each agent client with a hardcoded-claim mapper, and a token issued to that
+ * client carries `{"act": {"client_id": "<the client>"}}`. That is the one shape accepted:
+ *
+ *   - `act` absent                      -> a direct act, no agent
+ *   - `act` an object whose ONLY member is `client_id`, a client id equal to `azp` -> that agent
+ *   - anything else                     -> throws; the verifier refuses the token
+ *
+ * `act.sub` is not accepted in place of `client_id`: in Keycloak an actor subject is a user id
+ * (a service account's uuid), not the client, and nothing here maps one to the other. A nested
+ * `act` (a chain of actors) is refused rather than flattened: depth 1 is the whole model, and a
+ * chain would record only its outermost link. `client_id` must equal `azp` because the claim is
+ * meaningful only as the issuer's statement about the client the token was issued TO; a mapper
+ * stamping some other client's id is a forgery by configuration.
+ *
+ * Whether that client may take part at all is not decided here: `core.issue_attestation` refuses
+ * a client that is not a declared agent, and a token without `act` issued to one that is.
+ */
+export function agentOf(payload: JWTPayload): string | undefined {
+  if (!Object.hasOwn(payload, 'act')) return undefined;
+  const act = payload['act'];
+  if (typeof act !== 'object' || act === null || Array.isArray(act)) {
+    throw new Error('the act claim is not an object');
+  }
+  const members = Object.keys(act);
+  if (members.includes('act')) {
+    throw new Error('the act claim is nested; only one level of delegation is accepted');
+  }
+  if (members.length !== 1 || members[0] !== 'client_id') {
+    throw new Error(`the act claim must be exactly {client_id}, got {${members.sort().join(',')}}`);
+  }
+  const clientId = (act as Record<string, unknown>)['client_id'];
+  if (typeof clientId !== 'string' || !CLIENT_ID.test(clientId)) {
+    throw new Error('act.client_id is not a client id');
+  }
+  if (payload['azp'] !== clientId) {
+    throw new Error('act.client_id is not the client the token was issued to (azp)');
+  }
+  return clientId;
+}
+
 export interface CallerRequest {
   /** The raw bearer token. */
   readonly token: string;
@@ -154,6 +233,17 @@ export interface CallerRequest {
   readonly organizationId: string;
   /** Requested ceiling; database clearance may narrow it, never widen it. */
   readonly maxClassification: string;
+  /**
+   * When `actingRoleId` is empty: use the person's ONLY live assignment in the organization,
+   * and refuse — listing them — when there are several or none (ADR 0034 §2, KF-SAS-RQ-200).
+   *
+   * Only the capture route asks for this. Everywhere else an empty role is still refused as
+   * `no_role_requested`: for an institutional act, which assignment a person acts under is a
+   * choice they make. For recording that something happened, a person with one assignment has
+   * nothing to choose, and asking them is the friction ADR 0024 exists to remove. A person with
+   * several is still asked — the server never guesses between them.
+   */
+  readonly deriveAssignment?: boolean;
 }
 
 /**
@@ -174,7 +264,7 @@ export async function resolveCaller(
   if (request.token.trim() === '') {
     throw new IdentityRejected('no_token', 'no bearer token was supplied');
   }
-  if (request.actingRoleId.trim() === '') {
+  if (request.actingRoleId.trim() === '' && request.deriveAssignment !== true) {
     // Which role somebody is acting under is a choice, not a default. A person may hold
     // several, and picking one for them decides an authority question on their behalf.
     throw new IdentityRejected(
@@ -198,13 +288,33 @@ export async function resolveCaller(
   }
 
   const authentication = authenticationEvent(payload);
+  // `verify` already refused a malformed `act`, so this only reads it.
+  const agent = agentOf(payload);
+  const authorizedParty = typeof payload['azp'] === 'string' ? payload['azp'] : undefined;
 
   return withTransaction(pool, async (tx) => {
     const caller = await resolveIn(tx, { issuer, subject, authentication, ...request });
     // The database re-checks the assignment and clamps the ceiling again as it attests; the
-    // attestation expires with the token, or within a minute, whichever is first.
-    const attestation = await issueAttestation(tx, caller, expiresAt);
-    return { ...caller, attestation };
+    // attestation expires with the token, or within a minute, whichever is first. It also
+    // decides whether the agent may take part, and records it on the attestation, from which
+    // every bind of this request seals it for the ledger.
+    const attestation = await issueAttestation(tx, caller, expiresAt, {
+      agentClientId: agent,
+      authorizedParty,
+    }).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      if (/declared agent/.test(message)) {
+        throw new IdentityRejected(
+          'undeclared_agent',
+          'the token names an agent client that is not declared to act for people here',
+        );
+      }
+      if (/names agent .* but was issued to client/.test(message)) {
+        throw new IdentityRejected('invalid_token', 'token rejected');
+      }
+      throw error;
+    });
+    return agent === undefined ? { ...caller, attestation } : { ...caller, attestation, agent };
   });
 }
 
@@ -218,8 +328,19 @@ export async function resolveIn(
     readonly organizationId: string;
     readonly maxClassification: string;
     readonly authentication?: AuthenticationEvent;
+    readonly deriveAssignment?: boolean;
   },
 ): Promise<Caller> {
+  if (request.actingRoleId.trim() === '') {
+    if (request.deriveAssignment !== true) {
+      throw new IdentityRejected(
+        'no_role_requested',
+        'the acting role must be stated; holding a role is not the same as acting under it',
+      );
+    }
+    const derived = await deriveSoleAssignment(tx, request);
+    return resolveIn(tx, { ...request, actingRoleId: derived, deriveAssignment: false });
+  }
   // The resolvers bind their own provisional context for their lookups (20260923000100).
   //
   // `core.object` forces row-level security, which binds a SECURITY DEFINER function too, so
@@ -296,6 +417,65 @@ export async function resolveIn(
       methods: [],
     },
   };
+}
+
+/**
+ * The person's only live assignment in the organization, or a refusal naming what they hold.
+ *
+ * Read through `org.resolve_identity_assignments`, which only a login that may attest can call
+ * (20260925090000): the lookup happens before anybody is bound, because a binding is to an
+ * assignment and none has been chosen yet. The chosen one is then resolved exactly as a stated
+ * one would be — held, live, cleared — so deriving it skips no check.
+ */
+async function deriveSoleAssignment(
+  tx: Tx,
+  request: { readonly issuer: string; readonly subject: string; readonly organizationId: string },
+): Promise<string> {
+  const rows = await tx.query<{
+    person_id: string;
+    identity_revoked: boolean;
+    assignment_id: string | null;
+    role_id: string | null;
+    scope_id: string | null;
+  }>(
+    `select person_id, identity_revoked, assignment_id, role_id, scope_id
+       from org.resolve_identity_assignments($1, $2, $3)`,
+    [request.issuer, request.subject, request.organizationId],
+  );
+  if (rows.length === 0) {
+    throw new IdentityRejected(
+      'unknown_subject',
+      'this identity is not linked to a person in this system',
+    );
+  }
+  if (rows[0]!.identity_revoked) {
+    throw new IdentityRejected('revoked_identity', 'this identity link has been revoked');
+  }
+  const assignments: LiveAssignment[] = rows
+    .filter((row) => row.assignment_id !== null)
+    .map((row) => ({
+      assignmentId: row.assignment_id!,
+      roleId: row.role_id!,
+      scopeId: row.scope_id!,
+    }));
+  return soleAssignment(assignments);
+}
+
+/** One live assignment is the answer; several or none is a refusal the caller can act on. */
+export function soleAssignment(assignments: readonly LiveAssignment[]): string {
+  if (assignments.length === 1) return assignments[0]!.assignmentId;
+  if (assignments.length === 0) {
+    throw new IdentityRejected(
+      'no_live_assignment',
+      'you hold no live role assignment in this organization, so nothing can be recorded as you',
+    );
+  }
+  throw new IdentityRejected(
+    'assignment_ambiguous',
+    `you hold ${String(assignments.length)} live role assignments in this organization; name ` +
+      'the one you are acting in (x-kf-acting-role) — the server does not choose for you',
+    assignments,
+  );
 }
 
 /**

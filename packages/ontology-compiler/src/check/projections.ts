@@ -1,4 +1,4 @@
-import type { ProjectionFilter } from '../model.js';
+import { PROJECTION_GRAMMAR_LIMITS, type ProjectionFilter } from '../model.js';
 import type { CheckContext } from './types.js';
 
 /**
@@ -99,6 +99,36 @@ export function checkProjections(context: CheckContext): void {
         }
       }
     }
+    // KF-SAS-RQ-116: statically bounded in depth, size and runtime. The loader already refuses a
+    // definition that omits a bound; these refuse one that declares a bound above the grammar's.
+    if (d.traverse !== undefined && d.traverse.maxDepth > PROJECTION_GRAMMAR_LIMITS.maxDepth) {
+      context.err(
+        'ONT-018',
+        `${at}.traverse.max_depth`,
+        `max_depth ${String(d.traverse.maxDepth)} exceeds the grammar ceiling ` +
+          `${String(PROJECTION_GRAMMAR_LIMITS.maxDepth)}`,
+        'Walk no deeper than the declared ceiling; raising the ceiling is a grammar change.',
+      );
+    }
+    if (d.budgets.maxRuntimeMs > PROJECTION_GRAMMAR_LIMITS.maxRuntimeMs) {
+      context.err(
+        'ONT-018',
+        `${at}.budgets.max_runtime_ms`,
+        `max_runtime_ms ${String(d.budgets.maxRuntimeMs)} exceeds the grammar ceiling ` +
+          `${String(PROJECTION_GRAMMAR_LIMITS.maxRuntimeMs)}`,
+        'Budget within the ceiling; a reading that needs longer is a reading to redesign.',
+      );
+    }
+    if (d.budgets.maxMembers > PROJECTION_GRAMMAR_LIMITS.maxMembers) {
+      context.err(
+        'ONT-018',
+        `${at}.budgets.max_members`,
+        `max_members ${String(d.budgets.maxMembers)} exceeds the grammar ceiling ` +
+          `${String(PROJECTION_GRAMMAR_LIMITS.maxMembers)}`,
+        'Budget within the ceiling.',
+      );
+    }
+
     if (
       d.traverse === undefined &&
       d.sections.some((s) => s.select === 'reached' || s.select === 'unreached')

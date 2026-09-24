@@ -16,6 +16,9 @@
     },
     {
       "path": "../database"
+    },
+    {
+      "path": "../record-atoms"
     }
   ]
 }
