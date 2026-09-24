@@ -119,7 +119,7 @@ export async function enumeratePermissionSet(
   // The payloads are read in ONE call over every visible id, never once per row: the one-object
   // form walks the catalog and plans ~235 statements per object, which made every Object View
   // cost ~65 ms per object in the organization (KF-SAS-RQ-201; 20260925121500). The reading is
-  // the one the member format names (20260925130000): v1 for claims that recorded it, v2 anew.
+  // the one the member format names (20260925121600): v1 for claims that recorded it, v2 anew.
   const rows = await tx.query<ObjectRow>(
     `with visible as materialized (
        select /* master-record.permission-set */

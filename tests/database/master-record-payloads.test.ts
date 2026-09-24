@@ -1,6 +1,6 @@
 /**
  * The master-record payload is read for the whole permitted set in one pass (KF-SAS-RQ-201,
- * ADR 0024, ADR 0011; migration 20260925121500), under a named reading (20260925130000): v1 is
+ * ADR 0024, ADR 0011; migration 20260925121500), under a named reading (20260925121600): v1 is
  * the bytes claims recorded, defect included; v2 carries artifact relationships whole.
  *
  * WHY THIS FILE EXISTS. Every Object View enumerates the reader's permitted set to decide whether
@@ -310,7 +310,7 @@ describe('the v1 one-pass reading is byte for byte the one-object form claims re
   });
 });
 
-describe('the v2 reading carries each artifact relationship whole (20260925130000)', () => {
+describe('the v2 reading carries each artifact relationship whole (20260925121600)', () => {
   // DELIBERATELY CHANGED. This file first pinned the one-pass form to the one-object form byte
   // for byte, and so pinned a defect both shared: `to_jsonb(relationship)` over
   // content.artifact_relationship resolves to its `relationship` COLUMN, so a payload said

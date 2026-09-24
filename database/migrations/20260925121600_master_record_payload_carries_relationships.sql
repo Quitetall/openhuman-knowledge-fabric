@@ -249,7 +249,7 @@ comment on function content.master_record_payloads(uuid[], text) is
   'The master-record payload of each requested object under the named reading, read under the '
   'caller''s row security in one statement. kf-master-record-payload-v1 is the reading claims '
   'with kf-master-record-member-v1 recorded (artifact relationships as their kind only); '
-  'kf-master-record-payload-v2 carries every row whole (20260925130000).';
+  'kf-master-record-payload-v2 carries every row whole (20260925121600).';
 
 -- The one-object form: the same implementation, applied to one id, under the named reading.
 create function content.master_record_payload(p_object uuid, p_format text)

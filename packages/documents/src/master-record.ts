@@ -123,7 +123,7 @@ export interface MasterRecordMemberFields {
 
 /**
  * The payload reading a member format commits to, which `content.master_record_payloads` takes by
- * name (migration 20260925130000). v1 is the reading as recorded: it wrote each artifact
+ * name (migration 20260925121600). v1 is the reading as recorded: it wrote each artifact
  * relationship as its kind only (`["supersedes"]`), because `to_jsonb(relationship)` resolved
  * to the table's `relationship` column rather than the row. v2 carries every row whole. A claim
  * is re-checked under the reading its members were digested over, so fixing the payload for new
