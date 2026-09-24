@@ -127,3 +127,73 @@ describe('checkpoint signatures are verified daily, not only by the monthly dril
     expect(timer.get('Timer')?.get('Persistent')?.[0]).toBe('true');
   });
 });
+
+/**
+ * KF-SAS-RQ-163: each service runs under a distinct unprivileged account, sharing one only where
+ * two units require identical secrets and identical data.
+ *
+ * Nothing enforced it. `kf-backup` and `kf-restore-drill` shared a uid until 2026-09-23 on an
+ * argument that turned out to be false (deploy/systemd/README.md tells that story), and the
+ * only thing that noticed was a person reading both files. A unit with no `User=` runs as root,
+ * silently; a copied unit that keeps its source's `User=` shares every secret that account can
+ * read. Both are one-line edits, so both are pinned here.
+ */
+describe('every service runs as its own unprivileged account (KF-SAS-RQ-163)', () => {
+  /**
+   * The one sanctioned share, and why. Adding a row here is a claim that the units hold the
+   * same secrets and the same data and nothing else — say which, or split the account.
+   */
+  const SHARED: ReadonlyMap<string, { units: readonly string[]; reason: string }> = new Map([
+    [
+      'kf-alert',
+      {
+        units: ['kf-alert-heartbeat.service', 'kf-alert@.service'],
+        reason:
+          'both hold exactly one secret, the alert webhook URL, and no data; the heartbeat ' +
+          'exists to exercise the same delivery path the failure alert uses',
+      },
+    ],
+  ]);
+
+  const services = units('.service').map((unit) => ({
+    name: unit.name,
+    users: unit.sections.get('Service')?.get('User') ?? [],
+    dynamic: unit.sections.get('Service')?.get('DynamicUser') ?? [],
+  }));
+
+  it('reads the shipped services (non-vacuous)', () => {
+    expect(services.length).toBeGreaterThanOrEqual(14);
+  });
+
+  it.each(services.map((unit) => [unit.name, unit] as const))(
+    '%s names exactly one non-root User= in [Service]',
+    (_name, unit) => {
+      expect(unit.dynamic, 'DynamicUser= would make the account unpinnable').toEqual([]);
+      expect(unit.users, 'no User= means the service runs as root').toHaveLength(1);
+      const user = unit.users[0]!;
+      expect(['root', '0', '']).not.toContain(user);
+      expect(user, 'service accounts are named kf-*, so an operator can tell them apart').toMatch(
+        /^kf-[a-z][a-z-]*$/,
+      );
+    },
+  );
+
+  it('no two services share an account unless the share is declared, and every declared share is real', () => {
+    const byUser = new Map<string, string[]>();
+    for (const unit of services) {
+      const user = unit.users[0];
+      if (user === undefined) continue;
+      byUser.set(user, [...(byUser.get(user) ?? []), unit.name]);
+    }
+    const shared = [...byUser.entries()]
+      .filter(([, names]) => names.length > 1)
+      .map(([user, names]) => ({ user, units: [...names].sort() }));
+    const declared = [...SHARED.entries()].map(([user, entry]) => ({
+      user,
+      units: [...entry.units].sort(),
+    }));
+    // Equality, not containment: a declared share that no longer exists is a stale excuse
+    // waiting to cover the next accidental one.
+    expect(shared).toEqual(declared);
+  });
+});
