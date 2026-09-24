@@ -423,8 +423,11 @@ secrets are still separated from everyone but `kf-api`.
 - **Token lifetime and refresh policy.** Provider configuration. The workstation realm
   (`deploy/keycloak/knowledge-fabric-realm.json`) ships a 300-second access-token lifespan, and
   `kf-commissioning`'s `identity_provider_policy` refuses a host realm with offline sessions idle
-  beyond 7 days or unbounded past 30, or refresh tokens that are not revoked on use. The host's
-  own access-token lifespan is still its reviewed configuration, not checked here.
+  beyond 7 days or unbounded past 30, refresh tokens that are not revoked on use, or an access-token
+  lifespan — realm-wide or a client's `access.token.lifespan` override — that is unstated or above
+  300 seconds, because that lifetime is the window in which a compromised API can replay a
+  token through `kf-attestor`. What the provider actually issues is still only as good as the
+  reviewed export; the check reads the file, not the running Keycloak.
 - **TLS certificates.** Issued and renewed at the proxy. This application refuses to run
   without the deployment asserting that a proxy is there, and can do nothing to verify it.
 - **Where alerts go.** `kf-alert@.service` ships: every unit's `OnFailure=` reaches it, and it

@@ -277,7 +277,7 @@ written as *serve the bytes from the durable copy after removing the working one
 
 **The second adversarial question: could the gate itself be wrong?** When this Warrant was raised
 the gate was unqualified. `docs/gates/kf.host.commissioning@1.0.0.yaml` is now
-`lifecycle: qualified`: `packages/operations/src/commissioning.test.ts`, a 54-case battery,
+`lifecycle: qualified`: `packages/operations/src/commissioning.test.ts`, a 57-case battery,
 plants a defect for each of its nine declared fault classes — `attestor-separation-broken`
 among them — and must accept a known-good fixture and read absent evidence as `unverifiable`.
 Its `qualification_digest` is empty by design, not fabricated: the qualifier's identity is its

@@ -16,6 +16,20 @@ export const MIN_PASSWORD_LENGTH = 12;
 export const MAX_OFFLINE_IDLE_SECONDS = 7 * DAY_SECONDS;
 /** And every offline token dies after this long, used or not. */
 export const MAX_OFFLINE_LIFESPAN_SECONDS = 30 * DAY_SECONDS;
+/**
+ * The longest an access token may live: the REPLAY BOUND on attestation (20260924001000).
+ *
+ * kf-attestor vouches that a person is present on the strength of a verified bearer token, and an
+ * API process that is compromised sees every token passing through it, so it can have a fresh
+ * attestation issued for any of them until that token expires. The window in which a compromised
+ * API can act for somebody who has stopped using it is therefore the access-token lifespan, not
+ * the attestation's one minute. Five minutes is what the shipped realm sets and what the threat
+ * model and ADR 0033 state; a realm that raises it, or a client that overrides it, widens that
+ * window and is refused.
+ */
+export const MAX_ACCESS_TOKEN_LIFESPAN_SECONDS = 300;
+/** The client attribute Keycloak reads as a per-client override of accessTokenLifespan. */
+const CLIENT_ACCESS_TOKEN_LIFESPAN = 'access.token.lifespan';
 
 type Json = Record<string, unknown>;
 
@@ -95,6 +109,22 @@ export function realmPolicyWeaknesses(text: string): string[] {
     );
   }
 
+  // Required, not defaulted to Keycloak's own 300: an export that does not state it is a realm
+  // nobody reviewed the lifetime of.
+  const access = realm['accessTokenLifespan'];
+  if (
+    typeof access !== 'number' ||
+    !Number.isInteger(access) ||
+    access <= 0 ||
+    access > MAX_ACCESS_TOKEN_LIFESPAN_SECONDS
+  ) {
+    weaknesses.push(
+      `accessTokenLifespan is ${JSON.stringify(access ?? null)}s; at most ` +
+        `${MAX_ACCESS_TOKEN_LIFESPAN_SECONDS}s, because the attestation replay window is the ` +
+        'access-token lifetime',
+    );
+  }
+
   if (realm['revokeRefreshToken'] !== true) {
     weaknesses.push('revokeRefreshToken is not true: a stolen refresh token stays usable');
   }
@@ -111,6 +141,26 @@ export function realmPolicyWeaknesses(text: string): string[] {
     }
     if (client['implicitFlowEnabled'] === true) {
       weaknesses.push(`client ${id} allows the implicit flow`);
+    }
+    // A client-level override replaces the realm's lifespan for that client's tokens, so a sound
+    // realm value says nothing about a client that sets its own. Keycloak stores it as a string;
+    // an empty one means "use the realm's".
+    const attributes = client['attributes'];
+    const override = isRecord(attributes) ? attributes[CLIENT_ACCESS_TOKEN_LIFESPAN] : undefined;
+    if (override !== undefined && override !== null && override !== '') {
+      const seconds = typeof override === 'string' ? Number(override.trim()) : override;
+      if (
+        typeof seconds !== 'number' ||
+        !Number.isInteger(seconds) ||
+        seconds <= 0 ||
+        seconds > MAX_ACCESS_TOKEN_LIFESPAN_SECONDS
+      ) {
+        weaknesses.push(
+          `client ${id} overrides ${CLIENT_ACCESS_TOKEN_LIFESPAN} to ${JSON.stringify(override)}; ` +
+            `at most ${MAX_ACCESS_TOKEN_LIFESPAN_SECONDS}s, because the attestation replay ` +
+            'window is the access-token lifetime',
+        );
+      }
     }
   }
 

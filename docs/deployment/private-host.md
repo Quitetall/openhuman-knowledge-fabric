@@ -889,8 +889,14 @@ it.
 has brute-force protection off or `failureFactor` above 10; a `passwordPolicy` without
 `length(12)` or more and `notUsername`; no second factor enrolled by default (`CONFIGURE_TOTP`
 or `webauthn-register` with `defaultAction: true`); an offline idle timeout above 7 days or no
-enabled offline maximum lifespan of at most 30 days; `revokeRefreshToken` off; or any client
-with `directAccessGrantsEnabled` or `implicitFlowEnabled`. The shipped
+enabled offline maximum lifespan of at most 30 days; `revokeRefreshToken` off; an
+`accessTokenLifespan` that is absent or above 300 seconds; or any client with
+`directAccessGrantsEnabled` or `implicitFlowEnabled`, or whose `access.token.lifespan` attribute
+overrides the realm's with more than 300 seconds. The 300 s ceiling
+(`MAX_ACCESS_TOKEN_LIFESPAN_SECONDS`) is the attestation replay bound: a compromised API can have
+kf-attestor vouch for any token passing through it until that token expires, so the access-token
+lifetime, not the attestation's one minute, is how long it can act for somebody who has stopped
+using it. The shipped
 `deploy/keycloak/knowledge-fabric-realm.json` passes; record its digest at review as
 `KF_IDENTITY_POLICY_SHA256`.
 
