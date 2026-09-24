@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { withTransaction, bindPrincipal } from '@kf/database';
-import { readGranted } from './read-grant.js';
+import { readGranted } from '@kf/authorization';
 import { refuseUnidentified } from '../actions.js';
 import {
   DEFAULT_DOCUMENT_PROJECTION_DOWNLOAD_MAX_BYTES,

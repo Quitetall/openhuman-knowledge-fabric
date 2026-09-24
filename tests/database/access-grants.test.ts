@@ -4,14 +4,21 @@ import { join } from 'node:path';
 import Fastify from 'fastify';
 import { InMemoryObjectStore } from '@kf/artifacts';
 import { digest } from '@kf/canonicalization';
-import { enumerateAccessCoverage, explainAccess, type AccessExplanation } from '@kf/authorization';
+import {
+  enumerateAccessCoverage,
+  explainAccess,
+  readGranted,
+  readGrantedSubset,
+  type AccessExplanation,
+} from '@kf/authorization';
 import { withTransaction } from '@kf/database';
 import { createDocumentActionAtoms, enumeratePermittedSet } from '@kf/documents';
 import { createFabricDispatcher } from '@kf/orchestrator';
 import { loadProjectionDefinitions } from '@kf/projections';
+import { registerReadRoutes } from '../../apps/api/src/routes/actions/read-routes.js';
 import { registerAccessExplanationRoute } from '../../apps/api/src/routes/documents/access-explanation-route.js';
 import type { DocumentRoutesOptions } from '../../apps/api/src/routes/documents/contracts.js';
-import { readGranted, readGrantedSubset } from '../../apps/api/src/routes/documents/read-grant.js';
+
 import {
   bindContext,
   bindReader,
@@ -36,6 +43,9 @@ import {
  *      exclusion on a person whose grant coverage passes.
  *   5. `GET /objects/:id/access` serves it, and answers _not found_ for an object the asker
  *      cannot see, whoever they ask about.
+ *   6. The action-side reads — a project, an object's history, what can be done to it — ask the
+ *      same gate: a person cleared for a record but granted only one project learns nothing
+ *      about anything else, not even that it exists (KF-SAS-RQ-039, RQ-041).
  */
 
 const ROOT = join(import.meta.dirname, '..', '..');
@@ -428,6 +438,122 @@ describe('access is a grant', () => {
     expect((numbered.receipt as Record<string, unknown>)['enterprise_id']).toMatch(
       /^OH-DOC-[0-9]{6}-[0-9]$/,
     );
+  });
+
+  it('answers not found from the action-side reads for a record the reader is not granted', async () => {
+    // A cleared person whose ONLY grant is a performer role on one project. Row-level security
+    // shows them everything in the organization up to `restricted`; the grant reaches one object.
+    const reader = await createObject(harness.adminPool, fixtures, {
+      type: 'person',
+      domain: 'organization',
+      state: 'active',
+      title: 'Project-only reader',
+      createdBy: fixtures.reviewerId,
+    });
+    const project = await createObject(harness.adminPool, fixtures, {
+      type: 'initiative_project',
+      domain: 'project',
+      state: 'captured',
+      title: 'The one granted project',
+      createdBy: fixtures.reviewerId,
+    });
+    const otherProject = await createObject(harness.adminPool, fixtures, {
+      type: 'initiative_project',
+      domain: 'project',
+      state: 'captured',
+      title: 'A project nobody granted them',
+      createdBy: fixtures.reviewerId,
+    });
+    const workPackage = await createObject(harness.adminPool, fixtures, {
+      type: 'work_package',
+      domain: 'project',
+      state: 'planned',
+      title: 'A package inside the granted project',
+      createdBy: fixtures.reviewerId,
+    });
+    const role = await createObject(harness.adminPool, fixtures, {
+      type: 'role_assignment',
+      domain: 'organization',
+      state: 'active',
+      title: 'performer on the one project',
+      createdBy: fixtures.reviewerId,
+    });
+    await withTransaction(harness.adminPool, async (tx) => {
+      await bindContext(tx, fixtures, fixtures.reviewerId);
+      await tx.query(
+        'insert into org.person (id, display_name, organization) values ($1, $2, $3)',
+        [reader, 'Project-only reader', fixtures.organizationId],
+      );
+      await tx.query(
+        `insert into org.person_clearance
+           (subject_id, organization_id, max_classification, granted_by, granted_by_action, reason)
+         values ($1, $2, 'restricted', $3, $4, 'cleared, and granted one project only')`,
+        [reader, fixtures.organizationId, fixtures.reviewerId, fixtures.clearanceActionId],
+      );
+      for (const id of [project, otherProject]) {
+        await tx.query(
+          `insert into work.initiative_project (id, objective, sponsor_id) values ($1, $2, $3)`,
+          [id, 'prove the read gate', fixtures.reviewerId],
+        );
+      }
+      await tx.query(
+        `insert into work.work_package (id, project_id, sequence_no, scope_statement,
+                                        acceptance_criterion)
+         values ($1, $2, 1, 'the package', 'it is read only where granted')`,
+        [workPackage, project],
+      );
+      await tx.query(
+        'insert into org.role_assignment (id, subject_id, role_id, scope_id) values ($1,$2,$3,$4)',
+        [role, reader, 'performer', project],
+      );
+    });
+
+    const app = Fastify({ logger: false });
+    registerReadRoutes(app, {
+      pool: harness.pool,
+      identify: async () => ({
+        actorId: reader,
+        actingRoleId: role,
+        organizationId: fixtures.organizationId,
+        maxClassification: 'restricted',
+        authentication: { authenticatedAt: undefined, assuranceLevel: undefined, methods: [] },
+      }),
+    });
+    await app.ready();
+    try {
+      // Not vacuous: row-level security alone shows the reader every one of these records.
+      const visible = await withTransaction(harness.pool, async (tx) => {
+        await bindContext(tx, fixtures, reader, role);
+        return tx.query<{ id: string }>('select id from core.object where id = any($1::uuid[])', [
+          [probe, otherProject, workPackage],
+        ]);
+      });
+      expect(visible).toHaveLength(3);
+
+      const granted = await app.inject({ method: 'GET', url: `/projects/${project}` });
+      expect(granted.statusCode, granted.body).toBe(200);
+      // The package is its own object, and the project grant does not reach it.
+      expect((granted.json() as { packages: unknown[] }).packages).toEqual([]);
+      const grantedHistory = await app.inject({
+        method: 'GET',
+        url: `/objects/${project}/history`,
+      });
+      expect(grantedHistory.statusCode, grantedHistory.body).toBe(200);
+
+      for (const url of [
+        `/projects/${otherProject}`,
+        `/objects/${probe}/history`,
+        `/objects/${otherProject}/history`,
+        `/objects/${probe}/available-actions`,
+        `/objects/${workPackage}/available-actions`,
+      ]) {
+        const refused = await app.inject({ method: 'GET', url });
+        expect(refused.statusCode, `${url}: ${refused.body}`).toBe(404);
+        expect(refused.json()).toEqual({ error: 'not_found' });
+      }
+    } finally {
+      await app.close();
+    }
   });
 
   it('serves the explanation and hides objects the asker cannot see', async () => {

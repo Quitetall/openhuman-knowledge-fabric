@@ -346,6 +346,9 @@ importers:
       '@kf/actions':
         specifier: workspace:*
         version: link:../actions
+      '@kf/authorization':
+        specifier: workspace:*
+        version: link:../authorization
       '@kf/canonicalization':
         specifier: workspace:*
         version: link:../canonicalization
