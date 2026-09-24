@@ -98,6 +98,13 @@ they were written for and were blind to the case that mattered.
 file. `docs-references.test.ts` verifies a citation resolves and says it cannot verify the
 cited file supports the claim. That sentence is the useful part.
 
+**Gaps are recorded, never marked.** There is no inline `TODO`-style marker anywhere in this
+repository, and a gate keeps it that way (KF-SAS-RQ-018): ESLint's `no-warning-comments` for
+everything ESLint reads, and `tests/conformance/no-inline-markers.test.ts` for the files it does
+not (SQL, shell, systemd, config, YAML, TOML). A known gap goes in SAS §100, an ADR, a pack
+`known_gaps` entry or a named checker warning — somewhere a reader will find it and a gate can
+count it.
+
 **Corrections belong in the record.** When something in this repository turns out to be wrong,
 the fix says so and says what was wrong. Several documents carry a paragraph beginning "this
 previously read…". Do not quietly improve a false claim into a true one.
