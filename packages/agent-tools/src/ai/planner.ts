@@ -11,7 +11,7 @@ import type {
 } from './types.js';
 import { atOrBelow, requireClassification, requireNonempty, requireSha256 } from './primitives.js';
 import { validateRequest } from './request.js';
-import { validatePlannerInput } from './planner-input.js';
+import { projectionMemberIds, validatePlannerInput } from './planner-input.js';
 import { markPlannedRequest } from './planned-request.js';
 
 interface RankedCandidate extends AiContextCandidate {
@@ -30,10 +30,13 @@ export async function planAiProposalContext(
     repository.authorizedDerivedVectorCandidates?.(valid.scope, valid.query) ?? Promise.resolve([]),
   ]);
   const omitted: AiOmittedContextRecord[] = [];
+  // KF-SAS-RQ-115: an agent's context is a projection. Retrieval proposes; only a member of the
+  // principal's agent_context Result may be selected.
+  const members = projectionMemberIds(valid.projection);
   const candidates = [
-    ...tagCandidates(lexical, 'lexical', valid, omitted),
-    ...tagCandidates(typed, 'typed_relation', valid, omitted),
-    ...tagCandidates(vector, 'derived_vector', valid, omitted),
+    ...tagCandidates(lexical, 'lexical', valid, members, omitted),
+    ...tagCandidates(typed, 'typed_relation', valid, members, omitted),
+    ...tagCandidates(vector, 'derived_vector', valid, members, omitted),
   ];
   const ranked = [...dedupeCandidates(candidates, omitted)]
     .sort(compareRanked)
@@ -66,6 +69,12 @@ export async function planAiProposalContext(
     request: markPlannedRequest(request),
     selected: Object.freeze(finalSelected),
     omitted: Object.freeze(omitted.sort(compareOmissions)),
+    projection: Object.freeze({
+      definitionId: 'agent_context' as const,
+      definitionVersion: valid.projection.definition.version,
+      corpusDigest: valid.projection.source.corpusDigest,
+      projectionDigest: valid.projection.projectionDigest,
+    }),
   });
 }
 
@@ -73,11 +82,21 @@ function tagCandidates(
   values: readonly AiContextCandidate[],
   channel: AiContextChannel,
   input: AiContextPlannerInput,
+  members: ReadonlySet<string>,
   omitted: AiOmittedContextRecord[],
 ): readonly RankedCandidate[] {
   return values.flatMap((candidate) => {
     try {
       requireNonempty(candidate.subjectId, 'candidate subjectId');
+      if (!members.has(requireNonempty(candidate.objectId, 'candidate objectId'))) {
+        omit(
+          omitted,
+          { ...candidate, channels: [channel] },
+          'outside_projection',
+          'candidate is not an included member of the agent_context projection',
+        );
+        return [];
+      }
       requireNonempty(candidate.revisionId, 'candidate revisionId');
       requireNonempty(candidate.content, 'candidate content');
       requireSha256(candidate.provenanceDigest, 'candidate provenanceDigest');

@@ -60,6 +60,10 @@ const CREATED_BY: Readonly<Record<string, readonly string[]>> = {
   release: ['define_release'],
   // ADR 0034 (proposed).
   observation: ['record_observation'],
+  // KF-SAS-RQ-142, draft.8: the work-control records that had none.
+  engagement: ['record_engagement'],
+  milestone: ['plan_milestone'],
+  deliverable: ['define_deliverable'],
 };
 
 /** Types with no create act, and why. A reason is a recorded gap, not an exemption from one. */
@@ -72,11 +76,6 @@ const NO_CREATE_ACT: Readonly<Record<string, string>> = {
     'a person-creating act is org.person work owned elsewhere in draft.8.',
   role_assignment:
     'created by the owner-credential admin tool grant-authority; the same draft.8 work item.',
-  engagement:
-    'RECORDED GAP (KF-SAS-RQ-142, work control): no act creates one; the reference scenario ' +
-    'seeds its engagement with an owner insert. Not a product/quality type, so outside RQ-143.',
-  deliverable: 'RECORDED GAP (KF-SAS-RQ-142): no act creates one; work.deliverable is unreached.',
-  milestone: 'RECORDED GAP (KF-SAS-RQ-142): no act creates one; work.milestone is unreached.',
 };
 
 describe('every object type has a create act, or a recorded reason it has none', () => {

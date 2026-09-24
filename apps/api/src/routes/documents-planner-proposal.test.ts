@@ -4,6 +4,9 @@ import type { ActionRequest, ActionResult } from '@kf/actions';
 import type { AiProvider, AiProviderResponse, AiRoutingPolicy } from '@kf/agent-tools';
 import type { DocumentProposalOperation, ReplaceFragmentSourceOperation } from '@kf/documents';
 import type { Pool } from '@kf/database';
+import { recordVerification } from '@kf/domain';
+import { projectionResultDigest, type ProjectionResult } from '@kf/projections';
+import type { AgentContextOutcome, ReadAgentContext } from './documents/agent-context.js';
 import type { IdentifyCaller } from './actions.js';
 import { registerDocumentRoutes } from './documents.js';
 
@@ -39,6 +42,7 @@ const targetRow = {
 };
 
 const contextRow = {
+  object_id: DOCUMENT_ID,
   subject_id: SUBJECT_ID,
   revision_id: REVISION_ID,
   classification: 'internal',
@@ -57,11 +61,49 @@ const policy: AiRoutingPolicy = {
   remoteAllowlist: [],
 };
 
+const ACTOR_ID = '77777777-7777-7777-8777-777777777777';
+const ORGANIZATION_ID = '99999999-9999-7999-8999-999999999999';
+
+/** The reader's `agent_context` Result over `objectIds`, digest as the engine would give it. */
+function agentContextOver(objectIds: readonly string[]): ProjectionResult {
+  const members = objectIds.map((objectId) => ({
+    objectId,
+    objectType: 'controlled_document',
+    organizationId: ORGANIZATION_ID,
+    classification: 'internal' as const,
+    contentDigest: 'f'.repeat(64),
+    itemState: 'included' as const,
+    verification: recordVerification(undefined),
+  }));
+  const body = {
+    format: 'kf-projection-result-v2' as const,
+    definition: { id: 'agent_context', version: 1 },
+    parameters: { token_budget: 2_048 },
+    source: { personId: ACTOR_ID, organizationId: ORGANIZATION_ID, corpusDigest: 'e'.repeat(64) },
+    sections: [{ id: 'relevant', title: 'Relevant to this person', members }],
+    measurements: {
+      memberCount: members.length,
+      corpusMemberCount: members.length,
+      excludedByFilter: 0,
+      unverifiedCount: members.length,
+      sectionCounts: { relevant: members.length },
+      reachedCount: members.length,
+      relevanceFanoutByAnchorType: {},
+      relevanceFanoutByPropagationClass: {},
+    },
+  };
+  return { ...body, projectionDigest: projectionResultDigest(body) };
+}
+
+function agentContext(outcome: AgentContextOutcome) {
+  return vi.fn<ReadAgentContext>(async () => outcome);
+}
+
 function caller(): IdentifyCaller {
   return vi.fn(async () => ({
-    actorId: '77777777-7777-7777-8777-777777777777',
+    actorId: ACTOR_ID,
     actingRoleId: '88888888-8888-7888-8888-888888888888',
-    organizationId: '99999999-9999-7999-8999-999999999999',
+    organizationId: ORGANIZATION_ID,
     maxClassification: 'internal',
     authentication: { authenticatedAt: undefined, assuranceLevel: undefined, methods: [] },
   }));
@@ -121,10 +163,14 @@ function options(
     aiProposalProvider: AiProvider;
     aiRoutingPolicy: AiRoutingPolicy;
     executeInTransaction: ReturnType<typeof executeOk>;
+    agentContext: ReadAgentContext;
   }> = {},
 ) {
   return {
     pool: pool(rowsFor),
+    agentContext:
+      extras.agentContext ??
+      agentContext({ status: 'ready', projection: agentContextOver([DOCUMENT_ID]) }),
     identify: extras.identify ?? caller(),
     store: undefined,
     preflightInTransaction: vi.fn(async () => undefined),
@@ -439,4 +485,99 @@ describe('POST /documents/:id/planner/proposal', () => {
     expect(response.json()).toMatchObject({ error: 'invalid_ai_proposal' });
     expect(execute).not.toHaveBeenCalled();
   });
+
+  it('draws context only from the reader agent_context projection (KF-SAS-RQ-115)', async () => {
+    const aiProvider = provider();
+    const execute = executeOk();
+    const read = agentContext({ status: 'ready', projection: agentContextOver([DOCUMENT_ID]) });
+    const app = await appWith(
+      options(plannerRows, {
+        aiProposalProvider: aiProvider,
+        aiRoutingPolicy: policy,
+        executeInTransaction: execute,
+        agentContext: read,
+      }),
+    );
+
+    const response = await app.inject({
+      method: 'POST',
+      url: `/documents/${DOCUMENT_ID}/planner/proposal`,
+      payload: validBody(),
+    });
+
+    expect(response.statusCode, response.body).toBe(201);
+    // Asked for the reader, at the token budget the claim named.
+    expect(read).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ actorId: ACTOR_ID, organizationId: ORGANIZATION_ID }),
+      2_048,
+    );
+  });
+
+  it('gives the model nothing the reader agent_context projection does not hold', async () => {
+    const aiProvider = provider();
+    const execute = executeOk();
+    const app = await appWith(
+      options(plannerRows, {
+        aiProposalProvider: aiProvider,
+        aiRoutingPolicy: policy,
+        executeInTransaction: execute,
+        // The document is authorized and in the basis, but not in this reader's projection.
+        agentContext: agentContext({
+          status: 'ready',
+          projection: agentContextOver([TARGET_ID]),
+        }),
+      }),
+    );
+
+    const response = await app.inject({
+      method: 'POST',
+      url: `/documents/${DOCUMENT_ID}/planner/proposal`,
+      payload: validBody(),
+    });
+
+    // The model was shown no content, so its proposal names a subject it was never given.
+    expect(response.statusCode, response.body).toBe(422);
+    expect(response.json()).toMatchObject({
+      error: 'invalid_ai_proposal',
+      message: 'proposal subject is not in authorized context',
+    });
+    for (const [request] of aiProvider.propose.mock.calls as unknown as [
+      { context: readonly { subjectId: string }[] },
+    ][]) {
+      expect(request.context.map((item) => item.subjectId)).not.toContain(SUBJECT_ID);
+    }
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ status: 'master_record_stale' } as const, 409, 'master_record_stale'],
+    [{ status: 'master_record_not_found' } as const, 404, 'master_record_not_found'],
+    [{ status: 'projections_unavailable' } as const, 503, 'projections_unavailable'],
+  ])(
+    'refuses without an agent context (%o) before provider invocation',
+    async (outcome, status, error) => {
+      const aiProvider = provider();
+      const execute = executeOk();
+      const app = await appWith(
+        options(plannerRows, {
+          aiProposalProvider: aiProvider,
+          aiRoutingPolicy: policy,
+          executeInTransaction: execute,
+          agentContext: agentContext(outcome),
+        }),
+      );
+
+      const response = await app.inject({
+        method: 'POST',
+        url: `/documents/${DOCUMENT_ID}/planner/proposal`,
+        payload: validBody(),
+      });
+
+      expect(response.statusCode).toBe(status);
+      expect(response.json()).toMatchObject({ error });
+      expect(aiProvider.propose).not.toHaveBeenCalled();
+      expect(execute).not.toHaveBeenCalled();
+    },
+  );
 });

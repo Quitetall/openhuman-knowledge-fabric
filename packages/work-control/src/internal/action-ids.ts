@@ -35,4 +35,8 @@ export const WORK_CONTROL_ACTION_IDS = [
   'complete_project_technical',
   'close_project_administrative',
   'correct_record',
+  // KF-SAS-RQ-142: the work-control records that had no create act.
+  'record_engagement',
+  'plan_milestone',
+  'define_deliverable',
 ] as const;

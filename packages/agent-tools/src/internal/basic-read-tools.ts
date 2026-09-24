@@ -1,7 +1,8 @@
+import { readGrantedSubset } from '@kf/authorization';
 import type { Pool } from '@kf/database';
 import { recordVerification } from '@kf/domain';
 import { searchIn, type SearchHit } from '@kf/search';
-import { scoped } from './scope.js';
+import { scoped, scopedToGranted } from './scope.js';
 import type { AgentScope, AvailableAction, HistoryEntry, ObjectSummary } from './types.js';
 
 export async function findRecords(
@@ -9,13 +10,24 @@ export async function findRecords(
   scope: AgentScope,
   query: { text: string; objectTypes?: readonly string[]; limit?: number },
 ): Promise<readonly SearchHit[]> {
-  return scoped(pool, scope, async (tx) =>
-    searchIn(
+  return scoped(pool, scope, async (tx) => {
+    const hits = await searchIn(
       tx,
       { organizationId: scope.organizationId, maxClassification: scope.maxClassification },
       query,
-    ),
-  );
+    );
+    // A hit is a title and a place a record appears; only a granted record may appear.
+    const granted = new Set(
+      (
+        await readGrantedSubset(
+          tx,
+          scope,
+          hits.map((hit) => ({ id: hit.objectId })),
+        )
+      ).map((item) => item.id),
+    );
+    return hits.filter((hit) => granted.has(hit.objectId));
+  });
 }
 
 export async function readRecord(
@@ -23,7 +35,7 @@ export async function readRecord(
   scope: AgentScope,
   objectId: string,
 ): Promise<ObjectSummary | undefined> {
-  return scoped(pool, scope, async (tx) => {
+  return scopedToGranted(pool, scope, objectId, undefined, async (tx) => {
     const row = await tx.maybeOne<{
       id: string;
       enterprise_id: string | null;
@@ -67,11 +79,8 @@ export async function readHistory(
   scope: AgentScope,
   objectId: string,
 ): Promise<readonly HistoryEntry[]> {
-  return scoped(pool, scope, async (tx) => {
-    const visible = await tx.maybeOne<{ id: string }>('select id from core.object where id = $1', [
-      objectId,
-    ]);
-    if (visible === undefined) return [];
+  // The gate is false for an object the session cannot see: it is the visibility check too.
+  return scopedToGranted(pool, scope, objectId, [], async (tx) => {
     const rows = await tx.query<{
       seq: string;
       action_type: string;
@@ -101,7 +110,7 @@ export async function availableActions(
   scope: AgentScope,
   objectId: string,
 ): Promise<readonly AvailableAction[]> {
-  return scoped(pool, scope, async (tx) => {
+  return scopedToGranted(pool, scope, objectId, [], async (tx) => {
     const object = await tx.maybeOne<{ object_type: string; lifecycle_state: string }>(
       'select object_type, lifecycle_state from core.object where id = $1',
       [objectId],

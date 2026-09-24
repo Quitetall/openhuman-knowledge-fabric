@@ -2,7 +2,7 @@
   "schema_version": "1.2.0-draft.1",
   "x-generated-from": {
     "ontology_version": "1.2.0-draft.1",
-    "source_digest": "d9f48f4a70455b4c0c265e4dc68d01caa222739ce2909af18dcb75e44132bb72"
+    "source_digest": "7b96da3eb2b3f1ee99ff36c18ec0e256474897e41db1b4d7b310e8136d50d536"
   },
   "node_types": {
     "organization": {
@@ -2728,6 +2728,18 @@
       "transactional": true
     },
     "define_release": {
+      "audited": true,
+      "transactional": true
+    },
+    "record_engagement": {
+      "audited": true,
+      "transactional": true
+    },
+    "plan_milestone": {
+      "audited": true,
+      "transactional": true
+    },
+    "define_deliverable": {
       "audited": true,
       "transactional": true
     },

@@ -76,3 +76,10 @@ corpus, and changes digest on a new backlink. `tests/database/master-record-proj
 drives `GET /objects/:id` against a real database: the anchor and its backlink appear, the
 facets are present, the digest header matches, and an object outside the corpus is 404.
 `tests/ontology/planted-violations.test.ts` plants ONT-017 both ways.
+`tests/database/object-view-every-type.test.ts` is the acceptance test the design names
+(KF-SAS-RQ-117, added 2026-09-25): one record of every type in `registry.object_type` — read from
+the database, so a new type that nobody makes fails it — and `GET /objects/:id` answers each with
+an `object_view` Result anchored at that record. Records are made by their create acts where one
+act makes one; the bootstrap types come from the harness fixtures, and the types whose acts need
+a lifecycle walk or the document or ML pipelines are admin fixtures, each naming the test that
+proves its act.

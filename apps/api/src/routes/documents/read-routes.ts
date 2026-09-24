@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { withTransaction, bindPrincipal } from '@kf/database';
-import { readGranted, readGrantedSubset } from './read-grant.js';
+import { readGranted, readGrantedSubset } from '@kf/authorization';
 import { getDocument, listDocuments } from '@kf/documents';
 import { refuseUnidentified } from '../actions.js';
 import type { DocumentRoutesOptions } from './contracts.js';

@@ -74,6 +74,7 @@ export {
   revokeAccessEffect,
   type AccessCapability,
   type AccessCoverage,
+  type AccessDenial,
   type AccessExplanation,
   type AccessGrantRef,
   type AccessGrantWrite,
@@ -88,3 +89,12 @@ export {
   endPersonAuthority,
   type OrganizationLifecycleAtoms,
 } from './organization-lifecycle.js';
+export {
+  classificationsOf,
+  reaches,
+  readCoverage,
+  readGranted,
+  readGrantedSubset,
+  type Classified,
+  type ReadIdentity,
+} from './read-grant.js';

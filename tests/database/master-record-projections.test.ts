@@ -8,6 +8,7 @@ import { createDocumentActionAtoms, latestMasterRecord } from '@kf/documents';
 import { createFabricDispatcher, createFabricTransactionalDispatcher } from '@kf/orchestrator';
 import { UNVERIFIED_LABEL } from '@kf/domain';
 import { loadProjectionDefinitions, type ProjectionResult } from '@kf/projections';
+import { agentContextReader } from '../../apps/api/src/routes/documents/agent-context.js';
 import { registerMasterRecordProjectionRoute } from '../../apps/api/src/routes/documents/master-record-projection-route.js';
 import { registerObjectViewRoute } from '../../apps/api/src/routes/documents/object-view-route.js';
 import { registerMasterRecordRoute } from '../../apps/api/src/routes/documents/master-record-route.js';
@@ -204,6 +205,53 @@ describe('corpus projections over a real master record', () => {
       await app.close();
     }
   }, 60_000);
+
+  it('gives the AI planner the same agent_context Result the route serves (KF-SAS-RQ-115)', async () => {
+    const app = Fastify({ logger: false });
+    registerMasterRecordProjectionRoute(app, routeOptions());
+    await app.ready();
+    try {
+      const served = await app.inject({
+        method: 'GET',
+        url: '/master-record/projections/agent_context?token_budget=512',
+      });
+      expect(served.statusCode, served.body).toBe(200);
+      const outcome = await withTransaction(harness.pool, async (tx) => {
+        await bindReader(tx, fixtures, fixtures.performerId);
+        return agentContextReader(loadProjectionDefinitions(ARTIFACT))(
+          tx,
+          { actorId: fixtures.performerId, organizationId: fixtures.organizationId },
+          512,
+        );
+      });
+      expect(outcome.status).toBe('ready');
+      const planned = (outcome as { projection: ProjectionResult }).projection;
+      expect(planned.projectionDigest).toBe((served.json() as ProjectionResult).projectionDigest);
+      expect(planned.sections.flatMap((s) => s.members.map((m) => m.objectId))).toContain(probe);
+
+      // Without definitions, and for a person with no master record, it refuses rather than
+      // handing the planner an empty or improvised context.
+      const refused = await withTransaction(harness.pool, async (tx) => {
+        await bindReader(tx, fixtures, fixtures.reviewerId);
+        return {
+          none: await agentContextReader(undefined)(
+            tx,
+            { actorId: fixtures.reviewerId, organizationId: fixtures.organizationId },
+            512,
+          ),
+          noRecord: await agentContextReader(loadProjectionDefinitions(ARTIFACT))(
+            tx,
+            { actorId: fixtures.reviewerId, organizationId: fixtures.organizationId },
+            512,
+          ),
+        };
+      });
+      expect(refused.none.status).toBe('projections_unavailable');
+      expect(refused.noRecord.status).toBe('master_record_not_found');
+    } finally {
+      await app.close();
+    }
+  });
 
   it('labels GET /master-record items from the same master_sections evaluation', async () => {
     const app = Fastify({ logger: false });

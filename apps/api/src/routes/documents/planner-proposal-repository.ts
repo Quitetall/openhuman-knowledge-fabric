@@ -6,6 +6,7 @@ import type {
 import type { Tx } from '@kf/database';
 
 interface PlannerContextRow extends Record<string, unknown> {
+  readonly object_id: string;
   readonly subject_id: string;
   readonly revision_id: string;
   readonly classification: 'public' | 'internal' | 'confidential' | 'restricted';
@@ -31,7 +32,8 @@ export class DocumentPlannerRepository implements AiContextPlannerRepository {
   ): Promise<readonly AiContextCandidate[]> {
     const rows = await this.tx.query<PlannerContextRow>(
       `select /* document.ai-lexical-context */
-              subject.id as subject_id, revision.id as revision_id, revision.classification,
+              object.id as object_id, subject.id as subject_id, revision.id as revision_id,
+              revision.classification,
               revision.content_digest, revision.revision_digest, revision.media_type,
               subject.stable_key, object.title, revision.created_at as updated_at,
               case
@@ -66,7 +68,8 @@ export class DocumentPlannerRepository implements AiContextPlannerRepository {
     if (seeds.length === 0) return [];
     const rows = await this.tx.query<PlannerContextRow>(
       `select /* document.ai-seed-context */
-              subject.id as subject_id, revision.id as revision_id, revision.classification,
+              object.id as object_id, subject.id as subject_id, revision.id as revision_id,
+              revision.classification,
               revision.content_digest, revision.revision_digest, revision.media_type,
               subject.stable_key, object.title, revision.created_at as updated_at,
               0 as relation_depth
@@ -92,7 +95,8 @@ export class DocumentPlannerRepository implements AiContextPlannerRepository {
     if (candidates.length === 0) return [];
     const rows = await this.tx.query<PlannerContextRow>(
       `select /* document.ai-authorize-context */
-              subject.id as subject_id, revision.id as revision_id, revision.classification,
+              object.id as object_id, subject.id as subject_id, revision.id as revision_id,
+              revision.classification,
               revision.content_digest, revision.revision_digest, revision.media_type,
               subject.stable_key, object.title, revision.created_at as updated_at
          from content.compilation_basis_fragment member
@@ -130,6 +134,7 @@ function toCandidate(row: PlannerContextRow): AiContextCandidate {
     `revision_digest: ${row.revision_digest}`,
   ].join('\n');
   const candidate: AiContextCandidate = {
+    objectId: row.object_id,
     subjectId: row.subject_id,
     revisionId: row.revision_id,
     classification: row.classification,
