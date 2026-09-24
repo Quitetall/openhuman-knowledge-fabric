@@ -14,6 +14,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { appendAuditEvent } from '@kf/actions';
 import { auditChainDigest, GENESIS_DIGEST } from '@kf/canonicalization';
 import {
   attestationFor,
@@ -683,12 +684,59 @@ export async function bindContext(
       maxClassification: 'restricted',
     })) ?? null,
   ]);
+  await recordAct(tx, f, actorId, actingRoleId);
+}
+
+/**
+ * Record an act in the ledger and bind it as this transaction's action, returning its id.
+ *
+ * Every row the application writes belongs to an act the ledger records in the same transaction
+ * (20260925020000), so a direct write records one: a `correct_record` by the bound person, on the
+ * organization, with its audit-chain link. It is a real act, and a test counting actions or
+ * events sees it. The principal must
+ * already be bound (`bindPrincipal`/`bindReader`), as the dispatcher binds before it records.
+ */
+export async function recordAct(
+  tx: Tx,
+  f: Fixtures,
+  actorId: string = f.performerId,
+  actingRoleId: string = roleOf(f, actorId),
+): Promise<string> {
+  const actionId = randomUUID();
   await tx.query('select core.set_transaction_context($1, $2, $3, $4)', [
     actorId,
     actingRoleId,
-    BOOTSTRAP_ACTION,
+    actionId,
     'harness-direct-write',
   ]);
+  // The database's clock, rounded up to the wire's millisecond, as the dispatcher does.
+  const { effective_at: effectiveAt } = await tx.one<{ effective_at: Date }>(
+    "select date_trunc('milliseconds', now() + interval '999 microseconds') as effective_at",
+  );
+  await tx.query(
+    `insert into core.action
+       (id, organization_id, request_digest, action_type, actor_id, acting_role_id, target_ids,
+        idempotency_key, effective_at, reason, result_status)
+     values ($1::uuid, $2::uuid,
+             encode(sha256(convert_to('harness-direct-write:' || $1::text, 'UTF8')), 'hex'),
+             'correct_record', $3::uuid, $4::uuid, array[$2::uuid], 'harness-direct-write-' || $1::text,
+             $5, 'harness direct write', 'applied')`,
+    [actionId, f.organizationId, actorId, actingRoleId, effectiveAt],
+  );
+  // And its chain link, through the one implementation of the chain arithmetic: an act with no
+  // audit receipt is refused by the preservation importer, rightly.
+  await appendAuditEvent(tx, {
+    actionId,
+    actionType: 'correct_record',
+    actorId,
+    actingRoleId,
+    objectIds: [f.organizationId],
+    effectiveAt,
+    reason: 'harness direct write',
+    beforeDigest: null,
+    afterDigest: null,
+  });
+  return actionId;
 }
 
 /** Bind a reader as one of the fixture people, at their full ceiling unless narrowed. */

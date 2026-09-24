@@ -339,6 +339,28 @@ as a database error naming `act authority` means something wrote to `core.action
 through the dispatcher. That is not a configuration problem: treat it as an incident (threat
 model T2).
 
+## A write is refused: "must be performed by an act" or "not an act this transaction recorded"
+
+Since `20260925020000` every table the application or the worker can write refuses a row that no
+recorded act accounts for (threat model T2). The dispatcher always records its act in the same
+transaction as the writes, so neither refusal is reachable through it:
+
+- **must be performed by an act, and no action is bound** — something wrote a domain row with no
+  action in the transaction context;
+- **not an act this transaction recorded for its actor** — the context named an action the
+  ledger does not hold, or (for the API) one recorded by an earlier transaction.
+
+Either arriving from the API is not a configuration problem: treat it as an incident, as for an
+`act authority` refusal above. From the worker it means a task wrote under an act it did not bind;
+the document compiler is the one task that completes an act already recorded.
+
+Five writes are exempt by design, each with its reason in `core.write_guard_exemption` (read it
+as the owner): the ledger row itself, its audit event, outbox delivery marks, a federated
+reference's `verified_at` (stamped with the database clock), and a shared-link bearer's access
+log. `tests/database/write-guards.test.ts` pins that list; a new table the application can write
+is guarded by calling `core.install_action_context_guards()` in its migration, or the test names
+it.
+
 ## A verification is refused: reviewed individually, too fast
 
 `verify_record` with basis `reviewed_individually` is refused when the same person recorded
