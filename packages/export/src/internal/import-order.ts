@@ -70,6 +70,7 @@ export const IMPORT_ORDER = [
   'work-order-scopes',
   'work-order-amendments',
   'deliverables',
+  'deliverable-retired-attributes',
   'work-executions',
   'deliverable-submissions',
   'acceptance-records',

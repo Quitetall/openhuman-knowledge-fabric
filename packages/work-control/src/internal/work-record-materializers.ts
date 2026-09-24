@@ -26,17 +26,8 @@ const ENGAGEMENT_KINDS = [
   'laboratory_service',
 ] as const;
 
-const DELIVERABLE_KINDS = [
-  'document',
-  'design',
-  'firmware',
-  'software',
-  'hardware',
-  'test_report',
-  'data',
-  'service',
-  'other',
-] as const;
+const MAX_ACCEPTANCE_CRITERIA = 64;
+const MAX_CRITERION_LENGTH = 2000;
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -165,15 +156,47 @@ export const planMilestone: ActionMaterializer = async (tx, request) => {
 };
 
 /**
- * `define_deliverable` — what a work package must hand over, and what "done" means for it.
- * Writes the columns `work.deliverable` has; the ontology's `description`, `acceptance_criteria`,
- * `due_date` and `work_order` fields have none (ontology/README.md records the divergence).
+ * The ontology's `acceptance_criteria`: a list of non-blank strings, empty by default. A criterion
+ * is what an acceptance record's `criteria_results` are later judged against, so each is one
+ * checkable statement, not a paragraph.
+ */
+function acceptanceCriteria(payload: Readonly<Record<string, unknown>> | undefined): string[] {
+  const value = payload?.['acceptance_criteria'];
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value) || value.length > MAX_ACCEPTANCE_CRITERIA) {
+    throw new PayloadInvalid(
+      'acceptance_criteria',
+      `acceptance_criteria must be a list of at most ${MAX_ACCEPTANCE_CRITERIA} strings`,
+    );
+  }
+  return value.map((criterion: unknown) => {
+    if (
+      typeof criterion !== 'string' ||
+      criterion.trim() === '' ||
+      criterion.trim().length > MAX_CRITERION_LENGTH
+    ) {
+      throw new PayloadInvalid(
+        'acceptance_criteria',
+        `each acceptance criterion must be a non-blank string of at most ${MAX_CRITERION_LENGTH} characters`,
+      );
+    }
+    return criterion.trim();
+  });
+}
+
+/**
+ * `define_deliverable` — what a work package must hand over, and what "done" means for it. Writes
+ * the ontology's `deliverable` fields: `work_package` (required), `work_order` (optional; it must
+ * cover the package), `description`, `acceptance_criteria` and `due_date`. `artifact_refs` are the
+ * deliverable's submissions, recorded when work is submitted, not here.
  */
 export const defineDeliverable: ActionMaterializer = async (tx, request) => {
   refuseTargets(request.actionType, request.targetIds);
   const packageId = requireString(request.payload, 'work_package_id');
-  const kind = oneOf(request.payload, 'deliverable_kind', DELIVERABLE_KINDS);
-  const definitionOfDone = requireString(request.payload, 'definition_of_done');
+  const orderId = optionalString(request.payload, 'work_order_id');
+  const description = requireString(request.payload, 'description');
+  const criteria = acceptanceCriteria(request.payload);
+  const dueDate = optionalDate(request.payload, 'due_date');
   const id = await createControlledObject(tx, {
     ...classificationFrom(request.payload),
     objectType: 'deliverable',
@@ -185,9 +208,10 @@ export const defineDeliverable: ActionMaterializer = async (tx, request) => {
   });
   await typedRow(request.actionType, () =>
     tx.query(
-      `insert into work.deliverable (id, work_package_id, deliverable_kind, definition_of_done)
-       values ($1, $2, $3, $4)`,
-      [id, packageId, kind, definitionOfDone],
+      `insert into work.deliverable
+         (id, work_package_id, work_order_id, description, acceptance_criteria, due_date)
+       values ($1, $2, $3, $4, $5::text[], $6)`,
+      [id, packageId, orderId, description, criteria, dueDate],
     ),
   );
   return [id];

@@ -154,7 +154,8 @@
     "work.work_order_amendment",
     "work.work_order_scope",
     "work.work_package",
-    "org.access_demand"
+    "org.access_demand",
+    "work.deliverable_retired_attribute"
   ],
   "derivedTables": ["search.document", "retrieval.band_version", "retrieval.embed_pending"],
   "liveExternalTables": [],

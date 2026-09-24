@@ -42,8 +42,13 @@ export const BUSINESS_SECTIONS = [
   },
   {
     name: 'deliverables',
-    sql: `select id, work_package_id, deliverable_kind, definition_of_done
+    sql: `select id, work_package_id, work_order_id, description, acceptance_criteria, due_date
             from work.deliverable order by work_package_id, id`,
+  },
+  {
+    name: 'deliverable-retired-attributes',
+    sql: `select deliverable_id, deliverable_kind, definition_of_done, retired_at
+            from work.deliverable_retired_attribute order by deliverable_id`,
   },
   {
     name: 'work-executions',
