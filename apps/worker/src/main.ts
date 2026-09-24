@@ -6,8 +6,8 @@
  * jobs: the idle state is logged explicitly.
  */
 
-import { S3ObjectStore } from '@kf/artifacts';
-import { createPool, type Pool } from '@kf/database';
+import { StoreRegistry } from '@kf/artifacts';
+import { createPool, withTransaction, type Pool } from '@kf/database';
 import { PinnedLiminalProcessAdapter, preflightLiminalProcessHost } from '@kf/documents';
 import { loadSecret, redact } from '@kf/operations';
 import {
@@ -69,7 +69,9 @@ async function compilationRuntime(pool: Pool): Promise<CompilationRuntime | unde
     );
   }
 
-  const store = new S3ObjectStore({
+  // Resolved against the registered `working` row before a client exists (KF-SAS-RQ-095): a
+  // worker configured with another bucket refuses to start rather than compiling into it.
+  const working = {
     endpoint: process.env['S3_ENDPOINT']!,
     region: process.env['S3_REGION']!,
     accessKeyId: process.env['S3_ACCESS_KEY_ID']!,
@@ -78,7 +80,10 @@ async function compilationRuntime(pool: Pool): Promise<CompilationRuntime | unde
     }),
     bucket: process.env['S3_BUCKET_ARTIFACTS']!,
     forcePathStyle: process.env['S3_FORCE_PATH_STYLE'] !== 'false',
-  });
+  };
+  const registry = await withTransaction(pool, (tx) => StoreRegistry.fromDatabase(tx, { working }));
+  const store = registry.get('working');
+  if (store === undefined) throw new Error('the working store did not resolve');
   const runtimeFilePaths = liminalRuntimeFilePaths();
   await preflightLiminalProcessHost({
     executablePath: process.env['LIMINAL_COMPILER_PATH']!,

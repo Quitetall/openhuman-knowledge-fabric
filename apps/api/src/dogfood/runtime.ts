@@ -1,4 +1,4 @@
-import { S3ObjectStore } from '@kf/artifacts';
+import { StoreRegistry } from '@kf/artifacts';
 import {
   createPool,
   issueAttestation,
@@ -92,14 +92,21 @@ export async function runDocumentConstitutionDogfood(): Promise<void> {
       withTransaction(attesting, (tx) => issueAttestation(tx, principal)),
     );
 
-    const store = new S3ObjectStore({
+    // Through the registry like every other store holder (KF-SAS-RQ-095): a loader pointed at a
+    // bucket other than the one this database registered as `working` is refused.
+    const working = {
       endpoint: process.env['S3_ENDPOINT'] ?? 'http://localhost:9000',
       region: process.env['S3_REGION'] ?? 'us-east-1',
       accessKeyId: process.env['S3_ACCESS_KEY_ID'] ?? 'kf-dev-access-key',
       secretAccessKey: process.env['S3_SECRET_ACCESS_KEY'] ?? DEV_S3_SECRET,
       bucket: process.env['S3_BUCKET_ARTIFACTS'] ?? 'kf-artifacts',
       forcePathStyle: process.env['S3_FORCE_PATH_STYLE'] !== 'false',
-    });
+    };
+    const registry = await withTransaction(attesting, (tx) =>
+      StoreRegistry.fromDatabase(tx, { working }),
+    );
+    const store = registry.get('working');
+    if (store === undefined) throw new Error('the working store did not resolve');
     const execute = createFabricTransactionalDispatcher(
       createDocumentActionAtoms({ store, parser: new PandocDocumentParser() }),
     );

@@ -8,7 +8,7 @@
 import { loadProjectionDefinitions } from '@kf/projections';
 import Fastify, { type FastifyError, type FastifyInstance, type FastifyRequest } from 'fastify';
 import {
-  S3ObjectStore,
+  StoreAddressMismatch,
   StoreRegistry,
   createStorageActionAtoms,
   type ObjectStore,
@@ -411,20 +411,35 @@ export async function buildApp(
       return reply.code(status).send(report);
     });
 
-    const objectStore =
-      dependencies.objectStore ??
-      (config.artifactStore === undefined ? undefined : new S3ObjectStore(config.artifactStore));
     // Storage locations (ADR 0017): the working store is `working` in content.artifact_store;
-    // a configured durable store is `durable`. Both are reachable by the same S3 client.
-    const stores =
-      objectStore === undefined
-        ? undefined
-        : new StoreRegistry({
-            working: objectStore,
-            ...(config.durableStore === undefined
-              ? {}
-              : { durable: new S3ObjectStore(config.durableStore) }),
-          });
+    // a configured durable store is `durable`. Both are resolved against their registered rows
+    // (KF-SAS-RQ-095): an API configured with a bucket the ledger does not call `working` refuses
+    // to serve instead of writing evidence there. Deferred, not awaited here, for the same reason
+    // the login check above is an onReady hook: an unreachable database is an outage `/ready`
+    // reports, not a reason to exit — and no byte reaches a store before its address resolves.
+    //
+    // An injected `objectStore` is a test seam with no address to check; it is used as is.
+    let stores: StoreRegistry | undefined;
+    if (dependencies.objectStore !== undefined) {
+      stores = new StoreRegistry({ working: dependencies.objectStore });
+    } else if (config.artifactStore !== undefined) {
+      const registry = StoreRegistry.deferredFromDatabase(pool, {
+        working: config.artifactStore,
+        ...(config.durableStore === undefined ? {} : { durable: config.durableStore }),
+      });
+      stores = registry;
+      app.addHook('onReady', async () => {
+        try {
+          await registry.verify();
+        } catch (err: unknown) {
+          if (err instanceof StoreAddressMismatch) {
+            throw new DatabaseError(`refusing to serve: ${err.message}`);
+          }
+          app.log.warn({ err }, 'object store addresses could not be checked at startup');
+        }
+      });
+    }
+    const objectStore = stores?.get('working');
     const storageAtoms = stores === undefined ? undefined : createStorageActionAtoms(stores);
     const parser = dependencies.documentParser ?? new PandocDocumentParser();
     const documentAtoms =

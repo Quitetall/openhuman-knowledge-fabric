@@ -13,6 +13,29 @@ second store is; what is deliberately not written
 > (`20260924000400_orphan_collection_is_recorded.sql`). Bytes are therefore removed by a recorded
 > sweep that is not an action; durable-store replication orphans and retention deletion remain as
 > described below.
+>
+> **UPDATED 2026-09-25 (KF-SAS-RQ-095, SAS §100.5).** Two statements below were out of date.
+> "The app registers it as `durable`" was not true: nothing outside the tests ever declared a
+> `durable` row, so replication into a configured durable store would have died on the
+> `artifact_location.store_id` foreign key. And "the checkpoint runner and the ingest path still
+> address the working store directly" named the wrong programs: the checkpoint runner never
+> touches the working store (it writes signed checkpoints to its own anchor bucket,
+> `CHECKPOINT_S3_*`), while the API, the worker, the ingest CLI and `kf-storage` each built their
+> S3 clients straight from the environment. A store row carried a label and no address, so
+> nothing could say that the bucket a process wrote into was the one the ledger called
+> `working`.
+>
+> Now a store row carries its **address** — `endpoint` and `bucket`, never credentials — and
+> every program that holds a store resolves it through `StoreRegistry.fromDatabase`
+> (`packages/artifacts/src/locations.ts`): each configured store must be declared under its id
+> (`durable` is declared by the first process configured with one), the first process to present
+> an address for an unaddressed row binds it (`content.bind_artifact_store`, recording
+> `bound_at`), and a process configured with a different endpoint or bucket than the row it
+> claims is refused with `StoreAddressMismatch` — by the registry, and again by the database.
+> Credentials stay instance configuration, read from the same variables and secret files as
+> before. What this does not do: bind the first address to anything a person approved (the
+> first process to start wins, exactly as `declareStore` already did), or cover the checkpoint
+> anchor, which is not an artifact store and whose login has no grant on `content` by design.
 
 ## The problem, measured
 
@@ -70,8 +93,9 @@ store not declared public (ADR 0021, 2026-09-02). Publishing remains a boundary 
   cadence. The checkpoint runner is the obvious host and is not wired.
 - **Routing every read through locations.** The two byte routes (`/documents/:id/source` and
   the projection download) now fall back to `readVersionBytes` when the working copy is
-  missing or corrupt, and log that they served from a copy (2026-09-02). The checkpoint
-  runner and the ingest path still address the working store directly.
+  missing or corrupt, and log that they served from a copy (2026-09-02). This previously
+  read "the checkpoint runner and the ingest path still address the working store directly";
+  see the 2026-09-25 note at the top for what was true and what changed.
 - **Evidence and public copies' receipts.** `evidence_copy` records the digest an auditor was
   handed; what the auditor signs is outside the fabric.
 - **Orphaned objects.** A store cannot join the database transaction, so a replication whose

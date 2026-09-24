@@ -14,8 +14,14 @@
  */
 
 import { ActionRejected, type ActionEffect } from '@kf/actions';
-import type { Tx } from '@kf/database';
-import { digestOf, ObjectReadLimitExceeded, type ObjectStore } from './store.js';
+import { withTransaction, type Pool, type Tx } from '@kf/database';
+import {
+  digestOf,
+  ObjectReadLimitExceeded,
+  S3ObjectStore,
+  type ObjectStore,
+  type S3Config,
+} from './store.js';
 
 export type ArtifactLocationRole =
   'working' | 'hot_cache' | 'durable_copy' | 'evidence_copy' | 'public_copy';
@@ -27,9 +33,14 @@ export type ReplicableRole = (typeof REPLICABLE_ROLES)[number];
 /** Store id → the client that reaches it. Ids are `content.artifact_store.id`. */
 export class StoreRegistry {
   readonly #stores: ReadonlyMap<string, ObjectStore>;
+  readonly #verify: () => Promise<void>;
 
-  constructor(stores: Readonly<Record<string, ObjectStore>>) {
+  constructor(
+    stores: Readonly<Record<string, ObjectStore>>,
+    verify: () => Promise<void> = () => Promise.resolve(),
+  ) {
     this.#stores = new Map(Object.entries(stores));
+    this.#verify = verify;
   }
 
   get(storeId: string): ObjectStore | undefined {
@@ -38,6 +49,242 @@ export class StoreRegistry {
 
   ids(): readonly string[] {
     return [...this.#stores.keys()];
+  }
+
+  /**
+   * Resolve every store's address against the ledger now. A registry from
+   * {@link StoreRegistry.fromDatabase} is already resolved; one from
+   * {@link StoreRegistry.deferredFromDatabase} resolves here, or on its first use.
+   */
+  verify(): Promise<void> {
+    return this.#verify();
+  }
+
+  /**
+   * Resolve every configured store against its row in `content.artifact_store` and only then
+   * build its client (KF-SAS-RQ-095, ADR 0017 note of 2026-09-25).
+   *
+   * `configured` maps a store id (`working`, `durable`) to the connection the process was
+   * given — endpoint, bucket and credentials from its environment and secret files. For each:
+   *
+   *   - a row declared as anything but an object store is refused;
+   *   - a row bound to an address is compared with the configured endpoint and bucket, and a
+   *     difference is refused with {@link StoreAddressMismatch} before any client exists;
+   *   - a row with no address is bound to this one, and an undeclared id is declared and bound,
+   *     through `content.bind_artifact_store` — which repeats the comparison under a row lock,
+   *     so two processes racing to bind different addresses cannot both win.
+   *
+   * What it does NOT establish: that the first address bound was the right one. It holds every
+   * later process to it. Credentials never reach the database.
+   */
+  static async fromDatabase(
+    tx: Tx,
+    configured: Readonly<Record<string, S3Config>>,
+    options: StoreRegistryOptions = {},
+  ): Promise<StoreRegistry> {
+    await bindConfiguredStores(tx, configured, options.labels);
+    const construct = options.construct ?? defaultConstruct;
+    const stores: Record<string, ObjectStore> = {};
+    for (const [storeId, config] of Object.entries(configured)) stores[storeId] = construct(config);
+    return new StoreRegistry(stores);
+  }
+
+  /**
+   * {@link StoreRegistry.fromDatabase} for a long-running server that must not refuse to start
+   * because the database is briefly unreachable (the API reports an outage at `/ready`; it does
+   * not exit on one). Every client is gated: no read, write or presign reaches a store until
+   * its address has been resolved against the ledger. The resolution is attempted on
+   * {@link StoreRegistry.verify} and on first use; a {@link StoreAddressMismatch} is permanent
+   * and refuses every later call, any other failure (the database unreachable) is retried on
+   * the next call.
+   */
+  static deferredFromDatabase(
+    pool: Pool,
+    configured: Readonly<Record<string, S3Config>>,
+    options: StoreRegistryOptions = {},
+  ): StoreRegistry {
+    // Address syntax is checked now: a malformed endpoint is a configuration fault, not an outage.
+    for (const [storeId, config] of Object.entries(configured)) storeAddress(storeId, config);
+    let resolved: Promise<void> | undefined;
+    const verify = (): Promise<void> => {
+      resolved ??= withTransaction(pool, (tx) =>
+        bindConfiguredStores(tx, configured, options.labels),
+      ).catch((error: unknown) => {
+        if (!(error instanceof StoreAddressMismatch)) resolved = undefined;
+        throw error;
+      });
+      return resolved;
+    };
+    const construct = options.construct ?? defaultConstruct;
+    const stores: Record<string, ObjectStore> = {};
+    for (const [storeId, config] of Object.entries(configured)) {
+      stores[storeId] = gatedStore(construct(config), verify);
+    }
+    return new StoreRegistry(stores, verify);
+  }
+}
+
+export interface StoreRegistryOptions {
+  /** Builds a client from its configuration; a test seam. Defaults to {@link S3ObjectStore}. */
+  readonly construct?: (config: S3Config) => ObjectStore;
+  /** The label an undeclared store is declared with, by id. */
+  readonly labels?: Readonly<Record<string, string>>;
+}
+
+function defaultConstruct(config: S3Config): ObjectStore {
+  return new S3ObjectStore(config);
+}
+
+function gatedStore(inner: ObjectStore, verify: () => Promise<void>): ObjectStore {
+  return {
+    async presignPut(key, mediaType, expiresInSeconds) {
+      await verify();
+      return inner.presignPut(key, mediaType, expiresInSeconds);
+    },
+    async head(key, versionId) {
+      await verify();
+      return inner.head(key, versionId);
+    },
+    async read(key, versionId, maxBytes) {
+      await verify();
+      return inner.read(key, versionId, maxBytes);
+    },
+    async putIfAbsent(key, body, mediaType) {
+      await verify();
+      return inner.putIfAbsent(key, body, mediaType);
+    },
+    async put(key, body, mediaType) {
+      await verify();
+      return inner.put(key, body, mediaType);
+    },
+  };
+}
+
+async function bindConfiguredStores(
+  tx: Tx,
+  configured: Readonly<Record<string, S3Config>>,
+  labels: Readonly<Record<string, string>> | undefined,
+): Promise<void> {
+  // Sorted, so two processes binding the same pair lock the rows in the same order.
+  const entries = Object.entries(configured).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  for (const [storeId, config] of entries) {
+    const address = storeAddress(storeId, config);
+    const row = await tx.maybeOne<RegisteredStoreRow>(
+      'select id, kind, endpoint, bucket from content.artifact_store where id = $1',
+      [storeId],
+    );
+    if (row !== undefined) assertRegisteredAddress(row, address);
+    try {
+      await tx.query('select content.bind_artifact_store($1, $2, $3, $4)', [
+        storeId,
+        labels?.[storeId] ?? `${storeId} object store (${address.bucket})`,
+        address.endpoint,
+        address.bucket,
+      ]);
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message.includes('artifact_store_address_mismatch')) {
+        throw new StoreAddressMismatch(storeId, undefined, address, error.message, {
+          cause: error,
+        });
+      }
+      throw error;
+    }
+  }
+}
+
+/** Where a store is: never its credentials. */
+export interface StoreAddress {
+  readonly endpoint: string;
+  readonly bucket: string;
+}
+
+interface RegisteredStoreRow extends Record<string, unknown> {
+  readonly id: string;
+  readonly kind: string;
+  readonly endpoint: string | null;
+  readonly bucket: string | null;
+}
+
+/**
+ * A process was configured with a store that is not the one the ledger registered under that
+ * id. Named so the entrypoints can say which store and which address, and so a test can tell
+ * this refusal from a connection failure.
+ */
+export class StoreAddressMismatch extends Error {
+  readonly code = 'artifact_store_address_mismatch';
+  readonly storeId: string;
+  readonly registered: StoreAddress | undefined;
+  readonly configured: StoreAddress;
+
+  constructor(
+    storeId: string,
+    registered: StoreAddress | undefined,
+    configured: StoreAddress,
+    message: string,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = 'StoreAddressMismatch';
+    this.storeId = storeId;
+    this.registered = registered;
+    this.configured = configured;
+  }
+}
+
+/**
+ * The comparable form of an endpoint: scheme and host lowercased by the URL parser, no trailing
+ * slash, no query, and never credentials — an endpoint carrying userinfo is refused rather than
+ * stripped, because one that arrived with a secret in it should not be quietly used.
+ */
+export function normalizeStoreEndpoint(endpoint: string): string {
+  let url: URL;
+  try {
+    url = new URL(endpoint.trim());
+  } catch (error: unknown) {
+    throw new Error(`object store endpoint is not a URL: ${JSON.stringify(endpoint)}`, {
+      cause: error,
+    });
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error(`object store endpoint must be http or https, got ${url.protocol}`);
+  }
+  if (url.username !== '' || url.password !== '') {
+    throw new Error('object store endpoint must not carry credentials');
+  }
+  if (url.search !== '' || url.hash !== '') {
+    throw new Error('object store endpoint must not carry a query or fragment');
+  }
+  const path = url.pathname.replace(/\/+$/, '');
+  return `${url.protocol}//${url.host}${path}`;
+}
+
+function storeAddress(storeId: string, config: S3Config): StoreAddress {
+  const bucket = config.bucket.trim();
+  if (bucket === '') throw new Error(`store ${storeId} is configured with no bucket`);
+  return { endpoint: normalizeStoreEndpoint(config.endpoint), bucket };
+}
+
+function assertRegisteredAddress(row: RegisteredStoreRow, configured: StoreAddress): void {
+  if (row.kind !== 'object_store') {
+    throw new StoreAddressMismatch(
+      row.id,
+      undefined,
+      configured,
+      `store ${row.id} is declared ${row.kind}, not an object store, and cannot be configured ` +
+        `at ${configured.endpoint} bucket ${configured.bucket}`,
+    );
+  }
+  if (row.endpoint === null || row.bucket === null) return;
+  if (row.endpoint !== configured.endpoint || row.bucket !== configured.bucket) {
+    const registered = { endpoint: row.endpoint, bucket: row.bucket };
+    throw new StoreAddressMismatch(
+      row.id,
+      registered,
+      configured,
+      `store ${row.id} is registered at ${registered.endpoint} bucket ${registered.bucket}; ` +
+        `this process is configured at ${configured.endpoint} bucket ${configured.bucket}. ` +
+        'Refusing to write into a store the ledger does not know (KF-SAS-RQ-095).',
+    );
   }
 }
 

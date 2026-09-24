@@ -20,7 +20,7 @@ import {
   type Pool,
   type Tx,
 } from '@kf/database';
-import { S3ObjectStore, verifyUpload, type ObjectStore } from '@kf/artifacts';
+import { StoreRegistry, verifyUpload, type ObjectStore } from '@kf/artifacts';
 import { resolveCaller, TokenVerifier, type Caller, type IdentityConfig } from '@kf/authorization';
 import {
   createDocumentActionAtoms,
@@ -337,18 +337,27 @@ function validateIdentityArgs(args: IngestCliArgs): void {
   }
 }
 
-function configuredStore(env: NodeJS.ProcessEnv): ObjectStore {
+/**
+ * The working store, resolved against its registered row before a client exists
+ * (KF-SAS-RQ-095): a copy-mode ingest configured with a bucket the ledger does not call
+ * `working` is refused with StoreAddressMismatch before a byte is written.
+ */
+async function configuredStore(env: NodeJS.ProcessEnv, pool: Pool): Promise<ObjectStore> {
   const secret = loadSecret('S3_SECRET_ACCESS_KEY', env, {
     allowInline: env['NODE_ENV'] === 'development' || env['NODE_ENV'] === 'test',
   });
-  return new S3ObjectStore({
+  const working = {
     endpoint: requiredEnv(env, 'S3_ENDPOINT'),
     region: requiredEnv(env, 'S3_REGION'),
     accessKeyId: requiredEnv(env, 'S3_ACCESS_KEY_ID'),
     secretAccessKey: secret,
     bucket: requiredEnv(env, 'S3_BUCKET_ARTIFACTS'),
     forcePathStyle: env['S3_FORCE_PATH_STYLE'] !== 'false',
-  });
+  };
+  const registry = await withTransaction(pool, (tx) => StoreRegistry.fromDatabase(tx, { working }));
+  const store = registry.get('working');
+  if (store === undefined) throw new IngestCliError('the working store did not resolve');
+  return store;
 }
 
 /** Adapter required by document atoms; reference actions must never call it. */
@@ -753,13 +762,14 @@ export async function runIngest(
         ]),
       );
     }
+    if (app === undefined) throw new IngestCliError('application database pool was not created');
     const store =
-      deps.store ?? (planned.mode === 'copy' ? configuredStore(env) : referenceOnlyStore());
+      deps.store ??
+      (planned.mode === 'copy' ? await configuredStore(env, app) : referenceOnlyStore());
     const parser = deps.parser ?? new PandocDocumentParser();
     const atoms = createDocumentActionAtoms({ store, parser });
     const execute = deps.executeInTransaction ?? createFabricTransactionalDispatcher(atoms);
     const preflight = deps.preflightInTransaction ?? createFabricTransactionalPreflight(atoms);
-    if (app === undefined) throw new IngestCliError('application database pool was not created');
     const acts = staged.map((source) => {
       const payload = actionPayload(
         planned.mode,

@@ -16,13 +16,12 @@
 
 import { createFabricDispatcher } from '@kf/orchestrator';
 import {
-  S3ObjectStore,
   S3SweepableObjectStore,
   StoreRegistry,
   createStorageActionAtoms,
   type S3Config,
 } from '@kf/artifacts';
-import { createPool } from '@kf/database';
+import { createPool, withTransaction } from '@kf/database';
 import { loadSecret } from '@kf/operations';
 import { EVIDENCE_NAMESPACES, sweepOrphanedEvidence } from './orphans.js';
 import {
@@ -122,10 +121,6 @@ async function main(): Promise<number> {
   if (wantsReplicate && durable === undefined) {
     throw new Error('--replicate needs S3_DURABLE_* (the store to copy into)');
   }
-  const registry = new StoreRegistry({
-    working: new S3ObjectStore(working),
-    ...(durable === undefined ? {} : { durable: new S3ObjectStore(durable) }),
-  });
   const actor = {
     personId: required('KF_STORAGE_ACTOR'),
     roleAssignmentId: required('KF_STORAGE_ROLE'),
@@ -139,6 +134,15 @@ async function main(): Promise<number> {
     maxConnections: 2,
   });
   try {
+    // Both stores are resolved against their registered rows before a client exists
+    // (KF-SAS-RQ-095). The orphan sweep below lists the working bucket directly, so this is also
+    // what stops it deleting from a bucket the ledger does not call `working`.
+    const registry = await withTransaction(pool, (tx) =>
+      StoreRegistry.fromDatabase(tx, {
+        working,
+        ...(durable === undefined ? {} : { durable }),
+      }),
+    );
     const execute = createFabricDispatcher(
       pool,
       undefined,

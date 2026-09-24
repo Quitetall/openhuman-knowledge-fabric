@@ -86,7 +86,10 @@ export const CORE_SECTIONS = [
   },
   {
     name: 'artifact-stores',
-    sql: `select id, kind, label, writable, public, declared_at, notes
+    // endpoint/bucket/bound_at: 20260925160000. The address a store is bound to is part of the
+    // ledger's claim about where bytes live, so a restore that dropped it would unbind every
+    // store and let the next process to start rebind it anywhere.
+    sql: `select id, kind, label, writable, public, declared_at, notes, endpoint, bucket, bound_at
             from content.artifact_store order by id`,
   },
   {
