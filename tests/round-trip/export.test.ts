@@ -11,6 +11,8 @@ import { createHash, generateKeyPairSync } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDispatcher } from '@kf/actions';
 import { withTransaction } from '@kf/database';
+import { createDocumentActionAtoms } from '@kf/documents';
+import { createFabricDispatcher } from '@kf/orchestrator';
 import {
   ArtifactRejected,
   InMemoryObjectStore,
@@ -51,6 +53,9 @@ import {
 let h: Harness;
 let f: Fixtures;
 let store: InMemoryObjectStore;
+/** KF-SAS-RQ-228: one record somebody verified and one nobody has, both in the export. */
+let verifiedId: string;
+let unverifiedId: string;
 
 const PRESERVATION_KEY_ID = 'round-trip-preservation-key';
 const PRESERVATION_KEY = generateKeyPairSync('ed25519');
@@ -153,6 +158,41 @@ beforeAll(async () => {
       ],
     );
   });
+  // One verified record and one unverified, so the round trip has something to say about
+  // RQ-228. Before this the export carried an `object-verifications` section the round trip
+  // proved identical, over zero rows — a set that is always identical to itself.
+  const record = (title: string) =>
+    createObject(h.adminPool, f, {
+      type: 'decision_record',
+      domain: 'engineering',
+      state: 'draft',
+      title,
+      createdBy: f.performerId,
+    });
+  verifiedId = await record('Checked against its source');
+  unverifiedId = await record('Captured, nobody has looked');
+  const verified = await createFabricDispatcher(
+    h.pool,
+    createDocumentActionAtoms({
+      store: new InMemoryObjectStore(),
+      parser: {
+        async parse() {
+          return undefined;
+        },
+      },
+    }),
+  )({
+    actionType: 'verify_record',
+    actorId: f.reviewerId,
+    actingRoleId: f.reviewerRoleId,
+    targetIds: [verifiedId],
+    organizationId: f.organizationId,
+    maxClassification: 'restricted',
+    idempotencyKey: 'export-verify-record-0001',
+    reason: 'read it against the source',
+    payload: { basis: 'promoted_in_bulk' },
+  });
+  expect(verified.status).toBe('applied');
 }, 180_000);
 
 afterAll(async () => {
@@ -634,6 +674,28 @@ describe('preservation export', () => {
         parameters: `{"precise": ${PRECISE_JSON_INTEGER}}`,
         recorded_at: PRECISE_RECORDED_AT,
       });
+
+      // RQ-228: both records survive, and the one nobody verified is still marked so — by
+      // the absence of a verification, the same shape the database uses.
+      const exported = JSON.parse(
+        pkg.files.find((file) => file.path === 'object-verifications.json')!.content,
+      ) as { object_id: string }[];
+      expect(exported.map((row) => row.object_id)).toContain(verifiedId);
+      expect(exported.map((row) => row.object_id)).not.toContain(unverifiedId);
+      const survived = await withTransaction(fresh.adminPool, (tx) =>
+        tx.query<{ id: string; verified: boolean }>(
+          `select o.id, exists (select 1 from core.object_verification v where v.object_id = o.id)
+                    as verified
+             from core.object o where o.id = any($1::uuid[]) order by o.id`,
+          [[verifiedId, unverifiedId]],
+        ),
+      );
+      expect(new Map(survived.map((row) => [row.id, row.verified]))).toEqual(
+        new Map([
+          [verifiedId, true],
+          [unverifiedId, false],
+        ]),
+      );
 
       const again = authenticate(
         await withTransaction(fresh.adminPool, async (tx) => createExport(tx)),

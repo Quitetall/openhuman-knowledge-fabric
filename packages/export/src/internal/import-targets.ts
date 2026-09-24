@@ -163,6 +163,9 @@ export const IMPORT_TARGETS: Readonly<Record<string, string>> = PRESERVATION_IMP
 export const PRESERVATION_TABLE_EXCLUSIONS = {
   'registry.*': 'deterministic ontology seed carried in ontology/registry.json',
   'search.document': 'derived search projection rebuilt from authoritative records',
+  'retrieval.band_version':
+    'derived cache-invalidation counter (§64A); band membership is re-derived from core.object ' +
+    'on every mask build, and a missing row reads as version 0 until the next band-moving write',
   'core.audit_chain_head': 'derived global append cursor rebuilt from verified audit history',
   'core.migration030_rollback_state': 'path-local migration rollback metadata, not authority',
   'content.compiler_runtime_lease': 'ephemeral worker lease, invalid after restore',
