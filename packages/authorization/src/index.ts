@@ -72,6 +72,7 @@ export {
   revokeAccessEffect,
   type AccessCapability,
   type AccessCoverage,
+  type AccessDenial,
   type AccessExplanation,
   type AccessGrantRef,
   type AccessGrantWrite,

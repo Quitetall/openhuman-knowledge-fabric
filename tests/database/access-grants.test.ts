@@ -321,6 +321,7 @@ describe('access is a grant', () => {
     expect(explanation.deniedBy).toBe('entitlement_exclusion');
     expect(explanation.steps.map((step) => [step.step, step.outcome])).toEqual([
       ['organization_membership', 'pass'],
+      ['principal_kind', 'pass'],
       ['object_in_organization', 'pass'],
       ['clearance', 'pass'],
       ['classification_within_clearance', 'pass'],
@@ -556,6 +557,89 @@ describe('access is a grant', () => {
     }
   });
 
+  it('explains the service-actor bar and separation of duty, not only the grant path', async () => {
+    // A service actor with an ORGANIZATION-scoped role: every grant reaches it, so the only thing
+    // that can decide is what it is (ADR 0020).
+    const steward = await createObject(harness.adminPool, fixtures, {
+      type: 'person',
+      domain: 'organization',
+      state: 'active',
+      title: 'explanation-steward',
+      createdBy: fixtures.reviewerId,
+    });
+    const stewardRole = await createObject(harness.adminPool, fixtures, {
+      type: 'role_assignment',
+      domain: 'organization',
+      state: 'active',
+      title: 'performer (service)',
+      createdBy: fixtures.reviewerId,
+    });
+    await withTransaction(harness.adminPool, async (tx) => {
+      await bindContext(tx, fixtures, fixtures.reviewerId);
+      await tx.query(
+        `insert into org.person (id, display_name, organization, person_kind)
+         values ($1, 'explanation-steward', $2, 'service')`,
+        [steward, fixtures.organizationId],
+      );
+      await tx.query(
+        `insert into org.person_clearance
+           (subject_id, organization_id, max_classification, granted_by, granted_by_action, reason)
+         values ($1, $2, 'restricted', $3, $4, 'fixture clearance for a service actor')`,
+        [steward, fixtures.organizationId, fixtures.reviewerId, fixtures.clearanceActionId],
+      );
+      await tx.query(
+        'insert into org.role_assignment (id, subject_id, role_id, scope_id) values ($1,$2,$3,$4)',
+        [stewardRole, steward, 'performer', fixtures.organizationId],
+      );
+    });
+    const explain = (
+      personId: string,
+      capability: 'read' | 'act',
+      actionType?: string,
+    ): Promise<AccessExplanation> =>
+      withTransaction(harness.pool, async (tx) => {
+        await bindReader(tx, fixtures, fixtures.reviewerId);
+        return explainAccess(tx, {
+          personId,
+          organizationId: fixtures.organizationId,
+          objectId: probe,
+          capability,
+          ...(actionType === undefined ? {} : { actionType }),
+        });
+      });
+
+    const acting = await explain(steward, 'act');
+    expect(acting.decision).toBe('denied');
+    expect(acting.deniedBy).toBe('service_actor');
+    expect(acting.steps.find((step) => step.step === 'principal_kind')).toMatchObject({
+      outcome: 'fail',
+      detail: { personKind: 'service' },
+    });
+    // The grant path itself passed: the bar is what decided, not a missing grant.
+    expect(acting.steps.find((step) => step.step === 'grant_coverage')?.outcome).toBe('pass');
+    // A service actor reads like anyone.
+    const reading = await explain(steward, 'read');
+    expect(reading.decision).toBe('visible');
+    expect(reading.steps.find((step) => step.step === 'principal_kind')?.outcome).toBe('pass');
+
+    // Separation of duty: the performer created the probe, so may not verify it (RQ-230); the
+    // reviewer, who did not, may. The step appears only when the rule covers the action.
+    const own = await explain(fixtures.performerId, 'act', 'verify_record');
+    expect(own.deniedBy).toBe('separation_of_duty');
+    expect(own.actionType).toBe('verify_record');
+    expect(own.steps.find((step) => step.step === 'separation_of_duty')).toMatchObject({
+      outcome: 'fail',
+      detail: { actionType: 'verify_record', createdBy: fixtures.performerId },
+    });
+    const other = await explain(fixtures.reviewerId, 'act', 'verify_record');
+    expect(other.decision).toBe('visible');
+    expect(other.steps.find((step) => step.step === 'separation_of_duty')?.outcome).toBe('pass');
+    // accept_work_package's rule covers work packages only: no step for a decision record.
+    const unrelated = await explain(fixtures.performerId, 'act', 'accept_work_package');
+    expect(unrelated.steps.map((step) => step.step)).not.toContain('separation_of_duty');
+    expect(unrelated.decision).toBe('visible');
+  });
+
   it('serves the explanation and hides objects the asker cannot see', async () => {
     const app = Fastify({ logger: false });
     registerAccessExplanationRoute(
@@ -594,6 +678,19 @@ describe('access is a grant', () => {
         url: `/objects/${probe}/access?person=nobody`,
       });
       expect(malformed.statusCode).toBe(400);
+
+      // Asked about an action, the path includes its separation-of-duty bar (KF-SAS-RQ-042).
+      const verifyOwn = await app.inject({
+        method: 'GET',
+        url: `/objects/${probe}/access?capability=act&action=verify_record`,
+      });
+      expect(verifyOwn.statusCode, verifyOwn.body).toBe(200);
+      expect((verifyOwn.json() as AccessExplanation).deniedBy).toBe('separation_of_duty');
+      const badAction = await app.inject({
+        method: 'GET',
+        url: `/objects/${probe}/access?action=Verify%20Record`,
+      });
+      expect(badAction.statusCode).toBe(400);
     } finally {
       await app.close();
     }
