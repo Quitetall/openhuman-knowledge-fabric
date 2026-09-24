@@ -142,12 +142,6 @@ const ALLOWED: readonly Allowed[] = [
       'UNTAGGED: AI planner content/instruction/context digests, owned by the read-grant work this pass (remaining)',
   },
   {
-    path: 'packages/agent-tools/src/ai/proposal.ts',
-    line: 'const contextDigest = digest({',
-    reason:
-      'UNTAGGED: AI planner content/instruction/context digests, owned by the read-grant work this pass (remaining)',
-  },
-  {
     path: 'packages/artifacts/src/store.ts',
     line: "return createHash('sha256').update(bytes).digest('hex');",
     reason:
@@ -380,9 +374,15 @@ const ALLOWED: readonly Allowed[] = [
   },
   {
     path: 'packages/documents/src/proposal/model-provenance.ts',
-    line: 'const expectedContextDigest = digest({',
+    line: '? digest(fields)',
     reason:
-      'UNTAGGED: verifies the AI planner context digest agent-tools computes; moves with it (remaining)',
+      'legacy format: verifies a proposal recorded before 93d0f38b, whose context digest named no projection and was computed untagged; recomputing it any other way would reject the record',
+  },
+  {
+    path: 'packages/documents/src/proposal/model-provenance.ts',
+    line: ': digest({ ...fields, projection: claim.projection, format: DOCUMENT_PROPOSAL_CONTEXT_FORMAT });',
+    reason:
+      'self-tagged: the format tag is a field of the digested object (DOCUMENT_PROPOSAL_CONTEXT_FORMAT), the same preimage agent-tools computes',
   },
   {
     path: 'packages/export/src/backup-manifest/file-tree.ts',
