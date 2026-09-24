@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { canonicalize, digest, digestBytes } from '@kf/canonicalization';
 import {
@@ -6,6 +7,7 @@ import {
   createAuthoredFragmentRevision,
   createCompilationBasis,
   createCompositionRevision,
+  createFailedCompilationRun,
   createProposalOverlay,
   createTypedBinding,
   DocumentCompilerError,
@@ -1032,6 +1034,30 @@ describe('compiler runs', () => {
       failureMessage: 'compiler process exited 17',
     });
     expect(() => assertCompilationMayBeAccepted(run)).toThrow(/failed compilation/);
+  });
+});
+
+describe('the dependency digest (KF-SAS-RQ-016)', () => {
+  // Spelled out byte for byte, not computed by the code under test: the RFC 8785 form of
+  // { basisDigest, inputs: [{ key, contentDigest }], format: 'kf-compilation-dependencies-v1' }.
+  function expectedDependencyDigest(basis: CompilationBasis): string {
+    return createHash('sha256')
+      .update(
+        `{"basisDigest":"${basis.basisDigest}","format":"kf-compilation-dependencies-v1",` +
+          `"inputs":[{"contentDigest":"${TITLE_DIGEST}","key":"fragment:fragment-revision-1"}]}`,
+      )
+      .digest('hex');
+  }
+
+  it('carries kf-compilation-dependencies-v1 in its preimage', () => {
+    const basis = testBasis();
+    const run = createFailedCompilationRun({
+      id: 'run-dependencies',
+      basis,
+      code: 'fixture',
+      message: 'fixture',
+    });
+    expect(run.dependencyDigest).toBe(expectedDependencyDigest(basis));
   });
 });
 
