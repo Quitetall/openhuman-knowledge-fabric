@@ -35,6 +35,15 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'error',
       eqeqeq: ['error', 'always'],
       'no-console': ['warn', { allow: ['warn', 'error'] }],
+      // KF-SAS-RQ-018: a known gap lives somewhere enumerable (SAS §100, an ADR, a pack
+      // known_gaps entry, a named checker warning), never only in a comment. 'anywhere', not the
+      // default 'start', because a marker after a prefix is still a marker. Files
+      // ESLint does not read (sql, sh, conf, yaml) are scanned by
+      // tests/conformance/no-inline-markers.test.ts.
+      'no-warning-comments': [
+        'error',
+        { terms: ['todo', 'fixme', 'xxx', 'hack'], location: 'anywhere' },
+      ],
     },
   },
   prettier,

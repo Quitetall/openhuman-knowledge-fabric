@@ -49,3 +49,96 @@ describe('the threat model records what is accepted and what is merely unbuilt',
     ).toContain('carries no log content');
   });
 });
+
+/**
+ * KF-SAS-RQ-170: every documented control SHALL cite the artifact that proves it.
+ *
+ * `docs-references.test.ts` resolves every path a document cites, which says nothing about a
+ * control that cites no path at all. The T8 row "the shell scripts resolve credentials the same
+ * way" read `—` in its "Proven by" cell while `tests/backup-restore/script-credentials.test.ts`
+ * had proved it all along: a control that looked unproven, and a gate that could not tell.
+ */
+interface ProofCell {
+  table: string;
+  control: string;
+  cell: string;
+}
+
+/** Every "Proven by" cell in every table of a Markdown document, with its row's control. */
+function provenByCells(markdown: string): ProofCell[] {
+  const cells: ProofCell[] = [];
+  let heading = '(no heading)';
+  let column = -1;
+  for (const line of markdown.split('\n')) {
+    if (line.startsWith('#')) heading = line.replace(/^#+\s*/, '');
+    if (!line.startsWith('|')) {
+      column = -1;
+      continue;
+    }
+    const row = line
+      .split('|')
+      .slice(1, -1)
+      .map((cell) => cell.trim());
+    const header = row.findIndex((cell) => /^proven by$/i.test(cell));
+    if (header >= 0) {
+      column = header;
+      continue;
+    }
+    if (column < 0 || row.every((cell) => /^:?-+:?$/.test(cell))) continue;
+    cells.push({ table: heading, control: row[0] ?? '', cell: row[column] ?? '' });
+  }
+  return cells;
+}
+
+/** What is wrong with each cell, given a path-existence predicate; empty when all cite proof. */
+function unprovenControls(cells: ProofCell[], exists: (path: string) => boolean): string[] {
+  const problems: string[] = [];
+  let previous: { table: string; proven: boolean } | undefined;
+  for (const { table, control, cell } of cells) {
+    const where = `${table} / "${control.slice(0, 60)}"`;
+    if (cell === 'same') {
+      if (previous?.table !== table || !previous.proven) {
+        problems.push(`${where}: "same" with no proven row above it in this table`);
+      }
+      continue;
+    }
+    const paths = [...cell.matchAll(/`([^`]+)`/g)].map((match) => match[1]!);
+    if (paths.length === 0) problems.push(`${where}: cites no path ("${cell}")`);
+    for (const path of paths) {
+      if (!exists(path)) problems.push(`${where}: \`${path}\` does not exist`);
+    }
+    previous = { table, proven: paths.length > 0 && paths.every(exists) };
+  }
+  return problems;
+}
+
+describe('every control in the threat model cites a proof that exists (KF-SAS-RQ-170)', () => {
+  const cells = provenByCells(readFileSync(THREAT_MODEL, 'utf8'));
+  const exists = (path: string) => existsSync(join(ROOT, path));
+
+  it('reads the tables (non-vacuous)', () => {
+    expect(cells.length).toBeGreaterThan(50);
+  });
+
+  it('has no row whose "Proven by" is empty, a dash, or a path that is gone', () => {
+    expect(unprovenControls(cells, exists)).toEqual([]);
+  });
+
+  it('catches the three ways a row goes unproven (planted)', () => {
+    const planted = [
+      '## T0',
+      '| Control | Where | Proven by |',
+      '| --- | --- | --- |',
+      '| a | `x` | — |',
+      '| b | `x` | same |',
+      '| c | `x` | `tests/no-such-file.test.ts` |',
+      '| d | `x` | `tests/deployment/threat-model-references.test.ts` |',
+      '| e | `x` | same |',
+    ].join('\n');
+    const problems = unprovenControls(provenByCells(planted), exists);
+    expect(problems).toHaveLength(3);
+    expect(problems[0]).toContain('cites no path');
+    expect(problems[1]).toContain('"same" with no proven row above it');
+    expect(problems[2]).toContain('does not exist');
+  });
+});

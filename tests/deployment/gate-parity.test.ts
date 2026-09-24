@@ -232,6 +232,11 @@ describe('the local gate command and CI agree on what a gate is', () => {
     // CI-only on purpose, because the scan needs a binary contributors may not have and a step
     // that skips when its tool is missing is worse than no step.
     //
+    // `sas` is the second, for the same reason: it runs `war check --generated` (KF-SAS-RQ-017,
+    // RQ-181) with a `war` built from a pinned OpenWarrant commit, which contributors are not
+    // expected to have. Its verdict logic is plain Node (scripts/war-check-gate.mjs) and is
+    // tested in the suite (war-check-gate.test.ts), so only the binary is CI-only.
+    //
     // So the exception is enumerated rather than reasoned about. A second shell-only job fails
     // here, and closing that failure means deciding: put it in `pnpm gate`, or add it to this
     // list and say why it cannot be.
@@ -246,7 +251,7 @@ describe('the local gate command and CI agree on what a gate is', () => {
       'these CI jobs run no pnpm command, so neither comparison above can see them and ' +
         '`pnpm gate` cannot reproduce them. Add the job to `pnpm gate`, or add it here with a ' +
         'reason it has to stay CI-only.',
-    ).toEqual(['secrets']);
+    ).toEqual(['secrets', 'sas']);
   });
 
   it('holds the README to the real number of CI jobs', () => {

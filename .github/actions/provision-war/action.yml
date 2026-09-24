@@ -1,0 +1,91 @@
+name: Provision war at a pinned OpenWarrant commit
+description: >-
+  Build (or restore from cache) the `war` binary the `sas` job runs `war check --generated` with,
+  and output its path. A SEPARATE action from provision-host because it is a separate contract:
+  provision-host is what the gate needs (PostgreSQL client, pandoc, LaTeX, bubblewrap), none of
+  which this job uses, and this is what building one Rust binary needs, which the gate does not.
+  host-provisioning-parity.test.ts keeps `apt-get install` out of the workflows; this is where it
+  lives for this contract.
+
+  WHY A COMMIT AND NOT A RELEASE. The released `war` 1.0.0-alpha.2 leaks markdown `**` into
+  extracted sentences, so its fresh compile differs from the committed NORMATIVE projection and the
+  job would be red for the tool's defect. The fix (OpenWarrant 2dac72f9) is on feat/battery-split,
+  PR #133, awaiting the owner; `rev` is that PR's head (refs/pull/133/head on 2026-09-24). A SHA is
+  immutable where a branch is not, and a commit that disappears fails the fetch loudly rather than
+  building something else. When a release carries the fix, replace the build with that release's
+  asset pinned by version AND sha256, as the `secrets` job does for gitleaks.
+
+inputs:
+  git:
+    description: OpenWarrant repository.
+    required: false
+    default: https://github.com/Quitetall/OpenWarrant
+  rev:
+    description: The pinned commit. Moving it is a reviewed change, never a floating ref.
+    required: false
+    default: d758574a4a68962e61a7539ad1216d495a6230b1
+  toolchain:
+    description: >-
+      OpenWarrant's own rust-toolchain.toml channel at `rev`. `cargo install --git` does not read
+      that file, so it is restated here and must move with `rev`.
+    required: false
+    default: '1.97.1'
+
+outputs:
+  war:
+    description: Absolute path of the provisioned `war` binary.
+    value: ${{ steps.path.outputs.war }}
+
+runs:
+  using: composite
+  steps:
+    - name: Restore the pinned war build
+      id: cache
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+      with:
+        path: ~/.war
+        key: war-${{ runner.os }}-${{ inputs.rev }}-${{ inputs.toolchain }}
+
+    # `ring`, in war's dependency graph, compiles C. ubuntu-latest has a compiler; the self-hosted
+    # image deliberately ships only runner prerequisites (deploy/self-hosted-runner/Dockerfile).
+    #
+    # rustup-init, for a runner without rustup (the self-hosted image again), is pinned by version
+    # AND sha256, established once by hand against the published rustup-init.sha256 on 2026-09-24.
+    # Re-downloading the checksum beside the binary would be circular; bumping RUSTUP_VERSION
+    # without re-establishing the hash out of band fails the step, which is the safe failure.
+    - name: Build war
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        WAR_GIT: ${{ inputs.git }}
+        WAR_REV: ${{ inputs.rev }}
+        WAR_TOOLCHAIN: ${{ inputs.toolchain }}
+        RUSTUP_VERSION: 1.29.1
+        RUSTUP_INIT_SHA256: dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71
+      run: |
+        set -euo pipefail
+        if ! command -v cc >/dev/null; then
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends build-essential
+        fi
+        if ! command -v rustup >/dev/null; then
+          scratch="$(mktemp -d)"
+          curl --fail --silent --show-error --location --output "${scratch}/rustup-init" \
+            "https://static.rust-lang.org/rustup/archive/${RUSTUP_VERSION}/x86_64-unknown-linux-gnu/rustup-init"
+          (cd "${scratch}" && echo "${RUSTUP_INIT_SHA256}  rustup-init" | sha256sum --check --strict)
+          chmod +x "${scratch}/rustup-init"
+          "${scratch}/rustup-init" -y --no-modify-path --profile minimal --default-toolchain none
+          export PATH="${HOME}/.cargo/bin:${PATH}"
+        fi
+        rustup toolchain install "${WAR_TOOLCHAIN}" --profile minimal
+        cargo "+${WAR_TOOLCHAIN}" install --locked --git "${WAR_GIT}" --rev "${WAR_REV}" \
+          --root "${HOME}/.war" openwarrant-cli
+
+    - name: Report the binary
+      id: path
+      shell: bash
+      run: |
+        set -euo pipefail
+        test -x "${HOME}/.war/bin/war"
+        "${HOME}/.war/bin/war" --version
+        echo "war=${HOME}/.war/bin/war" >> "${GITHUB_OUTPUT}"

@@ -2,7 +2,10 @@
 
 Written to be falsifiable. Every control below names where it lives and which test proves it
 does something — because a threat model whose mitigations cannot be pointed at is a document
-about intentions.
+about intentions. `tests/deployment/threat-model-references.test.ts` holds that for every row:
+each "Proven by" cell names at least one test path that exists, or says `same` under a row that
+does (KF-SAS-RQ-170). A row with nothing to cite is an unmitigated threat, and belongs in the
+prose below its table, not in a table cell reading `—`.
 
 Where a threat is **not** mitigated, it says so. An honest gap is useful; a comforting one is
 worse than nothing.
@@ -243,21 +246,21 @@ it reading, and everything in T6's read surface is available to it.
 
 ## T8 — Transport and credentials
 
-| Control                                                                                                              | Where                                     | Proven by                                   |
-| -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------- |
-| The process refuses to boot outside development unless the deployment asserts TLS is terminated upstream             | `apps/api/src/config.ts`                  | `apps/api/src/app.test.ts`                  |
-| HSTS in staging and production; nosniff, DENY, no-referrer, no-store always                                          | `apps/api/src/app.ts`                     | same                                        |
-| Secrets are read from files, not the environment                                                                     | `packages/operations/src/secrets.ts`      | `tests/permissions/secrets.test.ts`         |
-| A secret file readable beyond its owner is REFUSED, not warned about                                                 | same                                      | same                                        |
-| An inline credential outside development is refused                                                                  | same                                      | same                                        |
-| The same rule applies to the checkpoint signing key                                                                  | `readSecretFile`                          | same                                        |
-| Failure messages never contain the secret                                                                            | same                                      | same                                        |
-| The shell scripts resolve credentials the same way                                                                   | `scripts/lib/secret.sh`                   | —                                           |
-| The API refuses to serve on a database login that is a superuser, bypasses row security, or can become a table owner | `@kf/database` `loginPrivilegeProblems`   | `tests/permissions/login-privilege.test.ts` |
-| The readiness report is whole only for loopback or a token holder; everyone else gets one boolean                    | `apps/api/src/app.ts`, nginx              | `apps/api/src/readiness-cache.test.ts`      |
-| `NODE_ENV` must be stated, and the development profile listens only on loopback                                      | `apps/api/src/config.ts`                  | `apps/api/src/app.test.ts`                  |
-| 5xx bodies carry a request id, never an error message                                                                | `setErrorHandler`                         | same                                        |
-| Per-address rate limits at the proxy; a nonce CSP and `frame-ancestors 'none'` on the web                            | `deploy/nginx`, `apps/web/src/lib/csp.ts` | `apps/web/src/lib/csp.test.ts`              |
+| Control                                                                                                              | Where                                     | Proven by                                         |
+| -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------- |
+| The process refuses to boot outside development unless the deployment asserts TLS is terminated upstream             | `apps/api/src/config.ts`                  | `apps/api/src/app.test.ts`                        |
+| HSTS in staging and production; nosniff, DENY, no-referrer, no-store always                                          | `apps/api/src/app.ts`                     | same                                              |
+| Secrets are read from files, not the environment                                                                     | `packages/operations/src/secrets.ts`      | `tests/permissions/secrets.test.ts`               |
+| A secret file readable beyond its owner is REFUSED, not warned about                                                 | same                                      | same                                              |
+| An inline credential outside development is refused                                                                  | same                                      | same                                              |
+| The same rule applies to the checkpoint signing key                                                                  | `readSecretFile`                          | same                                              |
+| Failure messages never contain the secret                                                                            | same                                      | same                                              |
+| The shell scripts resolve credentials the same way                                                                   | `scripts/lib/secret.sh`                   | `tests/backup-restore/script-credentials.test.ts` |
+| The API refuses to serve on a database login that is a superuser, bypasses row security, or can become a table owner | `@kf/database` `loginPrivilegeProblems`   | `tests/permissions/login-privilege.test.ts`       |
+| The readiness report is whole only for loopback or a token holder; everyone else gets one boolean                    | `apps/api/src/app.ts`, nginx              | `apps/api/src/readiness-cache.test.ts`            |
+| `NODE_ENV` must be stated, and the development profile listens only on loopback                                      | `apps/api/src/config.ts`                  | `apps/api/src/app.test.ts`                        |
+| 5xx bodies carry a request id, never an error message                                                                | `setErrorHandler`                         | same                                              |
+| Per-address rate limits at the proxy; a nonce CSP and `frame-ancestors 'none'` on the web                            | `deploy/nginx`, `apps/web/src/lib/csp.ts` | `apps/web/src/lib/csp.test.ts`                    |
 
 **TLS is not terminated by this application, and that is the intended design.** What changed is
 that it is no longer assumed: a deployment must state the posture, and a process that would

@@ -29,7 +29,10 @@ session key. Fixed `KF_DEV_*` identity is forbidden.
 
 Every unit uses a distinct unprivileged account, with one exception: `kf-alert@.service` and
 `kf-alert-heartbeat.service` both run as `kf-alert`, because both hold the same single secret
-(the webhook URL) and nothing else. Command-local API/web listener settings prevent an
+(the webhook URL) and nothing else. `tests/deployment/systemd-units.test.ts` holds this: every
+`.service` names exactly one non-root `User=`, and the set of shared accounts must EQUAL its
+declared list (currently that one pair), so a new share fails and a stale excuse fails too
+(KF-SAS-RQ-163). Command-local API/web listener settings prevent an
 environment file widening loopback binds.
 
 `kf-backup.service` and `kf-restore-drill.service` shared `kf-backup` until 2026-09-23, on the
