@@ -3,7 +3,7 @@ import { ActionRejected } from '@kf/actions';
 import { ArtifactRejected, verifyUpload } from '@kf/artifacts';
 import { DocumentParseRefused, preparseDocument, withPreparsedDocuments } from '@kf/documents';
 import { deniedPathRule, formatContentRefusal, scanContent } from '../../ingest/content-policy.js';
-import { unidentified } from '../actions.js';
+import { refuseUnidentified } from '../actions.js';
 import { documentParseRefusalBody } from '../actions/errors.js';
 import {
   DOCUMENT_IMPORT_BODY_LIMIT_BYTES,
@@ -31,7 +31,7 @@ export function registerDocumentImportRoute(
           headers: request.headers as Record<string, unknown>,
         });
       } catch (error: unknown) {
-        return reply.code(401).send(unidentified(error));
+        return refuseUnidentified(reply, error);
       }
       if (options.store === undefined) {
         return reply.code(503).send({

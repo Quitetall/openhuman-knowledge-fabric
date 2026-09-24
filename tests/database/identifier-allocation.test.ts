@@ -2,10 +2,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
 import { withTransaction } from '@kf/database';
-import { createFabricDispatcher } from '@kf/orchestrator';
+import { createFabricDispatcher, createFabricTransactionalDispatcher } from '@kf/orchestrator';
+import { allocationOf } from '@kf/identifiers';
 import { registerIdentifierRoutes } from '../../apps/api/src/routes/identifiers.js';
 import {
   bindContext,
+  bindReader,
   createObject,
   seedFixtures,
   startHarness,
@@ -48,7 +50,7 @@ const dispatcher = () => createFabricDispatcher(harness.pool);
 async function newDocument(title: string): Promise<string> {
   return createObject(harness.adminPool, fixtures, {
     type: 'controlled_document',
-    domain: 'quality',
+    domain: 'qms',
     state: 'draft',
     title,
     createdBy: fixtures.reviewerId,
@@ -209,6 +211,101 @@ describe('R6 allocation', () => {
     expect((numbered.receipt as Record<string, unknown>)['enterprise_id']).toMatch(
       /^OH-QEV-[0-9]{6}-[0-9]$/,
     );
+  });
+
+  it('keeps a retired namespace resolvable while refusing it a new allocation (RQ-014)', async () => {
+    // R01 §13.3 and KF-SAS-RQ-014: retiring a namespace stops NEW numbers; every identifier it
+    // already issued keeps meaning what it meant. The refusal half is asserted above; this is the
+    // half a refusal-only test cannot see — that the old identifier still resolves.
+    const issued = await createObject(harness.adminPool, fixtures, {
+      type: 'capa',
+      domain: 'qms',
+      state: 'open',
+      title: 'Issued before retirement',
+      createdBy: fixtures.reviewerId,
+    });
+    const receipt = (await allocate(issued)).receipt as Record<string, unknown>;
+    const enterpriseId = receipt['enterprise_id'] as string;
+    expect(enterpriseId).toMatch(/^OH-QEV-/);
+    const later = await createObject(harness.adminPool, fixtures, {
+      type: 'capa',
+      domain: 'qms',
+      state: 'open',
+      title: 'Asked for after retirement',
+      createdBy: fixtures.reviewerId,
+    });
+
+    await withTransaction(harness.adminPool, (tx) =>
+      tx.query(
+        `update registry.identifier_namespace set state = 'retired' where qualified_code = 'OH-QEV'`,
+      ),
+    );
+    try {
+      const resolved = await withTransaction(harness.pool, async (tx) => {
+        await bindReader(tx, fixtures, fixtures.reviewerId);
+        return allocationOf(tx, enterpriseId);
+      });
+      expect(resolved).toMatchObject({ enterprise_id: enterpriseId, object_id: issued });
+      expect(await enterpriseIdOf(issued)).toBe(enterpriseId);
+
+      await expect(allocate(later)).rejects.toMatchObject({
+        failure: 'precondition_failed',
+        message: expect.stringContaining('retired'),
+      });
+      expect(await enterpriseIdOf(later)).toBeNull();
+    } finally {
+      await withTransaction(harness.adminPool, (tx) =>
+        tx.query(
+          `update registry.identifier_namespace set state = 'active' where qualified_code = 'OH-QEV'`,
+        ),
+      );
+    }
+  });
+
+  it('leaves the cursor, the ledger and the record untouched when the requesting act fails (RQ-130)', async () => {
+    // Atomic with the act that requests it: an allocation inside a transaction that later fails
+    // must leave no number consumed, no receipt and no identifier behind. A cursor advanced
+    // outside the act's transaction (a SEQUENCE, say) would leave a gap nobody allocated.
+    const document = await newDocument('Allocated, then the act failed');
+    const cursor = () =>
+      withTransaction(harness.adminPool, (tx) =>
+        tx.one<{ next: string; count: string; ledger: string }>(
+          `select coalesce((select next_sequence::text from registry.identifier_sequence
+                             where qualified_code = 'OH-DOC'), 'none') as next,
+                  coalesce((select allocated_count::text from registry.identifier_sequence
+                             where qualified_code = 'OH-DOC'), 'none') as count,
+                  (select count(*)::text from registry.identifier_allocation) as ledger`,
+        ),
+      );
+    const before = await cursor();
+
+    const execute = createFabricTransactionalDispatcher();
+    const failure = new Error('a later step of the same act failed');
+    let seenInside: string | null = null;
+    await expect(
+      withTransaction(harness.pool, async (tx) => {
+        const result = await execute(tx, {
+          actionType: 'allocate_enterprise_identifier',
+          actorId: fixtures.reviewerId,
+          actingRoleId: fixtures.reviewerRoleId,
+          targetIds: [document],
+          organizationId: fixtures.organizationId,
+          maxClassification: 'restricted',
+          idempotencyKey: `allocate-${randomUUID()}`,
+          reason: 'the record is being registered',
+        });
+        // The probe is not silent: inside the transaction the allocation happened.
+        seenInside = (result.receipt as Record<string, unknown>)['enterprise_id'] as string;
+        throw failure;
+      }),
+    ).rejects.toBe(failure);
+
+    expect(seenInside).toMatch(/^OH-DOC-[0-9]{6}-[0-9]$/);
+    expect(await cursor()).toEqual(before);
+    expect(await enterpriseIdOf(document)).toBeNull();
+    // And the number it would have had is the number the next successful act gets.
+    const next = (await allocate(document)).receipt as Record<string, unknown>;
+    expect(next['enterprise_id']).toBe(seenInside);
   });
 
   it('serves the receipt and hides what was never allocated', async () => {

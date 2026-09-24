@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { withTransaction, bindPrincipal } from '@kf/database';
 import { readGranted, readGrantedSubset } from './read-grant.js';
 import { getDocument, listDocuments } from '@kf/documents';
-import { unidentified } from '../actions.js';
+import { refuseUnidentified } from '../actions.js';
 import type { DocumentRoutesOptions } from './contracts.js';
 import { controlledDocumentSourceProvenance } from './repository.js';
 
@@ -17,7 +17,7 @@ export function registerDocumentReadRoutes(
         headers: request.headers as Record<string, unknown>,
       });
     } catch (error: unknown) {
-      return reply.code(401).send(unidentified(error));
+      return refuseUnidentified(reply, error);
     }
     return withTransaction(options.pool, async (tx) => {
       await bindPrincipal(tx, identity);
@@ -32,7 +32,7 @@ export function registerDocumentReadRoutes(
         headers: request.headers as Record<string, unknown>,
       });
     } catch (error: unknown) {
-      return reply.code(401).send(unidentified(error));
+      return refuseUnidentified(reply, error);
     }
     return withTransaction(options.pool, async (tx) => {
       await bindPrincipal(tx, identity);

@@ -42,6 +42,12 @@ create table content.observation (
   tags        text[] not null default '{}' check (content.observation_tags_valid(tags))
 );
 
+-- The row is an observation (KF-SAS-RQ-030, 20260925012000).
+alter table content.observation
+  add column object_type text generated always as ('observation') stored,
+  add constraint observation_is_observation
+    foreign key (id, object_type) references core.object (id, object_type);
+
 create function content.observation_body_digest() returns trigger
 language plpgsql
 set search_path = pg_catalog, content
@@ -74,6 +80,10 @@ create policy observation_backup_read on content.observation for select to kf_ba
 
 grant select on content.observation to kf_app, kf_worker, kf_readonly, kf_auditor, kf_backup;
 grant insert (id, body, observed_at, tags) on content.observation to kf_app;
+
+-- Every table the application can write belongs to an act (20260925011000): attach the act write
+-- guard to the tables above, which did not exist when that migration swept the catalog.
+select core.install_action_context_guards();
 
 -- migrate:down
 

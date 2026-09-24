@@ -1,5 +1,6 @@
 import { get, type Caller } from './client';
 import { hasStrings, record } from './validation';
+import { parseVerification, type Verification } from './verification';
 
 export const SEARCH_RESULT_LIMIT = 200;
 
@@ -18,13 +19,15 @@ export interface SearchHit {
   readonly classification: string;
   readonly rank: number;
   readonly matchedBy: 'full_text' | 'partial_identifier';
+  /** Always present: a hit the API sent without one is shown as unverified. */
+  readonly verification: Verification;
 }
 
 export interface SearchResponse {
   readonly hits: readonly SearchHit[];
 }
 
-function searchHit(value: unknown): value is SearchHit {
+function searchHit(value: unknown): value is Omit<SearchHit, 'verification'> {
   const hit = record(value);
   return (
     hit !== undefined &&
@@ -47,7 +50,12 @@ export function parseSearchResponse(value: unknown): SearchResponse {
   ) {
     throw new Error('search response did not match contract');
   }
-  return response as unknown as SearchResponse;
+  return {
+    hits: hits.map((hit: Record<string, unknown>) => ({
+      ...(hit as unknown as Omit<SearchHit, 'verification'>),
+      verification: parseVerification(hit['verification']),
+    })),
+  };
 }
 
 export function buildSearchPath(request: SearchRequest): string {

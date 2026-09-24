@@ -17,13 +17,32 @@ export {
   SecretRejected,
   type SecretOptions,
 } from './secrets.js';
+export {
+  DEV_STATE_FILES,
+  DEV_STATE_OVERRIDES,
+  devAttestorSocket,
+  devStateDirectory,
+  devStateFile,
+  type DevStateFile,
+} from './dev-state.js';
+export { planDogfoodDev, type DevProcess, type DogfoodDevPlan } from './dev-dogfood.js';
 export { assessReadiness } from './internal/assess.js';
 export { formatReadiness } from './internal/format.js';
+export {
+  compareInstalledOntology,
+  DEFAULT_PROJECTIONS_ARTIFACT,
+  describeOntologyMismatch,
+  readReleaseOntologyDigest,
+  resolveReleaseOntology,
+  type InstalledOntology,
+} from './internal/release-ontology.js';
 export type {
   Check,
   CheckStatus,
+  ReadinessOptions,
   ReadinessPartition,
   ReadinessReport,
+  ReleaseOntology,
   ReadinessScope,
   ReadinessThresholds,
 } from './internal/contracts.js';

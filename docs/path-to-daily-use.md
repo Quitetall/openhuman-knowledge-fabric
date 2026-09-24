@@ -121,7 +121,9 @@ Every reading of the record — sections, pages, exports, an agent's context —
 **declared projection** over the corpus (ADR 0014): `ontology/projections.yaml`, one engine in
 `@kf/projections`, one canonical Result per reading, served by
 `GET /master-record/projections/:definitionId` in JSON, Markdown or HTML with one projection
-digest across all three.
+digest across all three. Every member of every Result says whether anybody has verified it, and
+an unverified one is labelled `UNVERIFIED` in all three forms, on the Object View, in agent
+reads and in search hits (ADR 0031, KF-SAS-RQ-229).
 
 Every first-class object now has a page with no per-type code: `GET /objects/:id` and
 `apps/web/src/app/objects/[id]` render the `object_view` projection — the record, everything

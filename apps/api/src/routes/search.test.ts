@@ -107,7 +107,17 @@ function searchPool() {
         `${row.title} ${row.body}`.toLowerCase().includes(needle),
     )
       .slice(0, limit)
-      .map((row) => ({ ...row, rank: 0.75, matched_by: 'full_text' }));
+      // The columns the real query adds from `core.object` and `core.object_verification`:
+      // every fake record is visible and nobody has verified any of them.
+      .map((row) => ({
+        ...row,
+        rank: 0.75,
+        matched_by: 'full_text',
+        record_visible: true,
+        verified_at: null,
+        verified_by: null,
+        verification_basis: null,
+      }));
     return { rows };
   });
   const connect = vi.fn(async () => ({ query, release: vi.fn() }));

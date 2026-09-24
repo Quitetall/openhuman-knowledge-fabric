@@ -13,13 +13,14 @@
 
 import { generateKeyPairSync, type KeyObject } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
-import { request as httpRequest, type Server } from 'node:http';
+import { createServer, request as httpRequest, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair, type JWK } from 'jose';
 import {
+  AttestorUnavailable,
   IdentityRejected,
   LocalAttestor,
   SocketAttestor,
@@ -60,6 +61,7 @@ let server: Server;
 let socketDir: string;
 let socketPath: string;
 let attestor: SocketAttestor;
+let verifierForFlaky: TokenVerifier;
 
 async function token(
   claims: {
@@ -138,6 +140,7 @@ beforeAll(async () => {
 
   socketDir = mkdtempSync(join(tmpdir(), 'kf-attestor-'));
   socketPath = join(socketDir, 'attestor.sock');
+  verifierForFlaky = verifier;
   server = createAttestorServer(new LocalAttestor(h.attestorPool, verifier));
   await new Promise<void>((resolve) => server.listen(socketPath, resolve));
   attestor = new SocketAttestor(socketPath);
@@ -329,7 +332,144 @@ describe('the API routes, bound only through the attestation', () => {
       url: '/search?q=anything',
       headers: await headers(await token({ issuer: 'https://evil.invalid/' })),
     });
-    expect(r.statusCode).toBe(401);
+    expect(r.statusCode, r.body).toBe(401);
     expect(r.json()).toMatchObject({ error: 'invalid_token' });
+  });
+});
+
+describe('an attestor that cannot be reached is an outage, not a refusal', () => {
+  // The dogfood API with no attestor behind its socket. Every caller here holds a VALID token:
+  // telling them 401 would send them round a login loop that cannot succeed, and a 500 would
+  // page for a defect that is an outage. Fail closed with 503, and bind nobody.
+  let api: FastifyInstance;
+  let down: SocketAttestor;
+  const changes: unknown[] = [];
+
+  beforeAll(async () => {
+    down = new SocketAttestor(join(socketDir, 'absent.sock'), {
+      onAvailabilityChange: (state) => changes.push(state),
+    });
+    api = Fastify({ logger: false });
+    const identify = createCallerIdentifier(bareApp, down, { trustHeaders: false });
+    await registerSearchRoutes(api, { pool: bareApp, identify });
+    const execute = createFabricDispatcher(
+      bareApp,
+      createDocumentActionAtoms({
+        store: new InMemoryObjectStore(),
+        parser: new PandocDocumentParser(),
+      }),
+    );
+    await registerActionRoutes(api, {
+      pool: bareApp,
+      attestor: down,
+      trustHeaders: false,
+      execute,
+    });
+    registerVerificationRoutes(api, { execute, identify });
+    await api.ready();
+  });
+
+  afterAll(async () => {
+    await api?.close();
+  });
+
+  const headers = async () => ({
+    authorization: `Bearer ${await token()}`,
+    'x-kf-acting-role': f.reviewerRoleId,
+    'x-kf-organization': f.organizationId,
+    'x-kf-classification': 'restricted',
+  });
+
+  it('identify throws AttestorUnavailable naming the socket, not a generic error', async () => {
+    const err = await down.identify(asked(await token())).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AttestorUnavailable);
+    expect((err as AttestorUnavailable).reason).toBe('ENOENT');
+    expect((err as AttestorUnavailable).socketPath).toBe(join(socketDir, 'absent.sock'));
+  });
+
+  it.each([
+    ['a read', 'GET', '/search?q=anything', undefined],
+    [
+      'an action',
+      'POST',
+      '/actions/create_initiative',
+      { idempotencyKey: 'attestor-down-0001', payload: { title: 'x' } },
+    ],
+    [
+      'a bulk verification',
+      'POST',
+      '/verifications/bulk',
+      { recordIds: [], reason: 'while the attestor is down', idempotencyKey: 'attestor-down-2' },
+    ],
+  ] as const)('answers %s 503 attestor_unavailable', async (_what, method, url, payload) => {
+    const r = await api.inject({
+      method,
+      url,
+      headers: await headers(),
+      ...(payload === undefined ? {} : { payload }),
+    });
+    expect(r.statusCode, r.body).toBe(503);
+    expect(r.json()).toMatchObject({ error: 'attestor_unavailable' });
+    expect(r.headers['retry-after']).toBe('5');
+    // The socket path is for the operator's log, never the caller.
+    expect(r.body).not.toContain(socketDir);
+  });
+
+  it('reports the outage once, with the socket path, however many requests it refuses', () => {
+    expect(changes).toEqual([
+      { available: false, socketPath: join(socketDir, 'absent.sock'), reason: 'ENOENT' },
+    ]);
+  });
+
+  it('a live attestor that does not answer in time is unavailable too', async () => {
+    const hangingPath = join(socketDir, 'hanging.sock');
+    const hanging = createServer(() => undefined);
+    await new Promise<void>((resolve) => hanging.listen(hangingPath, resolve));
+    try {
+      const slow = new SocketAttestor(hangingPath, { timeoutMillis: 100 });
+      const err = await slow.identify(asked(await token())).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(AttestorUnavailable);
+      expect((err as AttestorUnavailable).reason).toBe('timeout');
+    } finally {
+      hanging.closeAllConnections();
+      await new Promise<void>((resolve) => hanging.close(() => resolve()));
+    }
+  });
+
+  it('an attestor answering 5xx is unavailable; back up, it is reported once more', async () => {
+    const flakyPath = join(socketDir, 'flaky.sock');
+    let failing = true;
+    const inner = createAttestorServer(new LocalAttestor(h.attestorPool, verifierForFlaky));
+    const flaky = createServer((req, res) => {
+      if (failing) {
+        res.writeHead(500, { 'content-type': 'application/json' });
+        res.end('{"failure":"unavailable"}');
+        return;
+      }
+      inner.emit('request', req, res);
+    });
+    await new Promise<void>((resolve) => flaky.listen(flakyPath, resolve));
+    const seen: unknown[] = [];
+    try {
+      const client = new SocketAttestor(flakyPath, {
+        onAvailabilityChange: (state) => seen.push(state.available),
+      });
+      const err = await client.identify(asked(await token())).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(AttestorUnavailable);
+      expect((err as AttestorUnavailable).reason).toBe('status 500');
+      failing = false;
+      expect((await client.identify(asked(await token()))).actorId).toBe(f.reviewerId);
+      expect(seen).toEqual([false, true]);
+    } finally {
+      await new Promise<void>((resolve) => flaky.close(() => resolve()));
+    }
+  });
+
+  it('a token the attestor refuses is still 401, not 503', async () => {
+    const r = await new SocketAttestor(socketPath)
+      .identify(asked(await token({ issuer: 'https://evil.invalid/' })))
+      .catch((e: unknown) => e);
+    expect(r).toBeInstanceOf(IdentityRejected);
+    expect(r).not.toBeInstanceOf(AttestorUnavailable);
   });
 });

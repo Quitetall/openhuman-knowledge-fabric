@@ -82,7 +82,8 @@ when the database holds acts a different loader made does it stop, printing
 
 The loader refuses to run on a provisioned host (one where `/etc/kf` exists). It creates the
 `kf_api_dev` login — a member of `kf_app` and, because the development API attests in-process,
-of `kf_attestor`, which is why no `dogfood` API accepts it — with a fresh random password on every run, writes that login's
+of `kf_attestor`, which is why no `dogfood` API accepts it — with a fresh random password on every run (sent to PostgreSQL as a SCRAM verifier, so it never
+appears in the server's DDL log), writes that login's
 connection string owner-only (0600) to `$XDG_STATE_HOME/knowledge-fabric/dev-database-url`
 (default `~/.local/state/…`; override with `KF_DEV_DATABASE_URL_FILE`), and never prints the
 password. It also creates a visibly synthetic local operator,
@@ -132,48 +133,55 @@ KF_WEB_SESSION_SECRET=<canonical-base64-encoding-of-32-random-bytes>
 ```
 
 Since migration `20260924001000` a `dogfood` API binds a person only on an attestation from a
-separate `kf-attestor` process, reached over a Unix socket, and it refuses to start without
-`KF_ATTESTOR_SOCKET` or through a login that holds `kf_attestor` (which `kf_api_dev` does). The
-workstation therefore needs two further logins and the attestor running. `pnpm dev` does not start
-it: `apps/attestor` has no `dev` script. As the owner (`psql "$DATABASE_OWNER_URL"`), with
-passwords of your choosing:
+separate `kf-attestor` process, reached over a Unix socket. The API refuses to start without
+`KF_ATTESTOR_SOCKET` or through a login that holds `kf_attestor`; the attestor refuses a login that
+holds `kf_app` or `kf_worker`. So the dogfood profile needs two logins the development one is not:
 
-```sql
--- The attestor's login: kf_attestor and nothing else (it refuses kf_app or kf_worker).
-create role kf_attestor_local login password '<attestor password>' inherit;
-grant kf_attestor to kf_attestor_local;
--- The dogfood API's login: kf_app and nothing else (it refuses kf_attestor).
-create role kf_api_local login password '<api password>' inherit;
-grant kf_app to kf_api_local;
-grant connect on database kf to kf_attestor_local, kf_api_local;
-```
+| Login             | Holds                      | Used by                             | Written (0600) to                                   |
+| ----------------- | -------------------------- | ----------------------------------- | --------------------------------------------------- |
+| `kf_api_dev`      | `kf_app` and `kf_attestor` | the **development** API (unchanged) | `$XDG_STATE_HOME/knowledge-fabric/dev-database-url` |
+| `kf_api_dogfood`  | `kf_app` only              | the **dogfood** API                 | `…/knowledge-fabric/dogfood-api-database-url`       |
+| `kf_attestor_dev` | `kf_attestor` only         | `kf-attestor`                       | `…/knowledge-fabric/attestor-database-url`          |
 
-Build and start the attestor in its own terminal, with the same `OIDC_*` values as the API:
+`kf_api_dev` stays: the development profile has no token to hand an attestor, so its API attests
+in-process through that login, and `pnpm dev` is unchanged. Neither dogfood process accepts it.
+
+Create the two dogfood logins once (owner connection, like the loader; refused on a provisioned
+host, without `NODE_ENV=development` set by the script, or for a non-loopback database):
 
 ```sh
-pnpm --filter @kf/attestor... build
-NODE_ENV=development \
-OIDC_ISSUER=http://localhost:8080/realms/knowledge-fabric \
-OIDC_AUDIENCE=knowledge-fabric-api \
-OIDC_JWKS_URI=http://localhost:8080/realms/knowledge-fabric/protocol/openid-connect/certs \
-KF_ATTESTOR_SOCKET="$XDG_RUNTIME_DIR/kf-attestor.sock" \
-DATABASE_URL='postgres://kf_attestor_local:<attestor password>@localhost:5432/kf?sslmode=disable' \
-  node apps/attestor/dist/main.js
+pnpm dogfood:logins
 ```
 
-It logs `{"event":"listening",...}` once the socket is up. Inline `DATABASE_URL` is accepted
-because `NODE_ENV` is not `production`; `DATABASE_URL_FILE` works too. Then add to `.env`
-`KF_ATTESTOR_SOCKET=<the same absolute path>` and point `DATABASE_URL_FILE` (or `DATABASE_URL`)
-at `kf_api_local` instead of the loader's `kf_api_dev` file, and start the application processes
-after provider records and KF authority links exist:
+Each run re-keys both logins with fresh random passwords — never printed, and sent to PostgreSQL
+as SCRAM verifiers so the plaintext never appears in its `log_statement = ddl` log — revokes any
+other role either has picked up, and writes each connection string owner-only (override the paths
+with `KF_DOGFOOD_API_DATABASE_URL_FILE` and `KF_ATTESTOR_DATABASE_URL_FILE`). With the dogfood
+`OIDC_*` and `KF_WEB_*` values above set in `.env`, start the profile:
 
 ```sh
 set -a; . ./.env; set +a
-pnpm dev
+pnpm dev:dogfood
 ```
 
-This procedure is derived from `apps/attestor/src` and `apps/api/src/config.ts`; it has not yet
-been walked end to end on a workstation.
+`pnpm dev:dogfood` builds the API and the attestor, starts `kf-attestor` first (its `dev` script
+sets `NODE_ENV=development` and reads `attestor-database-url` and the socket path itself), waits
+until it answers `GET /health` on the socket — `KF_ATTESTOR_SOCKET` if set, else
+`$XDG_RUNTIME_DIR/kf-attestor.sock` — and only then starts the API and the web app with
+`KF_DEPLOYMENT_PROFILE=dogfood`, the same socket, and the API reading `dogfood-api-database-url`.
+No process is handed `DATABASE_OWNER_URL` or the development login, whatever `.env` holds. It
+refuses to start, naming what is missing, when the logins were never created or an `OIDC_*` /
+`KF_WEB_*` value is unset, and stops everything when any part exits or on Ctrl-C. The worker is not
+started: it needs a `kf_worker` login no workstation command creates, and this rehearsal is about
+identity. The attestor alone is `pnpm --filter @kf/attestor dev`.
+
+If the attestor stops while the API runs, bearer requests answer `503 attestor_unavailable` —
+never a local fallback — and the API logs the outage once with the socket path.
+
+This procedure is covered by `tests/deployment/dogfood-logins.test.ts` (the logins, the real
+attestor started through its `dev` entry, a dogfood API passing its startup login check) and
+`tests/deployment/dev-dogfood-runner.test.ts` (the order); it has not yet been walked end to end
+against a workstation Keycloak.
 
 The browser selects a role assignment, organization and classification ceiling after login.
 The web server sends `Authorization: Bearer ...` plus that context to the API. The token

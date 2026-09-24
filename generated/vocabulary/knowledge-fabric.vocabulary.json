@@ -2,7 +2,7 @@
   "schema_version": "1.2.0-draft.1",
   "x-generated-from": {
     "ontology_version": "1.2.0-draft.1",
-    "source_digest": "5b2025426f53e1417aad9d374aac0f6cc2b9603a9a0e0f35beb348af173a26a5"
+    "source_digest": "d9f48f4a70455b4c0c265e4dc68d01caa222739ce2909af18dcb75e44132bb72"
   },
   "node_types": {
     "organization": {
@@ -2472,6 +2472,10 @@
       "transactional": true
     },
     "grant_person_clearance": {
+      "audited": true,
+      "transactional": true
+    },
+    "revoke_external_identity": {
       "audited": true,
       "transactional": true
     },

@@ -38,10 +38,14 @@ export async function prepareActionState(
     );
   }
 
+  // The ORDER BY is what makes the lock order canonical (RQ-052). `for update` locks rows as
+  // the plan emits them, so without it the order is whatever the planner picked — index or heap
+  // order — and two acts on overlapping targets could each hold one row the other waits for.
+  // Sorting in JavaScript afterwards orders the digest, not the locks.
   const objects = (
     await tx.query<ObjectRow>(
       `select id, object_type, lifecycle_state, row_version, organization_id, created_by
-         from core.object where id = any($1::uuid[]) for update`,
+         from core.object where id = any($1::uuid[]) order by id for update`,
       [targetIds],
     )
   ).sort((left, right) => compareCanonicalText(left.id, right.id));

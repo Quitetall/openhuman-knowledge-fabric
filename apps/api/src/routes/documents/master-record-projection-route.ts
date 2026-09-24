@@ -18,17 +18,50 @@ import {
   type ProjectionRenderTarget,
 } from '@kf/projections';
 import type { ProjectionDefinition } from '@kf/ontology-compiler';
-import { unidentified } from '../actions.js';
+import { recordVerification, type RecordVerification } from '@kf/domain';
+import { refuseUnidentified } from '../actions.js';
 import type { DocumentRoutesOptions } from './contracts.js';
 
 const TARGETS = new Set<ProjectionRenderTarget>(['json', 'markdown', 'html']);
 
 /**
+ * Verification as the reader may see it NOW, by object id (KF-SAS-RQ-229).
+ *
+ * Read from the live permitted set — `core.object_verification` joined under the reader's row
+ * security — never from the stored claim: verification is not part of the corpus identity
+ * (ADR 0013), so a claim compiled before a record was verified would otherwise go on calling it
+ * unverified, or the reverse. A record absent from the live set is one the reader cannot see,
+ * and its verification is not looked up at all.
+ */
+export function liveVerifications(
+  permitted: readonly PermissionMember[],
+): ReadonlyMap<string, RecordVerification> {
+  return new Map(
+    permitted.map((member) => [
+      member.objectId,
+      recordVerification(
+        member.verified === undefined
+          ? undefined
+          : {
+              basis: member.verified.basis,
+              verifiedAt: member.verified.at,
+              verifiedBy: member.verified.by,
+            },
+      ),
+    ]),
+  );
+}
+
+/**
  * Turn the master record's persisted members into what the engine reads. A projection sees the
- * corpus and nothing else: this mapping adds no field the manifest does not already carry.
+ * corpus and nothing else: this mapping adds no field the manifest does not already carry,
+ * except each member's verification, which is read live (see `liveVerifications`). A withdrawn
+ * member, or any the reader can no longer see, is labelled as having no visible verification —
+ * whatever the stored manifest says, since that is a fact about a record the reader has lost.
  */
 export function projectionMembersOf(
   manifest: Pick<MasterRecordManifest, 'included' | 'withdrawn'>,
+  verifications: ReadonlyMap<string, RecordVerification>,
 ): ProjectionMember[] {
   const lifecycle = (member: PermissionMember): string | undefined => {
     const envelope = member.content?.['core.object'];
@@ -38,6 +71,7 @@ export function projectionMembersOf(
   };
   const map = (member: PermissionMember, itemState: 'included' | 'withdrawn'): ProjectionMember => {
     const state = lifecycle(member);
+    const verification = itemState === 'included' ? verifications.get(member.objectId) : undefined;
     return {
       objectId: member.objectId,
       objectType: member.objectType,
@@ -45,6 +79,7 @@ export function projectionMembersOf(
       classification: member.classification,
       contentDigest: member.contentDigest,
       itemState,
+      verification: verification ?? recordVerification(undefined, { visible: false }),
       ...(state === undefined ? {} : { lifecycleState: state }),
       ...(member.title === undefined ? {} : { title: member.title }),
       ...(member.content === undefined ? {} : { content: member.content }),
@@ -124,7 +159,7 @@ export function registerMasterRecordProjectionRoute(
           headers: request.headers as Record<string, unknown>,
         });
       } catch (error: unknown) {
-        return reply.code(401).send(unidentified(error));
+        return refuseUnidentified(reply, error);
       }
 
       return withTransaction(options.pool, async (tx) => {
@@ -161,7 +196,7 @@ export function registerMasterRecordProjectionRoute(
           personId: identity.actorId,
           organizationId: identity.organizationId,
           corpusDigest: String(record['corpus_digest']),
-          members: projectionMembersOf({ included, withdrawn }),
+          members: projectionMembersOf({ included, withdrawn }, liveVerifications(permitted)),
         };
         const graph = await enumerateRelevanceGraph(tx);
         try {
@@ -182,7 +217,9 @@ export function registerMasterRecordProjectionRoute(
             .header('x-kf-corpus-digest', corpus.corpusDigest)
             .send(rendered.bytes);
         } catch (error: unknown) {
-          if (error instanceof ProjectionRefused) {
+          // An unlabelled member is this server's defect, not the caller's request: it is
+          // left to surface as a 500 rather than dressed as a 400.
+          if (error instanceof ProjectionRefused && error.reason !== 'unlabelled_member') {
             const status = error.reason === 'budget_exceeded' ? 413 : 400;
             return reply
               .code(status)

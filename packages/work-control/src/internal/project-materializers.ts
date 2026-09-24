@@ -70,7 +70,7 @@ export const issueWorkOrder: ActionMaterializer = async (tx, request) => {
   const id = await createControlledObject(tx, {
     ...classificationFrom(request.payload),
     objectType: 'work_order',
-    authorityDomain: 'project',
+    authorityDomain: 'commercial',
     lifecycleState: 'draft',
     title: requireString(request.payload, 'title'),
     organizationId: request.organizationId,
@@ -109,7 +109,7 @@ export const submitWorkExecution: ActionMaterializer = async (tx, request) => {
   const id = await createControlledObject(tx, {
     ...classificationFrom(request.payload),
     objectType: 'work_execution',
-    authorityDomain: 'project',
+    authorityDomain: 'commercial',
     lifecycleState: 'draft',
     title: requireString(request.payload, 'title'),
     organizationId: request.organizationId,

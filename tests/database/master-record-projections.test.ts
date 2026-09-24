@@ -6,6 +6,7 @@ import { InMemoryObjectStore } from '@kf/artifacts';
 import { withTransaction } from '@kf/database';
 import { createDocumentActionAtoms, latestMasterRecord } from '@kf/documents';
 import { createFabricDispatcher, createFabricTransactionalDispatcher } from '@kf/orchestrator';
+import { UNVERIFIED_LABEL } from '@kf/domain';
 import { loadProjectionDefinitions, type ProjectionResult } from '@kf/projections';
 import { registerMasterRecordProjectionRoute } from '../../apps/api/src/routes/documents/master-record-projection-route.js';
 import { registerObjectViewRoute } from '../../apps/api/src/routes/documents/object-view-route.js';
@@ -118,7 +119,7 @@ describe('corpus projections over a real master record', () => {
       });
       expect(response.statusCode, response.body).toBe(200);
       const result = response.json() as ProjectionResult;
-      expect(result.format).toBe('kf-projection-result-v1');
+      expect(result.format).toBe('kf-projection-result-v2');
       expect(result.sections.map((s) => s.id)).toEqual([
         'withdrawn',
         'your_record',
@@ -334,6 +335,180 @@ describe('corpus projections over a real master record', () => {
         url: '/objects/019ff405-2eca-7e77-96cb-00990ac6f2ff',
       });
       expect(outside.statusCode).toBe(404);
+    } finally {
+      await app.close();
+    }
+  }, 60_000);
+});
+
+/**
+ * KF-SAS-RQ-229 on every surface the projection engine feeds. One record is verified AFTER the
+ * master record is compiled, so the label can only be right if it is read live under the
+ * reader's row security rather than from the stored claim; the other is never verified.
+ */
+describe('verification, labelled wherever a record appears', () => {
+  let checked: string;
+  let unchecked: string;
+
+  const documentAtoms = () =>
+    createDocumentActionAtoms({
+      store: new InMemoryObjectStore(),
+      parser: {
+        async parse() {
+          return undefined;
+        },
+      },
+    });
+
+  beforeAll(async () => {
+    checked = await createObject(harness.adminPool, fixtures, {
+      type: 'decision_record',
+      domain: 'engineering',
+      state: 'draft',
+      title: 'Checked by the reviewer',
+      createdBy: fixtures.performerId,
+    });
+    unchecked = await createObject(harness.adminPool, fixtures, {
+      type: 'decision_record',
+      domain: 'engineering',
+      state: 'draft',
+      title: 'Nobody has looked at this',
+      createdBy: fixtures.performerId,
+    });
+    await withTransaction(harness.adminPool, async (tx) => {
+      await bindContext(tx, fixtures, fixtures.performerId);
+      await tx.query(
+        `insert into core.relation (relation_type, source_id, target_id, created_by)
+         values ('supersedes', $1, $2, $3)`,
+        [checked, unchecked, fixtures.performerId],
+      );
+    });
+    const execute = createFabricDispatcher(harness.pool, documentAtoms());
+    const compiled = await execute({
+      actionType: 'compile_master_record',
+      actorId: fixtures.performerId,
+      actingRoleId: fixtures.performerRoleId,
+      targetIds: [fixtures.performerId],
+      organizationId: fixtures.organizationId,
+      maxClassification: 'restricted',
+      idempotencyKey: `verification-compile-${randomUUID()}`,
+      reason: `compile before verifying ${randomUUID()}`,
+    });
+    expect(compiled.status).toBe('applied');
+    const verified = await execute({
+      actionType: 'verify_record',
+      actorId: fixtures.reviewerId,
+      actingRoleId: fixtures.reviewerRoleId,
+      targetIds: [checked],
+      organizationId: fixtures.organizationId,
+      maxClassification: 'restricted',
+      idempotencyKey: `verification-${randomUUID()}`,
+      reason: 'read it against the source',
+      payload: { basis: 'reviewed_individually' },
+    });
+    expect(verified.status).toBe('applied');
+  }, 180_000);
+
+  type Member = ProjectionResult['sections'][number]['members'][number];
+  const find = (result: ProjectionResult, id: string): Member | undefined =>
+    result.sections.flatMap((s) => s.members).find((m) => m.objectId === id);
+
+  it('carries verified:false and the label, or the basis, in the projection JSON', async () => {
+    const app = Fastify({ logger: false });
+    registerMasterRecordProjectionRoute(app, routeOptions());
+    await app.ready();
+    try {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/master-record/projections/raw_corpus',
+      });
+      expect(response.statusCode, response.body).toBe(200);
+      const result = response.json() as ProjectionResult;
+      expect(find(result, unchecked)?.verification).toEqual({
+        verified: false,
+        label: UNVERIFIED_LABEL,
+      });
+      expect(find(result, checked)?.verification).toMatchObject({
+        verified: true,
+        basis: 'reviewed_individually',
+        verifiedBy: fixtures.reviewerId,
+      });
+      expect(result.measurements.unverifiedCount).toBeGreaterThan(0);
+    } finally {
+      await app.close();
+    }
+  }, 60_000);
+
+  it('labels the unverified member in the markdown and html renderings', async () => {
+    const app = Fastify({ logger: false });
+    registerMasterRecordProjectionRoute(app, routeOptions());
+    await app.ready();
+    try {
+      const md = await app.inject({
+        method: 'GET',
+        url: '/master-record/projections/raw_corpus?format=markdown',
+      });
+      const html = await app.inject({
+        method: 'GET',
+        url: '/master-record/projections/raw_corpus?format=html',
+      });
+      expect([md.statusCode, html.statusCode]).toEqual([200, 200]);
+      const block = (body: string, id: string) =>
+        body.slice(body.indexOf(id) - 400, body.indexOf(id) + 400);
+      expect(md.body).toContain(`  - ${UNVERIFIED_LABEL}`);
+      expect(md.body).toContain(`verified reviewed individually by ${fixtures.reviewerId}`);
+      expect(html.body).toContain(`<div class="v unverified">${UNVERIFIED_LABEL}</div>`);
+      expect(block(html.body, unchecked)).toContain('class="v unverified"');
+    } finally {
+      await app.close();
+    }
+  }, 60_000);
+
+  it('labels the Object View subject and each related record', async () => {
+    const app = Fastify({ logger: false });
+    registerObjectViewRoute(app, routeOptions());
+    await app.ready();
+    try {
+      const response = await app.inject({ method: 'GET', url: `/objects/${checked}` });
+      expect(response.statusCode, response.body).toBe(200);
+      const { result } = response.json() as { result: ProjectionResult };
+      expect(result.sections[0]!.members[0]!.verification).toMatchObject({
+        verified: true,
+        basis: 'reviewed_individually',
+      });
+      const related = result.sections[1]!.members.find((m) => m.objectId === unchecked);
+      expect(related?.verification).toEqual({ verified: false, label: UNVERIFIED_LABEL });
+
+      const other = await app.inject({ method: 'GET', url: `/objects/${unchecked}` });
+      expect(other.statusCode, other.body).toBe(200);
+      const subject = (other.json() as { result: ProjectionResult }).result.sections[0]!
+        .members[0]!;
+      expect(subject.verification).toEqual({ verified: false, label: UNVERIFIED_LABEL });
+    } finally {
+      await app.close();
+    }
+  }, 60_000);
+
+  it('labels GET /master-record items too', async () => {
+    const app = Fastify({ logger: false });
+    registerMasterRecordRoute(app, routeOptions());
+    await app.ready();
+    try {
+      const read = await app.inject({ method: 'GET', url: '/master-record' });
+      expect(read.statusCode, read.body).toBe(200);
+      const items = (
+        read.json() as {
+          items: readonly {
+            object_id: string;
+            verification: { verified: boolean; label: string };
+          }[];
+        }
+      ).items;
+      expect(items.find((i) => i.object_id === unchecked)?.verification).toEqual({
+        verified: false,
+        label: UNVERIFIED_LABEL,
+      });
+      expect(items.find((i) => i.object_id === checked)?.verification.verified).toBe(true);
     } finally {
       await app.close();
     }

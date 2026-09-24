@@ -1,4 +1,4 @@
-import { classificationFrom } from '@kf/record-atoms';
+import { classificationFrom, PayloadInvalid } from '@kf/record-atoms';
 import type { ActionEffect } from '@kf/actions';
 import { createControlledObject, requireMinor, requireString } from '../objects.js';
 import { recordAdrDecisionBody } from './decision-effects.js';
@@ -32,7 +32,7 @@ export const recordAcceptance: ActionEffect = async (tx, request, objects) => {
   const id = await createControlledObject(tx, {
     ...classificationFrom(request.payload),
     objectType: 'acceptance_record',
-    authorityDomain: 'project',
+    authorityDomain: 'commercial',
     lifecycleState: 'issued',
     title: `Acceptance of ${execution.id}`,
     organizationId: request.organizationId,
@@ -74,7 +74,7 @@ export const amendWorkOrder: ActionEffect = async (tx, request, objects) => {
   const id = await createControlledObject(tx, {
     ...classificationFrom(request.payload),
     objectType: 'work_order_amendment',
-    authorityDomain: 'project',
+    authorityDomain: 'commercial',
     lifecycleState: 'issued',
     title: `Amendment ${next} to ${order.id}`,
     organizationId: request.organizationId,
@@ -84,7 +84,10 @@ export const amendWorkOrder: ActionEffect = async (tx, request, objects) => {
 
   const delta = request.payload?.['ceiling_delta_minor'];
   if (typeof delta !== 'number' || !Number.isSafeInteger(delta)) {
-    throw new Error('ceiling_delta_minor is required and must be an integer in minor units');
+    throw new PayloadInvalid(
+      'ceiling_delta_minor',
+      'ceiling_delta_minor is required and must be an integer in minor units',
+    );
   }
   await tx.query(
     `insert into work.work_order_amendment

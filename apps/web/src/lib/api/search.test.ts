@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Caller } from './client.js';
 import { buildSearchPath, getSearchResults, parseSearchResponse } from './search.js';
+import { UNVERIFIED_LABEL } from './verification.js';
 
 const caller: Caller = {
   authentication: 'development',
@@ -30,10 +31,23 @@ describe('search API client', () => {
           classification: 'internal',
           rank: 0.75,
           matchedBy: 'full_text',
+          verification: { verified: false, label: UNVERIFIED_LABEL },
         },
       ],
     };
     expect(parseSearchResponse(body)).toEqual(body);
+    // KF-SAS-RQ-229, failing closed: a hit that does not say is shown as unverified, and one
+    // claiming verification without the facts that make it so is not believed.
+    const { verification: _omitted, ...bare } = body.hits[0]!;
+    expect(parseSearchResponse({ hits: [bare] }).hits[0]!.verification).toEqual({
+      verified: false,
+      label: UNVERIFIED_LABEL,
+    });
+    expect(
+      parseSearchResponse({
+        hits: [{ ...bare, verification: { verified: true, label: 'verified, honest' } }],
+      }).hits[0]!.verification.verified,
+    ).toBe(false);
     expect(() =>
       parseSearchResponse({
         hits: [{ ...body.hits[0], matchedBy: 'embedding' }],

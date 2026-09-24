@@ -12,6 +12,7 @@
     "dev": "NODE_ENV=development tsx watch src/server.ts",
     "start": "node dist/server.js",
     "dogfood": "node dist/dogfood.js",
+    "dogfood:logins": "node dist/dogfood-logins.js",
     "build": "tsc --build",
     "clean": "rm -rf dist *.tsbuildinfo",
     "bootstrap-organization": "node dist/bootstrap-organization.js"

@@ -31,7 +31,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { assertMeaningfulReason, type ActionRequest } from '@kf/actions';
-import { unidentified } from './actions/auth.js';
+import { refuseUnidentified } from './actions/auth.js';
 import type { ActionRoutesOptions, Caller, IdentifyCaller } from './actions/contracts.js';
 import { actionRejectionBody } from './actions/errors.js';
 import { DEFAULT_BULK_CEILING, MAX_BULK_CEILING } from '../sync/plan.js';
@@ -73,7 +73,7 @@ export function registerVerificationRoutes(
     try {
       caller = await options.identify({ headers: request.headers as Record<string, unknown> });
     } catch (err: unknown) {
-      return reply.code(401).send(unidentified(err));
+      return refuseUnidentified(reply, err);
     }
 
     const body = request.body ?? {};

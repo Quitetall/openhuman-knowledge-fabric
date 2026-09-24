@@ -213,3 +213,56 @@ jobs:
       # fourth — particularly its warning about `paths`.
       - name: Scan full history
         run: ./gitleaks git --no-banner --redact --config .gitleaks.toml .
+
+  # KF-SAS-RQ-017 and RQ-181: the SAS projection (docs/sas/generated/NORMATIVE.{md,json}) and the
+  # Warrant views must equal a fresh compile, and state the revision and digest they reproduce.
+  # `war check --generated` is the check; until this job nothing ran it, so NORMATIVE.md could
+  # drift from a fresh compile with CI green.
+  #
+  # WAR IS BUILT FROM A PINNED COMMIT, NOT A RELEASE, and that is temporary on purpose. The
+  # released `war` 1.0.0-alpha.2 leaks markdown `**` into extracted sentences, so its fresh compile
+  # differs from the committed projection and this job would be red for the tool's defect. The fix
+  # (OpenWarrant 2dac72f9) is on feat/battery-split, PR #133, awaiting the owner; the commit
+  # pinned in .github/actions/provision-war is that PR's head, and the action says what to do
+  # when a release carries the fix.
+  #
+  # COST: the build is ~2.5 min on 4 cores (measured 2026-09-24, 144 s with -j4), and the binary is
+  # cached by (rev, toolchain), so it is paid once per pin. That is cheap enough to run always;
+  # there is no opt-in variable.
+  #
+  # WAR'S EXIT STATUS IS NOT THE VERDICT. It is non-zero today for `authority.unsigned` on the
+  # accepted revision 0.1.0-draft.7: no signed acceptance response exists, and signing is the
+  # owner's act, which neither CI nor an agent performs. scripts/war-check-gate.mjs tolerates an
+  # ERROR only where docs/sas/owner-pending.json names that exact rule and file, and only until the
+  # entry's review_by date; drift is never excusable, a register entry that matches nothing fails,
+  # and a report missing the NORMATIVE comparisons fails. Read that script's header before
+  # editing the register.
+  sas:
+    name: SAS projection current (war check --generated)
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || vars.RUNNER_LABEL || 'ubuntu-latest' }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # The pin (OpenWarrant commit, Rust toolchain, rustup-init digest) lives in the action, so
+      # it is stated once, next to the build it governs.
+      - name: Provision war at the pinned commit
+        id: war
+        uses: ./.github/actions/provision-war
+
+      - name: war check --generated
+        env:
+          WAR: ${{ steps.war.outputs.war }}
+        run: |
+          set -euo pipefail
+          "${WAR}" --version
+          # `|| status=$?`, because the runner's bash is `-e` and war exits non-zero today (see
+          # above); the gate script, not war's status, is the verdict, and it cross-checks both.
+          status=0
+          "${WAR}" check --generated --json > war-report.json || status=$?
+          # The human-readable form too, so a red run can be read without downloading anything.
+          "${WAR}" check --generated || true
+          node scripts/war-check-gate.mjs war-report.json --war-exit "${status}"

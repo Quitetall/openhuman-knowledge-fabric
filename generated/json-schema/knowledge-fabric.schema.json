@@ -5,7 +5,7 @@
   "description": "Normative machine-readable graph envelope for the organizational graph and work-control specification.",
   "x-generated-from": {
     "ontology_version": "1.2.0-draft.1",
-    "source_digest": "5b2025426f53e1417aad9d374aac0f6cc2b9603a9a0e0f35beb348af173a26a5"
+    "source_digest": "d9f48f4a70455b4c0c265e4dc68d01caa222739ce2909af18dcb75e44132bb72"
   },
   "type": "object",
   "properties": {
@@ -493,6 +493,7 @@
             "reactivate_person",
             "bootstrap_organization",
             "grant_person_clearance",
+            "revoke_external_identity",
             "grant_access",
             "revoke_access",
             "replicate_artifact_version",

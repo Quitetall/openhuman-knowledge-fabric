@@ -459,6 +459,9 @@ describe('planted violations — commissioning must refuse', () => {
     ['offline sessions with no maximum', { offlineSessionMaxLifespanEnabled: false }, /offline/],
     ['a month-long offline idle', { offlineSessionIdleTimeout: 2592000 }, /offlineSessionIdle/],
     ['refresh tokens that survive use', { revokeRefreshToken: false }, /revokeRefreshToken/],
+    // The attestation replay window IS the access-token lifetime (20260924001000).
+    ['an hour-long access token', { accessTokenLifespan: 3600 }, /accessTokenLifespan is 3600s/],
+    ['no stated access-token lifespan', { accessTokenLifespan: undefined }, /accessTokenLifespan/],
   ])('a reviewed realm with %s', async (_label, change, reason) => {
     // Reviewed and sound are different claims. Each of these digests exactly as reviewed, so
     // only the policy reading can refuse it.
@@ -500,6 +503,32 @@ describe('planted violations — commissioning must refuse', () => {
     expect(entry.status).toBe('unsatisfied');
     expect(entry.detail).toMatch(/MFA is optional/);
     expect(entry.detail).toMatch(/"admin-cli" allows direct access grants/);
+  });
+
+  it('a reviewed realm whose client overrides the access-token lifespan', async () => {
+    // A sound realm-wide 300 s says nothing about a client that sets its own: Keycloak applies
+    // the client attribute to that client's tokens, and the replay window widens with it.
+    const { inputs } = await commissionedHost();
+    const realm = JSON.parse(await readFile(inputs.identityPolicyPath!, 'utf8')) as {
+      clients: { clientId: string; attributes?: Record<string, string> }[];
+    };
+    for (const client of realm.clients) {
+      if (client.clientId === 'knowledge-fabric-web') {
+        client.attributes = { ...client.attributes, 'access.token.lifespan': '86400' };
+      }
+    }
+    await writeFile(inputs.identityPolicyPath!, JSON.stringify(realm));
+    const entry = check(
+      await assessCommissioning({
+        ...inputs,
+        identityPolicyDigest: await digestOf(inputs.identityPolicyPath!),
+      }),
+      'identity_provider_policy',
+    );
+    expect(entry.status).toBe('unsatisfied');
+    expect(entry.detail).toMatch(
+      /"knowledge-fabric-web" overrides access.token.lifespan to "86400"/,
+    );
   });
 
   it('a runtime other than the one the release was tested on', async () => {

@@ -67,6 +67,27 @@ create table product.release (
   released_at  timestamptz
 );
 
+-- Each row is its type (KF-SAS-RQ-030, 20260925012000): a constant object_type and the composite
+-- key to core.object, so a requirement row cannot hang on a risk.
+alter table product.product_system
+  add column object_type text generated always as ('product_system') stored,
+  add constraint product_system_is_product_system foreign key (id, object_type) references core.object (id, object_type);
+alter table engineering.requirement
+  add column object_type text generated always as ('requirement') stored,
+  add constraint requirement_is_requirement foreign key (id, object_type) references core.object (id, object_type);
+alter table engineering.risk
+  add column object_type text generated always as ('risk') stored,
+  add constraint risk_is_risk foreign key (id, object_type) references core.object (id, object_type);
+alter table engineering.test
+  add column object_type text generated always as ('test') stored,
+  add constraint test_is_test foreign key (id, object_type) references core.object (id, object_type);
+alter table product.baseline
+  add column object_type text generated always as ('baseline') stored,
+  add constraint baseline_is_baseline foreign key (id, object_type) references core.object (id, object_type);
+alter table product.release
+  add column object_type text generated always as ('release') stored,
+  add constraint release_is_release foreign key (id, object_type) references core.object (id, object_type);
+
 comment on table product.product_system is
   'R01 product_system: the typed row behind the envelope, created only by register_product_system.';
 comment on table engineering.requirement is
@@ -149,6 +170,10 @@ grant select on product.product_system, product.baseline, product.release,
 grant insert on product.product_system, product.baseline, product.release,
                 engineering.requirement, engineering.risk, engineering.test
   to kf_app;
+
+-- Every table the application can write belongs to an act (20260925011000): attach the act write
+-- guard to the tables above, which did not exist when that migration swept the catalog.
+select core.install_action_context_guards();
 
 -- migrate:down
 

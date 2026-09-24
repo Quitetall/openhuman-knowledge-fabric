@@ -195,8 +195,10 @@ claims to be. Escalate rather than re-record.
 
 ## `schema_release` FAILED
 
-The ontology seed never ran. Any record written now would carry a schema version nothing can
-resolve.
+Two different faults share this check, and the detail says which.
+
+**No current schema release.** The ontology seed never ran. Any record written now would carry a
+schema version nothing can resolve.
 
 ```
 pnpm db:seed
@@ -204,6 +206,57 @@ pnpm db:seed
 
 If records already exist, find out how — they were written to a database that was not fully
 migrated, and that is worth understanding before adding more.
+
+**The installed ontology digest differs from this release's.** `registry.schema_release` (the
+current row) names an ontology digest, and the release on disk names another: the
+`x-generated-from.source_digest` of `generated/projections/knowledge-fabric.projections.json`
+(or `KF_PROJECTIONS_ARTIFACT`). The code and the database now disagree about what the words
+mean. Usually the release was switched without `kf-migrate.service` seeding it, or the database
+was seeded from a different checkout. The API refuses to start in this state under the dogfood
+profile or in production and staging; the development profile only warns.
+
+1. Do **not** re-seed by hand from a checkout. Re-run the reviewed migration for the release that
+   `/opt/kf` points at (`systemctl start kf-migrate.service`); it compares the digest after
+   seeding and fails if they still differ.
+2. If `/opt/kf` points at the wrong release, `install-release.sh rollback` (`scripts/deploy/install-release.sh`) puts
+   the previous one back (see `docs/deployment/private-host.md`).
+3. "Cannot determine this release's ontology digest" means the projections artifact is missing
+   or malformed. The release tree is incomplete; `migrate-release.sh check` will say where.
+
+## `planner_settings` FAILED — `jit` is not off
+
+The server this process connects to has JIT compilation enabled. Row-level security makes the
+planner's cost estimates cross `jit_above_cost` on unbounded scans, and that was measured at 8 to
+14 times slower (`deploy/postgres/planner.conf`). Nothing is wrong with any record.
+
+1. Install `deploy/postgres/planner.conf` into the cluster's `conf.d` and reload:
+   `select pg_reload_conf();`.
+2. If it is installed and this still fails, something overrides it for this login or database:
+   `select setting, source from pg_settings where name = 'jit';` names where it came from
+   (`database`, `user`, `session`). Remove that override rather than raising a threshold.
+
+## `row_security_reconciled` FAILED
+
+The running database differs from what the migrations declare about row-level security. Each
+row the check names is one table and one of two problems:
+
+- `enabled_not_forced` — the table enables row security but does not force it, so any login
+  that inherits the table's owner reads every tenant at every classification with no context.
+- `undeclared_without_row_security` — the table has no row security at all and is not in the
+  declared exemption list (`core.readiness_row_security_exemptions()`: the `ops` schema and a
+  named set of reference, bookkeeping and key tables).
+
+Both mean a table was created or altered outside the reviewed migration set, or a migration
+added a table without deciding its row security. Treat it as a boundary fault until shown
+otherwise.
+
+1. Find the table's origin: `git log -S '<table>' -- database/migrations/`. No migration means
+   somebody created it by hand on this host.
+2. If a migration created it deliberately without row security, that migration is incomplete:
+   add the policy (and `force row level security`), or declare the exemption in a new migration
+   that replaces `core.readiness_row_security_exemptions()`, with the reason.
+3. Never `alter table … no force row level security` to make an application query work; that
+   query should be bound through a context or a definer seam.
 
 ## A readiness check reports `unknown`
 
@@ -296,11 +349,28 @@ Linking is a recorded decision — `linkIdentity` stores who made it. The applic
 make it: since `20260923000200` `kf_app` holds no `INSERT` or `UPDATE` on `org.external_identity`,
 so the one supported way to link is `pnpm kf:grant-authority`, run over the owner connection
 (`DATABASE_OWNER_URL`), which links the identity, assigns the role and grants the clearance in one
-transaction (see [`identity-and-login.md`](../deployment/identity-and-login.md)). Revoking is
-immediate: `revokeIdentity` sets `revoked_at` — again over the owner connection; there is no
-command for it yet — and the next request with an already-issued token is refused rather than
-waiting for it to expire. The row stays; who used to be able to sign in as whom is a fact an
-investigation needs.
+transaction (see [`identity-and-login.md`](../deployment/identity-and-login.md)).
+
+Revoking is `pnpm kf:revoke-identity` (or `kf revoke-identity`), over the same owner connection:
+
+```sh
+DATABASE_OWNER_URL=... pnpm kf:revoke-identity \
+  --issuer https://sso.example.org/realms/kf --subject <sub> \
+  --revoked-by <your person uuid> --reason 'left the company 2026-09-24'
+# or name the link by its row: --identity <org.external_identity id>
+```
+
+It is the withdrawal of the decision grant-authority recorded, and it is recorded the same way: a
+`revoke_external_identity` action carrying the reason and the link's issuer and subject, targeting
+the person, under the role `--revoked-by` holds in that person's organization (or, when they hold
+none there — an emergency in an organization nobody can act in — under the bootstrap role, and the
+output says so), an audit event extending the chain, and `revoked_at` set, in one transaction. It
+refuses without a reason or a decider, and refuses a link already revoked without writing
+anything. Revoking is immediate: the attestations the person holds are withdrawn in the same
+transaction, so the next request with an already-issued token is refused (`401 revoked_identity`)
+rather than waiting for the token to expire. The row stays; who used to be able to sign in as whom
+is a fact an investigation needs, and because `(issuer, subject)` is unique the same account cannot
+later be linked again.
 
 A person who holds several roles states which one they are acting under per request. This is
 not a default the system can pick — choosing decides an authority question on their behalf,
@@ -338,6 +408,63 @@ row itself. The dispatcher still refuses first, with this error. A refusal that 
 as a database error naming `act authority` means something wrote to `core.action` without going
 through the dispatcher. That is not a configuration problem: treat it as an incident (threat
 model T2).
+
+## A write is refused: "must be performed by an act" or "not an act this transaction recorded"
+
+Since `20260925011000` every table the application or the worker can write refuses a row that no
+recorded act accounts for (threat model T2). The dispatcher always records its act in the same
+transaction as the writes, so neither refusal is reachable through it:
+
+- **must be performed by an act, and no action is bound** — something wrote a domain row with no
+  action in the transaction context;
+- **not an act this transaction recorded for its actor** — the context named an action the
+  ledger does not hold, or (for the API) one recorded by an earlier transaction.
+
+Either arriving from the API is not a configuration problem: treat it as an incident, as for an
+`act authority` refusal above. From the worker it means a task wrote under an act it did not bind;
+the document compiler is the one task that completes an act already recorded.
+
+Five writes are exempt by design, each with its reason in `core.write_guard_exemption` (read it
+as the owner): the ledger row itself, its audit event, outbox delivery marks, a federated
+reference's `verified_at` (stamped with the database clock), and a shared-link bearer's access
+log. `tests/database/write-guards.test.ts` pins that list; a new table the application can write
+is guarded by calling `core.install_action_context_guards()` in its migration, or the test names
+it.
+
+## A migration refuses or warns: a record is not the type, or in the domain, it claims
+
+Some migrations add a key that every existing row must already satisfy, and the database checks
+the rows when the key is added. A database holding a row that breaks it refuses the migration —
+atomically, so nothing is half-applied — rather than carrying the row forward.
+
+- `warrant_is_warrant` or `promotion_authority_decision_is_ml_promotion_decision`
+  (`20260925012000`): a warrant or an ML promotion decision is keyed on an object of another type,
+  so one object is two records. Find them, as the owner:
+
+      select w.id, o.object_type from work.warrant w join core.object o on o.id = w.id
+       where o.object_type <> 'warrant';
+      select d.object_id, o.object_type from ml.promotion_authority_decision d
+        join core.object o on o.id = d.object_id where o.object_type <> 'ml_promotion_decision';
+
+- `object_authority_domain_is_the_types` (`20260925013000`) does not refuse: it warns
+  `N record(s) carry an authority domain their type does not declare`, and leaves the key
+  holding for every new and changed row but unvalidated for the old ones. Until 2026-09-25 five
+  kinds of record were filed under the wrong domain by the code itself (work orders, work
+  executions, acceptance records and work-order amendments under `project`, change records under
+  `engineering`). Find them, as the owner:
+
+      select o.id, o.object_type, o.authority_domain, t.authority_domain as declared
+        from core.object o join registry.object_type t on t.id = o.object_type
+       where o.authority_domain <> t.authority_domain;
+
+  The declared domain is the answer; the recorded one was a wrong copy of it. Once they are
+  corrected, `alter table core.object validate constraint object_authority_domain_is_the_types`
+  makes the key cover every row. The same key refuses an ontology seed that moves a type to
+  another domain while records of it exist.
+
+For a mistyped row, which of the two records is the real one is a records decision for whoever
+owns them. Correct either kind of row with the owner credential, as a recorded `correct_record`,
+then run the migration again or validate the key.
 
 ## A verification is refused: reviewed individually, too fast
 
@@ -399,13 +526,19 @@ to somebody.
 - `is mode 644 — a secret readable beyond its owner` — `chmod 600`. Refused rather than warned,
   because a warning at startup is read once, on the day it is added.
 
-## Requests refused `not_attested`, or 401 for everybody
+## Requests refused `not_attested`, or 503 `attestor_unavailable` for everybody
 
 The database binds a person for the API's login only on an attestation from `kf-attestor`
 (`20260924001000`). An act refused `not_attested` ("nobody attested that the actor is present")
-reached the database without one: the caller should identify again. When every bearer request
-fails at once, the attestor is the first suspect — `GET /ready` reports `attestor: failing` while
-the API cannot reach it on its socket. Check `systemctl status kf-attestor.service` and its journal:
+reached the database without one: the caller should identify again. When the API cannot reach the
+attestor at all — its socket is absent or refuses the connection, it does not answer within 5 s, or
+it answers 5xx — every bearer request answers `503 {"error":"attestor_unavailable"}` with
+`Retry-After: 5`. It fails closed: there is no local fallback, and nobody is bound. A token the
+attestor _refuses_ is still `401` with its failure code; `503` means nobody could be asked. The
+API logs the outage once, when it starts, at `error` with the socket path and cause
+(`"kf-attestor is unreachable; …"`, `socket`, `reason` such as `ENOENT`, `ECONNREFUSED`, `EACCES`,
+`timeout` or `status 500`), and once at `info` when it answers again (`"kf-attestor is answering
+again"`); `GET /ready` reports `attestor: failing` meanwhile. Check `systemctl status kf-attestor.service` and its journal:
 it refuses to start through a login that is not in `kf_attestor` or that is also in `kf_app` or
 `kf_worker`, and it needs `/etc/kf/attestor/database-url` and the same `OIDC_*` values as the API
 in `/etc/kf/attestor.env`. After a crash loop it stays `failed` until `systemctl reset-failed
@@ -417,8 +550,11 @@ secrets are still separated from everyone but `kf-api`.
 - **Token lifetime and refresh policy.** Provider configuration. The workstation realm
   (`deploy/keycloak/knowledge-fabric-realm.json`) ships a 300-second access-token lifespan, and
   `kf-commissioning`'s `identity_provider_policy` refuses a host realm with offline sessions idle
-  beyond 7 days or unbounded past 30, or refresh tokens that are not revoked on use. The host's
-  own access-token lifespan is still its reviewed configuration, not checked here.
+  beyond 7 days or unbounded past 30, refresh tokens that are not revoked on use, or an access-token
+  lifespan — realm-wide or a client's `access.token.lifespan` override — that is unstated or above
+  300 seconds, because that lifetime is the window in which a compromised API can replay a
+  token through `kf-attestor`. What the provider actually issues is still only as good as the
+  reviewed export; the check reads the file, not the running Keycloak.
 - **TLS certificates.** Issued and renewed at the proxy. This application refuses to run
   without the deployment asserting that a proxy is there, and can do nothing to verify it.
 - **Where alerts go.** `kf-alert@.service` ships: every unit's `OnFailure=` reaches it, and it

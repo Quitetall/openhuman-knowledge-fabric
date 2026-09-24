@@ -6,6 +6,7 @@
   "description": "Identity attestor — verifies bearer tokens and vouches to the database that a person is present",
   "main": "./dist/main.js",
   "scripts": {
+    "dev": "NODE_ENV=development sh -c 'tsc --build && exec node dist/dev.js'",
     "start": "node dist/main.js",
     "build": "tsc --build",
     "clean": "rm -rf dist *.tsbuildinfo"

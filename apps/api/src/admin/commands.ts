@@ -20,6 +20,12 @@ import {
   runGrantAuthority,
 } from './grant-authority.js';
 import {
+  parseRevokeIdentityArgs,
+  planRevokeIdentity,
+  revokeIdentityUsage,
+  runRevokeIdentity,
+} from './revoke-identity.js';
+import {
   parseRetireOrganizationArgs,
   planRetireOrganization,
   retireOrganizationUsage,
@@ -173,6 +179,52 @@ export async function runRetireOrganizationCommand(
     return 0;
   } catch (error: unknown) {
     // ActionRejected carries a code and detail; the message is what the operator reads.
+    err.write(`${message(error)}\n`);
+    return 1;
+  } finally {
+    await owner.end();
+  }
+}
+
+export async function runRevokeIdentityCommand(
+  argv: readonly string[],
+  env: NodeJS.ProcessEnv = process.env,
+  out: Out = process.stdout,
+  err: Out = process.stderr,
+): Promise<number> {
+  const url = ownerUrl(env, err);
+  if (url === undefined) return 1;
+  let request;
+  try {
+    request = parseRevokeIdentityArgs(argv);
+  } catch (error: unknown) {
+    err.write(`${message(error)}\n\n${revokeIdentityUsage()}\n`);
+    return 2;
+  }
+  const plan = planRevokeIdentity(request);
+  if (!plan.ok) {
+    err.write('refusing to revoke:\n');
+    for (const refusal of plan.refusals) err.write(`  - ${refusal}\n`);
+    err.write(`\n${revokeIdentityUsage()}\n`);
+    return 2;
+  }
+  const owner = createPool({ connectionString: url, maxConnections: 2 });
+  try {
+    const result = await runRevokeIdentity(owner, plan.decision);
+    out.write('identity revoked, and recorded:\n');
+    out.write(`  action        ${result.actionId}  (revoke_external_identity)\n`);
+    out.write(`  audit digest  ${result.auditDigest}\n`);
+    out.write(`  identity      ${result.identityId}  ${result.issuer} / ${result.subject}\n`);
+    out.write(`  person        ${result.personId}\n`);
+    out.write(`  revoked at    ${result.revokedAt.toISOString()}\n`);
+    out.write(
+      result.actingRoleId === undefined
+        ? '  acting role   none held in that organization; recorded under the bootstrap role\n'
+        : `  acting role   ${result.actingRoleId}\n`,
+    );
+    out.write(`  attestations  ${result.attestationsWithdrawn} withdrawn\n`);
+    return 0;
+  } catch (error: unknown) {
     err.write(`${message(error)}\n`);
     return 1;
   } finally {

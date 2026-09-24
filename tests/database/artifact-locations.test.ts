@@ -64,7 +64,7 @@ afterAll(async () => {
 async function recordVersion(body: Buffer): Promise<{ artifactId: string; versionId: string }> {
   const artifactId = await createObject(harness.adminPool, fixtures, {
     type: 'artifact',
-    domain: 'content',
+    domain: 'artifact',
     state: 'draft',
     title: 'Located artifact',
     createdBy: fixtures.reviewerId,
@@ -186,7 +186,7 @@ describe('storage locations', () => {
     // The wrong artifact cannot vouch for a version it does not own.
     const other = await createObject(harness.adminPool, fixtures, {
       type: 'artifact',
-      domain: 'content',
+      domain: 'artifact',
       state: 'draft',
       title: 'Unrelated artifact',
       createdBy: fixtures.reviewerId,
@@ -320,7 +320,7 @@ describe('serving a document from a copy', () => {
     const { versionId } = await recordVersion(body);
     const documentId = await createObject(harness.adminPool, fixtures, {
       type: 'controlled_document',
-      domain: 'quality',
+      domain: 'qms',
       state: 'draft',
       title: 'Served from a copy',
       createdBy: fixtures.reviewerId,

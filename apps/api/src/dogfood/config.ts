@@ -1,10 +1,14 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, createHmac, pbkdf2Sync, randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { chmod, mkdir, rename, writeFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { devStateFile } from '@kf/operations';
 
 export const APP_LOGIN = 'kf_api_dev';
+/** The dogfood API's workstation login: kf_app and nothing else (`pnpm dogfood:logins`). */
+export const DOGFOOD_API_LOGIN = 'kf_api_dogfood';
+/** kf-attestor's workstation login: kf_attestor and nothing else (`pnpm dogfood:logins`). */
+export const ATTESTOR_LOGIN = 'kf_attestor_dev';
 /** MinIO's development secret from docker-compose.yml: public on purpose, loopback only. */
 export const DEV_S3_SECRET = 'dev-only-not-a-secret';
 
@@ -43,11 +47,25 @@ export function generateAppPassword(): string {
  * repository, so it can never be committed. KF_DEV_DATABASE_URL_FILE overrides it.
  */
 export function devDatabaseUrlFile(env: NodeJS.ProcessEnv = process.env): string {
-  const override = env['KF_DEV_DATABASE_URL_FILE'];
-  if (override !== undefined && override.trim() !== '') return resolve(override);
-  const state = env['XDG_STATE_HOME'];
-  const base = state !== undefined && state !== '' ? state : join(homedir(), '.local', 'state');
-  return join(base, 'knowledge-fabric', 'dev-database-url');
+  return devStateFile('developmentApi', env);
+}
+
+/**
+ * The SCRAM-SHA-256 verifier PostgreSQL stores for `password`, computed here so the plaintext
+ * never appears in SQL. `CREATE/ALTER ROLE … PASSWORD '<plaintext>'` is a DDL statement, and the
+ * Compose server runs `log_statement = ddl`: the password would be written to the server log on
+ * every run. PostgreSQL accepts a pre-hashed verifier in the same place and stores it as is.
+ */
+export function scramVerifier(password: string, salt: Buffer = randomBytes(16)): string {
+  const iterations = 4096;
+  const salted = pbkdf2Sync(password.normalize('NFKC'), salt, iterations, 32, 'sha256');
+  const clientKey = createHmac('sha256', salted).update('Client Key').digest();
+  const storedKey = createHash('sha256').update(clientKey).digest();
+  const serverKey = createHmac('sha256', salted).update('Server Key').digest();
+  return (
+    `SCRAM-SHA-256$${String(iterations)}:${salt.toString('base64')}` +
+    `$${storedKey.toString('base64')}:${serverKey.toString('base64')}`
+  );
 }
 
 /** Write a secret owner-only, replacing any previous file whole rather than editing it. */

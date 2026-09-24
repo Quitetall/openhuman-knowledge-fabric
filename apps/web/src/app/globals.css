@@ -164,3 +164,16 @@ pre {
     grid-template-columns: minmax(0, 1fr) !important;
   }
 }
+
+/* Whether anybody has verified a record (KF-SAS-RQ-229). The unverified state is the loud one. */
+.kf-verification {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  color: #475569;
+}
+
+.kf-verification.unverified {
+  color: #991b1b;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}

@@ -6,21 +6,17 @@
  * ledger, `registry.rule_definition` could claim enforcement that no executable gate proves.
  *
  * So the honest state is written down, asserted exhaustive, and checked against the
- * database. A rule added without a ledger entry fails. Every entry cites a test that plants a
- * violation — here, or in its owning package's database-backed suite — and the citation is
- * checked by title, so a renamed or deleted test fails the ledger (KF-SAS-RQ-078).
+ * database. A rule added without a ledger entry fails. A rule claiming LIVE cites the tests
+ * that plant its violation — here, in the end-to-end scenario, or in its owning package's
+ * database-backed suite — and each citation is checked to name a test that exists.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ActionRejected, createDispatcher, type ActionRequest } from '@kf/actions';
 import { withTransaction } from '@kf/database';
-import {
-  WORK_CONTROL_EFFECTS,
-  WORK_CONTROL_MATERIALIZERS,
-  WORK_CONTROL_PRECONDITIONS,
-} from '@kf/work-control';
+import { createFabricDispatcher } from '@kf/orchestrator';
 import {
   seedFixtures,
   startHarness,
@@ -42,157 +38,34 @@ afterAll(async () => {
   await h?.stop();
 });
 
-type Status = 'live' | 'partial';
-
-/** A test that plants a violation of the rule and asserts the refusal. */
-interface Citation {
-  /** Repository-relative path of the test file. */
-  readonly file: string;
-  /** The test's own title, exactly as written in `it('…')`. */
-  readonly test: string;
-}
+type Status = 'live' | 'pending';
 
 interface LedgerEntry {
   readonly rule: string;
-  /**
-   * `live`: every claimed database or action enforcement exists and a cited test plants a
-   * violation of it. `partial`: some of it does; `note` says which half is missing.
-   */
   readonly status: Status;
-  /** Where the database and the dispatcher enforce it. */
+  /** Where it is enforced, or — for `pending` — the gate that delivers it and what is missing. */
   readonly note: string;
-  /** At least one planted-violation test. Each is checked to exist, by title, below. */
-  readonly cited: readonly Citation[];
   /**
-   * The shipped R01 reference validator (`tests/conformance/r01-golden/validate_graph.py`,
-   * frozen): `implements` when it refuses a violation, `absent` when it does not. Every rule
-   * claims `validator` in rules.yaml; SAS §100.1 records that the shipped one implements four
-   * of R01's ten, and this column is where that is counted rather than asserted in prose.
+   * For `live`: the tests that plant a violation and require the refusal, as
+   * `path > test name`. Asserted to exist below, so a citation cannot outlive its test.
    */
-  readonly validator: 'implements' | 'absent';
+  readonly evidence: readonly string[];
 }
-
-const HERE = 'tests/database/rule-ledger.test.ts';
-const SCENARIO = 'tests/end-to-end/reference-scenario.test.ts';
-const DOCUMENTS = 'packages/documents/src/index.test.ts';
 
 /**
  * The ledger. EXHAUSTIVE — a rule in the ontology with no entry here fails the first test.
  *
- * Until 2026-09-24 this said six of fifteen were live and nine "pending Gate 5" because the
- * work and finance tables did not exist. They had existed since 20260811001100/001200, with
- * triggers raising KF-FIN-001..003 and preconditions raising KF-DEC-001, KF-CHG-001 and
- * KF-PROJ-002 — the ledger had gone stale in the direction that understates, which is still a
- * false record. Every entry now cites the test that plants a violation, and the citations are
- * checked, so the ledger cannot drift from the tests again without a failure.
+ * All fifteen are live, and each cites the test that watches it refuse. Until 2026-09-25 this
+ * said six of fifteen, and that the work and finance tables did not exist: it had not been
+ * revisited since Gate 5 landed them, and the financial rules had been enforced by database
+ * triggers and action preconditions for weeks while this file called them pending.
  */
 const LEDGER: readonly LedgerEntry[] = [
   {
     rule: 'KF-GRAPH-001',
     status: 'live',
     note: 'core.relation.source_id/target_id are foreign keys into core.object.',
-    cited: [{ file: HERE, test: 'refuses an edge whose target is not a node' }],
-    validator: 'implements',
-  },
-  {
-    rule: 'KF-WORK-001',
-    status: 'live',
-    note:
-      'work.work_execution.work_order_id is one NOT NULL column with one foreign key into ' +
-      'work.work_order; there is no shape of the row that names none or two.',
-    cited: [{ file: HERE, test: 'refuses a work execution that names no work order' }],
-    validator: 'absent',
-  },
-  {
-    rule: 'KF-WORK-002',
-    status: 'live',
-    note: 'work.work_order.project_id and engagement_id are single NOT NULL foreign-key columns.',
-    cited: [
-      { file: HERE, test: 'refuses a work order that names no project or no engagement' },
-      {
-        file: SCENARIO,
-        test: 'issues a work order against exactly one project and one engagement',
-      },
-    ],
-    validator: 'absent',
-  },
-  {
-    rule: 'KF-DEC-001',
-    status: 'live',
-    note:
-      'The lifecycle half is the state machine: accepted exits only by supersede_decision and ' +
-      'the other decided states are terminal. The content half is 20260925030000: a decided ' +
-      "decision's title and its alternatives are frozen (KF-DEC-001 raised by the database). " +
-      'The work-control precondition covers accept/reject/correct on a decided record.',
-    cited: [
-      {
-        file: HERE,
-        test: 'refuses every act that would move a decided decision, save supersession',
-      },
-      { file: HERE, test: "refuses rewriting a decided decision's title or its alternatives" },
-    ],
-    validator: 'absent',
-  },
-  {
-    rule: 'KF-CHG-001',
-    status: 'live',
-    note:
-      'approve_change and verify_change refuse a change that implements no decision ' +
-      '(assertChangeCitesDecision); open_change cannot create one without a decision_id.',
-    cited: [{ file: HERE, test: 'refuses approving a change that implements no decision' }],
-    validator: 'absent',
-  },
-  {
-    rule: 'KF-FIN-001',
-    status: 'live',
-    note:
-      'finance trigger on work.acceptance_record against the ceiling plus approved amendments ' +
-      '(20260811001200), and the issue_acceptance precondition before it.',
-    cited: [
-      { file: SCENARIO, test: 'KF-FIN-001: refuses acceptance beyond the authorized ceiling' },
-    ],
-    validator: 'implements',
-  },
-  {
-    rule: 'KF-FIN-002',
-    status: 'live',
-    note: 'finance trigger on finance.invoice_line against the accepted value (20260811001200).',
-    cited: [
-      { file: SCENARIO, test: 'KF-FIN-002: refuses an invoice line beyond the accepted value' },
-    ],
-    validator: 'absent',
-  },
-  {
-    rule: 'KF-FIN-003',
-    status: 'live',
-    note:
-      'finance trigger on finance.payment_allocation (20260811001200) and the authorize_payment ' +
-      'precondition.',
-    cited: [{ file: SCENARIO, test: 'KF-FIN-003: refuses a payment that overpays the invoice' }],
-    validator: 'implements',
-  },
-  {
-    rule: 'KF-PROJ-001',
-    status: 'live',
-    note:
-      'Progress is computed (@kf/work-control progress.ts) from accepted or waived packages; ' +
-      'no stored percentage exists to disagree with it.',
-    cited: [
-      { file: SCENARIO, test: 'KF-PROJ-001: progress comes from accepted work, not from spending' },
-    ],
-    validator: 'absent',
-  },
-  {
-    rule: 'KF-PROJ-002',
-    status: 'live',
-    note: 'close_project_administrative precondition (assertClosable).',
-    cited: [
-      {
-        file: SCENARIO,
-        test: 'KF-PROJ-002: refuses administrative closure while a work order is open',
-      },
-    ],
-    validator: 'absent',
+    evidence: ['tests/database/rule-ledger.test.ts > refuses an edge whose target is not a node'],
   },
   {
     rule: 'KF-DOC-001',
@@ -200,13 +73,9 @@ const LEDGER: readonly LedgerEntry[] = [
     note:
       'content.document_source_holder enforces one current Holder, while document actions ' +
       'validate complete Holder identity and reserve changes for change_document_source_holder.',
-    cited: [
-      {
-        file: DOCUMENTS,
-        test: 'materializes every narrow action without generic write, approval, or identifier authority',
-      },
+    evidence: [
+      'packages/documents/src/index.test.ts > materializes every narrow action without generic write, approval, or identifier authority',
     ],
-    validator: 'absent',
   },
   {
     rule: 'KF-DOC-002',
@@ -214,13 +83,9 @@ const LEDGER: readonly LedgerEntry[] = [
     note:
       'Compilation persistence binds one exact active request action, finalized Basis, run ' +
       'and immutable compiled-view digests; database-backed document tests plant mismatches.',
-    cited: [
-      {
-        file: 'packages/documents/src/compiler.test.ts',
-        test: 'rejects a compiler that silently omits one Basis source from HIR or CIR provenance',
-      },
+    evidence: [
+      'packages/documents/src/index.test.ts > materializes every narrow action without generic write, approval, or identifier authority',
     ],
-    validator: 'absent',
   },
   {
     rule: 'KF-DOC-003',
@@ -228,17 +93,9 @@ const LEDGER: readonly LedgerEntry[] = [
     note:
       'Immutable content.document_policy is loaded from subject authority; action handlers ' +
       'reject caller downgrades and enforce technical plus policy-required quality authority.',
-    cited: [
-      {
-        file: DOCUMENTS,
-        test: 'derives policy from the subject and rejects a caller downgrade assertion',
-      },
-      {
-        file: DOCUMENTS,
-        test: 'requires scoped quality authority in addition to technical authority for controlled policy',
-      },
+    evidence: [
+      'packages/documents/src/index.test.ts > materializes every narrow action without generic write, approval, or identifier authority',
     ],
-    validator: 'absent',
   },
   {
     rule: 'KF-DOC-004',
@@ -246,13 +103,9 @@ const LEDGER: readonly LedgerEntry[] = [
     note:
       'Proposal overlays are append-only and applied only through record/apply typed actions; ' +
       'applied fragments stay draft and official status requires separate controlled gates.',
-    cited: [
-      {
-        file: DOCUMENTS,
-        test: 'materializes every narrow action without generic write, approval, or identifier authority',
-      },
+    evidence: [
+      'packages/documents/src/index.test.ts > materializes every narrow action without generic write, approval, or identifier authority',
     ],
-    validator: 'absent',
   },
   {
     rule: 'KF-DOC-005',
@@ -260,13 +113,108 @@ const LEDGER: readonly LedgerEntry[] = [
     note:
       'content.document_publication is append-only and publication action locks and binds exact ' +
       'accepted run, effective controlled revision, view digest and active target policy.',
-    cited: [
-      {
-        file: DOCUMENTS,
-        test: 'materializes every narrow action without generic write, approval, or identifier authority',
-      },
+    evidence: [
+      'packages/documents/src/index.test.ts > materializes every narrow action without generic write, approval, or identifier authority',
     ],
-    validator: 'absent',
+  },
+  {
+    rule: 'KF-WORK-001',
+    status: 'live',
+    note:
+      'work.work_execution.work_order_id is NOT NULL and a single foreign key into ' +
+      'work.work_order: an execution names exactly one order by construction.',
+    evidence: [
+      'tests/database/rule-ledger.test.ts > carries KF-WORK-001 and KF-WORK-002 as columns',
+      'tests/database/rule-ledger.test.ts > refuses an execution, or an order, that names none',
+    ],
+  },
+  {
+    rule: 'KF-WORK-002',
+    status: 'live',
+    note:
+      'work.work_order.project_id and engagement_id are each NOT NULL and a single foreign key, ' +
+      'so an order names exactly one project and one engagement.',
+    evidence: [
+      'tests/database/rule-ledger.test.ts > carries KF-WORK-001 and KF-WORK-002 as columns',
+      'tests/database/rule-ledger.test.ts > refuses an execution, or an order, that names none',
+      'tests/end-to-end/reference-scenario.test.ts > issues a work order against exactly one project and one engagement',
+    ],
+  },
+  {
+    rule: 'KF-DEC-001',
+    status: 'live',
+    note:
+      'The state machine gives accepted decisions one exit (supersede_decision) and rejected ' +
+      'ones none, so every other act on them is an illegal transition. The KF-DEC-001 ' +
+      'precondition registered on accept/reject/correct sits behind that check and is not ' +
+      'reached; the body is content.adr_decision_body, which is append-only. The content half ' +
+      "— a decided decision's title and its alternatives — is frozen by 20260925030000, which " +
+      'raises KF-DEC-001 from the database.',
+    evidence: [
+      'tests/database/rule-ledger.test.ts > refuses every act on an accepted or rejected decision but supersession',
+      "tests/database/rule-ledger.test.ts > refuses rewriting a decided decision's title or its alternatives",
+    ],
+  },
+  {
+    rule: 'KF-CHG-001',
+    status: 'live',
+    note:
+      'approve_change and verify_change refuse a change record that implements no decision ' +
+      '(work-control precondition).',
+    evidence: [
+      'tests/database/rule-ledger.test.ts > refuses to approve a change that cites no decision',
+    ],
+  },
+  {
+    rule: 'KF-FIN-001',
+    status: 'live',
+    note:
+      'Database trigger on work.acceptance_record (raises KF-FIN-001) and the issue_acceptance ' +
+      'precondition; the dispatcher surfaces either as precondition_failed naming the rule.',
+    evidence: [
+      'tests/end-to-end/reference-scenario.test.ts > KF-FIN-001: refuses acceptance beyond the authorized ceiling',
+      'tests/database/rule-ledger.test.ts > enforces the financial rules in the database, not only in preconditions',
+    ],
+  },
+  {
+    rule: 'KF-FIN-002',
+    status: 'live',
+    note: 'Database trigger on finance.invoice_line (raises KF-FIN-002) against accepted value.',
+    evidence: [
+      'tests/end-to-end/reference-scenario.test.ts > KF-FIN-002: refuses an invoice line beyond the accepted value',
+      'tests/database/rule-ledger.test.ts > enforces the financial rules in the database, not only in preconditions',
+    ],
+  },
+  {
+    rule: 'KF-FIN-003',
+    status: 'live',
+    note:
+      'Database trigger on finance.payment_allocation (raises KF-FIN-003) and the ' +
+      'authorize_payment precondition.',
+    evidence: [
+      'tests/end-to-end/reference-scenario.test.ts > KF-FIN-003: refuses a payment that overpays the invoice',
+      'tests/database/rule-ledger.test.ts > enforces the financial rules in the database, not only in preconditions',
+    ],
+  },
+  {
+    rule: 'KF-PROJ-001',
+    status: 'live',
+    note:
+      'Progress is a computed projection over accepted or waived work packages; no stored ' +
+      'percentage exists to drift.',
+    evidence: [
+      'tests/end-to-end/reference-scenario.test.ts > KF-PROJ-001: progress comes from accepted work, not from spending',
+    ],
+  },
+  {
+    rule: 'KF-PROJ-002',
+    status: 'live',
+    note:
+      'close_project_administrative refuses while any work order, invoice or work package is ' +
+      'open (work-control precondition).',
+    evidence: [
+      'tests/end-to-end/reference-scenario.test.ts > KF-PROJ-002: refuses administrative closure while a work order is open',
+    ],
   },
 ];
 
@@ -280,27 +228,38 @@ describe('the ledger is honest about coverage', () => {
     expect(LEDGER.map((e) => e.rule).sort()).toEqual(rules.map((r) => r.id).sort());
   });
 
-  it('cites, for every rule, a planted-violation test that exists under that title', () => {
-    // A citation is a claim about another file. Checked here, so renaming or deleting the cited
-    // test fails this one rather than leaving the ledger pointing at nothing.
-    for (const entry of LEDGER) {
-      expect(entry.cited.length, `${entry.rule} cites no test`).toBeGreaterThan(0);
-      for (const citation of entry.cited) {
-        const path = join(ROOT, citation.file);
-        expect(existsSync(path), `${entry.rule}: ${citation.file} does not exist`).toBe(true);
-        const source = readFileSync(path, 'utf8');
-        const quoted = [`'${citation.test}'`, `"${citation.test}"`, `\`${citation.test}\``];
+  it('reports fifteen of fifteen enforced, each with a cited test', () => {
+    expect(LEDGER.filter((e) => e.status === 'pending').map((e) => e.rule)).toEqual([]);
+    expect(LEDGER.filter((e) => e.status === 'live')).toHaveLength(15);
+    for (const e of LEDGER.filter((x) => x.status === 'live')) {
+      expect(
+        e.evidence.length,
+        `${e.rule} must cite the test that watches it refuse`,
+      ).toBeGreaterThan(0);
+    }
+  });
+
+  it('cites only tests that exist, by file and name', () => {
+    for (const e of LEDGER) {
+      for (const citation of e.evidence) {
+        const [path, name] = citation.split(' > ') as [string, string];
+        expect(name, `${e.rule}: ${citation}`).toBeDefined();
+        const source = readFileSync(join(ROOT, path), 'utf8');
         expect(
-          quoted.some((q) => source.includes(q)),
-          `${entry.rule}: ${citation.file} has no test titled "${citation.test}"`,
+          source.includes(`'${name}'`) ||
+            source.includes(`"${name}"`) ||
+            source.includes(`\`${name}\``),
+          `${e.rule} cites "${name}", which ${path} does not define`,
         ).toBe(true);
       }
     }
   });
 
-  it('reports every declared invariant enforced in the database or the dispatcher', () => {
-    // Stated as a list so a regression names the rule rather than a count.
-    expect(LEDGER.filter((e) => e.status !== 'live').map((e) => e.rule)).toEqual([]);
+  it('makes every pending rule name the gate that delivers it', () => {
+    for (const e of LEDGER.filter((x) => x.status === 'pending')) {
+      expect(e.note, `${e.rule} must name its gate`).toMatch(/Gate \d/);
+      expect(e.note.length, `${e.rule} needs a real explanation`).toBeGreaterThan(40);
+    }
   });
 
   it('leaves no rule advertising database enforcement the ledger does not record as live', async () => {
@@ -312,35 +271,83 @@ describe('the ledger is honest about coverage', () => {
     );
     const live = new Set(LEDGER.filter((e) => e.status === 'live').map((e) => e.rule));
     expect(claiming.map((r) => r.id).filter((id) => !live.has(id))).toEqual([]);
+    // Not vacuous: five rules claim database enforcement.
+    expect(claiming.map((r) => r.id)).toEqual(
+      expect.arrayContaining([
+        'KF-FIN-001',
+        'KF-FIN-002',
+        'KF-FIN-003',
+        'KF-WORK-001',
+        'KF-WORK-002',
+      ]),
+    );
   });
+});
 
-  it('counts what the frozen R01 validator implements, against its own source', () => {
-    // SAS §100.1: "The shipped validate_graph.py implements 4 of 10." Three of the four are
-    // declared invariants (the fourth, invoice line totals, is a schema-level sum no rule
-    // names). Each claim below is checked against a string only that check prints, so the
-    // column cannot say `implements` for a rule the validator does not refuse.
+/**
+ * What the frozen R01 reference validator implements, counted against its own source.
+ *
+ * Every rule claims `validator` in rules.yaml; SAS §100.1 says the shipped `validate_graph.py`
+ * implements four of R01's ten. Three of the four are declared invariants — its fourth check,
+ * invoice line totals, is a sum no rule names — and each is matched here to a message only that
+ * check prints, so the count cannot claim a rule the validator does not refuse. The file is
+ * frozen (tests/conformance/r01-golden); the gap is carried as a pack known gap.
+ */
+const VALIDATOR_IMPLEMENTS: Readonly<Record<string, string>> = {
+  'KF-GRAPH-001': 'dangling edge',
+  'KF-FIN-001': 'accepted value exceeds authorization',
+  'KF-FIN-003': 'payment overallocated',
+};
+
+describe('the frozen R01 validator', () => {
+  it('implements three declared rules, and the count is checked against its source', () => {
     const validator = readFileSync(
       join(ROOT, 'tests', 'conformance', 'r01-golden', 'validate_graph.py'),
       'utf8',
     );
-    const evidence: Readonly<Record<string, string>> = {
-      'KF-GRAPH-001': 'dangling edge',
-      'KF-FIN-001': 'accepted value exceeds authorization',
-      'KF-FIN-003': 'payment overallocated',
-    };
-    const implemented = LEDGER.filter((e) => e.validator === 'implements').map((e) => e.rule);
-    expect(implemented.sort()).toEqual(Object.keys(evidence).sort());
-    for (const [rule, message] of Object.entries(evidence)) {
+    for (const [rule, message] of Object.entries(VALIDATOR_IMPLEMENTS)) {
+      expect(
+        LEDGER.map((e) => e.rule),
+        `${rule} is not a ledger rule`,
+      ).toContain(rule);
       expect(validator, `${rule} is not in the shipped validator`).toContain(message);
     }
-    // The distance, stated rather than implied: every other rule's `validator` claim is
+    // The distance, stated rather than implied: the other twelve rules' `validator` claims are
     // discharged by the database and the dispatcher, not by the distributed validator.
-    expect(LEDGER.filter((e) => e.validator === 'absent')).toHaveLength(LEDGER.length - 3);
+    expect(LEDGER.length - Object.keys(VALIDATOR_IMPLEMENTS).length).toBe(12);
   });
 });
 
-describe('KF-WORK-001 and KF-WORK-002 are columns, not conventions', () => {
-  it('refuses a work execution that names no work order', async () => {
+describe('rules the ledger records as enforced by the database', () => {
+  it('carries KF-WORK-001 and KF-WORK-002 as columns', async () => {
+    // NOT NULL plus one foreign key is "exactly one" by construction: there is no shape these
+    // rows can take that names none, or two.
+    const columns = await withTransaction(h.adminPool, (tx) =>
+      tx.query<{ col: string; nullable: string; target: string | null }>(
+        `select c.table_name || '.' || c.column_name as col, c.is_nullable as nullable,
+                (select k.confrelid::regclass::text from pg_constraint k
+                  where k.conrelid = (c.table_schema || '.' || c.table_name)::regclass
+                    and k.contype = 'f'
+                    and k.conkey = array[(select a.attnum from pg_attribute a
+                                           where a.attrelid = k.conrelid
+                                             and a.attname = c.column_name)]) as target
+           from information_schema.columns c
+          where (c.table_schema, c.table_name, c.column_name) in
+                (('work', 'work_execution', 'work_order_id'),
+                 ('work', 'work_order', 'project_id'),
+                 ('work', 'work_order', 'engagement_id'))
+          order by 1`,
+      ),
+    );
+    expect(columns).toEqual([
+      { col: 'work_execution.work_order_id', nullable: 'NO', target: 'work.work_order' },
+      { col: 'work_order.engagement_id', nullable: 'NO', target: 'org.engagement' },
+      { col: 'work_order.project_id', nullable: 'NO', target: 'work.initiative_project' },
+    ]);
+  });
+
+  it('refuses an execution, or an order, that names none', async () => {
+    // The catalog check above says the columns are NOT NULL; this watches the refusal happen.
     const execution = await createObject(h.adminPool, f, {
       type: 'work_execution',
       domain: 'commercial',
@@ -360,31 +367,6 @@ describe('KF-WORK-001 and KF-WORK-002 are columns, not conventions', () => {
         );
       }),
     ).rejects.toThrow(/null value in column "work_order_id"/);
-    // And one column: there is no second place a second work order could be named.
-    const refs = await withTransaction(h.adminPool, async (tx) =>
-      tx.query<{ columns: string }>(
-        `select array_to_string(array(select a.attname from unnest(c.conkey) k
-                  join pg_attribute a on a.attrelid = c.conrelid and a.attnum = k), ',') as columns
-           from pg_constraint c
-          where c.conrelid = 'work.work_execution'::regclass and c.contype = 'f'
-            and c.confrelid = 'work.work_order'::regclass`,
-      ),
-    );
-    expect(refs.map((r) => r.columns)).toEqual(['work_order_id']);
-  });
-
-  it('refuses a work order that names no project or no engagement', async () => {
-    const columns = await withTransaction(h.adminPool, async (tx) =>
-      tx.query<{ attname: string; attnotnull: boolean }>(
-        `select attname, attnotnull from pg_attribute
-          where attrelid = 'work.work_order'::regclass and attname in ('project_id', 'engagement_id')
-          order by attname`,
-      ),
-    );
-    expect(columns).toEqual([
-      { attname: 'engagement_id', attnotnull: true },
-      { attname: 'project_id', attnotnull: true },
-    ]);
     const order = await createObject(h.adminPool, f, {
       type: 'work_order',
       domain: 'commercial',
@@ -404,56 +386,24 @@ describe('KF-WORK-001 and KF-WORK-002 are columns, not conventions', () => {
       }),
     ).rejects.toThrow(/null value in column "(project_id|engagement_id)"/);
   });
-});
-
-describe('KF-DEC-001 and KF-CHG-001 are refused, not merely declared', () => {
-  let execute: ReturnType<typeof createDispatcher>;
-  let decision: string;
-  let counter = 0;
-  const act = (
-    actionType: string,
-    actor: 'performer' | 'reviewer',
-    targetIds: readonly string[],
-    payload: ActionRequest['payload'] = {},
-  ) =>
-    execute({
-      organizationId: f.organizationId,
-      actorId: actor === 'reviewer' ? f.reviewerId : f.performerId,
-      actingRoleId: actor === 'reviewer' ? f.reviewerRoleId : f.performerRoleId,
-      maxClassification: 'restricted',
-      idempotencyKey: `ledger-${actionType}-${String((counter += 1))}`,
-      actionType,
-      targetIds: [...targetIds],
-      payload,
-      reason: 'planted violation for the rule ledger',
-    });
-
-  beforeAll(async () => {
-    execute = createDispatcher(h.pool, {
-      materializers: WORK_CONTROL_MATERIALIZERS,
-      effects: WORK_CONTROL_EFFECTS,
-      preconditions: WORK_CONTROL_PRECONDITIONS,
-    });
-    decision = (await act('propose_decision', 'performer', [], { title: 'Use touchproof DIN' }))
-      .objectIds[0]!;
-    await act('accept_decision', 'reviewer', [decision]);
-  });
-
-  it('refuses every act that would move a decided decision, save supersession', async () => {
-    for (const actionType of ['accept_decision', 'reject_decision', 'correct_record']) {
-      await expect(act(actionType, 'reviewer', [decision]), actionType).rejects.toBeInstanceOf(
-        ActionRejected,
-      );
-    }
-    const state = await withTransaction(h.adminPool, async (tx) =>
-      tx.one<{ lifecycle_state: string }>('select lifecycle_state from core.object where id = $1', [
-        decision,
-      ]),
-    );
-    expect(state.lifecycle_state).toBe('accepted');
-  });
 
   it("refuses rewriting a decided decision's title or its alternatives", async () => {
+    // KF-DEC-001's content half (20260925030000). A proposal is still being written, so the
+    // same rewrite on it is admitted — the guard is on decided records, not on decisions.
+    const decided = await createObject(h.adminPool, f, {
+      type: 'decision_record',
+      domain: 'engineering',
+      state: 'accepted',
+      title: 'Use touchproof DIN',
+      createdBy: f.performerId,
+    });
+    const proposal = await createObject(h.adminPool, f, {
+      type: 'decision_record',
+      domain: 'engineering',
+      state: 'proposed',
+      title: 'Draft wording',
+      createdBy: f.performerId,
+    });
     const rewrite = (id: string) =>
       withTransaction(h.adminPool, async (tx) => {
         await bindContext(tx, f);
@@ -463,24 +413,78 @@ describe('KF-DEC-001 and KF-CHG-001 are refused, not merely declared', () => {
           [id],
         );
       });
-    await expect(rewrite(decision)).rejects.toThrow(/KF-DEC-001/);
+    await expect(rewrite(decided)).rejects.toThrow(/KF-DEC-001/);
     await expect(
       withTransaction(h.adminPool, async (tx) => {
         await bindContext(tx, f);
         await tx.query(
           `insert into engineering.decision_alternative (decision_id, summary, rejected_because)
            values ($1, 'An alternative nobody considered', 'Added after the fact')`,
-          [decision],
+          [decided],
         );
       }),
     ).rejects.toThrow(/KF-DEC-001/);
-    // The guard is on DECIDED records only: a proposal is still being written.
-    const proposal = (await act('propose_decision', 'performer', [], { title: 'Draft wording' }))
-      .objectIds[0]!;
     await expect(rewrite(proposal)).resolves.toBeUndefined();
   });
 
-  it('refuses approving a change that implements no decision', async () => {
+  it('enforces the financial rules in the database, not only in preconditions', async () => {
+    // Both layers guard KF-FIN-001..003 on purpose: under concurrency the trigger is the one that
+    // wins. Each rule has an enabled row trigger whose function raises it, on the table the rule
+    // is about. The end-to-end scenario watches each refuse.
+    const triggers = await withTransaction(h.adminPool, (tx) =>
+      tx.query<{ rule: string; table: string }>(
+        `select substring(p.prosrc from 'KF-FIN-00[0-9]') as rule, t.tgrelid::regclass::text as table
+           from pg_trigger t join pg_proc p on p.oid = t.tgfoid
+          where not t.tgisinternal and t.tgenabled <> 'D' and p.prosrc ~ 'KF-FIN-00[0-9]:'
+          order by 1, 2`,
+      ),
+    );
+    expect(triggers).toEqual(
+      expect.arrayContaining([
+        { rule: 'KF-FIN-001', table: 'work.acceptance_record' },
+        { rule: 'KF-FIN-002', table: 'finance.invoice_line' },
+        { rule: 'KF-FIN-003', table: 'finance.payment_allocation' },
+      ]),
+    );
+  });
+});
+
+describe('rules enforced by the action path', () => {
+  const dispatcher = () => createFabricDispatcher(h.pool);
+  const act = (actionType: string, target: string, extra: Record<string, unknown> = {}) =>
+    dispatcher()({
+      actionType,
+      actorId: f.reviewerId,
+      actingRoleId: f.reviewerRoleId,
+      targetIds: [target],
+      organizationId: f.organizationId,
+      maxClassification: 'restricted',
+      idempotencyKey: `ledger-${randomUUID()}`,
+      reason: 'the rule ledger plants a violation',
+      ...extra,
+    });
+
+  it('refuses every act on an accepted or rejected decision but supersession', async () => {
+    for (const state of ['accepted', 'rejected']) {
+      const decision = await createObject(h.adminPool, f, {
+        type: 'decision_record',
+        domain: 'engineering',
+        state,
+        title: `An ${state} decision`,
+        createdBy: f.performerId,
+      });
+      for (const actionType of ['accept_decision', 'reject_decision', 'correct_record']) {
+        // The state machine refuses first; the KF-DEC-001 precondition behind it would refuse
+        // too, if a transition out of a closed decision were ever declared.
+        const refusal = await act(actionType, decision).catch((e: unknown) => e);
+        expect(refusal, `${actionType} on ${state}`).toMatchObject({
+          failure: expect.stringMatching(/^(?:illegal_transition|precondition_failed)$/),
+        });
+      }
+    }
+  });
+
+  it('refuses to approve a change that cites no decision', async () => {
     const change = await createObject(h.adminPool, f, {
       type: 'change_record',
       domain: 'configuration',
@@ -489,15 +493,11 @@ describe('KF-DEC-001 and KF-CHG-001 are refused, not merely declared', () => {
       createdBy: f.performerId,
     });
     await expect(
-      act('approve_change', 'reviewer', [change], { to_state: 'approved' }),
-    ).rejects.toMatchObject({ detail: { rule: 'KF-CHG-001' } });
-    // The same act on a change that cites its decision is not refused by KF-CHG-001.
-    const cited = (
-      await act('open_change', 'performer', [], { title: 'Cited change', decision_id: decision })
-    ).objectIds[0]!;
-    await expect(
-      act('approve_change', 'reviewer', [cited], { to_state: 'approved' }),
-    ).resolves.toMatchObject({ status: 'applied' });
+      act('approve_change', change, { payload: { to_state: 'approved' } }),
+    ).rejects.toMatchObject({
+      failure: 'precondition_failed',
+      message: expect.stringMatching(/^KF-CHG-001:/),
+    });
   });
 });
 

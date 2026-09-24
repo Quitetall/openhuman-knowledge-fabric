@@ -746,6 +746,33 @@ describe('actions over HTTP', () => {
     expect(events[0]!.digest).toMatch(/^[0-9a-f]{64}$/);
   });
 
+  it('refuses a malformed payload as 422 naming the field, not 500 (RQ-012)', async () => {
+    // The caller's payload is the cause, so retrying the same bytes will be refused the same
+    // way. Until PayloadInvalid existed, the materializer's plain Error reached here as a 500.
+    const idempotencyKey = 'api-payload-invalid-01';
+    const r = await app.inject({
+      method: 'POST',
+      url: '/actions/create_initiative',
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+      payload: {
+        idempotencyKey,
+        payload: { title: 'No objective', sponsor_id: f.reviewerId },
+      },
+    });
+    expect(r.statusCode, r.body).toBe(422);
+    expect(r.json()).toMatchObject({
+      error: 'precondition_failed',
+      detail: { field: 'objective' },
+    });
+    const acted = await withTransaction(h.adminPool, (tx) =>
+      tx.one<{ count: string }>(
+        'select count(*)::text as count from core.action where idempotency_key = $1',
+        [idempotencyKey],
+      ),
+    );
+    expect(acted.count).toBe('0');
+  });
+
   it('surfaces a DATABASE-tier invariant refusal as 422, not 500', async () => {
     // The financial rules are guarded twice, and under concurrency the trigger is the one
     // that wins: two acceptances can each pass the application check and only one survive

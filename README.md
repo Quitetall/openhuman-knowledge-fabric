@@ -91,6 +91,7 @@ kf overview
 kf bootstrap-organization --legal-name "..." --person "..."
 kf grant-authority --person <uuid> --role <id> --clearance <id> --reason "..."
 kf retire-organization --organization <uuid> --decided-by <uuid> --reason "..."
+kf revoke-identity --issuer <url> --subject <sub> --revoked-by <uuid> --reason "..."
 ```
 
 `scripts/install-kf.sh` puts `kf` on your path.
@@ -101,18 +102,20 @@ kf retire-organization --organization <uuid> --decided-by <uuid> --reason "..."
 pnpm gate          # everything CI runs, in CI's order, fail-fast
 ```
 
-Four jobs run on every push and pull request:
+Five jobs run on every push and pull request:
 
-| Job        | Checks                                                              |
-| ---------- | ------------------------------------------------------------------- |
-| `verify`   | format, lint, typecheck, the full test suite, dependency advisories |
-| `ontology` | the ontology is consistent and `generated/` is current              |
-| `build`    | the project builds from a clean checkout                            |
-| `secrets`  | no secret has ever been committed, over full history                |
+| Job        | Checks                                                                            |
+| ---------- | --------------------------------------------------------------------------------- |
+| `verify`   | format, lint, typecheck, the full test suite, dependency advisories               |
+| `ontology` | the ontology is consistent and `generated/` is current                            |
+| `build`    | the project builds from a clean checkout                                          |
+| `secrets`  | no secret has ever been committed, over full history                              |
+| `sas`      | `war check --generated`: the SAS projection and Warrant views match a fresh build |
 
-`pnpm gate` reproduces three of the four CI jobs. The fourth, `secrets`, scans the full history
-and cannot run on every machine. `tests/deployment/gate-parity.test.ts` asserts that the gate and
-the workflow run the same commands, so a step added to one and not the other fails the suite.
+`pnpm gate` reproduces three of the five CI jobs. `secrets` scans the full history and `sas`
+builds `war` from a pinned OpenWarrant commit; neither tool is on every machine.
+`tests/deployment/gate-parity.test.ts` asserts that the gate and the workflow run the same
+commands, so a step added to one and not the other fails the suite.
 
 The suite starts real PostgreSQL 18 containers through Testcontainers. On a loaded machine, run
 it in partitions rather than all at once.

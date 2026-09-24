@@ -18,7 +18,7 @@
 -- who cannot see the target must still be refused an edge of the wrong shape rather than let
 -- through by row security hiding the type. It reveals nothing a refusal does not: the message
 -- names the relation and the two types, which the writer supplied or can see. A missing object
--- is left to the foreign key, which already refuses it (KF-GRAPH-001).
+-- or an undeclared relation type is left to the foreign keys, which already refuse them.
 --
 -- Administrator sessions are NOT exempt. A restore or a bootstrap that writes an edge of the
 -- wrong shape is writing a corrupt graph, and the owner credential should be refused it too.
@@ -34,8 +34,10 @@ comment on table registry.relation_type_endpoint is
   'Which object types may sit at each end of each relation type. Seeded from '
   'ontology/relation-types.yaml source_types/target_types; core.relation refuses any other pair.';
 
+-- Ontology reference data, like every registry.* table: no row security, written only by the seed,
+-- and declared to the row-security reconciliation (20260925045000) with that reason.
 grant select on registry.relation_type_endpoint
-  to kf_app, kf_worker, kf_checkpoint, kf_readonly, kf_auditor;
+  to kf_app, kf_worker, kf_checkpoint, kf_readonly, kf_auditor, kf_backup;
 
 create function core.relation_endpoint_declared() returns trigger
 language plpgsql
@@ -48,7 +50,11 @@ declare
 begin
   select object_type into v_source from core.object where id = new.source_id;
   select object_type into v_target from core.object where id = new.target_id;
-  if v_source is null or v_target is null then
+  -- A missing object, or a relation type the registry does not declare, is the foreign keys'
+  -- to refuse (KF-GRAPH-001, KF-SAS-RQ-070), with their own words; this guard judges only the
+  -- shape of an edge between things that exist.
+  if v_source is null or v_target is null
+     or not exists (select 1 from registry.relation_type where id = new.relation_type) then
     return new;
   end if;
   if not exists (select 1 from registry.relation_type_endpoint

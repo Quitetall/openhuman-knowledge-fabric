@@ -129,8 +129,8 @@ realm's `defaultSignatureAlgorithm`; changing the realm's algorithm means changi
 
 Since migration `20260924001000` the dogfood API also needs `KF_ATTESTOR_SOCKET` naming a running
 `kf-attestor`, and it refuses to start through a login that holds `kf_attestor` — which
-`kf_api_dev`, the login `pnpm dogfood:load` creates, does. Re-walking this today needs a separate
-API login and the attestor started as
+`kf_api_dev`, the login `pnpm dogfood:load` creates, does. Re-walking this today is
+`pnpm dogfood:logins` once, then `pnpm dev:dogfood`, as
 [`local-development.md`](local-development.md#dogfood-profile-local-identity-rehearsal) describes;
 the table below was observed before that change.
 
@@ -145,6 +145,11 @@ the table below was observed before that change.
 
 The third row matters as much as the fourth: a correctly signed token from the wrong issuer is
 refused, so the check is not "is this a JWT".
+
+Any of those rows with `kf-attestor` down answers `503` `attestor_unavailable` instead: nobody
+could be asked whether the token is good, so the caller is neither refused nor let in, and the
+API never falls back to verifying it in-process (asserted by `tests/permissions/attestor.test.ts`
+and `apps/api/src/app.test.ts`, not observed on this walk).
 
 The fourth row is the designed stopping point, and it is where the walk ends.
 
@@ -227,6 +232,16 @@ Also verified: the audit event landed at `seq=14` chained from the previous head
 `appendAuditEvent`, so there is one implementation of that arithmetic. And a second identical run
 reported "nothing to do", wrote nothing, and did **not** mint a second action: re-running a setup
 command must not record a decision nobody made.
+
+### Withdrawing a link
+
+`pnpm kf:revoke-identity` undoes the link and is recorded the same way: a
+`revoke_external_identity` act with a required `--reason` and `--revoked-by`, an audit event, and
+`revoked_at` set in one transaction; the person's outstanding attestations are withdrawn with it,
+so the next request with that account's token is `401 revoked_identity`. A link already revoked is
+refused and nothing is written. See the
+[runbook](../operating-model/runbook.md#linking-a-person-to-an-identity-provider-account). Verified
+against the test harness (`tests/database/revoke-identity.test.ts`), not yet on the workstation.
 
 ### The founding grant
 

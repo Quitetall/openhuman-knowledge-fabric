@@ -9,10 +9,10 @@ import {
   type MasterRecordManifest,
 } from '@kf/documents';
 import { project, ProjectionRefused, type ProjectionCorpus } from '@kf/projections';
-import { unidentified } from '../actions.js';
+import { refuseUnidentified } from '../actions.js';
 import { actionRejectionBody } from '../actions/errors.js';
 import type { DocumentRoutesOptions } from './contracts.js';
-import { projectionMembersOf } from './master-record-projection-route.js';
+import { liveVerifications, projectionMembersOf } from './master-record-projection-route.js';
 
 /**
  * `GET /objects/:id` — the Object View — and `POST /objects/:id/refresh`, the same view after
@@ -60,7 +60,7 @@ async function serveObjectView(
   try {
     identity = await options.identify({ headers: request.headers as Record<string, unknown> });
   } catch (error: unknown) {
-    return reply.code(401).send(unidentified(error));
+    return refuseUnidentified(reply, error);
   }
 
   // Everything below runs in one transaction and only DESCRIBES the reply; the reply is
@@ -142,7 +142,7 @@ async function serveObjectView(
       personId: identity.actorId,
       organizationId: identity.organizationId,
       corpusDigest: String(record['corpus_digest']),
-      members: projectionMembersOf({ included, withdrawn }),
+      members: projectionMembersOf({ included, withdrawn }, liveVerifications(permitted)),
     };
     let result;
     try {
@@ -153,7 +153,7 @@ async function serveObjectView(
         graph: await enumerateRelevanceGraph(tx),
       });
     } catch (error: unknown) {
-      if (error instanceof ProjectionRefused) {
+      if (error instanceof ProjectionRefused && error.reason !== 'unlabelled_member') {
         // An anchor outside the corpus reads as not found, not as a different error: the
         // reader cannot learn whether it exists for somebody else.
         if (error.reason === 'foreign_member') return answer(404, { error: 'not_found' });
