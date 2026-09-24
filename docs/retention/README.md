@@ -44,6 +44,12 @@ defined and approved through change control.
   copied.
 - **Vendor datasheets.** Third-party copyright: referenced by document number, revision and
   digest. The licensed copy is filed offline.
+- **Transient observations** (§64B, ADR 0029). Recorded queries, the pseudonym key that
+  distinguishes their askers, the per-person contributions to the demand aggregate, and the
+  digests of retrieval traces expire after 90 days and are swept. They are excluded from the
+  export, from checkpoints and from the data of every backup, so no copy outlives the window.
+  `docs/architecture/master-record-boundary.json` lists them under `transientTables`. The demand
+  aggregate itself, `org.access_demand`, is a record and is kept.
 - **Artifact bytes.** In the object store, not in PostgreSQL. The export carries the index and
   digests that prove the two still agree — see [backup and restore](../backup-and-restore/).
 
