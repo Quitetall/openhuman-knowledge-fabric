@@ -39,6 +39,9 @@ importers:
       '@kf/documents':
         specifier: workspace:*
         version: link:packages/documents
+      '@kf/domain':
+        specifier: workspace:*
+        version: link:packages/domain
       '@kf/export':
         specifier: workspace:*
         version: link:packages/export
@@ -442,6 +445,9 @@ importers:
       '@kf/database':
         specifier: workspace:*
         version: link:../database
+      '@kf/domain':
+        specifier: workspace:*
+        version: link:../domain
       '@kf/projections':
         specifier: workspace:*
         version: link:../projections
@@ -601,6 +607,9 @@ importers:
       '@kf/canonicalization':
         specifier: workspace:*
         version: link:../canonicalization
+      '@kf/domain':
+        specifier: workspace:*
+        version: link:../domain
       '@kf/ontology-compiler':
         specifier: workspace:*
         version: link:../ontology-compiler

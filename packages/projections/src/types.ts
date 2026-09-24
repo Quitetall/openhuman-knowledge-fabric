@@ -1,3 +1,4 @@
+import type { RecordVerification } from '@kf/domain';
 import type { ProjectionDefinition } from '@kf/ontology-compiler';
 
 export type ProjectionClassification = 'public' | 'internal' | 'confidential' | 'restricted';
@@ -5,6 +6,10 @@ export type ProjectionClassification = 'public' | 'internal' | 'confidential' | 
 /**
  * One member of a corpus as a projection sees it. Deliberately the master record's own member
  * shape and nothing more: a projection cannot enrich, only partition and order.
+ *
+ * `verification` is required, and the engine refuses a member whose label is not the one its
+ * facts produce (KF-SAS-RQ-229). The caller reads it under the reader's row security; for a
+ * member the reader can no longer see it is `recordVerification(_, { visible: false })`.
  */
 export interface ProjectionMember {
   readonly objectId: string;
@@ -18,6 +23,7 @@ export interface ProjectionMember {
   readonly content?: Readonly<Record<string, unknown>>;
   readonly withdrawnAt?: string;
   readonly withdrawalReason?: string;
+  readonly verification: RecordVerification;
 }
 
 /** The corpus a projection reads. `corpusDigest` is the master's identity (ADR 0013). */
@@ -74,7 +80,11 @@ export interface ProjectionResultSection {
  * "what did this reader see" is a stored fact rather than a reconstruction.
  */
 export interface ProjectionResult {
-  readonly format: 'kf-projection-result-v1';
+  /**
+   * v2 (2026-09-24): members carry `verification`, the digest covers it, and the format tag is
+   * part of the digest preimage. A v1 digest is never re-read as a v2 one.
+   */
+  readonly format: 'kf-projection-result-v2';
   readonly definition: { readonly id: string; readonly version: number };
   readonly parameters: Readonly<Record<string, ProjectionParameterValue>>;
   readonly source: {
@@ -97,6 +107,8 @@ export interface ProjectionResult {
     readonly corpusMemberCount: number;
     /** corpusMemberCount - memberCount: the declared narrowing, counted rather than silent. */
     readonly excludedByFilter: number;
+    /** Placed members nobody has verified — each is also labelled where it appears. */
+    readonly unverifiedCount: number;
     readonly sectionCounts: Readonly<Record<string, number>>;
     readonly reachedCount: number;
     readonly relevanceFanoutByAnchorType: Readonly<Record<string, number>>;

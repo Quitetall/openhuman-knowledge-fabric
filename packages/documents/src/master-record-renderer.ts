@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { canonicalize, digestBytes } from '@kf/canonicalization';
+import { recordVerification } from '@kf/domain';
 import {
   sectionMasterRecord,
   type MasterRecordCompilation,
@@ -88,12 +89,17 @@ function classificationLine(member: PermissionMember): string {
  * apart has been told the weaker one.
  */
 function verificationNote(member: PermissionMember): string {
-  if (member.verified === undefined) return 'UNVERIFIED — nobody has checked this record';
-  const how =
-    member.verified.basis === 'reviewed_individually'
-      ? 'reviewed individually'
-      : 'promoted in bulk';
-  return `verified ${how} by ${member.verified.by} at ${member.verified.at}`;
+  // One wording for every surface that shows a record (`@kf/domain`): the projection engine,
+  // the Object View, agent reads and search hits say exactly what this renderer says.
+  return recordVerification(
+    member.verified === undefined
+      ? undefined
+      : {
+          basis: member.verified.basis,
+          verifiedAt: member.verified.at,
+          verifiedBy: member.verified.by,
+        },
+  ).label;
 }
 
 function renderMemberMarkdown(member: PermissionMember, inlineContent: boolean): string[] {

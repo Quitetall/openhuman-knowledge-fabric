@@ -1,4 +1,5 @@
 import { canonicalize, digest } from '@kf/canonicalization';
+import { isRecordVerification } from '@kf/domain';
 import type {
   ProjectionDefinition,
   ProjectionFilter,
@@ -25,7 +26,8 @@ export class ProjectionRefused extends Error {
       | 'parameter_type'
       | 'budget_exceeded'
       | 'coverage'
-      | 'foreign_member',
+      | 'foreign_member'
+      | 'unlabelled_member',
     message: string,
   ) {
     super(message);
@@ -186,6 +188,15 @@ export function project(input: ProjectionInput): ProjectionResult {
         `member ${member.objectId} belongs to ${member.organizationId}, not ${corpus.organizationId}`,
       );
     }
+    // KF-SAS-RQ-229: a projection that includes an unverified member labels it. Refused here,
+    // before any section is built, so no surface downstream can receive a member it would have
+    // to guess about — and a verified-looking label on an unverified record is refused as well.
+    if (!isRecordVerification(member.verification)) {
+      throw new ProjectionRefused(
+        'unlabelled_member',
+        `member ${member.objectId} carries no verification, or a label its facts do not produce`,
+      );
+    }
   }
   if (corpus.members.length > definition.budgets.maxMembers) {
     throw new ProjectionRefused(
@@ -323,7 +334,7 @@ export function project(input: ProjectionInput): ProjectionResult {
             return ka < kb ? -1 : ka > kb ? 1 : 0;
           });
   const body = {
-    format: 'kf-projection-result-v1' as const,
+    format: 'kf-projection-result-v2' as const,
     definition: { id: definition.id, version: definition.version },
     parameters,
     source: {
@@ -337,6 +348,10 @@ export function project(input: ProjectionInput): ProjectionResult {
       memberCount: candidates.length,
       corpusMemberCount: corpus.members.length,
       excludedByFilter,
+      unverifiedCount: sections.reduce(
+        (n, s) => n + s.members.filter((m) => !m.verification.verified).length,
+        0,
+      ),
       sectionCounts,
       reachedCount: [...reached].filter((id) => known.has(id)).length,
       relevanceFanoutByAnchorType: fanoutByAnchorType,
@@ -344,14 +359,25 @@ export function project(input: ProjectionInput): ProjectionResult {
     },
   };
   // The digest covers what the reader receives: definition + parameters + source identity +
-  // exactly which members sit in which section, by id and content digest.
+  // exactly which members sit in which section, by id and content digest — and, since v2,
+  // whether each was shown as verified and on what basis. Two readings that differ only in
+  // which members were labelled unverified told their readers different things. The format tag
+  // is in the preimage (KF-SAS-RQ-158), so a v2 digest cannot collide with a v1 one.
   const projectionDigest = digest({
+    format: body.format,
     definition: body.definition,
     parameters: body.parameters,
     source: body.source,
     sections: sections.map((s) => ({
       id: s.id,
-      members: s.members.map((m) => [m.objectId, m.contentDigest, m.itemState]),
+      members: s.members.map((m) => [
+        m.objectId,
+        m.contentDigest,
+        m.itemState,
+        m.verification.verified
+          ? ['verified', m.verification.basis, m.verification.verifiedAt, m.verification.verifiedBy]
+          : ['unverified', m.verification.label],
+      ]),
     })),
     ...(resultEdges === undefined
       ? {}

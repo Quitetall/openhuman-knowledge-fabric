@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { recordVerification, UNVERIFIED_LABEL } from '@kf/domain';
 import type { ProjectionDefinition } from '@kf/ontology-compiler';
 import { bindParameters, project, ProjectionRefused } from './engine.js';
 import { renderProjection } from './render.js';
@@ -17,6 +18,7 @@ const member = (objectId: string, overrides: Partial<ProjectionMember> = {}): Pr
   classification: 'internal',
   contentDigest: objectId.padStart(64, '0').slice(-64),
   itemState: 'included',
+  verification: recordVerification(undefined),
   ...overrides,
 });
 
@@ -387,5 +389,104 @@ describe('rendered links', () => {
     const html = renderProjection(result, 'html', { links: hostile }).bytes.toString('utf8');
     expect(html).not.toContain('<script>');
     expect(html).toContain('&quot;&gt;&lt;script&gt;');
+  });
+});
+
+describe('verification (KF-SAS-RQ-229, RQ-231)', () => {
+  const checked = recordVerification({
+    basis: 'reviewed_individually',
+    verifiedAt: '2026-09-20T00:00:00.000Z',
+    verifiedBy: 'reviewer',
+  });
+  const mixed: ProjectionCorpus = {
+    ...corpus,
+    members: [member('a', { title: 'Mine', verification: checked }), member('b', { title: 'Raw' })],
+  };
+  const all = (result: ReturnType<typeof project>) => result.sections.flatMap((s) => s.members);
+
+  it('carries verified:false and the label for an unverified member, and counts it', () => {
+    const result = project({ definition, parameters: {}, corpus: mixed, graph });
+    const b = all(result).find((m) => m.objectId === 'b')!;
+    expect(b.verification).toEqual({ verified: false, label: UNVERIFIED_LABEL });
+    expect(result.measurements.unverifiedCount).toBe(1);
+    expect(result.format).toBe('kf-projection-result-v2');
+  });
+
+  it('carries the basis, time and verifier for a verified member', () => {
+    const result = project({ definition, parameters: {}, corpus: mixed, graph });
+    const a = all(result).find((m) => m.objectId === 'a')!;
+    expect(a.verification).toEqual({
+      verified: true,
+      basis: 'reviewed_individually',
+      verifiedAt: '2026-09-20T00:00:00.000Z',
+      verifiedBy: 'reviewer',
+      label: 'verified reviewed individually by reviewer at 2026-09-20T00:00:00.000Z',
+    });
+  });
+
+  it('labels every member in every rendered form, with the master record’s class in HTML', () => {
+    const result = project({ definition, parameters: {}, corpus: mixed, graph });
+    const json = renderProjection(result, 'json').bytes.toString('utf8');
+    expect(json).toContain(`"label":"${UNVERIFIED_LABEL}"`);
+    const markdown = renderProjection(result, 'markdown', { maxInlineMembers: 0 });
+    const md = markdown.bytes.toString('utf8');
+    expect(md).toContain(`  - ${UNVERIFIED_LABEL}`);
+    expect(md).toContain('verified reviewed individually by reviewer');
+    expect(md).toContain('- Unverified members: `1`');
+    const html = renderProjection(result, 'html', { maxInlineMembers: 0 }).bytes.toString('utf8');
+    expect(html).toContain(`<div class="v unverified">${UNVERIFIED_LABEL}</div>`);
+    expect(html).toContain('<div class="v">verified reviewed individually by reviewer');
+    expect(html.match(/class="v unverified"/g)).toHaveLength(1);
+  });
+
+  it('refuses a member with no verification, rather than show it unlabelled', () => {
+    const { verification: _dropped, ...bare } = member('x');
+    const unlabelled = { ...corpus, members: [bare as unknown as ProjectionMember] };
+    expect(() => project({ definition, parameters: {}, corpus: unlabelled, graph })).toThrow(
+      expect.objectContaining({ reason: 'unlabelled_member' }),
+    );
+  });
+
+  it('refuses an unverified member dressed in a verified label', () => {
+    const forged = {
+      ...corpus,
+      members: [member('x', { verification: { verified: false, label: checked.label } as never })],
+    };
+    expect(() => project({ definition, parameters: {}, corpus: forged, graph })).toThrow(
+      ProjectionRefused,
+    );
+  });
+
+  it('moves the digest when only a verification changes: the reader was told something else', () => {
+    const before = project({ definition, parameters: {}, corpus: mixed, graph });
+    const verifiedB = {
+      ...mixed,
+      members: mixed.members.map((m) =>
+        m.objectId === 'b'
+          ? {
+              ...m,
+              verification: recordVerification({
+                basis: 'promoted_in_bulk',
+                verifiedAt: '2026-09-21T00:00:00.000Z',
+                verifiedBy: 'reviewer',
+              }),
+            }
+          : m,
+      ),
+    };
+    const after = project({ definition, parameters: {}, corpus: verifiedB, graph });
+    expect(after.projectionDigest).not.toBe(before.projectionDigest);
+    expect(after.source.corpusDigest).toBe(before.source.corpusDigest);
+  });
+
+  it('pins the v2 digest of a fixed input, so a format change cannot pass silently', () => {
+    // Deliberately a golden. If this moves, the digest preimage changed: that is a new format
+    // tag (KF-SAS-RQ-158), not an updated constant. Recomputed independently of this code when
+    // pinned: SHA-256 over the sorted-key, no-whitespace JSON of {format, definition,
+    // parameters, source, sections: [{id, members: [[id, contentDigest, itemState,
+    // ['verified', basis, verifiedAt, verifiedBy] | ['unverified', label]]]}]}.
+    expect(project({ definition, parameters: {}, corpus: mixed, graph }).projectionDigest).toBe(
+      '913dde56069eded18f311bfded20c46cd99e4008435e009325bc2d3cba6710af',
+    );
   });
 });

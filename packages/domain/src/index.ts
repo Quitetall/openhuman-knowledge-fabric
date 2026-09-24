@@ -47,6 +47,17 @@ export interface PackageManifest {
   readonly owns: readonly AuthorityDomain[];
 }
 
+export {
+  isRecordVerification,
+  recordVerification,
+  UNVERIFIED_LABEL,
+  VERIFICATION_BASES,
+  VERIFICATION_NOT_VISIBLE_LABEL,
+  type RecordVerification,
+  type VerificationBasis,
+  type VerificationFacts,
+} from './verification.js';
+
 export const PACKAGE: PackageManifest = {
   name: '@kf/domain',
   role: 'Typed domain entities and the rules that govern them',
