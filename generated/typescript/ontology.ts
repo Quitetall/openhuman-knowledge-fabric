@@ -1,11 +1,11 @@
 // GENERATED from ontology/ — do not edit.
 // ontology_version: 1.2.0-draft.1
-// source_digest: 1633e5a2f52c859cc983cd4f1f90240d43009e3efdffe7c2bfcbc3c0da057b5e
+// source_digest: 782c9c18adbf1a6440d54d2974bb83df352982d8fd522a9e0c126f50245068a8
 
 /* eslint-disable */
 
 export const SCHEMA_VERSION = '1.2.0-draft.1' as const;
-export const ONTOLOGY_SOURCE_DIGEST = '1633e5a2f52c859cc983cd4f1f90240d43009e3efdffe7c2bfcbc3c0da057b5e' as const;
+export const ONTOLOGY_SOURCE_DIGEST = '782c9c18adbf1a6440d54d2974bb83df352982d8fd522a9e0c126f50245068a8' as const;
 
 export const CLASSIFICATIONS = ['public', 'internal', 'confidential', 'restricted'] as const;
 export type Classifications = (typeof CLASSIFICATIONS)[number];
@@ -810,7 +810,8 @@ export const PROJECTION_DEFINITIONS = [
       "object_id"
     ],
     "budgets": {
-      "maxMembers": 100000
+      "maxMembers": 100000,
+      "maxRuntimeMs": 5000
     }
   },
   {
@@ -830,7 +831,8 @@ export const PROJECTION_DEFINITIONS = [
       "object_id"
     ],
     "budgets": {
-      "maxMembers": 100000
+      "maxMembers": 100000,
+      "maxRuntimeMs": 5000
     }
   },
   {
@@ -878,7 +880,8 @@ export const PROJECTION_DEFINITIONS = [
       "object_id"
     ],
     "budgets": {
-      "maxMembers": 20000
+      "maxMembers": 20000,
+      "maxRuntimeMs": 5000
     }
   },
   {
@@ -922,7 +925,8 @@ export const PROJECTION_DEFINITIONS = [
       "object_id"
     ],
     "budgets": {
-      "maxMembers": 5000
+      "maxMembers": 5000,
+      "maxRuntimeMs": 1000
     }
   }
 ] as const;

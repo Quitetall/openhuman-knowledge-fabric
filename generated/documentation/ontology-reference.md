@@ -1,5 +1,5 @@
 <!-- GENERATED from ontology/ — do not edit. -->
-<!-- ontology_version: 1.2.0-draft.1 · source_digest: 1633e5a2f52c859cc983cd4f1f90240d43009e3efdffe7c2bfcbc3c0da057b5e -->
+<!-- ontology_version: 1.2.0-draft.1 · source_digest: 782c9c18adbf1a6440d54d2974bb83df352982d8fd522a9e0c126f50245068a8 -->
 
 # Ontology reference
 

@@ -7,9 +7,16 @@
  * failed.
  */
 
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { checkOntology, loadOntology, type Ontology } from '@kf/ontology-compiler';
+import {
+  checkOntology,
+  loadOntology,
+  PROJECTION_GRAMMAR_LIMITS,
+  type Ontology,
+} from '@kf/ontology-compiler';
 
 /**
  * Strip `readonly` so a defect can be planted, without losing the type.
@@ -139,6 +146,44 @@ describe('corpus projection definitions are checked like everything else', () =>
         return o;
       }),
     ).toContain('ONT-016');
+  });
+
+  // KF-SAS-RQ-116: every definition is statically bounded in depth, size and runtime, and no
+  // definition may declare a bound above the grammar's own ceiling.
+  it('ONT-018 a traversal deeper than the grammar ceiling', () => {
+    expect(
+      errorsFor((o) => {
+        projection(o, 'master_sections').traverse = {
+          relations: 'person_anchors',
+          maxDepth: PROJECTION_GRAMMAR_LIMITS.maxDepth + 1,
+        };
+        return o;
+      }),
+    ).toContain('ONT-018');
+  });
+
+  it('ONT-018 a runtime budget above the grammar ceiling', () => {
+    expect(
+      errorsFor((o) => {
+        projection(o, 'raw_corpus').budgets = {
+          maxMembers: 10,
+          maxRuntimeMs: PROJECTION_GRAMMAR_LIMITS.maxRuntimeMs + 1,
+        };
+        return o;
+      }),
+    ).toContain('ONT-018');
+  });
+
+  it('ONT-018 a member budget above the grammar ceiling', () => {
+    expect(
+      errorsFor((o) => {
+        projection(o, 'raw_corpus').budgets = {
+          maxMembers: PROJECTION_GRAMMAR_LIMITS.maxMembers + 1,
+          maxRuntimeMs: 1000,
+        };
+        return o;
+      }),
+    ).toContain('ONT-018');
   });
 });
 
@@ -374,6 +419,76 @@ describe('the loader rejects malformed input', () => {
     expect(() => loadOntology(join(ROOT, 'tests', 'ontology', 'fixtures', 'stray-file'))).toThrow(
       /does not read/,
     );
+  });
+
+  describe('the projection grammar is closed (KF-SAS-RQ-116)', () => {
+    /** A copy of the real ontology with projections.yaml rewritten, loaded from a temp dir. */
+    const loadWithProjections = (rewrite: (yaml: string) => string): Ontology => {
+      const dir = mkdtempSync(join(tmpdir(), 'kf-ontology-'));
+      try {
+        for (const file of readdirSync(join(ROOT, 'ontology')).filter((f) => f.endsWith('.yaml'))) {
+          const yaml = readFileSync(join(ROOT, 'ontology', file), 'utf8');
+          writeFileSync(join(dir, file), file === 'projections.yaml' ? rewrite(yaml) : yaml);
+        }
+        return loadOntology(dir);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    };
+    const once = (yaml: string, from: string, to: string): string => {
+      expect(yaml, `the plant site '${from}' is gone`).toContain(from);
+      return yaml.replace(from, to);
+    };
+
+    it('loads the real definitions unchanged through the same path', () => {
+      expect(loadWithProjections((y) => y).projectionDefinitions).toHaveLength(
+        base.projectionDefinitions.length,
+      );
+    });
+
+    it('refuses a misspelled bound rather than ignoring it', () => {
+      expect(() =>
+        loadWithProjections((y) =>
+          once(
+            y,
+            'traverse: { relations: all, max_depth: 1 }',
+            'traverse: { relations: all, max_depth: 1, max_detph: 99 }',
+          ),
+        ),
+      ).toThrow(/unknown key\(s\) max_detph/);
+    });
+
+    it('refuses an unknown key at the top of a definition', () => {
+      expect(() =>
+        loadWithProjections((y) =>
+          once(y, '  - id: raw_corpus\n', '  - id: raw_corpus\n    expression: select 1\n'),
+        ),
+      ).toThrow(/unknown key\(s\) expression/);
+    });
+
+    it('refuses an unknown key in a section filter', () => {
+      expect(() =>
+        loadWithProjections((y) =>
+          once(
+            y,
+            'filter: { item_states: [included] }',
+            'filter: { item_states: [included], sql: x }',
+          ),
+        ),
+      ).toThrow(/unknown key\(s\) sql/);
+    });
+
+    it('refuses a definition with no runtime budget', () => {
+      expect(() =>
+        loadWithProjections((y) =>
+          once(
+            y,
+            'budgets: { max_members: 5000, max_runtime_ms: 1000 }',
+            'budgets: { max_members: 5000 }',
+          ),
+        ),
+      ).toThrow(/max_runtime_ms: expected a positive integer/);
+    });
   });
 
   it('refuses an ontology directory that is missing a required file', () => {

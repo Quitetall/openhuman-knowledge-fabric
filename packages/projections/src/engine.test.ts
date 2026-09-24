@@ -34,7 +34,7 @@ const definition: ProjectionDefinition = {
   ],
   remainder: { id: 'raw_corpus', title: 'Raw corpus' },
   sort: ['object_type', 'title', 'object_id'],
-  budgets: { maxMembers: 1000 },
+  budgets: { maxMembers: 1000, maxRuntimeMs: 5000 },
 };
 
 const graph: ProjectionGraph = {
@@ -148,10 +148,74 @@ describe('project', () => {
   });
 
   it('refuses over budget instead of truncating', () => {
-    const tiny: ProjectionDefinition = { ...definition, budgets: { maxMembers: 2 } };
+    const tiny: ProjectionDefinition = {
+      ...definition,
+      budgets: { maxMembers: 2, maxRuntimeMs: 5000 },
+    };
     expect(() => project({ definition: tiny, parameters: {}, corpus, graph })).toThrow(
       /Refusing rather than truncating/,
     );
+  });
+
+  it('refuses a walk that overruns its runtime budget, while it is walking (RQ-116)', () => {
+    // A clock that advances 10 ms per reading; the first reading sets the deadline. The corpus
+    // is ONE member but the graph is a 50-hop composition chain, so everything after the walk
+    // reads the clock twice — well inside 45 ms — and only a deadline checked per node of the
+    // walk can refuse. Remove the tick from the closure and this test fails, which is the point.
+    let t = 0;
+    const clock = (): number => (t += 10);
+    const chain: ProjectionGraph = {
+      edges: [
+        { sourceId: 'person', targetId: 'n0', relationType: 'produces' },
+        ...Array.from({ length: 50 }, (_, i) => ({
+          sourceId: `n${String(i)}`,
+          targetId: `n${String(i + 1)}`,
+          relationType: 'contains',
+        })),
+      ],
+      policies: [
+        ...graph.policies,
+        {
+          relationType: 'contains',
+          personAnchor: false,
+          propagationClass: 'composition_down',
+          anchorDepth: 0,
+        },
+      ],
+    };
+    const one: ProjectionCorpus = { ...corpus, members: [member('n0')] };
+    const budgeted = (maxRuntimeMs: number): ProjectionDefinition => ({
+      ...definition,
+      budgets: { maxMembers: 1000, maxRuntimeMs },
+    });
+    expect(() =>
+      project(
+        { definition: budgeted(45), parameters: {}, corpus: one, graph: chain },
+        { now: clock },
+      ),
+    ).toThrow(/exceeded its runtime budget of 45 ms/);
+    // The same clock and a budget that covers the walk: it completes.
+    t = 0;
+    expect(() =>
+      project(
+        { definition: budgeted(5000), parameters: {}, corpus: one, graph: chain },
+        { now: clock },
+      ),
+    ).not.toThrow();
+  });
+
+  it('refuses a definition that is not statically bounded, whatever produced it', () => {
+    const cases: ProjectionDefinition[] = [
+      { ...definition, traverse: { relations: 'person_anchors', maxDepth: 9 } },
+      { ...definition, budgets: { maxMembers: 1000 } } as unknown as ProjectionDefinition,
+      { ...definition, budgets: { maxMembers: 1000, maxRuntimeMs: 30_001 } },
+      { ...definition, budgets: { maxMembers: 100_001, maxRuntimeMs: 5000 } },
+    ];
+    for (const unbounded of cases) {
+      expect(() => project({ definition: unbounded, parameters: {}, corpus, graph })).toThrow(
+        expect.objectContaining({ reason: 'unbounded_definition' }),
+      );
+    }
   });
 
   it('treats an explicit relation list as a whitelist of what may seed relevance', () => {
@@ -198,7 +262,7 @@ describe('object-anchored readings', () => {
     ],
     remainder: { id: 'other', title: 'Other' },
     sort: ['object_type', 'title', 'object_id'],
-    budgets: { maxMembers: 5000 },
+    budgets: { maxMembers: 5000, maxRuntimeMs: 1000 },
   };
   const A = '019ff405-2eca-7e77-96cb-00990ac6f24a';
   const B = '019ff405-2eca-7e77-96cb-00990ac6f24b';

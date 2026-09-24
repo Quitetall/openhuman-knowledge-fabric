@@ -9,7 +9,7 @@
 export { relevanceClosure, relevanceClosureWithMetrics } from './closure.js';
 export { neighbourhood } from './neighbourhood.js';
 export { loadProjectionDefinitions, type ProjectionDefinitionSet } from './definitions.js';
-export { bindParameters, project, ProjectionRefused } from './engine.js';
+export { bindParameters, project, ProjectionRefused, type ProjectOptions } from './engine.js';
 export {
   renderProjection,
   renderProjectionHtml,

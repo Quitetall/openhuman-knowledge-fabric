@@ -59,6 +59,24 @@ relation raises **ONT-012** at warning severity, so the gap is counted on every 
 rather than living in a comment. Typing lands in Gate 6, alongside the object-type
 extension where the full inventory is known.
 
+## The projection grammar is closed and bounded
+
+`projections.yaml` is a closed grammar (SAS §60, KF-SAS-RQ-116). The loader refuses any key it
+does not name — at the top of a definition and inside `traverse`, `filter`, `sections`,
+`parameters`, `remainder` and `budgets` — because an ignored `max_detph` would read as a bound
+and be none. Every definition declares `budgets.max_members` and `budgets.max_runtime_ms`, and
+no definition may exceed the grammar's ceilings (`PROJECTION_GRAMMAR_LIMITS` in
+`packages/ontology-compiler/src/model.ts`: depth 8, 30 000 ms, 100 000 members; ONT-018). The
+engine (`@kf/projections`) re-checks the same ceilings on whatever definition it is handed and
+turns `max_runtime_ms` into a deadline checked per node walked and per member placed: an
+overrun is refused, never truncated.
+
+What the depth ceiling bounds is `traverse.max_depth` — the anchor's first stance. After the
+first hop, composition and provenance walk to a fixpoint, bounded by the corpus (and so by
+`max_members`) and by the runtime deadline rather than by depth. That is deliberate, recorded in
+`packages/projections/src/closure.ts`: a depth cut there would turn a budget into silent
+membership loss.
+
 ## Editing
 
 1. Change the YAML.
