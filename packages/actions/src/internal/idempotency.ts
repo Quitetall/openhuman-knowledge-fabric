@@ -1,8 +1,8 @@
 import {
   auditChainDigest,
   compareCanonicalText,
-  digest,
   isAuditLinkFormat,
+  taggedDigest,
 } from '@kf/canonicalization';
 import type { Tx } from '@kf/database';
 import {
@@ -20,8 +20,7 @@ import {
  * time stays null so dispatcher wall clock cannot make otherwise identical retries differ.
  */
 export function semanticActionRequestDigest(request: ActionRequest): string {
-  return digest({
-    format: 'kf-action-request-v1',
+  return taggedDigest('kf-action-request-v1', {
     organizationId: request.organizationId,
     actionType: request.actionType,
     actorId: request.actorId,
@@ -36,8 +35,7 @@ export function semanticActionRequestDigest(request: ActionRequest): string {
 
 /** Serialize equivalent retry lookups before any materialization can occur. */
 export async function lockIdempotencyKey(tx: Tx, request: ActionRequest): Promise<void> {
-  const lockIdentity = digest({
-    format: 'kf-action-idempotency-lock-v1',
+  const lockIdentity = taggedDigest('kf-action-idempotency-lock-v1', {
     organizationId: request.organizationId,
     actionType: request.actionType,
     idempotencyKey: request.idempotencyKey,
