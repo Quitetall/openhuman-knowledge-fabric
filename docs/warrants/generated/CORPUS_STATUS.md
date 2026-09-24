@@ -17,11 +17,11 @@ Source: every Warrant under the configured warrants path, its sidecar records, a
 - **digest:** `sha256:cd221037a66d3b94cfdaf77215b58bc36982491a337af3d5e6ddfc65b574dd37`
 - Revision 0.1.0-draft.7 is ACCEPTED (§101.2) and normative. A Warrant compiles against the revision its authorization recorded (§14), so a later revision does not move an authorized contract: 1 against 0.1.0-draft.7.
 
-**Requirements (176 in §106)** — strictest rung first:
+**Requirements (180 in §106)** — strictest rung first:
 
 | satisfied | in_progress | claimed | unaddressed | superseded |
 |---|---|---|---|---|
-| **0** | 0 | 12 | 164 | 0 |
+| **0** | 0 | 12 | 168 | 0 |
 
 ## Objectives (SAS §98 phases)
 
@@ -79,7 +79,7 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 
 ## Requirements (SAS §106, §34.3)
 
-**Unaddressed (164)** — no Warrant names these. Several may be built; the gap is bookkeeping, and it is listed rather than hidden:
+**Unaddressed (168)** — no Warrant names these. Several may be built; the gap is bookkeeping, and it is listed rather than hidden:
 
 - `KF-SAS-RQ-001` — One coherent typed graph over records whose authorities remain distinct
 - `KF-SAS-RQ-002` — Visibility, immutability and integrity enforced in the database
@@ -245,6 +245,10 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 - `KF-SAS-RQ-243` — A closed record's identity-bearing fields are immutable for every session, the owner's included
 - `KF-SAS-RQ-244` — Every relation declares its endpoint types, and the database refuses an edge of an undeclared shape
 - `KF-SAS-RQ-245` — A backup is taken by a backup-only login, holds every row it claims, and its restore is proven from that login's backup
+- `KF-SAS-RQ-246` — Delegation goes one level deep, and every new role assignment and project membership ends within 366 days
+- `KF-SAS-RQ-247` — A recorded query is disclosed only to its asker; another person's replay returns only the aggregate
+- `KF-SAS-RQ-248` — An export from an earlier exporter of the same format imports, converted as its migrations converted
+- `KF-SAS-RQ-249` — A process addresses a store only at its declared, bound address, which never changes and carries no credential
 
 | requirement | status | would_satisfy | implementers |
 |---|---|---|---|
@@ -424,6 +428,10 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 | `KF-SAS-RQ-243` | unaddressed | 0 | — |
 | `KF-SAS-RQ-244` | unaddressed | 0 | — |
 | `KF-SAS-RQ-245` | unaddressed | 0 | — |
+| `KF-SAS-RQ-246` | unaddressed | 0 | — |
+| `KF-SAS-RQ-247` | unaddressed | 0 | — |
+| `KF-SAS-RQ-248` | unaddressed | 0 | — |
+| `KF-SAS-RQ-249` | unaddressed | 0 | — |
 
 ## Warrants (1) — invalid 0 · draft 1 · ready_to_resolve 0 · would_satisfy 0 · resolved **0**
 
