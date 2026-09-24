@@ -265,3 +265,4 @@ export function admitted(mask: Uint8Array): number {
 
 export * from './protocol.js';
 export * from './client.js';
+export * from './engine.js';

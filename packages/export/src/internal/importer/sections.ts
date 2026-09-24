@@ -27,7 +27,7 @@ export interface RestoredSections {
  * that runs before this refuses a listed file that is missing, so absence here means the signed
  * manifest never listed it, not that it was lost on the way.
  */
-const SECTIONS_ADDED_AFTER_FORMAT_1 = new Set(['object-verifications']);
+const SECTIONS_ADDED_AFTER_FORMAT_1 = new Set(['object-verifications', 'access-demand']);
 
 function predatesSection(pkg: ExportPackage, name: string): boolean {
   if (!SECTIONS_ADDED_AFTER_FORMAT_1.has(name)) return false;

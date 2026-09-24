@@ -18,6 +18,14 @@ Produces:
 | `backup.manifest.json`           | Closed file set, sizes and SHA-256 | Commits to every file above, including `SHA256SUMS`                   |
 | `backup.manifest.signature.json` | Ed25519 root-manifest signature    | Authenticates restore inputs against external historical trust        |
 
+**What a backup does not carry.** Transient observations (§64B, ADR 0029) — recorded queries,
+their pseudonym key, the per-person demand contributions and retrieval-trace digests — expire
+after 90 days, and a backup retained longer than that would keep them past their window. Their
+**data** is therefore left out of the dump (`--exclude-table-data`, one per table declared under
+`transientTables` in `docs/architecture/master-record-boundary.json`), and they are excluded from
+the canonical export. The tables themselves are restored empty. A restore that finds rows in them
+has found a defect, not a success.
+
 Neither the dump nor the export substitutes for the other. The dump answers "get us running
 again this afternoon". The export answers "can this still be read in 2045". The backup
 coordinator opens one `REPEATABLE READ READ ONLY` transaction, exports one PostgreSQL snapshot,

@@ -8,6 +8,7 @@
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts", "dist", "node_modules"],
   "references": [
+    { "path": "../../packages/retrieval" },
     {
       "path": "../../packages/domain"
     },

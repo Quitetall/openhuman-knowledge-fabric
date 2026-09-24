@@ -23,6 +23,7 @@ export const IMPORT_ORDER = [
   'relations',
   'approvals',
   'object-verifications',
+  'access-demand',
   'snapshots',
   'audit-events',
   'audit-checkpoints',

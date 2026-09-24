@@ -41,6 +41,11 @@ export interface ApiConfig {
    * in-process through a development login that holds `kf_attestor`.
    */
   readonly attestorSocket?: string;
+  /**
+   * The retrieval engine's socket (KF_RETRIEVAL_SOCKET, §64A). Absent means search is lexical
+   * only, and every answer says so in its withholding ledger (KF-SAS-RQ-216).
+   */
+  readonly retrievalSocket?: string;
   /** Evidence vault. Absent only in tests or intentionally metadata-only development. */
   readonly artifactStore?: S3Config;
   /** A second, durable store (ADR 0017): GCS via S3 interop, or any S3-wire bucket. */
@@ -275,6 +280,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     );
   }
 
+  const retrievalSocket =
+    env['KF_RETRIEVAL_SOCKET'] !== undefined && env['KF_RETRIEVAL_SOCKET'] !== ''
+      ? env['KF_RETRIEVAL_SOCKET']
+      : undefined;
+  if (retrievalSocket !== undefined && !isAbsolute(retrievalSocket)) {
+    throw new ConfigError(
+      `KF_RETRIEVAL_SOCKET must be an absolute path, got ${JSON.stringify(retrievalSocket)}`,
+    );
+  }
+
   const s3Endpoint = env['S3_ENDPOINT'];
   const s3Region = env['S3_REGION'];
   const s3AccessKeyId = env['S3_ACCESS_KEY_ID'];
@@ -449,6 +464,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     tlsTerminatedUpstream,
     identity,
     ...(attestorSocket === undefined ? {} : { attestorSocket }),
+    ...(retrievalSocket === undefined ? {} : { retrievalSocket }),
     ...(artifactStore === undefined ? {} : { artifactStore }),
     ...(durableStore === undefined ? {} : { durableStore }),
     ...(masterRecordLinkSecret === undefined ? {} : { masterRecordLinkSecret }),

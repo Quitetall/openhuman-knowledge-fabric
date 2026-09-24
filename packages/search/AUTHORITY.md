@@ -4,3 +4,47 @@ Search over canonical records, with access control applied before results are re
 
 Authority: none. Indexes are disposable and must be rebuildable from authoritative records
 (§2.10).
+
+## Composition, not merging (§64A, KF-SAS-RQ-224)
+
+`composeSearch` answers one query with two separately ranked lists and never one merged order:
+
+- **lexical** — full text and partial identifier over `search.document`, ranking named
+  `kf.lexical.full_text+partial_identifier.v1`. Exhaustive within its scope: `total` is the number
+  of granted matches, and `complete` says whether the page holds all of them.
+- **semantic** — the retrieval engine's ranking, under the name the engine gives it, present only
+  when the engine answered. Every id is re-read through `search.document` and `core.object` under
+  the caller's row security in one statement, then through the caller's grants. An id that fails
+  either refuses the whole semantic list, because it means the engine's mask was wrong, and a
+  shortened list reads as a complete one.
+
+When no engine is configured, or the engine cannot serve, the lexical list is still served and
+the withholding ledger carries `semantic_ranking_unavailable` with its reason (KF-SAS-RQ-216).
+
+**Near misses** (KF-SAS-RQ-217) are returned only when asked for, as a separate
+`nearMisses { label, scoringFunction, hits }`. The engine ranks `2k`; the first `k` are the answer
+and the rest are offered as adjacent, and the scoring function's name says exactly that. They are
+re-checked like every semantic hit. The withholding ledger does not count them.
+
+**What was withheld** (KF-SAS-RQ-222, ADR 0037) is one number, `withheldCount`: records at or
+below the asker's ceiling that match the lexical query and that no grant reaches. It is computed on
+every request and stored nowhere. Records above the ceiling are invisible to the query under row
+security, so they are never counted, and nothing about a withheld record except the count is
+returned. A masked record is never scored by the engine, so the count is over lexical matches.
+
+## Transient observations (§64B)
+
+A query is a transient observation, not a record (ADR 0029). `recordQuery` writes
+`search.recorded_query` through a definer seam: the text, the organization, the asker's ceiling and
+a pseudonymous asker key — an HMAC of the person under a key in `search.asker_key`, which no
+application role can read and which rotates with the window — and never the person. Rows expire
+after 90 days and `core.sweep_transient_observations()` deletes them. The same holds for
+`search.demand_contribution` and for `retrieval.disclosure`, which records the digest of each
+engine trace (KF-SAS-RQ-219) and has no person column.
+
+`replayRecordedQuery` runs a recorded query at the replayer's ceiling and grants, returns the
+records the original asker's ceiling withheld — computed, not stored — and counts each once per
+distinct asker key into the durable `org.access_demand` aggregate: a record and a count of distinct
+persons, never which persons (KF-SAS-RQ-221). A person whose key rotated between two replays is
+counted twice, so the count can overstate distinct people across a rotation; and a quiet report is
+not evidence of no unmet demand (§100.23).
