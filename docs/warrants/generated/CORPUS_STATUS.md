@@ -17,11 +17,11 @@ Source: every Warrant under the configured warrants path, its sidecar records, a
 - **digest:** `sha256:cd221037a66d3b94cfdaf77215b58bc36982491a337af3d5e6ddfc65b574dd37`
 - Revision 0.1.0-draft.7 is ACCEPTED (§101.2) and normative. A Warrant compiles against the revision its authorization recorded (§14), so a later revision does not move an authorized contract: 1 against 0.1.0-draft.7.
 
-**Requirements (163 in §106)** — strictest rung first:
+**Requirements (170 in §106)** — strictest rung first:
 
 | satisfied | in_progress | claimed | unaddressed | superseded |
 |---|---|---|---|---|
-| **0** | 0 | 12 | 151 | 0 |
+| **0** | 0 | 12 | 158 | 0 |
 
 ## Objectives (SAS §98 phases)
 
@@ -79,7 +79,7 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 
 ## Requirements (SAS §106, §34.3)
 
-**Unaddressed (151)** — no Warrant names these. Several may be built; the gap is bookkeeping, and it is listed rather than hidden:
+**Unaddressed (158)** — no Warrant names these. Several may be built; the gap is bookkeeping, and it is listed rather than hidden:
 
 - `KF-SAS-RQ-001` — One coherent typed graph over records whose authorities remain distinct
 - `KF-SAS-RQ-002` — Visibility, immutability and integrity enforced in the database
@@ -112,7 +112,7 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 - `KF-SAS-RQ-041` — The read path and the write path consult the same grant view
 - `KF-SAS-RQ-042` — Any access decision is explainable as a path to the deciding grant or exclusion
 - `KF-SAS-RQ-043` — An institutional act requires an act grant reaching every locked target
-- `KF-SAS-RQ-044` — Which actions are institutional is declared in the ontology, not in control flow
+- `KF-SAS-RQ-044` — Which actions are institutional is declared in the ontology and consulted by the database, not encoded in control flow
 - `KF-SAS-RQ-045` — Automated work acts as a declared service actor through the same write path
 - `KF-SAS-RQ-046` — A service actor is refused every institutional act, whatever grants reach it
 - `KF-SAS-RQ-047` — An act that judges another act is refused to the actor who performed it
@@ -182,7 +182,7 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 - `KF-SAS-RQ-141` — Secure-object access is by issued, recorded capability with a declared purpose
 - `KF-SAS-RQ-142` — The work-control path is reachable through declared actions alone
 - `KF-SAS-RQ-143` — Product, quality and engineering records use the same model, with no privileged path
-- `KF-SAS-RQ-150` — The HTTP layer holds no authority and makes no refusal the write path does not
+- `KF-SAS-RQ-150` — The HTTP layer holds no authority and permits nothing the write path refuses; its own refusals are admission checks that grant nothing
 - `KF-SAS-RQ-151` — Operator commands take secrets by file only, refusing an inline secret by name
 - `KF-SAS-RQ-152` — A release package carries its gaps, and an approval commits to them
 - `KF-SAS-RQ-153` — A manifest does not contain its own digest; verifying it is a distinct act
@@ -232,6 +232,13 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 - `KF-SAS-RQ-230` — An unverified record is not citable as evidence
 - `KF-SAS-RQ-231` — A promotion act records whether the item was reviewed individually or in bulk
 - `KF-SAS-RQ-232` — Verification is recorded independently of lifecycle state, never inferred from it
+- `KF-SAS-RQ-233` — The transaction context is written only by the database's binding functions, sealed, and readable only as sealed
+- `KF-SAS-RQ-234` — The application binds only a principal derived from a live assignment and recorded clearance, and may then only narrow
+- `KF-SAS-RQ-235` — An application bind requires a current attestation from a separate process that verified the person's token
+- `KF-SAS-RQ-236` — People, role assignments and identity links are created only through the owner credential
+- `KF-SAS-RQ-237` — The database recomputes each audit event's digest and refuses a mismatch
+- `KF-SAS-RQ-238` — The database refuses a ledger row for an institutional act no live act grant covers, or by a service actor
+- `KF-SAS-RQ-239` — Every table that enables row-level security forces it, and a gate fails on one that does not
 
 | requirement | status | would_satisfy | implementers |
 |---|---|---|---|
@@ -398,6 +405,13 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 | `KF-SAS-RQ-230` | unaddressed | 0 | — |
 | `KF-SAS-RQ-231` | unaddressed | 0 | — |
 | `KF-SAS-RQ-232` | unaddressed | 0 | — |
+| `KF-SAS-RQ-233` | unaddressed | 0 | — |
+| `KF-SAS-RQ-234` | unaddressed | 0 | — |
+| `KF-SAS-RQ-235` | unaddressed | 0 | — |
+| `KF-SAS-RQ-236` | unaddressed | 0 | — |
+| `KF-SAS-RQ-237` | unaddressed | 0 | — |
+| `KF-SAS-RQ-238` | unaddressed | 0 | — |
+| `KF-SAS-RQ-239` | unaddressed | 0 | — |
 
 ## Warrants (1) — invalid 0 · draft 1 · ready_to_resolve 0 · would_satisfy 0 · resolved **0**
 

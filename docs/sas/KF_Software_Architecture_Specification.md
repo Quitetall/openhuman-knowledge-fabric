@@ -7,8 +7,8 @@
 | Document class | Software Architecture Specification |
 | Short name | KF SAS |
 | Status | Draft for acceptance |
-| Version | `0.1.0-draft.7` |
-| Date | 2026-09-20 |
+| Version | `0.1.0-draft.8` |
+| Date | 2026-09-24 |
 | Enterprise identifier | Unallocated — this file name is not an official Identifier Registry allocation (§94.5) |
 | Program name | **OpenHuman Knowledge Fabric** |
 | Record name | **Object** |
@@ -153,24 +153,14 @@ decided by row-level security policies, triggers, check constraints and foreign 
 application does not implement those rules a second time. It cannot relax them, and a defect in
 it cannot widen them.
 
-The measured shape of that authority, from the migrations in `database/migrations/`:
+The shape of that authority is measured from the migrations in `database/migrations/` and stated
+in [`generated/measurements.md`](../../generated/measurements.md) rather than here (§103.3): the
+schemas, tables, row-level security policies, triggers, `SECURITY DEFINER` declarations,
+foreign-key references, check constraints, indexes, views — none materialized — and group roles,
+every one `NOLOGIN`. The file is derived from the checkout and the build fails when it drifts.
 
-| | |
-|---|---|
-| Migrations | 88 |
-| Schemas | 13 |
-| Tables | 168 |
-| Row-level security policies | 438 |
-| Triggers | 152 |
-| Functions | 158 distinct |
-| Foreign keys | 431 |
-| Check constraints | 724 occurrences |
-| Indexes | 85 |
-| Views | 16, none materialized |
-| Group roles | 10, all `NOLOGIN` |
-
-Against that: roughly 47 000 lines of TypeScript whose job is orchestration, action dispatch and
-HTTP. The ratio is the thesis. **Performance work in this system is database work**, and §40
+Against that, the TypeScript's job is orchestration, action dispatch and HTTP. The ratio is the
+thesis. **Performance work in this system is database work**, and §40
 records what that cost when it was first measured.
 
 Three corollaries that the rest of this document depends on:
@@ -180,8 +170,10 @@ Three corollaries that the rest of this document depends on:
 2. **An unbound context sees nothing.** `core.current_classification_rank()` defaults to `-1`,
    below `public`, so a connection that has not bound an access context reads an empty database
    rather than an unfiltered one.
-3. **The application is not a second way in.** The HTTP surface makes no refusal the dispatcher
-   does not, and `tests/permissions/api-actions.test.ts` asserts that against a real database.
+3. **The application is not a second way in.** The HTTP surface permits nothing the dispatcher
+   refuses, and `tests/permissions/api-actions.test.ts` asserts that against a real database.
+   Since 2026-09-23 the application is not trusted to say who is acting either: the database
+   binds the principal (§17) and checks every authority row against it (ADR 0033).
 
 **KF-SAS-RQ-002.** Visibility, immutability and referential integrity SHALL be enforced in the
 database, and the application layer SHALL NOT be the sole enforcement point for any of them.
@@ -235,8 +227,8 @@ acting role and targets, in the same transaction that applies it.
 
 ### Law 3 — A refusal is a feature
 
-Every refusal has a name. There are twelve refusal codes (§28), each distinct so that a caller
-can respond rather than only log. A system that fails with a generic error teaches its operators
+Every refusal has a name. The dispatcher's refusal codes are a closed set (§28), each distinct so
+that a caller can respond rather than only log. A system that fails with a generic error teaches its operators
 to ignore failures.
 
 **KF-SAS-RQ-012.** Every refusal the dispatcher makes SHALL carry one of the named failure codes
@@ -517,8 +509,9 @@ and `pg_restore` do not all report PostgreSQL 18.
 **10.2 TypeScript, strict, on Node.js.** One language for orchestration, one runtime, no
 polyglot service mesh. Node `>=24.18.1 <25` as the real executable at `/usr/bin/node`.
 
-**10.3 A pnpm workspace of 29 packages, built as a composed monolith.** 24 libraries under
-`packages/` and 5 executables under `apps/`. The composition root is `@kf/orchestrator`. The
+**10.3 A pnpm workspace, built as a composed monolith.** Libraries under `packages/` and
+executables under `apps/`, counted in [`generated/measurements.md`](../../generated/measurements.md).
+The composition root is `@kf/orchestrator`. The
 packages are authority boundaries in the same sense the schemas are: `@kf/database` is the only
 package permitted to open a connection, `@kf/actions` is the only path for controlled writes,
 `@kf/ui` holds no business rules.
@@ -563,8 +556,9 @@ Every claim here is one of three kinds, and each is written so the kind is unamb
 3. **An explicit statement of absence** — "no host has been commissioned", "cross-repository SAS
    resolution does not exist". These are claims too, and they are as load-bearing as the others.
 
-Counts in this document were measured on 2026-09-03 against the repository at that date. A count
-is the most perishable kind of claim; §103.3 says which counts are gated and which are not.
+A count is the most perishable kind of claim. This document states no source count and cites
+[`generated/measurements.md`](../../generated/measurements.md), which is gated on drift; a runtime
+count appears only where the runtime is the subject, with its date and host (§103.3).
 
 ---
 
@@ -576,15 +570,23 @@ Every governed record is a row in `core.object`. The row carries the identity, t
 lifecycle state, the owning organization, the classification and a row version. The typed table
 that holds the record's own fields references it.
 
-That split is the reason row-level security is affordable. ADR 0003 records the decision: RLS
-stops at `core.object`, and 77 typed tables carry none. A typed row is reachable only through
-its object, so a policy on the object governs the record without 77 more policies to keep in
-agreement. `tests/database/classification-predicate-equivalence.test.ts` asserts the predicate
+ADR 0003 first stopped row-level security at `core.object`, on the reasoning that a typed row is
+reachable only through its object. That held for the application's joins and not for a role
+reading a typed table directly, so since 2026-08-16 the typed tables carry policies of their own
+whose predicate is that the owning envelope is visible (`20260816000300`, `20260816000500`); the
+tables still excluded are an exact set, each with a reason, asserted by
+`tests/database/typed-table-visibility.test.ts`. The object remains the one place the two axes are
+decided, and `tests/database/classification-predicate-equivalence.test.ts` asserts the predicate
 has exactly one meaning however it is written.
 
 Identity is a UUIDv7. The ordering property is used; the timestamp inside it is not treated as
 an authoritative time. `effective_at` on the act is the time the event happened, which can
-differ from the time it was recorded, and both are kept.
+differ from the time it was recorded, and both are kept. Absent, it is the database clock at
+dispatch, rounded up to the millisecond so an act never takes effect before the transaction that
+recorded it began. A caller-supplied value is bounded at the HTTP surface — at most five minutes
+ahead, and no further back than `KF_EFFECTIVE_AT_BACKDATE_DAYS` (default 30) unless the action type
+is listed as backdatable — and refused otherwise as `effective_at_out_of_bounds`, because an
+unbounded event time lets anyone date an approval before the review it depended on.
 
 **KF-SAS-RQ-030.** Every governed record SHALL have exactly one `core.object` row carrying its
 identity, type, lifecycle state, organization, classification and row version.
@@ -663,15 +665,42 @@ use by `org.resolve_effective_classification`, and the resolved value — never 
 — is what is bound into the row-level security context. A request may narrow; it can never
 widen.
 
-The seam is one function, `setResolvedAccessContext`, and the comment on it states the rule the
-code enforces: the caller never gets to bind an unverified classification directly. A refusal
-surfaces as `classification_not_granted`.
+**Since 2026-09-23 the database enforces this, not the application** ([ADR 0033](../decisions/0033-the-database-binds-the-principal.md)).
+A red-team pass run as `kf_app` showed that every `kf.*` setting the policies read was the
+application's to write: any tenant could be bound at `restricted` with nobody behind it. The
+TypeScript seam was correct and was the only thing in the way.
+
+- **The context is sealed** (`20260923000100`). Each `kf.*` setting is written with an HMAC over
+  its name, value, backend and transaction start, under a key no role with write grants can read.
+  A raw `set_config` is not refused; it is simply not believed, and reads as the unset context —
+  no organization, rank `-1`, no actor. No function but the seal's own reads or writes a `kf.*`
+  setting.
+- **The application binds a principal, not an organization.** `core.bind_principal` takes a
+  person, their role assignment, the organization and a requested ceiling; it checks the
+  assignment is live and clamps the ceiling to the person's clearance. `core.set_access_context`
+  then refuses the application anything but narrowing that ceiling in that organization — or
+  `public` with no principal bound, the one level that is anyone's to read.
+- **Administrator and service logins keep their credential as their authority** — the owner and
+  migrator, the worker, readiness, backup, checkpoint — and a service login's actor must still
+  hold the assignment it names.
+
+`setResolvedAccessContext` in `@kf/database` is now a caller of `core.bind_principal`. A refusal
+surfaces as `classification_not_granted`, `role_not_held`, or `not_attested` (§24).
+`tests/database/principal-binding.test.ts` plants the forgeries the red team succeeded with.
 
 **KF-SAS-RQ-037.** A caller-supplied classification ceiling SHALL be resolved against recorded
 clearance before it is bound, and the resolved value SHALL be the one enforced.
 
 **KF-SAS-RQ-038.** A clearance SHALL be organization-scoped and effective-dated, and the
 effective ceiling SHALL be the minimum of the clearance and any assignment ceiling.
+
+**KF-SAS-RQ-233.** The transaction's access and actor context SHALL be written only by the
+database's own binding functions, sealed so that a value written any other way reads as unset, and
+readable only through accessors that verify the seal.
+
+**KF-SAS-RQ-234.** Above `public`, an application session SHALL bind a reader only as a principal
+whose organization and ceiling the database derives from a live role assignment and recorded
+clearance, and SHALL thereafter be able only to narrow that ceiling in that organization.
 
 ## 18. Access is a grant
 
@@ -726,6 +755,16 @@ the dispatcher requires a live `act` grant reaching every target — or the orga
 the act is applied, through `org.act_grant_reaches`, over the same view the read side uses.
 A refusal is `act_not_granted`, surfaced as HTTP 403.
 
+**The database asks the same question on the ledger row** (`20260924000100`). Once an action row
+had to name the sealed principal (§17), a compromised API could still write one crediting its
+principal with an act that principal had no authority to perform. The trigger
+`action_requires_act_authority` on `core.action` refuses it, through the same
+`org.act_grant_reaches`, over the row's own `target_ids`, as the invoker, so row-level security on
+every grant source applies exactly as it did to the dispatcher a moment earlier. It is the same
+decision taken twice, not a second implementation that could disagree. The dispatcher's check
+still runs first, because its refusal carries a message a person can act on; the trigger is for a
+caller that did not go through it. `tests/database/act-authority.test.ts` plants both refusals.
+
 The check runs **after the targets are locked**, because a check against a target set that could
 still change is a check against nothing.
 
@@ -736,7 +775,12 @@ category rather than a description.
 the organization, checked after targets are locked.
 
 **KF-SAS-RQ-044.** Which actions are institutional SHALL be declared in the ontology and carried
-into the database, not encoded in application control flow.
+into the database, not encoded in application control flow; the database consults that
+declaration itself, and does not rely on the application to have done so.
+
+**KF-SAS-RQ-238.** The database SHALL refuse a ledger row for an institutional act that no live
+act grant covers, or whose actor is a service actor, using the same coverage function the
+dispatcher uses.
 
 ## 21. Service actors
 
@@ -749,7 +793,8 @@ permission-checked key file on the host. It goes through the same dispatcher as 
 
 And it is barred from institutional acts. Whatever grants reach it, the dispatcher refuses any
 action declaring `requires: act` to an actor whose `person_kind` is `service`, by name and with
-a message that says why. A service actor does routine work under authority somebody granted; it
+a message that says why, and since `20260924000100` the database refuses the ledger row as well
+(§20). A service actor does routine work under authority somebody granted; it
 never authorizes, approves, grants, allocates or resolves.
 
 `person_kind` is a database column and deliberately **not** an ontology field, because `person`
@@ -803,6 +848,25 @@ checked. The subject is then looked up: an identity not linked to a person in th
 refused as `unknown_subject`, which is the refusal working, not a fault. Everything after that
 — which roles, which clearance, which grants, which acts — is answered by PostgreSQL.
 
+**Presence is attested by a separate process** (`20260924001000`). PostgreSQL cannot verify an
+RS256 token — pgcrypto has no RSA — so until then `core.bind_principal` believed any real person
+the API named, and a fully compromised API could act as anyone with their real authority.
+`apps/attestor` (`kf-attestor`) now verifies the bearer token exactly as the API did — issuer,
+audience, RS256 only, expiry, keys over TLS — resolves the subject, and calls
+`core.issue_attestation` under the `kf_attestor` login, which the API does not hold. The database
+stores a digest of a random secret against the person, assignment, organization and ceiling,
+expiring at the earlier of the token's own expiry and sixty seconds; the API carries the secret for
+the request and presents it to every `core.bind_principal`. An application bind without a current
+matching attestation is refused as `not_attested`, answered HTTP 401.
+
+The attestation is reusable within its life rather than consumed, and the reason is stated so it is
+not mistaken for an oversight: a compromised API sees every token passing through it and can have a
+fresh attestation issued for any of them until that token expires, so the replay window is the
+token's lifetime either way. What the attestor closes is the step that mattered — the API can no
+longer bind a person who has not presented a valid token to it within one token lifetime (300 s in
+the shipped realm). The database still trusts the attestor's verification; an attacker holding both
+processes is back to the earlier position, and threat model open item 6 records that.
+
 The web boundary has two identity profiles and they never fall back into each other. A
 `development` profile may explicitly enable a fixed non-authoritative identity. The `dogfood`
 profile refuses that path entirely and requires verified OIDC identity plus a database-backed
@@ -814,6 +878,10 @@ question SHALL be answered from recorded state in the database.
 **KF-SAS-RQ-049.** A deployment profile that permits fixed non-authoritative identity SHALL be
 distinct from every profile that serves records, and SHALL NOT be reachable from one by
 configuration.
+
+**KF-SAS-RQ-235.** The database SHALL bind a person for the application's login only on a current
+attestation, issued through a login the application does not hold by a separate process that
+verified that person's token, and valid no longer than that token.
 
 ---
 
@@ -851,12 +919,16 @@ each step is named here because a reordering is an authority change.
 5. **The definition is loaded** from `registry.action_type` and `registry.state_transition`.
 6. **The role is held.** Checked through a `SECURITY DEFINER` helper so it is independent of the
    ceiling bound in the next step.
-7. **The access context is resolved and bound** (§17). Resolved before any context exists,
-   because the caller's requested value is untrusted and must never reach RLS directly.
+7. **The principal is bound** (§17). `core.bind_principal` derives the organization and ceiling
+   from the live assignment and clearance, and for the application's login requires a current
+   attestation (§24). The caller's requested ceiling is untrusted and never reaches RLS
+   directly; it can only narrow what the database resolved.
 8. **A reason is present** where the action type requires one.
 9. **A prior action is replayed** if this key was already used (§29). Replay happens after
    clearance is resolved, so an idempotency retry cannot bypass the authority boundary.
-10. **The action id is minted** and the effective time settled.
+10. **The action id is minted** and the effective time settled, both from the database: the id
+    by `uuidv7()`, and an omitted effective time as the database clock rounded up to the
+    millisecond (§13).
 11. **Prepare** — materialize, lock, validate, digest (§27).
 12. **Act coverage is asserted** (§20), after the targets are locked.
 13. **Apply** — insert the act, apply the transitions, run the typed effect.
@@ -902,7 +974,7 @@ change over a read the caller did not make.
 
 ## 28. Refusal codes
 
-Twelve, closed, each distinct so a caller can respond rather than only log:
+Thirteen, closed, each distinct so a caller can respond rather than only log:
 
 | Code | Meaning |
 |---|---|
@@ -910,6 +982,7 @@ Twelve, closed, each distinct so a caller can respond rather than only log:
 | `actor_not_authorized` | the actor may not perform this act |
 | `classification_not_granted` | the requested ceiling exceeds resolved clearance |
 | `role_not_held` | the acting role assignment is not live for this actor |
+| `not_attested` | no current attestation that the actor is present (§24); HTTP 401, so the caller identifies again |
 | `act_not_granted` | no live act grant reaches the targets (§20), or the actor is a service (§21) |
 | `object_not_visible` | a target is missing, or invisible under the bound context |
 | `version_conflict` | the expected row version is stale |
@@ -918,6 +991,10 @@ Twelve, closed, each distinct so a caller can respond rather than only log:
 | `idempotency_conflict` | this key was used for different act semantics |
 | `separation_of_duty` | the actor performed the act this one judges |
 | `reason_required` | this action type requires a stated reason |
+
+`not_attested` is the thirteenth, added 2026-09-24 with the attestor. Every other code answers
+403, 404, 409, 422 or 400; this one answers 401, because the remedy is to present a token again,
+not to ask for more authority.
 
 Refusals are **thrown**, as `ActionRejected` carrying the code and a detail object.
 `ActionResult.status` has exactly one value, `'applied'`. There is no success object that means
@@ -942,8 +1019,8 @@ the organization, action type, actor, acting role, **sorted** target ids, payloa
 expected version and effective time. What is deliberately excluded is as important as what is
 included: `requestId` is transport correlation and `maxClassification` is read scope, and
 neither changes mutation semantics. Target order is non-semantic because authority and audit
-operate over a set. An omitted event time stays null, so the dispatcher's wall clock cannot make
-two otherwise identical retries differ.
+operate over a set. An omitted event time stays null in the digest, so the database clock that
+supplies it (§13) cannot make two otherwise identical retries differ.
 
 On replay the system does not simply return the old result. It re-verifies it:
 
@@ -969,13 +1046,22 @@ before returning it.
 ## 30. The audit chain
 
 One append-only hash chain over every act. Each event digests the previous digest together with
-the act's attributed fields, under a named format tag.
+the RFC 8785 canonical form of the act's attributed fields. The preimage carries no format tag;
+§100.27 records that gap against KF-SAS-RQ-016.
 
-Two properties are enforced structurally:
+Three properties are enforced structurally:
 
-- **One implementation of the chain arithmetic.** `appendAuditEvent` is the only place that
+- **One writer of the chain.** `appendAuditEvent` is the only place that appends an event and
   computes `prev_digest`. Two hand-written appends would be two chances to compute it
   differently, and a chain that disagrees with itself is indistinguishable from a tampered one.
+- **The database recomputes every link** (`20260923000200`). Until then the insert trigger
+  checked an event's link to its predecessor and never its digest, so a writer could make a digest
+  nobody computed the chain head. `core.audit_event_digest` now recomputes it from the event's own
+  fields and its action's targets, exactly as `auditChainDigest` does, and
+  `core.enforce_audit_chain_head` refuses a mismatch, an event that misdescribes its action, and —
+  outside an administrator session — an event for any action but the one the sealed context names.
+  The second computation is a check, not a second writer: where the two disagree, nothing is
+  stored.
 - **The chain lock is taken as late as possible.** It serializes every act in the system, so it
   is held for the shortest interval the arithmetic allows.
 
@@ -989,6 +1075,10 @@ one implementation, in the same transaction as the act.
 
 **KF-SAS-RQ-059.** The audit chain SHALL be independently verifiable from its recorded events
 without trusting the process that wrote them.
+
+**KF-SAS-RQ-237.** The database SHALL recompute each audit event's digest from the recorded fields
+it commits to, and SHALL refuse an event whose stated digest differs or which does not describe
+the act the sealed context names.
 
 ## 31. The outbox
 
@@ -1017,18 +1107,32 @@ cannot commit, and SHALL NOT confer authority on any subsequent request.
 
 ## 33. Bootstrap acts
 
-There is one honest exception to §25, and it is documented where it is exported rather than
-hidden.
+There are exceptions to §25, they are enumerated, and each is documented where it is exported
+rather than hidden.
 
 Dispatch binds authoritative clearance before effects run. So the **first** clearance in an
 organization cannot be granted through the dispatcher: there is no clearance yet to bind. That
 grant happens outside it — and it still has to extend the same audit chain, with the same
-arithmetic, or the chain disagrees with itself.
+arithmetic, or the chain disagrees with itself. `appendAuditEvent` is exported for exactly this,
+with that reasoning attached.
 
-`appendAuditEvent` is exported for exactly this, with that reasoning attached.
+Since ADR 0033 the exception is wider and deliberate. **Authority is minted only by the owner
+credential**: `kf_app` has no INSERT on `org.person` or `org.role_assignment`, and neither INSERT
+nor UPDATE on `org.external_identity` (`20260923000200`), because that grant was the whole of what
+a compromised API needed to make itself somebody. So four administrative commands run on the
+owner connection, outside the dispatcher, and each still appends through `appendAuditEvent`:
+`apps/api/src/admin/bootstrap-organization.ts`, `grant-authority.ts`,
+`declare-service-actor.ts` and `retire-organization.ts`. What the application keeps is narrower
+than creation: it may end-date a role assignment or a clearance and nothing else about it — a
+trigger refuses reopening, retargeting or extending an interval — and it may grant a clearance
+only by a dispatched act, never to the act's own actor.
 
 **KF-SAS-RQ-062.** Any act that cannot pass through the dispatcher SHALL still extend the audit
 chain using the same implementation, and SHALL be enumerable.
+
+**KF-SAS-RQ-236.** People, role assignments and external identity links SHALL be created only
+through the owner credential; the application role SHALL be able at most to end-date an
+assignment or clearance, and SHALL NOT grant clearance to the actor granting it.
 
 ## 34. What the dispatcher does not do
 
@@ -1041,8 +1145,8 @@ typed writes. The dispatcher owns authority, ordering, atomicity and recording.
 no schema layer between the caller and the effect; each action reads what it needs and refuses
 what it cannot use.
 
-**34.3 It does not enforce row visibility.** PostgreSQL does. The dispatcher binds the context;
-the policies decide. This is the point of §5, and it is why a dispatcher bug cannot widen a
+**34.3 It does not enforce row visibility.** PostgreSQL does. The dispatcher names the principal;
+the database binds it (§17) and the policies decide. This is the point of §5, and it is why a dispatcher bug cannot widen a
 read.
 
 **34.4 It does not know about HTTP.** The API is a caller like any other, and holds no authority
@@ -1063,8 +1167,9 @@ authority" is a slogan until somebody says which construct enforces which rule.
 | Rule | Enforced by |
 |---|---|
 | what a reader may see | row-level security policies on `core.object`, over a bound context |
-| what may reference what | 431 foreign keys |
-| what values are legal | 724 check constraints |
+| what may reference what | foreign keys |
+| what values are legal | check constraints |
+| who is acting, where, at what ceiling | a sealed context bound by `core.bind_principal` (§17) |
 | what may never change again | triggers that refuse `update` and `delete` on immutable rows |
 | what may not overlap | exclusion constraints over validity intervals |
 | that an unknown token is unknown | foreign keys into `registry.*`, so an unknown state or action fails a key rather than an application check |
@@ -1079,24 +1184,26 @@ undeclared type, state or action token fails a referential constraint.
 
 ## 36. Schemas as authority boundaries
 
-Thirteen schemas. They are authority boundaries, not folders: each names the domain that owns
-the facts inside it, so "which system may write this" is answerable from the table name.
+The schemas are authority boundaries, not folders: each names the domain that owns the facts
+inside it, so "which system may write this" is answerable from the table name. How many there are
+is in [`generated/measurements.md`](../../generated/measurements.md); what each owns is here.
 
-| Schema | Tables | Owns |
-|---|---|---|
-| `registry` | 13 | the ontology, mirrored from the YAML sources under `ontology/` |
-| `core` | 12 | object identity, typed relations, actions, approvals, snapshots, audit, outbox |
-| `org` | 10 | people, organizations, engagements, roles, clearance, grants |
-| `product` | 7 | products, configuration items, baselines |
-| `work` | 27 | projects, work packages, work orders, execution, warrants |
-| `engineering` | 7 | decisions, changes, requirements, risks, tests |
-| `content` | 40 | artifacts, versions, locations, documents, publications |
-| `finance` | 4 | invoices, payments, allocations |
-| `quality` | 14 | controlled documents, CAPA, suppliers, training |
-| `ops` | 6 | backup runs, recovery objectives, readiness evidence |
-| `search` | 1 | a derived, disposable index |
-| `ml` | 19 | append-only ML lineage, typed metrics, run seals, signed promotions |
-| `secure_object` | 8 | secure-object capabilities, authority keys, erasure |
+| Schema | Owns |
+|---|---|
+| `registry` | the ontology, mirrored from the YAML sources under `ontology/` |
+| `core` | object identity, typed relations, actions, approvals, snapshots, audit, outbox, verification, the context seal and attestations |
+| `org` | people, organizations, engagements, roles, clearance, grants |
+| `product` | products, configuration items, baselines |
+| `work` | projects, work packages, work orders, execution, warrants |
+| `engineering` | decisions, changes, requirements, risks, tests |
+| `content` | artifacts, versions, locations, documents, publications, orphan collection |
+| `finance` | invoices, payments, allocations |
+| `quality` | controlled documents, CAPA, suppliers, training |
+| `ops` | backup runs and copies, recovery objectives, restore drills, readiness evidence |
+| `search` | a derived, disposable index |
+| `retrieval` | the retrieval index's band version, derived and excluded from the boundary (§64A) |
+| `ml` | append-only ML lineage, typed metrics, run seals, signed promotions |
+| `secure_object` | secure-object capabilities, authority keys, erasure |
 
 `search` carries its own statement of what it is not: nothing there is a source of truth, and
 `search.rebuild()` reconstructs every row from `core.object` and the typed tables. A derived
@@ -1107,48 +1214,70 @@ SHALL be reconstructible from authoritative rows.
 
 ## 37. Roles and DDL
 
-Ten group roles, all `NOLOGIN`, so a role is a set of privileges rather than an account:
-`kf_owner_role`, `kf_migrator`, `kf_app`, `kf_api`, `kf_worker`, `kf_checkpoint`, `kf_readonly`,
-`kf_auditor`, `kf_backup`, `kf_ml_promoter`.
+Group roles, all `NOLOGIN`, so a role is a set of privileges rather than an account:
+`kf_owner_role`, `kf_migrator`, `kf_app`, `kf_worker`, `kf_checkpoint`, `kf_readonly`,
+`kf_auditor`, `kf_backup`, `kf_ml_promoter`, and since `20260924001000` `kf_attestor`, the only
+application-side role that may vouch a person is present (§24), and `kf_service_actor`, an
+application login whose principal must be a declared service actor (§21). `kf_api` is not among
+them and never was: it is the example login role, inheriting `kf_app`, in the comment that
+explains the pattern. The list is counted in
+[`generated/measurements.md`](../../generated/measurements.md).
 
 `kf_migrator` owns structure and is **the only role permitted DDL**. `kf_app` is the API: it
 reads, and writes domain rows through actions only. The separation means a compromised
 application role cannot alter a policy, drop a constraint or add a table outside the boundary
 registry.
 
-The deployment gives each service a distinct unprivileged system account, with one deliberate
-exception: backup and restore-drill share one, because they need exactly the same secrets and
-the same archive, and inventing a second identity for the same authority would be theatre.
+The deployment gives each service a distinct unprivileged system account. Backup and restore
+drill used to share one, on the reasoning that they needed the same secrets; the 2026-09-23
+hardening found that they do not. The backup writes and signs an archive encrypted to a public
+key, and only the drill needs the secret half, so the drill runs as `kf-drill`, the one unit that
+can decrypt, and the backup user never can. The off-site copy runs as `kf-offsite`, the attestor
+as `kf-attestor` in the `kf-attest` group it shares only with the API's socket, and the daily
+checkpoint verification as `kf-audit-verify`, which holds no signing key. The one remaining
+shared account is `kf-alert`, used by the alert unit and its heartbeat, which need the same
+webhook and nothing else.
 
 **KF-SAS-RQ-072.** Exactly one database role SHALL be permitted schema changes, and the
 application role SHALL NOT hold it.
 
 ## 38. Row-level security
 
-RLS is **enabled** on 143 tables and **forced** — so that even a table's owner is subject to it —
-on 70 of them. Measured on 2026-09-04 against a fresh install of every migration on the dogfood
-host, which is the first time this schema had ever been installed anywhere but a test container.
+**Every table that enables row-level security forces it**, since `20260924000200`. The migration
+forces each table that only enabled it and then refuses to complete if any remains, and
+`tests/database/row-security-forced.test.ts` fails on a table added later that enables without
+forcing. KF-SAS-RQ-073 is met as stated.
 
-**73 tables enable row-level security without forcing it**, and the static count of the
-migrations gives the same 73, so the two now reconcile exactly. They are the domain tables: work,
-quality, engineering, product and finance entirely, and parts of core, org and content. What is
-forced is content, `ml`, `secure_object` and parts of core, org and registry.
+The history is kept because it is instructive. On 2026-09-04, against the first install of this
+schema on a host, 143 tables enabled row-level security and 70 forced it; the 73 that did not
+reconciled exactly with the migrations, and the "113 of 139" `deploy/postgres/planner.conf` had
+claimed was wrong in both halves, having come from a workstation database that had accumulated
+state. By 2026-09-24 the migrations left 76 unforced — the domain tables in work, quality,
+engineering, product and finance, and parts of core, org and content. No host has been measured
+since the forcing migration; that runtime count is owed.
 
-Forcing matters only for a table's **owner**. The owner is `kf_migrator`, and the application
-runs as `kf_app` (§37), so row-level security applies to every application read regardless. This
-is therefore not an application-visible hole. It is a hole for anything connecting as the owner,
-and it is not the unqualified guarantee KF-SAS-RQ-073 states, so it is written here rather than
-left to be found.
+What forcing changes is narrower than it sounds, and the reason is worth stating. ENABLE binds
+every role but a table's owner, and PostgreSQL treats any login that **inherits** the owner role
+as the owner. Before `20260924000200`, such a login read every tenant at every classification with
+no context bound, and the only thing in the way was the API's refusal to start as one — a check in
+one program, not a property of the tables. FORCE binds the owner too. The owner itself still reads
+everything, by its `BYPASSRLS` attribute (ADR 0026), which is not inherited; every `SECURITY
+DEFINER` seam depends on that, and readiness refuses a host whose owner lacks it.
 
-`deploy/postgres/planner.conf` said "113 of 139 force it" until that measurement. Both halves
-were wrong, and nothing had ever checked, because the number came from a workstation database
-that had accumulated state rather than from an install.
+Tables that do not enable row-level security at all — `ops.*`, `registry.*` reference data,
+`org.role`, the chain head and checkpoints, the seal key, leases and migration bookkeeping — name
+no organization and hold no record content, so there is no row a policy could scope. They are
+guarded by grants and append-only triggers.
 
 Two kinds of count appear in this document because two things are being counted: statements in
 migrations, and tables in a running database. §103.3 says which to cite for what.
 
 The policies scope every read to the bound organization and classification rank. ADR 0003
-records why they sit on `core.object` and not on the 77 typed tables that hang off it.
+records how the typed tables came to carry policies of their own, keyed on the visibility of
+their envelope (§13). Since `20260923000300` every policy asks for the sealed context once per
+query rather than once per row: verifying the seal made each accessor a call the planner cannot
+inline, and a policy-governed read of 12 000 rows went from 17 ms to 296 ms before the rewrite and
+5.9 ms after it, measured by `tests/database/rls-read-cost.test.ts`.
 
 A caution that is part of the architecture, not an accident: the boundary registry
 (`docs/architecture/master-record-boundary.json`) is built by reading `alter table … enable row
@@ -1161,6 +1290,9 @@ holding governed records.
 
 **KF-SAS-RQ-074.** A table brought under row-level security SHALL be declared in a form the
 boundary registry can discover statically.
+
+**KF-SAS-RQ-239.** Every table that enables row-level security SHALL force it, and a table that
+enables it without forcing it SHALL fail a gate.
 
 ## 39. Policy predicates and plan shape
 
@@ -1176,9 +1308,9 @@ function. Invoker rights keep every referenced table enforcing its own RLS, so t
 plan-shape change and not a visibility change — which is the property that made it acceptable at
 all.
 
-A census found 4 policies with three or more `EXISTS` clauses. Three siblings in
-`ml.*` are unmeasured because their tables are empty, and that is recorded rather than assumed
-benign.
+A census found a handful of other policies with three or more `EXISTS` clauses. Three siblings
+in `ml.*` are unmeasured because their tables are empty, and that is recorded rather than
+assumed benign.
 
 **KF-SAS-RQ-075.** A policy predicate refactored for plan shape SHALL preserve visibility
 exactly, and SHALL run with invoker rights so that referenced tables continue to enforce their
@@ -1218,8 +1350,9 @@ applied identically in development, test and production, and a gate SHALL assert
 
 ## 41. Triggers and immutability
 
-152 triggers. The pattern they implement is Law 6: a record that states something happened
-cannot be edited to state that it happened differently.
+The triggers, counted in [`generated/measurements.md`](../../generated/measurements.md),
+implement Law 6 first: a record that states something happened cannot be edited to state that it
+happened differently.
 
 An artifact version is a statement that a specific set of bytes existed and was used, so it is
 append-only. An audit event cannot be updated. A location may be updated only to record
@@ -1227,15 +1360,18 @@ verification. A public copy may be written only by a publication act and only in
 declared public, and unpublishing marks it rather than removing it.
 
 Triggers are used where a `CHECK` cannot reach, because a check constraint cannot read another
-table. That is a deliberate and repeated pattern, and it is why the count is high.
+table. That is a deliberate and repeated pattern, and it is why the count is high. Since the
+2026-09-23 hardening they also hold writes to the sealed context: an audit event's digest (§30),
+an act's authority (§20), an interval that may only close (§33), a revocation dated by the
+database's clock, and a verification whose basis is paced (§100.26).
 
 **KF-SAS-RQ-077.** A record asserting that an event occurred SHALL be immutable after it is
 written, except for fields that record subsequent verification of it.
 
 ## 42. Check constraints and invariants
 
-`ontology/rules.yaml` declares 15 invariants. Ten came from R01 and are asserted byte-identical
-and in order; five are declared additions.
+`ontology/rules.yaml` declares the invariants. Ten came from R01 and are asserted byte-identical
+and in order; the rest are declared additions.
 
 The intent is that every declared invariant is enforced by a database constraint or an action
 precondition, and `tests/conformance/rule-implementation.test.ts` maps each refusal code to the
@@ -1251,7 +1387,8 @@ action precondition, and the mapping from invariant to enforcement SHALL be asse
 
 ## 43. Migrations
 
-88 forward migrations, each with a `migrate:down` section. Structure lives only in
+Forward migrations, counted in [`generated/measurements.md`](../../generated/measurements.md),
+each with a `migrate:down` section. Structure lives only in
 `database/migrations/`; the sibling directories for constraints, functions, row security,
 triggers and seeds are empty by design, because DDL split across directories is DDL applied in
 an order nobody declared.
@@ -1265,8 +1402,12 @@ from one declared sequence.
 
 ## 44. Reversibility
 
-Seven migrations are not reversible, and that is stated by a test rather than discovered during
-an incident. `tests/deployment/migration-reversibility.test.ts` names them.
+Some migrations are not reversible, and that is declared rather than discovered during an
+incident. Each carries `-- kf:forward-only <reason>` in its down-section; rollback runs down to the
+highest such migration and the rehearsal asserts it stopped there, by version.
+`tests/deployment/migration-reversibility.test.ts` plants an empty down-section without the
+declaration and requires the verifier to name it, and the number that declare it is in
+[`generated/measurements.md`](../../generated/measurements.md).
 
 Irreversibility is acceptable when it is known. A `down` section that silently loses data is
 worse than no `down` section, because it invites a rollback that cannot be undone.
@@ -1328,6 +1469,20 @@ file or object store is touched.
 **Copy** (`--mode=copy`) — the Fabric holds the bytes. They are hashed, written to the working
 store with create-only semantics, and attached by `attach_evidence`.
 
+The order is load-bearing, and since 2026-09-23 it is this. **Content is scanned first**: a path
+or content shape that must never enter — private keys, credential files, likely bank details, tax
+and card numbers — refuses the whole batch before a byte goes anywhere, reading inside ZIP
+packages and PDF streams under a decompression bound
+(`apps/api/src/ingest/content-policy.ts`; a backstop, not a guarantee, and the threat model
+states its blind spots). **A batch has a ceiling**, which a caller may lower and not raise. **The
+act is rehearsed before any put**: the classification is checked against the session's ceiling
+and the act is run through the transactional preflight, so a refusal that can be known in advance
+is known before the object store — outside the transaction and immutable — is touched. **The
+storage key is derived by the server** from the bound organization and the digest; a caller-named
+key is refused. **The document is parsed before the transaction opens**, so a source pandoc
+cannot parse is refused without holding a transaction, and the act inside it only checks that
+the parse was computed over the exact bytes it verified.
+
 **Reference** (`--mode=reference`) — the Fabric does not hold the bytes. It records governed
 metadata, the digest, and a versioned external locator through `register_external_artifact`.
 The file is still hashed, because the digest is the whole point of a reference.
@@ -1361,8 +1516,8 @@ item, each naming them. A capture path built this way is a fast path **through**
 rather than around it.
 
 **Verification is orthogonal to lifecycle state, and this revision exists because the last one
-assumed otherwise.** `draft` is the initial state of 8 of the 24 state machines in
-`ontology/state-machines.yaml`; the other sixteen begin at `planned`, `proposed`, `active`, `open`,
+assumed otherwise.** `draft` is the initial state of only some of the state machines in
+`ontology/state-machines.yaml`; the others begin at `planned`, `proposed`, `active`, `open`,
 `captured`, `prospective`, `in_service` or `received`. So "unverified" cannot be
 `lifecycle_state = 'draft'` — a work order that begins at `planned` was never a draft, and under the
 previous wording the rules below did not reach it at all.
@@ -1421,8 +1576,20 @@ Bytes go to an object store with **create-only** semantics: a put to an existing
 rather than overwriting. Combined with digest addressing, this means a key can only ever hold
 one set of bytes.
 
-Ingestion distinguishes an authority refusal from a storage failure, so that a failed act does
-not leave unreferenced data in the bucket.
+Ingestion distinguishes an authority refusal from a storage failure, and since 2026-09-23 it
+prevents rather than cleans up: every refusal that can be known before the put is made before it
+(§48), for `POST /ingest`, `POST /documents` and `kf ingest` alike. What can still slip through —
+a crash between the put and the commit, an act refused by a check the rehearsal cannot see — is
+swept by `kf-storage --collect-orphans`, which deletes a key under an organization's evidence
+prefixes that no version or location references once it is older than a grace period (168 hours
+as shipped). Each deletion is recorded in the append-only `content.orphan_collection`
+(`20260924000400`), written through one definer seam that takes the collector and organization
+from the sealed principal and requires a declared service actor, and carried in the preservation
+export. Collection is not an act, because an act is on a record and an orphan is bytes no record
+points at; it is still attributed and kept.
+
+KF-SAS-RQ-094 is therefore met by prevention, a sweep, and a record of the sweep — not by the
+first alone.
 
 **KF-SAS-RQ-094.** Object writes SHALL be create-only, and a failed act SHALL NOT leave
 unreferenced content in a store.
@@ -1543,7 +1710,9 @@ The test is `tests/round-trip/export.test.ts`, and the property it asserts is by
 the two exports, not merely that the import did not error.
 
 Backup and restore are the operational half of the same guarantee (§88), including a monthly
-drill that restores the newest off-site backup into a scratch database and proves it restored.
+drill that pulls the newest off-site ciphertext back, checks it is the object recorded as sent,
+decrypts it as `kf-drill`, restores it into a throwaway PostgreSQL 18 cluster that it deletes
+afterwards, and records the result against the production ledger.
 A backup is not valid until it has been restored, so the drill runs the **shipped scripts**
 rather than a test-only path.
 
@@ -1611,7 +1780,7 @@ Two invariants hold over every result, and both are planted against:
 - **Coverage.** Sections partition the corpus; a Raw Corpus remainder is always appended, so a
   definition that omits a member fails rather than hiding it.
 
-Core definitions are pack-shipped in `ontology/projections.yaml` — four today — so they are
+Core definitions are pack-shipped in `ontology/projections.yaml`, so they are
 compiled, R01-gated and signed with the pack. Organization-authored custom definitions are
 controlled database records referencing the pack-declared grammar.
 
@@ -1655,6 +1824,15 @@ declares for that type.
 
 `GET /objects/:id` is the read. Adding a new object type to the ontology makes it browsable
 without a UI change, and that is the acceptance test for the design.
+
+**Reading has no side effects** ([ADR 0033](../decisions/0033-the-database-binds-the-principal.md),
+amending ADR 0015). A view is over the reader's master record, and when that record was absent or
+stale the GET used to compile it — an audited act, which a cross-site link carrying the viewer's
+cookie could trigger. `GET /objects/:id` now answers `409 master_record_stale`, and
+`POST /objects/:id/refresh` compiles as an act, as the reader, and serves the view. The web
+application issues that POST itself when the browser reports the navigation as the person's own
+— same-origin, or typed and bookmarked, by `Sec-Fetch-Site`, and never a prefetch — and asks for a
+click otherwise.
 
 **KF-SAS-RQ-117.** Every object type SHALL have a read view derived from ontology metadata,
 requiring no type-specific presentation code.
@@ -2004,8 +2182,8 @@ would lose the orthogonality that made them worth separating.
 intermediate representation **as OpenWarrant computed them**. KF does not recompute a digest and
 assert its own answer; that would be becoming a second authority for a fact Git owns.
 
-`@kf/warrants` owns all 32 §67 action names, in four groups: eight contract acts, twelve
-execution acts, six evidence acts and six terminal acts. Every one of them now performs a typed
+`@kf/warrants` owns every §67 action name, in four groups: contract, execution, evidence and
+terminal acts. Every one of them now performs a typed
 write; the list of names accepted and audited without one is empty, and it is kept as an empty
 exported constant rather than deleted, so that adding a name without a typed effect is a visible
 change rather than an absence. Authorization requires a contract digest. Blocking and pausing
@@ -2171,17 +2349,33 @@ the same object, act and audit model as every other record, with no privileged p
 ## 75. The HTTP surface
 
 `@kf/api` exposes typed reads and typed actions. It holds no authority of its own: every write
-is a dispatcher call and every read is bound to a resolved access context.
+is a dispatcher call, and every read binds the caller as a principal through
+`core.bind_principal` with the attestation `kf-attestor` issued for that request (§17, §24). The
+API names who is acting; the database decides whether that is anybody.
 
 `tests/permissions/api-actions.test.ts` asserts the property that matters — **the API is not a
-second way in.** Every refusal the dispatcher makes, the API makes.
+second way in.** Every refusal the dispatcher makes, the API makes, and nothing the dispatcher
+refuses can be had through it.
 
-Notable reads: `GET /master-record` and `POST /master-record/compile`; `GET /objects/:id` and
+The converse used to be claimed too — that the API makes no refusal the write path does not —
+and the 2026-09-23 hardening made it untrue on purpose. The ingest surfaces refuse content that
+must never enter (§48), a batch over its ceiling, and a sync over its limit; the action route
+refuses an `effectiveAt` outside its bounds (§13); step-up refuses a money, release or
+control-withdrawal act without a fresh strong authentication; the edge rate-limits. Each is an
+**admission check on the request** — on what it carries, how much, when it claims to have
+happened, how recently its bearer authenticated — and none grants, widens or substitutes for a
+decision the write path makes. KF-SAS-RQ-150 is clarified in place to say exactly that. Its
+identifier stands; the earlier wording was wrong about the design, not about a defect.
+
+Notable reads: `GET /master-record` and `POST /master-record/compile`; `GET /objects/:id`, which
+answers `409 master_record_stale` rather than compiling, and `POST /objects/:id/refresh` (§61);
 `GET /objects/:id/access?person=`; `GET /documents/:id/source`; `GET /identifiers/:id`; the
 signed public publication route.
 
-**KF-SAS-RQ-150.** The HTTP layer SHALL hold no authority of its own, and SHALL make no refusal
-the write path does not.
+**KF-SAS-RQ-150.** The HTTP layer SHALL hold no authority of its own; SHALL permit nothing the
+write path refuses; and every refusal it makes that the write path does not SHALL be an admission
+check on the request — its content, size, stated time or authentication freshness — that grants
+and widens nothing.
 
 ## 76. The command line
 
@@ -2193,7 +2387,11 @@ clearance — as one command that records a real act and extends the audit chain
 
 Two rules the CLI enforces because they are cheap there and expensive later: **no inline bearer
 tokens** — `--token-file` only, refusing `--token` by name — and refusals printed verbatim
-before any credential or database is opened.
+before any credential or database is opened. Since 2026-09-23 a token file must also be
+owner-only, read through the same `readSecretFile` rule as every other secret, and
+`scripts/deploy/login-token.sh` takes a password from the terminal without echo or from an
+owner-only file, refusing it from the environment. What the CLI writes is as sensitive as what it
+reads: a master record written with `--out` is created `0600`.
 
 **KF-SAS-RQ-151.** Operator commands SHALL accept secrets only by file reference, and SHALL
 refuse an inline secret by name.
@@ -2297,8 +2495,8 @@ there is no general write tool, and adding one would be an authority change.
 
 The ontology carries a schema version, `1.2.0-draft.1` at this writing. The pack supersedes a
 named predecessor. Digests are domain-separated by format tags — `kf-action-request-v1`,
-`kf-projection-result-v1`, `kf-master-record-boundary-v1`, `kf-publication-v1` — so a format
-change is a new tag rather than a silent reinterpretation of old bytes.
+`kf-projection-result-v1`, `kf-publication-v1` and the others §102 lists — so a format change is a
+new tag rather than a silent reinterpretation of old bytes.
 
 **KF-SAS-RQ-158.** Every canonical format SHALL carry a version tag in its digest preimage, and
 a format change SHALL produce a new tag rather than reinterpret existing digests.
@@ -2325,12 +2523,14 @@ state it rather than implying portability.
 
 ## 85. Host requirements
 
-Six of them, and the fact worth recording is that **every one was discovered by failure**, not
+The fact worth recording about the first six is that **every one was discovered by failure**, not
 by design:
 
-1. **pandoc**, on `PATH`. A host without it answered every document import with HTTP 500 and
-   logged `spawn pandoc ENOENT`. Undocumented until 2026-08-18. The version is deliberately
-   unpinned (§52.3).
+1. **pandoc**, in `/usr/local/bin`, `/usr/bin` or `/bin`, or at the absolute path
+   `KF_PANDOC_PATH` names. The inherited `PATH` is deliberately not searched: a writable directory
+   early on a service account's `PATH` would otherwise choose the program that parses evidence. A
+   host without it answered every document import with HTTP 500. Undocumented until 2026-08-18.
+   The version is deliberately unpinned (§52.3).
 2. **A LaTeX engine** — `pdflatex`, from `texlive-latex-base`, `texlive-latex-recommended`,
    `texlive-fonts-recommended` and `lmodern` — for PDF rendering.
 3. **python3**, on `PATH`. The fallback *is* the production path. Undocumented until 2026-08-20,
@@ -2343,8 +2543,20 @@ by design:
 6. **A PostgreSQL 18 client**, enforced by refusing any directory whose `psql`, `pg_dump`,
    `pg_dumpall` and `pg_restore` do not *all* report 18.
 
-The general lesson is a requirement in its own right, because it is the reason five of the six
-were found late.
+The 2026-09-23 hardening added three, and these were written down before a host needed them:
+
+7. **gnupg**, because a backup is encrypted to a public key before it leaves the process that
+   took it, and the drill decrypts it.
+8. **rsync**, which ships the ciphertext off the host.
+9. **The PostgreSQL 18 server binaries** `initdb` and `pg_ctl`, at `KF_POSTGRES_SERVER_DIR`, for the
+   drill's throwaway cluster.
+
+`scripts/deploy/provision-host.sh` creates the accounts, directories and generated secrets a
+machine can create, and `--check` changes nothing and lists what only a person can supply, each
+with the path it goes in. It is step zero of the host preflight (§91.3).
+
+The general lesson is a requirement in its own right, because it is the reason five of the first
+six were found late.
 
 **KF-SAS-RQ-161.** Every host requirement SHALL be stated and probed, and provisioning SHALL be
 exercised on a minimal image rather than on one whose defaults hide the dependency.
@@ -2366,25 +2578,30 @@ rebuilding, and installation SHALL be atomic and reversible.
 
 ## 87. Services and timers
 
-Twelve services and six timers, each with an unprivileged account.
+Each service has an unprivileged account (§37); the units are counted in
+[`generated/measurements.md`](../../generated/measurements.md).
 
 | Service | Does |
 |---|---|
 | `kf-api` | the API |
+| `kf-attestor` | verifies a bearer token and vouches to the database that its person is present (§24); the API reaches it over a Unix socket only the two of them can open |
 | `kf-web` | the web workbench |
 | `kf-worker` | background work, including outbox delivery |
 | `kf-migrate` | applies one verified migration set |
 | `kf-checkpoint` | signs a Merkle checkpoint over the audit log |
-| `kf-storage` | replicates and re-verifies artifact copies as the storage service actor |
+| `kf-audit-verify` | verifies the audit log against every signed checkpoint, holding no signing key |
+| `kf-storage` | replicates and re-verifies artifact copies, and collects and records orphaned evidence bytes (§49), as the storage service actor |
 | `kf-backup` | takes and records a backup |
-| `kf-backup-offsite` | copies the newest backup off the host and verifies it there |
-| `kf-restore-drill` | restores the newest off-site backup into a scratch database and proves it |
+| `kf-backup-offsite` | ships the newest backup's ciphertext off the host and verifies it there |
+| `kf-restore-drill` | as `kf-drill`, pulls the newest off-site ciphertext back, decrypts it, restores it into a throwaway PostgreSQL 18 cluster and proves it |
 | `kf-readiness` | checks the system is in the state it is supposed to be in |
 | `kf-alert-heartbeat` | proves the alert path still reaches a person |
 | `kf-alert@` | reports that a named unit failed, to a person |
 
-Timers: checkpoint hourly, readiness every fifteen minutes, backup and storage sweep daily,
-alert heartbeat daily, restore drill monthly.
+Timers: checkpoint hourly, readiness every fifteen minutes, backup, storage sweep, checkpoint
+verification and alert heartbeat daily, restore drill monthly. A timer that stops firing is
+noticed: each declares how long it may be silent, and `scripts/timer-liveness.sh` reports one
+that has been silent longer.
 
 Two of these deserve emphasis because they are unusual. **`kf-backup-offsite` verifies the copy
 at the destination**, not at the source, because a backup verified only where it was written
@@ -2403,6 +2620,17 @@ failure, and its delivery to a person SHALL be evidenced.
 Daily backup, off-site copy verified at the destination, monthly restore drill running the
 shipped scripts. Backup scripts pass no password on a process command line;
 `tests/backup-restore/script-credentials.test.ts` asserts it.
+
+Three rules added on 2026-09-23, each closing a way a backup could exist without being one:
+
+- **Encrypted before it leaves.** The archive is encrypted to a recovery public key before
+  anything ships, and only ciphertext goes off the host; the off-site copy records its digest,
+  re-measured at the destination, and the drill pulls back that exact object.
+- **Local copies are pruned only once an off-site copy exists.** A backup whose only copy is on
+  this host is never pruned, however old; free space is checked before one is taken.
+- **A local path is not off-site** unless a person attested it as a separate physical failure
+  domain. `ops.backup_copy.offsite_basis` records why a copy counts, from what the script did
+  rather than what an operator typed.
 
 Point-in-time recovery is available and **not the default posture**: `deploy/postgres/pitr.conf`
 turns on WAL archiving for a deployment whose declared recovery objective requires it, and it
@@ -2450,11 +2678,14 @@ the instruction never to treat service availability as institutional approval. A
 answers requests has proven it is running. Whether it is authorised to hold records is a
 different question and is answered by evidence, not by uptime.
 
-**91.3 Preflight.** Nine numbered checks before any shared user is admitted, including: a valid
-bearer succeeds while a wrong issuer, wrong audience, unknown subject and revoked identity all
-fail; fixed-identity headers are ignored; the API account cannot read the checkpoint key. And
-then: **reboot the host and re-run them.** A service that works only in the install shell is not
-deployed.
+**91.3 Preflight.** The numbered checks in `docs/deployment/private-host.md` before any shared
+user is admitted — cited, not counted here, because they grow. They begin with
+`provision-host.sh --check` exiting clean, and include: a valid bearer succeeds while a wrong
+issuer, wrong audience, unknown subject and revoked identity all fail; fixed-identity headers are
+ignored; the API account cannot read the checkpoint key; the API refuses to serve through a login
+row-level security cannot bind, or one holding `kf_attestor` or `kf_service_actor`; and stopping
+the attestor turns bearer requests into 401. And then: **reboot the host and re-run them.** A
+service that works only in the install shell is not deployed.
 
 **91.4 What no check covers.** Recorded explicitly, because an earlier revision claimed blanket
 coverage that was untrue of four items. Real-provider browser evidence has no check. Firewall
@@ -2560,7 +2791,7 @@ The supersession graph, which nothing else in the repository states in one place
 |---|---|
 | superseded | 0008 by 0011; 0009 by 0022 |
 | partially superseded | 0004's licence half by 0005; the rest of 0004 stands |
-| amended | 0011's identity key by 0013 |
+| amended | 0011's identity key by 0013; 0004's seven-day floor, waived by 0032; 0015's read, which no longer compiles a stale master record, by 0033 |
 | builds on | 0014→0013; 0015→0014; 0016→{0008, 0011, 0013}; 0017→{0004, 0006}; 0018→{0006, 0016}; 0019→0018; 0020→{0016, 0017}; 0021→{0006, 0016}; 0022→0009; 0027→{0011, 0016, 0025, 0026}; 0028→{0010, 0016, 0023, 0027}; 0029→{0016, 0024}; 0030→{0002, 0010, 0013, 0023, 0028} |
 | supersedes a rationale rather than a record | 0028 supersedes the "no `pgvector`" reasoning in `database/migrations/20260811001800_search.sql`, on the condition that reasoning set |
 
@@ -2790,8 +3021,9 @@ kind of claim has one home.
 The database enforces them; the distributed validator does not. Bears on KF-SAS-RQ-078.
 
 **100.2 Relation types declare no source or target types.** Nothing constrains which object types
-an edge may connect. 41 relation types raise the warning, counted rather than forgotten. Bears on
-KF-SAS-RQ-070.
+an edge may connect. Every relation type raises the warning — how many is in
+[`generated/measurements.md`](../../generated/measurements.md) — counted rather than forgotten.
+Bears on KF-SAS-RQ-070.
 
 **100.3 The product/instance seam holds in the compiler and not below it.** A different registry
 compiles and is then rejected by the database, because an `OH-` pattern remains pinned in an
@@ -2836,12 +3068,13 @@ recorded rather than quietly corrected.
 with one agent. Role separation by one person is not organizational independence, and an absent
 field would read as unexamined where `false` reads as examined and absent.
 
-**100.15 Seventy-three tables enable row-level security without forcing it.** Reconciled on
-2026-09-04 against a fresh install on the dogfood host: static and live both give 73, and the
-earlier figure in `deploy/postgres/planner.conf` was simply wrong. Not an application-visible
-hole, because the application is not the owner, but not the unqualified guarantee
-KF-SAS-RQ-073 states either. §38 has the detail. What remains open is whether forcing should be
-extended to the domain tables, which is a decision and not a measurement.
+**100.15 Forcing row-level security was decided, and is done.** Recorded here on 2026-09-04 as
+seventy-three tables that enabled row-level security without forcing it, with the question left
+open whether forcing should reach the domain tables. The 2026-09-23 red-team pass answered it:
+the gap was the whole of what stood between a login inheriting the schema owner and every tenant's
+rows. `20260924000200` forces every table that enables it and refuses to complete otherwise, and
+`tests/database/row-security-forced.test.ts` gates the future; KF-SAS-RQ-239 states the rule. What
+remains is a runtime measurement on a host after that migration, which none has had (§38).
 
 **KF-SAS-RQ-184.** A requirement cited from another repository SHOULD be resolvable against this
 document by a tool, and until it is, such a citation SHALL be treated as an unverified claim.
@@ -2898,15 +3131,25 @@ ladder is not merely full: nothing after v1.0 has a number, including the retrie
 Renumbering would cost every existing reference and buy one slot. Supersedes the narrower reading in
 §100.17, which described this as a twelfth objective being unaddable.
 
-**100.26 Verification is not recorded anywhere, so §48A has no implementation.** There is no field
-saying whether a record has been verified, and nothing filters on one: not master-record
-membership, not the preservation export, not projections. An unverified record is today a full
-corpus member indistinguishable from a checked one. Recorded first as "the draft lifecycle is a
-label", which was wrong in a way `0.1.0-draft.6` corrects — `draft` is the initial state of only 8
-of 24 state machines, so lifecycle could never have carried this. This is why the capture path must be built last rather than
-first — filling a store whose rules do not exist puts unverified material inside master records and
-inside the permanent export, which is worse than the folder of files this program replaces, because
-the folder never claimed to be the record. Bears on KF-SAS-RQ-228 through RQ-231.
+**100.26 Verification is recorded; its basis is paced, not proven; and the projection engine does
+not yet label it.** Recorded first as "verification is not recorded anywhere", and before that as
+"the draft lifecycle is a label", which `0.1.0-draft.6` corrected — `draft` is the initial state of
+only some state machines, so lifecycle could never have carried this. Since `20260918000100`,
+`core.object_verification` holds whether a record has been verified, by whom, by which act and on
+which basis, beside the record rather than in it; absence is the unverified state. The master
+record's rendering marks an unverified member, the preservation export carries verifications, and
+since `20260920000100` an unverified record cannot be cited as evidence, however its id is wrapped.
+
+Since `20260924000300` the basis is checked as well as recorded. `verified_at` is the database's
+clock whatever the insert said; a second `reviewed_individually` by one verifier within
+`core.individual_review_interval()` (one second) is refused; and `POST /verifications/bulk` stamps
+`promoted_in_bulk` itself, so promoting many records has a supported path with no reason to
+misdeclare. The pace makes a false claim of individual review slow and attributed, not impossible:
+a script waiting more than a second between records can still make it.
+
+Outstanding: `@kf/projections` carries no verification state, so a projection other than the
+master record's own rendering does not label an unverified member. Bears on KF-SAS-RQ-229 and
+RQ-231.
 
 **100.25 The composed ranking is unmeasured.** §64A composes a lexical ranking from this
 repository with a semantic ranking from an engine tuned against a different lexical leg, on public
@@ -2915,17 +3158,34 @@ composition behaves here, and nothing yet measures it. Stated because the same t
 decided against porting the engine onto this database, and it points at the Fabric as readily as it
 pointed there. Bears on KF-SAS-RQ-224.
 
+**100.27 Two digests are not domain-separated as KF-SAS-RQ-016 requires.** Found while reconciling
+§102 for `0.1.0-draft.8`. The audit chain's link digest is SHA-256 over the previous digest and the
+RFC 8785 form of the event's fields, with no format tag in the preimage; `kf:audit-chain:v1`, which
+earlier revisions listed as its tag, is the key of the advisory lock that serializes appends. And
+`kf-access-explanation-v1` is inside its preimage, but the digest is taken over `JSON.stringify`
+rather than RFC 8785. Neither is exploitable as it stands — the chain's preimage has one shape and
+the explanation's digest is advisory — but changing either is a format change with a new tag,
+because every recorded chain link commits to the current one. Bears on KF-SAS-RQ-016 and RQ-158.
+
 **KF-SAS-RQ-186.** The set of tables forced under row-level security SHALL be derivable from the
 migrations, and any difference between that set and the running database SHALL be reconciled.
 
 ## 101. Refusal vocabulary
 
 The named refusals a caller may encounter, gathered so that "what can this system say no with" is
-answerable in one place. The dispatcher's twelve codes are in §28. Beyond them:
+answerable in one place. The dispatcher's thirteen codes are in §28. Beyond them:
 
 | Refusal | Raised by |
 |---|---|
 | `unknown_subject` | an authenticated identity not linked to a person |
+| `not_attested` (HTTP 401) | `core.bind_principal`, on a read or a write, when no current attestation from `kf-attestor` matches the principal (§24) |
+| a bind that is not a principal, or widens one | `core.bind_principal` and `core.set_access_context`, to an application session (§17) |
+| a forged ledger row, audit digest, interval reopening or identity link | the database's context checks (§17, §20, §30, §33) |
+| `effective_at_out_of_bounds` (HTTP 400) | the action route, before dispatch (§13) |
+| `master_record_stale` (HTTP 409) | `GET /objects/:id` and the master-record reads, which never compile (§61) |
+| `content_refused` | `POST /ingest` and `POST /documents`, on content that must never enter (§48); the `kf ingest` and sync planners refuse the same content before they plan |
+| `document_refused` (HTTP 422) | the pandoc parser, on a source that hits a time, memory or output bound |
+| a second `reviewed_individually` within the pace | `object_verification_paced`, surfaced by the dispatcher as `precondition_failed` (§100.26) |
 | an unclassified boundary table | the master-record boundary check, before compilation |
 | a coverage or subset violation | the projection engine |
 | an undeclared namespace | identifier allocation |
@@ -2940,9 +3200,23 @@ answerable in one place. The dispatcher's twelve codes are in §28. Beyond them:
 Everything digested is canonicalized by RFC 8785 and domain-separated by a format tag that is
 part of the preimage. Digests are SHA-256. Signatures are Ed25519.
 
-Named formats in use: `kf-action-request-v1`, `kf-action-idempotency-lock-v1`, `kf:audit-chain:v1`,
-`kf-projection-result-v1`, `kf-master-record-boundary-v1`, `kf-publication-v1`, and this
-document's revision schema `oh.war/sas-revision/v1`.
+Reconciled with the code for `0.1.0-draft.8`; earlier revisions listed tags that were not
+digest tags and omitted most that were.
+
+- **Tags versioning a digested or signed structure:** `kf-action-request-v1` (the idempotency
+  digest), `kf-projection-result-v1`, `kf-publication-v1`, `kf-master-record-v1` and
+  `kf-master-record-v2`, `kf-document-compilation-run-v2`, `kf-access-explanation-v1`,
+  `kf-preservation-manifest-signature-v1`, `kf-backup-manifest-v1`,
+  `kf-backup-manifest-signature-v1`, `kf-overview-v1`, and this document's revision schema
+  `oh.war/sas-revision/v1`.
+- **Tags versioning a protocol or envelope, not a digest:** `kf-document-v1` (the compiler
+  protocol), `kf-liminal-runtime-closure-v1`, `kf-migration-rollback-rehearsal-v3`,
+  `kf-migration-028-state-v1`, and the web's cookie envelopes `kf-web-session-v1`,
+  `kf-oidc-transaction-v1` and `kf-id-token-hint-v1`.
+- **Listed before, and not digest tags:** `kf:audit-chain:v1` and `kf-action-idempotency-lock-v1`
+  key advisory locks; `kf-master-record-boundary-v1` labels
+  `docs/architecture/master-record-boundary.json` and no code reads it. §100.27 records the two
+  digests that lack the separation this section describes.
 
 ## 103. Document conventions and provenance
 
@@ -2972,11 +3246,14 @@ build-time substitution would break an accepted revision every time a migration 
 artifact cannot also be a generated one. Citing a generated file keeps this document's bytes stable
 and makes a wrong number fail the build, which is what the disclaimer could never do.
 
-The database source counts were derived by taking each migration's up-section only — everything
-before its `-- migrate:down` marker — and counting statements across the concatenation. The
-per-file truncation matters: 124 `drop table` statements exist in this repository and every one
-of them is in a down-section, so a count that reads whole files reports a schema that is created
-and then destroyed. Truncating the concatenation instead of each file is worse and quieter: the
+The database source counts are derived by taking each migration's up-section only — everything
+before its `-- migrate:down` marker — with SQL comments removed, and counting literal statements
+across the concatenation. Comments are removed because the migrations explain themselves at
+length and name what they explain: until `0.1.0-draft.8` the `SECURITY DEFINER` count included
+the comment lines saying why a function was or was not one. The
+per-file truncation matters: every `drop table` statement in this repository is in a
+down-section, so a count that reads whole files reports a schema that is created and then
+destroyed. Truncating the concatenation instead of each file is worse and quieter: the
 first down-marker ends the stream, and every count after it reads zero, which looks like a
 finding rather than a mistake.
 
@@ -3014,6 +3291,7 @@ record which program owns each federated fact.
 
 | Revision | Date | Change |
 |---|---|---|
+| `0.1.0-draft.8` | 2026-09-24 | Brings this document in line with the security hardening of 2026-09-23/24, after a red-team pass run as `kf_app` showed that row-level security held against a buggy API and not a hostile one: every `kf.*` setting the policies read was the application's to write, and the ledger, the audit chain, role assignments, identity links and verifications all accepted rows no act had made. §17 now states that the database binds the principal — a sealed context, `core.bind_principal` deriving organization and ceiling from a live assignment and clearance, the application only narrowing — and §24 the attestation boundary: `kf-attestor` verifies RS256 and the database binds a person for the API's login only on its current attestation, the replay window being the token's life. The database also recomputes audit digests (§30), checks act authority on the ledger row (§20), and forces row security on every table that enables it (§38), so KF-SAS-RQ-073 is now met and §100.15 is closed; authority rows are minted only by the owner credential (§33). §28 gains `not_attested`, HTTP 401, as a thirteenth code; §13 and §29 state the database clock and the caller's `effectiveAt` bounds; §48–§49 state the ingest order and the recorded orphan sweep; §61 records ADR 0033's amendment of ADR 0015; §§85–91 add the attestor, checkpoint verification, encrypted backups and the throwaway-cluster drill. Every remaining source count is removed in favour of [`generated/measurements.md`](../../generated/measurements.md), which gains schemas, triggers, views, indexes, foreign keys, checks, group roles, forward-only migrations, packages and systemd units, and now excludes SQL comments from what it counts. KF-SAS-RQ-150 said the API makes no refusal the write path does not; the ingest content scan, batch ceiling, `effectiveAt` bound and step-up make that untrue by design, so it is clarified in place, keeping its identifier, to confine such refusals to admission checks that grant nothing — rather than recorded as a gap, because the design is right and the wording was not. §102's format-tag list is reconciled with the code: two entries were lock keys and one is read by nothing, and §100.27 records that the audit-chain and access-explanation digests lack the separation KF-SAS-RQ-016 requires. Seven requirements appended (KF-SAS-RQ-233 to RQ-239), two clarified in place (RQ-044, RQ-150), none removed; architecture-changing under §94.3, carrying [ADR 0033](../decisions/0033-the-database-binds-the-principal.md). |
 | `0.1.0-draft.7` | 2026-09-20 | Records the owner's waiver of ADR 0004's seven-day floor on compiler cutover ([ADR 0032](../decisions/0032-the-seven-day-floor-is-waived.md)). The other three conditions stand: twice-compiled byte-identical output, five action paths exercised, zero unexplained drift. §93.1 restated, because it asserted a floor that no longer applies. No requirement added, removed or retitled; not architecture-changing under §94.3 — the waived condition was a procedural floor rather than an architectural rule, and what it gave up is recorded in the ADR rather than in a requirement. |
 | `0.1.0-draft.6` | 2026-09-18 | Corrects a conflation in `draft.5`. §48A used "draft" and "unverified" interchangeably, and they are not the same: `draft` is the initial state of 8 of the 24 state machines in `ontology/state-machines.yaml`, while the rest begin at `planned`, `proposed`, `active`, `open`, `captured`, `prospective`, `in_service` or `received`. A work order that begins at `planned` was never a draft, so the previous wording's rules did not reach it — and "any initial state" is wrong in the other direction, since equipment beginning at `in_service` is not unverified. Verification is therefore orthogonal to lifecycle: a record may be `active` and unverified, or `draft` and verified. KF-SAS-RQ-228 is retitled from "a draft" to "an unverified record", RQ-232 is appended stating the orthogonality, §48A's prose and title are corrected, and §100.26 is restated — it had recorded the same error. One requirement appended, one retitled, none removed; architecture-changing under §94.3, carrying [ADR 0031](../decisions/0031-a-draft-is-a-record-that-says-so.md), corrected in place while proposed. |
 | `0.1.0-draft.5` | 2026-09-14 | Adds §48A, which settles whether a low-friction capture path is compatible with KF-SAS-RQ-021's refusal to admit a container. It is, under one rule: a gesture may produce many acts, never zero and never one covering many. Records what an unverified record is — a record under Law 6, exported marked, a labelled member of a master record rather than a silent omission, and not citable as evidence — and requires a promotion act to say whether it was reviewed individually or promoted in bulk, so that "verified" keeps its meaning. Adds §100.26: the draft state is presently a label that nothing filters on, which inverts the build order, because a capture path filling a store whose rules do not exist puts unverified material into master records and into the permanent export. Five requirements appended, none removed or retitled; architecture-changing under §94.3, carrying [ADR 0031](../decisions/0031-a-draft-is-a-record-that-says-so.md). |
@@ -3072,7 +3350,7 @@ from evidence, never recorded here (§97.3).
 | KF-SAS-RQ-041 | The read path and the write path consult the same grant view |
 | KF-SAS-RQ-042 | Any access decision is explainable as a path to the deciding grant or exclusion |
 | KF-SAS-RQ-043 | An institutional act requires an act grant reaching every locked target |
-| KF-SAS-RQ-044 | Which actions are institutional is declared in the ontology, not in control flow |
+| KF-SAS-RQ-044 | Which actions are institutional is declared in the ontology and consulted by the database, not encoded in control flow |
 | KF-SAS-RQ-045 | Automated work acts as a declared service actor through the same write path |
 | KF-SAS-RQ-046 | A service actor is refused every institutional act, whatever grants reach it |
 | KF-SAS-RQ-047 | An act that judges another act is refused to the actor who performed it |
@@ -3175,7 +3453,7 @@ from evidence, never recorded here (§97.3).
 
 | ID | Requirement |
 |---|---|
-| KF-SAS-RQ-150 | The HTTP layer holds no authority and makes no refusal the write path does not |
+| KF-SAS-RQ-150 | The HTTP layer holds no authority and permits nothing the write path refuses; its own refusals are admission checks that grant nothing |
 | KF-SAS-RQ-151 | Operator commands take secrets by file only, refusing an inline secret by name |
 | KF-SAS-RQ-152 | A release package carries its gaps, and an approval commits to them |
 | KF-SAS-RQ-153 | A manifest does not contain its own digest; verifying it is a distinct act |
@@ -3274,3 +3552,15 @@ from evidence, never recorded here (§97.3).
 | KF-SAS-RQ-220 | A stored thing that is neither authoritative nor rebuildable is a transient observation with a stated expiry, excluded from the export, the boundary, checkpoints and long backups |
 | KF-SAS-RQ-221 | Recorded queries are transient observations; the durable demand aggregate names records and counts of distinct persons, never which persons |
 | KF-SAS-RQ-222 | What a query withheld is computed on demand at the asking person's ceiling and never persisted |
+
+### The database binds the principal, 2026-09-24 (ADR 0033)
+
+| ID | Requirement |
+|---|---|
+| KF-SAS-RQ-233 | The transaction context is written only by the database's binding functions, sealed, and readable only as sealed |
+| KF-SAS-RQ-234 | The application binds only a principal derived from a live assignment and recorded clearance, and may then only narrow |
+| KF-SAS-RQ-235 | An application bind requires a current attestation from a separate process that verified the person's token |
+| KF-SAS-RQ-236 | People, role assignments and identity links are created only through the owner credential |
+| KF-SAS-RQ-237 | The database recomputes each audit event's digest and refuses a mismatch |
+| KF-SAS-RQ-238 | The database refuses a ledger row for an institutional act no live act grant covers, or by a service actor |
+| KF-SAS-RQ-239 | Every table that enables row-level security forces it, and a gate fails on one that does not |

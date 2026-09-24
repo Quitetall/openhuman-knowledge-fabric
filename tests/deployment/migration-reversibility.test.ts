@@ -1,8 +1,9 @@
 /**
- * The rollback rehearsal claims migrations are reversible. Seven of them are not.
+ * The rollback rehearsal claims migrations are reversible. Some are not — seven when this was
+ * written, more since; the count is derived below and published in generated/measurements.md.
  *
  * `migrate-release.sh rehearse` used to migrate up, migrate all the way down, and assert the
- * database came back empty. That assertion cannot hold here: seven migrations are deliberate
+ * database came back empty. That assertion cannot hold here: some migrations are deliberate
  * one-way security hardening, and their down sections are empty on purpose —
  * `20260816000300_typed_table_row_security` reverts to 29 tables readable by any role that can
  * connect. So the rehearsal was asserting something the schema had already made false.
