@@ -48,7 +48,33 @@ export const DEFAULTS: Required<ReadinessThresholds> = {
 
 export type CheckResult = Omit<Check, 'scope'>;
 
-export type CheckFn = (tx: Tx, limits: Required<ReadinessThresholds>) => Promise<CheckResult>;
+/**
+ * What the release on disk says the database should hold. Resolved once per assessment, so every
+ * check that needs it reads the same answer — and an unresolvable answer is carried as a
+ * `problem`, which the check reports as a failure rather than as a missing comparison.
+ */
+export type ReleaseOntology =
+  | { readonly digest: string; readonly source: string }
+  | { readonly digest: undefined; readonly source: string; readonly problem: string };
+
+export interface ReadinessOptions {
+  /**
+   * The ontology digest this release was compiled from. Absent means: read it from the release's
+   * projections artifact (`KF_PROJECTIONS_ARTIFACT`, else
+   * `generated/projections/knowledge-fabric.projections.json` under the working directory).
+   */
+  readonly expectedOntologyDigest?: string;
+}
+
+export interface CheckContext {
+  readonly release: ReleaseOntology;
+}
+
+export type CheckFn = (
+  tx: Tx,
+  limits: Required<ReadinessThresholds>,
+  context: CheckContext,
+) => Promise<CheckResult>;
 
 export interface CheckDefinition {
   readonly id: string;

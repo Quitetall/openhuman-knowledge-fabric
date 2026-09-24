@@ -195,8 +195,10 @@ claims to be. Escalate rather than re-record.
 
 ## `schema_release` FAILED
 
-The ontology seed never ran. Any record written now would carry a schema version nothing can
-resolve.
+Two different faults share this check, and the detail says which.
+
+**No current schema release.** The ontology seed never ran. Any record written now would carry a
+schema version nothing can resolve.
 
 ```
 pnpm db:seed
@@ -204,6 +206,57 @@ pnpm db:seed
 
 If records already exist, find out how — they were written to a database that was not fully
 migrated, and that is worth understanding before adding more.
+
+**The installed ontology digest differs from this release's.** `registry.schema_release` (the
+current row) names an ontology digest, and the release on disk names another: the
+`x-generated-from.source_digest` of `generated/projections/knowledge-fabric.projections.json`
+(or `KF_PROJECTIONS_ARTIFACT`). The code and the database now disagree about what the words
+mean. Usually the release was switched without `kf-migrate.service` seeding it, or the database
+was seeded from a different checkout. The API refuses to start in this state under the dogfood
+profile or in production and staging; the development profile only warns.
+
+1. Do **not** re-seed by hand from a checkout. Re-run the reviewed migration for the release that
+   `/opt/kf` points at (`systemctl start kf-migrate.service`); it compares the digest after
+   seeding and fails if they still differ.
+2. If `/opt/kf` points at the wrong release, `install-release.sh rollback` (`scripts/deploy/install-release.sh`) puts
+   the previous one back (see `docs/deployment/private-host.md`).
+3. "Cannot determine this release's ontology digest" means the projections artifact is missing
+   or malformed. The release tree is incomplete; `migrate-release.sh check` will say where.
+
+## `planner_settings` FAILED — `jit` is not off
+
+The server this process connects to has JIT compilation enabled. Row-level security makes the
+planner's cost estimates cross `jit_above_cost` on unbounded scans, and that was measured at 8 to
+14 times slower (`deploy/postgres/planner.conf`). Nothing is wrong with any record.
+
+1. Install `deploy/postgres/planner.conf` into the cluster's `conf.d` and reload:
+   `select pg_reload_conf();`.
+2. If it is installed and this still fails, something overrides it for this login or database:
+   `select setting, source from pg_settings where name = 'jit';` names where it came from
+   (`database`, `user`, `session`). Remove that override rather than raising a threshold.
+
+## `row_security_reconciled` FAILED
+
+The running database differs from what the migrations declare about row-level security. Each
+row the check names is one table and one of two problems:
+
+- `enabled_not_forced` — the table enables row security but does not force it, so any login
+  that inherits the table's owner reads every tenant at every classification with no context.
+- `undeclared_without_row_security` — the table has no row security at all and is not in the
+  declared exemption list (`core.readiness_row_security_exemptions()`: the `ops` schema and a
+  named set of reference, bookkeeping and key tables).
+
+Both mean a table was created or altered outside the reviewed migration set, or a migration
+added a table without deciding its row security. Treat it as a boundary fault until shown
+otherwise.
+
+1. Find the table's origin: `git log -S '<table>' -- database/migrations/`. No migration means
+   somebody created it by hand on this host.
+2. If a migration created it deliberately without row security, that migration is incomplete:
+   add the policy (and `force row level security`), or declare the exemption in a new migration
+   that replaces `core.readiness_row_security_exemptions()`, with the reason.
+3. Never `alter table … no force row level security` to make an application query work; that
+   query should be bound through a context or a definer seam.
 
 ## A readiness check reports `unknown`
 

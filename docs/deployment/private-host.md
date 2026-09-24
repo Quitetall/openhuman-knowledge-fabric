@@ -435,11 +435,57 @@ or promote the compiler. Those remain separate human-authority records.
 
 Extract as root with `tar --no-same-owner --no-same-permissions`; otherwise archive may retain
 workstation uid and release verifier correctly refuses `KF_EXPECTED_RELEASE_OWNER_UID=0`.
-Extract into new release directory, never over previous release or `/opt/kf` symlink target.
+Extract into a new directory **beside** the live link — `/opt/knowledge-fabric-<release-id>` —
+never over the previous release or the `/opt/kf` link target. Do not rebuild or edit under a
+release directory.
 
-Keep previous release intact. After file check and rollback rehearsal pass and services are
-stopped, switch `/opt/kf` atomically to new release, run privileged migration, then run service
-preflight. Do not rebuild or edit under release directory.
+### Install and roll back: `install-release.sh`
+
+The switch is a script, not a sentence. Until 2026-09-25 this section said "switch `/opt/kf`
+atomically" and "keep the previous release intact" and nothing implemented either: an operator
+typing `ln -sfn` gets an unlink-then-create with a window in which `/opt/kf` does not exist, and
+"keep the previous release" was a matter of remembering its name.
+[`../../scripts/deploy/install-release.sh`](../../scripts/deploy/install-release.sh) does both:
+
+```sh
+# After the file check and the rollback rehearsal pass, with kf-api, kf-web and kf-worker stopped:
+cd /
+sudo env \
+  KF_EXPECTED_DBMATE_VERSION=2.35.0 \
+  KF_EXPECTED_RELEASE_MANIFEST_SHA256=<reviewed-manifest-digest> \
+  KF_EXPECTED_RELEASE_OWNER_UID=0 \
+  /opt/knowledge-fabric-<release-id>/scripts/deploy/install-release.sh install \
+  /opt/knowledge-fabric-<release-id>
+
+sudo /opt/kf/scripts/deploy/install-release.sh status     # live and previous, verified digests
+sudo /opt/kf/scripts/deploy/install-release.sh rollback   # previous becomes live again
+```
+
+What `install` does, in order, and what it refuses:
+
+1. **Verifies the candidate** with `migrate-release.sh check` — the same verifier as above, with
+   the release-packaged dbmate — so a release whose `SHA256SUMS` does not hash to the reviewed
+   digest, or whose files differ from it, is refused before anything moves.
+2. Refuses a release that is not a real directory directly under the install root (the parent of
+   `/opt/kf`), one that is already live, and an `/opt/kf` that exists but is not a symlink.
+3. Records what it verified — manifest digest, dbmate version, owner uid — under
+   `/opt/.kf-install/`, so a later rollback can verify the release it returns to without the
+   operator retyping its digest.
+4. Points `/opt/kf.previous` at the release that was live, then swaps `/opt/kf` by creating a
+   new link under a temporary name and renaming it over the old one with `mv -T` — one
+   `rename(2)`, so every reader sees either the old release or the new one, never neither.
+
+`rollback` re-verifies the previous release against its recorded digest and swaps the two links
+the same way; the release rolled back from becomes `/opt/kf.previous`, so a second `rollback`
+rolls forward again. It refuses when there is no previous release, when the previous release was
+never installed by this script (no record), or when it no longer verifies. It changes files only:
+it does not stop or start a service and never touches the database — see
+[application-only rollback](#migration-and-rollback-rehearsal) for when that is allowed. Both
+commands take a lock under `/opt/.kf-install/`, so two installs cannot interleave.
+`KF_INSTALL_ROOT` and `KF_INSTALL_LINK` (defaults `/opt` and `kf`) exist so
+`tests/deployment/install-release.test.ts` can run it against a temporary prefix.
+
+Then run the privileged migration, then service preflight.
 
 Database migrations are separate privileged operation. They run once with `kf-migrator`
 credential from exact migration set reviewed for release; API and worker never receive that
@@ -482,6 +528,15 @@ Permission denied`, which names neither the release nor the rehearsal and reads 
 release-tree fault. It does not widen any search — every `find` in the script is rooted at the
 release or migration directory explicitly — it only gives the process a cwd it can return to.
 Measured on this host, 2026-08-26.
+
+Both `rehearse-rollback` and `apply` run `dbmate up --strict`: dbmate refuses to apply a
+migration whose version is older than one already applied, instead of quietly inserting it into
+history out of order. Before 2026-09-25 neither passed `--strict`, so a migration added with a
+back-dated version applied on hosts that already had its successors, and the schema then depended
+on which order a host happened to receive them in. After seeding, both read
+`registry.schema_release` (current) and refuse unless its `ontology_digest` equals the
+`-- source_digest:` the release's generated seed declares — the fresh-install digest check
+KF-SAS-RQ-081 requires.
 
 Rehearsal refuses reserved/nonempty databases, applies every migration, seeds exact generated
 ontology, then rolls back **to the forward-only floor** and verifies it stopped exactly there —
@@ -547,16 +602,27 @@ Runner never attempts automatic production rollback: forward migration plus seed
 transaction boundaries, so automatic `down` could turn one known failure into partial rollback.
 
 Application-only rollback is allowed only when reviewed compatibility evidence says previous
-release accepts new schema: stop services, verify previous release, switch `/opt/kf` back, then
-re-run preflight. For incompatible schema or partial migration, restore pre-migration backup
+release accepts new schema: stop services, run `install-release.sh rollback` (it re-verifies the
+previous release before switching `/opt/kf` back), then re-run preflight. Readiness and the API
+both compare the installed ontology digest with the live release's, so a rollback across an
+ontology change is refused at API startup rather than served. For incompatible schema or partial migration, restore pre-migration backup
 into new database instance, verify audit/export/readiness there, then change credential file
 under approved recovery procedure. Never run `dbmate down` against production database.
 
-## PostgreSQL JIT: do not tune it host-wide
+## PostgreSQL JIT: off, and readiness checks it
 
-**Recommendation: leave the defaults alone.** An earlier revision of this section suggested
-`jit_above_cost = 500000`. That was wrong twice over and is corrected here rather than
-quietly dropped.
+**`jit = off` is required.** Install
+[`../../deploy/postgres/planner.conf`](../../deploy/postgres/planner.conf) into the cluster's
+`conf.d` and reload. It is the same setting `docker-compose.yml` and the test harness use,
+`tests/deployment/postgres-settings-parity.test.ts` holds the three in agreement, and since
+2026-09-25 readiness reads `current_setting('jit')` on the live server and fails
+`planner_settings` when it is not `off` (KF-SAS-RQ-076).
+
+This section's earlier recommendation — "leave the defaults alone", and set JIT per role only if
+a scan-heavy path needed it — predates `planner.conf` and is superseded by it: the measurements
+below showed JIT never helping and sometimes costing 9x, and `planner.conf` records why off beats
+a threshold. They are kept because they are the evidence. An earlier revision still suggested
+`jit_above_cost = 500000`, which was wrong twice over:
 
 The fabric's row-level security nests: a typed table's policy tests `exists (select 1 from
 core.object …)`, and `core.object`'s own policies run inside that. On an unbounded scan the
@@ -594,23 +660,18 @@ The previously suggested value buys 7%. Raising `jit_inline_above_cost` and
 `jit_optimize_above_cost` instead recovers most of the win while keeping basic JIT, because
 those two phases were 90 ms of the 137 ms.
 
-**If it ever does matter**, it will be for the paths that scan without a bound — readiness
-counts, search index rebuilds, exports, an auditor session on `kf_readonly` — none of which is
-latency-critical. Set it on those roles rather than on the host:
-
-```sh
-alter role kf_readonly set jit_above_cost = 5000000;   -- only if a scan-heavy path needs it
-```
+The per-role override this section once suggested (`alter role kf_readonly set jit_above_cost
+= …`) is withdrawn: a role- or database-level `jit` setting is exactly what `planner_settings`
+now reports, because it makes one login's plans differ from every environment the measurements
+describe. `select setting, source from pg_settings where name = 'jit'` says where a non-`off`
+value came from.
 
 One caveat that cuts the other way, worth knowing before treating 9x as a standing figure: the
 JIT cost is roughly FIXED (~130 ms of compilation) while the scan cost grows with the data. At
 ten times this row count the scan itself dominates and the relative penalty shrinks; far enough
 out, JIT starts paying for itself. The 9x is a property of this data size, not a constant.
-Re-measure with the harness above before acting on it.
-
-And the general caution that still applies whatever is decided: a host that also runs large
-analytical queries may want JIT for those, so the right threshold depends on everything else
-the database does, not only on the fabric. Re-measure after any change.
+Re-measure with `tests/database/rls-read-cost.test.ts` (`KF_MEASURE_RLS=1`) before changing
+`planner.conf`, and change it there, in `docker-compose.yml` and in the harness together.
 
 ## Provision the host
 

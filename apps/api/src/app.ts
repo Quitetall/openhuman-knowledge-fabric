@@ -41,7 +41,14 @@ import {
   createFabricTransactionalDispatcher,
   createFabricTransactionalPreflight,
 } from '@kf/orchestrator';
-import { assessReadiness, type ReadinessReport } from '@kf/operations';
+import {
+  assessReadiness,
+  compareInstalledOntology,
+  describeOntologyMismatch,
+  resolveReleaseOntology,
+  type InstalledOntology,
+  type ReadinessReport,
+} from '@kf/operations';
 import { timingSafeEqual } from 'node:crypto';
 import type { ApiConfig } from './config.js';
 import { createCallerIdentifier, registerActionRoutes } from './routes/actions.js';
@@ -214,6 +221,16 @@ export async function buildApp(
     // benefit — the caller already knows which host it dialled.
   }));
 
+  // The ontology this release was compiled from: the projections artifact the document routes
+  // serve (KF-SAS-RQ-081). Resolved once, so startup, /readiness and the routes agree.
+  const releaseOntology = resolveReleaseOntology({ artifactPath: config.projectionsArtifact });
+  // Where a mismatch refuses startup rather than warning: anything that is not a developer's
+  // own machine.
+  const refuseOntologyMismatch =
+    config.deploymentProfile === 'dogfood' ||
+    config.environment === 'production' ||
+    config.environment === 'staging';
+
   let pool: Pool | undefined;
   if (config.databaseUrl !== undefined && config.databaseUrl !== '') {
     pool = createPool({ connectionString: config.databaseUrl });
@@ -234,6 +251,14 @@ export async function buildApp(
     app.addHook('onReady', async () => {
       let problems: string[];
       let login: string;
+      let installedOntology: InstalledOntology | undefined;
+      // A release that cannot say which ontology it carries is refused even when the database
+      // is unreachable: that is a fault in the release tree, not an outage.
+      if (releaseOntology.digest === undefined && refuseOntologyMismatch) {
+        throw new DatabaseError(
+          `refusing to serve: ${describeOntologyMismatch(releaseOntology, undefined) ?? ''}`,
+        );
+      }
       try {
         const privilege = await withTransaction(startupPool, (tx) => readLoginPrivilege(tx));
         problems = loginPrivilegeProblems(privilege, loginAllowance);
@@ -260,6 +285,30 @@ export async function buildApp(
             'so row-level security or attestation does not bind it. DATABASE_URL must name an ' +
             'application login that inherits kf_app and nothing more.',
         );
+      }
+      // Read only after the login is known to be one this process may serve through: a login
+      // refused above may not be able to read the registry, and that must stay a refusal.
+      const expectedDigest = releaseOntology.digest;
+      if (expectedDigest !== undefined) {
+        try {
+          installedOntology = await withTransaction(startupPool, (tx) =>
+            compareInstalledOntology(tx, expectedDigest),
+          );
+        } catch (err: unknown) {
+          app.log.warn({ err }, 'the seeded ontology digest could not be checked at startup');
+          return;
+        }
+      }
+      // The seeded ontology is the one this release was compiled from (KF-SAS-RQ-081). A
+      // release switched without its migration, or a database seeded from another checkout,
+      // serves states and transitions the code does not define. Refused outside development;
+      // a developer mid-rebase gets a warning instead of a process that will not start.
+      const ontologyProblem = describeOntologyMismatch(releaseOntology, installedOntology);
+      if (ontologyProblem !== undefined) {
+        if (refuseOntologyMismatch) {
+          throw new DatabaseError(`refusing to serve: ${ontologyProblem}`);
+        }
+        app.log.warn({ source: releaseOntology.source }, `ontology digest: ${ontologyProblem}`);
       }
     });
   }
@@ -324,7 +373,13 @@ export async function buildApp(
     const readinessReport = (): Promise<ReadinessReport> => {
       const now = Date.now();
       if (cachedReadiness === undefined || now - cachedReadiness.at >= READINESS_TTL_MS) {
-        const report = assessReadiness(pool);
+        const report = assessReadiness(
+          pool,
+          {},
+          releaseOntology.digest === undefined
+            ? {}
+            : { expectedOntologyDigest: releaseOntology.digest },
+        );
         const entry = { at: now, report };
         cachedReadiness = entry;
         // A failed run is not cached: the next caller measures again rather than being told

@@ -79,11 +79,17 @@ interface ReleaseFixture {
   manifestDigest: string;
 }
 
+/** The ontology digest the fixture seed declares, as the compiler writes it into the header. */
+const SEED_DIGEST = 'd'.repeat(64);
+
 const EXAMPLE_MIGRATIONS: Record<string, string> = {
   '20260814000100_example.sql': '-- migrate:up\nselect 1;\n-- migrate:down\nselect 1;\n',
 };
 
-function makeRelease(migrations: Record<string, string> = EXAMPLE_MIGRATIONS): ReleaseFixture {
+function makeRelease(
+  migrations: Record<string, string> = EXAMPLE_MIGRATIONS,
+  seedBody = `-- GENERATED from ontology/ — do not edit.\n-- source_digest: ${SEED_DIGEST}\nselect 1;\n`,
+): ReleaseFixture {
   const release = temporaryDirectory('kf-release-');
   const migrationDirectory = join(release, 'database', 'migrations');
   const seed = join(release, 'generated', 'sql-registry', '001-ontology-seed.sql');
@@ -92,7 +98,7 @@ function makeRelease(migrations: Record<string, string> = EXAMPLE_MIGRATIONS): R
   for (const [name, body] of Object.entries(migrations)) {
     writeFileSync(join(migrationDirectory, name), body);
   }
-  writeFileSync(seed, 'select 1;\n');
+  writeFileSync(seed, seedBody);
   return { release, manifestDigest: writeReleaseManifest(release) };
 }
 
@@ -114,7 +120,10 @@ function fakeDbmate(release: ReleaseFixture): { executable: string; log: string 
  * The default is a database that came all the way back, which is what a release whose
  * migrations are all reversible must produce. Pass a floor state to drive the other branch.
  */
-function fakePsql(state = '0|0|0|none'): { executable: string; log: string } {
+function fakePsql(
+  state = '0|0|0|none',
+  installedDigest = SEED_DIGEST,
+): { executable: string; log: string } {
   const directory = temporaryDirectory('kf-psql-');
   const executable = join(directory, 'psql');
   const log = join(directory, 'calls.log');
@@ -126,6 +135,7 @@ case "$*" in
   *"current_database()"*) printf 'kf_rehearsal|empty\n' ;;
   *"public.schema_migrations"*) printf '${state}\n' ;;
   *"information_schema.columns"*) printf 'column|core.object.id|uuid|NO|\n' ;;
+  *"registry.schema_release"*) printf '${installedDigest}\n' ;;
 esac
 `,
   );
@@ -551,7 +561,7 @@ describe('release migration command', () => {
     });
 
     expect(result.code, result.output).toBe(0);
-    expect(readFileSync(dbmate.log, 'utf8')).toMatch(/ up\n.* down\n/s);
+    expect(readFileSync(dbmate.log, 'utf8')).toMatch(/ up --strict\n.* down\n/s);
     const psqlCalls = readFileSync(psql.log, 'utf8');
     expect(psqlCalls).toContain(
       `-f ${join(release.release, 'generated/sql-registry/001-ontology-seed.sql')}`,
@@ -680,12 +690,97 @@ describe('release migration command', () => {
     });
 
     expect(applied.code, applied.output).toBe(0);
-    expect(readFileSync(productionDbmate.log, 'utf8')).toMatch(/ up\n.* status\n/s);
+    expect(readFileSync(productionDbmate.log, 'utf8')).toMatch(/ up --strict\n.* status\n/s);
     const psqlCalls = readFileSync(productionPsql.log, 'utf8');
     expect(psqlCalls).toContain(
       `-f ${join(release.release, 'generated/sql-registry/001-ontology-seed.sql')}`,
     );
     expect(psqlCalls).not.toContain('production-secret');
+  });
+
+  describe('one declared sequence, and the ontology this release was compiled from', () => {
+    // KF-SAS-RQ-079 and RQ-081. `--strict` makes dbmate refuse a back-dated migration instead of
+    // slotting it into history; the digest comparison after seeding refuses a database whose
+    // current release is not the one this seed declares.
+    function rehearseThenApply(options: { seedBody?: string; installedDigest?: string } = {}): {
+      rehearsal: { code: number; output: string };
+      applied: { code: number; output: string } | undefined;
+      rehearsalLog: string;
+      applyLog: string;
+    } {
+      const release = makeRelease(EXAMPLE_MIGRATIONS, options.seedBody);
+      const rehearsalDbmate = fakeDbmate(release);
+      const secret = join(temporaryDirectory('kf-rehearsal-secret-'), 'database-url');
+      const receipt = join(temporaryDirectory('kf-rehearsal-receipt-'), 'receipt');
+      writeFileSync(secret, 'postgresql://kf_migrator@database.invalid/scratch\n', { mode: 0o600 });
+      const rehearsalPsql = fakePsql();
+      const rehearsal = runMigration(
+        ['rehearse-rollback', release.release, receipt],
+        release,
+        rehearsalDbmate,
+        {
+          KF_PSQL_BIN: rehearsalPsql.executable,
+          KF_TEST_PSQL_LOG: rehearsalPsql.log,
+          KF_REHEARSAL_DATABASE_URL_FILE: secret,
+          KF_REHEARSAL_DISPOSABLE_CLUSTER_CONFIRMATION: 'dedicated-disposable-cluster',
+          KF_REHEARSAL_TARGET_LABEL: 'test-disposable-cluster',
+        },
+      );
+      const rehearsalLog = existsSync(rehearsalDbmate.log)
+        ? readFileSync(rehearsalDbmate.log, 'utf8')
+        : '';
+      if (rehearsal.code !== 0) {
+        return { rehearsal, applied: undefined, rehearsalLog, applyLog: '' };
+      }
+      const productionDbmate = fakeDbmate(release);
+      const productionPsql = fakePsql('0|0|0|none', options.installedDigest);
+      const productionSecret = join(temporaryDirectory('kf-production-secret-'), 'database-url');
+      writeFileSync(productionSecret, 'postgresql://kf_migrator@database.invalid/kf\n', {
+        mode: 0o600,
+      });
+      const applied = runMigration(['apply', release.release], release, productionDbmate, {
+        DATABASE_URL_FILE: productionSecret,
+        KF_PSQL_BIN: productionPsql.executable,
+        KF_TEST_PSQL_LOG: productionPsql.log,
+        KF_ROLLBACK_REHEARSAL_RECEIPT: receipt,
+        KF_MIGRATION_APPLY_CONFIRMATION: 'apply-reviewed-release',
+      });
+      const applyLog = existsSync(productionDbmate.log)
+        ? readFileSync(productionDbmate.log, 'utf8')
+        : '';
+      return { rehearsal, applied, rehearsalLog, applyLog };
+    }
+
+    it('runs every dbmate up with --strict, in the rehearsal and in apply', () => {
+      const result = rehearseThenApply();
+      expect(result.applied?.code, result.applied?.output).toBe(0);
+      for (const log of [result.rehearsalLog, result.applyLog]) {
+        const ups = log.split('\n').filter((line) => / up( |$)/.test(line));
+        expect(ups.length).toBeGreaterThan(0);
+        expect(
+          ups.every((line) => line.endsWith(' up --strict')),
+          ups.join('\n'),
+        ).toBe(true);
+      }
+      expect(result.applied?.output).toContain(`seeded ontology verified: ${SEED_DIGEST}`);
+    });
+
+    it('refuses an apply whose database holds another ontology after seeding', () => {
+      const result = rehearseThenApply({ installedDigest: 'e'.repeat(64) });
+      expect(result.rehearsal.code, result.rehearsal.output).toBe(0);
+      expect(result.applied?.code).not.toBe(0);
+      expect(result.applied?.output).toContain('seeded ontology digest differs');
+      expect(result.applied?.output).toContain('e'.repeat(64));
+      // Refused before `status` reports a migration as done.
+      expect(result.applyLog).not.toContain(' status');
+    });
+
+    it('refuses a seed that does not declare which ontology it installs', () => {
+      const result = rehearseThenApply({ seedBody: 'select 1;\n' });
+      expect(result.rehearsal.code).not.toBe(0);
+      expect(result.rehearsal.output).toContain('does not declare exactly one -- source_digest');
+      expect(result.applied).toBeUndefined();
+    });
   });
 
   it('refuses a v1 receipt, whose claim of full reversibility no longer holds', () => {

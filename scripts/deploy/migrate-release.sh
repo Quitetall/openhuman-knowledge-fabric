@@ -279,6 +279,33 @@ run_dbmate() {
   "$dbmate_bin" --migrations-dir "$migration_directory" --no-dump-schema "$@"
 }
 
+# `up --strict`: dbmate refuses to apply a migration whose version is older than one already
+# applied. Without it, a migration added with a back-dated version is quietly slotted into
+# history on hosts that already hold its successors, and the schema depends on the order a host
+# happened to receive releases in (KF-SAS-RQ-079: one declared sequence).
+migrate_up() {
+  run_dbmate up --strict
+}
+
+# The seed installs the ontology this release was compiled from, and nothing else
+# (KF-SAS-RQ-081). The seed names its own digest in its header; the database must now name the
+# same one as current. Compared AFTER seeding, because the seed is what writes the row: a
+# mismatch here means the seed did not run as reviewed, or the database already held a newer
+# release that the seed's upsert could not displace.
+verify_seeded_ontology() {
+  local declared installed
+  declared="$(sed -n 's/^-- source_digest: \([0-9a-f]\{64\}\)$/\1/p' "$ontology_seed")"
+  [[ "$declared" =~ ^[0-9a-f]{64}$ ]] ||
+    fail 'generated ontology seed does not declare exactly one -- source_digest header'
+  installed="$(
+    "$psql_bin" "$DATABASE_URL" -X -A -t -v ON_ERROR_STOP=1 -c \
+      "select ontology_digest from registry.schema_release where is_current"
+  )"
+  [ "$installed" = "$declared" ] ||
+    fail "seeded ontology digest differs: release seed declares $declared, database current release holds ${installed:-nothing}"
+  echo "seeded ontology verified: $declared"
+}
+
 # The receipt is authenticated with a key that exists only on this host, readable only by the
 # migrator identity. Until 2026-09-23 a receipt was plain text whose every field — manifest
 # digest, migration-set digest, dbmate version — could be derived from the release alone, so
@@ -456,8 +483,9 @@ case "$command_name" in
     # The key is checked before anything is migrated: a rehearsal that cannot sign its receipt
     # would migrate and roll back for nothing.
     rehearsal_key_file="$(receipt_key_file)"
-    run_dbmate up
+    migrate_up
     "$psql_bin" "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -q -f "$ontology_seed"
+    verify_seeded_ontology
     post_migration_schema_digest="$(schema_digest)"
 
     # Down to the floor, not to zero. With no forward-only migration the floor is 0 and this
@@ -532,8 +560,9 @@ EOF
     acquire_lock
     psql_bin="${KF_PSQL_BIN:-/usr/bin/psql}"
     [ -x "$psql_bin" ] || fail 'KF_PSQL_BIN is not executable'
-    run_dbmate up
+    migrate_up
     "$psql_bin" "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -q -f "$ontology_seed"
+    verify_seeded_ontology
     run_dbmate status
     echo "reviewed migration set applied: $migration_set_digest"
     ;;
