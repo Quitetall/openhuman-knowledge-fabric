@@ -79,8 +79,8 @@ async function assignOrganizationRole(
   await withTransaction(h.adminPool, async (tx) => {
     await bindContext(tx, fixtures, actorId);
     await tx.query(
-      `insert into org.role_assignment (id, subject_id, role_id, scope_id)
-       values ($1, $2, $3, $4)`,
+      `insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to)
+       values ($1, $2, $3, $4, now() + interval '1 year')`,
       [assignmentId, actorId, roleId, fixtures.organizationId],
     );
   });

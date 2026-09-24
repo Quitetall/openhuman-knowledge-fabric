@@ -91,8 +91,8 @@ async function subject(
       f.organizationId,
     ]);
     await tx.query(
-      `insert into org.role_assignment (id, subject_id, role_id, scope_id)
-       values ($1, $2, 'performer', $3)`,
+      `insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to)
+       values ($1, $2, 'performer', $3, now() + interval '1 year')`,
       [assignmentId, personId, f.organizationId],
     );
     await tx.query(

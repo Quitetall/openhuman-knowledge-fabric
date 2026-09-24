@@ -526,8 +526,8 @@ describe('the database binds the principal, and writes match it', () => {
       await withTransaction(h.adminPool, async (tx) => {
         await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
         await tx.query(
-          `insert into org.role_assignment (id, subject_id, role_id, scope_id)
-           values ($1, $2, 'reviewer', $3)`,
+          `insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to)
+           values ($1, $2, 'reviewer', $3, now() + interval '1 year')`,
           [assignment, f.performerId, f.organizationId],
         );
       });
@@ -587,8 +587,8 @@ describe('the database binds the principal, and writes match it', () => {
         asApp(async (tx) => {
           await bindContext(tx, f, f.performerId);
           await tx.query(
-            `insert into org.role_assignment (id, subject_id, role_id, scope_id)
-             values ($1, $2, 'technical_authority', $3)`,
+            `insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to)
+             values ($1, $2, 'technical_authority', $3, now() + interval '1 year')`,
             [f.organizationId, f.performerId, f.organizationId],
           );
         }),

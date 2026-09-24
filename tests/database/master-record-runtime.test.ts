@@ -890,9 +890,9 @@ describe('master-record runtime', () => {
     await withTransaction(harness.adminPool, async (tx) => {
       await bindContext(tx, fixtures);
       await tx.query(
-        `insert into org.role_assignment (id, subject_id, role_id, scope_id)
-         values ($1, $3, 'quality_authority', $2),
-                ($4, $3, 'system_administrator', $2)`,
+        `insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to)
+         values ($1, $3, 'quality_authority', $2, now() + interval '1 year'),
+                ($4, $3, 'system_administrator', $2, now() + interval '1 year')`,
         [qualityRoleId, fixtures.organizationId, fixtures.reviewerId, systemRoleId],
       );
     });

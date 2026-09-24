@@ -440,7 +440,7 @@ beforeAll(async () => {
   const authorityRoles = await withTransaction(harness.adminPool, async (tx) => {
     await bindContext(tx, fixtures, fixtures.reviewerId);
     await tx.query(
-      `update org.role_assignment set valid_from = '2020-01-01T00:00:00.000Z'
+      `update org.role_assignment set valid_from = now() - interval '30 days'
         where id = $1`,
       [fixtures.reviewerRoleId],
     );
@@ -456,8 +456,8 @@ beforeAll(async () => {
       );
       await tx.query(
         `insert into org.role_assignment
-           (id, subject_id, role_id, scope_id, valid_from)
-         values ($1,$2,'quality_authority',$3,'2020-01-01T00:00:00.000Z')`,
+           (id, subject_id, role_id, scope_id, valid_from, valid_to)
+         values ($1,$2,'quality_authority',$3,now() - interval '30 days',now() + interval '300 days')`,
         [roleObject.id, subjectId, fixtures.organizationId],
       );
       return roleObject.id;
