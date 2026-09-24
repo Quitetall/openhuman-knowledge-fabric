@@ -59,6 +59,16 @@ relation raises **ONT-012** at warning severity, so the gap is counted on every 
 rather than living in a comment. Typing lands in Gate 6, alongside the object-type
 extension where the full inventory is known.
 
+## Where each rule is enforced
+
+`rules.yaml` says where each invariant is enforced; `tests/database/rule-ledger.test.ts` is the
+record of whether it is. Every rule has a ledger entry citing a test that plants a violation,
+and the citation is checked by title, so renaming or deleting the test fails the ledger. All
+fifteen are live in the database or the dispatcher. The `validator` claim is counted
+separately: the frozen R01 `validate_graph.py` refuses three declared rules (KF-GRAPH-001,
+KF-FIN-001, KF-FIN-003 — its fourth check, invoice line totals, is not a declared rule), and
+the ledger asserts that count against the validator's own source (SAS §100.1).
+
 ## The projection grammar is closed and bounded
 
 `projections.yaml` is a closed grammar (SAS §60, KF-SAS-RQ-116). The loader refuses any key it

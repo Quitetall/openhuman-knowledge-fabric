@@ -12,12 +12,12 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 
 | Measure | Count | Derived from |
 | --- | ---: | --- |
-| migrations | 105 | files under `database/migrations/` |
+| migrations | 106 | files under `database/migrations/` |
 | forward-only migrations | 25 | migrations declaring `-- kf:forward-only <reason>` in their down-section |
 | schemas | 14 | distinct `create schema` names in migration up-sections |
 | tables created | 174 | in migration up-sections |
 | row-security policies | 455 | in migration up-sections |
-| triggers created | 171 | literal `create trigger` statements in migration up-sections |
+| triggers created | 173 | literal `create trigger` statements in migration up-sections |
 | security definer declarations | 137 | in migration up-sections; a function redefined is declared again |
 | views | 13 | distinct view names in migration up-sections |
 | indexes created | 89 | explicit `create index` statements in migration up-sections |
