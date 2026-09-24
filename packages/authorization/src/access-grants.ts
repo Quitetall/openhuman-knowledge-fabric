@@ -8,8 +8,8 @@
  * explanation can never disagree with what the corpus contains.
  */
 
-import { createHash } from 'node:crypto';
 import { ActionRejected, type ActionEffect } from '@kf/actions';
+import { digest } from '@kf/canonicalization';
 import type { Tx } from '@kf/database';
 
 export type AccessCapability = 'read' | 'act';
@@ -305,7 +305,7 @@ export interface AccessStep {
 }
 
 export interface AccessExplanation {
-  readonly format: 'kf-access-explanation-v1';
+  readonly format: typeof ACCESS_EXPLANATION_FORMAT;
   readonly capability: AccessCapability;
   readonly personId: string;
   readonly organizationId: string;
@@ -316,6 +316,25 @@ export interface AccessExplanation {
   readonly steps: readonly AccessStep[];
   readonly explainedAt: string;
   readonly explanationDigest: string;
+}
+
+/**
+ * The explanation's format tag, inside its digest preimage (KF-SAS-RQ-016).
+ *
+ * v2 is `digest()` — RFC 8785 canonical form — of the explanation without `explainedAt` and the
+ * digest itself. v1 hashed `JSON.stringify` of the same body, whose bytes depend on property
+ * insertion order and so on how the object happened to be built: two equal explanations could
+ * hash differently, and no other implementation could reproduce the digest from the JSON it was
+ * served. v1 was computed on request and returned, never stored or verified by anything here,
+ * so it is replaced rather than kept verifiable.
+ */
+export const ACCESS_EXPLANATION_FORMAT = 'kf-access-explanation-v2' as const;
+
+/** The digest an explanation carries: canonical, over everything but `explainedAt`. */
+export function accessExplanationDigest(
+  explanation: Omit<AccessExplanation, 'explainedAt' | 'explanationDigest'>,
+): string {
+  return digest(explanation);
 }
 
 /**
@@ -460,7 +479,7 @@ export async function explainAccess(
   // the same digest, so a reader can tell "unchanged" from "re-evaluated".
   const explainedAt = new Date().toISOString();
   const body = {
-    format: 'kf-access-explanation-v1' as const,
+    format: ACCESS_EXPLANATION_FORMAT,
     capability,
     personId: input.personId,
     organizationId: input.organizationId,
@@ -472,6 +491,6 @@ export async function explainAccess(
   return {
     ...body,
     explainedAt,
-    explanationDigest: createHash('sha256').update(JSON.stringify(body)).digest('hex'),
+    explanationDigest: accessExplanationDigest(body),
   };
 }

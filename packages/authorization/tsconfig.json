@@ -12,6 +12,9 @@
       "path": "../actions"
     },
     {
+      "path": "../canonicalization"
+    },
+    {
       "path": "../domain"
     },
     {
