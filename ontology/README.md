@@ -76,9 +76,15 @@ no actor, no authority, no audit event. `tests/conformance/create-act-coverage.t
 every object type to the act that creates it, or to a written reason it has none, and fails on
 a type in neither list. The R01 product and quality types (`product_system`, `requirement`,
 `risk`, `test`, `baseline`, `release`) gained create acts in draft.8 (KF-SAS-RQ-143); R01 gives
-them states and no lifecycle, so each is born in its first declared state. `engagement`,
-`deliverable` and `milestone` still have none and are recorded there as work-control gaps
-(KF-SAS-RQ-142).
+them states and no lifecycle, so each is born in its first declared state. The three work-control
+types that had none gained them in draft.8 too (KF-SAS-RQ-142): `record_engagement`,
+`plan_milestone` and `define_deliverable`, owned by `@kf/work-control`, each writing the typed row
+that already existed (`org.engagement`, `work.milestone`, `work.deliverable`). None of the three
+types has a state machine, so each is born in its first declared state (`draft`, `planned`,
+`planned`) by the same rule. `work.deliverable`'s columns predate the ontology's `deliverable`
+fields and differ from them (`deliverable_kind` and `definition_of_done` in the table; the
+ontology's `description`, `acceptance_criteria`, `due_date` and `work_order` have no column), so
+`define_deliverable` writes what the table holds — a recorded divergence, not a resolution.
 
 `observation` (ADR 0034, proposed) is the one type whose create act is deliberately cheap:
 `record_observation` needs a live assignment and no act grant, and the server forms the acting

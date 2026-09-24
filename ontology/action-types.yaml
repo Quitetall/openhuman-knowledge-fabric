@@ -702,6 +702,26 @@ action_types:
     transactional: true
     drives: []
 
+  # ── Creating the work-control records that had no act (KF-SAS-RQ-142) ─────────────────
+  # engagement, milestone and deliverable existed as typed tables and object types with no
+  # act to create one, so the reference scenario seeded its engagement with an owner insert.
+  # Each act creates one record and its typed row (@kf/work-control). None of the three types
+  # has a state machine, so each is born in its FIRST declared state and drives nothing, as the
+  # R01 product and quality creates are. None is institutional: recording that an engagement
+  # was signed, that a milestone is planned or that a deliverable is due approves nothing.
+  - id: record_engagement
+    audited: true
+    transactional: true
+    drives: []
+  - id: plan_milestone
+    audited: true
+    transactional: true
+    drives: []
+  - id: define_deliverable
+    audited: true
+    transactional: true
+    drives: []
+
   # ── OpenWarrant SAS §67 controlled actions (ADR 0019) ─────────────────────────────────
   # Thirty-two names, in §67's four groups, exactly as OpenWarrant's seam spells them. Phase
   # transitions (§24.7) drive the `warrant` machine; condition, outcome, currency and standing
