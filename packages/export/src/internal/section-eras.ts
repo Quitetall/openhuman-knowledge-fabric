@@ -16,6 +16,10 @@ import type { ExportPackage } from './types.js';
  * manifest is signed, so absence here means the signing exporter never wrote the section.
  *
  * - `object-verifications` — 2026-09-20: its table arrived with it; absence means none.
+ * - `orphan-collections` — 20260924000400: its table arrived with it; absence means none.
+ * - `product-systems`, `baselines`, `releases`, `requirements`, `risks`, `tests` —
+ *   20260925030100: their tables arrived with them; absence means none.
+ * - `observations` — 20260925030200: its table arrived with it; absence means none.
  * - `access-demand` — 2026-09-24: the demand aggregate arrived with it; absence means none.
  * - `deliverable-retired-attributes` — 20260925130100: its rows are derived from the old-shape
  *   `deliverables` rows the same archive carries, and the importer refuses the absence under
@@ -23,6 +27,14 @@ import type { ExportPackage } from './types.js';
  */
 export const SECTIONS_ADDED_WITHOUT_FORMAT_BUMP: readonly string[] = [
   'object-verifications',
+  'orphan-collections',
+  'product-systems',
+  'baselines',
+  'releases',
+  'requirements',
+  'risks',
+  'tests',
+  'observations',
   'access-demand',
   'deliverable-retired-attributes',
 ];

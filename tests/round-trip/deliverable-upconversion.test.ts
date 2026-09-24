@@ -28,6 +28,7 @@ import {
   type ExportPackage,
 } from '@kf/export';
 import { createFabricDispatcher } from '@kf/orchestrator';
+import { SECTIONS_ADDED_WITHOUT_FORMAT_BUMP } from '../../packages/export/src/internal/section-eras.js';
 import {
   bindContext,
   createObject,
@@ -259,17 +260,15 @@ describe('an archive written before deliverables had their ontology fields', () 
     }
   }, 240_000);
 
-  it('restores a format-2 archive written before object-verifications and access-demand', async () => {
-    // Both arrived without a format bump (2026-09-20, 2026-09-24); an archive from before then
-    // has neither file, entry nor count, and a snapshot identity over the sections of its day.
-    expect(rowsOf(pkg, 'object-verifications')).toEqual([]);
-    expect(rowsOf(pkg, 'access-demand')).toEqual([]);
+  it('restores a format-2 archive written before any section added without a format bump', async () => {
+    // Each arrived without a format bump (2026-09-20 to 2026-09-24, section-eras.ts); an archive
+    // from before them has no file, entry or count, and a snapshot identity over the sections of
+    // its day. The retired-attributes section is the upconversion's own and is dropped above.
+    const later = SECTIONS_ADDED_WITHOUT_FORMAT_BUMP.filter((name) => name !== RETIRED_SECTION);
+    for (const name of later) expect(rowsOf(pkg, name), name).toEqual([]);
     const older = repack(
       asArchiveBeforeTheMigration(pkg),
-      new Map<string, unknown>([
-        ['object-verifications.json', null],
-        ['access-demand.json', null],
-      ]),
+      new Map<string, unknown>(later.map((name) => [`${name}.json`, null])),
     );
     const fresh = await startHarness();
     try {
