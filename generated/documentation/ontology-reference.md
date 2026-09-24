@@ -1,5 +1,5 @@
 <!-- GENERATED from ontology/ — do not edit. -->
-<!-- ontology_version: 1.2.0-draft.1 · source_digest: 895eb499d54039c9fcc490c3ec63f7d7aca8ea7b415db33ba6369e3bb732c8eb -->
+<!-- ontology_version: 1.2.0-draft.1 · source_digest: 1633e5a2f52c859cc983cd4f1f90240d43009e3efdffe7c2bfcbc3c0da057b5e -->
 
 # Ontology reference
 
@@ -149,7 +149,7 @@ Compiled from `ontology/`. 39 object types, 41 relation types, 152 action types,
 | `retire_authored_fragment` | authored_fragment | role only |
 | `add_document_composition` | — | role only |
 | `revise_document_composition` | — | role only |
-| `change_document_source_holder` | — | role only |
+| `change_document_source_holder` | — | act |
 | `request_document_compilation` | — | role only |
 | `compile_master_record` | — | role only |
 | `accept_document_compilation` | — | act |

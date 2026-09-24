@@ -243,10 +243,14 @@ action_types:
     audited: true
     transactional: true
     drives: []
+  # Transferring a Source Holder is a human-only act (SAS §22 item 3, KF-SAS-RQ-019), so it is
+  # institutional: it needs a live act grant and is refused to a service actor by name. It was
+  # role-only until draft.8, which left a declared human-only act performable by automation.
   - id: change_document_source_holder
     audited: true
     transactional: true
     drives: []
+    requires: act
   - id: request_document_compilation
     audited: true
     transactional: true

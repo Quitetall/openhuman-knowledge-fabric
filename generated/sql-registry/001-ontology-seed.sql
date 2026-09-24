@@ -1,6 +1,6 @@
 -- GENERATED from ontology/ — do not edit.
 -- ontology_version: 1.2.0-draft.1
--- source_digest: 895eb499d54039c9fcc490c3ec63f7d7aca8ea7b415db33ba6369e3bb732c8eb
+-- source_digest: 1633e5a2f52c859cc983cd4f1f90240d43009e3efdffe7c2bfcbc3c0da057b5e
 
 -- Seed data for the registry schema. Generated; applied by `pnpm db:seed`.
 --
@@ -20,7 +20,7 @@ begin;
 update registry.schema_release set is_current = false where version <> '1.2.0-draft.1';
 
 insert into registry.schema_release (version, ontology_digest, is_current) values
-  ('1.2.0-draft.1', '895eb499d54039c9fcc490c3ec63f7d7aca8ea7b415db33ba6369e3bb732c8eb', true)
+  ('1.2.0-draft.1', '1633e5a2f52c859cc983cd4f1f90240d43009e3efdffe7c2bfcbc3c0da057b5e', true)
 on conflict (version) do update set ontology_digest = excluded.ontology_digest,
   applied_at = now(), is_current = true;
 
@@ -167,7 +167,7 @@ insert into registry.action_type (id, audited, transactional, requires_capabilit
   ('retire_authored_fragment', true, true, null),
   ('add_document_composition', true, true, null),
   ('revise_document_composition', true, true, null),
-  ('change_document_source_holder', true, true, null),
+  ('change_document_source_holder', true, true, 'act'),
   ('request_document_compilation', true, true, null),
   ('compile_master_record', true, true, null),
   ('accept_document_compilation', true, true, 'act'),
