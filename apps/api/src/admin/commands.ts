@@ -1,12 +1,19 @@
 /**
  * The bootstrap-tier commands as `kf` subcommands.
  *
- * Each needs DATABASE_OWNER_URL and is refused without it. Each prints refusals as refusals —
+ * Each needs the owner connection string and is refused without it. It is read through the
+ * shared secret loader from `DATABASE_OWNER_URL_FILE` (an owner-only file); the inline
+ * `DATABASE_OWNER_URL` is accepted only when `NODE_ENV` is `development` or `test` (RQ-151).
+ * The owner URL carries the one password that can rewrite authority, and an environment
+ * variable is readable from `/proc`, inherited by every child and printed by crash reporters.
+ *
+ * Each prints refusals as refusals —
  * one line per reason, no stack trace — because a refusal is a feature and a stack trace says
  * where the throw was written, not what to do.
  */
 
 import { createPool } from '@kf/database';
+import { loadSecret } from '@kf/operations';
 
 import {
   bootstrapUsage,
@@ -34,13 +41,25 @@ import {
 
 type Out = NodeJS.WritableStream;
 
-function ownerUrl(env: NodeJS.ProcessEnv, err: Out): string | undefined {
-  const url = env['DATABASE_OWNER_URL'];
-  if (url === undefined || url.trim() === '') {
-    err.write('DATABASE_OWNER_URL is required: this writes authority and needs the owner role\n');
+/**
+ * The owner connection string, or `undefined` after printing why not.
+ *
+ * `DATABASE_OWNER_URL_FILE` always; the inline variable only in development and test, the same
+ * rule every other secret in the system follows (`@kf/operations` `loadSecret`). The refusal
+ * names the variable and the path, never the value.
+ */
+export function ownerUrl(env: NodeJS.ProcessEnv, err: Out): string | undefined {
+  try {
+    return loadSecret('DATABASE_OWNER_URL', env, {
+      allowInline: env['NODE_ENV'] === 'development' || env['NODE_ENV'] === 'test',
+    });
+  } catch (error: unknown) {
+    err.write(
+      `${message(error)}\nthe owner connection is required: this writes authority and needs ` +
+        'the owner role (DATABASE_OWNER_URL_FILE, owner-only)\n',
+    );
     return undefined;
   }
-  return url;
 }
 
 function message(error: unknown): string {

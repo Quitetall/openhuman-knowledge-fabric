@@ -348,13 +348,14 @@ accepted a login.
 Linking is a recorded decision — `linkIdentity` stores who made it. The application login cannot
 make it: since `20260923000200` `kf_app` holds no `INSERT` or `UPDATE` on `org.external_identity`,
 so the one supported way to link is `pnpm kf:grant-authority`, run over the owner connection
-(`DATABASE_OWNER_URL`), which links the identity, assigns the role and grants the clearance in one
+(`DATABASE_OWNER_URL_FILE`, an owner-only file; the inline `DATABASE_OWNER_URL` is accepted only
+when `NODE_ENV` is `development` or `test`), which links the identity, assigns the role and grants the clearance in one
 transaction (see [`identity-and-login.md`](../deployment/identity-and-login.md)).
 
 Revoking is `pnpm kf:revoke-identity` (or `kf revoke-identity`), over the same owner connection:
 
 ```sh
-DATABASE_OWNER_URL=... pnpm kf:revoke-identity \
+DATABASE_OWNER_URL_FILE=/etc/kf/owner/database-url pnpm kf:revoke-identity \
   --issuer https://sso.example.org/realms/kf --subject <sub> \
   --revoked-by <your person uuid> --reason 'left the company 2026-09-24'
 # or name the link by its row: --identity <org.external_identity id>

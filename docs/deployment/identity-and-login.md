@@ -192,8 +192,14 @@ token. Worth knowing before you spend an hour on it.
 
 The three acts between `unknown_subject` and a usable session are one command:
 
+The owner connection string is read like every other secret: from `DATABASE_OWNER_URL_FILE`
+(owner-only, `chmod 600`, refused otherwise). The inline `DATABASE_OWNER_URL` is accepted only
+when `NODE_ENV` is `development` or `test`, which is what the local `.env` sets; anywhere else it
+is refused before an argument is read. The same holds for `kf bootstrap-organization`,
+`kf revoke-identity`, `kf retire-organization` and `kf:declare-service-actor`.
+
 ```sh
-DATABASE_OWNER_URL=postgresql://kf_owner:...@127.0.0.1:5432/kf \
+DATABASE_OWNER_URL_FILE=/etc/kf/owner/database-url \
 pnpm kf:grant-authority \
   --person       <org.person id> \
   --organization <org.organization id> \
