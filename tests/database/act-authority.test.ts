@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { attestationFor, withTransaction, type Tx } from '@kf/database';
 import { runDeclareServiceActor } from '../../apps/api/src/admin/declare-service-actor.js';
 import {
+  aYearFromNow,
   createObject,
   seedFixtures,
   startHarness,
@@ -68,8 +69,8 @@ describe('an institutional act needs act authority in the database, not only in 
       );
       const role = await envelope('role_assignment', 'technical_authority on one project');
       await tx.query(
-        `insert into org.role_assignment (id, subject_id, role_id, scope_id)
-         values ($1, $2, 'technical_authority', $3)`,
+        `insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to)
+         values ($1, $2, 'technical_authority', $3, now() + interval '1 year')`,
         [role.id, person.id, projectId],
       );
       await tx.query(
@@ -81,6 +82,7 @@ describe('an institutional act needs act authority in the database, not only in 
       return { personId: person.id, roleId: role.id, projectId };
     });
     const declared = await runDeclareServiceActor(h.adminPool, {
+      validTo: aYearFromNow(),
       organizationId: f.organizationId,
       name: 'act-authority-steward',
       roleId: 'technical_authority',

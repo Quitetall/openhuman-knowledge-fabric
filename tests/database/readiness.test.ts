@@ -270,6 +270,7 @@ describe('a system that is genuinely in order', () => {
       'secure_object_storage_evidence',
       'backup_freshness',
       'pitr_readiness',
+      'assignment_review_dates',
     ]);
     expect(report.service.checks.every((candidate) => candidate.scope === 'service')).toBe(true);
     expect(

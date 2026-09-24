@@ -255,7 +255,7 @@ describe('scope: an agent reads only what a grant reaches', () => {
         [person, f.organizationId, f.reviewerId, f.clearanceActionId],
       );
       await tx.query(
-        'insert into org.role_assignment (id, subject_id, role_id, scope_id) values ($1,$2,$3,$4)',
+        "insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to) values ($1,$2,$3,$4,now() + interval '1 year')",
         [role, person, 'performer', project],
       );
       await indexObject(tx, project);

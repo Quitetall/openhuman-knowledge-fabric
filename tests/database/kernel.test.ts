@@ -559,7 +559,7 @@ describe('the registry constrains the domain', () => {
           [f.schemaVersion, f.organizationId, f.performerId],
         );
         await tx.query(
-          'insert into org.role_assignment (id, subject_id, role_id, scope_id) values ($1,$2,$3,$4)',
+          "insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to) values ($1,$2,$3,$4,now() + interval '1 year')",
           [row.id, f.reviewerId, 'technical_authority', f.organizationId],
         );
       }),

@@ -705,8 +705,8 @@ describe('document action chain', () => {
     await withTransaction(harness.adminPool, async (tx) => {
       await bindContext(tx, fixtures, fixtures.reviewerId);
       await tx.query(
-        `insert into org.role_assignment (id, subject_id, role_id, scope_id)
-         values ($1,$2,'quality_authority',$3)`,
+        `insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to)
+         values ($1,$2,'quality_authority',$3,now() + interval '1 year')`,
         [qualityRoleAssignmentId, fixtures.reviewerId, fixtures.organizationId],
       );
     });

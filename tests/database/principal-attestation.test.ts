@@ -2,7 +2,13 @@ import { randomBytes } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createPool, withTransaction, type Pool, type Principal, type Tx } from '@kf/database';
 import { runDeclareServiceActor } from '../../apps/api/src/admin/declare-service-actor.js';
-import { seedFixtures, startHarness, type Fixtures, type Harness } from './harness.js';
+import {
+  aYearFromNow,
+  seedFixtures,
+  startHarness,
+  type Fixtures,
+  type Harness,
+} from './harness.js';
 
 /**
  * The database binds a person only on an attestation that they are present (20260924001000).
@@ -39,6 +45,7 @@ describe('the application binds a person only on an attestation', () => {
     other = await seedFixtures(h.adminPool, { auditClearance: false });
     app = await loginPool('kf_bare_app_login', ['kf_app']);
     const declared = await runDeclareServiceActor(h.adminPool, {
+      validTo: aYearFromNow(),
       organizationId: f.organizationId,
       name: 'storage-steward',
       roleId: 'performer',

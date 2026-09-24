@@ -57,8 +57,8 @@ export async function enrolPerson(
     ]);
     for (const [i, assignment] of spec.assignments.entries()) {
       await tx.query(
-        `insert into org.role_assignment (id, subject_id, role_id, scope_id)
-         values ($1, $2, $3, $4)`,
+        `insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to)
+         values ($1, $2, $3, $4, now() + interval '1 year')`,
         [assignmentIds[i], personId, assignment.role, assignment.scopeId ?? f.organizationId],
       );
     }

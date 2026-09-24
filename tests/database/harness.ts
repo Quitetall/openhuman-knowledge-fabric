@@ -444,6 +444,14 @@ export interface SeedFixtureOptions {
   readonly auditClearance?: boolean;
 }
 
+/**
+ * A role assignment's end one year out: the default the admin commands apply (ADR 0036), for
+ * tests that call them with a declaration rather than through a plan.
+ */
+export function aYearFromNow(): Date {
+  return new Date(Date.now() + 365 * 86_400_000);
+}
+
 export async function seedFixtures(
   pool: Pool,
   options: SeedFixtureOptions = {},
@@ -549,7 +557,7 @@ export async function seedFixtures(
         schemaVersion: version,
       });
       await tx.query(
-        'insert into org.role_assignment (id, subject_id, role_id, scope_id) values ($1,$2,$3,$4)',
+        "insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to) values ($1,$2,$3,$4,now() + interval '1 year')",
         [id, subject, role, orgObj],
       );
       return id;

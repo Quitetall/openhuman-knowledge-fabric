@@ -79,8 +79,8 @@ async function assignOrganizationRole(
   await withTransaction(h.adminPool, async (tx) => {
     await bindContext(tx, fixtures, actorId);
     await tx.query(
-      `insert into org.role_assignment (id, subject_id, role_id, scope_id)
-       values ($1, $2, $3, $4)`,
+      `insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to)
+       values ($1, $2, $3, $4, now() + interval '1 year')`,
       [assignmentId, actorId, roleId, fixtures.organizationId],
     );
   });
@@ -867,7 +867,9 @@ describe('SOA signing-key authority', () => {
   });
 
   it('rejects future action effectivity for key revocations and erasure tombstones', async () => {
-    const future = new Date('2098-08-15T12:30:00.000Z');
+    // In the future, and inside the fixture role's window (ADR 0036: a year at most), so the
+    // refusal is the one about effectivity rather than a lapsed role.
+    const future = new Date(Math.floor(Date.now() / 1000) * 1000 + 30 * 86_400_000);
     const revocationPair = generateKeyPairSync('ed25519');
     const revocationKey = await registerKey('soa-key-future-revocation', revocationPair.publicKey);
     await expect(

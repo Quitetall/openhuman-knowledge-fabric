@@ -370,7 +370,7 @@ describe('access is a grant', () => {
     await withTransaction(harness.adminPool, async (tx) => {
       await bindContext(tx, fixtures, fixtures.reviewerId);
       await tx.query(
-        'insert into org.role_assignment (id, subject_id, role_id, scope_id) values ($1,$2,$3,$4)',
+        "insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to) values ($1,$2,$3,$4,now() + interval '1 year')",
         [roleObject, outsider, 'performer', project],
       );
     });
@@ -504,7 +504,7 @@ describe('access is a grant', () => {
         [workPackage, project],
       );
       await tx.query(
-        'insert into org.role_assignment (id, subject_id, role_id, scope_id) values ($1,$2,$3,$4)',
+        "insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to) values ($1,$2,$3,$4,now() + interval '1 year')",
         [role, reader, 'performer', project],
       );
     });
@@ -588,7 +588,7 @@ describe('access is a grant', () => {
         [steward, fixtures.organizationId, fixtures.reviewerId, fixtures.clearanceActionId],
       );
       await tx.query(
-        'insert into org.role_assignment (id, subject_id, role_id, scope_id) values ($1,$2,$3,$4)',
+        "insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to) values ($1,$2,$3,$4,now() + interval '1 year')",
         [stewardRole, steward, 'performer', fixtures.organizationId],
       );
     });

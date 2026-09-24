@@ -17,6 +17,7 @@ import { EVIDENCE_NAMESPACES, sweepOrphanedEvidence } from '../../apps/kf-storag
 import { orphanPermissionRefusal } from '../../apps/kf-storage/src/permissions.js';
 import { runStorageSweep } from '../../apps/kf-storage/src/sweep.js';
 import {
+  aYearFromNow,
   bindContext,
   createObject,
   seedFixtures,
@@ -47,6 +48,7 @@ beforeAll(async () => {
   harness = await startHarness();
   fixtures = await seedFixtures(harness.adminPool);
   const declared = await runDeclareServiceActor(harness.adminPool, {
+    validTo: aYearFromNow(),
     organizationId: fixtures.organizationId,
     name: 'storage-steward',
     roleId: 'performer',
@@ -88,6 +90,7 @@ describe('a declared service actor', () => {
       actor_id: fixtures.reviewerId,
     });
     const again = await runDeclareServiceActor(harness.adminPool, {
+      validTo: aYearFromNow(),
       organizationId: fixtures.organizationId,
       name: 'storage-steward',
       roleId: 'performer',

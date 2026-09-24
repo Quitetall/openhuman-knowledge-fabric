@@ -40,10 +40,13 @@ runDeclareServiceActor(pool, plan.declaration).then(
           service_actor: plan.declaration?.name,
           person_id: result.personId,
           role_assignment_id: result.roleAssignmentId,
+          role_assignment_valid_to: result.roleAssignmentValidTo?.toISOString() ?? null,
           clearance_id: result.clearanceId,
           action_id: result.actionId,
           reused: result.reused,
-          next: 'set KF_STORAGE_ACTOR=<person_id> KF_STORAGE_ROLE=<role_assignment_id> for kf-storage',
+          next:
+            'set KF_STORAGE_ACTOR=<person_id> KF_STORAGE_ROLE=<role_assignment_id> for kf-storage; ' +
+            'renew before role_assignment_valid_to with kf:grant-authority --renew (ADR 0036)',
         },
         null,
         2,
