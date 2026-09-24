@@ -435,11 +435,57 @@ or promote the compiler. Those remain separate human-authority records.
 
 Extract as root with `tar --no-same-owner --no-same-permissions`; otherwise archive may retain
 workstation uid and release verifier correctly refuses `KF_EXPECTED_RELEASE_OWNER_UID=0`.
-Extract into new release directory, never over previous release or `/opt/kf` symlink target.
+Extract into a new directory **beside** the live link — `/opt/knowledge-fabric-<release-id>` —
+never over the previous release or the `/opt/kf` link target. Do not rebuild or edit under a
+release directory.
 
-Keep previous release intact. After file check and rollback rehearsal pass and services are
-stopped, switch `/opt/kf` atomically to new release, run privileged migration, then run service
-preflight. Do not rebuild or edit under release directory.
+### Install and roll back: `install-release.sh`
+
+The switch is a script, not a sentence. Until 2026-09-25 this section said "switch `/opt/kf`
+atomically" and "keep the previous release intact" and nothing implemented either: an operator
+typing `ln -sfn` gets an unlink-then-create with a window in which `/opt/kf` does not exist, and
+"keep the previous release" was a matter of remembering its name.
+[`../../scripts/deploy/install-release.sh`](../../scripts/deploy/install-release.sh) does both:
+
+```sh
+# After the file check and the rollback rehearsal pass, with kf-api, kf-web and kf-worker stopped:
+cd /
+sudo env \
+  KF_EXPECTED_DBMATE_VERSION=2.35.0 \
+  KF_EXPECTED_RELEASE_MANIFEST_SHA256=<reviewed-manifest-digest> \
+  KF_EXPECTED_RELEASE_OWNER_UID=0 \
+  /opt/knowledge-fabric-<release-id>/scripts/deploy/install-release.sh install \
+  /opt/knowledge-fabric-<release-id>
+
+sudo /opt/kf/scripts/deploy/install-release.sh status     # live and previous, verified digests
+sudo /opt/kf/scripts/deploy/install-release.sh rollback   # previous becomes live again
+```
+
+What `install` does, in order, and what it refuses:
+
+1. **Verifies the candidate** with `migrate-release.sh check` — the same verifier as above, with
+   the release-packaged dbmate — so a release whose `SHA256SUMS` does not hash to the reviewed
+   digest, or whose files differ from it, is refused before anything moves.
+2. Refuses a release that is not a real directory directly under the install root (the parent of
+   `/opt/kf`), one that is already live, and an `/opt/kf` that exists but is not a symlink.
+3. Records what it verified — manifest digest, dbmate version, owner uid — under
+   `/opt/.kf-install/`, so a later rollback can verify the release it returns to without the
+   operator retyping its digest.
+4. Points `/opt/kf.previous` at the release that was live, then swaps `/opt/kf` by creating a
+   new link under a temporary name and renaming it over the old one with `mv -T` — one
+   `rename(2)`, so every reader sees either the old release or the new one, never neither.
+
+`rollback` re-verifies the previous release against its recorded digest and swaps the two links
+the same way; the release rolled back from becomes `/opt/kf.previous`, so a second `rollback`
+rolls forward again. It refuses when there is no previous release, when the previous release was
+never installed by this script (no record), or when it no longer verifies. It changes files only:
+it does not stop or start a service and never touches the database — see
+[application-only rollback](#migration-and-rollback-rehearsal) for when that is allowed. Both
+commands take a lock under `/opt/.kf-install/`, so two installs cannot interleave.
+`KF_INSTALL_ROOT` and `KF_INSTALL_LINK` (defaults `/opt` and `kf`) exist so
+`tests/deployment/install-release.test.ts` can run it against a temporary prefix.
+
+Then run the privileged migration, then service preflight.
 
 Database migrations are separate privileged operation. They run once with `kf-migrator`
 credential from exact migration set reviewed for release; API and worker never receive that
