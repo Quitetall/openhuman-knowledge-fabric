@@ -11,7 +11,7 @@
 -- The address is `endpoint` + `bucket`. Never credentials: the endpoint is refused if it carries
 -- userinfo, and the secret stays instance configuration, as the table comment has always said.
 --
--- WRITTEN THROUGH ONE SEAM. No login may UPDATE this table; `content.bind_artifact_store` is
+-- WRITTEN THROUGH ONE SEAM. No application login may INSERT or UPDATE this table; `content.bind_artifact_store` is
 -- SECURITY DEFINER and does exactly three things: declares an object store that is not yet
 -- declared (ADR 0017 says the app registers `durable`, and until now nothing did), binds an
 -- address to a declared object store that has none, and refuses an address that differs from
@@ -98,8 +98,22 @@ comment on function content.bind_artifact_store(text, text, text, text) is
 revoke all on function content.bind_artifact_store(text, text, text, text) from public;
 grant execute on function content.bind_artifact_store(text, text, text, text) to kf_app, kf_worker;
 
+-- The seam is now the only way an application login declares a store. kf_app's direct INSERT
+-- (20260902000200) was used by nothing outside owner-credential fixtures, and under the write
+-- guard (20260925011000) it could not be used without an act — while declaring the store a
+-- process was configured with happens at startup, before anyone has acted. So the grant goes,
+-- and with it the guard triggers `core.install_action_context_guards` attached because of it:
+-- a table no application login can write needs no act guard, and the seam's own refusals are
+-- the control. Re-running the installer after this migration leaves the table unguarded for
+-- the same reason (it attaches only where kf_app or kf_worker holds a write privilege).
+revoke insert on content.artifact_store from kf_app;
+drop trigger if exists zz_written_under_an_act on content.artifact_store;
+drop trigger if exists written_act_is_recorded on content.artifact_store;
+
 -- migrate:down
 
+grant insert on content.artifact_store to kf_app;
+select core.install_action_context_guards();
 drop function content.bind_artifact_store(text, text, text, text);
 alter table content.artifact_store
   drop constraint artifact_store_address_is_an_object_store,

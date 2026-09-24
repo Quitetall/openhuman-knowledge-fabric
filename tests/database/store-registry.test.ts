@@ -8,7 +8,7 @@
  *      differently, is accepted; a different bucket or endpoint is refused by the registry with
  *      StoreAddressMismatch, and — the registry bypassed — by the database seam itself.
  *   2. `durable`, which nothing declared before this, is declared and bound on first use.
- *   3. No application login may rewrite an address; an address with credentials in it is refused
+ *   3. No application login may insert a store or rewrite an address; an address with credentials in it is refused
  *      by the table.
  *   4. The API resolves its stores through the registry: configured with the wrong bucket it
  *      refuses to serve, and no request reaches the store.
@@ -129,6 +129,14 @@ describe('a store is bound to its address', () => {
     await expect(
       withTransaction(h.pool, (tx) =>
         tx.query(`update content.artifact_store set bucket = 'other' where id = 'working'`),
+      ),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      withTransaction(h.pool, (tx) =>
+        tx.query(
+          `insert into content.artifact_store (id, kind, label, endpoint, bucket, bound_at)
+           values ('rogue', 'object_store', 'r', 'http://rogue:9000', 'rogue', now())`,
+        ),
       ),
     ).rejects.toThrow(/permission denied/);
     await expect(
