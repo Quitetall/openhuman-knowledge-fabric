@@ -140,6 +140,14 @@ subject, the rule, the one file, who it waits on, why, and a `recorded` and `rev
 test requires that list to equal the unsigned acceptances exactly, so an entry cannot outlive what
 it excuses. Adding an entry records that the owner owes an act; it never performs the act.
 
+CI's `sas` job runs `war check --generated` (KF-SAS-RQ-017, RQ-181) with `war` built from a
+pinned OpenWarrant commit, because the released `war` 1.0.0-alpha.2 leaks `**` into the
+projection and would report drift for its own defect. `scripts/war-check-gate.mjs` turns the
+report into the verdict: drift is never excusable, and an ERROR passes only while
+`docs/sas/owner-pending.json` names its exact rule and file and the entry's `review_by` date has
+not passed. `tests/deployment/normative-projection.test.ts` separately requires the committed
+projection's header to name the document's current digest and a revision record that recorded it.
+
 A requirement cited from another repository is an unverified claim until a tool resolves it
 (KF-SAS-RQ-184). `node scripts/resolve-sas-citations.mjs <file-or-dir>...` is that tool: it
 resolves every `KF-SAS-RQ-nnn` (bare or `sas://`) against `docs/sas/generated/NORMATIVE.json`,
