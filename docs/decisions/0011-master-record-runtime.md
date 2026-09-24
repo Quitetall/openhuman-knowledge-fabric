@@ -1,6 +1,6 @@
 # Master-record runtime and disclosure boundary
 
-**Status:** accepted for OW-WAR-0054 implementation; identity key amended by ADR 0013 (corpus, not permission digest; sections derived, not stored)
+**Status:** accepted for OW-WAR-0054 implementation; identity key amended by ADR 0013 (corpus, not permission digest; sections derived, not stored); session ceiling amended by ADR 0027 (the session ceiling is the person's clearance; the assignment ceiling caps only the organization-wide grant)
 **Date:** 2026-08-26
 **Decision owner:** Knowledge Fabric technical authority
 **Scope:** permission enumeration, master-record compilation, withholding, withdrawal, and KF-only delivery

@@ -6,6 +6,11 @@
 - **Bears on:** KF-SAS-RQ-021, RQ-202, §48 ingestion, §62 the master-record boundary, §63 the
   withholding ledger.
 
+> **UPDATED 2026-09-24.** The bulk ceiling named as undecided under Consequences is now decided
+> (`2d77c1a0`): `kf ingest` refuses a batch above 250 files, which a caller may lower but never
+> raise (`DEFAULT_INGEST_CEILING`, `apps/api/src/ingest/plan.ts`), and a confirmed sync is capped
+> at 2 000 (`MAX_BULK_CEILING`, `apps/api/src/sync/plan.ts`).
+
 ## Context
 
 The corpus is meant to be browsable, downloadable, and worked on offline, with a single gesture

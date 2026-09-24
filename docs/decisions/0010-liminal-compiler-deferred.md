@@ -10,6 +10,11 @@
 v1.0 declares none. The `PinnedLiminalProcessAdapter` stays in the tree, built and tested,
 wired to nothing. [ADR 0002](0002-liminal-backed-document-compiler.md) is not reversed.
 
+> **UPDATED 2026-09-24.** There are nine commissioning checks, not eight: `attestor_separation`
+> was added in `3b047fff`. And the adapter was never "wired to nothing": `apps/worker/src/main.ts`
+> has constructed it since `bffc6739` (2026-08-15, before this record) whenever the `LIMINAL_*`
+> variables are set; a v1.0 host sets none, so no Liminal compiler runs, as this decision requires.
+
 ---
 
 ## What was measured

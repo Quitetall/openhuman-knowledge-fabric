@@ -1,6 +1,8 @@
 # What v1.0 claims, and what still has to be true before it can
 
-**Status:** accepted — the criteria below are the v1.0 gate
+**Status:** accepted — the criteria below are the v1.0 gate; licence half superseded by
+[ADR 0005](0005-apache-2-0-licence.md); replacement criterion amended by
+[ADR 0032](0032-the-seven-day-floor-is-waived.md) (the seven-day floor is waived)
 **Date raised:** 2026-08-17
 **Date decided:** 2026-08-17
 **Decision owner:** technical authority

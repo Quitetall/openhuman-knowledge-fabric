@@ -7,6 +7,13 @@
 **Scope:** how an artifact version's bytes are located, copied, verified and served; what a
 second store is; what is deliberately not written
 
+> **UPDATED 2026-09-24.** "A sweep for objects with no row is not built" is out of date in part:
+> `kf-storage --collect-orphans` (`ed5193f7`) deletes working-store evidence keys that no artifact
+> version or location references, and records each deletion in `content.orphan_collection`
+> (`20260924000400_orphan_collection_is_recorded.sql`). Bytes are therefore removed by a recorded
+> sweep that is not an action; durable-store replication orphans and retention deletion remain as
+> described below.
+
 ## The problem, measured
 
 `content.artifact_version` carried one address: `storage_uri` + `storage_version`, the working

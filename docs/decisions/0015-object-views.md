@@ -1,6 +1,8 @@
 # An Object View is a projection anchored at the object, over the reader's own corpus
 
-**Status:** accepted — implemented 2026-09-02; builds on ADR 0014
+**Status:** accepted — implemented 2026-09-02; builds on ADR 0014; amended by
+[ADR 0033](0033-the-database-binds-the-principal.md) (`GET /objects/:id` answers `409` when the
+master record is stale; `POST /objects/:id/refresh` compiles)
 **Date raised:** 2026-09-01
 **Date decided:** 2026-09-02
 **Decision owner:** technical authority

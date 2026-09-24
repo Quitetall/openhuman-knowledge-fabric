@@ -4,6 +4,11 @@
 - **Extends:** ADR 0011 (organization-scoped authority), ADR 0016 (access is a grant),
   ADR 0025, ADR 0026.
 
+> **UPDATED 2026-09-24.** `act` grants are now enforced by the database as well: an insert into
+> `core.action` for a `requires: act` action type is refused unless a live `act` grant reaches the
+> actor (`20260924000100_the_database_checks_act_authority.sql`). Read grants are still applied at
+> the API, as the last consequence below says.
+
 ## Context
 
 The first fixture company could not give a customer's contact their own master record, and

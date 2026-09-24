@@ -14,6 +14,13 @@ without joining `core.object`
 **Decision:** option 1, staged by domain. Stage one is `quality`, `engineering`, `org` and
 `finance` — 29 tables, 95 policies. See "Decision and stage one" at the foot of this record.
 
+> **UPDATED 2026-09-24.** The typed tables are no longer "enabled, not forced": every table that
+> enables row-level security now forces it, and the definer seams, search indexing included, read
+> past it by the owner's `BYPASSRLS` (`20260924000200_row_security_is_forced_everywhere.sql`).
+> `org.external_identity` is no longer closed by grants alone: it has row-level security with four
+> policies, and `kf_app` lost INSERT and UPDATE on it
+> (`20260923000200_writes_match_the_context.sql`).
+
 ---
 
 ## What was measured

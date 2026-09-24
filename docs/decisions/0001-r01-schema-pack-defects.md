@@ -10,6 +10,12 @@ remains **outstanding**: it is the pack owner's own act with the owner's own key
 this repository performs it, and `pnpm ontology:verify release/knowledge-fabric-1.0.0-draft.2`
 still reports `DRAFT` and exits 1.
 
+> **UPDATED 2026-09-24.** Decision point 2 is closed: the pack owner approved and signed
+> `1.0.0-draft.2` on 2026-08-19 with key `release-1`, and `pnpm ontology:verify` with
+> `--key ontology/release-keys/release-1.pub` reports `APPROVED`
+> ([ADR 0004](0004-production-release.md), criterion 2). "Outstanding" and `DRAFT` below describe
+> the state before that.
+
 ---
 
 ## Why this exists

@@ -7,6 +7,12 @@
 **Scope:** under whose identity a timer replicates and re-verifies artifact copies, what that
 identity can and cannot do, and how it is declared
 
+> **UPDATED 2026-09-24.** "Every write is a typed action" no longer holds for `kf-storage`: a third
+> pass, `--collect-orphans`, deletes working-store evidence keys that no record references without
+> dispatching an action, since an orphan has no record for an act to be on. Each deletion is
+> recorded instead in the append-only `content.orphan_collection`, attributed to the bound service
+> actor (`20260924000400_orphan_collection_is_recorded.sql`, which names this the exception).
+
 ## The problem, measured
 
 ADR 0017 made replication and re-verification typed actions and left scheduling undecided.

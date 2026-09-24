@@ -8,6 +8,10 @@
 existing sources of access are read through it, and how "why can't this person see this" is
 answered
 
+> **UPDATED 2026-09-24.** The `requires: act` rule below is now also enforced by the database: a
+> trigger on `core.action` asks `org.act_grant_reaches` the dispatcher's question and refuses a
+> service actor outright (`20260924000100_the_database_checks_act_authority.sql`).
+
 ## The problem, measured
 
 Before this, a person's permitted set was every object in the organization at or below their

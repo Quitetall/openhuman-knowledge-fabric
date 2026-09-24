@@ -4,6 +4,16 @@
 - **Extends:** ADR 0003 (the database is the authority), ADR 0011 (organization-scoped
   authority), ADR 0025.
 
+> **UPDATED 2026-09-24.** Three statements below are no longer current. The resolvers now bind
+> their own provisional context and restore it before returning, and the application binds only
+> `public` with no principal or narrows a principal it bound through `core.bind_principal`
+> (`20260923000100_the_context_is_sealed.sql`;
+> [ADR 0033](0033-the-database-binds-the-principal.md)). `org.person` and `org.organization` now
+> force row-level security, so the owner reads across organizations by `BYPASSRLS`, not by
+> ownership (`20260924000200_row_security_is_forced_everywhere.sql`). And the "three suites"
+> consequence was already stale when accepted: since `050c2f32` the harness has owned the schema
+> as `kf_harness_owner` (non-superuser, `BYPASSRLS`) for every suite by default.
+
 ## Context
 
 The first real login on the dogfood host was refused: `401 role_not_held`. Every
