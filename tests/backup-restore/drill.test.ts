@@ -597,3 +597,152 @@ describe('restore drill', () => {
     expect(r.output).toMatch(/digest mismatch|size mismatch/i);
   }, 300_000);
 });
+
+describe('backup as the backup login', () => {
+  // The drill above runs backup.sh as the container's superuser, which reads every schema. A
+  // deployed host runs it as a login holding kf_backup and nothing else (provision-host.sh), so
+  // a schema kf_backup cannot reach made every deployed backup fail on its first table in that
+  // schema — search and retrieval did, found by the retrieval work — while this drill passed.
+  it('takes a complete backup with only kf_backup, reaching every schema', async () => {
+    await withTransaction(h.adminPool, async (tx) => {
+      await tx.query(
+        `do $$ begin
+           if not exists (select from pg_roles where rolname = 'kf_backup_drill') then
+             create role kf_backup_drill login password 'test-only-not-a-secret' in role kf_backup;
+           end if;
+         end $$`,
+      );
+      // Every schema has a row to read, including the derived and the transient ones, so a
+      // missing grant or row policy cannot hide behind an empty table.
+      await tx.query(
+        `insert into search.recorded_query
+           (organization_id, query_text, asker_ceiling, asker_rank, asker_key)
+         select $1, 'drill query', c.id, c.rank, public.gen_random_bytes(32)
+           from registry.classification c order by c.rank limit 1`,
+        [f.organizationId],
+      );
+      await tx.query(`insert into search.asker_key (key) values (public.gen_random_bytes(32))`);
+      const attested = await tx.one<{ n: number }>(
+        'select count(*)::integer as n from core.principal_attestation',
+      );
+      expect(attested.n, 'the harness binds through attestations').toBeGreaterThan(0);
+    });
+    const url = new URL(h.connectionString);
+    url.username = 'kf_backup_drill';
+    url.password = 'test-only-not-a-secret';
+    const destination = join(work, 'backup-as-kf-backup');
+
+    const schemas = await withTransaction(h.adminPool, (tx) =>
+      tx.query<{ schema: string }>(
+        `select n.nspname as schema
+           from pg_namespace n
+          where n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
+            and not has_schema_privilege('kf_backup', n.oid, 'usage')
+            and exists (select 1 from pg_class c where c.relnamespace = n.oid
+                         and c.relkind in ('r', 'p'))`,
+      ),
+    );
+    expect(
+      schemas.map((row) => row.schema),
+      'schemas with tables kf_backup cannot reach',
+    ).toEqual([]);
+
+    // pg_dump takes ACCESS SHARE on every table it dumps a definition of, in one statement, and
+    // that needs SELECT or MAINTAIN — on a transient table too, whose rows backup.sh leaves out.
+    // It reads every sequence's state, which needs SELECT on the sequence.
+    const unlockable = await withTransaction(h.adminPool, (tx) =>
+      tx.query<{ name: string }>(
+        `select n.nspname || '.' || c.relname as name
+           from pg_class c join pg_namespace n on n.oid = c.relnamespace
+          where c.relkind in ('r', 'p', 'S')
+            and n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
+            and not has_table_privilege('kf_backup', c.oid, 'select')
+            and not (c.relkind <> 'S' and has_table_privilege('kf_backup', c.oid, 'maintain'))
+          order by 1`,
+      ),
+    );
+    expect(
+      unlockable.map((row) => row.name),
+      'tables and sequences pg_dump cannot read as kf_backup',
+    ).toEqual([]);
+
+    // The dump runs with row security enabled, so a table with row security whose rows are dumped
+    // needs a policy that lets kf_backup read all of it, and no restrictive policy narrowing that;
+    // otherwise the dump is silently short. The tables whose rows are left out are read from
+    // backup.sh itself, so the two cannot drift.
+    const excluded = [...readFileSync(BACKUP, 'utf8').matchAll(/--exclude-table-data=(\S+)/g)].map(
+      (match) => match[1]!,
+    );
+    expect(excluded).toContain('search.recorded_query');
+    const unreadable = await withTransaction(h.adminPool, (tx) =>
+      tx.query<{ name: string }>(
+        `select n.nspname || '.' || c.relname as name
+           from pg_class c join pg_namespace n on n.oid = c.relnamespace
+          where c.relkind in ('r', 'p') and c.relrowsecurity
+            and n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
+            and n.nspname || '.' || c.relname <> all($1::text[])
+            and (not exists (
+                   select 1 from pg_policy p
+                    where p.polrelid = c.oid and p.polcmd in ('r', '*') and p.polpermissive
+                      and pg_get_expr(p.polqual, p.polrelid) = 'true'
+                      and 'kf_backup'::regrole = any(p.polroles))
+                 or exists (
+                   select 1 from pg_policy p
+                    where p.polrelid = c.oid and p.polcmd in ('r', '*') and not p.polpermissive
+                      and ('kf_backup'::regrole = any(p.polroles) or 0::oid = any(p.polroles))))
+          order by 1`,
+        [excluded],
+      ),
+    );
+    expect(
+      unreadable.map((row) => row.name),
+      'dumped tables kf_backup cannot read whole',
+    ).toEqual([]);
+
+    const r = run(BACKUP, [destination], {
+      DATABASE_URL: url.toString(),
+      KF_BACKUP_RETAIN_LOCAL: '50',
+    });
+    expect(r.code, r.output).toBe(0);
+    expect(existsSync(join(destination, 'dump.pgcustom'))).toBe(true);
+    expect(existsSync(join(destination, 'export', 'manifest.json'))).toBe(true);
+
+    // The export was taken as kf_backup too, under the same row security: it holds every record,
+    // not the records some policy happened to let it see.
+    const exportedObjects = JSON.parse(
+      readFileSync(join(destination, 'export', 'objects.json'), 'utf8'),
+    ) as readonly unknown[];
+    const { objects } = await withTransaction(h.adminPool, (tx) =>
+      tx.one<{ objects: number }>('select count(*)::integer as objects from core.object'),
+    );
+    expect(objects).toBeGreaterThan(0);
+    expect(exportedObjects).toHaveLength(objects);
+
+    // The transient observations are declared out of the dump (KF-SAS-RQ-220): the table is
+    // defined in it, and its rows are not.
+    const listing = execFileSync('pg_restore', ['--list', join(destination, 'dump.pgcustom')], {
+      encoding: 'utf8',
+    });
+    expect(listing).toMatch(/TABLE search recorded_query/);
+    expect(listing).not.toMatch(/TABLE DATA search recorded_query/);
+    expect(listing).not.toMatch(/TABLE DATA search asker_key/);
+    expect(listing).not.toMatch(/TABLE DATA core principal_attestation/);
+    // The derived index is in it: nothing in the restore path rebuilds it.
+    expect(listing).toMatch(/TABLE DATA search document/);
+
+    // And the login that took it cannot read a table whose rows are left out, though it may lock
+    // one: were an exclusion dropped from backup.sh, pg_dump would fail on the table rather than
+    // keep its rows past their window.
+    const backupPool = createPool({ connectionString: url.toString(), maxConnections: 1 });
+    try {
+      for (const table of excluded) {
+        await expect(
+          withTransaction(backupPool, (tx) => tx.query(`select 1 from ${table} limit 1`)),
+          table,
+        ).rejects.toThrow(/permission denied/);
+      }
+    } finally {
+      await backupPool.end();
+    }
+  }, 300_000);
+});
