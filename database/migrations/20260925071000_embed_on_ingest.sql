@@ -21,7 +21,10 @@ create table retrieval.embed_pending (
   -- A claim is a lease, not a lock: a worker that dies holding one lets it lapse and the row is
   -- claimed again. An enqueue after a claim clears it, so an edit made while the old text was
   -- being embedded is embedded again rather than lost.
-  claimed_until   timestamptz
+  claimed_until   timestamptz,
+  -- Which claim holds the lease. Compared on completion instead of the timestamp, which a client
+  -- reads back at millisecond precision and could never match exactly.
+  claim           uuid
 );
 
 create index embed_pending_order on retrieval.embed_pending (enqueued_at);
@@ -48,7 +51,7 @@ begin
     from core.object o
    where o.id = any(coalesce(p_object_ids, '{}'::uuid[]))
   on conflict (object_id) do update
-    set enqueued_at = now(), claimed_until = null;
+    set enqueued_at = now(), claimed_until = null, claim = null;
   get diagnostics v_count = row_count;
   return v_count;
 end
@@ -61,7 +64,7 @@ $$;
  * semantically searchable is exactly what is lexically searchable, and nothing more.
  */
 create function retrieval.claim_embeddings(p_limit integer, p_lease_seconds integer)
-returns table (object_id uuid, organization_id uuid, text text, claimed_until timestamptz)
+returns table (object_id uuid, organization_id uuid, text text, claim uuid)
 language plpgsql
 security definer
 set search_path = pg_catalog, core, retrieval, search
@@ -85,14 +88,15 @@ begin
     ),
     claimed as (
       update retrieval.embed_pending p
-         set claimed_until = now() + make_interval(secs => p_lease_seconds)
+         set claimed_until = now() + make_interval(secs => p_lease_seconds),
+             claim = uuidv7()
         from claimable c
        where p.object_id = c.object_id
-      returning p.object_id, p.organization_id, p.claimed_until
+      returning p.object_id, p.organization_id, p.claim
     )
     select c.object_id, c.organization_id,
            coalesce(d.title || E'\n\n' || d.body, o.title) as text,
-           c.claimed_until
+           c.claim
       from claimed c
       join core.object o on o.id = c.object_id
       left join search.document d on d.object_id = c.object_id
@@ -104,7 +108,7 @@ $$;
  * Finish one claimed record. Removes it only if the claim is still the one the worker holds: a
  * record re-enqueued while being embedded stays queued, because the text that was sent is stale.
  */
-create function retrieval.complete_embedding(p_object_id uuid, p_claimed_until timestamptz)
+create function retrieval.complete_embedding(p_object_id uuid, p_claim uuid)
 returns boolean
 language sql
 security definer
@@ -112,7 +116,7 @@ set search_path = pg_catalog, retrieval
 as $$
   with removed as (
     delete from retrieval.embed_pending
-     where object_id = p_object_id and claimed_until = p_claimed_until
+     where object_id = p_object_id and claim = p_claim
     returning 1
   )
   select exists (select 1 from removed)
@@ -120,14 +124,14 @@ $$;
 
 revoke all on function retrieval.enqueue_embedding(uuid[]) from public;
 revoke all on function retrieval.claim_embeddings(integer, integer) from public;
-revoke all on function retrieval.complete_embedding(uuid, timestamptz) from public;
+revoke all on function retrieval.complete_embedding(uuid, uuid) from public;
 grant execute on function retrieval.enqueue_embedding(uuid[]) to kf_worker;
 grant execute on function retrieval.claim_embeddings(integer, integer) to kf_worker;
-grant execute on function retrieval.complete_embedding(uuid, timestamptz) to kf_worker;
+grant execute on function retrieval.complete_embedding(uuid, uuid) to kf_worker;
 
 -- migrate:down
 
-drop function retrieval.complete_embedding(uuid, timestamptz);
+drop function retrieval.complete_embedding(uuid, uuid);
 drop function retrieval.claim_embeddings(integer, integer);
 drop function retrieval.enqueue_embedding(uuid[]);
 drop table retrieval.embed_pending;
