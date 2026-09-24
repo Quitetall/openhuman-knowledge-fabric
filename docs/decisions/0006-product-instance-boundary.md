@@ -125,6 +125,26 @@ It would have to keep the `OH-` prefix, which is an odd-looking example and an h
 would demonstrate exactly which single element remains pinned, instead of implying the whole
 thing is free.
 
+**2026-09-24: a second registry has been compiled.** `tests/ontology/fixtures/registry-second/`
+is a genuinely different registry — prefix `AC-`, no `LOT` namespace — and
+`tests/ontology/registry-separability.test.ts` loads and packs it through the same compiler,
+asserts its policy files carry nothing of OpenHuman's, and records every remaining `OH-` pin
+exhaustively, so a new one fails and a removed one fails until the record says so. Measured, the
+pins are four files, not the one the table above implies:
+
+| File                                                                                  | Pin                                                                              |
+| ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `ontology/meta.yaml`                                                                  | the approved R01 pattern — the pack owner's act, unchanged                       |
+| `generated/json-schema/…schema.json`, `generated/openapi/…openapi.json`               | compiled from it                                                                 |
+| `packages/ontology-compiler/src/damm.ts` (`validateIdentifier`, `formatEnterpriseId`) | a **code** coupling, not governance: hard-codes `OH-` and OpenHuman's namespaces |
+
+The last one matters beyond the prefix: `registry-check`'s reject-vector gate calls
+`validateIdentifier`, so for a second registry it is vacuous — every `AC-` identifier is refused
+for its prefix before the check digit is looked at. Unlike the `meta.yaml` pin, removing it needs
+no owner act. It is a fixture rather than the `registries/minimal/` example proposed above,
+because a shipped example with a foreign prefix would read as a supported configuration, which it
+is not while `meta.yaml` pins `OH-`.
+
 ## Consequences
 
 - Adopters can see which directory is theirs to replace, which was previously unguessable.
