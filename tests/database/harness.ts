@@ -684,6 +684,21 @@ export async function bindContext(
       maxClassification: 'restricted',
     })) ?? null,
   ]);
+  // An administrator session is exempt from the act requirement (20260925020000) and binds the
+  // bootstrap action as it always did: owner-credential fixtures build ledgers and chains of
+  // their own, and an extra act would move them. Every other session records a real act.
+  const { administrator } = await tx.one<{ administrator: boolean }>(
+    'select core.session_is_administrator() as administrator',
+  );
+  if (administrator) {
+    await tx.query('select core.set_transaction_context($1, $2, $3, $4)', [
+      actorId,
+      actingRoleId,
+      BOOTSTRAP_ACTION,
+      'harness-direct-write',
+    ]);
+    return;
+  }
   await recordAct(tx, f, actorId, actingRoleId);
 }
 
