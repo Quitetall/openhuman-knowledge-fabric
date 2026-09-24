@@ -53,6 +53,7 @@
     "@kf/canonicalization": "workspace:*",
     "@kf/database": "workspace:*",
     "@kf/documents": "workspace:*",
+    "@kf/domain": "workspace:*",
     "@kf/export": "workspace:*",
     "@kf/integration": "workspace:*",
     "@kf/ml-registry": "workspace:*",

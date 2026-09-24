@@ -1,4 +1,5 @@
 import type { Pool } from '@kf/database';
+import { verificationOfRow } from './basic-read-tools.js';
 import { scoped } from './scope.js';
 import type {
   AgentScope,
@@ -23,6 +24,9 @@ export async function traceRelations(
       to_title: string;
       to_type: string;
       depth: number;
+      verified_at: Date | null;
+      verified_by: string | null;
+      verification_basis: string | null;
     }>(
       `with recursive walk(relation_type, from_id, to_id, depth, path) as (
          select r.relation_type, r.source_id, r.target_id, 1, array[r.source_id, r.target_id]
@@ -38,9 +42,10 @@ export async function traceRelations(
             and not r.target_id = any(w.path)
        )
        select w.relation_type, w.from_id, w.to_id, o.title as to_title, o.object_type as to_type,
-              w.depth
+              w.depth, v.verified_at, v.verified_by, v.basis as verification_basis
          from walk w
          join core.object o on o.id = w.to_id
+         left join core.object_verification v on v.object_id = o.id
         order by w.depth, o.title`,
       [objectId, options.relationTypes === undefined ? null : [...options.relationTypes], depth],
     );
@@ -51,6 +56,7 @@ export async function traceRelations(
       toTitle: r.to_title,
       toType: r.to_type,
       depth: Number(r.depth),
+      toVerification: verificationOfRow(r),
     }));
   });
 }

@@ -93,6 +93,7 @@ export function renderProjectionMarkdown(
     `- Corpus digest: \`${result.source.corpusDigest}\``,
     `- Projection digest: \`${result.projectionDigest}\``,
     `- Members: \`${String(result.measurements.memberCount)}\``,
+    `- Unverified members: \`${String(result.measurements.unverifiedCount)}\``,
     ...(Object.keys(result.parameters).length > 0
       ? [`- Parameters: \`${canonicalize(result.parameters)}\``]
       : []),
@@ -109,6 +110,9 @@ export function renderProjectionMarkdown(
         `- **${view === undefined ? title : `[${title}](${view})`}** — ${md(line(member))}` +
           (source === undefined ? '' : ` — [source](${source})`),
       );
+      // Every member, whatever the inline budget: the label is not content, it is what the
+      // reader must know about the member to read it at all (KF-SAS-RQ-229).
+      out.push(`  - ${md(member.verification.label)}`);
       if (member.itemState === 'withdrawn') {
         out.push(
           `  - Withdrawal: ${md(member.withdrawnAt ?? 'time not recorded')} — ${md(member.withdrawalReason ?? 'reason not recorded')}`,
@@ -159,6 +163,8 @@ const STYLE = [
   '.member .id{font-family:var(--mono);font-size:.74rem;color:var(--muted);margin-top:.25rem;overflow-wrap:anywhere}',
   '.member .id a{color:var(--accent)}',
   '.member .w{color:#9c2b2b;font-size:.85rem;margin-top:.25rem}',
+  '.member .v{color:var(--muted);font-size:.8rem;margin-top:.25rem}',
+  '.member .v.unverified{color:#9c2b2b;font-weight:600;letter-spacing:.02em}',
   'details{margin-top:.4rem}summary{cursor:pointer;color:var(--muted);font-size:.8rem}',
   'pre{background:var(--chip);border-radius:4px;padding:.6rem;overflow-x:auto;font:.76rem/1.45 var(--mono);margin:.4rem 0 0}',
   'p.none{color:var(--muted);margin:0}',
@@ -192,6 +198,9 @@ export function renderProjectionHtml(
             member.itemState === 'withdrawn'
               ? `<div class="w">Withdrawn ${html(member.withdrawnAt ?? 'time not recorded')} — ${html(member.withdrawalReason ?? 'reason not recorded')}</div>`
               : '';
+          // The master record renderer's class, so one stylesheet rule finds every unchecked
+          // record whichever renderer produced it.
+          const verification = `<div class="v${member.verification.verified ? '' : ' unverified'}">${html(member.verification.label)}</div>`;
           const view = options.links?.objectView(member);
           const source = options.links?.source?.(member);
           const title = html(member.title ?? member.objectType);
@@ -206,7 +215,7 @@ export function renderProjectionHtml(
             `<div class="t">${heading}<span class="chip">${html(typeLabel(member.objectType))}</span>` +
             `<span class="chip c-${classification}">${classification}</span></div>` +
             `<div class="id">${html(member.objectId)} · ${html(member.contentDigest.slice(0, 16))}…${bytes}</div>` +
-            `${withdrawal}${payload}</li>`
+            `${verification}${withdrawal}${payload}</li>`
           );
         })
         .join('');
@@ -231,7 +240,8 @@ export function renderProjectionHtml(
   const subtitle =
     `${organization === undefined ? '' : `${html(organization)} · `}` +
     `${html(result.definition.id)} v${String(result.definition.version)} · ` +
-    `${String(result.measurements.memberCount)} members`;
+    `${String(result.measurements.memberCount)} members · ` +
+    `${String(result.measurements.unverifiedCount)} unverified`;
   return (
     `<!doctype html><html><head><meta charset="utf-8">` +
     `<meta name="viewport" content="width=device-width,initial-scale=1">` +

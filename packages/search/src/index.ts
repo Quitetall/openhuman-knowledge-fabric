@@ -25,6 +25,7 @@
 
 import type { Pool, Tx } from '@kf/database';
 import { bindPrincipal, withTransaction, type Principal } from '@kf/database';
+import { recordVerification, type RecordVerification } from '@kf/domain';
 
 export interface SearchScope {
   readonly organizationId: string;
@@ -50,6 +51,13 @@ export interface SearchHit {
   readonly rank: number;
   /** Which path matched. Shown to the caller, because "why did this come back" is a real question. */
   readonly matchedBy: 'full_text' | 'partial_identifier';
+  /**
+   * Whether anybody has verified the record, with the label a reader is shown (KF-SAS-RQ-229).
+   * A hit is a place a record appears, so an unverified one says so here too. Read under the
+   * caller's row security: `core.object_verification` defers to `core.object`, so nothing is
+   * learned about a record the caller cannot see.
+   */
+  readonly verification: RecordVerification;
 }
 
 const DEFAULT_LIMIT = 50;
@@ -111,6 +119,10 @@ export async function searchIn(
     classification: string;
     rank: number;
     matched_by: string;
+    record_visible: boolean;
+    verified_at: Date | null;
+    verified_by: string | null;
+    verification_basis: string | null;
   }>(
     `with visible as (
        select d.*
@@ -146,9 +158,17 @@ export async function searchIn(
                or v.body ilike '%' || n.pattern || '%' escape '!')
           and v.object_id not in (select object_id from full_text)
      )
-     select object_id, object_type, title, lifecycle_state, classification, rank, matched_by
+     select hits.object_id, hits.object_type, hits.title, hits.lifecycle_state,
+            hits.classification, hits.rank, hits.matched_by,
+            -- Verification is a fact about the record, so it is read through the record: both
+            -- joins run under the caller's row security, and an index row whose record the
+            -- caller cannot see reads as "no verification visible" rather than as "unchecked".
+            o.id is not null as record_visible,
+            v.verified_at, v.verified_by, v.basis as verification_basis
        from (select * from full_text union all select * from partial) hits
-      order by rank desc, title
+       left join core.object o on o.id = hits.object_id
+       left join core.object_verification v on v.object_id = o.id
+      order by hits.rank desc, hits.title
       limit $6`,
     [
       scope.organizationId,
@@ -168,6 +188,20 @@ export async function searchIn(
     classification: r.classification,
     rank: Number(r.rank),
     matchedBy: r.matched_by === 'full_text' ? 'full_text' : 'partial_identifier',
+    // Fail closed on a row that does not say: a record not positively visible is not looked up,
+    // and a verification missing any of its facts is not one this code may repeat.
+    verification: recordVerification(
+      [r.verified_at, r.verified_by, r.verification_basis].some(
+        (v) => v === null || v === undefined,
+      )
+        ? undefined
+        : {
+            basis: r.verification_basis as string,
+            verifiedAt: r.verified_at as Date,
+            verifiedBy: r.verified_by as string,
+          },
+      { visible: r.record_visible === true },
+    ),
   }));
 }
 

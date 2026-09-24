@@ -12,8 +12,9 @@ import {
   type MasterRecordManifest,
   type PermissionMember,
 } from '@kf/documents';
+import { recordVerification } from '@kf/domain';
 import { project } from '@kf/projections';
-import { projectionMembersOf } from './master-record-projection-route.js';
+import { liveVerifications, projectionMembersOf } from './master-record-projection-route.js';
 import { unidentified } from '../actions.js';
 import { actionRejectionBody } from '../actions/errors.js';
 import type { DocumentRoutesOptions } from './contracts.js';
@@ -138,6 +139,7 @@ export function registerMasterRecordRoute(
         // record has always had, now declared in ontology/projections.yaml and evaluated against
         // the relation graph as it is today. Without compiled definitions (a test harness that
         // registers this route alone) the same closure is used directly — same arithmetic.
+        const verifications = liveVerifications(permitted);
         const sectionOf = new Map<string, string>();
         let sectionsSummary: Record<string, unknown>;
         const definition = options.projections?.byId('master_sections');
@@ -149,10 +151,10 @@ export function registerMasterRecordRoute(
               personId: identity.actorId,
               organizationId: identity.organizationId,
               corpusDigest: String(record['corpus_digest']),
-              members: projectionMembersOf({
-                included: included as PermissionMember[],
-                withdrawn,
-              }),
+              members: projectionMembersOf(
+                { included: included as PermissionMember[], withdrawn },
+                verifications,
+              ),
             },
             graph: await enumerateRelevanceGraph(tx),
           });
@@ -192,6 +194,13 @@ export function registerMasterRecordRoute(
             item['item_state'] === 'withdrawn'
               ? 'withdrawn'
               : (sectionOf.get(String(item['object_id'])) ?? 'org_view'),
+          // Read live under the reader's row security (KF-SAS-RQ-229). A withdrawn item is one
+          // the reader can no longer see, so its verification is not looked up.
+          verification:
+            (item['item_state'] === 'withdrawn'
+              ? undefined
+              : verifications.get(String(item['object_id']))) ??
+            recordVerification(undefined, { visible: false }),
         }));
         const withholdings = await masterRecordWithholdings(tx, String(record['id']));
         return reply.send({

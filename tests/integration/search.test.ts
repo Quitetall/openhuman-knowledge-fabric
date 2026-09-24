@@ -17,10 +17,16 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import { InMemoryObjectStore } from '@kf/artifacts';
 import { withTransaction } from '@kf/database';
+import { createDocumentActionAtoms } from '@kf/documents';
+import { UNVERIFIED_LABEL } from '@kf/domain';
+import { createFabricDispatcher } from '@kf/orchestrator';
 import { indexObject, rebuild, search } from '@kf/search';
 import {
   bindContext,
+  bindReader,
   createObject,
   seedFixtures,
   startHarness,
@@ -357,5 +363,78 @@ describe('the index is derived, and provably disposable', () => {
       ]);
     });
     expect(second.body).toBe(first.body);
+  });
+});
+
+/**
+ * A search hit is a place a record appears, so it says whether anybody has verified it
+ * (KF-SAS-RQ-229) — and says nothing about a record the caller cannot see.
+ */
+describe('verification on a hit', () => {
+  beforeAll(async () => {
+    const execute = createFabricDispatcher(
+      h.pool,
+      createDocumentActionAtoms({
+        store: new InMemoryObjectStore(),
+        parser: {
+          async parse() {
+            return undefined;
+          },
+        },
+      }),
+    );
+    // Two different bases, so the second is not refused by the pace on individual review.
+    for (const [target, basis] of [
+      [percentLiteral, 'promoted_in_bulk'],
+      [restrictedOrder, 'reviewed_individually'],
+    ] as const) {
+      const outcome = await execute({
+        actionType: 'verify_record',
+        actorId: f.reviewerId,
+        actingRoleId: f.reviewerRoleId,
+        targetIds: [target],
+        organizationId: f.organizationId,
+        maxClassification: 'restricted',
+        idempotencyKey: `search-verify-${randomUUID()}`,
+        reason: 'read it against the source',
+        payload: { basis },
+      });
+      expect(outcome.status).toBe('applied');
+    }
+  }, 60_000);
+
+  it('labels an unverified hit and names the basis of a verified one', async () => {
+    const hits = await search(h.pool, restricted(), { text: 'ZX%Q' });
+    expect(hits.find((x) => x.objectId === percentLiteral)?.verification).toMatchObject({
+      verified: true,
+      basis: 'promoted_in_bulk',
+      verifiedBy: f.reviewerId,
+    });
+    const neighbours = await search(h.pool, restricted(), { text: 'Wildcard neighbour' });
+    expect(neighbours.find((x) => x.objectId === percentWildcardNeighbour)?.verification).toEqual({
+      verified: false,
+      label: UNVERIFIED_LABEL,
+    });
+  });
+
+  it('never reveals the verification of a record the caller cannot see', async () => {
+    // Visible at restricted, and verified there.
+    const seen = await search(h.pool, restricted(), { text: 'contractor day rate' });
+    expect(seen.find((x) => x.objectId === restrictedOrder)?.verification.verified).toBe(true);
+    // At internal the record is absent, and so is anything about its verification.
+    const hidden = await search(h.pool, internal(), { text: 'contractor day rate' });
+    expect(hidden.map((x) => x.objectId)).not.toContain(restrictedOrder);
+    expect(JSON.stringify(hidden)).not.toContain('reviewed_individually');
+    // The guard the hit relies on, probed directly: the verification row itself is invisible
+    // to a session that cannot see the record (`object_verification_read` defers to the record).
+    const rows = async (ceiling: string) =>
+      withTransaction(h.pool, async (tx) => {
+        await bindReader(tx, f, f.performerId, ceiling);
+        return tx.query('select 1 from core.object_verification where object_id = $1', [
+          restrictedOrder,
+        ]);
+      });
+    expect(await rows('restricted')).toHaveLength(1);
+    expect(await rows('internal')).toHaveLength(0);
   });
 });

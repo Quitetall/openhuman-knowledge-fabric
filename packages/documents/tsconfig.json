@@ -13,6 +13,7 @@
     { "path": "../authorization" },
     { "path": "../canonicalization" },
     { "path": "../database" },
+    { "path": "../domain" },
     { "path": "../projections" },
     { "path": "../record-atoms" }
   ]

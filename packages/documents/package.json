@@ -22,6 +22,7 @@
     "@kf/authorization": "workspace:*",
     "@kf/canonicalization": "workspace:*",
     "@kf/database": "workspace:*",
+    "@kf/domain": "workspace:*",
     "@kf/projections": "workspace:*",
     "@kf/record-atoms": "workspace:*"
   },
