@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { withTransaction, type Tx } from '@kf/database';
 import { runDeclareServiceActor } from '../../apps/api/src/admin/declare-service-actor.js';
 import {
+  aYearFromNow,
   bindContext,
   bindReader,
   createObject,
@@ -28,6 +29,7 @@ beforeAll(async () => {
   f = await seedFixtures(h.adminPool);
   steward = (
     await runDeclareServiceActor(h.adminPool, {
+      validTo: aYearFromNow(),
       organizationId: f.organizationId,
       name: 'storage-steward',
       roleId: 'performer',

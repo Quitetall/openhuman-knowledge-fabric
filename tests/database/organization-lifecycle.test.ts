@@ -7,7 +7,13 @@ import { createFabricDispatcher } from '@kf/orchestrator';
 import { runBootstrap } from '../../apps/api/src/admin/bootstrap-organization.js';
 import { runGrantAuthority } from '../../apps/api/src/admin/grant-authority.js';
 import { runRetireOrganization } from '../../apps/api/src/admin/retire-organization.js';
-import { seedFixtures, startHarness, type Fixtures, type Harness } from './harness.js';
+import {
+  aYearFromNow,
+  seedFixtures,
+  startHarness,
+  type Fixtures,
+  type Harness,
+} from './harness.js';
 
 /**
  * An organization is retired with its people, and the first authority in it can be granted.
@@ -73,6 +79,7 @@ async function foundOrganization(name: string): Promise<Founded> {
     organizationId: '',
   });
   const granted = await runGrantAuthority(harness.adminPool, {
+    validTo: aYearFromNow(),
     personId: created.personId,
     organizationId: created.organizationId,
     roleId: 'project_owner',
@@ -165,6 +172,7 @@ describe('the founding grant', () => {
     });
     await expect(
       runGrantAuthority(harness.adminPool, {
+        validTo: aYearFromNow(),
         personId: second.personId,
         organizationId: founded.organizationId,
         roleId: 'performer',
@@ -175,6 +183,7 @@ describe('the founding grant', () => {
     ).rejects.toThrow(/holds no active role assignment/);
     // The founder, who holds one, can.
     const granted = await runGrantAuthority(harness.adminPool, {
+      validTo: aYearFromNow(),
       personId: second.personId,
       organizationId: founded.organizationId,
       roleId: 'performer',
@@ -374,6 +383,7 @@ describe('deactivate_person', () => {
       organizationId: founded.organizationId,
     });
     await runGrantAuthority(harness.adminPool, {
+      validTo: aYearFromNow(),
       personId: second.personId,
       organizationId: founded.organizationId,
       roleId: 'performer',
@@ -439,6 +449,7 @@ describe('deactivate_person', () => {
       retirements: 1,
     });
     const regrant = await runGrantAuthority(harness.adminPool, {
+      validTo: aYearFromNow(),
       personId: second.personId,
       organizationId: founded.organizationId,
       roleId: 'performer',

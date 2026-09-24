@@ -151,6 +151,19 @@ export async function runGrantAuthorityCommand(
     out.write(
       `  role          ${result.roleAssignmentId}  ${plan.grant.roleId} ${held(result.roleAssignmentReused)}\n`,
     );
+    // The review date, always: an operator who took the default must see what they agreed to.
+    out.write(
+      result.roleAssignmentValidTo === null
+        ? '  ends          never recorded (made before ADR 0036): renew it with --renew\n'
+        : `  ends          ${result.roleAssignmentValidTo.toISOString()}${
+            !result.roleAssignmentReused && plan.grant.validToDefaulted
+              ? '  (one year: the default; --valid-to sets another)'
+              : ''
+          }\n`,
+    );
+    if (result.renewedAssignmentId !== undefined) {
+      out.write(`  renews        ${result.renewedAssignmentId}  (ended now)\n`);
+    }
     if (result.identityId !== undefined) {
       out.write(`  identity      ${result.identityId} ${held(result.identityReused)}\n`);
     }
