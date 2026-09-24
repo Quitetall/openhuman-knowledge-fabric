@@ -38,6 +38,7 @@ export { createDispatcher, createTransactionalDispatcher } from './internal/disp
 export { semanticActionRequestDigest } from './internal/idempotency.js';
 export { ACTION_STATE_FORMAT, actionStateDigest } from './internal/state.js';
 export { asActionRefusal } from './internal/refusals.js';
+export { OBJECT_HISTORY_SQL, type ObjectHistoryRow } from './internal/history.js';
 
 export const PACKAGE = {
   name: '@kf/actions',

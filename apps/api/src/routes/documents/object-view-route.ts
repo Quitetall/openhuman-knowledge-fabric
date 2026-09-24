@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { OBJECT_HISTORY_SQL } from '@kf/actions';
 import { setResolvedAccessContext, withTransaction } from '@kf/database';
 import {
   assertPermissionSetInvariant,
@@ -181,15 +182,9 @@ async function serveObjectView(
       throw error;
     }
 
-    const history = await tx.query<Record<string, unknown>>(
-      `select e.seq, e.action_type, e.actor_id, e.acting_role_id, e.recorded_at,
-              e.effective_at, e.reason, e.digest
-         from core.audit_event e
-        where e.object_id = $1 or $1 = any(
-                select unnest(a.target_ids) from core.action a where a.id = e.action_id)
-        order by e.seq`,
-      [request.params.id],
-    );
+    const history = await tx.query<Record<string, unknown>>(OBJECT_HISTORY_SQL, [
+      request.params.id,
+    ]);
     const subject = result.sections[0]?.members[0];
     const transitions =
       subject === undefined
