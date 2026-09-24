@@ -48,15 +48,19 @@ inputs: [{ key, contentDigest }] }`. Stored in `content.compilation_run.dependen
   enumerates the current corpus under the RECORDED member format, so a claim compiled before the
   change is exactly as current as it was. A withdrawn member carries forward the digest its
   earlier claim recorded; its content is no longer visible, so it is never recomputed.
-- `kf-pandoc-atom-v1`, `kf-pandoc-loss-source-v1` and `kf-pandoc-conversion-loss-v1` — the
-  Pandoc parser's atom digest, each conversion loss's `sourceDigest` (`{ source, format }`), and
-  the parse's `lossDigest` (`{ conversionLoss, format }`). All three are recorded, with their
-  preimages, in `content.document_parse` / `content.document_atom`, and the database recomputes
-  them on insert. They are versioned by the parse's recorded `projection_contract`:
-  `kf.pandoc-atoms.v3` parses carry the tagged forms, and `kf.pandoc-atoms.v1`/`-v2` parses the
-  untagged ones; the insert triggers (migration `20260925114000`) check each row's preimage
-  shape under its own contract, so an exported v2 parse still imports. The parse's
-  `contentDigest` was already tagged — its preimage carries `projectionContract`.
+- `kf-document-atom-v1`, `kf-document-loss-source-v1`, `kf-document-conversion-loss-v1` and
+  `kf-document-projection-v1` — the four digests of a document parse receipt, whatever parser
+  produced it: each atom's digest, each conversion loss's `sourceDigest` (`{ source }`), the
+  parse's `lossDigest` (`{ conversionLoss }`) and its `contentDigest` (`{ projectionContract,
+atoms: [atom preimages], conversionLoss }`). All are recorded with their exact preimages in
+  `content.document_parse` / `content.document_atom`, and the database recomputes them on insert,
+  so the receipt is versioned per parse: `digest_format` is `kf-document-parse-v2` for every parse
+  since migration `20260925114000` (the database sets it and refuses a new row under anything
+  else) and `kf-document-parse-v1` — the four untagged digests — for every parse before. The
+  insert triggers check v2 shapes; an export restore runs with triggers off, carries each row's
+  recorded format, and restores a parse from an archive that predates the column as v1. A
+  projection contract such as `kf.pandoc-atoms.v2` is the parser's own vocabulary for what an
+  atom is — chosen by the parser, not a digest format — and is unchanged.
 
 Two digests defined here, or hashed with what is defined here, carry versions whose history
 matters to a verifier:

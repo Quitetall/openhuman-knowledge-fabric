@@ -1,4 +1,4 @@
-import { canonicalize, digest, digestBytes, type JsonValue } from '@kf/canonicalization';
+import { canonicalize, digestBytes, taggedDigest, type JsonValue } from '@kf/canonicalization';
 
 export type DocumentAtomKind =
   'heading' | 'paragraph' | 'list_item' | 'quote' | 'code' | 'table' | 'horizontal_rule';
@@ -40,6 +40,92 @@ export interface DocumentParser {
 }
 
 export const PANDOC_PROJECTION_CONTRACT = 'kf.pandoc-atoms.v2';
+
+/**
+ * The digest formats of a parse receipt (KF-SAS-RQ-016), whatever parser produced it.
+ *
+ * `kf-document-parse-v2` is every receipt written since migration 20260925114000: each of its four
+ * digests carries its own tag inside its preimage. `kf-document-parse-v1` names the earlier,
+ * untagged receipt — atom `digest(claim)`, loss-source `digest(source)`, loss `digest(losses)`,
+ * projection `digest({ projectionContract, atoms, conversionLoss })` — which recorded parses still
+ * carry. The database records the format per parse (`content.document_parse.digest_format`), sets
+ * it, and checks each new row's preimages under it; nothing in this process re-verifies a stored
+ * v1 receipt, so what is here computes v2 only. A projection contract (`kf.pandoc-atoms.v2`) is the
+ * parser's own vocabulary for what an atom is, and is a different axis from these.
+ */
+export const DOCUMENT_PARSE_DIGEST_FORMAT = 'kf-document-parse-v2';
+export const DOCUMENT_ATOM_FORMAT = 'kf-document-atom-v1';
+export const DOCUMENT_LOSS_SOURCE_FORMAT = 'kf-document-loss-source-v1';
+export const DOCUMENT_CONVERSION_LOSS_FORMAT = 'kf-document-conversion-loss-v1';
+export const DOCUMENT_PROJECTION_FORMAT = 'kf-document-projection-v1';
+
+/** An atom without its digest: what the atom digest commits to. */
+export type DocumentAtomClaim = Omit<DocumentAtom, 'digest'>;
+
+/** The exact object whose RFC 8785 bytes are an atom's recorded preimage. */
+export function documentAtomPreimage(claim: DocumentAtomClaim): Readonly<Record<string, unknown>> {
+  return {
+    format: DOCUMENT_ATOM_FORMAT,
+    ordinal: claim.ordinal,
+    kind: claim.kind,
+    level: claim.level,
+    text: claim.text,
+    attributes: claim.attributes,
+  };
+}
+
+export function documentAtomDigest(claim: DocumentAtomClaim): string {
+  return taggedDigest(DOCUMENT_ATOM_FORMAT, {
+    ordinal: claim.ordinal,
+    kind: claim.kind,
+    level: claim.level,
+    text: claim.text,
+    attributes: claim.attributes,
+  });
+}
+
+/** The digest of the exact parser output a conversion loss dropped or flattened. */
+export function documentLossSourceDigest(source: JsonValue): string {
+  return taggedDigest(DOCUMENT_LOSS_SOURCE_FORMAT, { source });
+}
+
+/** The exact object whose RFC 8785 bytes are a parse's recorded loss preimage. */
+export function documentConversionLossPreimage(
+  conversionLoss: readonly DocumentParseLoss[],
+): Readonly<Record<string, unknown>> {
+  return { format: DOCUMENT_CONVERSION_LOSS_FORMAT, conversionLoss };
+}
+
+export function documentConversionLossDigest(conversionLoss: readonly DocumentParseLoss[]): string {
+  return taggedDigest(DOCUMENT_CONVERSION_LOSS_FORMAT, { conversionLoss });
+}
+
+/** The exact object whose RFC 8785 bytes are a parse's recorded projection preimage. */
+export function documentProjectionPreimage(
+  projectionContract: string,
+  atoms: readonly DocumentAtomClaim[],
+  conversionLoss: readonly DocumentParseLoss[],
+): Readonly<Record<string, unknown>> {
+  return {
+    format: DOCUMENT_PROJECTION_FORMAT,
+    projectionContract,
+    atoms: atoms.map(documentAtomPreimage),
+    conversionLoss,
+  };
+}
+
+/** A parse's `contentDigest`: the projection contract, every atom preimage, every loss. */
+export function documentProjectionDigest(
+  projectionContract: string,
+  atoms: readonly DocumentAtomClaim[],
+  conversionLoss: readonly DocumentParseLoss[],
+): string {
+  return taggedDigest(DOCUMENT_PROJECTION_FORMAT, {
+    projectionContract,
+    atoms: atoms.map(documentAtomPreimage),
+    conversionLoss,
+  });
+}
 
 export class DocumentParseIntegrityError extends Error {
   constructor(message: string) {
@@ -190,7 +276,7 @@ export function validateParsedDocument(value: ParsedDocument, sourceBytes: Buffe
     };
     const atomDigest = parseSha256(atom['digest'], `atom ${String(index + 1)} digest`);
     parseIntegrity(
-      digest(claim) === atomDigest,
+      documentAtomDigest(claim) === atomDigest,
       `atom digest mismatch at ordinal ${String(index + 1)}`,
     );
     return Object.freeze({ ...claim, digest: atomDigest });
@@ -209,7 +295,7 @@ export function validateParsedDocument(value: ParsedDocument, sourceBytes: Buffe
       `conversion loss ${String(index + 1)} source digest`,
     );
     parseIntegrity(
-      digest(source) === sourceDigestClaim,
+      documentLossSourceDigest(source) === sourceDigestClaim,
       `conversion loss source digest mismatch at index ${String(index)}`,
     );
     return Object.freeze({
@@ -222,14 +308,14 @@ export function validateParsedDocument(value: ParsedDocument, sourceBytes: Buffe
   });
   const lossDigest = parseSha256(parsed['lossDigest'], 'loss digest');
   parseIntegrity(
-    digest(conversionLoss) === lossDigest,
+    documentConversionLossDigest(conversionLoss) === lossDigest,
     'loss digest does not match conversion-loss preimages',
   );
   const projectionContract = parseNonEmpty(parsed['projectionContract'], 'projectionContract');
   const atomClaims = atoms.map(({ digest: _digest, ...claim }) => claim);
   const contentDigest = parseSha256(parsed['contentDigest'], 'projection digest');
   parseIntegrity(
-    digest({ projectionContract, atoms: atomClaims, conversionLoss }) === contentDigest,
+    documentProjectionDigest(projectionContract, atomClaims, conversionLoss) === contentDigest,
     'projection digest does not match parser receipt preimages',
   );
   return Object.freeze({

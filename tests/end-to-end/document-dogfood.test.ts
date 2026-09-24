@@ -2,11 +2,12 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { InMemoryObjectStore, digestOf } from '@kf/artifacts';
-import { digest } from '@kf/canonicalization';
 import { bindPrincipal, withTransaction } from '@kf/database';
 import {
   atomsFromPandoc,
   createDocumentActionAtoms,
+  documentConversionLossDigest,
+  documentProjectionDigest,
   getDocument,
   listDocuments,
   type DocumentParser,
@@ -84,12 +85,8 @@ describe('document constitution dogfood', { timeout: 120_000 }, () => {
           sourceDigest: digestOf(sourceBytes),
           atoms,
           conversionLoss: [],
-          lossDigest: digest([]),
-          contentDigest: digest({
-            projectionContract: 'test.atoms.v1',
-            atoms: atomClaims,
-            conversionLoss: [],
-          }),
+          lossDigest: documentConversionLossDigest([]),
+          contentDigest: documentProjectionDigest('test.atoms.v1', atomClaims, []),
         };
       },
     };

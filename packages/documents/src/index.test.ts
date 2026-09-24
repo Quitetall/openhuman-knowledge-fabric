@@ -26,6 +26,13 @@ import {
   compileAdrProjections,
   evidenceStorageKey,
   mediaTypeForDocumentFile,
+  documentAtomDigest,
+  documentAtomPreimage,
+  documentConversionLossDigest,
+  documentConversionLossPreimage,
+  documentLossSourceDigest,
+  documentProjectionDigest,
+  documentProjectionPreimage,
   PANDOC_PROJECTION_CONTRACT,
   preparseDocument,
   projectionFromPandoc,
@@ -517,12 +524,12 @@ describe('document atoms', () => {
           level: 1,
           text: 'Title',
           attributes: {},
-          digest: '0dc5c1997e1a8d452a41403404c7487e26c729d392755ef115bbaa06cff65697',
+          digest: 'aca45802d619d7f9cf466f15a83b502872aec6de0edb5acea65861f78ebcc215',
         },
       ],
       conversionLoss: [],
-      lossDigest: '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945',
-      contentDigest: '56037c158bffc40a5833337e3c0d200b7cf979e3355c51a345c2b83d055dd49c',
+      lossDigest: '4590b58188b243fcce16669e06b8c5d61322a94014fe50a8bd0fb7d5b46b6e8f',
+      contentDigest: '98e5c7fe674d62703a50115438dfad40f8ee682c4d5a8f0340f71612936b50fc',
     };
 
     expect(validateParsedDocument(valid, source)).toEqual(valid);
@@ -541,6 +548,53 @@ describe('document atoms', () => {
     expect(() =>
       validateParsedDocument({ ...valid, contentDigest: '0'.repeat(64) }, source),
     ).toThrow(/projection digest/i);
+  });
+
+  it('takes every receipt digest under its own format tag (kf-document-parse-v2)', () => {
+    // Goldens recomputed independently in Python (sorted keys, compact separators, sha256).
+    const claim = { ordinal: 1, kind: 'heading' as const, level: 1, text: 'Title', attributes: {} };
+    expect(documentAtomDigest(claim)).toBe(
+      'aca45802d619d7f9cf466f15a83b502872aec6de0edb5acea65861f78ebcc215',
+    );
+    expect(documentConversionLossDigest([])).toBe(
+      '4590b58188b243fcce16669e06b8c5d61322a94014fe50a8bd0fb7d5b46b6e8f',
+    );
+    expect(documentProjectionDigest(PANDOC_PROJECTION_CONTRACT, [claim], [])).toBe(
+      '98e5c7fe674d62703a50115438dfad40f8ee682c4d5a8f0340f71612936b50fc',
+    );
+    expect(documentLossSourceDigest({ t: 'RawBlock', c: ['html', '<div>'] })).toBe(
+      '86a169fced7fe65d532f9ef827c2fa0f7f7e08f7a326195064f5cb95f93b4697',
+    );
+    // The recorded preimages are exactly what each digest hashes, so the database can recompute
+    // them from the stored text alone.
+    expect(digest(documentAtomPreimage(claim))).toBe(documentAtomDigest(claim));
+    expect(digest(documentConversionLossPreimage([]))).toBe(documentConversionLossDigest([]));
+    expect(digest(documentProjectionPreimage(PANDOC_PROJECTION_CONTRACT, [claim], []))).toBe(
+      documentProjectionDigest(PANDOC_PROJECTION_CONTRACT, [claim], []),
+    );
+    // And none is the untagged kf-document-parse-v1 value a receipt carried before.
+    expect(documentAtomDigest(claim)).not.toBe(digest(claim));
+    expect(documentConversionLossDigest([])).not.toBe(digest([]));
+  });
+
+  it('refuses a receipt computed under the untagged v1 digests', () => {
+    const source = Buffer.from('# Title\n');
+    const claim = { ordinal: 1, kind: 'heading' as const, level: 1, text: 'Title', attributes: {} };
+    const untagged = {
+      parser: 'fixture',
+      parserVersion: '1.0.0',
+      projectionContract: PANDOC_PROJECTION_CONTRACT,
+      sourceDigest: 'e01b17ff9af77056792f67c57e3d1908795b9d1ae4cfe72421d0a2838991b740',
+      atoms: [{ ...claim, digest: digest(claim) }],
+      conversionLoss: [],
+      lossDigest: digest([]),
+      contentDigest: digest({
+        projectionContract: PANDOC_PROJECTION_CONTRACT,
+        atoms: [claim],
+        conversionLoss: [],
+      }),
+    };
+    expect(() => validateParsedDocument(untagged, source)).toThrow(/atom digest/i);
   });
 });
 
@@ -817,7 +871,7 @@ describe('document action chain', () => {
                 },
               ],
               conversionLoss: [],
-              lossDigest: digest([]),
+              lossDigest: documentConversionLossDigest([]),
               contentDigest: hexDigest('1'),
             };
           },
@@ -869,12 +923,12 @@ describe('document action chain', () => {
                   level: 1,
                   text: 'Title',
                   attributes: {},
-                  digest: '0dc5c1997e1a8d452a41403404c7487e26c729d392755ef115bbaa06cff65697',
+                  digest: 'aca45802d619d7f9cf466f15a83b502872aec6de0edb5acea65861f78ebcc215',
                 },
               ],
               conversionLoss: [],
-              lossDigest: '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945',
-              contentDigest: '56037c158bffc40a5833337e3c0d200b7cf979e3355c51a345c2b83d055dd49c',
+              lossDigest: '4590b58188b243fcce16669e06b8c5d61322a94014fe50a8bd0fb7d5b46b6e8f',
+              contentDigest: '98e5c7fe674d62703a50115438dfad40f8ee682c4d5a8f0340f71612936b50fc',
             };
           },
         },
@@ -910,9 +964,11 @@ describe('document action chain', () => {
         content_digest: string;
         projection_preimage: string;
         atom_preimage: string;
+        loss_preimage: string;
+        digest_format: string;
       }>(
         `select p.source_digest, p.loss_digest, p.content_digest, p.projection_preimage,
-                a.atom_preimage
+                a.atom_preimage, p.loss_preimage, p.digest_format
            from content.artifact_version v
            join content.document_parse p on p.artifact_version_id = v.id
            join content.document_atom a on a.parse_id = p.id
@@ -923,12 +979,78 @@ describe('document action chain', () => {
 
     expect(stored).toEqual({
       source_digest: sourceDigest,
-      loss_digest: '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945',
-      content_digest: '56037c158bffc40a5833337e3c0d200b7cf979e3355c51a345c2b83d055dd49c',
+      loss_digest: '4590b58188b243fcce16669e06b8c5d61322a94014fe50a8bd0fb7d5b46b6e8f',
+      content_digest: '98e5c7fe674d62703a50115438dfad40f8ee682c4d5a8f0340f71612936b50fc',
       projection_preimage:
-        '{"atoms":[{"attributes":{},"kind":"heading","level":1,"ordinal":1,"text":"Title"}],"conversionLoss":[],"projectionContract":"kf.pandoc-atoms.v2"}',
-      atom_preimage: '{"attributes":{},"kind":"heading","level":1,"ordinal":1,"text":"Title"}',
+        '{"atoms":[{"attributes":{},"format":"kf-document-atom-v1","kind":"heading","level":1,"ordinal":1,"text":"Title"}],"conversionLoss":[],"format":"kf-document-projection-v1","projectionContract":"kf.pandoc-atoms.v2"}',
+      atom_preimage:
+        '{"attributes":{},"format":"kf-document-atom-v1","kind":"heading","level":1,"ordinal":1,"text":"Title"}',
+      loss_preimage: '{"conversionLoss":[],"format":"kf-document-conversion-loss-v1"}',
+      digest_format: 'kf-document-parse-v2',
     });
+  });
+
+  it('refuses, in the database, a new parse or atom recorded under the untagged v1 receipt', async () => {
+    // Planted: the exact v1 receipt the writer produced before 20260925114000, inserted beside a
+    // verified parse. The triggers must refuse it three ways — naming v1 outright, taking the v2
+    // default over v1 preimages, and an untagged atom under a v2 parse.
+    const source = Buffer.from('# Title\n');
+    const sourceDigest = digestOf(source);
+    const version = await withTransaction(harness.adminPool, (tx) =>
+      tx.one<{ id: string; parse_id: string; action_id: string }>(
+        `select v.id, p.id as parse_id, p.created_by_action as action_id
+           from content.artifact_version v
+           join content.document_parse p on p.artifact_version_id = v.id
+          where v.sha256 = $1
+          order by p.created_at desc limit 1`,
+        [sourceDigest],
+      ),
+    );
+    const claim = '{"attributes":{},"kind":"heading","level":1,"ordinal":1,"text":"Title"}';
+    const projection =
+      `{"atoms":[${claim}],"conversionLoss":[],` + '"projectionContract":"kf.pandoc-atoms.v2"}';
+    const sha = (text: string): string => digestOf(Buffer.from(text, 'utf8'));
+    const plant = (sql: string, parameters: unknown[]): Promise<unknown> =>
+      withTransaction(harness.adminPool, async (tx) => {
+        await setTransactionContext(tx, {
+          actorId: fixtures.reviewerId,
+          actingRoleId: fixtures.reviewerRoleId,
+          actionId: version.action_id,
+        });
+        await tx.query(sql, parameters);
+      });
+    const parseInsert = (format: string | null): Promise<unknown> =>
+      plant(
+        `insert into content.document_parse
+           (artifact_version_id, parser, parser_version, projection_contract, conversion_loss,
+            source_digest, loss_digest, loss_preimage, projection_preimage, content_digest,
+            created_by, created_by_action${format === null ? '' : ', digest_format'})
+         values ($1,'planted','1','kf.pandoc-atoms.v2','[]'::jsonb,$2,$3,'[]',$4,$5,$6,$7
+                 ${format === null ? '' : ", '" + format + "'"})`,
+        [
+          version.id,
+          sourceDigest,
+          sha('[]'),
+          projection,
+          sha(projection),
+          fixtures.reviewerId,
+          version.action_id,
+        ],
+      );
+
+    await expect(parseInsert('kf-document-parse-v1')).rejects.toThrow(
+      /is not kf-document-parse-v2/,
+    );
+    await expect(parseInsert(null)).rejects.toThrow(/loss digest or preimage/);
+    await expect(
+      plant(
+        `insert into content.document_atom
+           (parse_id, ordinal, atom_kind, heading_level, text_content, attributes, atom_digest,
+            atom_preimage)
+         values ($1, 2, 'heading', 1, 'Title', '{}'::jsonb, $2, $3)`,
+        [version.parse_id, sha(claim), claim],
+      ),
+    ).rejects.toThrow(/atom digest or preimage/);
   });
 
   describe('a parse made before the transaction', () => {
@@ -946,12 +1068,12 @@ describe('document action chain', () => {
               level: 1,
               text: 'Title',
               attributes: {},
-              digest: '0dc5c1997e1a8d452a41403404c7487e26c729d392755ef115bbaa06cff65697',
+              digest: 'aca45802d619d7f9cf466f15a83b502872aec6de0edb5acea65861f78ebcc215',
             },
           ],
           conversionLoss: [],
-          lossDigest: '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945',
-          contentDigest: '56037c158bffc40a5833337e3c0d200b7cf979e3355c51a345c2b83d055dd49c',
+          lossDigest: '4590b58188b243fcce16669e06b8c5d61322a94014fe50a8bd0fb7d5b46b6e8f',
+          contentDigest: '98e5c7fe674d62703a50115438dfad40f8ee682c4d5a8f0340f71612936b50fc',
         };
       },
     });

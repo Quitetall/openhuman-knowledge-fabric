@@ -2,17 +2,21 @@ import { createHash, generateKeyPairSync } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
   auditChainDigest,
+  canonicalize,
   CURRENT_AUDIT_LINK_FORMAT,
   digest,
+  digestBytes,
   GENESIS_DIGEST,
 } from '@kf/canonicalization';
 import { withTransaction, type Tx } from '@kf/database';
 import {
   createExport,
+  EXPORT_MANIFEST_SIGNATURE_PATH,
   exportIdentity,
   importExport,
   PRESERVATION_IMPORT_TARGETS,
   PRESERVATION_TABLE_EXCLUSIONS,
+  recomputeDatabaseSnapshotDigest,
   signExportPackage,
   type ExportPackage,
 } from './index.js';
@@ -540,6 +544,9 @@ describe('extended preservation coverage', () => {
           loss_digest: createHash('sha256').update(lossPreimage).digest('hex'),
           loss_preimage: lossPreimage,
           projection_preimage: projectionPreimage,
+          // A parse recorded before 20260925114000: untagged preimages, so v1. Named, because
+          // this fixture writes with triggers off and the column default is the CURRENT format.
+          digest_format: 'kf-document-parse-v1',
         });
         await insert(tx, 'content.document_atom', {
           id: ids.documentAtom,
@@ -1885,6 +1892,7 @@ describe('extended preservation coverage', () => {
           source_digest: sourceDigest,
           loss_preimage: '[]',
           projection_preimage: expect.stringContaining('kf.pandoc-atoms.v1'),
+          digest_format: 'kf-document-parse-v1',
         }),
       ]);
       expect(rows(first, 'document-atoms')).toEqual([
@@ -1948,8 +1956,50 @@ describe('extended preservation coverage', () => {
       } finally {
         await restored.stop();
       }
+
+      // An archive written before parses recorded their digest format carries no
+      // `digest_format`, and every parse in it is the untagged kf-document-parse-v1. It must
+      // restore as v1 — the column default is the current format, and would mislabel it.
+      const withoutFormat = rows(first, 'document-parses').map((row) => {
+        const { digest_format: _recorded, ...rest } = row;
+        return rest;
+      });
+      const files = first.files
+        .filter(
+          (entry) =>
+            entry.path !== 'manifest.json' && entry.path !== EXPORT_MANIFEST_SIGNATURE_PATH,
+        )
+        .map((entry) =>
+          entry.path === 'document-parses.json'
+            ? { path: entry.path, content: `${canonicalize(withoutFormat)}\n` }
+            : entry,
+        );
+      const manifest = {
+        ...first.manifest,
+        database_snapshot_sha256: recomputeDatabaseSnapshotDigest(files),
+        files: files.map((entry) => {
+          const bytes = Buffer.from(entry.content, 'utf8');
+          return { path: entry.path, size_bytes: bytes.length, sha256: digestBytes(bytes) };
+        }),
+      };
+      const legacy = authenticateExport({
+        files: [...files, { path: 'manifest.json', content: `${canonicalize(manifest)}\n` }],
+        manifest,
+      });
+      const legacyRestore = await startHarness();
+      try {
+        const formats = await withTransaction(legacyRestore.adminPool, async (tx) => {
+          await importExport(tx, legacy, PRESERVATION_VERIFICATION);
+          return tx.query<{ digest_format: string }>(
+            'select distinct digest_format from content.document_parse',
+          );
+        });
+        expect(formats).toEqual([{ digest_format: 'kf-document-parse-v1' }]);
+      } finally {
+        await legacyRestore.stop();
+      }
     } finally {
       await source.stop();
     }
-  }, 300_000);
+  }, 420_000);
 });

@@ -84,7 +84,7 @@ export const SECURE_RUNTIME_SECTIONS = [
     name: 'document-parses',
     sql: `select id, artifact_version_id, parser, parser_version, content_digest, created_at,
                  created_by, created_by_action, projection_contract, conversion_loss,
-                 source_digest, loss_digest, loss_preimage, projection_preimage
+                 source_digest, loss_digest, loss_preimage, projection_preimage, digest_format
             from content.document_parse order by artifact_version_id, id`,
   },
   {
