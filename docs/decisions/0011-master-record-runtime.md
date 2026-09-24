@@ -81,6 +81,11 @@ remain human authority actions.
 - `content.master_record_payload` captures the RLS-visible typed extensions and immutable
   artifact URI/version metadata for each member. The manifest records permission/relevance
   cardinalities plus per-anchor and propagation-class fan-out measurements.
+- The payloads are read for the whole permitted set in one statement,
+  `content.master_record_payloads(uuid[])` (20260925121500), not once per member. The
+  one-object form planned ~235 statements per member, which put every Object View at ~65 ms
+  per object in the organization (KF-SAS-RQ-201). The bytes are unchanged and held equal to
+  the 20260826000700 implementation by `tests/database/master-record-payloads.test.ts`.
 - Relation traversal uses a visited set and current validity window; policy disagreement is a
   refusal rather than an implicit omission. Measurements record both relevance fan-out per
   person-anchoring relation type and aggregate fan-out per propagation class. A node reached by

@@ -7,6 +7,25 @@ Runtime measurements, not source counts (§103.3): each section is one run of
 A **workstation** section is evidence the harness works and a rough figure; it is not the official
 measurement, which comes from a commissioned host.
 
+## 2026-09-24T13:18:44.665Z — workstation
+
+**Workstation numbers — not the official figures.** Measured on a development machine; the official figures come from a commissioned host (`KF_LATENCY_HOST_CLASS=commissioned`).
+
+- host: onyx-maurader-BrianBigPC
+- target: in-process: API on 127.0.0.1 in the test process, Testcontainers PostgreSQL 18, outbox drained every 50 ms (tests/deployment/latency-bars.test.ts)
+- commit: `80d069056ede`
+- judged on p95 by nearest rank, after one warm-up request per bar
+
+| Interaction (ADR 0024) | Bar | Samples | p50 | p95 | Worst | Verdict |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| The act itself, dispatched and committed | under 500 ms at the API | 10 | 20.7 ms | 24.9 ms | 24.9 ms | within |
+| Finding prior work by text | first useful result under 2 seconds | 10 | 14.9 ms | 17.9 ms | 17.9 ms | within |
+| Reading an object view | under 1 second | 10 | 70.5 ms | 76.3 ms | 76.3 ms | within |
+
+Reported, not judged: first capture (warm-up) 75.2 ms; capture to searchable 28.6 ms; master-record refresh before the object view 275.0 ms.
+
+Not measured by this harness: Recording an observation, from intent to durable — under 5 seconds, including the human part (includes a person); Attaching evidence to an existing record — under 10 seconds for a file already on disk.
+
 ## 2026-09-24T11:26:24.440Z — workstation
 
 **Workstation numbers — not the official figures.** Measured on a development machine; the official figures come from a commissioned host (`KF_LATENCY_HOST_CLASS=commissioned`).

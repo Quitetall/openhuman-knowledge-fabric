@@ -12,7 +12,7 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 
 | Measure | Count | Derived from |
 | --- | ---: | --- |
-| migrations | 122 | files under `database/migrations/` |
+| migrations | 123 | files under `database/migrations/` |
 | forward-only migrations | 25 | migrations declaring `-- kf:forward-only <reason>` in their down-section |
 | schemas | 14 | distinct `create schema` names in migration up-sections |
 | tables created | 190 | in migration up-sections |
@@ -32,11 +32,11 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 | relation types | 42 | declared in `ontology/relation-types.yaml` |
 | decision records | 37 | under `docs/decisions/` — 33 accepted, 4 proposed |
 | architecture requirements | 170 | distinct identifiers in §106 |
-| test files | 248 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
+| test files | 249 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
 
 ## Runtime measurements, cited rather than derived
 
 ADR 0024's latency bars (KF-SAS-RQ-201) are measured against a running stack by
 `scripts/latency-bars.mjs`, which writes dated sections to
 [`generated/latency-bars.md`](latency-bars.md). They are runtime figures, so this file only cites
-them. Newest run: `2026-09-24T11:26:24.440Z — workstation`; 1 recorded, 0 from a commissioned host. Every recorded run is a workstation run; none is official.
+them. Newest run: `2026-09-24T13:18:44.665Z — workstation`; 2 recorded, 0 from a commissioned host. Every recorded run is a workstation run; none is official.
