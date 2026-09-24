@@ -69,6 +69,7 @@ const PRECISE_ACTION_ID = '019f0000-0000-7000-8000-00000000f001';
 const PRECISE_JSON_INTEGER = '900719925474099312345678901234567890';
 const PRECISE_RECORDED_AT = '2026-08-15T12:34:56.123456Z';
 const PRECISE_EFFECTIVE_AT = '2026-08-15T12:34:56.123Z';
+const PRECISE_AGENT = 'knowledge-fabric-agent';
 
 function authenticate(pkg: ExportPackage): ExportPackage {
   return signExportPackage(pkg, {
@@ -113,9 +114,9 @@ beforeAll(async () => {
       `insert into core.action
          (id, organization_id, request_digest, action_type, actor_id, acting_role_id,
           target_ids, parameters, preconditions, idempotency_key, recorded_at, effective_at,
-          result_status, result)
+          result_status, result, agent_participation)
        values ($1, $2, $3, $4, $5, $6, $7::uuid[], $8::jsonb, '{}'::jsonb, $9, $10, $11,
-               'applied', '{}'::jsonb)`,
+               'applied', '{}'::jsonb, $12)`,
       [
         PRECISE_ACTION_ID,
         f.organizationId,
@@ -128,6 +129,9 @@ beforeAll(async () => {
         'precision-export-fixture-aaaaaaaa',
         PRECISE_RECORDED_AT,
         PRECISE_EFFECTIVE_AT,
+        // An act through an agent (ADR 0035), so the round trip carries a participation that is
+        // not null. Written by the owner session here, which keeps a stated value.
+        PRECISE_AGENT,
       ],
     );
     const head = await tx.one<{ digest: string }>(
@@ -553,6 +557,13 @@ describe('preservation export', () => {
       $kf_type: 'postgres.jsonb',
       text: `{"precise": ${PRECISE_JSON_INTEGER}}`,
     });
+    // ADR 0035: the participation travels with the act, and a direct act says null.
+    expect(precise['agent_participation']).toBe(PRECISE_AGENT);
+    expect(
+      actions
+        .filter((row) => row['id'] !== PRECISE_ACTION_ID)
+        .map((row) => row['agent_participation']),
+    ).toEqual(actions.filter((row) => row['id'] !== PRECISE_ACTION_ID).map(() => null));
 
     const auditRows = JSON.parse(
       pkg.files.find((entry) => entry.path === 'audit-events.json')!.content,
@@ -669,10 +680,11 @@ describe('preservation export', () => {
       });
 
       const precise = await withTransaction(fresh.adminPool, (tx) =>
-        tx.one<{ parameters: string; recorded_at: string }>(
+        tx.one<{ parameters: string; recorded_at: string; agent_participation: string | null }>(
           `select parameters::text as parameters,
                   to_char(recorded_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
-                    as recorded_at
+                    as recorded_at,
+                  agent_participation
              from core.action where id = $1`,
           [PRECISE_ACTION_ID],
         ),
@@ -680,6 +692,7 @@ describe('preservation export', () => {
       expect(precise).toEqual({
         parameters: `{"precise": ${PRECISE_JSON_INTEGER}}`,
         recorded_at: PRECISE_RECORDED_AT,
+        agent_participation: PRECISE_AGENT,
       });
 
       // RQ-228: both records survive, and the one nobody verified is still marked so — by
@@ -829,6 +842,36 @@ describe('preservation export', () => {
       ).rejects.toThrow(/audit link format kf-audit-link-v1 follows kf-audit-link-v2/);
     } finally {
       await regressed.stop();
+    }
+  }, 180_000);
+
+  it('restores an archive written before agent participation existed, every act null', async () => {
+    // Every backup taken before 20260925100000 has no `agent_participation` key in actions.json.
+    // Rebuild exactly that from the current export, restore it, and read the column back.
+    const actions = (
+      JSON.parse(pkg.files.find((x) => x.path === 'actions.json')!.content) as Record<
+        string,
+        unknown
+      >[]
+    ).map(({ agent_participation: _participation, ...row }) => row);
+    expect(actions.length).toBeGreaterThan(0);
+    const fresh = await startHarness();
+    try {
+      const restored = await withTransaction(fresh.adminPool, async (tx) => {
+        await importExport(
+          tx,
+          await repack(pkg, 'actions.json', actions),
+          PRESERVATION_VERIFICATION,
+        );
+        return tx.one<{ total: string; attributed: string }>(
+          `select count(*)::text as total,
+                  count(*) filter (where agent_participation is not null)::text as attributed
+             from core.action`,
+        );
+      });
+      expect(restored).toEqual({ total: String(actions.length), attributed: '0' });
+    } finally {
+      await fresh.stop();
     }
   }, 180_000);
 

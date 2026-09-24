@@ -1,6 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import {
+  STANDARD_TOKEN_EXCHANGE,
+  realmPolicyWeaknesses,
+} from '../../packages/operations/src/internal/commissioning/realm-policy.js';
 
 /**
  * The committed Keycloak realm is a deployment artifact, and two things about it are
@@ -26,6 +30,7 @@ const COMPOSE_PATH = join(ROOT, 'docker-compose.yml');
 const REALM = 'knowledge-fabric';
 const WEB_CLIENT = 'knowledge-fabric-web';
 const API_CLIENT = 'knowledge-fabric-api';
+const AGENT_CLIENT = 'knowledge-fabric-agent';
 const REDIRECT_URI = 'http://localhost:3000/auth/callback';
 
 interface ProtocolMapper {
@@ -106,6 +111,54 @@ describe('the committed Keycloak realm', () => {
     // posture-only check would be satisfied by `undefined ?? false` on a client that had drifted.
     expect(api.clientId).toBe(API_CLIENT);
     expect(api.publicClient ?? false).toBe(false);
+  });
+
+  it('ships an agent client shaped as ADR 0035 requires, and passes the commissioning check', () => {
+    // Keycloak 26.4's standard token exchange emits no `act` claim of its own; the agent client
+    // stamps `act.client_id` with its own id, measured to yield `act: {client_id: <agent>}` on
+    // the exchanged token (docs/deployment/identity-and-login.md). The API audience mapper makes
+    // the exchanged token one the API accepts; service accounts are off, so the client can hold
+    // a token only as a person who exchanged one.
+    const agent = client(AGENT_CLIENT) as Client & {
+      serviceAccountsEnabled?: boolean;
+      standardFlowEnabled?: boolean;
+      directAccessGrantsEnabled?: boolean;
+    };
+    expect(agent.publicClient ?? false).toBe(false);
+    expect(agent.attributes?.[STANDARD_TOKEN_EXCHANGE]).toBe('true');
+    expect(agent.serviceAccountsEnabled).toBe(false);
+    expect(agent.standardFlowEnabled).toBe(false);
+    expect(agent.directAccessGrantsEnabled).toBe(false);
+    const mappers = agent.protocolMappers ?? [];
+    expect(
+      mappers.filter(
+        (mapper) =>
+          mapper.protocolMapper === 'oidc-hardcoded-claim-mapper' &&
+          mapper.config?.['claim.name'] === 'act.client_id' &&
+          mapper.config['claim.value'] === AGENT_CLIENT &&
+          mapper.config['access.token.claim'] === 'true',
+      ),
+    ).toHaveLength(1);
+    expect(
+      mappers
+        .filter((mapper) => mapper.protocolMapper === 'oidc-audience-mapper')
+        .map((mapper) => mapper.config?.['included.client.audience']),
+    ).toContain(API_CLIENT);
+    // The person's token must name the agent as an audience, or the exchange is refused.
+    expect(
+      (client(WEB_CLIENT).protocolMappers ?? [])
+        .filter((mapper) => mapper.protocolMapper === 'oidc-audience-mapper')
+        .map((mapper) => mapper.config?.['included.client.audience']),
+    ).toContain(AGENT_CLIENT);
+    // And the whole realm passes the reading kf-commissioning gives it.
+    expect(realmPolicyWeaknesses(readFileSync(REALM_PATH, 'utf8'))).toStrictEqual([]);
+  });
+
+  it('enables token exchange on no client but the agent', () => {
+    const exchanging = (realm().clients ?? [])
+      .filter((candidate) => candidate.attributes?.[STANDARD_TOKEN_EXCHANGE] === 'true')
+      .map((candidate) => candidate.clientId);
+    expect(exchanging).toStrictEqual([AGENT_CLIENT]);
   });
 });
 

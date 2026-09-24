@@ -32,6 +32,12 @@ export interface Caller {
    * transaction the request opens binds with it; without it the application login binds nobody.
    */
   readonly attestation?: string | undefined;
+  /**
+   * The declared agent client acting for this person (ADR 0035), when the token was obtained by
+   * token exchange. For logs and answers only: `core.action.agent_participation` is written by
+   * the database from the attestation, and nothing the API passes can set it.
+   */
+  readonly agent?: string | undefined;
 }
 
 export interface ActionRoutesOptions {

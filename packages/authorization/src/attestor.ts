@@ -64,6 +64,7 @@ const IDENTITY_FAILURES: ReadonlySet<IdentityFailure> = new Set<IdentityFailure>
   'no_role_requested',
   'assignment_ambiguous',
   'no_live_assignment',
+  'undeclared_agent',
 ]);
 
 /** Read a request body as the attestor accepts it, or undefined for anything else. */
@@ -127,6 +128,7 @@ export function encodeAttestedCaller(caller: Caller): Record<string, unknown> {
     maxClassification: caller.maxClassification,
     subject: caller.subject,
     attestation: caller.attestation ?? null,
+    agent: caller.agent ?? null,
     authentication: {
       authenticatedAt: caller.authentication.authenticatedAt?.toISOString() ?? null,
       assuranceLevel: caller.authentication.assuranceLevel ?? null,
@@ -152,6 +154,11 @@ function decodeAttestedCaller(body: unknown): Caller {
   if (!Array.isArray(methods) || !methods.every((m) => typeof m === 'string')) return refuse();
   const attestation = text('attestation');
   if (!/^[0-9a-f]{64}$/.test(attestation)) return refuse();
+  // Absent from an attestor older than ADR 0035, null for a person's own token.
+  const agent = record['agent'];
+  if (agent !== undefined && agent !== null && (typeof agent !== 'string' || agent === '')) {
+    return refuse();
+  }
   return {
     actorId: text('actorId'),
     actingRoleId: text('actingRoleId'),
@@ -159,6 +166,7 @@ function decodeAttestedCaller(body: unknown): Caller {
     maxClassification: text('maxClassification'),
     subject: text('subject'),
     attestation,
+    ...(typeof agent === 'string' ? { agent } : {}),
     authentication: {
       authenticatedAt: typeof at === 'string' ? new Date(at) : undefined,
       assuranceLevel: typeof level === 'string' ? level : undefined,

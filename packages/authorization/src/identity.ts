@@ -19,6 +19,8 @@
  *   expiry      with a small clock tolerance, no more
  *   subject     mapped to a live person in `org.external_identity`
  *   role        held by that person, live, in `org.role_assignment`
+ *   agent       an `act` claim, when present, is exactly `{ client_id }`, one level deep, and
+ *               names the client the token was issued to (`azp`) — ADR 0035; see `agentOf`
  *
  * and then the database is asked to ATTEST that the person is present (20260924001000): an
  * attestation the application login must hand back to `core.bind_principal` before it may bind
@@ -53,6 +55,13 @@ export interface Caller {
    * opens binds with it. Absent only from `resolveIn`, which proves nothing about presence.
    */
   readonly attestation?: string | undefined;
+  /**
+   * The declared agent client this person is acting through (ADR 0035): the `act.client_id` of
+   * a token obtained by token exchange, or undefined for the person's own token. Informational
+   * for the API — the DATABASE records participation from the attestation, and nothing the API
+   * does with this field reaches the ledger.
+   */
+  readonly agent?: string | undefined;
 }
 
 export type IdentityFailure =
@@ -66,7 +75,8 @@ export type IdentityFailure =
   /** Asked to derive the assignment (ADR 0034 §2), and the person holds several live. */
   | 'assignment_ambiguous'
   /** Asked to derive the assignment, and the person holds none live in the organization. */
-  | 'no_live_assignment';
+  | 'no_live_assignment'
+  | 'undeclared_agent';
 
 /** One of the caller's own live assignments, as a refusal to guess between them lists it. */
 export interface LiveAssignment {
@@ -152,6 +162,9 @@ export class TokenVerifier {
       if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp)) {
         throw new Error('token has no finite expiration');
       }
+      // A malformed delegation is a token defect like any other, refused here so the operator's
+      // log carries the reason and the caller sees the one collapsed code.
+      agentOf(payload);
       return payload;
     } catch (err: unknown) {
       const reason = err instanceof Error ? err.message : 'not verifiable';
@@ -161,6 +174,55 @@ export class TokenVerifier {
       throw new IdentityRejected('invalid_token', 'token rejected');
     }
   }
+}
+
+/** What an agent client id may look like: Keycloak client ids, conservatively. */
+const CLIENT_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,254}$/;
+
+/**
+ * The agent a verified token names, or undefined for a person's own token (ADR 0035).
+ *
+ * RFC 8693 §4.1 puts the acting party in an `act` claim. Keycloak 26.4's standard token exchange
+ * emits none of its own: it records the exchanging client only as `azp` (measured against the
+ * pinned image, docs/deployment/identity-and-login.md). The realm therefore stamps
+ * `act.client_id` on each agent client with a hardcoded-claim mapper, and a token issued to that
+ * client carries `{"act": {"client_id": "<the client>"}}`. That is the one shape accepted:
+ *
+ *   - `act` absent                      -> a direct act, no agent
+ *   - `act` an object whose ONLY member is `client_id`, a client id equal to `azp` -> that agent
+ *   - anything else                     -> throws; the verifier refuses the token
+ *
+ * `act.sub` is not accepted in place of `client_id`: in Keycloak an actor subject is a user id
+ * (a service account's uuid), not the client, and nothing here maps one to the other. A nested
+ * `act` (a chain of actors) is refused rather than flattened: depth 1 is the whole model, and a
+ * chain would record only its outermost link. `client_id` must equal `azp` because the claim is
+ * meaningful only as the issuer's statement about the client the token was issued TO; a mapper
+ * stamping some other client's id is a forgery by configuration.
+ *
+ * Whether that client may take part at all is not decided here: `core.issue_attestation` refuses
+ * a client that is not a declared agent, and a token without `act` issued to one that is.
+ */
+export function agentOf(payload: JWTPayload): string | undefined {
+  if (!Object.hasOwn(payload, 'act')) return undefined;
+  const act = payload['act'];
+  if (typeof act !== 'object' || act === null || Array.isArray(act)) {
+    throw new Error('the act claim is not an object');
+  }
+  const members = Object.keys(act);
+  if (members.includes('act')) {
+    throw new Error('the act claim is nested; only one level of delegation is accepted');
+  }
+  if (members.length !== 1 || members[0] !== 'client_id') {
+    throw new Error(`the act claim must be exactly {client_id}, got {${members.sort().join(',')}}`);
+  }
+  const clientId = (act as Record<string, unknown>)['client_id'];
+  if (typeof clientId !== 'string' || !CLIENT_ID.test(clientId)) {
+    throw new Error('act.client_id is not a client id');
+  }
+  if (payload['azp'] !== clientId) {
+    throw new Error('act.client_id is not the client the token was issued to (azp)');
+  }
+  return clientId;
 }
 
 export interface CallerRequest {
@@ -226,13 +288,33 @@ export async function resolveCaller(
   }
 
   const authentication = authenticationEvent(payload);
+  // `verify` already refused a malformed `act`, so this only reads it.
+  const agent = agentOf(payload);
+  const authorizedParty = typeof payload['azp'] === 'string' ? payload['azp'] : undefined;
 
   return withTransaction(pool, async (tx) => {
     const caller = await resolveIn(tx, { issuer, subject, authentication, ...request });
     // The database re-checks the assignment and clamps the ceiling again as it attests; the
-    // attestation expires with the token, or within a minute, whichever is first.
-    const attestation = await issueAttestation(tx, caller, expiresAt);
-    return { ...caller, attestation };
+    // attestation expires with the token, or within a minute, whichever is first. It also
+    // decides whether the agent may take part, and records it on the attestation, from which
+    // every bind of this request seals it for the ledger.
+    const attestation = await issueAttestation(tx, caller, expiresAt, {
+      agentClientId: agent,
+      authorizedParty,
+    }).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      if (/declared agent/.test(message)) {
+        throw new IdentityRejected(
+          'undeclared_agent',
+          'the token names an agent client that is not declared to act for people here',
+        );
+      }
+      if (/names agent .* but was issued to client/.test(message)) {
+        throw new IdentityRejected('invalid_token', 'token rejected');
+      }
+      throw error;
+    });
+    return agent === undefined ? { ...caller, attestation } : { ...caller, attestation, agent };
   });
 }
 
