@@ -25,6 +25,7 @@
     "kf": "pnpm --reporter=silent --filter @kf/api... build && node apps/api/dist/cli.js",
     "kf:grant-authority": "pnpm --filter @kf/api... build && node apps/api/dist/grant-authority.js",
     "kf:revoke-identity": "pnpm --filter @kf/api... build && node apps/api/dist/revoke-identity.js",
+    "kf:declare-agent": "pnpm --filter @kf/api... build && node apps/api/dist/declare-agent.js",
     "kf:declare-service-actor": "pnpm --filter @kf/api... build && node apps/api/dist/declare-service-actor.js",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
