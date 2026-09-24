@@ -4,6 +4,7 @@ import { formatState } from '@kf/ui';
 import { ApiError, getSearchResults, type SearchHit } from '../../lib/api';
 import { webCaller } from '../../lib/session';
 import { Badge } from '../components/badge';
+import { VerificationNote } from '../components/verification-note';
 import { parseSearchPageParams, recordHref, type SearchPageParams } from './search-view';
 
 export const dynamic = 'force-dynamic';
@@ -166,6 +167,7 @@ export default async function SearchPage({
                   {formatState(hit.objectType)} · {formatState(hit.classification)} ·{' '}
                   {hit.matchedBy === 'full_text' ? 'Full-text match' : 'Partial-identifier match'}
                 </p>
+                <VerificationNote verification={hit.verification} />
                 <code style={{ color: '#64748b', fontSize: '0.78rem' }}>{hit.objectId}</code>
               </article>
             ))}

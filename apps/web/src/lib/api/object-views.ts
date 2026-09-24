@@ -6,6 +6,7 @@ import {
   type Caller,
 } from './client';
 import { record } from './validation';
+import { parseVerification, type Verification } from './verification';
 
 /**
  * The Object View as the API serves it: a projection Result (members and relationships from
@@ -20,6 +21,8 @@ export interface ObjectViewMember {
   readonly lifecycleState?: string;
   readonly title?: string;
   readonly content?: Record<string, unknown>;
+  /** Always present: a member the API sent without one is shown as unverified. */
+  readonly verification: Verification;
 }
 
 export interface ObjectView {
@@ -64,6 +67,7 @@ function member(value: unknown): ObjectViewMember | undefined {
     classification,
     contentDigest,
     itemState,
+    verification: parseVerification(m['verification']),
     ...(typeof m['lifecycleState'] === 'string' ? { lifecycleState: m['lifecycleState'] } : {}),
     ...(typeof m['title'] === 'string' ? { title: m['title'] } : {}),
     ...(record(m['content']) === undefined ? {} : { content: record(m['content'])! }),
