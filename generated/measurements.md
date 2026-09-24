@@ -31,7 +31,7 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 | object types | 40 | declared in `ontology/object-types.yaml` |
 | relation types | 42 | declared in `ontology/relation-types.yaml` |
 | decision records | 37 | under `docs/decisions/` — 33 accepted, 4 proposed |
-| architecture requirements | 170 | distinct identifiers in §106 |
+| architecture requirements | 176 | distinct identifiers in §106 |
 | test files | 257 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
 
 ## Runtime measurements, cited rather than derived
