@@ -50,7 +50,7 @@ const dispatcher = () => createFabricDispatcher(harness.pool);
 async function newDocument(title: string): Promise<string> {
   return createObject(harness.adminPool, fixtures, {
     type: 'controlled_document',
-    domain: 'quality',
+    domain: 'qms',
     state: 'draft',
     title,
     createdBy: fixtures.reviewerId,

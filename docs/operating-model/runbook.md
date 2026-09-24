@@ -409,6 +409,63 @@ as a database error naming `act authority` means something wrote to `core.action
 through the dispatcher. That is not a configuration problem: treat it as an incident (threat
 model T2).
 
+## A write is refused: "must be performed by an act" or "not an act this transaction recorded"
+
+Since `20260925011000` every table the application or the worker can write refuses a row that no
+recorded act accounts for (threat model T2). The dispatcher always records its act in the same
+transaction as the writes, so neither refusal is reachable through it:
+
+- **must be performed by an act, and no action is bound** — something wrote a domain row with no
+  action in the transaction context;
+- **not an act this transaction recorded for its actor** — the context named an action the
+  ledger does not hold, or (for the API) one recorded by an earlier transaction.
+
+Either arriving from the API is not a configuration problem: treat it as an incident, as for an
+`act authority` refusal above. From the worker it means a task wrote under an act it did not bind;
+the document compiler is the one task that completes an act already recorded.
+
+Five writes are exempt by design, each with its reason in `core.write_guard_exemption` (read it
+as the owner): the ledger row itself, its audit event, outbox delivery marks, a federated
+reference's `verified_at` (stamped with the database clock), and a shared-link bearer's access
+log. `tests/database/write-guards.test.ts` pins that list; a new table the application can write
+is guarded by calling `core.install_action_context_guards()` in its migration, or the test names
+it.
+
+## A migration refuses or warns: a record is not the type, or in the domain, it claims
+
+Some migrations add a key that every existing row must already satisfy, and the database checks
+the rows when the key is added. A database holding a row that breaks it refuses the migration —
+atomically, so nothing is half-applied — rather than carrying the row forward.
+
+- `warrant_is_warrant` or `promotion_authority_decision_is_ml_promotion_decision`
+  (`20260925012000`): a warrant or an ML promotion decision is keyed on an object of another type,
+  so one object is two records. Find them, as the owner:
+
+      select w.id, o.object_type from work.warrant w join core.object o on o.id = w.id
+       where o.object_type <> 'warrant';
+      select d.object_id, o.object_type from ml.promotion_authority_decision d
+        join core.object o on o.id = d.object_id where o.object_type <> 'ml_promotion_decision';
+
+- `object_authority_domain_is_the_types` (`20260925013000`) does not refuse: it warns
+  `N record(s) carry an authority domain their type does not declare`, and leaves the key
+  holding for every new and changed row but unvalidated for the old ones. Until 2026-09-25 five
+  kinds of record were filed under the wrong domain by the code itself (work orders, work
+  executions, acceptance records and work-order amendments under `project`, change records under
+  `engineering`). Find them, as the owner:
+
+      select o.id, o.object_type, o.authority_domain, t.authority_domain as declared
+        from core.object o join registry.object_type t on t.id = o.object_type
+       where o.authority_domain <> t.authority_domain;
+
+  The declared domain is the answer; the recorded one was a wrong copy of it. Once they are
+  corrected, `alter table core.object validate constraint object_authority_domain_is_the_types`
+  makes the key cover every row. The same key refuses an ontology seed that moves a type to
+  another domain while records of it exist.
+
+For a mistyped row, which of the two records is the real one is a records decision for whoever
+owns them. Correct either kind of row with the owner credential, as a recorded `correct_record`,
+then run the migration again or validate the key.
+
 ## A verification is refused: reviewed individually, too fast
 
 `verify_record` with basis `reviewed_individually` is refused when the same person recorded

@@ -32,7 +32,7 @@ export const recordAcceptance: ActionEffect = async (tx, request, objects) => {
   const id = await createControlledObject(tx, {
     ...classificationFrom(request.payload),
     objectType: 'acceptance_record',
-    authorityDomain: 'project',
+    authorityDomain: 'commercial',
     lifecycleState: 'issued',
     title: `Acceptance of ${execution.id}`,
     organizationId: request.organizationId,
@@ -74,7 +74,7 @@ export const amendWorkOrder: ActionEffect = async (tx, request, objects) => {
   const id = await createControlledObject(tx, {
     ...classificationFrom(request.payload),
     objectType: 'work_order_amendment',
-    authorityDomain: 'project',
+    authorityDomain: 'commercial',
     lifecycleState: 'issued',
     title: `Amendment ${next} to ${order.id}`,
     organizationId: request.organizationId,

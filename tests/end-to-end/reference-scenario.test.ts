@@ -127,7 +127,7 @@ beforeAll(async () => {
       `insert into core.object
          (object_type, authority_domain, lifecycle_state, classification, retention_class,
           schema_version, organization_id, title, created_by, updated_by)
-       values ('engagement','organization','active','restricted','project_record',$1,$2,
+       values ('engagement','commercial','active','restricted','project_record',$1,$2,
                'Meridian mechanical design engagement',$3,$3) returning id`,
       [version, f.organizationId, f.performerId],
     );

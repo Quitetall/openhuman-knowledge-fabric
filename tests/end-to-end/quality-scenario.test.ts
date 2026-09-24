@@ -103,7 +103,7 @@ beforeAll(async () => {
       return row.id;
     };
     productSystem = await mk('product_system', 'configuration', 'development', 'OH-EEG-1');
-    risk = await mk('risk', 'engineering', 'identified', 'Excess electrode leakage current');
+    risk = await mk('risk', 'qms', 'identified', 'Excess electrode leakage current');
   });
 }, 180_000);
 
