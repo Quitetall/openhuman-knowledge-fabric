@@ -47,6 +47,7 @@ function withoutDatabase(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   delete out['WORKER_DATABASE_URL'];
   delete out['WORKER_DATABASE_URL_FILE'];
   delete out['DATABASE_OWNER_URL'];
+  delete out['DATABASE_OWNER_URL_FILE'];
   return out;
 }
 

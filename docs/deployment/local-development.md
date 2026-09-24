@@ -179,7 +179,7 @@ sets `NODE_ENV=development` and reads `attestor-database-url` and the socket pat
 until it answers `GET /health` on the socket — `KF_ATTESTOR_SOCKET` if set, else
 `$XDG_RUNTIME_DIR/kf-attestor.sock` — and only then starts the API and the web app with
 `KF_DEPLOYMENT_PROFILE=dogfood`, the same socket, and the API reading `dogfood-api-database-url`.
-No process is handed `DATABASE_OWNER_URL` or the development login, whatever `.env` holds. It
+No process is handed `DATABASE_OWNER_URL`, `DATABASE_OWNER_URL_FILE` or the development login, whatever `.env` holds. It
 refuses to start, naming what is missing, when the logins were never created or an `OIDC_*` /
 `KF_WEB_*` value is unset, and stops everything when any part exits or on Ctrl-C. The worker is not
 started: it needs a `kf_worker` login no workstation command creates, and this rehearsal is about
