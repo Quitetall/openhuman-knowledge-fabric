@@ -45,6 +45,15 @@ export const CORE_SECTIONS = [
             from core.object_verification order by object_id`,
   },
   {
+    // KF-SAS-RQ-221: the demand aggregate is a record — which records people could not reach,
+    // and how many distinct persons wanted each, never which persons. The recorded queries and
+    // per-asker contributions it was counted from are transient and are NOT exported (§64B).
+    name: 'access-demand',
+    sql: `select object_id, organization_id, distinct_person_count, first_counted_at,
+                 last_counted_at
+            from org.access_demand order by object_id`,
+  },
+  {
     name: 'snapshots',
     sql: `select id, object_id, action_id, object_revision, payload, payload_sha256,
                  ontology_digest, storage_uri, recorded_at

@@ -33,18 +33,32 @@ describe('master-record permission boundary', () => {
     ) as MasterRecordBoundaryRegistry;
     const observed = rlsTables();
     assertMasterRecordBoundaryComplete(registry, observed);
+    const transient = (registry.transientTables ?? []).map((entry) => entry.table);
     const all = new Set([
       ...registry.materializedTables,
       ...registry.derivedTables,
       ...registry.liveExternalTables,
+      ...transient,
     ]);
     expect(registry.liveExternalTables).toEqual([]);
     expect(all.size).toBe(
       registry.materializedTables.length +
         registry.derivedTables.length +
-        registry.liveExternalTables.length,
+        registry.liveExternalTables.length +
+        transient.length,
     );
-    expect(registry.derivedTables).toEqual(['search.document', 'retrieval.band_version']);
+    expect(registry.derivedTables).toEqual([
+      'search.document',
+      'retrieval.band_version',
+      'retrieval.embed_pending',
+    ]);
+    expect((registry.transientTables ?? []).map((entry) => entry.table)).toEqual([
+      'search.recorded_query',
+      'search.demand_contribution',
+      'search.asker_key',
+      'retrieval.disclosure',
+    ]);
+    expect(registry.materializedTables).toContain('org.access_demand');
     expect(registry.materializedTables).toContain('content.master_record_item');
     expect(registry.materializedTables).toContain('content.master_record_link');
     expect(registry.materializedTables).toContain('org.person_clearance');
@@ -65,6 +79,32 @@ describe('master-record permission boundary', () => {
     };
     expect(() => assertMasterRecordBoundaryComplete(planted, observed)).toThrow(
       /unclassified observed table.*core\.object/,
+    );
+  });
+
+  it('refuses a table that is both transient and a permission member', () => {
+    const registry = JSON.parse(
+      readFileSync(join(ROOT, 'docs', 'architecture', 'master-record-boundary.json'), 'utf8'),
+    ) as MasterRecordBoundaryRegistry;
+    const planted = {
+      ...registry,
+      materializedTables: [...registry.materializedTables, 'search.recorded_query'],
+    };
+    expect(() => assertMasterRecordBoundaryComplete(planted, rlsTables())).toThrow(
+      /search\.recorded_query.*both materialized and transient/,
+    );
+  });
+
+  it('refuses a transient table with no stated expiry', () => {
+    const registry = JSON.parse(
+      readFileSync(join(ROOT, 'docs', 'architecture', 'master-record-boundary.json'), 'utf8'),
+    ) as MasterRecordBoundaryRegistry;
+    const planted = {
+      ...registry,
+      transientTables: [{ table: 'search.recorded_query', expiry: 'forever' }],
+    };
+    expect(() => assertMasterRecordBoundaryComplete(planted, rlsTables())).toThrow(
+      /states no expiry/,
     );
   });
 });

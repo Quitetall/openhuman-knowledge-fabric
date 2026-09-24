@@ -255,8 +255,17 @@ echo "==> logical dump"
 # The context seal key's ROW is excluded, not just unreadable: seals last one transaction, so a
 # restored database needs a key rather than this one, and the first seal after a restore makes a
 # fresh one (20260923000100). Kept out, the key is not readable by whoever holds a dump.
+#
+# Transient observations (§64B, ADR 0029) are excluded the same way: they expire after 90 days,
+# and a dump retained longer would keep them past it (KF-SAS-RQ-220). One line per table declared
+# under `transientTables` in docs/architecture/master-record-boundary.json;
+# tests/conformance/transient-observations.test.ts refuses a declared table missing here.
 "$KF_PG_DUMP" --format=custom --no-owner --no-privileges --snapshot="$SNAPSHOT_ID" \
   --exclude-table-data=core.context_seal_key \
+  --exclude-table-data=search.recorded_query \
+  --exclude-table-data=search.demand_contribution \
+  --exclude-table-data=search.asker_key \
+  --exclude-table-data=retrieval.disclosure \
   --file="$DEST/dump.pgcustom" "$DATABASE_URL"
 
 echo "==> canonical export"

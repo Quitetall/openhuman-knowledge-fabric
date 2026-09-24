@@ -6,6 +6,7 @@ export const PRESERVATION_IMPORT_TARGETS = {
   'legacy-action-provenance': 'core.action_migration019_legacy',
   approvals: 'core.approval',
   'object-verifications': 'core.object_verification',
+  'access-demand': 'org.access_demand',
   snapshots: 'core.snapshot',
   'audit-events': 'core.audit_event',
   'audit-checkpoints': 'core.audit_checkpoint',
@@ -172,6 +173,18 @@ export const PRESERVATION_TABLE_EXCLUSIONS = {
   'content.document_basis_classifier_lease': 'ephemeral classifier lease, invalid after restore',
   'core.context_seal_key':
     'transaction-scoped seal key; a restore needs a key, not this one, and makes a fresh one',
+  'retrieval.embed_pending':
+    'derived embedding queue (§64A); enqueueing every object again rebuilds it, and a lost row ' +
+    'delays one embedding without disclosing anything',
+  // Transient observations (§64B, ADR 0029, KF-SAS-RQ-220). The export's retention is unbounded,
+  // so carrying any of these would keep them forever by the back door. Held to this list by
+  // tests/conformance/transient-observations.test.ts.
+  'search.recorded_query': 'transient observation (§64B): a query somebody ran; expires in 90 days',
+  'search.demand_contribution':
+    'transient observation (§64B): which pseudonymous askers were counted; expires in 90 days',
+  'search.asker_key': 'transient observation (§64B): the pseudonym key; rotates every 90 days',
+  'retrieval.disclosure':
+    'transient observation (§64B): digests of served semantic answers; expire in 90 days',
   'core.principal_attestation':
     'transient proof a person was present (20260924001000): digests only, expired within 60 s, ' +
     'never evidence of an act — the action and audit rows are',
