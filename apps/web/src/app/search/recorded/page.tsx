@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { formatState } from '@kf/ui';
 import { getOwnRecordedQueries, type OwnRecordedQuery } from '../../../lib/api';
 import { webCaller } from '../../../lib/session';
+import { DemandForm } from './demand-form';
 import { ReplayForm } from './replay-form';
 
 export const dynamic = 'force-dynamic';
@@ -70,6 +71,18 @@ export default async function RecordedQueriesPage() {
             ))}
           </ul>
         )}
+      </section>
+      <section style={{ marginTop: '2.5rem', maxWidth: '52rem' }} aria-labelledby="demand-heading">
+        <h2 id="demand-heading" style={{ fontSize: '1.1rem' }}>
+          Demand from people cleared lower
+        </h2>
+        <p style={{ color: '#475569', marginTop: 0 }}>
+          Runs, at your clearance, every recorded query asked below it, and counts each record the
+          asker&apos;s clearance withheld toward how many distinct people want access to it. You are
+          shown the records you can read and those counts — never what anybody typed, when, or who
+          they are.
+        </p>
+        <DemandForm />
       </section>
     </main>
   );

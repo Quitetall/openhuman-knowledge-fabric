@@ -79,6 +79,32 @@ records they may not see. Computed on replay at the replayer's ceiling it is leg
 to a row it becomes a classified fact sitting at whatever classification the writer guessed.
 Compute, return, discard.
 
+## Amended 2026-09-24: who replays whose query, and what is deliberately not built
+
+The replay the decision needs is somebody cleared higher re-running what somebody cleared lower
+asked — the aggregate is "records that recur in high-clearance replays of lower-clearance
+queries". Two routes exist, and one does not:
+
+- **Your own query** (`GET /search/recorded-queries`, `POST /search/recorded-queries/:id/replay`,
+  `search.my_recorded_queries`): a person sees and replays what they asked, at their ceiling now.
+  The listing recomputes the caller's own pseudonymous key and takes no person argument.
+- **The organization's demand** (`POST /search/demand/replay`, `replayOrganizationDemand` in
+  `@kf/search`): the caller re-runs every live recorded query asked strictly below their ceiling
+  (the newest 500 per call), at their ceiling and grants, and each record a query's own ceiling
+  withheld counts once per distinct asker into `org.access_demand`. The answer is the aggregate
+  — records the caller may read, each with its count of distinct persons — and how many queries
+  were replayed. **No query text, recorded-query id, time or asker leaves the server.** The ids
+  are UUIDv7 and carry their recording time, so even an id alone would let a reader line up one
+  person's burst of searches.
+- **Not built, deliberately: listing other people's recorded queries.** A list of what colleagues
+  searched, even with no name on it, is the query log read as a dashboard: the text says what
+  somebody was trying to find out (often enough to say who), and times or ids re-link one person's
+  searches into "Jim's fifty searches". That is the workplace monitoring this decision separates
+  from the demand signal, and the owner's direction is that nobody browses the log. The table's
+  read policy still lets the application read `query_text` at or below the reader's ceiling,
+  because the demand replay must; no route returns it for anyone but its asker. Reading the log
+  with attribution remains its own act requiring its own grant, and none is implemented.
+
 ## Consequences
 
 - Replay works only inside the retention window. Demand is a recent signal, so this is a small

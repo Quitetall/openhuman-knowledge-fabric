@@ -58,6 +58,10 @@ Functional now:
 - `GET /search/recorded-queries` and `POST /search/recorded-queries/:id/replay` behind
   `/search/recorded`: the reader's own recorded queries, and a replay of one at their ceiling now,
   which shows what the original ceiling withheld and counts toward access demand (RQ-221)
+- `POST /search/demand/replay` behind the same page: replays every recorded query asked below the
+  reader's ceiling, at that ceiling, and shows only the records the reader may read with how many
+  distinct people wanted each — never a query's text, id, time or asker (ADR 0029, amended
+  2026-09-24). Other people's recorded queries are deliberately never listed
 - `GET /publications/:publicationId/revisions/:controlledRevisionId/views/:compiledViewId` is a
   read-only API delivery boundary for an already-authorized signed public bundle. It is
   fail-closed until operators supply immutable signed-bundle storage and trusted public

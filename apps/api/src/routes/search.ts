@@ -5,6 +5,7 @@ import { reaches as grantReaches, readCoverage as grantCoverage } from '@kf/auth
 import {
   composeSearch,
   listOwnRecordedQueries,
+  replayOrganizationDemand,
   replayRecordedQuery,
   type SemanticRanker,
 } from '@kf/search';
@@ -171,6 +172,45 @@ export async function registerSearchRoutes(
       }
     },
   );
+
+  /**
+   * POST /search/demand/replay — replay the organization's recorded queries asked below the
+   * caller's ceiling, at the caller's ceiling and grants, and count what each original ceiling
+   * withheld into `org.access_demand` (ADR 0029, §64B). The answer is the aggregate — records the
+   * caller may read, each with its count of distinct persons — and how many queries were replayed.
+   * It carries no query text, no recorded-query id or time and no asker: other people's recorded
+   * queries are never listed (ADR 0029, amended 2026-09-24).
+   */
+  app.post('/search/demand/replay', async (request, reply) => {
+    let caller;
+    try {
+      caller = await options.identify({ headers: request.headers as Record<string, unknown> });
+    } catch (error: unknown) {
+      return refuseUnidentified(reply, error);
+    }
+    try {
+      const replay = await withTransaction(options.pool, async (tx) => {
+        await bindPrincipal(tx, caller);
+        const coverage = await grantCoverage(tx, caller);
+        return replayOrganizationDemand(
+          tx,
+          {
+            organizationId: caller.organizationId,
+            maxClassification: caller.maxClassification,
+            attestation: caller.attestation,
+          },
+          {
+            reaches: (objectId, classification) =>
+              grantReaches(coverage, { id: objectId, classification }),
+          },
+        );
+      });
+      return reply.send(replay);
+    } catch (error: unknown) {
+      request.log.error({ err: error }, 'demand replay failed');
+      return reply.code(500).send({ error: 'search_unavailable' });
+    }
+  });
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;

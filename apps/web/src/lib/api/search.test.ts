@@ -4,9 +4,11 @@ import {
   buildSearchPath,
   getOwnRecordedQueries,
   getSearchResults,
+  parseDemandReplay,
   parseOwnRecordedQueries,
   parseRecordedQueryReplay,
   parseSearchResponse,
+  replayOrganizationDemand,
   replayRecordedQuery,
 } from './search.js';
 import { UNVERIFIED_LABEL } from './verification.js';
@@ -264,5 +266,54 @@ describe('the caller’s own recorded queries (KF-SAS-RQ-221)', () => {
     );
     expect(fetchMock.mock.calls[1]![1]).toMatchObject({ method: 'POST' });
     await expect(replayRecordedQuery(caller, '../admin')).rejects.toThrow(/UUID/);
+  });
+});
+
+describe('the demand replay (ADR 0029, amended 2026-09-24)', () => {
+  const RECORD = '019a0000-0000-7000-8000-0000000000d1';
+
+  it('parses records with their distinct-person count, labelled unverified when unsaid', () => {
+    const replay = parseDemandReplay({
+      replayed: 2,
+      truncated: false,
+      counted: 2,
+      records: [
+        {
+          objectId: RECORD,
+          objectType: 'decision_record',
+          title: 'Tungsten carbide die pricing',
+          classification: 'restricted',
+          distinctPersonCount: 2,
+        },
+      ],
+    });
+    expect(replay.records[0]!.distinctPersonCount).toBe(2);
+    expect(replay.records[0]!.verification).toMatchObject({
+      verified: false,
+      label: UNVERIFIED_LABEL,
+    });
+    expect(() => parseDemandReplay({ replayed: 1, counted: 0, records: [] })).toThrow(
+      /demand replay/,
+    );
+    expect(() =>
+      parseDemandReplay({
+        replayed: 1,
+        truncated: false,
+        counted: 0,
+        records: [{ objectId: RECORD, objectType: 'x', title: 't', classification: 'internal' }],
+      }),
+    ).toThrow(/search response/);
+  });
+
+  it('posts to the demand route through the caller’s context, naming no query and no person', async () => {
+    process.env['KF_API_URL'] = 'https://api.example.test';
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ replayed: 0, truncated: false, counted: 0, records: [] }), {
+        status: 200,
+      }),
+    );
+    await replayOrganizationDemand(caller);
+    expect(fetchMock.mock.calls[0]![0]).toBe('https://api.example.test/search/demand/replay');
+    expect(fetchMock.mock.calls[0]![1]).toMatchObject({ method: 'POST', body: '{}' });
   });
 });

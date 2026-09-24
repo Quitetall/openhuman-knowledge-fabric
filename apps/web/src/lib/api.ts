@@ -79,9 +79,12 @@ export {
   getOwnRecordedQueries,
   getSearchResults,
   parseSearchResponse,
+  replayOrganizationDemand,
   replayRecordedQuery,
 } from './api/search';
 export type {
+  DemandedRecord,
+  DemandReplay,
   OwnRecordedQuery,
   RecordedQueryReplay,
   SearchHit,
