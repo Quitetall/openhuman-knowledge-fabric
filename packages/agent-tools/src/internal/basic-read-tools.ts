@@ -1,3 +1,4 @@
+import { OBJECT_HISTORY_SQL, type ObjectHistoryRow } from '@kf/actions';
 import { readGrantedSubset } from '@kf/authorization';
 import type { Pool } from '@kf/database';
 import { recordVerification } from '@kf/domain';
@@ -81,20 +82,7 @@ export async function readHistory(
 ): Promise<readonly HistoryEntry[]> {
   // The gate is false for an object the session cannot see: it is the visibility check too.
   return scopedToGranted(pool, scope, objectId, [], async (tx) => {
-    const rows = await tx.query<{
-      seq: string;
-      action_type: string;
-      actor_id: string;
-      recorded_at: Date;
-      reason: string | null;
-    }>(
-      `select e.seq, e.action_type, e.actor_id, e.recorded_at, e.reason
-         from core.audit_event e
-        where e.object_id = $1
-           or $1 = any(select unnest(a.target_ids) from core.action a where a.id = e.action_id)
-        order by e.seq`,
-      [objectId],
-    );
+    const rows = await tx.query<ObjectHistoryRow>(OBJECT_HISTORY_SQL, [objectId]);
     return rows.map((r) => ({
       seq: r.seq,
       actionType: r.action_type,

@@ -1,6 +1,6 @@
 -- GENERATED from ontology/ — do not edit.
 -- ontology_version: 1.2.0-draft.1
--- source_digest: 3a7c8740ce21967150bf8ae411a7386f086cc3f19fb5a1f0a73b717ea14abece
+-- source_digest: acea0b4f8ca21738e4b6de0bf1e7382b76f39d11cc8ac745ab6a25e9e3166e94
 
 -- Seed data for the registry schema. Generated; applied by `pnpm db:seed`.
 --
@@ -20,7 +20,7 @@ begin;
 update registry.schema_release set is_current = false where version <> '1.2.0-draft.1';
 
 insert into registry.schema_release (version, ontology_digest, is_current) values
-  ('1.2.0-draft.1', '3a7c8740ce21967150bf8ae411a7386f086cc3f19fb5a1f0a73b717ea14abece', true)
+  ('1.2.0-draft.1', 'acea0b4f8ca21738e4b6de0bf1e7382b76f39d11cc8ac745ab6a25e9e3166e94', true)
 on conflict (version) do update set ontology_digest = excluded.ontology_digest,
   applied_at = now(), is_current = true;
 
@@ -2304,13 +2304,14 @@ insert into registry.rule_definition (id, severity, description, implementation)
   ('KF-DOC-002', 'error', 'A compilation run and its views must consume the exact Basis authorized by one prior compilation request action.', array['database_constraint', 'action_precondition', 'validator']),
   ('KF-DOC-003', 'error', 'Each document subject has one immutable authoritative document policy that callers cannot weaken; Holder transfer, compilation acceptance and publication require scoped technical authority plus any quality authority required by that policy.', array['database_constraint', 'action_precondition', 'validator']),
   ('KF-DOC-004', 'error', 'A Proposal Overlay is append-only; applying one requires a human-authorized typed action, an applied fragment remains a live draft, and no result is official before controlled review, effectivity and publication.', array['database_constraint', 'action_precondition', 'validator']),
-  ('KF-DOC-005', 'error', 'Every official document publication has one append-only receipt binding the exact accepted compiler result, effective controlled content revision and registered destination policy that authorized it.', array['database_constraint', 'action_precondition', 'validator'])
+  ('KF-DOC-005', 'error', 'Every official document publication has one append-only receipt binding the exact accepted compiler result, effective controlled content revision and registered destination policy that authorized it.', array['database_constraint', 'action_precondition', 'validator']),
+  ('KF-ENG-001', 'error', 'An engagement is not closed or terminated while a work order under it is in a non-terminal state, and no work order is placed under a closed or terminated engagement.', array['database_constraint', 'action_precondition'])
 on conflict (id) do update set severity = excluded.severity,
   description = excluded.description, implementation = excluded.implementation;
 
 -- Retire what the ontology no longer declares. These deletes are SUPPOSED to fail when
 -- records still reference the row: a type still in use must not vanish from the registry.
-delete from registry.rule_definition where id <> all (array['KF-GRAPH-001', 'KF-WORK-001', 'KF-WORK-002', 'KF-DEC-001', 'KF-CHG-001', 'KF-FIN-001', 'KF-FIN-002', 'KF-FIN-003', 'KF-PROJ-001', 'KF-PROJ-002', 'KF-DOC-001', 'KF-DOC-002', 'KF-DOC-003', 'KF-DOC-004', 'KF-DOC-005']::text[]);
+delete from registry.rule_definition where id <> all (array['KF-GRAPH-001', 'KF-WORK-001', 'KF-WORK-002', 'KF-DEC-001', 'KF-CHG-001', 'KF-FIN-001', 'KF-FIN-002', 'KF-FIN-003', 'KF-PROJ-001', 'KF-PROJ-002', 'KF-DOC-001', 'KF-DOC-002', 'KF-DOC-003', 'KF-DOC-004', 'KF-DOC-005', 'KF-ENG-001']::text[]);
 delete from registry.relation_type_endpoint
  where (relation_type, endpoint, object_type) not in (values
   ('contains', 'source', 'organization'),

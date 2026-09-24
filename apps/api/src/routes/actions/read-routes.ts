@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { DEFAULT_REASON_REQUIRED } from '@kf/actions';
+import { DEFAULT_REASON_REQUIRED, OBJECT_HISTORY_SQL } from '@kf/actions';
 import { readGranted, readGrantedSubset } from '@kf/authorization';
 import { bindPrincipal, PrincipalRefused, withTransaction, type Pool, type Tx } from '@kf/database';
 import { projectProgress } from '@kf/work-control';
@@ -153,15 +153,9 @@ function registerHistoryRoute(app: FastifyInstance, options: ReadRouteOptions): 
         return reply.code(404).send({ error: 'not_found' });
       }
 
-      const events = await tx.query<Record<string, unknown>>(
-        `select e.seq, e.action_type, e.actor_id, e.acting_role_id, e.recorded_at,
-                e.effective_at, e.reason, e.digest
-           from core.audit_event e
-          where e.object_id = $1 or $1 = any(
-                  select unnest(a.target_ids) from core.action a where a.id = e.action_id)
-          order by e.seq`,
-        [request.params.id],
-      );
+      const events = await tx.query<Record<string, unknown>>(OBJECT_HISTORY_SQL, [
+        request.params.id,
+      ]);
       return reply.send({ objectId: request.params.id, events });
     });
   });

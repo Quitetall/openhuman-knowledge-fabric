@@ -67,6 +67,43 @@ const assertClosable: PreconditionCheck = async (tx, _request, objects) => {
   }
 };
 
+/**
+ * KF-ENG-001, as a refusal the caller can act on: an engagement does not end while a work order
+ * under it is still open. "Open" is the ontology's — a work order state `registry.object_state`
+ * does not mark terminal — and the linkage is `work.work_order.engagement_id`.
+ *
+ * The authority is the trigger `work.assert_engagement_ends_after_its_orders`, which counts every
+ * order under a lock; this sees only the orders the caller may read, so it can under-count but
+ * never refuse wrongly, and the trigger refuses what it misses.
+ */
+const assertEngagementEndable: PreconditionCheck = async (tx, request, objects) => {
+  for (const o of objects) {
+    if (o.object_type !== 'engagement') continue;
+    const open = await tx.query<{ order_number: string; lifecycle_state: string }>(
+      `select wo.order_number, obj.lifecycle_state
+         from work.work_order wo
+         join core.object obj on obj.id = wo.id
+        where wo.engagement_id = $1
+          and not exists (
+            select 1 from registry.object_state s
+             where s.object_type = 'work_order' and s.state = obj.lifecycle_state
+               and s.is_terminal)
+        order by wo.order_number`,
+      [o.id],
+    );
+    if (open.length > 0) {
+      const ending = request.actionType === 'terminate_engagement' ? 'terminated' : 'closed';
+      refuse(
+        'KF-ENG-001',
+        `an engagement cannot be ${ending} while a work order under it is open: ` +
+          open.map((row) => `${row.order_number} (${row.lifecycle_state})`).join(', ') +
+          ' — close, cancel or terminate each order first',
+        { objectId: o.id, openWorkOrders: open.map((row) => row.order_number) },
+      );
+    }
+  }
+};
+
 const assertWithinCeiling: PreconditionCheck = async (tx, request, objects) => {
   const execution = objects.find((o) => o.object_type === 'work_execution');
   if (execution === undefined) return;
@@ -164,6 +201,8 @@ export const WORK_CONTROL_PRECONDITIONS: Readonly<Record<string, PreconditionChe
   approve_change: assertChangeCitesDecision,
   verify_change: assertChangeCitesDecision,
   close_project_administrative: assertClosable,
+  close_engagement: assertEngagementEndable,
+  terminate_engagement: assertEngagementEndable,
   issue_acceptance: assertWithinCeiling,
   // `authorize_payment`, not `record_payment_settlement`. Allocations travel in the payload of
   // the action that CREATES the payment: `authorizePayment` in finance-materializers.ts reads

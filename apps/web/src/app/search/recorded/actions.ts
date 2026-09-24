@@ -1,9 +1,9 @@
 'use server';
 
-import { ApiError, replayRecordedQuery } from '../../../lib/api';
+import { ApiError, replayOrganizationDemand, replayRecordedQuery } from '../../../lib/api';
 import { RECORDED_QUERY_ID } from '../../../lib/api/search';
 import { webCaller } from '../../../lib/session';
-import type { ReplayState } from './state';
+import type { DemandState, ReplayState } from './state';
 
 /** The replay form's one server action: `POST /search/recorded-queries/:id/replay`. */
 export async function replayOwnQuery(_previous: ReplayState, form: FormData): Promise<ReplayState> {
@@ -23,4 +23,10 @@ export async function replayOwnQuery(_previous: ReplayState, form: FormData): Pr
     }
     throw error;
   }
+}
+
+/** The demand form's one server action: `POST /search/demand/replay`. */
+export async function replayDemand(_previous: DemandState, _form: FormData): Promise<DemandState> {
+  const replay = await replayOrganizationDemand(await webCaller('/search/recorded'));
+  return { status: 'replayed', replay };
 }

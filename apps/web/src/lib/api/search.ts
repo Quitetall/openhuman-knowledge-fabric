@@ -278,3 +278,61 @@ export async function replayRecordedQuery(
   });
   return decodeSuccessfulResponse(await parseResponse(response), parseRecordedQueryReplay);
 }
+
+/** A record lower-clearance queries wanted, as the demand aggregate counts it: never who. */
+export interface DemandedRecord {
+  readonly objectId: string;
+  readonly objectType: string;
+  readonly title: string;
+  readonly classification: string;
+  readonly distinctPersonCount: number;
+  readonly verification: Verification;
+}
+
+/** What one demand replay found. It carries no query, no query id or time, and no asker. */
+export interface DemandReplay {
+  readonly replayed: number;
+  readonly truncated: boolean;
+  readonly counted: number;
+  readonly records: readonly DemandedRecord[];
+}
+
+function demandedRecord(value: unknown): value is Omit<DemandedRecord, 'verification'> {
+  const r = record(value);
+  return (
+    r !== undefined &&
+    hasStrings(r, ['objectId', 'objectType', 'title', 'classification']) &&
+    RECORDED_QUERY_ID.test(r['objectId'] as string) &&
+    nonNegativeInteger(r['distinctPersonCount']) &&
+    r['distinctPersonCount'] > 0
+  );
+}
+
+export function parseDemandReplay(value: unknown): DemandReplay {
+  const body = record(value);
+  if (
+    body === undefined ||
+    !nonNegativeInteger(body['replayed']) ||
+    !nonNegativeInteger(body['counted']) ||
+    typeof body['truncated'] !== 'boolean'
+  ) {
+    throw new Error('demand replay did not match contract');
+  }
+  return {
+    replayed: body['replayed'],
+    truncated: body['truncated'],
+    counted: body['counted'],
+    records: hitList(body['records'], demandedRecord).map(withVerification),
+  };
+}
+
+/** `POST /search/demand/replay`: replay what people cleared lower asked, at the caller's ceiling. */
+export async function replayOrganizationDemand(caller: Caller): Promise<DemandReplay> {
+  const response = await fetch(`${apiBaseUrl()}/search/demand/replay`, {
+    method: 'POST',
+    headers: callerHeaders(caller),
+    body: '{}',
+    cache: 'no-store',
+  });
+  return decodeSuccessfulResponse(await parseResponse(response), parseDemandReplay);
+}

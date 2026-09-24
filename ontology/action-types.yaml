@@ -725,6 +725,8 @@ action_types:
   # ── The engagement lifecycle (state-machines.yaml `engagement`, added 2026-09-24) ─────────
   # R01 declared engagement's five states and no transitions, so a recorded engagement stayed in
   # draft forever. Handler-free: each moves the state its machine names and nothing else.
+  # close_engagement and terminate_engagement carry a precondition (KF-ENG-001, rules.yaml):
+  # refused while a work order under the engagement is in a non-terminal state.
   - id: activate_engagement
     audited: true
     transactional: true

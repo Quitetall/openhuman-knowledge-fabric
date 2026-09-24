@@ -1,11 +1,11 @@
 // GENERATED from ontology/ — do not edit.
 // ontology_version: 1.2.0-draft.1
-// source_digest: 3a7c8740ce21967150bf8ae411a7386f086cc3f19fb5a1f0a73b717ea14abece
+// source_digest: acea0b4f8ca21738e4b6de0bf1e7382b76f39d11cc8ac745ab6a25e9e3166e94
 
 /* eslint-disable */
 
 export const SCHEMA_VERSION = '1.2.0-draft.1' as const;
-export const ONTOLOGY_SOURCE_DIGEST = '3a7c8740ce21967150bf8ae411a7386f086cc3f19fb5a1f0a73b717ea14abece' as const;
+export const ONTOLOGY_SOURCE_DIGEST = 'acea0b4f8ca21738e4b6de0bf1e7382b76f39d11cc8ac745ab6a25e9e3166e94' as const;
 
 export const CLASSIFICATIONS = ['public', 'internal', 'confidential', 'restricted'] as const;
 export type Classifications = (typeof CLASSIFICATIONS)[number];
@@ -798,6 +798,7 @@ export const RULES = [
   { id: 'KF-DOC-003', severity: 'error', implementation: ['database_constraint', 'action_precondition', 'validator'], description: "Each document subject has one immutable authoritative document policy that callers cannot weaken; Holder transfer, compilation acceptance and publication require scoped technical authority plus any quality authority required by that policy." },
   { id: 'KF-DOC-004', severity: 'error', implementation: ['database_constraint', 'action_precondition', 'validator'], description: "A Proposal Overlay is append-only; applying one requires a human-authorized typed action, an applied fragment remains a live draft, and no result is official before controlled review, effectivity and publication." },
   { id: 'KF-DOC-005', severity: 'error', implementation: ['database_constraint', 'action_precondition', 'validator'], description: "Every official document publication has one append-only receipt binding the exact accepted compiler result, effective controlled content revision and registered destination policy that authorized it." },
+  { id: 'KF-ENG-001', severity: 'error', implementation: ['database_constraint', 'action_precondition'], description: "An engagement is not closed or terminated while a work order under it is in a non-terminal state, and no work order is placed under a closed or terminated engagement." },
 ] as const;
 
 /** Corpus projection definitions — declared readings of a master record (ADR 0013). */

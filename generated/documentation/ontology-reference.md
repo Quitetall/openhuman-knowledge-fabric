@@ -1,9 +1,9 @@
 <!-- GENERATED from ontology/ — do not edit. -->
-<!-- ontology_version: 1.2.0-draft.1 · source_digest: 3a7c8740ce21967150bf8ae411a7386f086cc3f19fb5a1f0a73b717ea14abece -->
+<!-- ontology_version: 1.2.0-draft.1 · source_digest: acea0b4f8ca21738e4b6de0bf1e7382b76f39d11cc8ac745ab6a25e9e3166e94 -->
 
 # Ontology reference
 
-Compiled from `ontology/`. 40 object types, 42 relation types, 170 action types, 26 state machines, 15 invariants, 4 corpus projections.
+Compiled from `ontology/`. 40 object types, 42 relation types, 170 action types, 26 state machines, 16 invariants, 4 corpus projections.
 
 ## Object types
 
@@ -722,6 +722,7 @@ stateDiagram-v2
 | `KF-DOC-003` | database_constraint, action_precondition, validator | Each document subject has one immutable authoritative document policy that callers cannot weaken; Holder transfer, compilation acceptance and publication require scoped technical authority plus any quality authority required by that policy. |
 | `KF-DOC-004` | database_constraint, action_precondition, validator | A Proposal Overlay is append-only; applying one requires a human-authorized typed action, an applied fragment remains a live draft, and no result is official before controlled review, effectivity and publication. |
 | `KF-DOC-005` | database_constraint, action_precondition, validator | Every official document publication has one append-only receipt binding the exact accepted compiler result, effective controlled content revision and registered destination policy that authorized it. |
+| `KF-ENG-001` | database_constraint, action_precondition | An engagement is not closed or terminated while a work order under it is in a non-terminal state, and no work order is placed under a closed or terminated engagement. |
 
 ## Corpus projections
 
