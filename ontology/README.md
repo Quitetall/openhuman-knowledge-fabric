@@ -118,7 +118,7 @@ names the open orders, and database triggers are the authority
 (`20260925142100_an_engagement_ends_after_its_work_orders.sql`).
 `tests/database/engagement-lifecycle.test.ts` walks it.
 
-`observation` (ADR 0034, proposed) is the one type whose create act is deliberately cheap:
+`observation` (ADR 0034) is the one type whose create act is deliberately cheap:
 `record_observation` needs a live assignment and no act grant, and the server forms the acting
 assignment and the idempotency key (`formObservationRequest` in `@kf/work-control`).
 `promote_observation` is institutional (`requires: act`); `withdraw_observation` is not. What an

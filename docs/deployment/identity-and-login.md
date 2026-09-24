@@ -311,7 +311,7 @@ person, and that decision is recorded with who made it."
 
 ## An agent acting for a person — token shape verified, end to end derived
 
-ADR 0035 (proposed): an agent that forms and dispatches an act for a named person does so on a
+ADR 0035: an agent that forms and dispatches an act for a named person does so on a
 **delegated token** obtained by OAuth 2.0 Token Exchange (RFC 8693). The act is the person's —
 actor, role, clearance and grants are theirs — and the ledger records the agent's client id in
 `core.action.agent_participation` (KF-SAS-RQ-204).

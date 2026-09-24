@@ -89,13 +89,15 @@ const workspaceMembers = (dir) =>
     (entry) => entry.isDirectory() && existsSync(join(ROOT, dir, entry.name, 'package.json')),
   ).length;
 
-const decisions = walk('docs/decisions', (name) => /^\d{4}-.*\.md$/.test(name)).sort();
+// The records are OpenWarrant ADR atoms (`docs/decisions/atoms/`); the numbered files beside them
+// are links kept so that every citation of the old path, signed ones included, still resolves.
+const decisions = walk('docs/decisions/atoms', (name) => /^KF-ADR-\d{4}-.*\.md$/.test(name)).sort();
 const decisionStatus = decisions.map((file) => {
   const source = readFileSync(join(ROOT, file), 'utf8');
-  // Only the header. An accepted record's body may well discuss what was proposed and rejected,
-  // and matching that would report it as proposed.
-  const header = source.split('\n').slice(0, 12).join('\n');
-  return /^[-*]\s+\*\*Status:\*\*\s*proposed/im.test(header) ? 'proposed' : 'accepted';
+  // The atom's frontmatter is the status of record; its body may discuss what was proposed.
+  const status = /^---\n[\s\S]*?^status:\s*(\S+)\s*$[\s\S]*?^---$/m.exec(source)?.[1];
+  if (status === undefined) throw new Error(`${file}: no status in the atom's frontmatter`);
+  return status;
 });
 
 /**
@@ -183,7 +185,10 @@ const measures = [
   [
     'decision records',
     decisions.length,
-    `under \`docs/decisions/\` — ${decisionStatus.filter((s) => s === 'accepted').length} accepted, ${decisionStatus.filter((s) => s === 'proposed').length} proposed`,
+    `atoms under \`docs/decisions/atoms/\` — ${[...new Set(decisionStatus)]
+      .sort()
+      .map((status) => `${decisionStatus.filter((s) => s === status).length} ${status}`)
+      .join(', ')}`,
   ],
   [
     'architecture requirements',

@@ -27,7 +27,7 @@
  * Reading those rows against their tests is human review; this automates the part that rots.
  */
 
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, readlinkSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -48,12 +48,27 @@ const REPO_ROOTS = [
   '.github/',
 ] as const;
 
+/**
+ * Markdown documents, not the links to them. `docs/decisions/NNNN-*.md` are symbolic links to
+ * the ADR atoms, kept so every citation of the old path — signed authority records included —
+ * still resolves; the atom is read at its own path, and the links are checked below.
+ */
 function markdownFiles(directory: string): string[] {
   const found: string[] = [];
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name);
     if (entry.isDirectory()) found.push(...markdownFiles(path));
-    else if (entry.name.endsWith('.md')) found.push(path);
+    else if (entry.isFile() && entry.name.endsWith('.md')) found.push(path);
+  }
+  return found.sort();
+}
+
+function symbolicLinks(directory: string): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) found.push(...symbolicLinks(path));
+    else if (entry.isSymbolicLink()) found.push(path);
   }
   return found.sort();
 }
@@ -117,12 +132,13 @@ describe('the documentation cites files that exist', () => {
 /** Every relative markdown link in README.md and docs/, resolved against its own document. */
 function relativeLinks(): ReadonlyArray<{ readonly document: string; readonly target: string }> {
   const found: { document: string; target: string }[] = [];
-  // `docs/warrants/generated/` is OpenWarrant's output, which writes its links relative to the
-  // repository root rather than to the page. It is regenerated, never edited here, so the fix
-  // belongs upstream; checking it would only fail on every regeneration until then.
-  const generated = join(DOCS, 'warrants', 'generated');
+  // `docs/warrants/generated/` and `docs/decisions/generated/` are OpenWarrant's output, which
+  // writes its links relative to the repository root rather than to the page. They are
+  // regenerated, never edited here, so the fix belongs upstream; checking them would only fail
+  // on every regeneration until then.
+  const generated = [join(DOCS, 'warrants', 'generated'), join(DOCS, 'decisions', 'generated')];
   for (const file of [join(ROOT, 'README.md'), ...markdownFiles(DOCS)]) {
-    if (file.startsWith(generated)) continue;
+    if (generated.some((directory) => file.startsWith(directory))) continue;
     const text = readFileSync(file, 'utf8').replace(/```[\s\S]*?```/g, '');
     for (const match of text.matchAll(/\]\(([^)\s]+)\)/g)) {
       const link = match[1]!;
@@ -147,5 +163,19 @@ describe('the documentation links to files that exist', () => {
 
   it('finds enough links to be worth checking', () => {
     expect(relativeLinks().length).toBeGreaterThan(20);
+  });
+
+  it('keeps every old ADR path pointing at its atom', () => {
+    const links = symbolicLinks(DOCS);
+    const decisions = links.filter((path) => dirname(path) === join(DOCS, 'decisions'));
+    expect(decisions.length, 'no ADR path links found; the scan is wrong').toBeGreaterThan(30);
+    const broken = links
+      .filter(
+        (path) =>
+          !existsSync(path) ||
+          (dirname(path) === join(DOCS, 'decisions') && !readlinkSync(path).startsWith('atoms/')),
+      )
+      .map((path) => `${relative(ROOT, path)} -> ${readlinkSync(path)}`);
+    expect(broken, 'these links lead nowhere, or away from the atoms').toEqual([]);
   });
 });
