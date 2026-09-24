@@ -51,7 +51,22 @@ export interface HelloResponse {
     readonly identity: string;
     readonly local: boolean;
   };
+  /**
+   * What the engine can do beyond ranking. Optional, so an engine that predates the field reads
+   * as declaring nothing — which is the safe reading, because every capability here gates a path
+   * that sends the engine something.
+   */
+  readonly capabilities?: readonly EngineCapability[];
 }
+
+/**
+ * `vectors_only_write`: the engine has a write path that stores a vector and its object id and
+ * persists no text (KF-SAS-RQ-225). Without it the Fabric sends no record text to be embedded at
+ * all, because the only other path an engine built to remember things has is one that remembers
+ * the text.
+ */
+export const VECTORS_ONLY_WRITE = 'vectors_only_write';
+export type EngineCapability = typeof VECTORS_ONLY_WRITE | (string & {});
 
 /**
  * Push band membership. Sent when the band version moves, not per query.
@@ -73,6 +88,44 @@ export interface BandsRequest {
   readonly unresolved: string;
 }
 
+/**
+ * Ask for the engine's slot ordering: which object id sits at each slot.
+ *
+ * The Fabric needs it to build band bitmaps, and only the engine knows it. Additive: an engine
+ * that does not know the message refuses it by name, and the Fabric then has no semantic ranking
+ * — which is `unavailable`, not a guess at the ordering.
+ */
+export interface SlotsRequest {
+  readonly type: 'slots';
+}
+
+export interface SlotsResponse {
+  readonly type: 'slots_ok';
+  readonly generation: string;
+  readonly objectIds: readonly string[];
+}
+
+/**
+ * Embed one record: the vectors-only write (KF-SAS-RQ-225).
+ *
+ * Carries record text, because the embedder is the engine's and a vector has to be made from
+ * text. The engine keeps the vector and the object id and nothing else, and it may be sent only to
+ * an engine that declared `vectors_only_write` in the same connection's handshake and whose
+ * embedder is local (KF-SAS-RQ-218).
+ */
+export interface WriteVectorRequest {
+  readonly type: 'write_vector';
+  readonly organizationId: string;
+  readonly objectId: string;
+  readonly text: string;
+}
+
+export interface WriteVectorAccepted {
+  readonly type: 'write_vector_ok';
+  readonly objectId: string;
+  readonly generation: string;
+}
+
 export interface BandsAccepted {
   readonly type: 'bands_ok';
   readonly bandVersion: string;
@@ -91,7 +144,12 @@ export interface SearchRequest {
   readonly organizationId: string;
   readonly bandVersion: string;
   readonly generation: string;
-  readonly ceiling: Band;
+  /**
+   * The highest band scorable through the band mask, or `none` when no organization-wide grant
+   * reaches any band — then only the `allow` list is scorable. Never a band the caller's grants
+   * do not reach: the ceiling here is the grant-capped one, not the clearance.
+   */
+  readonly ceiling: Band | 'none';
   readonly allow: readonly string[];
   readonly deny: readonly string[];
   readonly query: string;
@@ -107,6 +165,11 @@ export interface SearchResults {
   }[];
   /** Digest of the engine's own trace. The trace stays disposable there; this is what KF records (RQ-219). */
   readonly traceDigest: string;
+  /**
+   * The name of the ranking that produced these hits (KF-SAS-RQ-224). Optional for an engine that
+   * predates it; the Fabric then names the ranking by the engine's own identifier.
+   */
+  readonly ranking?: string;
 }
 
 /**
@@ -125,12 +188,15 @@ export interface EngineError {
     | 'generation_mismatch'
     | 'mask_longer_than_index'
     | 'embedder_unavailable'
+    | 'message_unsupported'
     | 'internal';
   readonly detail: string;
 }
 
-export type ClientMessage = HelloRequest | BandsRequest | SearchRequest;
-export type ServerMessage = HelloResponse | BandsAccepted | SearchResults | EngineError;
+export type ClientMessage =
+  HelloRequest | BandsRequest | SearchRequest | SlotsRequest | WriteVectorRequest;
+export type ServerMessage =
+  HelloResponse | BandsAccepted | SearchResults | SlotsResponse | WriteVectorAccepted | EngineError;
 
 /** One message, one line. A message containing a newline would be two messages. */
 export function encode(message: ClientMessage | ServerMessage): string {
