@@ -109,6 +109,13 @@ status, date, owner, scope, decision — then what was measured, the options, an
 explicitly does **not** settle. Raise one when a choice would otherwise be discoverable only by
 reading a diff.
 
+From ADR 0034 on, two sections are required by name, because they are the two a later reader
+cannot reconstruct: `## Options rejected` (what else was on the table and what killed it) and
+`## How we will know` (the measurement that would show the decision was wrong). Records before
+0034 are grandfathered — they state the same things under other headings or not at all, and a
+decision record is never rewritten to satisfy a later rule. A superseded record is kept in full.
+`tests/conformance/decision-records.test.ts` enforces both (KF-SAS-RQ-182).
+
 ## What is not yours to do
 
 Some acts are reserved to a named human and no automation performs them:
