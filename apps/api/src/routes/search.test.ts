@@ -93,9 +93,20 @@ function searchPool() {
     // The caller is bound as a principal (core.bind_principal, 20260923000100); the database
     // answers with the ceiling it bound, which the fake takes as the one requested.
     if (sql.includes('core.bind_principal')) return { rows: [{ ceiling: params[3] }] };
+    // A query is recorded as a transient observation (§64B); the seam answers with its id.
+    if (sql.includes('search.record_query')) return { rows: [{ id: 'recorded-query' }] };
     if (!sql.includes('with visible as')) return { rows: [] };
-    const [organizationId, maxClassification, text, objectTypes, lifecycleStates, limit] =
-      params as [string, string, string, string[] | null, string[] | null, number];
+    // Six parameters: the unranked match set. Seven: the ranked page, restricted to `only`.
+    const [organizationId, maxClassification, text, objectTypes, lifecycleStates, only, limit] =
+      params as [
+        string,
+        string,
+        string,
+        string[] | null,
+        string[] | null,
+        string[] | null,
+        number | undefined,
+      ];
     const rank = CLASSIFICATION_RANK[maxClassification] ?? -1;
     const needle = text.toLowerCase();
     const rows = INDEX_ROWS.filter(
@@ -104,9 +115,10 @@ function searchPool() {
         CLASSIFICATION_RANK[row.classification]! <= rank &&
         (objectTypes === null || objectTypes.includes(row.object_type)) &&
         (lifecycleStates === null || lifecycleStates.includes(row.lifecycle_state)) &&
-        `${row.title} ${row.body}`.toLowerCase().includes(needle),
+        `${row.title} ${row.body}`.toLowerCase().includes(needle) &&
+        (only === null || only.includes(row.object_id)),
     )
-      .slice(0, limit)
+      .slice(0, limit ?? Number.POSITIVE_INFINITY)
       // The columns the real query adds from `core.object` and `core.object_verification`:
       // every fake record is visible and nobody has verified any of them.
       .map((row) => ({
@@ -139,14 +151,14 @@ describe('GET /search', () => {
     const low = await appFor();
     const lowResponse = await low.app.inject({ method: 'GET', url: '/search?q=contingency' });
     expect(lowResponse.statusCode).toBe(200);
-    expect(lowResponse.json()).toEqual({ hits: [] });
+    expect(lowResponse.json()).toMatchObject({ hits: [], withheldCount: 0 });
     expect(low.query).toHaveBeenCalledWith(expect.stringContaining('with visible as'), [
       ORGANIZATION_A,
       'internal',
       'contingency',
       null,
       null,
-      50,
+      null,
     ]);
 
     const high = await appFor({ identify: identify({ maxClassification: 'restricted' }) });
@@ -160,7 +172,7 @@ describe('GET /search', () => {
     const { app } = await appFor();
     const response = await app.inject({ method: 'GET', url: '/search?q=Other+organization' });
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ hits: [] });
+    expect(response.json()).toMatchObject({ hits: [], withheldCount: 0 });
     expect(response.body).not.toContain(ORGANIZATION_B);
   });
 
@@ -180,6 +192,7 @@ describe('GET /search', () => {
       'compiler',
       ['decision_record'],
       ['accepted'],
+      [INDEX_ROWS[3].object_id],
       25,
     ]);
   });
@@ -197,7 +210,7 @@ describe('GET /search', () => {
       'document',
       null,
       null,
-      50,
+      null,
     ]);
   });
 
@@ -205,11 +218,30 @@ describe('GET /search', () => {
     const { app, query } = await appFor();
     const response = await app.inject({ method: 'GET', url: '/search?q=+++%20' });
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ hits: [] });
+    expect(response.json()).toMatchObject({ hits: [], withheld: [] });
     expect(query.mock.calls.some(([sql]) => String(sql).includes('with visible as'))).toBe(false);
   });
 
+  it('serves lexical results and says why there is no semantic ranking when no engine is configured', async () => {
+    const { app } = await appFor();
+    const response = await app.inject({ method: 'GET', url: '/search?q=document' });
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.lexical).toMatchObject({
+      ranking: 'kf.lexical.full_text+partial_identifier.v1',
+      exhaustive: true,
+    });
+    expect(body.lexical.hits.length).toBeGreaterThan(0);
+    expect(body.hits).toEqual(body.lexical.hits);
+    expect(body.semantic).toBeUndefined();
+    expect(body.nearMisses).toBeUndefined();
+    expect(body.withheld).toEqual([
+      { reasonClass: 'semantic_ranking_unavailable', reason: 'no retrieval engine is configured' },
+    ]);
+  });
+
   it.each([
+    ['/search?q=x&nearMisses=yes', 'nearMisses'],
     ['/search?q=first&q=second', 'q'],
     ['/search?q=x&limit=0', 'limit'],
     ['/search?q=x&limit=201', 'limit'],

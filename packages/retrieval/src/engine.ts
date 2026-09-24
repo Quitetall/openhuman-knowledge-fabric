@@ -20,6 +20,16 @@ import {
   type BandBitmaps,
 } from './index.js';
 
+/**
+ * Runs `fn` in a short transaction of its own, with the caller's access context bound.
+ *
+ * Semantic ranking alternates between the database and the engine, and a transaction must not
+ * stay open while the engine works: a snapshot held across an embedding round trip is the bloat
+ * ADR 0028 refused to put inside PostgreSQL. So each database step is its own transaction, and
+ * every engine exchange happens between them.
+ */
+export type TransactionRunner = <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
+
 export interface SemanticQuery {
   readonly organizationId: string;
   /** The caller's clearance: the session ceiling row security already applies. */
@@ -101,19 +111,20 @@ export class SemanticRetrieval {
    * given — it restarted, or its index moved — because that is fixed by pushing them again and
    * says nothing about whether it can serve.
    */
-  async rank(tx: Tx, query: SemanticQuery): Promise<RetrievalOutcome> {
-    const first = await this.attempt(tx, query);
+  async rank(run: TransactionRunner, query: SemanticQuery): Promise<RetrievalOutcome> {
+    const first = await this.attempt(run, query);
     if (first.status === 'unavailable' && first.rebuildBands) {
       this.pushed.delete(query.organizationId);
-      return this.attempt(tx, query);
+      return this.attempt(run, query);
     }
     return first;
   }
 
-  private async attempt(tx: Tx, query: SemanticQuery): Promise<RetrievalOutcome> {
-    const bitmaps = await this.current(tx, query.organizationId);
+  private async attempt(run: TransactionRunner, query: SemanticQuery): Promise<RetrievalOutcome> {
+    const bitmaps = await this.current(run, query.organizationId);
     if ('status' in bitmaps) return bitmaps;
-    const scope = await engineScope(tx, query.clearance, query.coverage);
+    const scope = await run((tx) => engineScope(tx, query.clearance, query.coverage));
+    // No transaction is open from here until the engine answers.
     const outcome = await this.client.search({
       organizationId: query.organizationId,
       bandVersion: bitmaps.bandVersion.toString(),
@@ -131,8 +142,11 @@ export class SemanticRetrieval {
   }
 
   /** Bitmaps the engine holds for the organization's current band version, pushing if needed. */
-  private async current(tx: Tx, organizationId: string): Promise<BandBitmaps | Unavailable> {
-    const version = await currentBandVersion(tx, organizationId);
+  private async current(
+    run: TransactionRunner,
+    organizationId: string,
+  ): Promise<BandBitmaps | Unavailable> {
+    const version = await run((tx) => currentBandVersion(tx, organizationId));
     const cached = this.pushed.get(organizationId);
     if (cached !== undefined && cached.bandVersion === version) return cached;
 
@@ -140,10 +154,12 @@ export class SemanticRetrieval {
     if (slots.status === 'unavailable') return slots;
     let bitmaps: BandBitmaps;
     try {
-      bitmaps = await buildBandBitmaps(tx, organizationId, {
-        generation: slots.generation,
-        objectIds: slots.objectIds,
-      });
+      bitmaps = await run((tx) =>
+        buildBandBitmaps(tx, organizationId, {
+          generation: slots.generation,
+          objectIds: slots.objectIds,
+        }),
+      );
     } catch (error) {
       if (error instanceof BandVersionMoved) return unavailable(error.message, true);
       throw error;

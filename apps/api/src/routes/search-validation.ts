@@ -9,7 +9,7 @@ export const SEARCH_MAX_LIMIT = 200;
 const FILTER_TOKEN = /^[a-z][a-z0-9_]{0,63}$/;
 
 export class InvalidSearchQuery extends Error {
-  constructor(readonly field: 'q' | 'objectType' | 'lifecycleState' | 'limit') {
+  constructor(readonly field: 'q' | 'objectType' | 'lifecycleState' | 'limit' | 'nearMisses') {
     super(`invalid ${field}`);
     this.name = 'InvalidSearchQuery';
   }
@@ -67,4 +67,15 @@ export function parseSearchQuery(value: SearchQueryString): SearchQuery {
     ...(objectTypes === undefined ? {} : { objectTypes }),
     ...(lifecycleStates === undefined ? {} : { lifecycleStates }),
   };
+}
+
+/**
+ * Whether the caller asked for near misses (KF-SAS-RQ-217). Only on request: absent is no, and
+ * anything but `true` or `false` is refused rather than read as either.
+ */
+export function parseNearMisses(value: SearchQueryString): boolean {
+  const raw = oneString(value['nearMisses'], 'nearMisses');
+  if (raw === undefined || raw === 'false') return false;
+  if (raw === 'true') return true;
+  throw new InvalidSearchQuery('nearMisses');
 }
