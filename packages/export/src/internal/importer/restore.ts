@@ -3,6 +3,7 @@ import { IMPORT_ORDER, LEGACY_V1_IMPORT_ORDER } from '../import-order.js';
 import { assertUserTriggersEnabled, setUserTriggers } from '../import-support.js';
 import type { ExportPackage, ExportVerificationOptions } from '../types.js';
 import { EXPORT_FORMAT_VERSION } from '../types.js';
+import { predatedSections } from '../section-eras.js';
 import { verifyExport } from '../verifier.js';
 import { assertRestoredAuditChain } from './audit-chain.js';
 import { assertActionTargetScope, assertLegacyActionProvenance } from './legacy-actions.js';
@@ -23,6 +24,11 @@ export async function importExport(
     );
   }
   const importOrder = resolveImportOrder(pkg);
+  // Format 1, and a format-2 archive written before b240779c, predate storage locations
+  // (20260902000200, ADR 0017). The verifier has already held `artifact-stores` and
+  // `artifact-locations` absent together.
+  const predatesStorageLocations =
+    pkg.manifest.format_version === '1' || predatedSections(pkg).has('artifact-stores');
   await tx.query('set constraints all deferred');
   await assertUserTriggersEnabled(tx, 'before restore');
   let triggersMayBeDisabled = true;
@@ -31,9 +37,10 @@ export async function importExport(
     if (pkg.manifest.format_version === EXPORT_FORMAT_VERSION) {
       await tx.query('delete from quality.federated_source');
       await tx.query('delete from org.role');
-      // Migration 20260902000200 seeds the `working` store; the package carries every store
-      // the source declared, including that one.
-      await tx.query('delete from content.artifact_store');
+      // Migration 20260902000200 seeds the `working` store; a package written since carries
+      // every store the source declared, including that one. A package written before it has
+      // no stores, and the seeded `working` store is the one the migration would have declared.
+      if (!predatesStorageLocations) await tx.query('delete from content.artifact_store');
     }
 
     const restored = await restoreSections(tx, pkg, importOrder);
@@ -44,10 +51,10 @@ export async function importExport(
         [restored.legacyActionIds],
       );
     }
-    if (pkg.manifest.format_version === '1') {
-      // A format-1 package predates storage locations (ADR 0017) and triggers are off during
-      // restore, so the working location every addressed version would have had is recorded
-      // here, exactly as the migration backfilled it.
+    if (predatesStorageLocations) {
+      // The package predates storage locations and triggers are off during restore, so the
+      // working location every addressed version would have had is recorded here, exactly as
+      // the migration backfilled it.
       await tx.query(
         `insert into content.artifact_location
            (version_id, store_id, role, uri, store_version, recorded_at)
