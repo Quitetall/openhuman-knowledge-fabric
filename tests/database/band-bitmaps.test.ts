@@ -3,6 +3,7 @@ import { enumerateAccessCoverage, type AccessCoverage } from '@kf/authorization'
 import { withTransaction } from '@kf/database';
 import {
   admitted,
+  BandBitmapCache,
   buildBandBitmaps,
   currentBandVersion,
   GenerationMismatch,
@@ -219,7 +220,7 @@ describe('the band mask is derived from live records', () => {
     expect(
       await version(),
       'a reclassification must move the version, or a cache keyed on it serves the old decision',
-    ).toBeGreaterThan(before);
+    ).not.toBe(before);
   });
 
   it('reflects the reclassification on the next build, with no refresh step in between', async () => {
@@ -230,5 +231,101 @@ describe('the band mask is derived from live records', () => {
       [...maskFor(b, await coverageFor('restricted'), 'internal', slots)],
       'a caller cleared to internal must no longer reach a record that is now restricted',
     ).toEqual([1, 0, 0, 0]);
+  });
+
+  it('never reissues a version after the row is lost, so a cached bitmap cannot come back to life', async () => {
+    // The derived row is excluded from preservation; a restore that leaves it out recreates it on
+    // the next band-moving write. The counter restarts, so the token must not (ADR 0028 amended).
+    const cache = new BandBitmapCache();
+    const read = <T>(
+      fn: (tx: Parameters<Parameters<typeof withTransaction>[1]>[0]) => Promise<T>,
+    ) =>
+      withTransaction(harness.pool, async (tx) => {
+        await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'public']);
+        return fn(tx);
+      });
+    const reclassify = (classification: string) =>
+      withTransaction(harness.adminPool, async (tx) => {
+        await bindContext(tx, f);
+        await tx.query(
+          'update core.object set classification = $2, row_version = row_version + 1 where id = $1',
+          [internalId, classification],
+        );
+      });
+    const toggle = ['internal', 'restricted', 'internal', 'restricted'] as const;
+
+    const observed = new Set<string>();
+    const stale = await read((tx) => cache.get(tx, f.organizationId, slots));
+    observed.add(stale.bandVersion);
+    expect(
+      await read((tx) => cache.get(tx, f.organizationId, slots)),
+      'reused while unchanged',
+    ).toBe(stale);
+    for (const classification of toggle) {
+      await reclassify(classification);
+      observed.add(await read((tx) => currentBandVersion(tx, f.organizationId)));
+    }
+    expect(observed.size).toBe(toggle.length + 1);
+
+    // The counter is read raw, as the owner, only to know how far to climb after the loss; the
+    // application never sees or orders it.
+    const counter = async (): Promise<number> =>
+      withTransaction(harness.adminPool, async (tx) => {
+        const rows = await tx.query<{ version: string }>(
+          'select version::text as version from retrieval.band_version where organization_id = $1',
+          [f.organizationId],
+        );
+        return Number(rows[0]?.version ?? '0');
+      });
+    const highest = await counter();
+    expect(highest).toBeGreaterThan(toggle.length);
+
+    await withTransaction(harness.adminPool, (tx) =>
+      tx.query('delete from retrieval.band_version where organization_id = $1', [f.organizationId]),
+    );
+    const lost = await read((tx) => cache.get(tx, f.organizationId, slots));
+    expect(lost, 'no row, no version: never served from cache').not.toBe(stale);
+    expect(await read((tx) => cache.get(tx, f.organizationId, slots))).not.toBe(lost);
+
+    // Climb back past every counter value issued before the loss.
+    let climbed = 0;
+    while (climbed <= highest) {
+      await reclassify(climbed % 2 === 0 ? 'internal' : 'restricted');
+      climbed = await counter();
+      const token = await read((tx) => currentBandVersion(tx, f.organizationId));
+      expect(observed.has(token), `token ${token} was issued before the row was lost`).toBe(false);
+    }
+    await reclassify('restricted');
+    const fresh = await read((tx) => cache.get(tx, f.organizationId, slots));
+    expect(observed.has(fresh.bandVersion)).toBe(false);
+    expect(fresh).not.toBe(stale);
+    expect([...fresh.bands.restricted], 'the rebuilt entry reflects the live records').toEqual([
+      0, 1, 1, 0,
+    ]);
+  });
+
+  it('refuses to move an epoch or run a counter backwards, even for the owner', async () => {
+    await withTransaction(harness.adminPool, async (tx) => {
+      await bindContext(tx, f);
+      await tx.query(
+        'update core.object set title = title, classification = classification, row_version = row_version + 1 where id = $1',
+        [publicId],
+      );
+    });
+    await expect(
+      withTransaction(harness.adminPool, (tx) =>
+        tx.query('update retrieval.band_version set epoch = uuidv7() where organization_id = $1', [
+          f.organizationId,
+        ]),
+      ),
+    ).rejects.toThrow(/epoch is fixed/);
+    await expect(
+      withTransaction(harness.adminPool, (tx) =>
+        tx.query(
+          'update retrieval.band_version set version = version - 1 where organization_id = $1',
+          [f.organizationId],
+        ),
+      ),
+    ).rejects.toThrow(/never moves backwards/);
   });
 });

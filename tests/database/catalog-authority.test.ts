@@ -138,7 +138,7 @@ describe('every schema names its authority domain (KF-SAS-RQ-071)', () => {
         return buildBandBitmaps(tx, f.organizationId, slots);
       });
     const before = await build();
-    expect(before.bandVersion).toBeGreaterThan(0n);
+    expect(before.bandVersion).toMatch(/^[0-9a-f-]{36}\.[1-9][0-9]*$/);
 
     // Lose the derived table entirely, as a restore that excludes it does.
     await owner((tx) => tx.query('delete from retrieval.band_version'));
@@ -147,15 +147,18 @@ describe('every schema names its authority domain (KF-SAS-RQ-071)', () => {
     const rebuilt = await build();
     expect(rebuilt.bands).toEqual(before.bands);
     expect(rebuilt.unresolved).toEqual(before.unresolved);
-    expect(rebuilt.bandVersion).toBe(0n);
+    // With no row there is no version to cache on: the token is fresh on every build.
+    expect(rebuilt.bandVersion).toMatch(/^unversioned\./);
+    expect((await build()).bandVersion).not.toBe(rebuilt.bandVersion);
 
-    // And the next band-moving write re-creates the row.
+    // And the next band-moving write re-creates the row, under a new epoch.
     await make('Band B');
     const version = await withTransaction(h.pool, async (tx) => {
       await bindReader(tx, f);
       return currentBandVersion(tx, f.organizationId);
     });
-    expect(version).toBe(1n);
+    expect(version).toMatch(/\.1$/);
+    expect(version.split('.')[0]).not.toBe(before.bandVersion.split('.')[0]);
   });
 });
 

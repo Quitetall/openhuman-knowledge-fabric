@@ -26,7 +26,7 @@ import {
 
 const BITMAPS: BandBitmaps = {
   organizationId: '01a08b19-44b4-7e35-b465-d6c9a1f07f99',
-  bandVersion: 7n,
+  bandVersion: '7',
   generation: 'tv-0001',
   slotCount: 3,
   bands: {
