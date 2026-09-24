@@ -10,16 +10,17 @@ import {
 } from './harness.js';
 
 /**
- * A closed record keeps the fields that say what it is (KF-DEC-001; 20260925064200).
+ * A closed record keeps the fields that say what it is (20260925064200).
  *
- * The dispatcher refuses `correct_record` on an accepted decision, but `kf_app` holds UPDATE on
- * every column of `core.object`, and the act write guard checks that SOME act was recorded, not
- * what it may write. These tests write directly — through the application login with a principal
+ * 20260925030000 freezes a decided decision's title (KF-DEC-001). This extends the freeze to the
+ * title of every record in a terminal state and to the identity fields of every closed record,
+ * decisions included. `kf_app` holds UPDATE on every column of `core.object`, and the act write
+ * guard checks that SOME act was recorded, not what it may write. These tests write directly — through the application login with a principal
  * bound and a real act recorded (`bindContext`), and through the owner — and require the database
  * itself to refuse a rename of a closed record while leaving an open one, and a closed record's
  * governance fields, writable.
  */
-describe('a closed record keeps its identity (KF-DEC-001)', () => {
+describe('a closed record keeps its identity', () => {
   let h: Harness;
   let f: Fixtures;
 
@@ -36,6 +37,7 @@ describe('a closed record keeps its identity (KF-DEC-001)', () => {
   const DOMAIN: Readonly<Record<string, string>> = {
     decision_record: 'engineering',
     change_record: 'configuration',
+    work_order: 'commercial',
   };
   const make = (type: string, state: string, title: string): Promise<string> =>
     createObject(h.adminPool, f, {
@@ -66,34 +68,46 @@ describe('a closed record keeps its identity (KF-DEC-001)', () => {
           .title,
     );
 
-  it('renames an open decision: the write path under test works', async () => {
-    const id = await make('decision_record', 'proposed', 'Adopt the second source');
-    await rename(h.pool, id, 'Adopt the second source, amended');
-    expect(await titleOf(id)).toBe('Adopt the second source, amended');
+  it('renames an open record: the write path under test works', async () => {
+    const id = await make('change_record', 'implementing', 'Swap the regulator');
+    await rename(h.pool, id, 'Swap the regulator, second source');
+    expect(await titleOf(id)).toBe('Swap the regulator, second source');
   });
 
-  it('refuses renaming an accepted decision through the application login, with an act bound', async () => {
-    const id = await make('decision_record', 'accepted', 'Freeze the board revision');
+  it('refuses renaming a closed change through the application login, with an act bound', async () => {
+    const id = await make('change_record', 'closed', 'Freeze the board revision');
     await expect(rename(h.pool, id, 'Unfreeze the board revision')).rejects.toThrow(
-      /closed: title may not change/,
+      /^change_record \S+ is closed \(closed\): title may not change$/,
     );
     expect(await titleOf(id)).toBe('Freeze the board revision');
   });
 
   it('refuses it for the owner too: a trigger, not a privilege', async () => {
-    const id = await make('decision_record', 'accepted', 'Owner cannot rename this');
+    const id = await make('change_record', 'closed', 'Owner cannot rename this');
     await expect(rename(h.adminPool, id, 'Renamed by the owner')).rejects.toThrow(
-      /closed: title may not change/,
+      /is closed \(\w+\): title may not change/,
     );
   });
 
   it.each([
-    ['decision_record', 'rejected'],
-    ['decision_record', 'superseded'],
-    ['change_record', 'closed'],
+    ['change_record', 'rejected'],
+    ['work_order', 'terminated'],
+    ['work_order', 'cancelled'],
   ])('refuses renaming a %s in terminal state %s', async (type, state) => {
     const id = await make(type, state, `A ${state} ${type}`);
-    await expect(rename(h.pool, id, 'rewritten')).rejects.toThrow(/closed: title may not change/);
+    await expect(rename(h.pool, id, 'rewritten')).rejects.toThrow(
+      /is closed \(\w+\): title may not change/,
+    );
+  });
+
+  it('leaves a decided decision’s title to KF-DEC-001’s own guard: one refusal, one message', async () => {
+    const id = await make('decision_record', 'accepted', 'Adopt the second source');
+    const refusal = await rename(h.pool, id, 'Adopt the first source').then(
+      () => undefined,
+      (error: unknown) => (error instanceof Error ? error.message : String(error)),
+    );
+    expect(refusal).toMatch(/^KF-DEC-001: a accepted decision is immutable/);
+    expect(refusal).not.toMatch(/may not change/);
   });
 
   it('refuses re-homing or retyping a closed record, naming every field', async () => {
