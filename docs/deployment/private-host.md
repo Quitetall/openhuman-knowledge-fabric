@@ -609,11 +609,20 @@ ontology change is refused at API startup rather than served. For incompatible s
 into new database instance, verify audit/export/readiness there, then change credential file
 under approved recovery procedure. Never run `dbmate down` against production database.
 
-## PostgreSQL JIT: do not tune it host-wide
+## PostgreSQL JIT: off, and readiness checks it
 
-**Recommendation: leave the defaults alone.** An earlier revision of this section suggested
-`jit_above_cost = 500000`. That was wrong twice over and is corrected here rather than
-quietly dropped.
+**`jit = off` is required.** Install
+[`../../deploy/postgres/planner.conf`](../../deploy/postgres/planner.conf) into the cluster's
+`conf.d` and reload. It is the same setting `docker-compose.yml` and the test harness use,
+`tests/deployment/postgres-settings-parity.test.ts` holds the three in agreement, and since
+2026-09-25 readiness reads `current_setting('jit')` on the live server and fails
+`planner_settings` when it is not `off` (KF-SAS-RQ-076).
+
+This section's earlier recommendation — "leave the defaults alone", and set JIT per role only if
+a scan-heavy path needed it — predates `planner.conf` and is superseded by it: the measurements
+below showed JIT never helping and sometimes costing 9x, and `planner.conf` records why off beats
+a threshold. They are kept because they are the evidence. An earlier revision still suggested
+`jit_above_cost = 500000`, which was wrong twice over:
 
 The fabric's row-level security nests: a typed table's policy tests `exists (select 1 from
 core.object …)`, and `core.object`'s own policies run inside that. On an unbounded scan the
@@ -651,23 +660,18 @@ The previously suggested value buys 7%. Raising `jit_inline_above_cost` and
 `jit_optimize_above_cost` instead recovers most of the win while keeping basic JIT, because
 those two phases were 90 ms of the 137 ms.
 
-**If it ever does matter**, it will be for the paths that scan without a bound — readiness
-counts, search index rebuilds, exports, an auditor session on `kf_readonly` — none of which is
-latency-critical. Set it on those roles rather than on the host:
-
-```sh
-alter role kf_readonly set jit_above_cost = 5000000;   -- only if a scan-heavy path needs it
-```
+The per-role override this section once suggested (`alter role kf_readonly set jit_above_cost
+= …`) is withdrawn: a role- or database-level `jit` setting is exactly what `planner_settings`
+now reports, because it makes one login's plans differ from every environment the measurements
+describe. `select setting, source from pg_settings where name = 'jit'` says where a non-`off`
+value came from.
 
 One caveat that cuts the other way, worth knowing before treating 9x as a standing figure: the
 JIT cost is roughly FIXED (~130 ms of compilation) while the scan cost grows with the data. At
 ten times this row count the scan itself dominates and the relative penalty shrinks; far enough
 out, JIT starts paying for itself. The 9x is a property of this data size, not a constant.
-Re-measure with the harness above before acting on it.
-
-And the general caution that still applies whatever is decided: a host that also runs large
-analytical queries may want JIT for those, so the right threshold depends on everything else
-the database does, not only on the fabric. Re-measure after any change.
+Re-measure with `tests/database/rls-read-cost.test.ts` (`KF_MEASURE_RLS=1`) before changing
+`planner.conf`, and change it there, in `docker-compose.yml` and in the harness together.
 
 ## Provision the host
 

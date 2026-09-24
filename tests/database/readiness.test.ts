@@ -9,7 +9,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDispatcher } from '@kf/actions';
-import { withTransaction } from '@kf/database';
+import { createPool, withTransaction } from '@kf/database';
 import { assessReadiness, formatReadiness } from '@kf/operations';
 import { generateSigningKey } from '../../apps/checkpoint/src/sign.js';
 import { runCheckpoint } from '../../apps/checkpoint/src/run.js';
@@ -258,6 +258,8 @@ describe('a system that is genuinely in order', () => {
       'schema_release',
       'write_guards',
       'schema_owner_bypasses_rls',
+      'row_security_reconciled',
+      'planner_settings',
       'audit_chain',
       'outbox_delivery',
       'search_index',
@@ -716,6 +718,81 @@ describe('the seeded ontology is the one this release was compiled from (KF-SAS-
     } finally {
       if (previous === undefined) delete process.env['KF_PROJECTIONS_ARTIFACT'];
       else process.env['KF_PROJECTIONS_ARTIFACT'] = previous;
+    }
+  });
+});
+
+describe('the live server has jit off (KF-SAS-RQ-076)', () => {
+  it('fails planner_settings on a server where jit is on', async () => {
+    expect(serviceCheck(await assessReadiness(h.adminPool), 'planner_settings')).toMatchObject({
+      status: 'ok',
+      measured: { jit: 'off' },
+    });
+    // A database-level override: exactly what a host gets when somebody "tunes" it, and what no
+    // configuration file in this repository can see.
+    await withTransaction(h.adminPool, (tx) => tx.query('alter database kf_test set jit = on'));
+    const fresh = createPool({ connectionString: h.connectionString, maxConnections: 1 });
+    try {
+      const report = await assessReadiness(fresh);
+      const planner = serviceCheck(report, 'planner_settings');
+      expect(planner?.status).toBe('failed');
+      expect(planner?.measured).toMatchObject({ jit: 'on', source: 'database' });
+      expect(planner?.detail).toContain('planner.conf');
+      expect(report.service.ready).toBe(false);
+    } finally {
+      await fresh.end();
+      await withTransaction(h.adminPool, (tx) => tx.query('alter database kf_test reset jit'));
+    }
+  });
+});
+
+describe('row security is reconciled with the migrations (KF-SAS-RQ-186)', () => {
+  it('runs as the unprivileged readiness login and finds nothing on a migrated database', async () => {
+    const report = await assessReadiness(h.pool);
+    expect(serviceCheck(report, 'row_security_reconciled')).toMatchObject({
+      status: 'ok',
+      measured: { differences: 0 },
+    });
+  });
+
+  it('names a table that enables row security without forcing it', async () => {
+    await withTransaction(h.adminPool, (tx) =>
+      tx.query('alter table org.person no force row level security'),
+    );
+    try {
+      const check = serviceCheck(await assessReadiness(h.pool), 'row_security_reconciled');
+      expect(check?.status).toBe('failed');
+      expect(check?.detail).toContain('org.person (enabled_not_forced)');
+      expect(check?.measured).toMatchObject({ enabledNotForced: 1, undeclared: 0 });
+    } finally {
+      await withTransaction(h.adminPool, (tx) =>
+        tx.query('alter table org.person force row level security'),
+      );
+    }
+  });
+
+  it('names a table created outside the migrations with no row security', async () => {
+    await withTransaction(h.adminPool, (tx) =>
+      tx.query('create table core.hand_made (organization_id uuid, body text)'),
+    );
+    try {
+      const report = await assessReadiness(h.adminPool);
+      const check = serviceCheck(report, 'row_security_reconciled');
+      expect(check?.status).toBe('failed');
+      expect(check?.detail).toContain('core.hand_made (undeclared_without_row_security)');
+      expect(report.service.ready).toBe(false);
+    } finally {
+      await withTransaction(h.adminPool, (tx) => tx.query('drop table core.hand_made'));
+    }
+  });
+
+  it('keeps the declared ops exception: a new ops table without row security is not a finding', async () => {
+    await withTransaction(h.adminPool, (tx) => tx.query('create table ops.hand_made (id int)'));
+    try {
+      const check = serviceCheck(await assessReadiness(h.adminPool), 'row_security_reconciled');
+      expect(check?.status).toBe('ok');
+    } finally {
+      await withTransaction(h.adminPool, (tx) => tx.query('drop table ops.hand_made'));
     }
   });
 });

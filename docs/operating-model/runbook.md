@@ -223,6 +223,41 @@ profile or in production and staging; the development profile only warns.
 3. "Cannot determine this release's ontology digest" means the projections artifact is missing
    or malformed. The release tree is incomplete; `migrate-release.sh check` will say where.
 
+## `planner_settings` FAILED — `jit` is not off
+
+The server this process connects to has JIT compilation enabled. Row-level security makes the
+planner's cost estimates cross `jit_above_cost` on unbounded scans, and that was measured at 8 to
+14 times slower (`deploy/postgres/planner.conf`). Nothing is wrong with any record.
+
+1. Install `deploy/postgres/planner.conf` into the cluster's `conf.d` and reload:
+   `select pg_reload_conf();`.
+2. If it is installed and this still fails, something overrides it for this login or database:
+   `select setting, source from pg_settings where name = 'jit';` names where it came from
+   (`database`, `user`, `session`). Remove that override rather than raising a threshold.
+
+## `row_security_reconciled` FAILED
+
+The running database differs from what the migrations declare about row-level security. Each
+row the check names is one table and one of two problems:
+
+- `enabled_not_forced` — the table enables row security but does not force it, so any login
+  that inherits the table's owner reads every tenant at every classification with no context.
+- `undeclared_without_row_security` — the table has no row security at all and is not in the
+  declared exemption list (`core.readiness_row_security_exemptions()`: the `ops` schema and a
+  named set of reference, bookkeeping and key tables).
+
+Both mean a table was created or altered outside the reviewed migration set, or a migration
+added a table without deciding its row security. Treat it as a boundary fault until shown
+otherwise.
+
+1. Find the table's origin: `git log -S '<table>' -- database/migrations/`. No migration means
+   somebody created it by hand on this host.
+2. If a migration created it deliberately without row security, that migration is incomplete:
+   add the policy (and `force row level security`), or declare the exemption in a new migration
+   that replaces `core.readiness_row_security_exemptions()`, with the reason.
+3. Never `alter table … no force row level security` to make an application query work; that
+   query should be bound through a context or a definer seam.
+
 ## A readiness check reports `unknown`
 
 The check could not run. **This makes its named service or institutional partition not ready**,
