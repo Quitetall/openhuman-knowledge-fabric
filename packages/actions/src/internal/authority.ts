@@ -1,4 +1,5 @@
 import { PrincipalRefused, setResolvedAccessContext, type Tx } from '@kf/database';
+import { asActionRefusal } from './refusals.js';
 import {
   ActionRejected,
   MINIMUM_REASON_LENGTH,
@@ -199,6 +200,18 @@ export function createTransactionalPreflight(
     request: ActionRequest,
     prospectiveObjects: readonly ObjectRow[] = [],
   ): Promise<void> {
+    try {
+      await preflight(tx, request, prospectiveObjects);
+    } catch (error: unknown) {
+      throw asActionRefusal(error);
+    }
+  };
+
+  async function preflight(
+    tx: Tx,
+    request: ActionRequest,
+    prospectiveObjects: readonly ObjectRow[],
+  ): Promise<void> {
     assertActionAvailable(request.actionType, resolved.allowedActions);
     assertCanonicalEffectiveAt(request);
     const definition = await loadDefinition(tx, request.actionType);
@@ -253,5 +266,5 @@ export function createTransactionalPreflight(
 
     const check = resolved.preconditions[request.actionType];
     if (check !== undefined) await check(tx, request, objects);
-  };
+  }
 }
