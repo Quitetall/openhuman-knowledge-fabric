@@ -1978,7 +1978,10 @@ on what the archive itself carries — `work.deliverable`'s retired columns beco
 `work.deliverable_retired_attribute` rows (`20260925130100`,
 `tests/round-trip/deliverable-upconversion.test.ts`) — and a section missing from a format-2
 archive is accepted only when `section-eras.ts` names it as added later without a format bump,
-file, manifest entry and count all absent together. A blanket rule would accept a truncated export.
+file, manifest entry and count all absent together, and absent with the sections that arrived in
+its commit and every section after it. A blanket rule would accept a truncated export. Where the
+migration that added a section derived its rows rather than creating the table empty, the import
+derives them the same way (storage locations, `20260902000200`).
 
 **KF-SAS-RQ-248.** An export written by an earlier exporter of the same format SHALL import into
 the current schema, each changed-shape table converted as its migration converted it, and a
@@ -3739,15 +3742,26 @@ owner credential. Bears on KF-SAS-RQ-221, RQ-222 and RQ-247.
 
 **100.32 An archive exported before `20260925130100` is not shown to restore — narrowed.**
 Narrowed in `0.1.0-draft.8`: an archive carrying `work.deliverable`'s old columns is converted on
-import as the migration converted it, and a format-2 archive written before any of the eleven
-sections `section-eras.ts` names — every section added from 2026-09-20 on — restores
-(`tests/round-trip/deliverable-upconversion.test.ts`, §56). Two things remain. Thirty sections
-arrived between 2026-08-26 and 2026-09-02 without a format bump either, and are not named, so an
-archive written between the bump (2026-08-15) and their arrival is refused; whether absence means
-no rows has not been established for each of them, and a name in the list is a claim that it
-does. And a format-1 archive is refused by the verifier,
-so the importer's format-1 path is unreachable. No host has ever retained an archive from either
-window. Bears on KF-SAS-RQ-104 and RQ-248.
+import as the migration converted it, and a format-2 archive written before any of the forty-one
+sections `section-eras.ts` names — every section added since the format went to 2 (bffc6739,
+2026-08-15) — restores (`tests/round-trip/deliverable-upconversion.test.ts`, §56). Each name is
+checked against the migration that created its table, and every such table was created in the commit
+that added its section; none was renamed from an earlier section. For thirty-eight the migration
+created the table empty and seeded nothing, so absence means no rows (access grants included:
+`20260902000100` presents role assignments through a view and copies none). For
+`deliverable-retired-attributes` the rows come from the old `deliverables`, above; for
+`artifact-stores` and `artifact-locations` absence does not mean none either: `20260902000200`
+declared the `working` store and recorded every addressed version's working location, and the
+importer does the same from the archive's `artifact-versions`; the store's `declared_at` is the
+restoring database's, because the archive predates the row. A section's absence is accepted only
+together with the sections that arrived in its commit and every section after it. A format-1 archive
+is not refused outright, as this entry said: the verifier requires `allowUnsignedLegacyV1` with a
+warning, deliberately, because a format-1 manifest has no signature, and with it the importer's
+format-1 path runs (`tests/round-trip/export.test.ts`). A role a later migration seeded is kept
+when the archive predates it — `20260911000100`'s `customer_contact` and `partner_contact` — because
+the restore adds back any seeded role the archive's roles lack. What remains: the tests cut an old
+archive from a current one by removing sections and rewriting `deliverables`; they do not revert the
+columns later migrations added to sections that already existed. Bears on KF-SAS-RQ-104 and RQ-248.
 
 **100.33 Agent declarations do not travel in the export.** `org.declared_agent` is left out of
 the canonical export by design — a restore target has its own realm and its owner declares its own

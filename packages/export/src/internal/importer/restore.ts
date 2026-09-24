@@ -36,6 +36,11 @@ export async function importExport(
     await setUserTriggers(tx, false);
     if (pkg.manifest.format_version === EXPORT_FORMAT_VERSION) {
       await tx.query('delete from quality.federated_source');
+      // The roles are the migrations' seed, and a migration can add one after an archive was
+      // written (20260911000100 seeded customer_contact and partner_contact). The target is an
+      // empty database, so what it holds now is exactly that seed: keep it aside and restore any
+      // role the archive predates once the archive's own roles are in.
+      await tx.query('create temporary table seeded_role on commit drop as select * from org.role');
       await tx.query('delete from org.role');
       // Migration 20260902000200 seeds the `working` store; a package written since carries
       // every store the source declared, including that one. A package written before it has
@@ -44,6 +49,13 @@ export async function importExport(
     }
 
     const restored = await restoreSections(tx, pkg, importOrder);
+    if (pkg.manifest.format_version === EXPORT_FORMAT_VERSION) {
+      await tx.query(
+        `insert into org.role select * from seeded_role
+          where id not in (select id from org.role)`,
+      );
+      await tx.query('drop table seeded_role');
+    }
     if (pkg.manifest.format_version === '1' && restored.legacyActionIds.length > 0) {
       await tx.query(
         `insert into core.action_migration019_legacy (action_id)

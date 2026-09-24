@@ -137,9 +137,12 @@ function repack(
       changes.has(x.path) ? { path: x.path, content: `${canonicalize(changes.get(x.path))}\n` } : x,
     );
   const counts = Object.fromEntries(
-    Object.entries(base.manifest.counts).filter(
-      ([name]) => !(changes.has(`${name}.json`) && changes.get(`${name}.json`) === null),
-    ),
+    Object.entries(base.manifest.counts)
+      .filter(([name]) => !(changes.has(`${name}.json`) && changes.get(`${name}.json`) === null))
+      .map(([name, count]) => {
+        const changed = changes.get(`${name}.json`);
+        return [name, Array.isArray(changed) ? changed.length : count];
+      }),
   );
   const manifest: ExportManifest = {
     ...base.manifest,
@@ -421,6 +424,31 @@ describe('an archive written before deliverables had their ontology fields', () 
       expect(new Set(SECTIONS_ADDED_WITHOUT_FORMAT_BUMP)).toEqual(
         new Set([...later, RETIRED_SECTION]),
       );
+    } finally {
+      await fresh.stop();
+    }
+  }, 240_000);
+
+  it('restores the roles a later migration seeded when the archive predates them', async () => {
+    // 20260911000100 seeded customer_contact and partner_contact. An archive written before it
+    // carries every other role and not those two; the restore replaces the roles with the
+    // archive's, and must keep the two the migration would have added.
+    const seededLater = ['customer_contact', 'partner_contact'];
+    const roles = rowsOf(pkg, 'roles');
+    for (const id of seededLater) expect(roles.map((row) => row['id'])).toContain(id);
+    const older = repack(
+      pkg,
+      new Map<string, unknown>([
+        ['roles.json', roles.filter((row) => !seededLater.includes(String(row['id'])))],
+      ]),
+    );
+    const fresh = await startHarness();
+    try {
+      await withTransaction(fresh.adminPool, (tx) => importExport(tx, older, VERIFICATION));
+      const restored = await withTransaction(fresh.adminPool, (tx) =>
+        tx.query<{ id: string }>('select id from org.role order by id'),
+      );
+      expect(restored.map((row) => row.id)).toEqual(roles.map((row) => String(row['id'])).sort());
     } finally {
       await fresh.stop();
     }
