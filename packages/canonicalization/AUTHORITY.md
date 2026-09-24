@@ -48,6 +48,12 @@ inputs: [{ key, contentDigest }] }`. Stored in `content.compilation_run.dependen
   enumerates the current corpus under the RECORDED member format, so a claim compiled before the
   change is exactly as current as it was. A withdrawn member carries forward the digest its
   earlier claim recorded; its content is no longer visible, so it is never recomputed.
+  The member digest covers the object's payload, and the payload reading is versioned with it
+  (migration `20260925130000`): member v1 is over `kf-master-record-payload-v1`, which recorded
+  each artifact relationship as its kind alone (`to_jsonb(relationship)` resolved to the
+  `relationship` column, not the row), and member v2 over `kf-master-record-payload-v2`, which
+  carries the row whole. `content.master_record_payloads` takes the reading by name, with no
+  default.
 - `kf-document-atom-v1`, `kf-document-loss-source-v1`, `kf-document-conversion-loss-v1` and
   `kf-document-projection-v1` — the four digests of a document parse receipt, whatever parser
   produced it: each atom's digest, each conversion loss's `sourceDigest` (`{ source }`), the

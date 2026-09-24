@@ -9,6 +9,7 @@ import {
   CURRENT_MASTER_RECORD_MEMBER_FORMAT,
   masterRecordMemberDigest,
   masterRecordMemberFormat,
+  masterRecordPayloadFormat,
   permissionDigest,
   relevanceClosure,
   relevanceClosureWithMetrics,
@@ -594,6 +595,18 @@ describe('master-record member digest formats (KF-SAS-RQ-016)', () => {
     expect(CURRENT_MASTER_RECORD_MEMBER_FORMAT).toBe('kf-master-record-member-v2');
     expect(masterRecordMemberDigest(fields, 'kf-master-record-member-v2')).toBe(
       '9c81ae8bf582335ad01ff7cf472ccd7a532fe5f6841d7aa94f7df36e4241f454',
+    );
+  });
+
+  it('reads the payload the member format was digested over', () => {
+    expect(masterRecordPayloadFormat('kf-master-record-member-v1')).toBe(
+      'kf-master-record-payload-v1',
+    );
+    expect(masterRecordPayloadFormat('kf-master-record-member-v2')).toBe(
+      'kf-master-record-payload-v2',
+    );
+    expect(() => masterRecordPayloadFormat('kf-master-record-member-v9' as never)).toThrow(
+      /unknown/,
     );
   });
 

@@ -121,6 +121,30 @@ export interface MasterRecordMemberFields {
   readonly content: unknown;
 }
 
+/**
+ * The payload reading a member format commits to, which `content.master_record_payloads` takes by
+ * name (migration 20260925130000). v1 is the reading as recorded: it wrote each artifact
+ * relationship as its kind only (`["supersedes"]`), because `to_jsonb(relationship)` resolved
+ * to the table's `relationship` column rather than the row. v2 carries every row whole. A claim
+ * is re-checked under the reading its members were digested over, so fixing the payload for new
+ * claims leaves every recorded one exactly as current as it was.
+ */
+export type MasterRecordPayloadFormat =
+  'kf-master-record-payload-v1' | 'kf-master-record-payload-v2';
+
+export function masterRecordPayloadFormat(
+  memberFormat: MasterRecordMemberFormat,
+): MasterRecordPayloadFormat {
+  switch (memberFormat) {
+    case 'kf-master-record-member-v1':
+      return 'kf-master-record-payload-v1';
+    case 'kf-master-record-member-v2':
+      return 'kf-master-record-payload-v2';
+    default:
+      throw new Error(`unknown master record member format ${String(memberFormat)}`);
+  }
+}
+
 /** A member's content digest under the named format; there is no default. */
 export function masterRecordMemberDigest(
   fields: MasterRecordMemberFields,

@@ -154,7 +154,7 @@ describe('a master-record member digest is versioned by the manifest that record
       const row = await tx.one<Record<string, unknown>>(
         `select o.id, o.object_type, o.organization_id, o.classification, o.title,
                 o.lifecycle_state, o.row_version::text,
-                content.master_record_payload(o.id) as content_payload
+                content.master_record_payload(o.id, 'kf-master-record-payload-v1') as content_payload
            from core.object o where o.id = $1`,
         [member.objectId],
       );

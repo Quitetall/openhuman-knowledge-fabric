@@ -15,6 +15,7 @@ import {
   compileMasterRecord,
   CURRENT_MASTER_RECORD_MEMBER_FORMAT,
   masterRecordMemberDigest,
+  masterRecordPayloadFormat,
   relevanceClosureWithMetrics,
   sectionMasterRecord,
   type MasterRecordManifest,
@@ -117,7 +118,8 @@ export async function enumeratePermissionSet(
 ): Promise<readonly PermissionMember[]> {
   // The payloads are read in ONE call over every visible id, never once per row: the one-object
   // form walks the catalog and plans ~235 statements per object, which made every Object View
-  // cost ~65 ms per object in the organization (KF-SAS-RQ-201; 20260925121500). Same bytes.
+  // cost ~65 ms per object in the organization (KF-SAS-RQ-201; 20260925121500). The reading is
+  // the one the member format names (20260925130000): v1 for claims that recorded it, v2 anew.
   const rows = await tx.query<ObjectRow>(
     `with visible as materialized (
        select /* master-record.permission-set */
@@ -133,10 +135,10 @@ export async function enumeratePermissionSet(
      )
      select visible.*, payloads.payload as content_payload
        from visible
-       join content.master_record_payloads(array(select visible.id from visible)) payloads
+       join content.master_record_payloads(array(select visible.id from visible), $2) payloads
          on payloads.object_id = visible.id
       order by visible.id`,
-    [organizationId],
+    [organizationId, masterRecordPayloadFormat(memberFormat)],
   );
   return rows.map((row) => ({
     objectId: row.id,
