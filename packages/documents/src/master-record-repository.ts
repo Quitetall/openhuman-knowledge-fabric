@@ -115,19 +115,27 @@ export async function enumeratePermissionSet(
   // (`masterRecordMemberFormat(manifest)`); a new compilation uses the current one.
   memberFormat: MasterRecordMemberFormat = CURRENT_MASTER_RECORD_MEMBER_FORMAT,
 ): Promise<readonly PermissionMember[]> {
+  // The payloads are read in ONE call over every visible id, never once per row: the one-object
+  // form walks the catalog and plans ~235 statements per object, which made every Object View
+  // cost ~65 ms per object in the organization (KF-SAS-RQ-201; 20260925121500). Same bytes.
   const rows = await tx.query<ObjectRow>(
-    `select /* master-record.permission-set */
-            o.id, o.object_type, o.organization_id, o.classification, o.title,
-            o.lifecycle_state, o.row_version::text,
-            content.master_record_payload(o.id) as content_payload,
-            -- Left join, because absence IS the unverified state (KF-SAS-RQ-228). An inner join
-            -- would drop every unchecked record from the corpus, which is the silent omission
-            -- RQ-229 forbids, arriving as a query shape rather than as a decision.
-            v.verified_at, v.verified_by, v.basis as verified_basis
-       from core.object o
-       left join core.object_verification v on v.object_id = o.id
-      where o.organization_id = $1
-      order by o.id`,
+    `with visible as materialized (
+       select /* master-record.permission-set */
+              o.id, o.object_type, o.organization_id, o.classification, o.title,
+              o.lifecycle_state, o.row_version::text as row_version,
+              -- Left join, because absence IS the unverified state (KF-SAS-RQ-228). An inner join
+              -- would drop every unchecked record from the corpus, which is the silent omission
+              -- RQ-229 forbids, arriving as a query shape rather than as a decision.
+              v.verified_at, v.verified_by, v.basis as verified_basis
+         from core.object o
+         left join core.object_verification v on v.object_id = o.id
+        where o.organization_id = $1
+     )
+     select visible.*, payloads.payload as content_payload
+       from visible
+       join content.master_record_payloads(array(select visible.id from visible)) payloads
+         on payloads.object_id = visible.id
+      order by visible.id`,
     [organizationId],
   );
   return rows.map((row) => ({

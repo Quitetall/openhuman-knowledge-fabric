@@ -12,6 +12,7 @@
 export {
   ActionRejected,
   DEFAULT_REASON_REQUIRED,
+  DEFAULT_SEPARATION_OF_DUTY,
   MINIMUM_REASON_LENGTH,
   type ActionDispatcher,
   type ActionEffect,

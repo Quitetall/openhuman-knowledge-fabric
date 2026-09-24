@@ -195,6 +195,11 @@ export const PRESERVATION_TABLE_EXCLUSIONS = {
   'core.principal_attestation':
     'transient proof a person was present (20260924001000): digests only, expired within 60 s, ' +
     'never evidence of an act — the action and audit rows are',
+  'org.declared_agent':
+    'deployment trust configuration (ADR 0035, 20260925100000): which OAuth clients of THIS ' +
+    "deployment's realm may act for people. A restore target has its own realm and its owner " +
+    'declares its own agents; the participation each act recorded travels in actions.json. Kept ' +
+    'out also so that a format-2 archive written before it existed still verifies and restores',
   'core.write_guard_exemption':
     'schema configuration written by migration 20260925011000 and pinned by its test; a restore ' +
     'into a migrated database already holds it',

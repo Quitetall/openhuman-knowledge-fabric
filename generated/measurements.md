@@ -12,24 +12,31 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 
 | Measure | Count | Derived from |
 | --- | ---: | --- |
-| migrations | 121 | files under `database/migrations/` |
+| migrations | 124 | files under `database/migrations/` |
 | forward-only migrations | 26 | migrations declaring `-- kf:forward-only <reason>` in their down-section |
 | schemas | 14 | distinct `create schema` names in migration up-sections |
-| tables created | 189 | in migration up-sections |
+| tables created | 190 | in migration up-sections |
 | row-security policies | 480 | in migration up-sections |
-| triggers created | 182 | literal `create trigger` statements in migration up-sections |
-| security definer declarations | 152 | in migration up-sections; a function redefined is declared again |
+| triggers created | 184 | literal `create trigger` statements in migration up-sections |
+| security definer declarations | 158 | in migration up-sections; a function redefined is declared again |
 | views | 13 | distinct view names in migration up-sections |
 | indexes created | 93 | explicit `create index` statements in migration up-sections |
-| foreign-key references | 490 | `references` clauses in migration up-sections |
-| check constraints | 781 | `check (` clauses in migration up-sections |
+| foreign-key references | 492 | `references` clauses in migration up-sections |
+| check constraints | 786 | `check (` clauses in migration up-sections |
 | group roles | 11 | distinct `NOLOGIN` roles created in migration up-sections |
 | workspace packages | 31 | 25 libraries under `packages/`, 6 executables under `apps/` |
 | systemd services | 14 | `*.service` units under `deploy/systemd/`, the `kf-alert@` template counted once |
 | systemd timers | 7 | `*.timer` units under `deploy/systemd/` |
-| action types | 162 | declared in `ontology/action-types.yaml` |
+| action types | 165 | declared in `ontology/action-types.yaml` |
 | object types | 40 | declared in `ontology/object-types.yaml` |
 | relation types | 42 | declared in `ontology/relation-types.yaml` |
 | decision records | 37 | under `docs/decisions/` — 33 accepted, 4 proposed |
 | architecture requirements | 170 | distinct identifiers in §106 |
-| test files | 239 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
+| test files | 252 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
+
+## Runtime measurements, cited rather than derived
+
+ADR 0024's latency bars (KF-SAS-RQ-201) are measured against a running stack by
+`scripts/latency-bars.mjs`, which writes dated sections to
+[`generated/latency-bars.md`](latency-bars.md). They are runtime figures, so this file only cites
+them. Newest run: `2026-09-24T13:18:44.665Z — workstation`; 2 recorded, 0 from a commissioned host. Every recorded run is a workstation run; none is official.

@@ -3,13 +3,16 @@ import {
   IdentityRejected,
   LocalAttestor,
   TokenVerifier,
+  soleAssignment,
   type Attestor,
 } from '@kf/authorization';
-import type { Pool } from '@kf/database';
+import { withTransaction, type Pool } from '@kf/database';
 import type { FastifyReply } from 'fastify';
 import type { Caller, IdentifyCaller } from './contracts.js';
 
 export class CallerRejected extends Error {}
+
+const HEADER_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function callerFrom(headers: Record<string, unknown>): Caller {
   const get = (name: string): string => {
@@ -121,6 +124,38 @@ export function createCallerIdentifier(
           'no identity provider is configured and header identity is not trusted',
         );
       }
+      const named = request.headers['x-kf-acting-role'];
+      if (request.deriveAssignment === true && (typeof named !== 'string' || named.trim() === '')) {
+        // The development header path, deriving as the attestor does. The lookup is callable
+        // only by a login that may attest (20260925090000), which is exactly the development
+        // login this path runs on; anywhere else it is refused at the database.
+        const actor = request.headers['x-kf-actor'];
+        const organization = request.headers['x-kf-organization'];
+        if (
+          typeof actor !== 'string' ||
+          typeof organization !== 'string' ||
+          !HEADER_UUID.test(actor) ||
+          !HEADER_UUID.test(organization)
+        ) {
+          throw new CallerRejected(
+            'x-kf-actor and x-kf-organization must name a person and an organization',
+          );
+        }
+        const rows = await withTransaction(pool, (tx) =>
+          tx.query<{ assignment_id: string; role_id: string; scope_id: string }>(
+            'select assignment_id, role_id, scope_id from org.live_assignments_of($1, $2)',
+            [actor, organization],
+          ),
+        );
+        const derived = soleAssignment(
+          rows.map((row) => ({
+            assignmentId: row.assignment_id,
+            roleId: row.role_id,
+            scopeId: row.scope_id,
+          })),
+        );
+        return callerFrom({ ...request.headers, 'x-kf-acting-role': derived });
+      }
       return callerFrom(request.headers);
     }
 
@@ -141,6 +176,7 @@ export function createCallerIdentifier(
       actingRoleId: header('x-kf-acting-role'),
       organizationId: header('x-kf-organization'),
       maxClassification: header('x-kf-classification') || 'internal',
+      ...(request.deriveAssignment === true ? { deriveAssignment: true } : {}),
     });
   };
 }

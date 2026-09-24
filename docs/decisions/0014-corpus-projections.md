@@ -78,6 +78,17 @@ evaluation. Relevance traversal moved into `@kf/projections`; `@kf/documents` re
 `token_budget` parameter and produces a Result with exact source ids and digests. A model may
 summarize it; nothing lets it enlarge it, and the digest records what it was given.
 
+> **UPDATED 2026-09-25.** The AI proposal planner now consumes that Result (KF-SAS-RQ-115).
+> `planAiProposalContext` (`@kf/agent-tools`) takes the reader's `agent_context` Result as input
+> and refuses one that is not an `agent_context` Result for the planning principal, or whose
+> `projectionDigest` does not recompute from its own sections (`projectionResultDigest` in
+> `@kf/projections`); a seed outside it is refused; every retrieval candidate whose subject is not
+> an included member is omitted as `outside_projection`; and the plan records the projection's
+> definition, version, corpus digest and projection digest. The model's context is therefore a
+> subset of a projection, not a parallel reading that merely happened to be authorized. The
+> recorded proposal provenance (`model_provenance` on `record_document_proposal`) does not yet
+> carry the projection digest; adding it is a payload change left to that action's owner.
+
 **Custom projections are controlled records over the same grammar** — decided, not yet built.
 Pack-shipped definitions are policy and change with a pack release; an organization's own
 readings will be database records referencing the grammar the pack declares, so they are

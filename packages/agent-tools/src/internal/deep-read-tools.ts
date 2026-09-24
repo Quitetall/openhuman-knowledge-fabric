@@ -1,6 +1,7 @@
+import { readGrantedSubset } from '@kf/authorization';
 import type { Pool } from '@kf/database';
 import { verificationOfRow } from './basic-read-tools.js';
-import { scoped } from './scope.js';
+import { scopedToGranted } from './scope.js';
 import type {
   AgentScope,
   EvidenceItem,
@@ -16,7 +17,7 @@ export async function traceRelations(
   options: { readonly relationTypes?: readonly string[]; readonly maxDepth?: number } = {},
 ): Promise<readonly TracedEdge[]> {
   const depth = Math.min(Math.max(1, options.maxDepth ?? 3), 6);
-  return scoped(pool, scope, async (tx) => {
+  return scopedToGranted(pool, scope, objectId, [], async (tx) => {
     const rows = await tx.query<{
       relation_type: string;
       from_id: string;
@@ -49,15 +50,28 @@ export async function traceRelations(
         order by w.depth, o.title`,
       [objectId, options.relationTypes === undefined ? null : [...options.relationTypes], depth],
     );
-    return rows.map((r) => ({
-      relationType: r.relation_type,
-      fromId: r.from_id,
-      toId: r.to_id,
-      toTitle: r.to_title,
-      toType: r.to_type,
-      depth: Number(r.depth),
-      toVerification: verificationOfRow(r),
-    }));
+    // An edge names both of its ends, so it is shown only when a grant reaches both: a walk
+    // through an ungranted record must not disclose that record's id, title or type.
+    const granted = new Set(
+      (
+        await readGrantedSubset(
+          tx,
+          scope,
+          [...new Set(rows.flatMap((r) => [r.from_id, r.to_id]))].map((id) => ({ id })),
+        )
+      ).map((item) => item.id),
+    );
+    return rows
+      .filter((r) => granted.has(r.from_id) && granted.has(r.to_id))
+      .map((r) => ({
+        relationType: r.relation_type,
+        fromId: r.from_id,
+        toId: r.to_id,
+        toTitle: r.to_title,
+        toType: r.to_type,
+        depth: Number(r.depth),
+        toVerification: verificationOfRow(r),
+      }));
   });
 }
 
@@ -66,11 +80,7 @@ export async function verificationOf(
   scope: AgentScope,
   subjectId: string,
 ): Promise<VerificationSummary | undefined> {
-  return scoped(pool, scope, async (tx) => {
-    const visible = await tx.maybeOne<{ id: string }>('select id from core.object where id = $1', [
-      subjectId,
-    ]);
-    if (visible === undefined) return undefined;
+  return scopedToGranted(pool, scope, subjectId, undefined, async (tx) => {
     const row = await tx.maybeOne<{
       verified: boolean;
       approved_definitions: string;
@@ -107,7 +117,7 @@ export async function externalCitations(
   scope: AgentScope,
   objectId: string,
 ): Promise<readonly ExternalCitation[]> {
-  return scoped(pool, scope, async (tx) => {
+  return scopedToGranted(pool, scope, objectId, [], async (tx) => {
     const rows = await tx.query<{
       source_id: string;
       repository: string;
@@ -144,7 +154,7 @@ export async function evidenceFor(
   scope: AgentScope,
   objectId: string,
 ): Promise<readonly EvidenceItem[]> {
-  return scoped(pool, scope, async (tx) => {
+  return scopedToGranted(pool, scope, objectId, [], async (tx) => {
     const rows = await tx.query<{
       id: string;
       artifact_id: string;

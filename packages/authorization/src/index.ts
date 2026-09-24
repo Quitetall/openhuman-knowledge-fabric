@@ -17,14 +17,17 @@ export {
   IdentityRejected,
   OIDC_SIGNING_ALGORITHMS,
   TokenVerifier,
+  agentOf,
   linkIdentity,
   resolveCaller,
   resolveIn,
   revokeIdentity,
+  soleAssignment,
   type Caller,
   type CallerRequest,
   type IdentityConfig,
   type IdentityFailure,
+  type LiveAssignment,
 } from './identity.js';
 
 export {
@@ -72,6 +75,7 @@ export {
   revokeAccessEffect,
   type AccessCapability,
   type AccessCoverage,
+  type AccessDenial,
   type AccessExplanation,
   type AccessGrantRef,
   type AccessGrantWrite,
@@ -86,3 +90,12 @@ export {
   endPersonAuthority,
   type OrganizationLifecycleAtoms,
 } from './organization-lifecycle.js';
+export {
+  classificationsOf,
+  reaches,
+  readCoverage,
+  readGranted,
+  readGrantedSubset,
+  type Classified,
+  type ReadIdentity,
+} from './read-grant.js';

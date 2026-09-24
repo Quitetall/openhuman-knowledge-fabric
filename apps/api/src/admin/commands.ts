@@ -22,6 +22,12 @@ import {
   runBootstrap,
 } from './bootstrap-organization.js';
 import {
+  declareAgentUsage,
+  parseDeclareAgentArgs,
+  planDeclareAgent,
+  runDeclareAgent,
+} from './declare-agent.js';
+import {
   parseGrantAuthorityArgs,
   planGrantAuthority,
   runGrantAuthority,
@@ -242,6 +248,56 @@ export async function runRevokeIdentityCommand(
         : `  acting role   ${result.actingRoleId}\n`,
     );
     out.write(`  attestations  ${result.attestationsWithdrawn} withdrawn\n`);
+    return 0;
+  } catch (error: unknown) {
+    err.write(`${message(error)}\n`);
+    return 1;
+  } finally {
+    await owner.end();
+  }
+}
+
+export async function runDeclareAgentCommand(
+  argv: readonly string[],
+  env: NodeJS.ProcessEnv = process.env,
+  out: Out = process.stdout,
+  err: Out = process.stderr,
+): Promise<number> {
+  const url = ownerUrl(env, err);
+  if (url === undefined) return 1;
+  let request;
+  try {
+    request = parseDeclareAgentArgs(argv);
+  } catch (error: unknown) {
+    err.write(`${message(error)}\n\n${declareAgentUsage()}\n`);
+    return 2;
+  }
+  const plan = planDeclareAgent(request);
+  if (!plan.ok) {
+    err.write(`refusing to ${request.withdraw === true ? 'withdraw' : 'declare'} an agent:\n`);
+    for (const refusal of plan.refusals) err.write(`  - ${refusal}\n`);
+    err.write(`\n${declareAgentUsage()}\n`);
+    return 2;
+  }
+  const owner = createPool({ connectionString: url, maxConnections: 2 });
+  try {
+    const result = await runDeclareAgent(owner, plan.decision);
+    if (result.withdrawnAt !== undefined) {
+      out.write(`agent ${result.clientId} withdrawn at ${result.withdrawnAt.toISOString()}\n`);
+      out.write(
+        '  its next token is refused undeclared_agent; one attested already lives out its minute\n',
+      );
+    } else if (result.unchanged) {
+      out.write(
+        `agent ${result.clientId} was already declared at ${result.declaredAt.toISOString()}; ` +
+          'nothing was written\n',
+      );
+    } else {
+      out.write(`agent ${result.clientId} declared at ${result.declaredAt.toISOString()}\n`);
+      out.write(
+        '  the realm must stamp act.client_id on its tokens (identity_provider_policy checks it)\n',
+      );
+    }
     return 0;
   } catch (error: unknown) {
     err.write(`${message(error)}\n`);

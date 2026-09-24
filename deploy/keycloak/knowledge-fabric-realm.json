@@ -1578,6 +1578,71 @@
     {
       "alwaysDisplayInConsole": false,
       "attributes": {
+        "backchannel.logout.revoke.offline.tokens": "false",
+        "backchannel.logout.session.required": "true",
+        "realm_client": "false",
+        "standard.token.exchange.enabled": "true"
+      },
+      "authenticationFlowBindingOverrides": {},
+      "bearerOnly": false,
+      "clientAuthenticatorType": "client-secret",
+      "clientId": "knowledge-fabric-agent",
+      "consentRequired": false,
+      "defaultClientScopes": ["acr", "basic"],
+      "directAccessGrantsEnabled": false,
+      "enabled": true,
+      "frontchannelLogout": false,
+      "fullScopeAllowed": false,
+      "id": "c07924a3-320f-4fa8-9c65-14af2b0c54e8",
+      "implicitFlowEnabled": false,
+      "name": "Knowledge Fabric agent (acts for a person by token exchange, ADR 0035)",
+      "nodeReRegistrationTimeout": -1,
+      "notBefore": 0,
+      "optionalClientScopes": [],
+      "protocol": "openid-connect",
+      "protocolMappers": [
+        {
+          "config": {
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "included.client.audience": "knowledge-fabric-api",
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "false"
+          },
+          "consentRequired": false,
+          "id": "396490cc-0163-4f69-82a2-4835453e1047",
+          "name": "knowledge-fabric-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper"
+        },
+        {
+          "config": {
+            "access.token.claim": "true",
+            "claim.name": "act.client_id",
+            "claim.value": "knowledge-fabric-agent",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true",
+            "jsonType.label": "String",
+            "lightweight.claim": "false",
+            "userinfo.token.claim": "false"
+          },
+          "consentRequired": false,
+          "id": "73feaeda-f009-468e-811f-31d41451312f",
+          "name": "act-client-id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper"
+        }
+      ],
+      "publicClient": false,
+      "redirectUris": [],
+      "serviceAccountsEnabled": false,
+      "standardFlowEnabled": false,
+      "surrogateAuthRequired": false,
+      "webOrigins": []
+    },
+    {
+      "alwaysDisplayInConsole": false,
+      "attributes": {
         "realm_client": "false"
       },
       "authenticationFlowBindingOverrides": {},
@@ -1648,6 +1713,19 @@
           "consentRequired": false,
           "id": "8c9e4c71-7ba0-441e-9427-0e989ff90631",
           "name": "knowledge-fabric-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper"
+        },
+        {
+          "config": {
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "included.client.audience": "knowledge-fabric-agent",
+            "userinfo.token.claim": "false"
+          },
+          "consentRequired": false,
+          "id": "7f9e2ccd-e8fb-4e53-bcc6-231a5e42af0b",
+          "name": "knowledge-fabric-agent-audience",
           "protocol": "openid-connect",
           "protocolMapper": "oidc-audience-mapper"
         }

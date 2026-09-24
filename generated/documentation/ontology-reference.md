@@ -1,9 +1,9 @@
 <!-- GENERATED from ontology/ — do not edit. -->
-<!-- ontology_version: 1.2.0-draft.1 · source_digest: d9f48f4a70455b4c0c265e4dc68d01caa222739ce2909af18dcb75e44132bb72 -->
+<!-- ontology_version: 1.2.0-draft.1 · source_digest: 7b96da3eb2b3f1ee99ff36c18ec0e256474897e41db1b4d7b310e8136d50d536 -->
 
 # Ontology reference
 
-Compiled from `ontology/`. 40 object types, 42 relation types, 162 action types, 25 state machines, 15 invariants, 4 corpus projections.
+Compiled from `ontology/`. 40 object types, 42 relation types, 165 action types, 25 state machines, 15 invariants, 4 corpus projections.
 
 ## Object types
 
@@ -231,6 +231,9 @@ Compiled from `ontology/`. 40 object types, 42 relation types, 162 action types,
 | `register_test` | — | role only |
 | `define_baseline` | — | role only |
 | `define_release` | — | role only |
+| `record_engagement` | — | role only |
+| `plan_milestone` | — | role only |
+| `define_deliverable` | — | role only |
 | `create_warrant_draft` | — | role only |
 | `revise_warrant_draft` | — | role only |
 | `submit_warrant` | warrant | role only |

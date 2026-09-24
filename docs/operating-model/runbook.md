@@ -377,6 +377,47 @@ A person who holds several roles states which one they are acting under per requ
 not a default the system can pick — choosing decides an authority question on their behalf,
 and the audit trail would record a role they never selected.
 
+## Declaring an agent client
+
+An agent acts for a person on a token it obtained by token exchange (ADR 0035); the act is the
+person's and `core.action.agent_participation` names the agent's client. `kf-attestor` accepts
+such a token only when its `act.client_id` is a **declared agent**, and the declaration is an
+owner-credential decision:
+
+```sh
+DATABASE_OWNER_URL_FILE=/etc/kf/owner/database-url pnpm kf:declare-agent \
+  --client knowledge-fabric-agent --declared-by <your person uuid> \
+  --reason 'drafting assistant for the quality team, reviewed 2026-09-24'
+# withdraw it (the row stays, marked withdrawn, with who and why):
+DATABASE_OWNER_URL_FILE=/etc/kf/owner/database-url pnpm kf:declare-agent --withdraw \
+  --client knowledge-fabric-agent --declared-by <your person uuid> --reason 'retired'
+```
+
+`--declared-by` must be a human person holding a live role assignment. The declaration is a row in
+`org.declared_agent` carrying the client id, the decider, the reason, the owner login and the time;
+the application login cannot read or write it, rows are never deleted, and a withdrawal is the only
+change a row accepts. It is **not** an act on the audit chain — an agent client belongs to no
+organization and targets no record — so the row is its own record. Withdrawal is immediate: the
+next attestation for that client is refused; one already issued lives out its minute.
+Declarations are **not** in the preservation export: they are this deployment's trust in clients of
+its own realm, so after a restore the owner declares the agents the new host should accept. Each
+act's recorded `agent_participation` does travel, in `actions.json`.
+
+The realm side (`identity_provider_policy`): a client may have standard token exchange switched on
+only if it is confidential and stamps `act.client_id` with its own id (the shipped
+`knowledge-fabric-agent` shows the shape); no client and no client scope may stamp `act` naming
+another client. Declaring a client that the realm does not shape this way achieves nothing — its
+tokens carry no `act` and are refused as `undeclared_agent` once it is declared.
+
+**Refused `401 undeclared_agent`.** The token names an agent (`act.client_id`, or an `azp` that is a
+declared agent) that is not declared, or has been withdrawn. Declare it, or use the person's own
+token. A token whose `act` is malformed, nested, or names a client other than its `azp` is
+`401 invalid_token`, and the attestor's `token_rejected` log line says which.
+
+**An agent cannot pass step-up.** Keycloak's exchanged token carries no `auth_time`, so an act with
+a step-up policy (next section) is refused `step_up_required` through an agent by design; the
+person performs it in a fresh session.
+
 ## Step-up: somebody cannot approve a payment
 
 They will have had a 401 with `step_up_required` and a `www-authenticate` header. This is not
@@ -546,6 +587,34 @@ in `/etc/kf/attestor.env`. After a crash loop it stays `failed` until `systemctl
 kf-attestor.service`. `kf-commissioning`'s `attestor_separation` check says whether the socket and
 secrets are still separated from everyone but `kf-api`.
 
+## A capture is refused: `acting_assignment_ambiguous` or `no_live_assignment`
+
+`POST /capture/observation` (and `kf note`, and the web capture form, which all reach it) forms
+the acting assignment itself: the caller's only live assignment in the organization (ADR 0034
+§2, KF-SAS-RQ-200). Two answers mean it could not:
+
+- **`422 acting_assignment_ambiguous`** — the person holds several live assignments and named
+  none. The body lists them (`assignments[].assignmentId`, `roleId`, `scopeId`). This is not a
+  fault: they choose one with `x-kf-acting-role` (`kf note --acting-role`; the web session's
+  selected role is sent for them). Do not "fix" it by retiring an assignment.
+- **`422 no_live_assignment`** — they hold none live in that organization. Recording anything,
+  even a note, needs a live assignment; granting one is `kf grant-authority`.
+
+Neither records anything. A `401 no_role_requested` from the capture route is not these: it
+means the deployment's kf-attestor predates assignment derivation and refused the request —
+deploy kf-attestor from the same release as the API.
+
+## Latency bars exceeded (`scripts/latency-bars.mjs` exits 1)
+
+ADR 0024 states its bars as numbers so they can fail. The harness measures three of them at the
+API — an act dispatched and committed (under 500 ms), the first useful search result for a text
+query (under 2 s), an Object View read (under 1 s) — and writes `generated/latency-bars.md`. It
+exits non-zero when any sample exceeds its bar, naming which. A breach is a breach of a
+specification requirement (SAS §8A, KF-SAS-RQ-201), not a tuning item to defer: find the
+regression (the section records the commit it measured) before re-running it on a quieter
+machine. A workstation run is labelled as one; the official figures come from a commissioned
+host.
+
 ## What is NOT covered here
 
 - **Token lifetime and refresh policy.** Provider configuration. The workstation realm
@@ -554,8 +623,11 @@ secrets are still separated from everyone but `kf-api`.
   beyond 7 days or unbounded past 30, refresh tokens that are not revoked on use, or an access-token
   lifespan — realm-wide or a client's `access.token.lifespan` override — that is unstated or above
   300 seconds, because that lifetime is the window in which a compromised API can replay a
-  token through `kf-attestor`. What the provider actually issues is still only as good as the
-  reviewed export; the check reads the file, not the running Keycloak.
+  token through `kf-attestor`. It also refuses standard token exchange on a public client or on
+  one that does not stamp `act.client_id` with its own id, and any mapper stamping `act` for
+  another client (ADR 0035). What the provider actually issues is still only as good as the
+  reviewed export; the check reads the file, not the running Keycloak, and it cannot see which
+  clients the database has declared — `kf-attestor` refuses an undeclared one at every request.
 - **TLS certificates.** Issued and renewed at the proxy. This application refuses to run
   without the deployment asserting that a proxy is there, and can do nothing to verify it.
 - **Where alerts go.** `kf-alert@.service` ships: every unit's `OnFailure=` reaches it, and it

@@ -3,7 +3,7 @@
   "info": {
     "title": "OpenHuman Knowledge Fabric API",
     "version": "1.2.0-draft.1",
-    "description": "Generated from ontology source digest d9f48f4a70455b4c0c265e4dc68d01caa222739ce2909af18dcb75e44132bb72."
+    "description": "Generated from ontology source digest 7b96da3eb2b3f1ee99ff36c18ec0e256474897e41db1b4d7b310e8136d50d536."
   },
   "paths": {
     "/objects/organization/{id}": {
@@ -5266,6 +5266,96 @@
         }
       }
     },
+    "/actions/record_engagement": {
+      "post": {
+        "summary": "Execute record_engagement",
+        "operationId": "record_engagement",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/plan_milestone": {
+      "post": {
+        "summary": "Execute plan_milestone",
+        "operationId": "plan_milestone",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/define_deliverable": {
+      "post": {
+        "summary": "Execute define_deliverable",
+        "operationId": "define_deliverable",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
     "/actions/create_warrant_draft": {
       "post": {
         "summary": "Execute create_warrant_draft",
@@ -6593,6 +6683,9 @@
               "register_test",
               "define_baseline",
               "define_release",
+              "record_engagement",
+              "plan_milestone",
+              "define_deliverable",
               "create_warrant_draft",
               "revise_warrant_draft",
               "submit_warrant",

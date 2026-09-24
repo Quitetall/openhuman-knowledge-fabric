@@ -276,6 +276,8 @@ const DECLARED_ADDITIONS = {
     'deactivate_person',
     // KF-SAS-RQ-143: create acts for the R01 product and quality records, which had none.
     'define_baseline',
+    // KF-SAS-RQ-142: create acts for the work-control records that had none.
+    'define_deliverable',
     'define_release',
     'define_requirement',
     'define_test',
@@ -310,6 +312,7 @@ const DECLARED_ADDITIONS = {
     'open_warrant_blocker',
     'pause_warrant',
     'place_equipment_in_service',
+    'plan_milestone',
     'plan_test_execution',
     'promote_configuration_item',
     // ADR 0034 (proposed): capture is not institutional; promotion is.
@@ -326,6 +329,7 @@ const DECLARED_ADDITIONS = {
     'reactivate_person',
     'receive_complaint',
     'record_document_proposal',
+    'record_engagement',
     'record_observation',
     'record_physical_binding',
     'record_secure_object_erasure',

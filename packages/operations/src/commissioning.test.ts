@@ -531,6 +531,79 @@ describe('planted violations — commissioning must refuse', () => {
     );
   });
 
+  // Token exchange is limited to clients that name themselves in the token (ADR 0035). Keycloak
+  // 26.4 emits no `act` claim of its own, so an exchange-capable client without the realm's
+  // `act.client_id` mapper issues tokens that pass as the person acting directly.
+  type RealmClient = {
+    clientId: string;
+    publicClient?: boolean;
+    attributes?: Record<string, string>;
+    protocolMappers?: { name: string; protocolMapper: string; config: Record<string, string> }[];
+  };
+  it.each([
+    [
+      'token exchange on a public client',
+      (clients: RealmClient[]) => {
+        for (const client of clients) {
+          if (client.clientId === 'knowledge-fabric-agent') client.publicClient = true;
+        }
+      },
+      /"knowledge-fabric-agent" is public and has standard token exchange enabled/,
+    ],
+    [
+      'token exchange on a client that does not stamp its own act',
+      (clients: RealmClient[]) => {
+        for (const client of clients) {
+          if (client.clientId === 'knowledge-fabric-web') {
+            client.attributes = {
+              ...client.attributes,
+              'standard.token.exchange.enabled': 'true',
+            };
+          }
+        }
+      },
+      /"knowledge-fabric-web" has standard token exchange enabled and does not stamp act.client_id/,
+    ],
+    [
+      'a mapper stamping act for another client',
+      (clients: RealmClient[]) => {
+        for (const client of clients) {
+          if (client.clientId === 'knowledge-fabric-web') {
+            client.protocolMappers = [
+              ...(client.protocolMappers ?? []),
+              {
+                name: 'borrowed-act',
+                protocolMapper: 'oidc-hardcoded-claim-mapper',
+                config: {
+                  'claim.name': 'act.client_id',
+                  'claim.value': 'knowledge-fabric-agent',
+                  'access.token.claim': 'true',
+                },
+              },
+            ];
+          }
+        }
+      },
+      /"knowledge-fabric-web" mapper "borrowed-act" writes act.client_id/,
+    ],
+  ])('a reviewed realm with %s', async (_label, plant, reason) => {
+    const { inputs } = await commissionedHost();
+    const realm = JSON.parse(await readFile(inputs.identityPolicyPath!, 'utf8')) as {
+      clients: RealmClient[];
+    };
+    plant(realm.clients);
+    await writeFile(inputs.identityPolicyPath!, JSON.stringify(realm));
+    const entry = check(
+      await assessCommissioning({
+        ...inputs,
+        identityPolicyDigest: await digestOf(inputs.identityPolicyPath!),
+      }),
+      'identity_provider_policy',
+    );
+    expect(entry.status).toBe('unsatisfied');
+    expect(entry.detail).toMatch(reason);
+  });
+
   it('a runtime other than the one the release was tested on', async () => {
     const { inputs } = await commissionedHost();
     const entry = check(

@@ -30,11 +30,118 @@ export const MAX_OFFLINE_LIFESPAN_SECONDS = 30 * DAY_SECONDS;
 export const MAX_ACCESS_TOKEN_LIFESPAN_SECONDS = 300;
 /** The client attribute Keycloak reads as a per-client override of accessTokenLifespan. */
 const CLIENT_ACCESS_TOKEN_LIFESPAN = 'access.token.lifespan';
+/**
+ * The client attribute behind the admin console's "Standard token exchange" switch (Keycloak
+ * 26.2+): the client may exchange a person's token for one issued to itself.
+ */
+export const STANDARD_TOKEN_EXCHANGE = 'standard.token.exchange.enabled';
+/**
+ * The claim an agent client stamps on every token issued to it (ADR 0035). Keycloak 26.4's
+ * standard token exchange emits no `act` of its own — it names the exchanging client only as
+ * `azp` — so the realm supplies it, and kf-attestor requires it to equal `azp`.
+ */
+export const AGENT_ACT_CLAIM = 'act.client_id';
 
 type Json = Record<string, unknown>;
 
 function isRecord(value: unknown): value is Json {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function mappersOf(owner: Json): Json[] {
+  const mappers = owner['protocolMappers'];
+  return Array.isArray(mappers) ? mappers.filter(isRecord) : [];
+}
+
+/** The claim a mapper writes, when it writes one by name. */
+function claimNameOf(mapper: Json): string | undefined {
+  const config = mapper['config'];
+  const name = isRecord(config) ? config['claim.name'] : undefined;
+  return typeof name === 'string' ? name.trim() : undefined;
+}
+
+/** Whether a claim name lands in `act` (Keycloak nests on unescaped dots). */
+function writesAct(claimName: string): boolean {
+  return claimName === 'act' || claimName.startsWith('act.');
+}
+
+/**
+ * Whether this mapper is the one an agent client carries: a hardcoded `act.client_id` equal to
+ * the client's own id, on the access token. Anything else writing `act` is somebody else's claim.
+ */
+function stampsOwnAct(mapper: Json, clientId: unknown): boolean {
+  const config = mapper['config'];
+  return (
+    mapper['protocolMapper'] === 'oidc-hardcoded-claim-mapper' &&
+    isRecord(config) &&
+    claimNameOf(mapper) === AGENT_ACT_CLAIM &&
+    typeof clientId === 'string' &&
+    config['claim.value'] === clientId &&
+    config['access.token.claim'] === 'true'
+  );
+}
+
+/**
+ * Token exchange is limited to agent-shaped clients (ADR 0035).
+ *
+ * The realm cannot know which clients the database has declared as agents, and does not need
+ * to: kf-attestor refuses an undeclared one on every request. What only the realm can get wrong
+ * is a client that may exchange a person's token and does NOT say so in the token — its token
+ * would carry no `act`, and pass as the person acting directly, unrecorded. So:
+ *
+ *   - exchange is refused on a public client, which holds no credential of its own;
+ *   - an exchange-capable client must stamp `act.client_id` with its own id;
+ *   - no mapper, on a client or a client scope, may write `act` otherwise — a user-attribute
+ *     mapper, or a hardcoded one naming another client, forges participation by configuration.
+ */
+function tokenExchangeWeaknesses(realm: Json, clients: readonly unknown[]): string[] {
+  const weaknesses: string[] = [];
+  for (const client of clients) {
+    if (!isRecord(client)) continue;
+    const id = JSON.stringify(client['clientId'] ?? null);
+    const attributes = client['attributes'];
+    const exchange = isRecord(attributes) ? attributes[STANDARD_TOKEN_EXCHANGE] : undefined;
+    const mappers = mappersOf(client);
+    if (exchange === 'true' || exchange === true) {
+      if (client['publicClient'] === true) {
+        weaknesses.push(
+          `client ${id} is public and has standard token exchange enabled: a client with no ` +
+            "credential of its own could exchange a person's token",
+        );
+      }
+      if (!mappers.some((mapper) => stampsOwnAct(mapper, client['clientId']))) {
+        weaknesses.push(
+          `client ${id} has standard token exchange enabled and does not stamp ` +
+            `${AGENT_ACT_CLAIM} with its own id: its exchanged tokens would pass as the person ` +
+            'acting directly, and the agent would go unrecorded',
+        );
+      }
+    }
+    for (const mapper of mappers) {
+      const claim = claimNameOf(mapper);
+      if (claim !== undefined && writesAct(claim) && !stampsOwnAct(mapper, client['clientId'])) {
+        weaknesses.push(
+          `client ${id} mapper ${JSON.stringify(mapper['name'] ?? null)} writes ${claim} other ` +
+            `than as a hardcoded ${AGENT_ACT_CLAIM} naming ${id}: it could name another agent`,
+        );
+      }
+    }
+  }
+  const scopes = Array.isArray(realm['clientScopes']) ? realm['clientScopes'] : [];
+  for (const scope of scopes) {
+    if (!isRecord(scope)) continue;
+    for (const mapper of mappersOf(scope)) {
+      const claim = claimNameOf(mapper);
+      if (claim !== undefined && writesAct(claim)) {
+        weaknesses.push(
+          `client scope ${JSON.stringify(scope['name'] ?? null)} mapper ` +
+            `${JSON.stringify(mapper['name'] ?? null)} writes ${claim}: a scope is shared by ` +
+            'clients, so it cannot name the one client holding the token',
+        );
+      }
+    }
+  }
+  return weaknesses;
 }
 
 /** Every reason this realm export is too weak to commission; empty when it is not. */
@@ -163,6 +270,8 @@ export function realmPolicyWeaknesses(text: string): string[] {
       }
     }
   }
+
+  weaknesses.push(...tokenExchangeWeaknesses(realm, clients));
 
   return weaknesses;
 }

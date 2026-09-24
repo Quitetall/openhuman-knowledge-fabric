@@ -61,6 +61,7 @@ import { registerSearchRoutes } from './routes/search.js';
 import { RetrievalClient, SemanticRetrieval } from '@kf/retrieval';
 import { registerIdentifierRoutes } from './routes/identifiers.js';
 import { registerVerificationRoutes } from './routes/verifications.js';
+import { registerCaptureRoutes } from './routes/capture.js';
 import { hasRequiredSchema } from './schema-contract.js';
 
 export const SERVICE_NAME = 'openhuman-knowledge-fabric-api';
@@ -510,6 +511,8 @@ export async function buildApp(
     });
     // The bulk verification gesture: stamps promoted_in_bulk itself, one act per record.
     registerVerificationRoutes(app, { execute, identify });
+    // One gesture, one observation (ADR 0034): the seam `kf note`, the web form and agents share.
+    registerCaptureRoutes(app, { pool, execute, identify });
     await registerDocumentRoutes(app, {
       pool,
       // Absent only for hand-built test configs; the projection routes then answer 503.
