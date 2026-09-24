@@ -19,11 +19,21 @@ export {
 } from './secrets.js';
 export { assessReadiness } from './internal/assess.js';
 export { formatReadiness } from './internal/format.js';
+export {
+  compareInstalledOntology,
+  DEFAULT_PROJECTIONS_ARTIFACT,
+  describeOntologyMismatch,
+  readReleaseOntologyDigest,
+  resolveReleaseOntology,
+  type InstalledOntology,
+} from './internal/release-ontology.js';
 export type {
   Check,
   CheckStatus,
+  ReadinessOptions,
   ReadinessPartition,
   ReadinessReport,
+  ReleaseOntology,
   ReadinessScope,
   ReadinessThresholds,
 } from './internal/contracts.js';

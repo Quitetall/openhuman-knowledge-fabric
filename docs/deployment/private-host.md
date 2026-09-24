@@ -602,8 +602,10 @@ Runner never attempts automatic production rollback: forward migration plus seed
 transaction boundaries, so automatic `down` could turn one known failure into partial rollback.
 
 Application-only rollback is allowed only when reviewed compatibility evidence says previous
-release accepts new schema: stop services, verify previous release, switch `/opt/kf` back, then
-re-run preflight. For incompatible schema or partial migration, restore pre-migration backup
+release accepts new schema: stop services, run `install-release.sh rollback` (it re-verifies the
+previous release before switching `/opt/kf` back), then re-run preflight. Readiness and the API
+both compare the installed ontology digest with the live release's, so a rollback across an
+ontology change is refused at API startup rather than served. For incompatible schema or partial migration, restore pre-migration backup
 into new database instance, verify audit/export/readiness there, then change credential file
 under approved recovery procedure. Never run `dbmate down` against production database.
 

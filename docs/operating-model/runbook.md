@@ -195,8 +195,10 @@ claims to be. Escalate rather than re-record.
 
 ## `schema_release` FAILED
 
-The ontology seed never ran. Any record written now would carry a schema version nothing can
-resolve.
+Two different faults share this check, and the detail says which.
+
+**No current schema release.** The ontology seed never ran. Any record written now would carry a
+schema version nothing can resolve.
 
 ```
 pnpm db:seed
@@ -204,6 +206,22 @@ pnpm db:seed
 
 If records already exist, find out how — they were written to a database that was not fully
 migrated, and that is worth understanding before adding more.
+
+**The installed ontology digest differs from this release's.** `registry.schema_release` (the
+current row) names an ontology digest, and the release on disk names another: the
+`x-generated-from.source_digest` of `generated/projections/knowledge-fabric.projections.json`
+(or `KF_PROJECTIONS_ARTIFACT`). The code and the database now disagree about what the words
+mean. Usually the release was switched without `kf-migrate.service` seeding it, or the database
+was seeded from a different checkout. The API refuses to start in this state under the dogfood
+profile or in production and staging; the development profile only warns.
+
+1. Do **not** re-seed by hand from a checkout. Re-run the reviewed migration for the release that
+   `/opt/kf` points at (`systemctl start kf-migrate.service`); it compares the digest after
+   seeding and fails if they still differ.
+2. If `/opt/kf` points at the wrong release, `install-release.sh rollback` (`scripts/deploy/install-release.sh`) puts
+   the previous one back (see `docs/deployment/private-host.md`).
+3. "Cannot determine this release's ontology digest" means the projections artifact is missing
+   or malformed. The release tree is incomplete; `migrate-release.sh check` will say where.
 
 ## A readiness check reports `unknown`
 

@@ -662,3 +662,60 @@ describe('the schema owner bypasses row-level security', () => {
     ).toBe('ok');
   });
 });
+
+describe('the seeded ontology is the one this release was compiled from (KF-SAS-RQ-081)', () => {
+  const PLANTED = 'b'.repeat(64);
+
+  it('fails schema_release when the database was seeded with a different digest', async () => {
+    const before = await assessReadiness(h.adminPool);
+    expect(serviceCheck(before, 'schema_release')?.status).toBe('ok');
+    const original = await withTransaction(h.adminPool, (tx) =>
+      tx.one<{ version: string }>('select version from registry.schema_release where is_current'),
+    );
+    // A second seed from another checkout: a new current release, another digest.
+    await withTransaction(h.adminPool, async (tx) => {
+      await tx.query('update registry.schema_release set is_current = false');
+      await tx.query(
+        `insert into registry.schema_release (version, ontology_digest, is_current)
+         values ('9.9.9-planted', $1, true)`,
+        [PLANTED],
+      );
+    });
+    try {
+      const report = await assessReadiness(h.adminPool);
+      const release = serviceCheck(report, 'schema_release');
+      expect(release?.status).toBe('failed');
+      expect(release?.detail).toMatch(/differs from this release's/);
+      expect(release?.measured?.['ontologyDigest']).toBe(PLANTED.slice(0, 12));
+      expect(report.service.ready).toBe(false);
+    } finally {
+      await withTransaction(h.adminPool, async (tx) => {
+        await tx.query(`delete from registry.schema_release where version = '9.9.9-planted'`);
+        await tx.query('update registry.schema_release set is_current = true where version = $1', [
+          original.version,
+        ]);
+      });
+    }
+    expect(serviceCheck(await assessReadiness(h.adminPool), 'schema_release')?.status).toBe('ok');
+  });
+
+  it('fails when the caller expects a different digest than the database holds', async () => {
+    const report = await assessReadiness(h.adminPool, {}, { expectedOntologyDigest: PLANTED });
+    expect(serviceCheck(report, 'schema_release')?.status).toBe('failed');
+    expect(report.service.ready).toBe(false);
+  });
+
+  it('fails closed when the release cannot say which ontology it carries', async () => {
+    const previous = process.env['KF_PROJECTIONS_ARTIFACT'];
+    process.env['KF_PROJECTIONS_ARTIFACT'] = '/nonexistent/knowledge-fabric.projections.json';
+    try {
+      const report = await assessReadiness(h.adminPool);
+      const release = serviceCheck(report, 'schema_release');
+      expect(release?.status).toBe('failed');
+      expect(release?.detail).toMatch(/cannot determine this release's ontology digest/);
+    } finally {
+      if (previous === undefined) delete process.env['KF_PROJECTIONS_ARTIFACT'];
+      else process.env['KF_PROJECTIONS_ARTIFACT'] = previous;
+    }
+  });
+});
