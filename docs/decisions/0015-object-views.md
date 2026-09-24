@@ -9,6 +9,12 @@ master record is stale; `POST /objects/:id/refresh` compiles)
 **Scope:** what a per-object page is, where its members come from, what it may show a reader,
 and why every object type gets one without per-type code
 
+> **UPDATED 2026-09-24.** The page says whether each record on it has been verified. The subject
+> and every related record carry the Result's `verification` (ADR 0014's 2026-09-24 note), and
+> `apps/web/src/app/objects/[id]` shows `UNVERIFIED — nobody has checked this record` with
+> `class="unverified"` for any that nobody has checked, and who verified the rest and how. A
+> member the API sent without a verification is shown as unverified, never as checked.
+
 ## The problem, measured
 
 Before this, one object type had a page: `apps/web/src/app/projects/[id]` — a hand-built

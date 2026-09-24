@@ -7,6 +7,22 @@
 **Scope:** how sections, pages, exports and agent context are derived from a master record;
 where those derivations are defined and versioned; what they may and may not express
 
+> **UPDATED 2026-09-24.** Every member of a Result now carries `verification` — whether anybody
+> has verified the record (`core.object_verification`, KF-SAS-RQ-228 to RQ-232), and when it is
+> verified, the `basis`, `verifiedAt` and `verifiedBy` — plus the label a reader is shown:
+> `UNVERIFIED — nobody has checked this record`, or `verified reviewed individually by … at …`,
+> the master record renderer's own wording (one function, `recordVerification` in `@kf/domain`).
+> The engine refuses a member without it, or whose label is not the one its facts produce
+> (`unlabelled_member`), so a projection cannot show an unverified record unlabelled (RQ-229).
+> Markdown and HTML state it under every member (`class="unverified"` in HTML, as the master
+> record does); `measurements.unverifiedCount` counts them. Verification is read live under the
+> reader's row security when the Result is made, not from the stored claim — it is not part of
+> the corpus identity (ADR 0013) — and a withdrawn member, which the reader can no longer see,
+> is labelled `UNVERIFIED — no verification is visible to this reader` rather than having its
+> verification looked up. Because what the reader is shown changed, the format is now
+> **`kf-projection-result-v2`**: the projection digest covers each member's verification facts,
+> and the format tag is part of the digest preimage, which v1's was not.
+
 ## The problem, measured
 
 After ADR 0013 the master record was an exact corpus and its `your_record` / `org_view`

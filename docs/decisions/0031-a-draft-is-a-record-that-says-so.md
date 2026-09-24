@@ -10,6 +10,13 @@
 > (`2d77c1a0`): `kf ingest` refuses a batch above 250 files, which a caller may lower but never
 > raise (`DEFAULT_INGEST_CEILING`, `apps/api/src/ingest/plan.ts`), and a confirmed sync is capped
 > at 2 000 (`MAX_BULK_CEILING`, `apps/api/src/sync/plan.ts`).
+>
+> **UPDATED 2026-09-24.** "The projection says it is unverified" now holds beyond the master
+> record's own rendering. Every `@kf/projections` Result labels each member verified or
+> unverified (format `kf-projection-result-v2`), and so do the Object View API and page,
+> `GET /master-record`'s items, the agent reads `read_record`, `find_records` and
+> `trace_relations`, and every search hit. Each reads `core.object_verification` under the
+> reader's row security, so the verification of a record the reader cannot see is never looked up.
 
 ## Context
 
