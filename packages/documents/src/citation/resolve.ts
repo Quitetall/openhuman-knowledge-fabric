@@ -18,7 +18,7 @@
  * excerpt in a shared drive can never answer that.
  */
 
-import { createHash } from 'node:crypto';
+import { taggedDigest } from '@kf/canonicalization';
 import type { DocumentAtom } from '../internal/parse-contract.js';
 import type { Citation, SectionSelector } from './parse.js';
 import {
@@ -34,7 +34,7 @@ export interface ResolvedExcerpt {
   readonly spans: readonly SectionSpan[];
   /** The atoms themselves, in document order, each appearing once. */
   readonly atoms: readonly DocumentAtom[];
-  /** SHA-256 over the selected atom digests in order. Changes when the cited text changes. */
+  /** `kf-citation-excerpt-v1` over the selected atom digests in order. Moves with the cited text. */
   readonly digest: string;
   /** Selectors that matched no section, as written. Empty when everything resolved. */
   readonly unresolved: readonly string[];
@@ -86,14 +86,15 @@ export function resolveCitation(
   }
   const selected = atoms.filter((a) => wanted.has(a.ordinal)).sort((a, b) => a.ordinal - b.ordinal);
 
-  const hash = createHash('sha256');
-  for (const atom of selected) hash.update(`${atom.ordinal}:${atom.digest}\n`);
-
   return {
     citation,
     spans,
     atoms: selected,
-    digest: hash.digest('hex'),
+    // Computed on request and compared to nothing stored, so it moved onto its format tag
+    // (KF-SAS-RQ-016) without a verifiable predecessor to keep.
+    digest: taggedDigest('kf-citation-excerpt-v1', {
+      atoms: selected.map((atom) => ({ ordinal: atom.ordinal, digest: atom.digest })),
+    }),
     unresolved,
     isComplete: unresolved.length === 0,
   };

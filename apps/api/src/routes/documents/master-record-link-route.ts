@@ -4,6 +4,7 @@ import { withTransaction } from '@kf/database';
 import {
   assertPermissionSetInvariant,
   enumeratePermittedSet,
+  masterRecordMemberFormat,
   masterRecordItems,
   type PermissionMember,
   verifyMasterRecordLinkToken,
@@ -91,6 +92,7 @@ export function registerMasterRecordLinkRoute(
         tx,
         String(record['person_id']),
         link.organization_id,
+        masterRecordMemberFormat(record['manifest']),
       );
       try {
         const manifest = record['manifest'];

@@ -1,4 +1,4 @@
-import { canonicalize, digest } from '@kf/canonicalization';
+import { canonicalize, taggedDigest } from '@kf/canonicalization';
 import { isRecordVerification } from '@kf/domain';
 import {
   PROJECTION_GRAMMAR_LIMITS,
@@ -450,8 +450,7 @@ export function projectionResultDigest(
   result: Pick<ProjectionResult, 'format' | 'definition' | 'parameters' | 'source' | 'sections'> &
     Pick<Partial<ProjectionResult>, 'edges'>,
 ): string {
-  return digest({
-    format: result.format,
+  return taggedDigest(result.format, {
     definition: result.definition,
     parameters: result.parameters,
     source: result.source,

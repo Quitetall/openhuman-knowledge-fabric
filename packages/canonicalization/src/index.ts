@@ -151,6 +151,45 @@ export function digest(value: unknown): string {
   return createHash('sha256').update(canonicalBytes(value)).digest('hex');
 }
 
+/** A digest format tag: `kf-<name>-v<n>`, lowercase, the version a positive integer. */
+const FORMAT_TAG = /^kf-[a-z0-9]+(?:-[a-z0-9]+)*-v[1-9][0-9]*$/;
+
+export function isFormatTag(value: unknown): value is string {
+  return typeof value === 'string' && FORMAT_TAG.test(value);
+}
+
+/**
+ * Lowercase hex SHA-256 of `fields` under a named format tag (KF-SAS-RQ-016).
+ *
+ * The tag goes inside the preimage as a `format` property of the canonicalized object, which is
+ * the house form every tagged digest already used: `taggedDigest('kf-x-v1', { a })` is
+ * byte-identical to `digest({ format: 'kf-x-v1', a })`. Two things are refused rather than
+ * guessed at. A `fields` object that already carries `format` would either overwrite the tag or
+ * be overwritten by it, so it is an error whichever way round. And `fields` must be a plain
+ * object: a bare list or scalar has nowhere for the tag to sit, so the caller names it first
+ * (`{ objects: list }`) — the name then becomes part of what the tag versions.
+ */
+export function taggedDigest(tag: string, fields: Readonly<Record<string, unknown>>): string {
+  if (!isFormatTag(tag)) {
+    throw new CanonicalizationError(
+      `format tag ${JSON.stringify(tag)} is not of the form kf-<name>-v<n>`,
+      'format',
+    );
+  }
+  if (
+    fields === null ||
+    typeof fields !== 'object' ||
+    Array.isArray(fields) ||
+    Object.getPrototypeOf(fields) !== Object.prototype
+  ) {
+    throw new CanonicalizationError('tagged fields must be a plain object', '');
+  }
+  if (Object.prototype.hasOwnProperty.call(fields, 'format')) {
+    throw new CanonicalizationError('tagged fields may not carry their own format', 'format');
+  }
+  return digest({ ...fields, format: tag });
+}
+
 /** Lowercase hex SHA-256 of raw bytes — for artifact content, which is never canonicalized. */
 export function digestBytes(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex');

@@ -12,17 +12,17 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 
 | Measure | Count | Derived from |
 | --- | ---: | --- |
-| migrations | 126 | files under `database/migrations/` |
-| forward-only migrations | 25 | migrations declaring `-- kf:forward-only <reason>` in their down-section |
+| migrations | 128 | files under `database/migrations/` |
+| forward-only migrations | 27 | migrations declaring `-- kf:forward-only <reason>` in their down-section |
 | schemas | 14 | distinct `create schema` names in migration up-sections |
 | tables created | 191 | in migration up-sections |
 | row-security policies | 483 | in migration up-sections |
 | triggers created | 184 | literal `create trigger` statements in migration up-sections |
-| security definer declarations | 157 | in migration up-sections; a function redefined is declared again |
+| security definer declarations | 159 | in migration up-sections; a function redefined is declared again |
 | views | 13 | distinct view names in migration up-sections |
 | indexes created | 94 | explicit `create index` statements in migration up-sections |
 | foreign-key references | 494 | `references` clauses in migration up-sections |
-| check constraints | 787 | `check (` clauses in migration up-sections |
+| check constraints | 788 | `check (` clauses in migration up-sections |
 | group roles | 11 | distinct `NOLOGIN` roles created in migration up-sections |
 | workspace packages | 31 | 25 libraries under `packages/`, 6 executables under `apps/` |
 | systemd services | 14 | `*.service` units under `deploy/systemd/`, the `kf-alert@` template counted once |
@@ -32,7 +32,7 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 | relation types | 42 | declared in `ontology/relation-types.yaml` |
 | decision records | 37 | under `docs/decisions/` — 33 accepted, 4 proposed |
 | architecture requirements | 170 | distinct identifiers in §106 |
-| test files | 254 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
+| test files | 257 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
 
 ## Runtime measurements, cited rather than derived
 

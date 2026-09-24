@@ -106,7 +106,7 @@ describe('master-record identity is the corpus', () => {
     expect(first.status).toBe('applied');
     const before = await latest();
     expect(before.manifest.included.some((member) => member.objectId === probe)).toBe(true);
-    expect(before.manifest.format).toBe('kf-master-record-v2');
+    expect(before.manifest.format).toBe('kf-master-record-v3');
     expect(before.manifest.corpusDigest).toBe(before.corpusDigest);
 
     // A fresh idempotency key: a genuine second attempt, not a replay of the first action.

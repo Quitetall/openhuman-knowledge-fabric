@@ -1,6 +1,7 @@
 /**
- * The master-record payload is read for the whole permitted set in one pass, and reads the same
- * bytes it always did (KF-SAS-RQ-201, ADR 0024, ADR 0011; migration 20260925121500).
+ * The master-record payload is read for the whole permitted set in one pass (KF-SAS-RQ-201,
+ * ADR 0024, ADR 0011; migration 20260925121500), under a named reading (20260925121600): v1 is
+ * the bytes claims recorded, defect included; v2 carries artifact relationships whole.
  *
  * WHY THIS FILE EXISTS. Every Object View enumerates the reader's permitted set to decide whether
  * their claim is still current, and the enumeration called `content.master_record_payload(uuid)`
@@ -196,7 +197,7 @@ function asReader<T>(
   });
 }
 
-describe('the one-pass payload reads the same bytes as the one-object form', () => {
+describe('the v1 one-pass reading is byte for byte the one-object form claims recorded', () => {
   const readers = () => [
     { actorId: fixtures.reviewerId, actingRoleId: fixtures.reviewerRoleId, ceiling: 'restricted' },
     {
@@ -225,9 +226,11 @@ describe('the one-pass payload reads the same bytes as the one-object form', () 
           `select requested.id,
                   kf_legacy_payload.master_record_payload(requested.id)::text as legacy,
                   payloads.payload::text as one_pass,
-                  content.master_record_payload(requested.id)::text as one
+                  content.master_record_payload(requested.id, 'kf-master-record-payload-v1')::text
+                    as one
              from unnest($1::uuid[]) as requested(id)
-             left join content.master_record_payloads($1::uuid[]) payloads
+             left join content.master_record_payloads($1::uuid[], 'kf-master-record-payload-v1')
+                    payloads
                on payloads.object_id = requested.id
             order by requested.id`,
           [ids],
@@ -244,7 +247,8 @@ describe('the one-pass payload reads the same bytes as the one-object form', () 
   it('is not vacuous: the fixture exercises every arm of the payload', async () => {
     const payloads = await asReader(readers()[0]!, (tx) =>
       tx.query<{ object_id: string; payload: Record<string, unknown[]> }>(
-        'select object_id, payload from content.master_record_payloads($1::uuid[])',
+        `select object_id, payload
+           from content.master_record_payloads($1::uuid[], 'kf-master-record-payload-v2')`,
         [[artifactId, documentId]],
       ),
     );
@@ -303,6 +307,85 @@ describe('the one-pass payload reads the same bytes as the one-object form', () 
     );
     expect(tables.length).toBeGreaterThan(20);
     expect(tables.filter((t) => !t.unique_id).map((t) => t.name)).toEqual([]);
+  });
+});
+
+describe('the v2 reading carries each artifact relationship whole (20260925121600)', () => {
+  // DELIBERATELY CHANGED. This file first pinned the one-pass form to the one-object form byte
+  // for byte, and so pinned a defect both shared: `to_jsonb(relationship)` over
+  // content.artifact_relationship resolves to its `relationship` COLUMN, so a payload said
+  // ["supersedes"] and not which version superseded which. The v1 reading above keeps that byte
+  // for byte, because claims recorded under it are re-checked under it; v2 is the correction, and
+  // the member format a claim records says which one it was digested over.
+  const relationships = async (format: string): Promise<unknown[]> => {
+    const [row] = await withTransaction(harness.pool, async (tx) => {
+      await bindPrincipal(tx, {
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
+        organizationId: fixtures.organizationId,
+        maxClassification: 'restricted',
+      });
+      return tx.query<{ payload: Record<string, unknown[]> }>(
+        'select payload from content.master_record_payloads($1::uuid[], $2)',
+        [[artifactId], format],
+      );
+    });
+    return row!.payload['content.artifact_relationship']!;
+  };
+
+  it('records from, to and kind, where v1 recorded the kind alone', async () => {
+    const [v1] = await relationships('kf-master-record-payload-v1');
+    expect(v1).toBe('supersedes');
+    const [v2] = await relationships('kf-master-record-payload-v2');
+    const versions = await withTransaction(harness.adminPool, (tx) =>
+      tx.query<{ id: string; version_no: number }>(
+        'select id, version_no from content.artifact_version where artifact_id = $1',
+        [artifactId],
+      ),
+    );
+    const byNumber = new Map(versions.map((v) => [v.version_no, v.id]));
+    expect(v2).toMatchObject({
+      from_version: byNumber.get(2),
+      to_version: byNumber.get(1),
+      relationship: 'supersedes',
+    });
+  });
+
+  it('differs from v1 nowhere else', async () => {
+    const both = await asReader(
+      {
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
+        ceiling: 'restricted',
+      },
+      (tx) =>
+        tx.query<{ v1: Record<string, unknown>; v2: Record<string, unknown> }>(
+          `select one.payload as v1, two.payload as v2
+             from content.master_record_payloads($1::uuid[], 'kf-master-record-payload-v1') one
+             join content.master_record_payloads($1::uuid[], 'kf-master-record-payload-v2') two
+               using (object_id)`,
+          [[artifactId, documentId, ...plainObjects]],
+        ),
+    );
+    expect(both.length).toBeGreaterThanOrEqual(2);
+    for (const { v1, v2 } of both) {
+      const { ['content.artifact_relationship']: _r1, ...rest1 } = v1;
+      const { ['content.artifact_relationship']: _r2, ...rest2 } = v2;
+      expect(rest2).toEqual(rest1);
+    }
+  });
+
+  it('refuses a reading it does not name, and has no default', async () => {
+    await expect(
+      withTransaction(harness.adminPool, (tx) =>
+        tx.query("select * from content.master_record_payloads(array[gen_random_uuid()], 'v3')"),
+      ),
+    ).rejects.toThrow(/unknown master-record payload format/);
+    await expect(
+      withTransaction(harness.adminPool, (tx) =>
+        tx.query('select * from content.master_record_payloads(array[gen_random_uuid()])'),
+      ),
+    ).rejects.toThrow(/does not exist/);
   });
 });
 

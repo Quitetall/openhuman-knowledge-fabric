@@ -48,6 +48,17 @@ function withRecordedLinkFormat(row: Row): Row {
   return Object.hasOwn(row, 'link_format') ? row : { ...row, link_format: 'kf-audit-link-v1' };
 }
 
+/**
+ * The same holds for `content.document_parse.digest_format` (20260925114000): an archive written
+ * before it carries parses whose preimages are all the untagged kf-document-parse-v1, and the
+ * column default is the CURRENT format, which would mislabel every one of them.
+ */
+function withRecordedParseFormat(row: Row): Row {
+  return Object.hasOwn(row, 'digest_format')
+    ? row
+    : { ...row, digest_format: 'kf-document-parse-v1' };
+}
+
 export async function restoreSections(
   tx: Tx,
   pkg: ExportPackage,
@@ -62,6 +73,9 @@ export async function restoreSections(
     let rows = sectionRows(pkg, name);
     if (name === 'audit-events') {
       rows = rows.map(withRecordedLinkFormat);
+    }
+    if (name === 'document-parses') {
+      rows = rows.map(withRecordedParseFormat);
     }
     if (pkg.manifest.format_version === '1' && name === 'audit-checkpoints') {
       rows = rows.map((row) => ({ ...row, format_version: 'kf.audit-checkpoint.v1' }));

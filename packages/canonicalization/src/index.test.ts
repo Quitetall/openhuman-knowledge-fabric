@@ -13,6 +13,8 @@ import {
   digestBytes,
   CanonicalizationError,
   GENESIS_DIGEST,
+  isFormatTag,
+  taggedDigest,
 } from './index.js';
 
 describe('RFC 8785 conformance', () => {
@@ -145,6 +147,57 @@ describe('digests', () => {
     expect(digestBytes(new Uint8Array())).toBe(
       'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
     );
+  });
+});
+
+describe('tagged digests (KF-SAS-RQ-016)', () => {
+  // Golden recomputed independently in Python (json.dumps sort_keys, compact separators,
+  // ensure_ascii=False, sha256): {"a":"x","b":2,"format":"kf-example-v1"}.
+  it('puts the tag in the preimage as a format property', () => {
+    expect(taggedDigest('kf-example-v1', { b: 2, a: 'x' })).toBe(
+      'b00b4633154d61fdec64d01db8071aab6944f1c15d73611d7c061d95dc59b62e',
+    );
+    expect(taggedDigest('kf-example-v1', { b: 2, a: 'x' })).toBe(
+      createHash('sha256').update('{"a":"x","b":2,"format":"kf-example-v1"}').digest('hex'),
+    );
+  });
+
+  it('is byte-identical to the older spelling with format written inline', () => {
+    // So a call site moved onto the helper keeps every value it ever produced.
+    expect(taggedDigest('kf-action-request-v1', { organizationId: 'o', targetIds: [] })).toBe(
+      digest({ format: 'kf-action-request-v1', organizationId: 'o', targetIds: [] }),
+    );
+  });
+
+  it('separates two tags over the same fields, and the tagged form from the bare one', () => {
+    const fields = { a: 1 };
+    expect(taggedDigest('kf-one-v1', fields)).not.toBe(taggedDigest('kf-one-v2', fields));
+    expect(taggedDigest('kf-one-v1', fields)).not.toBe(digest(fields));
+  });
+
+  it('refuses a malformed tag', () => {
+    for (const tag of ['', 'kf-x', 'x-v1', 'kf-x-v0', 'KF-X-V1', 'kf:x:v1', 'kf-x-v1 ']) {
+      expect(isFormatTag(tag)).toBe(false);
+      expect(() => taggedDigest(tag, { a: 1 })).toThrow(CanonicalizationError);
+    }
+    expect(isFormatTag('kf-audit-link-v2')).toBe(true);
+  });
+
+  it('refuses fields that already carry a format, whichever value it holds', () => {
+    expect(() => taggedDigest('kf-x-v1', { format: 'kf-x-v1' })).toThrow(/own format/);
+    expect(() => taggedDigest('kf-x-v1', { format: undefined })).toThrow(/own format/);
+  });
+
+  it('refuses a bare list or scalar, which has nowhere to put the tag', () => {
+    expect(() => taggedDigest('kf-x-v1', [] as unknown as Record<string, unknown>)).toThrow(
+      /plain object/,
+    );
+    expect(() => taggedDigest('kf-x-v1', null as unknown as Record<string, unknown>)).toThrow(
+      /plain object/,
+    );
+    expect(() =>
+      taggedDigest('kf-x-v1', new Date(0) as unknown as Record<string, unknown>),
+    ).toThrow(/plain object/);
   });
 });
 

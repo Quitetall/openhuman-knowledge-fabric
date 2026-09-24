@@ -1,4 +1,4 @@
-import { compareCanonicalText, digest } from '@kf/canonicalization';
+import { compareCanonicalText, digest, taggedDigest } from '@kf/canonicalization';
 import { DocumentCompilerError } from './errors.js';
 import type {
   CompilationBasis,
@@ -44,8 +44,16 @@ function isDraftOnly(identity: CompilerIdentity): boolean {
   );
 }
 
+/**
+ * What a run depends on, under `kf-compilation-dependencies-v1` (KF-SAS-RQ-016).
+ *
+ * Stored in content.compilation_run.dependency_digest and inside the run's own preimage, but only
+ * as the string this produced: it is compared, within one invocation, to the adapter's echo, and
+ * never re-derived from a stored basis. Runs recorded before the tag keep their untagged value
+ * and verify as recorded.
+ */
 function compilationDependencyDigest(basis: CompilationBasis): string {
-  return digest({
+  return taggedDigest('kf-compilation-dependencies-v1', {
     basisDigest: basis.basisDigest,
     inputs: [...expectedCompilerInputs(basis)]
       .map(([key, contentDigest]) => ({ key, contentDigest }))
