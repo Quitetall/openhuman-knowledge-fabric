@@ -3,7 +3,7 @@ import { withTransaction, type Pool, bindPrincipal } from '@kf/database';
 import { readCoverage, reaches } from './documents/read-grant.js';
 import { searchIn } from '@kf/search';
 import type { IdentifyCaller } from './actions.js';
-import { unidentified } from './actions.js';
+import { refuseUnidentified } from './actions.js';
 import { InvalidSearchQuery, parseSearchQuery } from './search-validation.js';
 
 export interface SearchRoutesOptions {
@@ -20,7 +20,7 @@ export async function registerSearchRoutes(
     try {
       caller = await options.identify({ headers: request.headers as Record<string, unknown> });
     } catch (error: unknown) {
-      return reply.code(401).send(unidentified(error));
+      return refuseUnidentified(reply, error);
     }
 
     let query;

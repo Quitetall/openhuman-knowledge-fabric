@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { withTransaction, bindPrincipal } from '@kf/database';
 import { readGranted } from './read-grant.js';
-import { unidentified } from '../actions.js';
+import { refuseUnidentified } from '../actions.js';
 import {
   DEFAULT_DOCUMENT_SOURCE_DOWNLOAD_MAX_BYTES,
   type DocumentRoutesOptions,
@@ -42,7 +42,7 @@ export function registerDocumentSourceRoute(
     try {
       identity = await options.identify({ headers: request.headers as Record<string, unknown> });
     } catch (error: unknown) {
-      return reply.code(401).send(unidentified(error));
+      return refuseUnidentified(reply, error);
     }
     if (options.store === undefined) {
       return reply.code(503).send({ error: 'artifact_store_unconfigured' });

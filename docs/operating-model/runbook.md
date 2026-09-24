@@ -296,11 +296,28 @@ Linking is a recorded decision — `linkIdentity` stores who made it. The applic
 make it: since `20260923000200` `kf_app` holds no `INSERT` or `UPDATE` on `org.external_identity`,
 so the one supported way to link is `pnpm kf:grant-authority`, run over the owner connection
 (`DATABASE_OWNER_URL`), which links the identity, assigns the role and grants the clearance in one
-transaction (see [`identity-and-login.md`](../deployment/identity-and-login.md)). Revoking is
-immediate: `revokeIdentity` sets `revoked_at` — again over the owner connection; there is no
-command for it yet — and the next request with an already-issued token is refused rather than
-waiting for it to expire. The row stays; who used to be able to sign in as whom is a fact an
-investigation needs.
+transaction (see [`identity-and-login.md`](../deployment/identity-and-login.md)).
+
+Revoking is `pnpm kf:revoke-identity` (or `kf revoke-identity`), over the same owner connection:
+
+```sh
+DATABASE_OWNER_URL=... pnpm kf:revoke-identity \
+  --issuer https://sso.example.org/realms/kf --subject <sub> \
+  --revoked-by <your person uuid> --reason 'left the company 2026-09-24'
+# or name the link by its row: --identity <org.external_identity id>
+```
+
+It is the withdrawal of the decision grant-authority recorded, and it is recorded the same way: a
+`revoke_external_identity` action carrying the reason and the link's issuer and subject, targeting
+the person, under the role `--revoked-by` holds in that person's organization (or, when they hold
+none there — an emergency in an organization nobody can act in — under the bootstrap role, and the
+output says so), an audit event extending the chain, and `revoked_at` set, in one transaction. It
+refuses without a reason or a decider, and refuses a link already revoked without writing
+anything. Revoking is immediate: the attestations the person holds are withdrawn in the same
+transaction, so the next request with an already-issued token is refused (`401 revoked_identity`)
+rather than waiting for the token to expire. The row stays; who used to be able to sign in as whom
+is a fact an investigation needs, and because `(issuer, subject)` is unique the same account cannot
+later be linked again.
 
 A person who holds several roles states which one they are acting under per request. This is
 not a default the system can pick — choosing decides an authority question on their behalf,
@@ -399,13 +416,19 @@ to somebody.
 - `is mode 644 — a secret readable beyond its owner` — `chmod 600`. Refused rather than warned,
   because a warning at startup is read once, on the day it is added.
 
-## Requests refused `not_attested`, or 401 for everybody
+## Requests refused `not_attested`, or 503 `attestor_unavailable` for everybody
 
 The database binds a person for the API's login only on an attestation from `kf-attestor`
 (`20260924001000`). An act refused `not_attested` ("nobody attested that the actor is present")
-reached the database without one: the caller should identify again. When every bearer request
-fails at once, the attestor is the first suspect — `GET /ready` reports `attestor: failing` while
-the API cannot reach it on its socket. Check `systemctl status kf-attestor.service` and its journal:
+reached the database without one: the caller should identify again. When the API cannot reach the
+attestor at all — its socket is absent or refuses the connection, it does not answer within 5 s, or
+it answers 5xx — every bearer request answers `503 {"error":"attestor_unavailable"}` with
+`Retry-After: 5`. It fails closed: there is no local fallback, and nobody is bound. A token the
+attestor _refuses_ is still `401` with its failure code; `503` means nobody could be asked. The
+API logs the outage once, when it starts, at `error` with the socket path and cause
+(`"kf-attestor is unreachable; …"`, `socket`, `reason` such as `ENOENT`, `ECONNREFUSED`, `EACCES`,
+`timeout` or `status 500`), and once at `info` when it answers again (`"kf-attestor is answering
+again"`); `GET /ready` reports `attestor: failing` meanwhile. Check `systemctl status kf-attestor.service` and its journal:
 it refuses to start through a login that is not in `kf_attestor` or that is also in `kf_app` or
 `kf_worker`, and it needs `/etc/kf/attestor/database-url` and the same `OIDC_*` values as the API
 in `/etc/kf/attestor.env`. After a crash loop it stays `failed` until `systemctl reset-failed
@@ -417,8 +440,11 @@ secrets are still separated from everyone but `kf-api`.
 - **Token lifetime and refresh policy.** Provider configuration. The workstation realm
   (`deploy/keycloak/knowledge-fabric-realm.json`) ships a 300-second access-token lifespan, and
   `kf-commissioning`'s `identity_provider_policy` refuses a host realm with offline sessions idle
-  beyond 7 days or unbounded past 30, or refresh tokens that are not revoked on use. The host's
-  own access-token lifespan is still its reviewed configuration, not checked here.
+  beyond 7 days or unbounded past 30, refresh tokens that are not revoked on use, or an access-token
+  lifespan — realm-wide or a client's `access.token.lifespan` override — that is unstated or above
+  300 seconds, because that lifetime is the window in which a compromised API can replay a
+  token through `kf-attestor`. What the provider actually issues is still only as good as the
+  reviewed export; the check reads the file, not the running Keycloak.
 - **TLS certificates.** Issued and renewed at the proxy. This application refuses to run
   without the deployment asserting that a proxy is there, and can do nothing to verify it.
 - **Where alerts go.** `kf-alert@.service` ships: every unit's `OnFailure=` reaches it, and it

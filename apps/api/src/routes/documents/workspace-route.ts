@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { withTransaction, bindPrincipal } from '@kf/database';
 import { readGranted } from './read-grant.js';
-import { unidentified } from '../actions.js';
+import { refuseUnidentified } from '../actions.js';
 import type { DocumentRoutesOptions } from './contracts.js';
 import { documentWorkspace, resolveWorkspaceTarget } from './workspace-repository.js';
 
@@ -14,7 +14,7 @@ export function registerDocumentWorkspaceRoute(
     try {
       identity = await options.identify({ headers: request.headers as Record<string, unknown> });
     } catch (error: unknown) {
-      return reply.code(401).send(unidentified(error));
+      return refuseUnidentified(reply, error);
     }
     try {
       const workspace = await withTransaction(options.pool, async (tx) => {

@@ -15,7 +15,7 @@ import {
 import { recordVerification } from '@kf/domain';
 import { project } from '@kf/projections';
 import { liveVerifications, projectionMembersOf } from './master-record-projection-route.js';
-import { unidentified } from '../actions.js';
+import { refuseUnidentified } from '../actions.js';
 import { actionRejectionBody } from '../actions/errors.js';
 import type { DocumentRoutesOptions } from './contracts.js';
 
@@ -36,7 +36,7 @@ export function registerMasterRecordRoute(
         headers: request.headers as Record<string, unknown>,
       });
     } catch (error: unknown) {
-      return reply.code(401).send(unidentified(error));
+      return refuseUnidentified(reply, error);
     }
     const body = request.body ?? {};
     if (typeof body.idempotencyKey !== 'string' || body.idempotencyKey.length < 8) {
@@ -90,7 +90,7 @@ export function registerMasterRecordRoute(
         headers: request.headers as Record<string, unknown>,
       });
     } catch (error: unknown) {
-      return reply.code(401).send(unidentified(error));
+      return refuseUnidentified(reply, error);
     }
 
     try {

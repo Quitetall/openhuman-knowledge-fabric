@@ -1,5 +1,12 @@
-import { IdentityRejected, LocalAttestor, TokenVerifier, type Attestor } from '@kf/authorization';
+import {
+  AttestorUnavailable,
+  IdentityRejected,
+  LocalAttestor,
+  TokenVerifier,
+  type Attestor,
+} from '@kf/authorization';
 import type { Pool } from '@kf/database';
+import type { FastifyReply } from 'fastify';
 import type { Caller, IdentifyCaller } from './contracts.js';
 
 export class CallerRejected extends Error {}
@@ -57,6 +64,29 @@ export function unidentified(err: unknown): { error: string; message: string } {
     return { error: 'caller_unidentified', message: err.message };
   }
   return { error: 'caller_unidentified', message: 'The caller could not be identified.' };
+}
+
+/**
+ * Answer a request whose caller could not be identified.
+ *
+ * 401 when the caller was refused — no token, a bad one, a role they do not hold. 503
+ * `attestor_unavailable` when nobody could be asked: kf-attestor is down, and the caller may be
+ * perfectly valid. Telling that person to sign in again would send them round a login loop that
+ * cannot succeed, and reporting it as a 500 would page for a defect that is an outage. The socket
+ * path and cause go to the log (SocketAttestor reports the outage once, on the transition), never
+ * to the caller.
+ */
+export function refuseUnidentified(reply: FastifyReply, err: unknown): FastifyReply {
+  if (err instanceof AttestorUnavailable) return attestorUnavailable(reply);
+  return reply.code(401).send(unidentified(err));
+}
+
+/** The 503 every route answers while kf-attestor cannot be reached. Fail closed: no fallback. */
+export function attestorUnavailable(reply: FastifyReply): FastifyReply {
+  return reply.code(503).header('retry-after', '5').send({
+    error: 'attestor_unavailable',
+    message: 'Identity cannot be verified right now. Try again shortly.',
+  });
 }
 
 export interface CallerIdentifierOptions {

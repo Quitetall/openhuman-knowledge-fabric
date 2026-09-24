@@ -96,7 +96,8 @@ to its verifier; it does not make it impossible.
 API's login only on an attestation issued by `kf-attestor` — a separate process with its own Unix
 user and a database login in `kf_attestor` — after it verified that person's bearer token. A
 fully compromised API can therefore act only as people currently sending it valid tokens, for the
-remaining life of those tokens (at most 300 s), with their real authority; it can no longer act
+remaining life of those tokens (at most 300 s: `kf-commissioning` refuses a reviewed realm, or
+a client override, that issues longer-lived access tokens), with their real authority; it can no longer act
 as any real person it names. The database still does not verify RS256 itself; it trusts the
 attestor's login, and an attacker holding both the API and the attestor is back to the earlier
 position.

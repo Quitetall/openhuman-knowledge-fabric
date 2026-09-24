@@ -8,7 +8,7 @@ import {
 } from '@kf/agent-tools';
 import { ActionRejected } from '@kf/actions';
 import { withTransaction, bindPrincipal } from '@kf/database';
-import { unidentified } from '../actions.js';
+import { refuseUnidentified } from '../actions.js';
 import type { DocumentRoutesOptions } from './contracts.js';
 import {
   parseDocumentPlannerProposal,
@@ -29,7 +29,7 @@ export function registerDocumentPlannerProposalRoute(
       try {
         identity = await options.identify({ headers: request.headers as Record<string, unknown> });
       } catch (error: unknown) {
-        return reply.code(401).send(unidentified(error));
+        return refuseUnidentified(reply, error);
       }
       if (options.aiProposalProvider === undefined || options.aiRoutingPolicy === undefined) {
         return reply.code(503).send({

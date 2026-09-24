@@ -6,7 +6,7 @@ import {
   type Pool,
   type Tx,
 } from '@kf/database';
-import { APP_LOGIN } from './config.js';
+import { APP_LOGIN, scramVerifier } from './config.js';
 import type { DogfoodIdentity } from './contracts.js';
 
 const BOOTSTRAP_IDENTITY = '01930000-0000-7000-8000-00000000b007';
@@ -20,7 +20,7 @@ export async function createAppLogin(owner: Pool, password: string): Promise<str
               then format('alter role %I login password %L inherit', $1::text, $2::text)
               else format('create role %I login password %L inherit', $1::text, $2::text)
               end as sql`,
-      [APP_LOGIN, password],
+      [APP_LOGIN, scramVerifier(password)],
     );
     await tx.query(role.sql);
     const membership = await tx.one<{ sql: string }>(

@@ -7,6 +7,7 @@
  *   bootstrap-organization  the first organization and its first person (bootstrap tier)
  *   grant-authority         a person's role, clearance and identity link (bootstrap tier)
  *   retire-organization     an organization nobody can act in (bootstrap tier)
+ *   revoke-identity         withdraw a provider account's link to a person (bootstrap tier)
  *
  * The bootstrap-tier commands need DATABASE_OWNER_URL and are refused without it; the others
  * never see an owner credential.
@@ -17,8 +18,10 @@ import {
   runBootstrapCommand,
   runGrantAuthorityCommand,
   runRetireOrganizationCommand,
+  runRevokeIdentityCommand,
 } from './admin/commands.js';
 import { retireOrganizationUsage } from './admin/retire-organization.js';
+import { revokeIdentityUsage } from './admin/revoke-identity.js';
 import { runIngestCommand, usage as ingestUsage } from './ingest/cli.js';
 import { masterRecordUsage, runMasterRecordCommand } from './master-record/cli.js';
 import { findRoot, overviewUsage, runOverviewCommand } from './overview/cli.js';
@@ -30,7 +33,8 @@ function allUsage(): string {
   return [
     'kf <command> [options]',
     '',
-    '  ingest | master-record | overview | bootstrap-organization | grant-authority | retire-organization',
+    '  ingest | master-record | overview | bootstrap-organization | grant-authority |',
+    '  retire-organization | revoke-identity',
     '',
     ingestUsage(),
     '',
@@ -44,6 +48,8 @@ function allUsage(): string {
     '    --granted-by <uuid> --reason <text> [--issuer <url> --subject <sub>]',
     '',
     retireOrganizationUsage(),
+    '',
+    revokeIdentityUsage(),
   ].join('\n');
 }
 
@@ -71,6 +77,9 @@ switch (command) {
     break;
   case 'retire-organization':
     process.exitCode = await runRetireOrganizationCommand(rest);
+    break;
+  case 'revoke-identity':
+    process.exitCode = await runRevokeIdentityCommand(rest);
     break;
   case 'help':
   case '--help':

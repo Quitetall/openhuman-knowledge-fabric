@@ -25,7 +25,12 @@ import {
   type LoginPrivilegeAllowance,
   type Pool,
 } from '@kf/database';
-import { SocketAttestor, TokenVerifier, type Attestor } from '@kf/authorization';
+import {
+  AttestorUnavailable,
+  SocketAttestor,
+  TokenVerifier,
+  type Attestor,
+} from '@kf/authorization';
 import {
   createDocumentActionAtoms,
   PandocDocumentParser,
@@ -41,6 +46,7 @@ import { timingSafeEqual } from 'node:crypto';
 import type { ApiConfig } from './config.js';
 import { createCallerIdentifier, registerActionRoutes } from './routes/actions.js';
 import { DEFAULT_EFFECTIVE_AT_BOUNDS } from './routes/actions/effective-at.js';
+import { attestorUnavailable } from './routes/actions/auth.js';
 import { registerDocumentRoutes } from './routes/documents.js';
 import type { ProjectionLinks } from '@kf/projections';
 import { registerMlRoutes } from './routes/ml.js';
@@ -108,9 +114,6 @@ export async function buildApp(
   const loginAllowance: LoginPrivilegeAllowance = {
     mayAttest: config.deploymentProfile === 'development',
   };
-  const attestorClient =
-    config.attestorSocket === undefined ? undefined : new SocketAttestor(config.attestorSocket);
-
   const app = Fastify({
     logger: {
       level: config.logLevel,
@@ -125,6 +128,25 @@ export async function buildApp(
     // subset scopes carry recipient and object IDs, so the bound must cover that signed claim.
     routerOptions: { maxParamLength: 2048 },
   });
+
+  // kf-attestor over its socket. An outage is logged once, when it starts, with the socket path,
+  // and once when it ends; every request meanwhile answers 503 attestor_unavailable.
+  const attestorClient =
+    config.attestorSocket === undefined
+      ? undefined
+      : new SocketAttestor(config.attestorSocket, {
+          onAvailabilityChange: (state) => {
+            if (state.available) {
+              app.log.info({ socket: state.socketPath }, 'kf-attestor is answering again');
+            } else {
+              app.log.error(
+                { socket: state.socketPath, reason: state.reason },
+                'kf-attestor is unreachable; bearer requests answer 503 attestor_unavailable ' +
+                  'until it answers again',
+              );
+            }
+          },
+        });
 
   // Return the correlation id to the caller. An id that only appears in server logs cannot
   // be quoted in a support request or matched against the audit event it produced.
@@ -166,6 +188,10 @@ export async function buildApp(
     // ceiling above clearance — is out of scope, and out of scope reads as absent (T3).
     if ((error as unknown) instanceof PrincipalRefused) {
       return reply.code(404).send({ error: 'not_found', requestId: request.id });
+    }
+    // Any route that let an attestor outage through rather than answering it itself.
+    if ((error as unknown) instanceof AttestorUnavailable) {
+      return attestorUnavailable(reply);
     }
     const status =
       typeof error.statusCode === 'number' && error.statusCode >= 400 && error.statusCode < 600

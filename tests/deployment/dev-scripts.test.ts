@@ -24,7 +24,7 @@ const devScripts = readdirSync(join(ROOT, 'apps'))
 
 describe('local development sets its own NODE_ENV', () => {
   it('finds the dev scripts it is checking', () => {
-    expect(devScripts.map(([app]) => app).sort()).toEqual(['api', 'web', 'worker']);
+    expect(devScripts.map(([app]) => app).sort()).toEqual(['api', 'attestor', 'web', 'worker']);
   });
 
   it.each(devScripts)('apps/%s: `dev` runs with NODE_ENV=development', (_app, script) => {
@@ -38,5 +38,29 @@ describe('local development sets its own NODE_ENV', () => {
     expect(root.scripts['dogfood:load']).toContain(
       'NODE_ENV=development pnpm --filter @kf/api dogfood',
     );
+  });
+});
+
+describe('the dogfood profile starts without hand steps', () => {
+  const root = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as {
+    scripts: Record<string, string>;
+  };
+
+  it('`pnpm dev` stays the development profile: it does not start kf-attestor', () => {
+    // Under the development profile the API attests in-process through kf_api_dev; an attestor
+    // started beside it would die for want of OIDC_* and take `pnpm dev` down with it.
+    expect(root.scripts['dev']).toContain('--filter "./apps/**"');
+    expect(root.scripts['dev']).toContain('--filter "!@kf/attestor"');
+  });
+
+  it('`pnpm dogfood:logins` creates the two logins as the loader does, NODE_ENV=development', () => {
+    expect(root.scripts['dogfood:logins']).toContain(
+      'NODE_ENV=development pnpm --filter @kf/api dogfood:logins',
+    );
+  });
+
+  it('`pnpm dev:dogfood` builds the attestor and runs the ordered starter', () => {
+    expect(root.scripts['dev:dogfood']).toMatch(/--filter @kf\/attestor\.\.\. build/);
+    expect(root.scripts['dev:dogfood']).toMatch(/node scripts\/dev-dogfood\.mjs$/);
   });
 });

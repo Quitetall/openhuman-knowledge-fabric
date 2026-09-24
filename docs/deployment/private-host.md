@@ -805,8 +805,9 @@ Before any shared user is admitted:
    logs `refusing to serve: database login …` and exits. Row-level security does not bind such
    a login, so serving through it would silently disable every tenant and classification policy.
 10. Verify the attestor: a valid token succeeds through the API, `/ready` reports
-    `checks.attestor: ok`, stopping `kf-attestor.service` turns bearer requests into 401 and
-    `/ready` into 503, and the API refuses to start when `/etc/kf/api/database-url` names a
+    `checks.attestor: ok`, stopping `kf-attestor.service` turns bearer requests into
+    `503 attestor_unavailable` (never 401, never 500), logs `kf-attestor is unreachable` once with
+    the socket path, and turns `/ready` into 503, and the API refuses to start when `/etc/kf/api/database-url` names a
     login that holds `kf_attestor` or `kf_service_actor`.
 11. Reboot host and re-run checks. Service that works only in install shell is not
     deployed.
@@ -888,8 +889,14 @@ it.
 has brute-force protection off or `failureFactor` above 10; a `passwordPolicy` without
 `length(12)` or more and `notUsername`; no second factor enrolled by default (`CONFIGURE_TOTP`
 or `webauthn-register` with `defaultAction: true`); an offline idle timeout above 7 days or no
-enabled offline maximum lifespan of at most 30 days; `revokeRefreshToken` off; or any client
-with `directAccessGrantsEnabled` or `implicitFlowEnabled`. The shipped
+enabled offline maximum lifespan of at most 30 days; `revokeRefreshToken` off; an
+`accessTokenLifespan` that is absent or above 300 seconds; or any client with
+`directAccessGrantsEnabled` or `implicitFlowEnabled`, or whose `access.token.lifespan` attribute
+overrides the realm's with more than 300 seconds. The 300 s ceiling
+(`MAX_ACCESS_TOKEN_LIFESPAN_SECONDS`) is the attestation replay bound: a compromised API can have
+kf-attestor vouch for any token passing through it until that token expires, so the access-token
+lifetime, not the attestation's one minute, is how long it can act for somebody who has stopped
+using it. The shipped
 `deploy/keycloak/knowledge-fabric-realm.json` passes; record its digest at review as
 `KF_IDENTITY_POLICY_SHA256`.
 
