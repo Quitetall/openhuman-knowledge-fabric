@@ -155,11 +155,14 @@ moved the live rows, keyed on what the archive carries rather than on a date:
   values become its `work.deliverable_retired_attribute` row, stamped when the restore retired
   them. An archive that mixes the two shapes, or carries old rows and a retired-attributes section,
   was written by no exporter and is refused;
-- a section added later without a format bump (`object-verifications`, `access-demand`,
-  `deliverable-retired-attributes`, named in `packages/export/src/internal/section-eras.ts`) may be
-  absent — file, manifest entry and count together — and the snapshot identity is recomputed over
-  the sections the archive's exporter wrote. Any other missing section is still a truncated export
-  and refused.
+- a section added later without a format bump (every one since 2026-08-26, named with the commit
+  and migration that added it in `packages/export/src/internal/section-eras.ts`) may be absent —
+  file, manifest entry and count together, and together with the sections that arrived with it and
+  every section after it — and the snapshot identity is recomputed over the sections the archive's
+  exporter wrote. Any other missing section is still a truncated export and refused;
+- an archive without `artifact-stores` and `artifact-locations` (before `20260902000200`) keeps the
+  `working` store the restoring database's migrations declared, and each addressed artifact version
+  gets its working location, as that migration recorded it.
 
 `tests/round-trip/deliverable-upconversion.test.ts` cuts an old-shape archive from a current one,
 restores it, and holds the re-export byte-equal to the original.

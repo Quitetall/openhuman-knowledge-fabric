@@ -29,6 +29,7 @@ import {
 } from '@kf/export';
 import { createFabricDispatcher } from '@kf/orchestrator';
 import { SECTIONS_ADDED_WITHOUT_FORMAT_BUMP } from '../../packages/export/src/internal/section-eras.js';
+import { IMPORT_TARGETS } from '../../packages/export/src/internal/import-targets.js';
 import {
   bindContext,
   createObject,
@@ -44,10 +45,71 @@ const VERIFICATION = { trustedManifestKeys: new Map([[KEY_ID, KEY.publicKey]]) }
 
 const RETIRED_SECTION = 'deliverable-retired-attributes';
 
+/**
+ * Sections whose rows 20260902000200 derived rather than created empty: the `working` store it
+ * declared and the working location of every addressed version. An archive from before them
+ * still restores those rows.
+ */
+const STORAGE_SECTIONS = ['artifact-stores', 'artifact-locations'] as const;
+
+/**
+ * The later sections, by the day an exporter first wrote them, spelled out here rather than read
+ * from `section-eras.ts`: the list there is what these tests check, not what they are built from.
+ */
+const AUGUST_26 = [
+  'person-clearances',
+  'person-clearance-retirements',
+  'person-entitlement-exclusions',
+  'master-records',
+  'master-record-items',
+  'master-record-withholdings',
+  'master-record-links',
+  'master-record-link-revocations',
+  'master-record-delivery-receipts',
+  'master-record-link-access',
+];
+/** Written before storage locations (b240779c) and kept by an archive of that day. */
+const BEFORE_STORAGE = [...AUGUST_26, 'access-grants'];
+/** Storage locations, and every section after them. */
+const FROM_STORAGE_ON = [
+  ...STORAGE_SECTIONS,
+  'identifier-sequences',
+  'identifier-allocations',
+  'warrants',
+  'warrant-contract-revisions',
+  'warrant-preflights',
+  'warrant-dispatches',
+  'warrant-runtime-receipts',
+  'warrant-submissions',
+  'warrant-blockers',
+  'warrant-deviations',
+  'warrant-discovered-gaps',
+  'warrant-artifacts',
+  'warrant-evidence',
+  'warrant-gate-runs',
+  'warrant-inferences',
+  'warrant-judgments',
+  'warrant-resolution-requests',
+  'object-verifications',
+  'orphan-collections',
+  'product-systems',
+  'baselines',
+  'releases',
+  'requirements',
+  'risks',
+  'tests',
+  'observations',
+  'access-demand',
+];
+/** Every section added without a format bump but the retired attributes, dropped separately. */
+const LATER = [...BEFORE_STORAGE, ...FROM_STORAGE_ON];
+
 let h: Harness;
 let f: Fixtures;
 let pkg: ExportPackage;
 const deliverables: { id: string; kind: string; done: string }[] = [];
+/** The addressed artifact version, as its working location must be derived from it. */
+let addressed: { id: string; uri: string; version: string };
 
 function sign(p: ExportPackage): ExportPackage {
   return signExportPackage(p, { keyId: KEY_ID, privateKey: KEY.privateKey });
@@ -59,8 +121,15 @@ function rowsOf(p: ExportPackage, name: string): JsonRow[] {
   return JSON.parse(p.files.find((file) => file.path === `${name}.json`)!.content) as JsonRow[];
 }
 
-/** Rewrite the package's files (a null content removes one) and sign it again. */
-function repack(base: ExportPackage, changes: ReadonlyMap<string, unknown>): ExportPackage {
+/**
+ * Rewrite the package's files (a null content removes one) and sign it again, and the result must
+ * verify. Unsigned, it is left for the caller to verify: the signer refuses a malformed package.
+ */
+function repack(
+  base: ExportPackage,
+  changes: ReadonlyMap<string, unknown>,
+  { signed = true }: { readonly signed?: boolean } = {},
+): ExportPackage {
   const files = base.files
     .filter((x) => x.path !== 'manifest.json' && x.path !== EXPORT_MANIFEST_SIGNATURE_PATH)
     .filter((x) => !(changes.has(x.path) && changes.get(x.path) === null))
@@ -89,12 +158,14 @@ function repack(base: ExportPackage, changes: ReadonlyMap<string, unknown>): Exp
       return { path: file.path, size_bytes: bytes.length, sha256: digestBytes(bytes) };
     }),
   };
-  const signed = sign({
+  const unsigned: ExportPackage = {
     files: [...files, { path: 'manifest.json', content: `${canonicalize(manifest)}\n` }],
     manifest,
-  });
-  expect(verifyExport(signed, VERIFICATION)).toEqual([]);
-  return signed;
+  };
+  if (!signed) return unsigned;
+  const result = sign(unsigned);
+  expect(verifyExport(result, VERIFICATION)).toEqual([]);
+  return result;
 }
 
 /** The archive as an exporter before 20260925130100 wrote it. */
@@ -188,6 +259,44 @@ beforeAll(async () => {
     });
     deliverables.push({ id, kind, done });
   }
+
+  // One version with an address and one without, recorded as a host before 20260902000200
+  // recorded them: the columns only. The trigger that migration installed gives the addressed one
+  // its working location here; an archive from before it must get the same location on import.
+  for (const uri of [`artifacts/upconversion/v1`, null]) {
+    const artifactId = await createObject(h.adminPool, f, {
+      type: 'artifact',
+      domain: 'artifact',
+      state: 'draft',
+      title: `Artifact ${uri ?? 'without an address'}`,
+      createdBy: f.reviewerId,
+    });
+    const versionId = randomUUID();
+    await withTransaction(h.adminPool, async (tx) => {
+      await bindContext(tx, f, f.reviewerId);
+      await tx.query(
+        `insert into content.artifact (id, artifact_kind, source_system)
+         values ($1, 'document', 'object_store')`,
+        [artifactId],
+      );
+      await tx.query(
+        `insert into content.artifact_version
+           (id, artifact_id, version_no, revision_label, sha256, size_bytes, media_type,
+            storage_uri, storage_version, created_by, created_by_action)
+         values ($1, $2, 1, 'R01', $3, 5, 'text/plain', $4, $5, $6, $7)`,
+        [
+          versionId,
+          artifactId,
+          digestBytes(Buffer.from(versionId)),
+          uri,
+          uri === null ? null : 'store-version-1',
+          f.reviewerId,
+          f.clearanceActionId,
+        ],
+      );
+    });
+    if (uri !== null) addressed = { id: versionId, uri, version: 'store-version-1' };
+  }
   pkg = sign(await withTransaction(h.adminPool, (tx) => createExport(tx)));
 }, 240_000);
 
@@ -261,26 +370,199 @@ describe('an archive written before deliverables had their ontology fields', () 
   }, 240_000);
 
   it('restores a format-2 archive written before any section added without a format bump', async () => {
-    // Each arrived without a format bump (2026-09-20 to 2026-09-24, section-eras.ts); an archive
+    // Each arrived without a format bump (2026-08-26 to 2026-09-24, section-eras.ts); an archive
     // from before them has no file, entry or count, and a snapshot identity over the sections of
     // its day. The retired-attributes section is the upconversion's own and is dropped above.
-    const later = SECTIONS_ADDED_WITHOUT_FORMAT_BUMP.filter((name) => name !== RETIRED_SECTION);
-    for (const name of later) expect(rowsOf(pkg, name), name).toEqual([]);
+    const later = LATER;
+    // A table whose section is named was created empty by its migration, so an older host had no
+    // rows in it. The fixture has some only where the current schema cannot run without them:
+    // clearances, without which nobody may act at all since 20260826000200. Cutting those rows
+    // is exactly the older host's state for that table.
+    const populated = later.filter(
+      (name) =>
+        !(STORAGE_SECTIONS as readonly string[]).includes(name) && rowsOf(pkg, name).length > 0,
+    );
+    expect(populated).toEqual(['person-clearances']);
     const older = repack(
       asArchiveBeforeTheMigration(pkg),
       new Map<string, unknown>(later.map((name) => [`${name}.json`, null])),
     );
+    for (const name of later) expect(older.manifest.counts, name).not.toHaveProperty(name);
     const fresh = await startHarness();
     try {
       await withTransaction(fresh.adminPool, (tx) => importExport(tx, older, VERIFICATION));
-      const restored = await withTransaction(fresh.adminPool, (tx) =>
-        tx.one<{ n: string }>('select count(*)::text as n from work.deliverable_retired_attribute'),
+      const restored = await withTransaction(fresh.adminPool, async (tx) => {
+        const count = async (table: string) =>
+          Number((await tx.one<{ n: string }>(`select count(*)::text as n from ${table}`)).n);
+        const empty: Record<string, number> = {};
+        for (const name of later) {
+          if ((STORAGE_SECTIONS as readonly string[]).includes(name)) continue;
+          empty[name] = await count(IMPORT_TARGETS[name]!);
+        }
+        return {
+          retired: await count('work.deliverable_retired_attribute'),
+          empty,
+          stores: await tx.query<{ id: string }>('select id from content.artifact_store'),
+          locations: await tx.query<{ version_id: string }>(
+            'select version_id from content.artifact_location',
+          ),
+        };
+      });
+      expect(restored.retired).toBe(deliverables.length);
+      // Absence meant none, and none is what the restore holds.
+      expect(
+        Object.values(restored.empty).every((n) => n === 0),
+        JSON.stringify(restored.empty),
+      ).toBe(true);
+      // Absence did not mean none for these: the migration's rows are back.
+      expect(restored.stores).toEqual([{ id: 'working' }]);
+      expect(restored.locations).toEqual([{ version_id: addressed.id }]);
+      // And this test covers every section the list names.
+      expect(new Set(SECTIONS_ADDED_WITHOUT_FORMAT_BUMP)).toEqual(
+        new Set([...later, RETIRED_SECTION]),
       );
-      expect(restored.n).toBe(String(deliverables.length));
     } finally {
       await fresh.stop();
     }
   }, 240_000);
+
+  it('restores an archive written before storage locations as 20260902000200 derived them', async () => {
+    // What the source holds is what a host that ran the migration over these versions held: the
+    // `working` store it declared, and one working location per addressed version.
+    expect(rowsOf(pkg, 'artifact-stores').map((row) => row['id'])).toEqual(['working']);
+    expect(
+      rowsOf(pkg, 'artifact-locations').map((row) => [
+        row['version_id'],
+        row['store_id'],
+        row['role'],
+      ]),
+    ).toEqual([[addressed.id, 'working', 'working']]);
+
+    const dropped = FROM_STORAGE_ON;
+    for (const name of dropped) {
+      if ((STORAGE_SECTIONS as readonly string[]).includes(name)) continue;
+      expect(rowsOf(pkg, name), name).toEqual([]);
+    }
+    const older = repack(
+      asArchiveBeforeTheMigration(pkg),
+      new Map<string, unknown>(dropped.map((name) => [`${name}.json`, null])),
+    );
+    // The sections of 2026-08-26 and the access grants before it stay.
+    expect(older.manifest.counts).toHaveProperty('person-clearances');
+    expect(older.manifest.counts).toHaveProperty('access-grants');
+    expect(older.manifest.counts).not.toHaveProperty('artifact-stores');
+
+    const fresh = await startHarness();
+    try {
+      await withTransaction(fresh.adminPool, (tx) => importExport(tx, older, VERIFICATION));
+      const locations = await withTransaction(fresh.adminPool, (tx) =>
+        tx.query(
+          `select l.version_id, l.store_id, l.role, l.uri, l.store_version,
+                  l.recorded_at = v.created_at as recorded_when_created,
+                  l.recorded_by, l.recorded_by_action, l.verified_at, l.verified_sha256,
+                  l.verification_failure, l.verified_by_action
+             from content.artifact_location l
+             join content.artifact_version v on v.id = l.version_id`,
+        ),
+      );
+      // The migration's backfill, column for column: no recorder, because it recorded none.
+      expect(locations).toEqual([
+        {
+          version_id: addressed.id,
+          store_id: 'working',
+          role: 'working',
+          uri: addressed.uri,
+          store_version: addressed.version,
+          recorded_when_created: true,
+          recorded_by: null,
+          recorded_by_action: null,
+          verified_at: null,
+          verified_sha256: null,
+          verification_failure: null,
+          verified_by_action: null,
+        },
+      ]);
+
+      // Everything else the archive carried comes back byte for byte; the storage sections come
+      // back as the migration made them. The store's declaration time is when this database ran
+      // the migration, and the location's id and recorder are the backfill's, not the trigger's.
+      const again = sign(await withTransaction(fresh.adminPool, (tx) => createExport(tx)));
+      expect(verifyExport(again, VERIFICATION)).toEqual([]);
+      const before = new Map(pkg.files.map((file) => [file.path, file.content]));
+      for (const file of again.files) {
+        if (file.path === 'manifest.json' || file.path === EXPORT_MANIFEST_SIGNATURE_PATH) continue;
+        if (file.path === `${RETIRED_SECTION}.json`) continue;
+        if ((STORAGE_SECTIONS as readonly string[]).some((name) => file.path === `${name}.json`)) {
+          continue;
+        }
+        expect(file.content, `${file.path} differs after the upconverting round trip`).toBe(
+          before.get(file.path),
+        );
+      }
+      const without = (p: ExportPackage, name: string, columns: readonly string[]) =>
+        rowsOf(p, name).map((row) =>
+          Object.fromEntries(Object.entries(row).filter(([column]) => !columns.includes(column))),
+        );
+      expect(without(again, 'artifact-stores', ['declared_at'])).toEqual(
+        without(pkg, 'artifact-stores', ['declared_at']),
+      );
+      expect(
+        without(again, 'artifact-locations', ['id', 'recorded_by', 'recorded_by_action']),
+      ).toEqual(without(pkg, 'artifact-locations', ['id', 'recorded_by', 'recorded_by_action']));
+    } finally {
+      await fresh.stop();
+    }
+  }, 240_000);
+
+  it("refuses an archive whose missing sections are no exporter's era", () => {
+    // The shape findings of the unsigned package; the missing signature is not what is tested.
+    const drop = (...names: string[]) =>
+      verifyExport(
+        repack(pkg, new Map<string, unknown>(names.map((name) => [`${name}.json`, null])), {
+          signed: false,
+        }),
+        VERIFICATION,
+      )
+        .filter((finding) => finding.problem !== 'missing_signature')
+        .map((finding) => finding.detail);
+
+    // Half of one arrival: the warrants came with their contract revisions.
+    expect(drop('warrants')).toEqual([
+      expect.stringMatching(/warrants, warrant-contract-revisions arrived together \(20ead1c9\)/),
+    ]);
+    expect(drop('artifact-locations')).toEqual([
+      expect.stringMatching(/arrived together \(b240779c\), but only artifact-locations is absent/),
+    ]);
+    // An arrival absent under a later one present: no exporter wrote access grants without
+    // having written clearances first.
+    expect(drop(...AUGUST_26)).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(
+          /predates person-clearances.* \(2184efba\) but carries access-grants/,
+        ),
+      ]),
+    );
+    // The fork of 2026-09-24: an exporter on the access-demand branch wrote access-demand
+    // without the product records and observations, and that archive is an era.
+    expect(
+      drop(
+        'product-systems',
+        'baselines',
+        'releases',
+        'requirements',
+        'risks',
+        'tests',
+        'observations',
+        RETIRED_SECTION,
+      ),
+    ).toEqual([]);
+    expect(drop('access-demand', RETIRED_SECTION)).toEqual([]);
+    expect(drop('access-demand')).toEqual([
+      expect.stringMatching(
+        /predates access-demand \(de59c226\) but carries deliverable-retired-attributes/,
+      ),
+    ]);
+  });
 
   it('refuses a package that mixes the old and new deliverable shapes', async () => {
     const current = rowsOf(pkg, 'deliverables');
