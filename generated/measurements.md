@@ -12,7 +12,7 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 
 | Measure | Count | Derived from |
 | --- | ---: | --- |
-| migrations | 121 | files under `database/migrations/` |
+| migrations | 122 | files under `database/migrations/` |
 | forward-only migrations | 25 | migrations declaring `-- kf:forward-only <reason>` in their down-section |
 | schemas | 14 | distinct `create schema` names in migration up-sections |
 | tables created | 189 | in migration up-sections |
@@ -32,7 +32,7 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 | relation types | 42 | declared in `ontology/relation-types.yaml` |
 | decision records | 37 | under `docs/decisions/` — 33 accepted, 4 proposed |
 | architecture requirements | 170 | distinct identifiers in §106 |
-| test files | 244 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
+| test files | 245 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
 
 ## Runtime measurements, cited rather than derived
 
