@@ -1930,7 +1930,11 @@ with the old. A compilation whose basis matches an earlier succeeded run in ever
 qualification must now reproduce the earlier run's semantic and view digests, or it is recorded as
 the request's failed run with `nondeterministic_output`, naming the run it did not reproduce
 (`20260925160100`, `KF-DOC-DETERMINISM-001`; [ADR 0002](../decisions/0002-liminal-backed-document-compiler.md)'s
-dated note). What that does not do is in §100.35.
+dated note). Acceptance reads that record: once a run over the same sources and pinned compiler
+has failed as `nondeterministic_output`, no succeeded run of theirs is accepted — not the run it
+named, and not a later one that happens to match it — by the dispatcher precondition and by a
+trigger on the acceptance row (`20260925170000`, `KF-DOC-DETERMINISM-002`). What that does not do
+is in §100.35.
 
 **KF-SAS-RQ-102.** Compilation SHALL be deterministic for a given source and toolchain, and the
 result SHALL be addressed by its digest.
@@ -3762,9 +3766,8 @@ author's and is the owner's to confirm with this revision. Bears on KF-SAS-RQ-14
 **100.35 Compilation is checked for reproduction, not proven deterministic.** A requalified
 compiler's run that fails to reproduce an earlier run over the same sources is refused (§54), but
 nothing re-runs the compiler on a schedule to test determinism, so a nondeterministic compiler is
-caught only when something happens to compile the same sources again; acceptance does not yet read
-the recorded failure, so an earlier run a later one failed to reproduce can still be accepted; and
-the views a refused run materialized stay in the store, unreferenced.
+caught only when something happens to compile the same sources again; and the views a refused run
+materialized stay in the store, unreferenced.
 Bears on KF-SAS-RQ-102.
 
 **100.36 A history read still pays the audit policy per event.** The ledger lookup is by index
