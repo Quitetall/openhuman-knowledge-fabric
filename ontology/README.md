@@ -95,7 +95,9 @@ artifacts handed over for a deliverable are `work.deliverable_submission` rows, 
 array-of-reference fields are child rows. Existing rows kept everything: `definition_of_done`
 became the `description` and the one acceptance criterion, and both retired values are kept,
 per deliverable, in `work.deliverable_retired_attribute` — read-only, exported, never written by
-an application role. `define_deliverable` writes the ontology's fields.
+an application role. An export cut before the migration restores the same way: the importer moves
+each old-shape row exactly as the migration did (`docs/backup-and-restore/README.md`).
+`define_deliverable` writes the ontology's fields.
 `tests/database/deliverable-fields.test.ts` holds the table's columns equal to the ontology's
 fields under that mapping.
 

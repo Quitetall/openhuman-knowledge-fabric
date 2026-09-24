@@ -140,6 +140,30 @@ Exercised end to end by `tests/backup-restore/drill.test.ts`, which runs these s
 not a reimplementation of them — against real containers. A test that re-derived what
 `backup.sh` does would pass while `backup.sh` was broken.
 
+## An older export still imports
+
+A canonical export is the record that outlives the engine, so `importExport` restores every
+archive an earlier exporter signed, not only one cut by today's. Where a table changed shape
+without an export format bump, the importer moves the archive's rows exactly as the migration
+moved the live rows, keyed on what the archive carries rather than on a date:
+
+- an audit event with no `link_format` is an untagged `kf-audit-link-v1` link, a document parse
+  with no `digest_format` an untagged `kf-document-parse-v1` preimage, an act with no
+  `agent_participation` one no agent took part in;
+- a deliverable that names `deliverable_kind` and `definition_of_done` (before `20260925130100`)
+  gets `definition_of_done` as its description and its one acceptance criterion, and both old
+  values become its `work.deliverable_retired_attribute` row, stamped when the restore retired
+  them. An archive that mixes the two shapes, or carries old rows and a retired-attributes section,
+  was written by no exporter and is refused;
+- a section added later without a format bump (`object-verifications`, `access-demand`,
+  `deliverable-retired-attributes`, named in `packages/export/src/internal/section-eras.ts`) may be
+  absent — file, manifest entry and count together — and the snapshot identity is recomputed over
+  the sections the archive's exporter wrote. Any other missing section is still a truncated export
+  and refused.
+
+`tests/round-trip/deliverable-upconversion.test.ts` cuts an old-shape archive from a current one,
+restores it, and holds the re-export byte-equal to the original.
+
 ## The object store is not in here
 
 `dump.pgcustom` and `export/` hold artifact **identity and digests**. The bytes live in the

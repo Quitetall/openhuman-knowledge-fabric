@@ -13,18 +13,30 @@ export const DATABASE_SNAPSHOT_PATHS = [
   ...SECTIONS.map((section) => `${section.name}.json`),
 ] as const;
 
-/** Recompute database snapshot identity from exact exported file bytes, never manifest claims. */
-export function recomputeDatabaseSnapshotDigest(files: readonly ExportFile[]): string {
+/**
+ * Recompute database snapshot identity from exact exported file bytes, never manifest claims.
+ *
+ * `predated` names sections the archive was written before (`section-eras.ts`): the identity its
+ * exporter computed covered the section list of its day, which is today's without them, in the
+ * same order. The exporter always passes none.
+ */
+export function recomputeDatabaseSnapshotDigest(
+  files: readonly ExportFile[],
+  predated: ReadonlySet<string> = new Set(),
+): string {
+  const paths = DATABASE_SNAPSHOT_PATHS.filter(
+    (path) => !predated.has(path.replace(/\.json$/, '')),
+  );
   const byPath = new Map<string, ExportFile>();
   for (const entry of files) {
-    if (DATABASE_SNAPSHOT_PATHS.includes(entry.path as (typeof DATABASE_SNAPSHOT_PATHS)[number])) {
+    if ((paths as readonly string[]).includes(entry.path)) {
       if (byPath.has(entry.path)) {
         throw new Error(`database snapshot contains duplicate ${entry.path}`);
       }
       byPath.set(entry.path, entry);
     }
   }
-  const sections = DATABASE_SNAPSHOT_PATHS.map((path) => {
+  const sections = paths.map((path) => {
     const entry = byPath.get(path);
     if (entry === undefined) throw new Error(`database snapshot is missing ${path}`);
     const bytes = Buffer.from(entry.content, 'utf8');
