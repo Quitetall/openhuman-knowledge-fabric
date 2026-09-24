@@ -112,15 +112,19 @@ describe('chain verification under recorded link formats', () => {
   });
 
   it('verifies each link under the format it recorded, not the current one', () => {
-    // A v2 link relabelled v1 no longer recomputes: the tag is in the preimage.
+    // A v2 link relabelled v1 no longer recomputes, because the tag is in the preimage. The
+    // FIRST link is relabelled so the order rule (v1 may precede v2) cannot be what refuses it.
     const relabelled = chain(
       3,
-      (e, i) => (i === 1 ? { ...e, link_format: 'kf-audit-link-v1' } : e),
+      (e, i) => (i === 0 ? { ...e, link_format: 'kf-audit-link-v1' } : e),
       'kf-audit-link-v2',
     );
     const result = verifyChain(relabelled, GENESIS_DIGEST);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.atSeq).toBe('2');
+    if (!result.ok) {
+      expect(result.atSeq).toBe('1');
+      expect(result.detail).toMatch(/recomputed/);
+    }
   });
 
   it('refuses a v1 link after a v2 one even when its v1 digest is correct', () => {
