@@ -170,6 +170,40 @@ worker-only problem presents as "nothing starts". Run a single app to isolate it
 pnpm --filter @kf/api dev
 ```
 
+## 3A. Note something down — one gesture, no role, key or version
+
+Recording that something happened is an observation (ADR 0024, ADR 0034, SAS §8A). It costs one
+gesture on any of three surfaces, and all three reach the same route, `POST /capture/observation`,
+which forms the one act `record_observation` through the dispatcher (KF-SAS-RQ-203):
+
+```sh
+# the command line — over the API, as you, with your own bearer token
+pnpm kf note "Channel 3 noise floor 2.1 µV RMS at 250 Hz on board B" \
+  --token-file ~/.config/kf/token --organization <uuid> [--tag bench] [--subject <object uuid>]
+```
+
+or the web form at <http://localhost:3000/capture>, or `curl` against the route. The request
+carries the note and nothing about authority: **no acting role, no idempotency key, no row
+version** (KF-SAS-RQ-200). The server forms each of them:
+
+- **the acting assignment** is your only live assignment in the organization. If you hold several
+  and did not name one (`--acting-role`, or the `x-kf-acting-role` header the web session sends),
+  the answer is `422 acting_assignment_ambiguous` listing your assignments, and nothing is
+  recorded. It does not guess, because a guess attributes the note to a role you did not act in;
+- **the idempotency key** is the gesture id plus the note's SHA-256. A gesture id is generated
+  when you send none and is returned, so a retry of the same gesture (`--gesture <id>`) replays
+  the first capture instead of recording twice;
+- **the target** is the observation the act creates.
+
+What comes back is a `captured` observation, **attributed to you and audited from the first
+moment**, and labelled `UNVERIFIED — nobody has checked this record` until somebody else verifies
+it (SAS §48A). Capturing needs no act grant. Turning an observation into a controlled record —
+`promote_observation` — does, and is a separate act by somebody who holds one (KF-SAS-RQ-202).
+
+How fast each of these must be is ADR 0024's table; `node scripts/latency-bars.mjs` measures the
+bars against a running stack and writes `generated/latency-bars.md`. A workstation's numbers are
+labelled as such and are not the official ones — those come from a commissioned host.
+
 ## 4. Check your work
 
 ```sh
@@ -194,6 +228,8 @@ Stated here so you do not go looking:
   namespace the registry has; a deployment seeds `registry.identifier_namespace` from that
   registry, so an instance that has not re-seeded since is refused by name for the two new
   codes.
+- **No chat integration.** ADR 0024 names chat as a first-class capture surface; there is none
+  yet. The command line, the web form and agents through the API route are what exist.
 - **No approval workflow.** Documents load as drafts. Approval, effective-state transition and
   publication are human acts performed outside the software.
 - **No commissioned host.** `docs/deployment/private-host.md` describes one. One was built on
