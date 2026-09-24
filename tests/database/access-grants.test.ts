@@ -365,7 +365,7 @@ describe('access is a grant', () => {
     // The outsider can SEE the probe through a read grant, but holds no act authority there.
     const target = await createObject(harness.adminPool, fixtures, {
       type: 'controlled_document',
-      domain: 'quality',
+      domain: 'qms',
       state: 'draft',
       title: 'Numbered by whom',
       createdBy: fixtures.performerId,

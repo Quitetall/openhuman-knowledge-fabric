@@ -361,7 +361,7 @@ log. `tests/database/write-guards.test.ts` pins that list; a new table the appli
 is guarded by calling `core.install_action_context_guards()` in its migration, or the test names
 it.
 
-## A migration refuses: a record is not the type, or in the domain, it claims
+## A migration refuses or warns: a record is not the type, or in the domain, it claims
 
 Some migrations add a key that every existing row must already satisfy, and the database checks
 the rows when the key is added. A database holding a row that breaks it refuses the migration —
@@ -376,8 +376,25 @@ atomically, so nothing is half-applied — rather than carrying the row forward.
       select d.object_id, o.object_type from ml.promotion_authority_decision d
         join core.object o on o.id = d.object_id where o.object_type <> 'ml_promotion_decision';
 
-Which of the two records is the real one is a records decision for whoever owns them; correct it
-with the owner credential, as a recorded `correct_record`, and run the migration again.
+- `object_authority_domain_is_the_types` (`20260925040000`) does not refuse: it warns
+  `N record(s) carry an authority domain their type does not declare`, and leaves the key
+  holding for every new and changed row but unvalidated for the old ones. Until 2026-09-25 five
+  kinds of record were filed under the wrong domain by the code itself (work orders, work
+  executions, acceptance records and work-order amendments under `project`, change records under
+  `engineering`). Find them, as the owner:
+
+      select o.id, o.object_type, o.authority_domain, t.authority_domain as declared
+        from core.object o join registry.object_type t on t.id = o.object_type
+       where o.authority_domain <> t.authority_domain;
+
+  The declared domain is the answer; the recorded one was a wrong copy of it. Once they are
+  corrected, `alter table core.object validate constraint object_authority_domain_is_the_types`
+  makes the key cover every row. The same key refuses an ontology seed that moves a type to
+  another domain while records of it exist.
+
+For a mistyped row, which of the two records is the real one is a records decision for whoever
+owns them. Correct either kind of row with the owner credential, as a recorded `correct_record`,
+then run the migration again or validate the key.
 
 ## A verification is refused: reviewed individually, too fast
 

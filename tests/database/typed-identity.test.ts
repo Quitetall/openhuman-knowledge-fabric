@@ -12,8 +12,10 @@
  * the exact failure such a report exists to prevent.
  */
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { withTransaction } from '@kf/database';
+import { withTransaction, type Tx } from '@kf/database';
 import {
   bindContext,
   createObject,
@@ -202,6 +204,142 @@ describe('a typed row is the type its table is about', () => {
   });
 });
 
+describe('a record’s authority domain is its type’s (RQ-001, RQ-010)', () => {
+  const insertObject = (tx: Tx, type: string, domain: string, state: string) =>
+    tx.one<{ id: string }>(
+      `insert into core.object
+         (object_type, authority_domain, lifecycle_state, classification, retention_class,
+          schema_version, organization_id, title, created_by, updated_by)
+       values ($1, $2, $3, 'internal', 'project_record', $4, $5, 'Filed where it belongs?', $6, $6)
+       returning id`,
+      [type, domain, state, f.schemaVersion, f.organizationId, f.performerId],
+    );
+
+  it('refuses a CAPA filed under finance, from the application inside an act', async () => {
+    await expect(
+      withTransaction(h.pool, async (tx) => {
+        await bindContext(tx, f);
+        await insertObject(tx, 'capa', 'finance', 'open');
+      }),
+    ).rejects.toThrow(/object_authority_domain_is_the_types/);
+  });
+
+  it('refuses a domain that does not exist, even from the owner credential', async () => {
+    // `quality` is not an authority domain; test fixtures used it for years.
+    await expect(
+      withTransaction(h.adminPool, async (tx) => {
+        await bindContext(tx, f);
+        await insertObject(tx, 'controlled_document', 'quality', 'draft');
+      }),
+    ).rejects.toThrow(/object_authority_domain_is_the_types/);
+  });
+
+  it('refuses moving an existing record to another domain', async () => {
+    const capa = await createObject(h.adminPool, f, {
+      type: 'capa',
+      domain: 'qms',
+      state: 'open',
+      title: 'Stays in the QMS',
+      createdBy: f.performerId,
+    });
+    await expect(
+      withTransaction(h.adminPool, async (tx) => {
+        await bindContext(tx, f);
+        await tx.query(
+          `update core.object set authority_domain = 'project', row_version = row_version + 1
+            where id = $1`,
+          [capa],
+        );
+      }),
+    ).rejects.toThrow(/object_authority_domain_is_the_types/);
+  });
+
+  it('accepts the domain the registry declares for the type', async () => {
+    const row = await withTransaction(h.pool, async (tx) => {
+      await bindContext(tx, f);
+      return insertObject(tx, 'capa', 'qms', 'open');
+    });
+    expect(row.id).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it('is validated over every existing row on a database that holds no mislabelled record', async () => {
+    const key = await withTransaction(h.adminPool, (tx) =>
+      tx.one<{ validated: boolean }>(
+        `select convalidated as validated from pg_constraint
+          where conrelid = 'core.object'::regclass
+            and conname = 'object_authority_domain_is_the_types'`,
+      ),
+    );
+    expect(key.validated).toBe(true);
+  });
+
+  it('leaves the key unvalidated, and still binding, on a database the old code mislabelled', async () => {
+    // The five materializers corrected with this migration filed records under `project` and
+    // `engineering`. A host that ran them holds such rows; the migration must neither refuse
+    // the deploy nor claim the key covers them.
+    const MIGRATION = '20260925040000_the_authority_domain_is_the_types.sql';
+    const old = await startHarness({ skipMigrations: new Set([MIGRATION]) });
+    try {
+      const of = await seedFixtures(old.adminPool);
+      await createObject(old.adminPool, of, {
+        type: 'work_order',
+        domain: 'project',
+        state: 'draft',
+        title: 'Filed by the old materializer',
+        createdBy: of.performerId,
+      });
+      const sql = readFileSync(
+        join(import.meta.dirname, '..', '..', 'database', 'migrations', MIGRATION),
+        'utf8',
+      );
+      const up = sql.slice(sql.indexOf('-- migrate:up'), sql.indexOf('-- migrate:down'));
+      await withTransaction(old.adminPool, (tx) => tx.query(up));
+      const key = await withTransaction(old.adminPool, (tx) =>
+        tx.one<{ validated: boolean }>(
+          `select convalidated as validated from pg_constraint
+            where conrelid = 'core.object'::regclass
+              and conname = 'object_authority_domain_is_the_types'`,
+        ),
+      );
+      expect(key.validated).toBe(false);
+      await expect(
+        createObject(old.adminPool, of, {
+          type: 'work_order',
+          domain: 'project',
+          state: 'draft',
+          title: 'Filed by new code the same wrong way',
+          createdBy: of.performerId,
+        }),
+      ).rejects.toThrow(/object_authority_domain_is_the_types/);
+    } finally {
+      await old.stop();
+    }
+  }, 240_000);
+
+  it('holds an external locator’s authority to its four declared kinds', async () => {
+    // content.external_locator.authority says what the outside copy IS to us — authoritative,
+    // evidence, mirror or lookup — and is a CHECK, not a caller's free text.
+    const allowed = await withTransaction(h.adminPool, (tx) =>
+      tx.one<{ def: string }>(
+        `select pg_get_constraintdef(oid) as def from pg_constraint
+          where conrelid = 'content.external_locator'::regclass
+            and conname = 'external_locator_authority_check'`,
+      ),
+    );
+    for (const kind of ['authoritative', 'evidence', 'mirror', 'lookup']) {
+      expect(allowed.def).toContain(`'${kind}'`);
+    }
+    await expect(
+      withTransaction(h.adminPool, (tx) =>
+        tx.query(
+          `insert into content.external_locator (version_id, system, external_id, authority)
+           values (gen_random_uuid(), 'drive', 'doc-1', 'owner')`,
+        ),
+      ),
+    ).rejects.toThrow(/external_locator_authority_check/);
+  });
+});
+
 describe('verification does not over-claim', () => {
   /** A requirement with `count` approved test definitions against it. */
   async function subjectWithDefinitions(
@@ -209,7 +347,7 @@ describe('verification does not over-claim', () => {
   ): Promise<{ subject: string; definitions: string[] }> {
     const subject = await createObject(h.adminPool, f, {
       type: 'requirement',
-      domain: 'engineering',
+      domain: 'qms',
       state: 'approved',
       title: 'Leakage current below 10 µA',
       createdBy: f.performerId,

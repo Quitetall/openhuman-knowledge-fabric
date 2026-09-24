@@ -12,7 +12,7 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 
 | Measure | Count | Derived from |
 | --- | ---: | --- |
-| migrations | 107 | files under `database/migrations/` |
+| migrations | 108 | files under `database/migrations/` |
 | forward-only migrations | 24 | migrations declaring `-- kf:forward-only <reason>` in their down-section |
 | schemas | 14 | distinct `create schema` names in migration up-sections |
 | tables created | 175 | in migration up-sections |
@@ -21,7 +21,7 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 | security definer declarations | 137 | in migration up-sections; a function redefined is declared again |
 | views | 13 | distinct view names in migration up-sections |
 | indexes created | 89 | explicit `create index` statements in migration up-sections |
-| foreign-key references | 467 | `references` clauses in migration up-sections |
+| foreign-key references | 468 | `references` clauses in migration up-sections |
 | check constraints | 744 | `check (` clauses in migration up-sections |
 | group roles | 11 | distinct `NOLOGIN` roles created in migration up-sections |
 | workspace packages | 31 | 25 libraries under `packages/`, 6 executables under `apps/` |

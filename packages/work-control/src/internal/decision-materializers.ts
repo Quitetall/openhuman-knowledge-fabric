@@ -19,7 +19,7 @@ export const openChange: ActionMaterializer = async (tx, request) => {
   const id = await createControlledObject(tx, {
     ...classificationFrom(request.payload),
     objectType: 'change_record',
-    authorityDomain: 'engineering',
+    authorityDomain: 'configuration',
     lifecycleState: 'proposed',
     title: requireString(request.payload, 'title'),
     organizationId: request.organizationId,

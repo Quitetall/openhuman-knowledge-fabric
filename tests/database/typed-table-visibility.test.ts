@@ -46,14 +46,14 @@ beforeAll(async () => {
 
   documentId = await createObject(h.adminPool, f, {
     type: 'controlled_document',
-    domain: 'quality',
+    domain: 'qms',
     state: 'draft',
     title: 'Electrode cleaning procedure',
     createdBy: f.performerId,
   });
   nonconformityId = await createObject(h.adminPool, f, {
     type: 'nonconformity',
-    domain: 'quality',
+    domain: 'qms',
     state: 'open',
     title: 'Electrode impedance out of tolerance',
     createdBy: f.performerId,

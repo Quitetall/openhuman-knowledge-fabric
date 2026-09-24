@@ -115,7 +115,7 @@ describe('a declared service actor', () => {
   it('can never perform an institutional act, whatever role it holds', async () => {
     const document = await createObject(harness.adminPool, fixtures, {
       type: 'controlled_document',
-      domain: 'quality',
+      domain: 'qms',
       state: 'draft',
       title: 'Not for a robot to number',
       createdBy: fixtures.reviewerId,
@@ -149,7 +149,7 @@ describe('a declared service actor', () => {
     const body = Buffer.from('bytes the steward will copy');
     const artifactId = await createObject(harness.adminPool, fixtures, {
       type: 'artifact',
-      domain: 'content',
+      domain: 'artifact',
       state: 'draft',
       title: 'Swept artifact',
       createdBy: fixtures.reviewerId,
@@ -261,7 +261,7 @@ describe('orphaned evidence collection', () => {
     const referencedKey = `ingest/${org}/${digestOf(body)}`;
     const artifactId = await createObject(harness.adminPool, fixtures, {
       type: 'artifact',
-      domain: 'content',
+      domain: 'artifact',
       state: 'draft',
       title: 'Referenced evidence',
       createdBy: fixtures.reviewerId,
