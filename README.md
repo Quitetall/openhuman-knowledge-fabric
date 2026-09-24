@@ -89,7 +89,7 @@ kf ingest --mode=copy --classification=internal --identity=oidc <files...>
 kf master-record --token-file <file> --organization <uuid> --acting-role <uuid>
 kf overview
 kf bootstrap-organization --legal-name "..." --person "..."
-kf grant-authority --person <uuid> --role <id> --clearance <id> --reason "..."
+kf grant-authority --person <uuid> --role <id> --clearance <id> --reason "..." [--valid-to <date>] [--renew]
 kf retire-organization --organization <uuid> --decided-by <uuid> --reason "..."
 kf revoke-identity --issuer <url> --subject <sub> --revoked-by <uuid> --reason "..."
 ```

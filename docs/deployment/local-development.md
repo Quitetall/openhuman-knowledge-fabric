@@ -127,7 +127,8 @@ carrying users would commit credentials. Before selecting `dogfood`:
    ([`identity-and-login.md`](identity-and-login.md) records that walk).
 3. Record the `org.external_identity` link from that `sub` to a person, plus the live role
    assignment the request will name, with `pnpm kf:grant-authority` (owner connection). Nothing is
-   auto-provisioned.
+   auto-provisioned. The assignment ends within a year (`--valid-to`, one year by default; ADR
+   0036), and `--renew` renews it.
 
 The local values, after that provider configuration exists, are:
 

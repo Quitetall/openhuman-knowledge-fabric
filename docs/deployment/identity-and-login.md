@@ -213,12 +213,36 @@ pnpm kf:grant-authority \
   --granted-by   <the person who decided> \
   --issuer       http://localhost:8080/realms/knowledge-fabric \
   --subject      <the sub printed by create-dev-user.sh> \
-  --reason       'why this authority was granted, and on whose say-so'
+  --reason       'why this authority was granted, and on whose say-so' \
+  --valid-to     2027-09-24
 ```
 
 It links the identity, assigns the role and grants the clearance in **one transaction**, recording
-a real `grant_person_clearance` action and extending the audit chain. Nothing is defaulted: a run
-missing any flag prints every refusal at once and writes nothing.
+a real `grant_person_clearance` action and extending the audit chain. Nothing that widens authority
+is defaulted: a run missing any such flag prints every refusal at once and writes nothing.
+
+**The assignment ends.** `--valid-to` (an ISO date or instant) is the day the role assignment
+stops granting — its review date. It must be in the future and at most 366 days away (a year and a
+day, ADR 0036); omitted, it is one year (365 days) from the run, and the command prints the date it
+used. The database refuses any role assignment or project membership written without an end, or
+ending more than 366 days after it starts, on the owner connection as well as the application's;
+the only exception is an assignment written under the bootstrap identity
+(`01930000-0000-7000-8000-00000000b007`) on the owner connection, which only the local dogfood
+loader and the test harness do.
+
+**Renewal is a new assignment.** Re-running the command while the assignment is live changes
+nothing, as before. To renew it — the review is the act — add `--renew`: the live assignment is
+ended now and a new one, attributed to `--granted-by` under a recorded `grant_person_clearance`
+action, runs from now to `--valid-to`. Its id is new, so anything configured with the old
+assignment id (a service actor's `KF_STORAGE_ROLE`, a client's `x-kf-acting-role`) must be updated.
+An assignment that has already lapsed needs no `--renew`: the command grants a fresh one. An
+assignment made before ADR 0036 has no end at all; readiness reports it under
+`assignment_review_dates` as "no review date" until it is renewed this way.
+
+**Delegation goes one level deep.** An assignment that names a `delegated_by` (a service actor's,
+from `kf:declare-service-actor`) is a delegation, and the database refuses one whose delegator holds
+that role, at that scope, only through a delegation of their own. `kf:grant-authority` itself
+writes no `delegated_by`: it is the owner credential recording a human decision, not a delegation.
 
 **Run it before the ontology seed and it will fail**, because `grant_person_clearance` is a new
 action type and `core.action.action_type` is a foreign key into `registry.action_type`:

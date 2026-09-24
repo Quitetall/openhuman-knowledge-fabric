@@ -258,6 +258,39 @@ otherwise.
 3. Never `alter table … no force row level security` to make an application query work; that
    query should be bound through a context or a definer seam.
 
+## `assignment_review_dates` degraded — authority with no review date
+
+Some live role assignments or project memberships have no end date. Since ADR 0036 every new one
+ends within 366 days, and the database refuses one that does not; the rows this check counts were
+made before that decision and are grandfathered — they still grant, and nobody has reviewed them.
+`measured` splits the count into role assignments and memberships, and names separately the
+assignments the bootstrap identity wrote (the local dogfood loader), which are the declared
+exception and do not degrade the check.
+
+It does **not** mean anybody holds authority they should not; it means nobody has recorded that
+they still should.
+
+1. List them over the owner connection (and the same over `org.project_membership`):
+
+   ```sql
+   select id, subject_id, role_id, scope_id, valid_from
+     from org.role_assignment
+    where valid_to is null and valid_from <= now();
+   ```
+
+2. For each one that should continue, renew it. That ends the old assignment now and grants a new
+   one ending within a year, recorded as your act. The assignment id changes: update whatever
+   names the old one (a service actor's `KF_STORAGE_ROLE`).
+
+   ```sh
+   pnpm kf:grant-authority --person … --organization … --role … --clearance … \
+     --granted-by <your person uuid> --reason 'annual review' --renew [--valid-to YYYY-MM-DD]
+   ```
+
+3. For each one that should not, end it (`kf retire-organization`, or retire the person).
+4. Never set `valid_to` on the old row by hand to a date in the future to quiet the check: that is
+   an extension nobody decided, and the database refuses it anyway.
+
 ## A readiness check reports `unknown`
 
 The check could not run. **This makes its named service or institutional partition not ready**,
@@ -603,6 +636,26 @@ the acting assignment itself: the caller's only live assignment in the organizat
 Neither records anything. A `401 no_role_requested` from the capture route is not these: it
 means the deployment's kf-attestor predates assignment derivation and refused the request —
 deploy kf-attestor from the same release as the API.
+
+## An assignment is refused: no end date, too long, or delegated again
+
+Three refusals from the database, on any connection including the owner's (ADR 0036):
+
+- **`role assignment … has no end date` / `project membership … has no end date`** — every new
+  assignment and membership ends. Give `--valid-to` (or let `kf:grant-authority` and
+  `kf:declare-service-actor` default it to one year).
+- **`… ends more than 366 days after it starts`** — a year and a day is the longest an
+  assignment may run before somebody reviews it. Renewal is a new assignment
+  (`kf:grant-authority --renew`), not a later end date on the old one; moving an end date later,
+  or removing it, is refused the same way.
+- **`… is delegated by a person who holds … only through delegation`** — delegation goes one level
+  deep. The person named as `delegated_by` holds that role at that scope only because someone
+  delegated it to them, so they cannot pass it on. Whoever holds it directly must make the
+  delegation.
+
+None of these writes anything. The one exception to the end date is an assignment written under
+the bootstrap identity on the owner connection — the local dogfood loader — which readiness
+reports separately.
 
 ## Latency bars exceeded (`scripts/latency-bars.mjs` exits 1)
 
