@@ -5,6 +5,7 @@ import type { Pool, Tx } from '@kf/database';
 import type { DocumentParser } from '@kf/documents';
 import type { ProjectionDefinitionSet, ProjectionLinks } from '@kf/projections';
 import type { IdentifyCaller } from '../actions.js';
+import type { ReadAgentContext } from './agent-context.js';
 
 export const DOCUMENT_IMPORT_BODY_LIMIT_BYTES = 16 * 1024 * 1024;
 export const DEFAULT_DOCUMENT_SOURCE_DOWNLOAD_MAX_BYTES = 20 * 1024 * 1024;
@@ -109,6 +110,12 @@ export interface DocumentRoutesOptions {
    */
   readonly aiProposalProvider?: AiProvider;
   readonly aiRoutingPolicy?: AiRoutingPolicy;
+  /**
+   * Where the planner gets the reader's `agent_context` Result (KF-SAS-RQ-115). Absent, it is
+   * evaluated from `projections` over the reader's master record (`agentContextReader`); a test
+   * without a database supplies the Result directly.
+   */
+  readonly agentContext?: ReadAgentContext;
   /**
    * Read-only early refusal seam. Passing this check is never authority: every action below
    * must still pass `executeInTransaction` after object storage, under its final transaction.

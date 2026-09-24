@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { recordVerification } from '@kf/domain';
+import { projectionResultDigest, type ProjectionResult } from '@kf/projections';
 import type { DocumentProposalOperation } from '../../documents/src/proposal.js';
 import {
   LamuProvider,
@@ -79,6 +81,8 @@ function candidate(
   extras: Partial<AiContextCandidate> = {},
 ): AiContextCandidate {
   return {
+    // A document subject's record is itself here; the projection is judged on this.
+    objectId: extras.objectId ?? subjectId,
     subjectId,
     revisionId: extras.revisionId ?? 'revision-01',
     classification: extras.classification ?? 'internal',
@@ -98,6 +102,51 @@ function candidate(
     ...(extras.vectorScore === undefined ? {} : { vectorScore: extras.vectorScore }),
     ...(extras.relationDepth === undefined ? {} : { relationDepth: extras.relationDepth }),
   };
+}
+
+/** Every subject the fixtures use: the reader's agent_context holds all of them. */
+const PROJECTED = [
+  'document-01',
+  'document-budget',
+  'document-auth-fail',
+  'document-secret',
+  'document-vector',
+  'document-extra',
+];
+
+/** An `agent_context` Result over `objectIds`, with the digest the engine would give it. */
+function agentContext(
+  objectIds: readonly string[] = PROJECTED,
+  extras: Partial<Omit<ProjectionResult, 'projectionDigest'>> = {},
+): ProjectionResult {
+  const members = objectIds.map((objectId) => ({
+    objectId,
+    objectType: 'controlled_document',
+    organizationId: 'org-01',
+    classification: 'internal' as const,
+    contentDigest: 'f'.repeat(64),
+    itemState: 'included' as const,
+    verification: recordVerification(undefined),
+  }));
+  const body = {
+    format: 'kf-projection-result-v2' as const,
+    definition: { id: 'agent_context', version: 1 },
+    parameters: { token_budget: 2_048 },
+    source: { personId: 'actor-01', organizationId: 'org-01', corpusDigest: 'e'.repeat(64) },
+    sections: [{ id: 'relevant', title: 'Relevant to this person', members }],
+    measurements: {
+      memberCount: members.length,
+      corpusMemberCount: members.length,
+      excludedByFilter: 0,
+      unverifiedCount: members.length,
+      sectionCounts: { relevant: members.length },
+      reachedCount: members.length,
+      relevanceFanoutByAnchorType: {},
+      relevanceFanoutByPropagationClass: {},
+    },
+    ...extras,
+  };
+  return { ...body, projectionDigest: projectionResultDigest(body) };
 }
 
 function plannerInput(
@@ -120,6 +169,7 @@ function plannerInput(
     tokenBudget: 15,
     query: 'retention policy',
     seedSubjectIds: ['document-01'],
+    projection: agentContext(),
     ...extras,
   };
 }
@@ -170,6 +220,35 @@ describe('AI proposal routing', () => {
       plannerInput({ seedSubjectIds: ['document-01', 'document-01'] }),
       /repeats/,
     ],
+    // KF-SAS-RQ-115: the context is drawn from the principal's own agent_context, intact.
+    [
+      'projection definition',
+      plannerInput({
+        projection: agentContext(PROJECTED, { definition: { id: 'master_sections', version: 1 } }),
+      }),
+      /must be the agent_context projection/,
+    ],
+    [
+      'projection reader',
+      plannerInput({
+        projection: agentContext(PROJECTED, {
+          source: { personId: 'actor-02', organizationId: 'org-01', corpusDigest: 'e'.repeat(64) },
+        }),
+      }),
+      /not a reading of the planning principal/,
+    ],
+    [
+      'projection digest',
+      plannerInput({
+        // A member added after the reading was made: the list no longer matches its digest.
+        projection: {
+          ...agentContext(['document-01']),
+          sections: agentContext(PROJECTED).sections,
+        },
+      }),
+      /digest does not match/,
+    ],
+    ['projection absent', plannerInput({ projection: undefined as never }), /projection/],
   ])('validates %s before repository search', async (_field, input, error) => {
     let invoked = false;
     const guarded: AiContextPlannerRepository = {
@@ -261,6 +340,50 @@ describe('AI proposal routing', () => {
     ]);
   });
 
+  it('keeps only members of the agent_context projection and records its digest', async () => {
+    const authorized: string[] = [];
+    const repository: AiContextPlannerRepository = {
+      authorizedLexicalCandidates: async () => [
+        candidate('document-01', { tokenCount: 4, lexicalScore: 0.5 }),
+        // Retrieval found it and authorization would admit it, but the reader's projection does
+        // not hold it: it must never reach the authorizer or the model.
+        candidate('document-outside', { tokenCount: 4, lexicalScore: 0.99 }),
+        // A fragment is judged by the record it belongs to, not by its own id.
+        candidate('fragment-of-01', { objectId: 'document-01', tokenCount: 4, lexicalScore: 0.4 }),
+        candidate('fragment-elsewhere', { objectId: 'document-outside', lexicalScore: 0.98 }),
+      ],
+      authorizedTypedRelationCandidates: async () => [],
+      authorizeSelectedCandidates: async (_scope, candidates) => {
+        authorized.push(...candidates.map((item) => item.subjectId));
+        return candidates;
+      },
+    };
+    const projection = agentContext(['document-01']);
+
+    const plan = await planAiProposalContext(repository, plannerInput({ projection }));
+
+    expect(plan.request.context.map((item) => item.subjectId).sort()).toEqual([
+      'document-01',
+      'fragment-of-01',
+    ]);
+    expect(authorized).not.toContain('document-outside');
+    expect(authorized).not.toContain('fragment-elsewhere');
+    expect(
+      plan.omitted
+        .filter((item) => item.reason === 'outside_projection')
+        .map((item) => item.subjectId),
+    ).toEqual(['document-outside', 'fragment-elsewhere']);
+    expect(plan.request.omittedSubjectIds).toEqual(['document-outside', 'fragment-elsewhere']);
+    // No field of the candidate beyond the context item crosses to the provider.
+    expect(Object.keys(plan.request.context[0]!)).not.toContain('objectId');
+    expect(plan.projection).toEqual({
+      definitionId: 'agent_context',
+      definitionVersion: 1,
+      corpusDigest: 'e'.repeat(64),
+      projectionDigest: projection.projectionDigest,
+    });
+  });
+
   it('rejects planned dispatch when the request did not come from the planner', async () => {
     let invoked = false;
     const guarded: AiProvider = {
@@ -272,7 +395,21 @@ describe('AI proposal routing', () => {
     };
 
     await expect(
-      dispatchPlannedAiProposal(guarded, { request, selected: [], omitted: [] }, localPolicy),
+      dispatchPlannedAiProposal(
+        guarded,
+        {
+          request,
+          selected: [],
+          omitted: [],
+          projection: {
+            definitionId: 'agent_context',
+            definitionVersion: 1,
+            corpusDigest: 'e'.repeat(64),
+            projectionDigest: agentContext().projectionDigest,
+          },
+        },
+        localPolicy,
+      ),
     ).rejects.toThrow(/planner-produced request/);
     expect(invoked).toBe(false);
   });
@@ -320,6 +457,7 @@ describe('AI proposal routing', () => {
         tokenBudget: request.tokenBudget,
         query: 'retention policy',
         seedSubjectIds: ['document-01'],
+        projection: agentContext(),
       },
       localPolicy,
     );

@@ -427,17 +427,35 @@ export function project(input: ProjectionInput, options: ProjectOptions = {}): P
       relevanceFanoutByPropagationClass: fanoutByPropagationClass,
     },
   };
-  // The digest covers what the reader receives: definition + parameters + source identity +
-  // exactly which members sit in which section, by id and content digest — and, since v2,
-  // whether each was shown as verified and on what basis. Two readings that differ only in
-  // which members were labelled unverified told their readers different things. The format tag
-  // is in the preimage (KF-SAS-RQ-158), so a v2 digest cannot collide with a v1 one.
-  const projectionDigest = digest({
-    format: body.format,
-    definition: body.definition,
-    parameters: body.parameters,
-    source: body.source,
-    sections: sections.map((s) => ({
+  const projectionDigest = projectionResultDigest(body);
+  const result: ProjectionResult = { ...body, projectionDigest };
+  canonicalize(result);
+  return result;
+}
+
+/**
+ * The digest a Result carries, recomputed from the Result itself.
+ *
+ * It covers what the reader receives: definition + parameters + source identity + exactly which
+ * members sit in which section, by id and content digest — and, since v2, whether each was shown
+ * as verified and on what basis. Two readings that differ only in which members were labelled
+ * unverified told their readers different things. The format tag is in the preimage
+ * (KF-SAS-RQ-158), so a v2 digest cannot collide with a v1 one. Measurements are not covered:
+ * they describe the reading, they are not what was read.
+ *
+ * Exported so a consumer handed a Result — the agent context planner — can check that the
+ * members it is about to use are the ones the digest names, rather than trusting the list.
+ */
+export function projectionResultDigest(
+  result: Pick<ProjectionResult, 'format' | 'definition' | 'parameters' | 'source' | 'sections'> &
+    Pick<Partial<ProjectionResult>, 'edges'>,
+): string {
+  return digest({
+    format: result.format,
+    definition: result.definition,
+    parameters: result.parameters,
+    source: result.source,
+    sections: result.sections.map((s) => ({
       id: s.id,
       members: s.members.map((m) => [
         m.objectId,
@@ -448,11 +466,8 @@ export function project(input: ProjectionInput, options: ProjectOptions = {}): P
           : ['unverified', m.verification.label],
       ]),
     })),
-    ...(resultEdges === undefined
+    ...(result.edges === undefined
       ? {}
-      : { edges: resultEdges.map((e) => [e.relationType, e.sourceId, e.targetId]) }),
+      : { edges: result.edges.map((e) => [e.relationType, e.sourceId, e.targetId]) }),
   });
-  const result: ProjectionResult = { ...body, projectionDigest };
-  canonicalize(result);
-  return result;
 }

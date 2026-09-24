@@ -23,6 +23,7 @@
     "@kf/database": "workspace:*",
     "@kf/documents": "workspace:*",
     "@kf/domain": "workspace:*",
+    "@kf/projections": "workspace:*",
     "@kf/search": "workspace:*"
   },
   "devDependencies": {
