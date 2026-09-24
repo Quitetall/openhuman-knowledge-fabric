@@ -56,8 +56,10 @@ class Accepted extends Error {}
 async function refusal(
   pool: Pool,
   sql: string,
-  prepare?: (tx: Tx) => Promise<void>,
-): Promise<{ code?: string; message: string; constraint?: string } | undefined> {
+  prepare?: (tx: Tx) => Promise<unknown>,
+): Promise<
+  { code?: string | undefined; message: string; constraint?: string | undefined } | undefined
+> {
   try {
     await withTransaction(pool, async (tx) => {
       await prepare?.(tx);
@@ -66,7 +68,11 @@ async function refusal(
     });
   } catch (error: unknown) {
     if (error instanceof Accepted) return undefined;
-    const e = error as { code?: string; message: string; constraint?: string };
+    const e = error as {
+      code?: string | undefined;
+      message: string;
+      constraint?: string | undefined;
+    };
     return { code: e.code, message: e.message, constraint: e.constraint };
   }
   return undefined;
