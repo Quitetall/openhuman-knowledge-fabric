@@ -5,6 +5,7 @@ import {
   corpusDigest,
   deriveMasterRecordSections,
   enumeratePermittedSet,
+  masterRecordMemberFormat,
   enumerateRelevanceGraph,
   latestMasterRecord,
   masterRecordItems,
@@ -105,10 +106,13 @@ export function registerMasterRecordRoute(
         const record = await latestMasterRecord(tx, identity.actorId, identity.organizationId);
         if (record === undefined) return reply.code(404).send({ error: 'master_record_not_found' });
 
+        // Under the member format the claim RECORDED, so a claim compiled before a format
+        // change is exactly as current as it was (KF-SAS-RQ-016).
         const permitted = await enumeratePermittedSet(
           tx,
           identity.actorId,
           identity.organizationId,
+          masterRecordMemberFormat(record['manifest']),
         );
         const manifest = record['manifest'] as Partial<MasterRecordManifest> | null;
         const withdrawn = Array.isArray(manifest?.withdrawn) ? manifest.withdrawn : [];

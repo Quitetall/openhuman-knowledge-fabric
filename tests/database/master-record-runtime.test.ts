@@ -315,7 +315,7 @@ describe('master-record runtime', () => {
         recordedByAction: actionId,
       });
     });
-    expect(first.manifest.format).toBe('kf-master-record-v2');
+    expect(first.manifest.format).toBe('kf-master-record-v3');
     expect(first.manifest.included.length).toBeGreaterThan(0);
     const subjectMember = first.manifest.included.find(
       (member) => member.objectId === fixtures.reviewerId,

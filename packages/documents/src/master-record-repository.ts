@@ -13,9 +13,12 @@ import type {
 import {
   buildWithheldLedger,
   compileMasterRecord,
+  CURRENT_MASTER_RECORD_MEMBER_FORMAT,
+  masterRecordMemberDigest,
   relevanceClosureWithMetrics,
   sectionMasterRecord,
   type MasterRecordManifest,
+  type MasterRecordMemberFormat,
   type MasterRecordSections,
 } from './master-record.js';
 
@@ -108,6 +111,9 @@ function contentDigests(value: unknown, result = new Set<string>()): Set<string>
 export async function enumeratePermissionSet(
   tx: Tx,
   organizationId: string,
+  // A stored claim is re-checked under the member format it RECORDED
+  // (`masterRecordMemberFormat(manifest)`); a new compilation uses the current one.
+  memberFormat: MasterRecordMemberFormat = CURRENT_MASTER_RECORD_MEMBER_FORMAT,
 ): Promise<readonly PermissionMember[]> {
   const rows = await tx.query<ObjectRow>(
     `select /* master-record.permission-set */
@@ -146,16 +152,19 @@ export async function enumeratePermissionSet(
     // Verification is NOT in this digest. It is a fact about the member, not about which records
     // the person may see, so a verification does not move the corpus identity — the same place
     // `withdrawnAt` sits relative to the digest line.
-    contentDigest: digest({
-      id: row.id,
-      objectType: row.object_type,
-      organizationId: row.organization_id,
-      classification: row.classification,
-      title: row.title,
-      lifecycleState: row.lifecycle_state,
-      rowVersion: row.row_version,
-      content: row.content_payload,
-    }),
+    contentDigest: masterRecordMemberDigest(
+      {
+        id: row.id,
+        objectType: row.object_type,
+        organizationId: row.organization_id,
+        classification: row.classification,
+        title: row.title,
+        lifecycleState: row.lifecycle_state,
+        rowVersion: row.row_version,
+        content: row.content_payload,
+      },
+      memberFormat,
+    ),
   }));
 }
 
@@ -164,8 +173,9 @@ export async function enumeratePermittedSet(
   tx: Tx,
   personId: string,
   organizationId: string,
+  memberFormat: MasterRecordMemberFormat = CURRENT_MASTER_RECORD_MEMBER_FORMAT,
 ): Promise<readonly PermissionMember[]> {
-  const visible = await enumeratePermissionSet(tx, organizationId);
+  const visible = await enumeratePermissionSet(tx, organizationId, memberFormat);
   const coverage = await enumerateAccessCoverage(tx, personId, organizationId);
   const excluded = await tx.query<{ object_id: string } & Record<string, unknown>>(
     `select object_id from content.person_entitlement_exclusion

@@ -1,4 +1,4 @@
-import { canonicalize, digestBytes } from '@kf/canonicalization';
+import { canonicalize, digest, digestBytes, taggedDigest } from '@kf/canonicalization';
 
 export type MasterRecordClassification = 'public' | 'internal' | 'confidential' | 'restricted';
 
@@ -68,7 +68,83 @@ export interface MasterRecordWithheldLedger {
   readonly thirdPartyCounts: Readonly<Record<string, number>>;
 }
 
-export type MasterRecordFormat = 'kf-master-record-v1' | 'kf-master-record-v2';
+export type MasterRecordFormat =
+  'kf-master-record-v1' | 'kf-master-record-v2' | 'kf-master-record-v3';
+
+/**
+ * The format a member's `contentDigest` is taken under, which the manifest that recorded it
+ * determines (KF-SAS-RQ-016).
+ *
+ * A member digest is identity: `corpusDigest` is a line digest over members' content digests,
+ * and a stored claim is re-checked against a fresh enumeration on every read. So the member
+ * format cannot simply change — a claim compiled yesterday would read as stale today. It is
+ * versioned by the manifest instead, exactly as the audit link is by its row:
+ *
+ *   kf-master-record-member-v1  digest({ …fields })                  kf-master-record-v1, -v2
+ *   kf-master-record-member-v2  digest({ …fields, format: <tag> })  kf-master-record-v3
+ *
+ * `kf-master-record-member-v1` names the untagged preimage; it never appears inside a digest.
+ * Every staleness check enumerates the current corpus under the RECORDED member format.
+ */
+export type MasterRecordMemberFormat = 'kf-master-record-member-v1' | 'kf-master-record-member-v2';
+
+/** The member format every newly compiled claim is written under. */
+export const CURRENT_MASTER_RECORD_MEMBER_FORMAT: MasterRecordMemberFormat =
+  'kf-master-record-member-v2';
+
+/** The member format a stored manifest recorded. An unknown manifest format is refused. */
+export function masterRecordMemberFormat(manifest: unknown): MasterRecordMemberFormat {
+  const format =
+    typeof manifest === 'object' && manifest !== null
+      ? (manifest as { format?: unknown }).format
+      : undefined;
+  switch (format) {
+    case 'kf-master-record-v1':
+    case 'kf-master-record-v2':
+      return 'kf-master-record-member-v1';
+    case 'kf-master-record-v3':
+      return 'kf-master-record-member-v2';
+    default:
+      throw new Error(`master record manifest has unknown format ${String(format)}`);
+  }
+}
+
+/** What a member's content digest commits to: every visible envelope field and the row version. */
+export interface MasterRecordMemberFields {
+  readonly id: string;
+  readonly objectType: string;
+  readonly organizationId: string;
+  readonly classification: string;
+  readonly title: string;
+  readonly lifecycleState: string;
+  readonly rowVersion: string;
+  readonly content: unknown;
+}
+
+/** A member's content digest under the named format; there is no default. */
+export function masterRecordMemberDigest(
+  fields: MasterRecordMemberFields,
+  format: MasterRecordMemberFormat,
+): string {
+  const preimage = {
+    id: fields.id,
+    objectType: fields.objectType,
+    organizationId: fields.organizationId,
+    classification: fields.classification,
+    title: fields.title,
+    lifecycleState: fields.lifecycleState,
+    rowVersion: fields.rowVersion,
+    content: fields.content,
+  };
+  switch (format) {
+    case 'kf-master-record-member-v1':
+      return digest(preimage);
+    case 'kf-master-record-member-v2':
+      return taggedDigest(format, preimage);
+    default:
+      throw new Error(`unknown master record member format ${String(format)}`);
+  }
+}
 
 /**
  * The claim. Its identity is `corpusDigest` — the exact authorized corpus — and nothing else
@@ -321,8 +397,11 @@ export function compileMasterRecord(options: {
   }
   const included = sortedMembers(options.permitted);
   const withdrawn = sortedMembers(options.withdrawn ?? []);
+  // v3: every included member's content digest is kf-master-record-member-v2, which the caller
+  // enumerated under CURRENT_MASTER_RECORD_MEMBER_FORMAT. Withdrawn members keep the digest the
+  // earlier claim recorded — their content is no longer visible, so it is never recomputed.
   const manifest: MasterRecordManifest = {
-    format: 'kf-master-record-v2',
+    format: 'kf-master-record-v3',
     personId: options.personId,
     organizationId: options.organizationId,
     compiledAt: options.compiledAt ?? new Date().toISOString(),
