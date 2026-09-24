@@ -71,10 +71,10 @@ Functional now:
   idempotency key or row version in the body. The session's selected role travels as the
   `x-kf-acting-role` header, as on every request; the API forms the idempotency key from a
   gesture id this page generates once per form render (so a double submit replays) and the note's
-  digest. The result states the observation's verification label — `UNVERIFIED — nobody has
-checked this record` at capture — exactly as the API returned it. This app writes nothing
-  itself: `tests/conformance/capture-surfaces.test.ts` refuses a database driver, `@kf/database`
-  or a SQL write statement anywhere under `apps/web`.
+  digest. The result shows the observation's verification label exactly as the API returned it,
+  which at capture is the unverified label. This app writes nothing itself:
+  `tests/conformance/capture-surfaces.test.ts` refuses a database driver, `@kf/database`, the
+  dispatcher, or a SQL write statement anywhere under `apps/web`.
 - `GET /ml/runs/:authorityId/revisions/:revisionId` with independent event, lineage-member,
   segment, and promotion-receipt cursors (`limit`/`afterSequence`, `memberLimit`/`afterMember`,
   `segmentLimit`/`afterOrdinal`, `promotionLimit`/`afterReceiptDigest`)

@@ -49,6 +49,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <Link href="/search" style={{ color: '#334155', textDecoration: 'none' }}>
               Search
             </Link>
+            <Link href="/capture" style={{ color: '#334155', textDecoration: 'none' }}>
+              Capture
+            </Link>
             <Link href="/ml/runs" style={{ color: '#334155', textDecoration: 'none' }}>
               ML runs
             </Link>
