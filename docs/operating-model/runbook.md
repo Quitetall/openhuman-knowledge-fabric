@@ -361,6 +361,24 @@ log. `tests/database/write-guards.test.ts` pins that list; a new table the appli
 is guarded by calling `core.install_action_context_guards()` in its migration, or the test names
 it.
 
+## A migration refuses: a record is not the type, or in the domain, it claims
+
+Some migrations add a key that every existing row must already satisfy, and the database checks
+the rows when the key is added. A database holding a row that breaks it refuses the migration —
+atomically, so nothing is half-applied — rather than carrying the row forward.
+
+- `warrant_is_warrant` or `promotion_authority_decision_is_ml_promotion_decision`
+  (`20260925030000`): a warrant or an ML promotion decision is keyed on an object of another type,
+  so one object is two records. Find them, as the owner:
+
+      select w.id, o.object_type from work.warrant w join core.object o on o.id = w.id
+       where o.object_type <> 'warrant';
+      select d.object_id, o.object_type from ml.promotion_authority_decision d
+        join core.object o on o.id = d.object_id where o.object_type <> 'ml_promotion_decision';
+
+Which of the two records is the real one is a records decision for whoever owns them; correct it
+with the owner credential, as a recorded `correct_record`, and run the migration again.
+
 ## A verification is refused: reviewed individually, too fast
 
 `verify_record` with basis `reviewed_individually` is refused when the same person recorded

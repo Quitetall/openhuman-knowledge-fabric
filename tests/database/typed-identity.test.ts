@@ -121,6 +121,85 @@ describe('a typed row is the type its table is about', () => {
     });
     expect(written.object_type).toBe('supplier');
   });
+
+  it('binds every typed table to its type, by catalog, not by memory (RQ-030)', async () => {
+    // A typed table is one whose single-column primary key references core.object (id): the
+    // row IS that object. Each must also carry a constant object_type and the composite key
+    // (id, object_type) → core.object (id, object_type). Two were keyed on the id alone until
+    // 20260925030000 — work.warrant and ml.promotion_authority_decision — and nothing noticed,
+    // because the earlier tests named their tables one by one.
+    //
+    // Keyed on an object of ANY type by design, so they have no single type to be:
+    const ANY_TYPE: Record<string, string> = {
+      'core.object_verification': 'a verification is of any record',
+      'search.document': 'a derived index entry for any record',
+    };
+    const typed = await withTransaction(h.adminPool, (tx) =>
+      tx.query<{ tbl: string; bound: boolean; constant: string | null }>(
+        `select format('%I.%I', n.nspname, c.relname) as tbl,
+                exists (
+                  select 1 from pg_constraint f2
+                    join pg_attribute a on a.attrelid = f2.conrelid and a.attnum = f2.conkey[2]
+                   where f2.conrelid = pk.conrelid and f2.contype = 'f'
+                     and f2.confrelid = 'core.object'::regclass
+                     and f2.conkey[1] = pk.conkey[1] and array_length(f2.conkey, 1) = 2
+                     and a.attname = 'object_type' and a.attgenerated = 's'
+                     and f2.confkey = array[
+                       (select attnum from pg_attribute
+                         where attrelid = 'core.object'::regclass and attname = 'id'),
+                       (select attnum from pg_attribute
+                         where attrelid = 'core.object'::regclass and attname = 'object_type')
+                     ]::int2[]) as bound,
+                (select pg_get_expr(d.adbin, d.adrelid)
+                   from pg_attribute a join pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+                  where a.attrelid = pk.conrelid and a.attname = 'object_type') as constant
+           from pg_constraint pk
+           join pg_class c on c.oid = pk.conrelid
+           join pg_namespace n on n.oid = c.relnamespace
+          where pk.contype = 'p' and array_length(pk.conkey, 1) = 1
+            and exists (select 1 from pg_constraint f
+                         where f.conrelid = pk.conrelid and f.contype = 'f'
+                           and f.confrelid = 'core.object'::regclass and f.conkey = pk.conkey)
+          order by 1`,
+      ),
+    );
+    // A sweep that finds nothing proves nothing.
+    expect(typed.length).toBeGreaterThan(25);
+    const unbound = typed.filter((t) => !t.bound && !(t.tbl in ANY_TYPE)).map((t) => t.tbl);
+    expect(unbound).toEqual([]);
+    // Each constant names a registered object type.
+    const types = await withTransaction(h.adminPool, (tx) =>
+      tx.query<{ id: string }>('select id from registry.object_type'),
+    );
+    const registered = new Set(types.map((t) => `'${t.id}'::text`));
+    expect(
+      typed.filter((t) => t.bound && !registered.has(t.constant ?? '')).map((t) => t.tbl),
+    ).toEqual([]);
+    expect(
+      typed.filter((t) => t.tbl in ANY_TYPE).map((t) => t.tbl),
+      'an any-type exemption names a table that is no longer keyed on core.object',
+    ).toEqual(Object.keys(ANY_TYPE).sort());
+  });
+
+  it('refuses a warrant row hung on a decision record', async () => {
+    const decision = await createObject(h.adminPool, f, {
+      type: 'decision_record',
+      domain: 'engineering',
+      state: 'proposed',
+      title: 'Not a warrant',
+      createdBy: f.performerId,
+    });
+    await expect(
+      withTransaction(h.adminPool, async (tx) => {
+        await bindContext(tx, f);
+        await tx.query(
+          `insert into work.warrant (id, warrant_uuid, repository, profile, assurance_level)
+           values ($1, $1, 'Quitetall/LamQuant', 'delivery', 'basic')`,
+          [decision],
+        );
+      }),
+    ).rejects.toThrow(/warrant_is_warrant/);
+  });
 });
 
 describe('verification does not over-claim', () => {
