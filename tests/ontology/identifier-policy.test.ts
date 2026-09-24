@@ -21,6 +21,7 @@ import {
   formatEnterpriseId,
   isAntiSymmetricQuasigroup,
   loadRegistryPolicy,
+  registryPackGaps,
   validateIdentifier,
   type CheckFailure,
 } from '@kf/ontology-compiler';
@@ -234,5 +235,51 @@ describe('the namespace confusability guard', () => {
     // A guard that fired here would be over-broad, and over-broad guards get disabled.
     expect(named(withExtraNamespace('RSQ'), 'namespaces_are_not_confusable')).toEqual([]);
     expect(named(withExtraNamespace('XYZ'), 'namespaces_are_not_confusable')).toEqual([]);
+  });
+});
+
+/**
+ * A rule that cannot be machine-enforced is recorded as such (KF-SAS-RQ-155, SAS §79).
+ *
+ * rules.yaml says which rules no machine enforces — `enforced_by: unenforced`, or a note that
+ * the enforcement is partial — and the gaps that travel with the registry pack must name each
+ * of them as not machine-enforceable, so an approver of the pack is told rather than left to
+ * assume that every declared rule is checked.
+ */
+describe('the registry pack names the rules no machine enforces', () => {
+  type Rule = { id: string; enforced_by?: unknown; note?: unknown };
+
+  /** Rules the policy itself says are unenforced or only partially enforced. */
+  function notMachineEnforced(rules: readonly Rule[]): string[] {
+    return rules
+      .filter(
+        (rule) =>
+          rule.enforced_by === 'unenforced' ||
+          (typeof rule.note === 'string' && /\bpartial\b/iu.test(rule.note)),
+      )
+      .map((rule) => rule.id);
+  }
+
+  /** Those of `ids` no gap names as not machine-enforceable. */
+  function unrecorded(ids: readonly string[], gaps: readonly string[]): string[] {
+    const recorded = gaps.filter((gap) => /not machine-enforceable/iu.test(gap));
+    return ids.filter((id) => !recorded.some((gap) => new RegExp(`\\b${id}\\b`, 'u').test(gap)));
+  }
+
+  const rules = (POLICY.rules['rules'] as Rule[]).map((rule) => ({ ...rule, id: String(rule.id) }));
+
+  it('finds exactly R13 and R14 declared as not machine-enforced', () => {
+    expect(notMachineEnforced(rules)).toEqual(['R13', 'R14']);
+  });
+
+  it('records each of them in the pack gaps as not machine-enforceable', () => {
+    expect(unrecorded(notMachineEnforced(rules), registryPackGaps())).toEqual([]);
+  });
+
+  it('would report a planted unenforced rule the gaps do not name', () => {
+    const planted = [...rules, { id: 'R19', enforced_by: 'unenforced' }];
+    expect(unrecorded(notMachineEnforced(planted), registryPackGaps())).toEqual(['R19']);
+    // And a gap that names the rule without saying it is unenforceable does not count.
+    expect(unrecorded(['R13'], ['R13 is enforced by review'])).toEqual(['R13']);
   });
 });
