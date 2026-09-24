@@ -134,6 +134,7 @@ describe('a typed row is the type its table is about', () => {
     // Keyed on an object of ANY type by design, so they have no single type to be:
     const ANY_TYPE: Record<string, string> = {
       'core.object_verification': 'a verification is of any record',
+      'org.access_demand': 'demand for access to any record (§64B, 20260925070000)',
       'search.document': 'a derived index entry for any record',
     };
     const typed = await withTransaction(h.adminPool, (tx) =>
