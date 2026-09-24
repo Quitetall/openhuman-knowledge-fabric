@@ -2,6 +2,7 @@
  * `kf` — one entry point for everything an operator or an engineer types.
  *
  *   ingest                  records go in (dispatched acts, OIDC identity)
+ *   note                    one observation, one gesture (over the API, as that person)
  *   master-record           a person's reading comes out (over the API, as that person)
  *   overview                the development control record, from the specification
  *   bootstrap-organization  the first organization and its first person (bootstrap tier)
@@ -24,6 +25,7 @@ import { retireOrganizationUsage } from './admin/retire-organization.js';
 import { revokeIdentityUsage } from './admin/revoke-identity.js';
 import { runIngestCommand, usage as ingestUsage } from './ingest/cli.js';
 import { masterRecordUsage, runMasterRecordCommand } from './master-record/cli.js';
+import { noteUsage, runNoteCommand } from './note/cli.js';
 import { findRoot, overviewUsage, runOverviewCommand } from './overview/cli.js';
 
 const command = process.argv[2];
@@ -33,10 +35,12 @@ function allUsage(): string {
   return [
     'kf <command> [options]',
     '',
-    '  ingest | master-record | overview | bootstrap-organization | grant-authority |',
+    '  ingest | note | master-record | overview | bootstrap-organization | grant-authority |',
     '  retire-organization | revoke-identity',
     '',
     ingestUsage(),
+    '',
+    noteUsage(),
     '',
     masterRecordUsage(),
     '',
@@ -56,6 +60,9 @@ function allUsage(): string {
 switch (command) {
   case 'ingest':
     process.exitCode = await runIngestCommand(rest);
+    break;
+  case 'note':
+    process.exitCode = await runNoteCommand(rest);
     break;
   case 'master-record':
     process.exitCode = await runMasterRecordCommand(rest);
