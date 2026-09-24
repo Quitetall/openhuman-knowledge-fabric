@@ -2,6 +2,34 @@ import type { PreservationSection } from './types.js';
 
 export const ENGINEERING_QUALITY_SECTIONS = [
   {
+    name: 'product-systems',
+    sql: `select id, product_kind, responsible_owner, configuration_authority
+            from product.product_system order by id`,
+  },
+  {
+    name: 'baselines',
+    sql: `select id, baseline_kind, approved_at from product.baseline order by id`,
+  },
+  {
+    name: 'releases',
+    sql: `select id, release_kind, released_at from product.release order by id`,
+  },
+  {
+    name: 'requirements',
+    sql: `select id, statement, requirement_kind, verification_method
+            from engineering.requirement order by id`,
+  },
+  {
+    name: 'risks',
+    sql: `select id, risk_kind, description, severity, probability
+            from engineering.risk order by id`,
+  },
+  {
+    name: 'tests',
+    sql: `select id, test_kind, objective, procedure_artifact, result_artifact
+            from engineering.test order by id`,
+  },
+  {
     name: 'configuration-items',
     sql: `select id, item_kind, part_number, revision_label, parent_system
             from product.configuration_item order by id`,

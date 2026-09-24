@@ -270,6 +270,10 @@ const DECLARED_ADDITIONS = {
     // `state_machine: null`, so an organization could be created and never retired.
     'deactivate_organization',
     'deactivate_person',
+    // KF-SAS-RQ-143: create acts for the R01 product and quality records, which had none.
+    'define_baseline',
+    'define_release',
+    'define_requirement',
     'define_test',
     'deprecate_interface_contract',
     'deprecate_warrant',
@@ -290,6 +294,7 @@ const DECLARED_ADDITIONS = {
     // effects run and there is none yet to bind; that one is an owner-credential bootstrap act
     // recording this same type.
     'grant_person_clearance',
+    'identify_risk',
     'implement_capa',
     'implement_risk_control',
     'invalidate_test_execution',
@@ -339,8 +344,10 @@ const DECLARED_ADDITIONS = {
     'register_ml_metric_definition',
     'register_ml_metric_segment',
     'register_ml_run_lineage',
+    'register_product_system',
     'register_secure_object_authority_key',
     'register_supplier',
+    'register_test',
     'register_warrant_artifact',
     'register_warrant_evidence',
     'register_warrant_submission',

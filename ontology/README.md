@@ -59,6 +59,17 @@ relation raises **ONT-012** at warning severity, so the gap is counted on every 
 rather than living in a comment. Typing lands in Gate 6, alongside the object-type
 extension where the full inventory is known.
 
+## Every type is created by an act
+
+A type with no create act can only come into existence through an owner-credential insert —
+no actor, no authority, no audit event. `tests/conformance/create-act-coverage.test.ts` maps
+every object type to the act that creates it, or to a written reason it has none, and fails on
+a type in neither list. The R01 product and quality types (`product_system`, `requirement`,
+`risk`, `test`, `baseline`, `release`) gained create acts in draft.8 (KF-SAS-RQ-143); R01 gives
+them states and no lifecycle, so each is born in its first declared state. `engagement`,
+`deliverable` and `milestone` still have none and are recorded there as work-control gaps
+(KF-SAS-RQ-142).
+
 ## Where each rule is enforced
 
 `rules.yaml` says where each invariant is enforced; `tests/database/rule-ledger.test.ts` is the

@@ -638,6 +638,39 @@ action_types:
     drives: [test_execution]
     requires: act
 
+  # ── Creating the R01 product and quality records (KF-SAS-RQ-143) ──────────────────────
+  # product_system, requirement, risk, test, baseline and release had no create act, so the
+  # only way one came to exist was an owner-credential insert — the privileged path RQ-143
+  # forbids, and the one the quality end-to-end scenario used for its product and its hazard.
+  # Each act creates one record and its typed row (@kf/product-quality). R01 gives these types
+  # states but no lifecycle, so each is born in its FIRST declared state and drives nothing;
+  # none is institutional, because recording that a requirement or a hazard exists is not an
+  # approval of it.
+  - id: register_product_system
+    audited: true
+    transactional: true
+    drives: []
+  - id: define_requirement
+    audited: true
+    transactional: true
+    drives: []
+  - id: identify_risk
+    audited: true
+    transactional: true
+    drives: []
+  - id: register_test
+    audited: true
+    transactional: true
+    drives: []
+  - id: define_baseline
+    audited: true
+    transactional: true
+    drives: []
+  - id: define_release
+    audited: true
+    transactional: true
+    drives: []
+
   # ── OpenWarrant SAS §67 controlled actions (ADR 0019) ─────────────────────────────────
   # Thirty-two names, in §67's four groups, exactly as OpenWarrant's seam spells them. Phase
   # transitions (§24.7) drive the `warrant` machine; condition, outcome, currency and standing

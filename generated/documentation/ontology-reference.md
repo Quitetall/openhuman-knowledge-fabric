@@ -1,9 +1,9 @@
 <!-- GENERATED from ontology/ — do not edit. -->
-<!-- ontology_version: 1.2.0-draft.1 · source_digest: 782c9c18adbf1a6440d54d2974bb83df352982d8fd522a9e0c126f50245068a8 -->
+<!-- ontology_version: 1.2.0-draft.1 · source_digest: c92b09831be230105239c5058912862405001562def94895e32087386ed4981e -->
 
 # Ontology reference
 
-Compiled from `ontology/`. 39 object types, 41 relation types, 152 action types, 24 state machines, 15 invariants, 4 corpus projections.
+Compiled from `ontology/`. 39 object types, 41 relation types, 158 action types, 24 state machines, 15 invariants, 4 corpus projections.
 
 ## Object types
 
@@ -219,6 +219,12 @@ Compiled from `ontology/`. 39 object types, 41 relation types, 152 action types,
 | `execute_test` | test_execution | role only |
 | `record_test_result` | test_execution | role only |
 | `invalidate_test_execution` | test_execution | act |
+| `register_product_system` | — | role only |
+| `define_requirement` | — | role only |
+| `identify_risk` | — | role only |
+| `register_test` | — | role only |
+| `define_baseline` | — | role only |
+| `define_release` | — | role only |
 | `create_warrant_draft` | — | role only |
 | `revise_warrant_draft` | — | role only |
 | `submit_warrant` | warrant | role only |
