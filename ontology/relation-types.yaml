@@ -300,3 +300,13 @@ relation_types:
       propagation_class: provenance_backward,
       anchor_depth: 8,
     }
+  # ADR 0034 (proposed): what an observation is about. Source is the observation, target the
+  # record it concerns. Lateral: being mentioned in an observation does not make a record
+  # relevant to whoever is relevant to the observation, and the reverse.
+  - {
+      id: concerns,
+      inverse: concerned_in,
+      person_anchor: false,
+      propagation_class: lateral_none,
+      anchor_depth: 0,
+    }

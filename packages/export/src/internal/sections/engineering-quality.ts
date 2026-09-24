@@ -103,6 +103,11 @@ export const ENGINEERING_QUALITY_SECTIONS = [
             from engineering.verification_link order by subject_id, execution_id, id`,
   },
   {
+    // ADR 0034. body_sha256 is recomputed from the body by a trigger on import.
+    name: 'observations',
+    sql: `select id, body, body_sha256, observed_at, tags from content.observation order by id`,
+  },
+  {
     name: 'federated-sources',
     sql: `select id, description, repository, writable
             from quality.federated_source order by id`,

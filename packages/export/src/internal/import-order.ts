@@ -111,6 +111,7 @@ export const IMPORT_ORDER = [
   'test-executions',
   'test-execution-equipment',
   'verification-links',
+  'observations',
   // Subject and Holder form the schema's one deliberately deferred table cycle. Subject first
   // keeps the Holder's ownership edge forward-facing; the reciprocal edge is satisfied once
   // both sections have restored.

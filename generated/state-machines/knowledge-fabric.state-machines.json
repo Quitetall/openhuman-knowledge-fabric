@@ -2,7 +2,7 @@
   "schema_version": "1.2.0-draft.1",
   "x-generated-from": {
     "ontology_version": "1.2.0-draft.1",
-    "source_digest": "c92b09831be230105239c5058912862405001562def94895e32087386ed4981e"
+    "source_digest": "904be1e72a41e99c040dca316b146c9708cf981ac678db2e4b6295ef59954ac0"
   },
   "machines": {
     "initiative_project": {
@@ -922,6 +922,25 @@
           "active",
           "inactive",
           "retire_organization"
+        ]
+      ]
+    },
+    "observation": {
+      "initial": "captured",
+      "terminal": [
+        "promoted",
+        "withdrawn"
+      ],
+      "transitions": [
+        [
+          "captured",
+          "promoted",
+          "promote_observation"
+        ],
+        [
+          "captured",
+          "withdrawn",
+          "withdraw_observation"
         ]
       ]
     }

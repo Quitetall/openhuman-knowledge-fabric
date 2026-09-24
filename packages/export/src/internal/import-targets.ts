@@ -148,6 +148,7 @@ export const PRESERVATION_IMPORT_TARGETS = {
   'test-executions': 'engineering.test_execution',
   'test-execution-equipment': 'engineering.test_execution_equipment',
   'verification-links': 'engineering.verification_link',
+  observations: 'content.observation',
   'federated-sources': 'quality.federated_source',
   'federated-references': 'quality.federated_reference',
   'federated-links': 'quality.federated_link',

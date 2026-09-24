@@ -1,9 +1,9 @@
 <!-- GENERATED from ontology/ — do not edit. -->
-<!-- ontology_version: 1.2.0-draft.1 · source_digest: c92b09831be230105239c5058912862405001562def94895e32087386ed4981e -->
+<!-- ontology_version: 1.2.0-draft.1 · source_digest: 904be1e72a41e99c040dca316b146c9708cf981ac678db2e4b6295ef59954ac0 -->
 
 # Ontology reference
 
-Compiled from `ontology/`. 39 object types, 41 relation types, 158 action types, 24 state machines, 15 invariants, 4 corpus projections.
+Compiled from `ontology/`. 40 object types, 42 relation types, 161 action types, 25 state machines, 15 invariants, 4 corpus projections.
 
 ## Object types
 
@@ -48,6 +48,7 @@ Compiled from `ontology/`. 39 object types, 41 relation types, 158 action types,
 | `milestone` | project | MST | — | 4 |
 | `work_order_amendment` | commercial | AMD | — | 3 |
 | `warrant` | project | WAR | warrant | 7 |
+| `observation` | project | — | observation | 3 |
 
 ## Relation types
 
@@ -94,6 +95,7 @@ Compiled from `ontology/`. 39 object types, 41 relation types, 158 action types,
 | `calibrated_with` | calibrates |  |
 | `raised_against` | raised |  |
 | `remediated_by` | remediates |  |
+| `concerns` | concerned_in |  |
 
 ## Actions
 
@@ -219,6 +221,9 @@ Compiled from `ontology/`. 39 object types, 41 relation types, 158 action types,
 | `execute_test` | test_execution | role only |
 | `record_test_result` | test_execution | role only |
 | `invalidate_test_execution` | test_execution | act |
+| `record_observation` | — | role only |
+| `promote_observation` | observation | act |
+| `withdraw_observation` | observation | role only |
 | `register_product_system` | — | role only |
 | `define_requirement` | — | role only |
 | `identify_risk` | — | role only |
@@ -655,6 +660,19 @@ stateDiagram-v2
     active --> inactive: deactivate_person
     inactive --> active: reactivate_person
     active --> inactive: retire_organization
+```
+
+### `observation`
+
+Initial: `captured` · Terminal: `promoted`, `withdrawn`
+
+```mermaid
+stateDiagram-v2
+    [*] --> captured
+    captured --> promoted: promote_observation
+    captured --> withdrawn: withdraw_observation
+    promoted --> [*]
+    withdrawn --> [*]
 ```
 
 ## Invariants

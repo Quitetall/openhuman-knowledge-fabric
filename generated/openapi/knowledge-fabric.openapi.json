@@ -3,7 +3,7 @@
   "info": {
     "title": "OpenHuman Knowledge Fabric API",
     "version": "1.2.0-draft.1",
-    "description": "Generated from ontology source digest c92b09831be230105239c5058912862405001562def94895e32087386ed4981e."
+    "description": "Generated from ontology source digest 904be1e72a41e99c040dca316b146c9708cf981ac678db2e4b6295ef59954ac0."
   },
   "paths": {
     "/objects/organization/{id}": {
@@ -1319,6 +1319,40 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/WarrantNode"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not permitted, with an explainable reason"
+          },
+          "404": {
+            "description": "No such object, or not visible to this actor"
+          }
+        }
+      }
+    },
+    "/objects/observation/{id}": {
+      "get": {
+        "summary": "Read a Observation",
+        "operationId": "get_observation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Observation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservationNode"
                 }
               }
             }
@@ -4932,6 +4966,96 @@
         }
       }
     },
+    "/actions/record_observation": {
+      "post": {
+        "summary": "Execute record_observation",
+        "operationId": "record_observation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/promote_observation": {
+      "post": {
+        "summary": "Execute promote_observation",
+        "operationId": "promote_observation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/withdraw_observation": {
+      "post": {
+        "summary": "Execute withdraw_observation",
+        "operationId": "withdraw_observation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
     "/actions/register_product_system": {
       "post": {
         "summary": "Execute register_product_system",
@@ -6205,7 +6329,8 @@
               "supplied_by",
               "calibrated_with",
               "raised_against",
-              "remediated_by"
+              "remediated_by",
+              "concerns"
             ]
           },
           "source": {
@@ -6428,6 +6553,9 @@
               "execute_test",
               "record_test_result",
               "invalidate_test_execution",
+              "record_observation",
+              "promote_observation",
+              "withdraw_observation",
               "register_product_system",
               "define_requirement",
               "identify_risk",
@@ -13524,6 +13652,156 @@
               "outcome",
               "currency",
               "standing"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "node_id",
+          "node_type",
+          "title",
+          "state",
+          "classification",
+          "owner",
+          "created_at",
+          "created_by",
+          "updated_at",
+          "updated_by",
+          "source_authority",
+          "attributes"
+        ],
+        "additionalProperties": false
+      },
+      "ObservationNode": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.2.0-draft.1"
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "node_type": {
+            "const": "observation"
+          },
+          "enterprise_id": {
+            "type": "string",
+            "anyOf": [
+              {
+                "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+              },
+              {
+                "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "captured",
+              "promoted",
+              "withdrawn"
+            ]
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_authority": {
+            "type": "string",
+            "enum": [
+              "knowledge_fabric",
+              "plm",
+              "qms",
+              "finance",
+              "hr",
+              "git",
+              "external"
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          },
+          "external_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalReference"
+            },
+            "default": []
+          },
+          "extensions": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+            },
+            "additionalProperties": true,
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "properties": {
+              "body": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              },
+              "observed_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "body",
+              "observed_at"
             ],
             "additionalProperties": false
           }

@@ -70,6 +70,13 @@ them states and no lifecycle, so each is born in its first declared state. `enga
 `deliverable` and `milestone` still have none and are recorded there as work-control gaps
 (KF-SAS-RQ-142).
 
+`observation` (ADR 0034, proposed) is the one type whose create act is deliberately cheap:
+`record_observation` needs a live assignment and no act grant, and the server forms the acting
+assignment and the idempotency key (`formObservationRequest` in `@kf/work-control`).
+`promote_observation` is institutional (`requires: act`); `withdraw_observation` is not. What an
+observation is about is `concerns` relations from it, and a record it was promoted into is
+`derived_from` it.
+
 ## Where each rule is enforced
 
 `rules.yaml` says where each invariant is enforced; `tests/database/rule-ledger.test.ts` is the

@@ -208,6 +208,8 @@ const DECLARED_ADDITIONS = {
     'milestone',
     'ml_promotion_decision',
     'nonconformity',
+    // ADR 0034 (proposed): an observation is captured, then promoted.
+    'observation',
     'physical_binding',
     'risk_control',
     'supplier',
@@ -220,6 +222,8 @@ const DECLARED_ADDITIONS = {
   edge_types: [
     'bound_to',
     'calibrated_with',
+    // ADR 0034 (proposed): what an observation is about.
+    'concerns',
     'conforms_to',
     // Document and ADR relations (ADR 0002). R01 has `supersedes` and `amends`, which say a
     // later record REPLACES or CHANGES an earlier one. Neither describes a record that adds to
@@ -308,6 +312,8 @@ const DECLARED_ADDITIONS = {
     'place_equipment_in_service',
     'plan_test_execution',
     'promote_configuration_item',
+    // ADR 0034 (proposed): capture is not institutional; promotion is.
+    'promote_observation',
     'propose_risk_control',
     'propose_warrant_amendment',
     'propose_warrant_deviation',
@@ -320,6 +326,7 @@ const DECLARED_ADDITIONS = {
     'reactivate_person',
     'receive_complaint',
     'record_document_proposal',
+    'record_observation',
     'record_physical_binding',
     'record_secure_object_erasure',
     'record_test_result',
@@ -393,6 +400,7 @@ const DECLARED_ADDITIONS = {
     'withdraw_controlled_document',
     'withdraw_interface_contract',
 
+    'withdraw_observation',
     'withdraw_warrant_proposal',
   ],
 } as const;

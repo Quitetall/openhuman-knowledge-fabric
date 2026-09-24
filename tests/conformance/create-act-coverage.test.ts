@@ -58,6 +58,8 @@ const CREATED_BY: Readonly<Record<string, readonly string[]>> = {
   test: ['register_test'],
   baseline: ['define_baseline'],
   release: ['define_release'],
+  // ADR 0034 (proposed).
+  observation: ['record_observation'],
 };
 
 /** Types with no create act, and why. A reason is a recorded gap, not an exemption from one. */

@@ -2,7 +2,7 @@
   "schema_version": "1.2.0-draft.1",
   "x-generated-from": {
     "ontology_version": "1.2.0-draft.1",
-    "source_digest": "c92b09831be230105239c5058912862405001562def94895e32087386ed4981e"
+    "source_digest": "904be1e72a41e99c040dca316b146c9708cf981ac678db2e4b6295ef59954ac0"
   },
   "node_types": {
     "organization": {
@@ -161,6 +161,10 @@
     "warrant": {
       "authority_domain": "project",
       "enterprise_namespace": "WAR"
+    },
+    "observation": {
+      "authority_domain": "project",
+      "enterprise_namespace": null
     }
   },
   "edge_types": {
@@ -416,6 +420,12 @@
       "person_anchor": true,
       "propagation_class": "provenance_backward",
       "anchor_depth": 8
+    },
+    "concerns": {
+      "inverse": "concerned_in",
+      "person_anchor": false,
+      "propagation_class": "lateral_none",
+      "anchor_depth": 0
     }
   },
   "action_types": {
@@ -896,6 +906,18 @@
       "transactional": true
     },
     "invalidate_test_execution": {
+      "audited": true,
+      "transactional": true
+    },
+    "record_observation": {
+      "audited": true,
+      "transactional": true
+    },
+    "promote_observation": {
+      "audited": true,
+      "transactional": true
+    },
+    "withdraw_observation": {
       "audited": true,
       "transactional": true
     },

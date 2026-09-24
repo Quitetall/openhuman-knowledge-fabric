@@ -638,6 +638,26 @@ action_types:
     drives: [test_execution]
     requires: act
 
+  # ── Observations (ADR 0034, proposed; KF-SAS-RQ-200, RQ-202, RQ-203) ────────────────────
+  # Capture is cheap; governance is on promotion (ADR 0024). record_observation needs a live
+  # assignment and nothing else — no act grant — and the server forms the acting assignment and
+  # the idempotency key (@kf/work-control formObservationRequest). promote_observation is
+  # institutional. One gesture, one act (RQ-227): a gesture that captures five things records
+  # five observations.
+  - id: record_observation
+    audited: true
+    transactional: true
+    drives: []
+  - id: promote_observation
+    audited: true
+    transactional: true
+    drives: [observation]
+    requires: act
+  - id: withdraw_observation
+    audited: true
+    transactional: true
+    drives: [observation]
+
   # ── Creating the R01 product and quality records (KF-SAS-RQ-143) ──────────────────────
   # product_system, requirement, risk, test, baseline and release had no create act, so the
   # only way one came to exist was an owner-credential insert — the privileged path RQ-143
