@@ -67,8 +67,9 @@ again 30 seconds later with PostgreSQL active.
 
 ## Provisioning
 
-The six host requirements, installed exactly as `.github/actions/provision-host/action.yml`
-installs them, because two copies of a host contract is two chances to be wrong about it:
+The host requirements as they stood when this host was provisioned, installed exactly as
+`.github/actions/provision-host/action.yml` installs them, because two copies of a host contract
+is two chances to be wrong about it:
 
 | Requirement             | On this host                                              |
 | ----------------------- | --------------------------------------------------------- |
@@ -78,6 +79,12 @@ installs them, because two copies of a host contract is two chances to be wrong 
 | python3                 | 3.13.5                                                    |
 | Node at `/usr/bin/node` | v24.18.1, tarball verified against the published checksum |
 | PostgreSQL 18 client    | 18.6, all four tools, PGDG key pinned by digest           |
+
+The action has since added `gnupg` and `rsync`, which the backup's encryption and the off-site
+copy need, and the restore drill also needs the PostgreSQL 18 **server** package
+(`KF_POSTGRES_SERVER_DIR`, for `initdb` and `pg_ctl`; see `deploy/systemd/README.md`). The server
+is installed here (below); whether `gnupg` and `rsync` are was not recorded, so check them before
+a backup or drill runs on this host.
 
 The sandbox qualification passes: `kernel.apparmor_restrict_unprivileged_userns` is absent on
 Debian, and both `bwrap --unshare-user --disable-userns` and `--unshare-all` succeed. This is
@@ -105,7 +112,7 @@ worth writing down:
 
 | It needs                                     | Because                                                                                                                                                                                                                                                        |
 | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CREATEROLE`                                 | the first migration creates ten NOLOGIN group roles                                                                                                                                                                                                            |
+| `CREATEROLE`                                 | the first migration creates eight NOLOGIN group roles                                                                                                                                                                                                          |
 | the group roles pre-created by the superuser | migration 1 creates them AND does `alter default privileges for role kf_migrator` in one transaction, so the running role must already be a member                                                                                                             |
 | `ADMIN OPTION` on those roles                | `comment on role` requires it — PostgreSQL 18 says so by name                                                                                                                                                                                                  |
 | the extensions pre-created by the superuser  | `btree_gist` and `pg_trgm` are untrusted; the migration's `create extension if not exists` then finds them                                                                                                                                                     |
@@ -118,8 +125,10 @@ as the only role permitted DDL, and a superuser migrator would make that descrip
 169 tables, 14 schemas, 461 policies, 189 triggers, 143 tables with row-level security enabled
 and **70 forcing it**. `deploy/postgres/planner.conf` had said "113 of 139 force it", and both
 halves were wrong — the figure came from a workstation database that had accumulated state
-rather than from an install. The 73 tables that enable without forcing now reconcile exactly
-with a static count of the migrations, closing §100.15 of the specification.
+rather than from an install. The 73 tables that enabled without forcing reconciled exactly
+with a static count of the migrations at that date, closing §100.15 of the specification. Those
+figures describe the migrations this host carries. Since migration `20260924000200` every table
+that enables row-level security also forces it, so on a current schema that 73 is zero.
 
 This is precisely what the deployment contract predicts: qualifying a machine that is not the
 workstation finds things the workstation hid. It found five host requirements the first time.
@@ -127,8 +136,9 @@ This time it found a documentation gap and a wrong measurement.
 
 ## What this host is not
 
-**It is not commissioned.** It has no `kf` database, no promoted release, no TLS, no reverse
-proxy and no identity provider realm. `kf-commissioning` reports a check it could not run as
+**It is not commissioned.** It has a `kf` database (above) and, since 2026-09-11, a worker and a
+web process behind nginx (below), but it has never passed `kf-commissioning`, and it is behind
+the repository by every migration since. `kf-commissioning` reports a check it could not run as
 `unverifiable` and fails on it exactly as it fails on `unsatisfied`, so nothing here may be
 cited as evidence of institutional readiness. Phase 9 of
 `docs/sas/KF_Software_Architecture_Specification.md` is not started, and this is the first

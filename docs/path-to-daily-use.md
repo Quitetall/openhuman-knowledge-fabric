@@ -16,11 +16,12 @@ anything is, the specification is right and this page is a snapshot of 2026-08-2
 
 ## Read this first, because it is not obvious
 
-**The engine is far ahead of the product.** 79 migrations, 106 registered action types, 1350
-passing tests, and a master-record runtime that compiles, sections, seals and delivers. What is
+**The engine is far ahead of the product.** As of 2026-08-27: 79 migrations, 106 registered
+action types, 1350 passing tests (today's counts are in
+[`generated/measurements.md`](../generated/measurements.md)), and a master-record runtime that compiles, sections, seals and delivers. What is
 missing is almost entirely deployment and operations, not features.
 
-**There is a working Knowledge Fabric on this workstation.** Database `kf`, 79 migrations, all
+**There is a working Knowledge Fabric on this workstation.** Database `kf`, 79 migrations (as of 2026-08-27), all
 schemas present. It is where the master record was first compiled. It is **not** a commissioned
 host and does not satisfy ADR 0004 criterion 3 — but it is a real substrate and most of steps 1
 and 4 can be done against it.
@@ -166,7 +167,12 @@ under-specified in a way only fresh machines expose.
 Company-wide also means onboarding and offboarding, key custody, and backup and restore actually
 exercised. Much of that is built. **None of it has run on a live host.**
 
-**Written down:** nothing.
+**Written down:** nothing, as of 2026-08-27. Since 2026-09-23 the machine-doable part of host
+installation is one script, [`scripts/deploy/provision-host.sh`](../scripts/deploy/provision-host.sh):
+it creates the identities, directories, environment files and generatable secrets, and
+`--check` changes nothing and lists what is still missing, each with the file it goes in (see
+[`deploy/systemd/README.md`](../deploy/systemd/README.md#install)). What remains hand-run is what
+only a person can supply.
 **Blocked on:** doing 1–5 first, so the install is done correctly once by somebody who records
 what actually hurt.
 
@@ -223,7 +229,7 @@ digests (the ingest grew the permitted set), which is why the first succeeded. T
 only relevance, reused the digest, and collided.
 
 No test covered this: every existing test compiled for a different person, or once per person.
-That is how it survived 1396 passing tests. The experiment edge was removed afterwards — a false
+That is how it survived the 1396 tests passing on that date. The experiment edge was removed afterwards — a false
 `performed_by` claim must not stay in a records system.
 
 **Resolved 2026-09-01 by ADR 0013.** The key is now `(person, organization, corpus_digest)`; an

@@ -172,8 +172,11 @@ fails the root, and one who fixes both still cannot produce the signature.
 ## Schedule
 
 Repository supplies systemd units and timers for checkpoints, daily backup plus off-site copy,
-monthly restore drills and readiness checks. Those files are deployment inputs, not evidence
-that a host installed or successfully ran them. PITR, retention, off-site destination, alert
-delivery, recovery objectives, key custody and the federated object-store verification adapter
-still require named human/operator commissioning and substrate evidence. Until that evidence
+daily audit-ledger verification (`kf-audit-verify.timer`), the daily object-store copy and
+re-hash (`kf-storage.timer`), monthly restore drills and readiness checks; the full table is in
+[`deploy/systemd/README.md`](../../deploy/systemd/README.md#scheduled-operations). Those files are
+deployment inputs, not evidence that a host installed or successfully ran them. PITR, retention,
+off-site destination, the alert receiver, recovery objectives, key custody and the object-store
+verifier's credentials and routing (or, for a store the shipped verifier cannot speak to, a pinned
+override program) still require named human/operator commissioning and substrate evidence. Until that evidence
 exists, production preservation readiness remains unproven.

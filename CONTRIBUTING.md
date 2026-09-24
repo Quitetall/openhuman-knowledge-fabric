@@ -20,9 +20,11 @@ previously said `pnpm gate` runs _every_ check CI runs. That stopped being true 
 job landed, which is precisely the drift the test was written to catch — and it caught it in the
 commit that introduced it.)
 
-> **CI runs on a sandboxed self-hosted runner, on the maintainer's machine, since 2026-08-20.**
-> `runs-on` reads the `RUNNER_LABEL` repository variable, so it is a settings change and not a
-> commit — see `deploy/self-hosted-runner/`.
+> **Pull requests run on GitHub-hosted `ubuntu-latest`; every other event runs on
+> `vars.RUNNER_LABEL`, falling back to `ubuntu-latest` when it is unset.** The self-hosted runner
+> in use since 2026-08-20 is a sandboxed one on the maintainer's machine; `runs-on` reads the
+> `RUNNER_LABEL` repository variable, so moving between them is a settings change and not a
+> commit — see `deploy/self-hosted-runner/` and `.github/workflows/ci.yml`.
 >
 > This block has now been wrong twice, in opposite directions. It first said "CI is not running
 > at all", which was true — 38 runs died at job-start on Actions billing. Then it said CI passed
@@ -102,7 +104,7 @@ previously read…". Do not quietly improve a false claim into a true one.
 
 ## Decisions
 
-Architectural decisions live in `docs/decisions/` and follow the shape of the existing four:
+Architectural decisions live in `docs/decisions/` and follow the shape of the existing records:
 status, date, owner, scope, decision — then what was measured, the options, and what the record
 explicitly does **not** settle. Raise one when a choice would otherwise be discoverable only by
 reading a diff.

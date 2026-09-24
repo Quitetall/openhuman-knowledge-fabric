@@ -32,7 +32,10 @@ Run `pnpm kf ingest ...` from repository root (or build and invoke the API packa
 Development identity requires `NODE_ENV=development`, `KF_ALLOW_FIXED_IDENTITY=1`, and the
 three explicit `KF_DEV_*` UUIDs. OIDC requires the existing `TokenVerifier` configuration,
 `--organization`, `--acting-role`, and a permission-checked `--token-file`; bearer values are
-never accepted inline or printed.
+never accepted inline or printed. Either way the application connection binds the person only on
+an attestation (migration `20260924001000`): the CLI already holds the owner connection
+(`DATABASE_OWNER_URL`), so it issues one from there for each bind rather than asking
+`kf-attestor`.
 
 Reference metadata is a JSON object with exactly one entry per CLI path:
 
@@ -75,14 +78,14 @@ available test of whether relevance works at all. Do this before building anythi
 
 ## What already exists — do not rewrite these
 
-| thing                        | where                                                          | state                                      |
-| ---------------------------- | -------------------------------------------------------------- | ------------------------------------------ |
-| The planner                  | `apps/api/src/ingest/plan.ts`                                  | done, pure, 15 tests, all guards falsified |
-| The CLI                      | `apps/api/src/ingest/cli.ts`, `apps/api/src/cli.ts`            | done, copy/reference paths and identities  |
-| The policy and its reasoning | `docs/decisions/0012-file-ingestion.md`                        | accepted                                   |
-| The reference-mode action    | `packages/documents/src/internal/external-artifact-actions.ts` | done, wired                                |
-| The copy-mode action         | `attach_evidence`, same package                                | pre-existing                               |
-| Ontology registration        | `ontology/action-types.yaml`, `DECLARED_ADDITIONS`             | done                                       |
+| thing                        | where                                                          | state                                     |
+| ---------------------------- | -------------------------------------------------------------- | ----------------------------------------- |
+| The planner                  | `apps/api/src/ingest/plan.ts`                                  | done, pure, all guards falsified          |
+| The CLI                      | `apps/api/src/ingest/cli.ts`, `apps/api/src/cli.ts`            | done, copy/reference paths and identities |
+| The policy and its reasoning | `docs/decisions/0012-file-ingestion.md`                        | accepted                                  |
+| The reference-mode action    | `packages/documents/src/internal/external-artifact-actions.ts` | done, wired                               |
+| The copy-mode action         | `attach_evidence`, same package                                | pre-existing                              |
+| Ontology registration        | `ontology/action-types.yaml`, `DECLARED_ADDITIONS`             | done                                      |
 
 `planIngest(request: IngestRequest): IngestPlan` returns either
 `{ok: true, mode, classification, items}` where each item is `{path, artifactKind, mediaType}`, or
@@ -125,8 +128,10 @@ anyone who knew another organization's digest and size attach, then download, it
 Take its shape:
 
 1. `createPool` on owner and constrained application URLs, `withTransaction`.
-2. `setResolvedAccessContext(tx, {subjectId, assignmentId, organizationId, requestedClassification})`
-   and **check the returned decision** before staging any bytes.
+2. `setResolvedAccessContext(tx, {subjectId, assignmentId, organizationId, requestedClassification, attestation})`
+   and **check the returned decision** before staging any bytes. Without an attestation (passed,
+   or from an issuer registered on the pool, as `runtime.ts` does with `registerAttestationIssuer`)
+   the bind throws `PrincipalRefused('not_attested')`.
 3. Dispatch through `createFabricTransactionalDispatcher` with
    `createDocumentActionAtoms` — that is where `register_external_artifact` is already bound
    (`packages/documents/src/internal/action-atoms.ts`, materializer and effect).
@@ -181,8 +186,8 @@ swallow the second.
 **A test can pass for the wrong reason, and this file's own history proves it.** Deleting
 `plan.ts`'s missing-mode check left all 14 tests of the day green, because an absent mode fell
 through to the unknown-mode branch and both messages contained `--mode`, which was all the
-assertion checked. The fix tightened that assertion to the specific guidance and added a 15th test
-proving the two branches are distinguishable — which is why the table above says 15.
+assertion checked. The fix tightened that assertion to the specific guidance and added a test
+proving the two branches are distinguishable.
 
 **Do not report a gate result you piped.** `pnpm gate | tail` exits with `tail`'s status. It
 reported success over a real failure in this session. Redirect to a file and echo `$?`.
@@ -193,9 +198,10 @@ character class — `pgrep -f 'pnpm ga[t]e'` — or a pidfile.
 **Commit with `-F <file>`, never `-m`.** zsh command-substitutes backticks inside double quotes,
 and commit messages here contain code spans.
 
-**Every commit goes through external review** (`review_commit`), and reviewers run ~20–30% false
-positives. Open the cited file:line and confirm the bug before changing anything; record the
-findings you skipped, and why, in the follow-up commit message.
+**External review (`review_commit`) runs on request, not on every commit**, and reviewers run
+~20–30% false positives. When a review is requested, open the cited file:line and confirm the bug
+before changing anything; record the findings you skipped, and why, in the follow-up commit
+message.
 
 ## Standing constraints that override convenience
 

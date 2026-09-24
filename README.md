@@ -21,7 +21,8 @@ It is a backend. People and other applications reach it through the layers above
 ## What it does
 
 - **Keeps one record.** Every object has a type, an owner, a history and a secrecy level.
-- **Refuses untracked change.** There are 151 kinds of act. There is no generic write endpoint.
+- **Refuses untracked change.** Every change is one of a declared set of acts (counted in
+  [`generated/measurements.md`](generated/measurements.md)). There is no generic write endpoint.
 - **Proves what happened.** Every act appends to an audit chain that verifies on its own.
 - **Shows each person exactly what they may see.** Not more, not less, and it can say why.
 - **Reads for machines first.** A human page is compiled from the record, not stored instead of it.
@@ -53,11 +54,11 @@ same seam. None of them touches storage directly.
 
 Operational for development and draft use. **Not an authoritative service yet.**
 
-|                  |                                                      |
-| ---------------- | ---------------------------------------------------- |
-| Phases delivered | 9 of 11                                              |
-| Tests            | 1,520 across 151 files, against a real PostgreSQL 18 |
-| Remaining        | Phase 9, commission a host. Phase 10, version 1.0    |
+|                  |                                                                                                      |
+| ---------------- | ---------------------------------------------------------------------------------------------------- |
+| Phases delivered | 9 of 11                                                                                              |
+| Tests            | against a real PostgreSQL 18; file count in [`generated/measurements.md`](generated/measurements.md) |
+| Remaining        | Phase 9, commission a host. Phase 10, version 1.0                                                    |
 
 The single source of truth for program state is the
 [Software Architecture Specification](docs/sas/KF_Software_Architecture_Specification.md). Its
@@ -72,7 +73,7 @@ cp .env.example .env
 set -a; . ./.env; set +a
 docker compose up -d                                  # PostgreSQL 18, MinIO, Keycloak
 DATABASE_URL="$DATABASE_OWNER_URL" pnpm db:migrate
-pnpm dogfood:load -- --source-dir /path/to/documents   # prints three KF_DEV_* values for .env
+pnpm dogfood:load -- --source-dir /path/to/documents   # prints three KF_DEV_* values and DATABASE_URL_FILE for .env
 pnpm dev                                              # api :4000, web :3000, worker
 ```
 
@@ -152,7 +153,7 @@ still arrives as its own act, and none is evidence until somebody verifies it.
 | `generated/` | Compiler output. Never hand-edited; the gate fails on drift                          |
 | `database/`  | SQL migrations, functions, triggers, constraints, row security                       |
 | `packages/`  | Domain, database, actions, authorization, artifacts, export, search, projections, UI |
-| `apps/`      | `api` (Fastify), `web` (Next.js), `worker`, `checkpoint`, `kf-storage`               |
+| `apps/`      | `api` (Fastify), `web` (Next.js), `worker`, `attestor`, `checkpoint`, `kf-storage`   |
 | `fixtures/`  | A demonstration company that exercises every path end to end                         |
 | `examples/`  | Real master records, exactly as the API returned them                                |
 | `docs/`      | Specification, decisions, deployment, security, warrants                             |
@@ -166,7 +167,7 @@ the common and correct case.
 | Document                                                            | Answers                                  |
 | ------------------------------------------------------------------- | ---------------------------------------- |
 | [Specification](docs/sas/KF_Software_Architecture_Specification.md) | What it is, every requirement, every gap |
-| [Decisions](docs/decisions/)                                        | Why it is this way. 27 records           |
+| [Decisions](docs/decisions/)                                        | Why it is this way                       |
 | [Onboarding](docs/onboarding.md)                                    | How to run it, with the traps            |
 | [Private host](docs/deployment/private-host.md)                     | How to deploy it properly                |
 | [Identity and login](docs/deployment/identity-and-login.md)         | How a person gets an account             |

@@ -20,7 +20,8 @@ be asked for, and is refused under `development`.
 | `development` | Explicit fixed headers from `KF_DEV_*`                   | `NODE_ENV=development` or `test`, one owner  | None            |
 | `dogfood`     | Verified bearer token plus live database role assignment | Local rehearsal or a controlled private host | Dogfood only    |
 
-The API refuses `dogfood` without all of `OIDC_ISSUER`, `OIDC_AUDIENCE` and `OIDC_JWKS_URI`.
+The API refuses `dogfood` without all of `OIDC_ISSUER`, `OIDC_AUDIENCE` and `OIDC_JWKS_URI`, and
+without `KF_ATTESTOR_SOCKET` naming a running `kf-attestor` (see the dogfood section below).
 The web application refuses its fixed caller in `dogfood` even if `NODE_ENV=development` and
 `KF_ALLOW_FIXED_IDENTITY=1` are still present. A forgotten environment cleanup therefore does
 not turn fixed headers into shared identity.
@@ -80,7 +81,8 @@ when the database holds acts a different loader made does it stop, printing
 - Keycloak — <http://localhost:8080>
 
 The loader refuses to run on a provisioned host (one where `/etc/kf` exists). It creates the
-constrained `kf_api_dev` login with a fresh random password on every run, writes that login's
+`kf_api_dev` login — a member of `kf_app` and, because the development API attests in-process,
+of `kf_attestor`, which is why no `dogfood` API accepts it — with a fresh random password on every run, writes that login's
 connection string owner-only (0600) to `$XDG_STATE_HOME/knowledge-fabric/dev-database-url`
 (default `~/.local/state/…`; override with `KF_DEV_DATABASE_URL_FILE`), and never prints the
 password. It also creates a visibly synthetic local operator,
@@ -100,19 +102,21 @@ claiming readiness it does not have.
 
 ## Dogfood profile: local identity rehearsal
 
-Compose starts Keycloak but deliberately does not invent a realm, client, users, MFA policy or
-token lifetime. Before selecting `dogfood`, an operator has to configure and verify all of the
-following:
+Compose starts Keycloak with `--import-realm` over `deploy/keycloak/`, so the
+`knowledge-fabric` realm from
+[`knowledge-fabric-realm.json`](../../deploy/keycloak/knowledge-fabric-realm.json) exists on
+first start: the public `knowledge-fabric-web` client (authorization code, PKCE S256, redirect
+URI `http://localhost:3000/auth/callback`), the bearer-only `knowledge-fabric-api` audience, and the
+realm's token lifetime and login policy. What it deliberately does not ship is a user — an export
+carrying users would commit credentials. Before selecting `dogfood`:
 
-1. A `knowledge-fabric` realm, public web client and API audience such as
-   `knowledge-fabric-api`.
-2. Exact callback and post-logout URLs for the web client, with authorization code and PKCE
-   S256 required.
-3. Access tokens whose exact `iss` matches `OIDC_ISSUER` and whose `aud` contains
-   `OIDC_AUDIENCE`.
-4. A reachable JWKS endpoint at `OIDC_JWKS_URI`.
-5. A recorded `org.external_identity` link from the token `sub` to a person, plus the live role
-   assignment the request will name. Nothing is auto-provisioned.
+1. Create a user with `scripts/deploy/create-dev-user.sh`, which prints the token `sub`.
+2. Confirm access tokens carry an `iss` that exactly matches `OIDC_ISSUER` and an `aud` that
+   contains `OIDC_AUDIENCE`, and that the JWKS endpoint at `OIDC_JWKS_URI` is reachable
+   ([`identity-and-login.md`](identity-and-login.md) records that walk).
+3. Record the `org.external_identity` link from that `sub` to a person, plus the live role
+   assignment the request will name, with `pnpm kf:grant-authority` (owner connection). Nothing is
+   auto-provisioned.
 
 The local values, after that provider configuration exists, are:
 
@@ -127,12 +131,49 @@ KF_WEB_OIDC_REDIRECT_URI=http://localhost:3000/auth/callback
 KF_WEB_SESSION_SECRET=<canonical-base64-encoding-of-32-random-bytes>
 ```
 
-Start the application processes after provider records and KF authority links exist:
+Since migration `20260924001000` a `dogfood` API binds a person only on an attestation from a
+separate `kf-attestor` process, reached over a Unix socket, and it refuses to start without
+`KF_ATTESTOR_SOCKET` or through a login that holds `kf_attestor` (which `kf_api_dev` does). The
+workstation therefore needs two further logins and the attestor running. `pnpm dev` does not start
+it: `apps/attestor` has no `dev` script. As the owner (`psql "$DATABASE_OWNER_URL"`), with
+passwords of your choosing:
+
+```sql
+-- The attestor's login: kf_attestor and nothing else (it refuses kf_app or kf_worker).
+create role kf_attestor_local login password '<attestor password>' inherit;
+grant kf_attestor to kf_attestor_local;
+-- The dogfood API's login: kf_app and nothing else (it refuses kf_attestor).
+create role kf_api_local login password '<api password>' inherit;
+grant kf_app to kf_api_local;
+grant connect on database kf to kf_attestor_local, kf_api_local;
+```
+
+Build and start the attestor in its own terminal, with the same `OIDC_*` values as the API:
+
+```sh
+pnpm --filter @kf/attestor... build
+NODE_ENV=development \
+OIDC_ISSUER=http://localhost:8080/realms/knowledge-fabric \
+OIDC_AUDIENCE=knowledge-fabric-api \
+OIDC_JWKS_URI=http://localhost:8080/realms/knowledge-fabric/protocol/openid-connect/certs \
+KF_ATTESTOR_SOCKET="$XDG_RUNTIME_DIR/kf-attestor.sock" \
+DATABASE_URL='postgres://kf_attestor_local:<attestor password>@localhost:5432/kf?sslmode=disable' \
+  node apps/attestor/dist/main.js
+```
+
+It logs `{"event":"listening",...}` once the socket is up. Inline `DATABASE_URL` is accepted
+because `NODE_ENV` is not `production`; `DATABASE_URL_FILE` works too. Then add to `.env`
+`KF_ATTESTOR_SOCKET=<the same absolute path>` and point `DATABASE_URL_FILE` (or `DATABASE_URL`)
+at `kf_api_local` instead of the loader's `kf_api_dev` file, and start the application processes
+after provider records and KF authority links exist:
 
 ```sh
 set -a; . ./.env; set +a
 pnpm dev
 ```
+
+This procedure is derived from `apps/attestor/src` and `apps/api/src/config.ts`; it has not yet
+been walked end to end on a workstation.
 
 The browser selects a role assignment, organization and classification ceiling after login.
 The web server sends `Authorization: Bearer ...` plus that context to the API. The token
@@ -159,7 +200,7 @@ container so it still behaves like a machine that is not this one. See
 ```sh
 pnpm format:check   # prettier
 pnpm lint           # eslint + typescript-eslint
-pnpm typecheck      # tsc --build across 16 projects, then Next's own tsc
+pnpm typecheck      # tsc --build across every project, then Next's own tsc
 pnpm test           # vitest
 pnpm ontology:check # ontology internally consistent, compared in memory
 pnpm ontology:build && git diff --exit-code -- generated/   # committed output is current
@@ -182,8 +223,8 @@ project lists what it needs. TypeScript 6.0 stopped auto-including every `@types
 being explicit is both the fix and the more deterministic configuration — an unrelated types
 package can no longer leak globals into a project that never asked for it.
 
-**`@types/node` is a per-package dependency.** Only the four packages that touch Node APIs
-declare it. That is `.npmrc`'s isolated layout working as intended: a package may import
+**`@types/node` is a per-package dependency.** Each package that touches Node APIs declares
+it. That is `.npmrc`'s isolated layout working as intended: a package may import
 only what it declares.
 
 ## PostgreSQL notes

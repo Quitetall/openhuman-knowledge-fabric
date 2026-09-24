@@ -85,9 +85,13 @@ It finishes by printing a paste-ready block:
 KF_DEV_ORGANIZATION=019ff405-2ec7-736e-898a-1f5687a80a48
 KF_DEV_ACTOR=019ff405-2eca-7e77-96cb-00990ac6f24b
 KF_DEV_ACTING_ROLE=019ff405-2ecb-7e77-96cb-00990ac6f24b
+DATABASE_URL_FILE=<path>
 ```
 
-Paste those three into `.env`. The web app calls `required()` on each and throws if any is blank.
+Paste the whole block into `.env`. The web app calls `required()` on each of the three `KF_DEV_*`
+values and throws if any is blank. `DATABASE_URL_FILE` is the owner-only (0600) file holding the
+`kf_api_dev` connection string — by default `~/.local/state/knowledge-fabric/dev-database-url` —
+because the login gets a new password on every loader run and the password is never printed.
 
 > **All three are UUIDs.** `KF_DEV_ACTING_ROLE` is the id of an `org.role_assignment` row — the
 > assignment granting the role, not the role's name. An earlier version of this document claimed

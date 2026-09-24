@@ -56,8 +56,16 @@ Functional now:
   fail-closed until operators supply immutable signed-bundle storage and trusted public
   verification keys to the read-only package loader, which binds public-only RLS and re-verifies
   authority, signature, receipt, and bytes. The route has no approve, sign, or publish operation.
+- `GET /objects/:id` (the Object View). It never compiles: a stale master record answers
+  `409 master_record_stale`
+- `POST /objects/:id/refresh`, the same view after recompiling the caller's master record, recorded
+  as the person. The Object View page issues it without a click only on the person's own
+  navigation (`Sec-Fetch-Site` `same-origin` or `none`, never a prefetch); any other arrival
+  asks first
 - `GET /objects/:id/available-actions`
 - `POST /actions/:actionType`
+- `POST /verifications/bulk`, one `verify_record` act per record with basis `promoted_in_bulk`,
+  answered per record (API only; this client has no control for it yet)
 - `GET /ml/runs/:authorityId/revisions/:revisionId` with independent event, lineage-member,
   segment, and promotion-receipt cursors (`limit`/`afterSequence`, `memberLimit`/`afterMember`,
   `segmentLimit`/`afterOrdinal`, `promotionLimit`/`afterReceiptDigest`)
@@ -85,8 +93,11 @@ Fail-closed surfaces:
 
 ## Real-Keycloak E2E blocker
 
-Repository does not provision a Keycloak realm, public web client, API audience mapper, test
-subject link, or live KF role assignment. Browser tests use a controlled OIDC and KF API fixture
+The repository ships a workstation realm,
+[`deploy/keycloak/knowledge-fabric-realm.json`](../../deploy/keycloak/knowledge-fabric-realm.json),
+which Compose imports: the public `knowledge-fabric-web` client (PKCE S256) and the
+`knowledge-fabric-api` audience. It does not ship a user, a test subject link, or a live KF role
+assignment — `scripts/deploy/create-dev-user.sh` and `pnpm kf:grant-authority` supply those. Browser tests use a controlled OIDC and KF API fixture
 to exercise redirects, PKCE, encrypted session, context validation, access denial, and UI
 boundaries. That is browser proof of web behavior, not proof against real Keycloak. Real-provider
 qualification remains blocked until those operator-owned records exist and TLS hostnames are

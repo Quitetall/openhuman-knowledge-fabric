@@ -52,9 +52,13 @@ registry document or one of the two already issued (`OH-DOC-000001-3`, `OH-DOC-0
 allocation ledger lives in `openhuman-quality/registry/allocations.yaml`, and until the §15.2
 bootstrap is approved every entry in it is `proposed`.
 
-**There is no atomic allocator yet.** R6 requires sequences to be "atomically allocated"; no
-sequence table or allocation service exists. That is R01 §17 Phase 1 work and is recorded as a
-partial enforcement in `rules.yaml` rather than left to be discovered.
+**The allocator is not here; it is in the database.** R6 requires sequences to be "atomically
+allocated". Until 2026-09-02 no sequence table or allocation service existed. Since
+[ADR 0018](../../docs/decisions/0018-r6-allocation-is-an-act.md) allocation is one typed act,
+`allocate_enterprise_identifier`, performed by `core.allocate_enterprise_id` under a row lock on
+the namespace's `registry.identifier_sequence` cursor and receipted in
+`registry.identifier_allocation` (migration `20260902000300`). This directory still only
+declares the grammar the allocator obeys.
 
 ## Provenance
 

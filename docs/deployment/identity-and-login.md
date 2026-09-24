@@ -126,6 +126,14 @@ key fetch supplies the keys. Both the API and the web client accept only `RS256`
 realm's `defaultSignatureAlgorithm`; changing the realm's algorithm means changing
 `OIDC_SIGNING_ALGORITHMS` (`packages/authorization`) and `ID_TOKEN_ALGORITHMS`
 (`apps/web/src/lib/oidc.ts`) with it.
+
+Since migration `20260924001000` the dogfood API also needs `KF_ATTESTOR_SOCKET` naming a running
+`kf-attestor`, and it refuses to start through a login that holds `kf_attestor` — which
+`kf_api_dev`, the login `pnpm dogfood:load` creates, does. Re-walking this today needs a separate
+API login and the attestor started as
+[`local-development.md`](local-development.md#dogfood-profile-local-identity-rehearsal) describes;
+the table below was observed before that change.
+
 `GET /master-record`, with `x-kf-acting-role` and `x-kf-organization` supplied:
 
 | token presented                         | status | body                                                          |

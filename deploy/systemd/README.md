@@ -1,6 +1,7 @@
 # systemd deployment surface
 
-These files cover API, web, worker, one-shot migrator and scheduled preservation operations.
+These files cover API, identity attestor (`kf-attestor.service`), web, worker, one-shot migrator,
+failure alerting and scheduled preservation operations.
 Nginx template lives in [`../nginx/knowledge-fabric.conf`](../nginx/knowledge-fabric.conf).
 PostgreSQL, object store, Keycloak, certificates, alert delivery and host policy remain external.
 Tracked files are deployment inputs, not commissioning evidence. Complete contract and current
@@ -26,8 +27,10 @@ person for the API's login only on an attestation from it (`KF_ATTESTOR_SOCKET`,
 API's command line). Web needs reviewed public OIDC client plus owner-only
 session key. Fixed `KF_DEV_*` identity is forbidden.
 
-Every unit uses a distinct unprivileged account. Command-local API/web listener settings prevent
-an environment file widening loopback binds.
+Every unit uses a distinct unprivileged account, with one exception: `kf-alert@.service` and
+`kf-alert-heartbeat.service` both run as `kf-alert`, because both hold the same single secret
+(the webhook URL) and nothing else. Command-local API/web listener settings prevent an
+environment file widening loopback binds.
 
 `kf-backup.service` and `kf-restore-drill.service` shared `kf-backup` until 2026-09-23, on the
 argument that they needed the same secrets. They did not: the backup SIGNS with the preservation
@@ -63,7 +66,7 @@ credential. Application start/restart never runs migrations.
 
 ## Scheduled operations
 
-Five things have to happen on a schedule, and until they are scheduled they are habits:
+These things have to happen on a schedule, and until they are scheduled they are habits:
 
 | Unit                        | Interval          | What stops being true without it                                                            |
 | --------------------------- | ----------------- | ------------------------------------------------------------------------------------------- |
@@ -76,7 +79,7 @@ Five things have to happen on a schedule, and until they are scheduled they are 
 | `kf-alert-heartbeat.timer`  | daily             | Nothing notices when the thing that notices stops working.                                  |
 | `kf-storage.timer`          | daily 03:30       | Every artifact version has one copy, and nothing has re-hashed the copies that exist.       |
 
-The last two are what make the others real. A backup timer that silently stops is
+The readiness and heartbeat timers are what make the others real. A backup timer that silently stops is
 indistinguishable from a backup timer that is working, right up until the restore — unless
 something is checking, and something is failing when the check fails.
 
@@ -112,14 +115,16 @@ executable. Until 2026-09-23 it was forty hand-typed lines here, and the hardeni
 added a dozen more — a receipt key, a readiness token, a pinned checkpoint key id, a sealed drill
 credential, two identities, an object-store policy. It:
 
-- creates the twelve service identities (`kf-api`, `kf-web`, `kf-worker`, `kf-migrator`,
+- creates the thirteen service identities (`kf-api`, `kf-web`, `kf-worker`, `kf-migrator`,
   `kf-checkpoint`, `kf-backup`, `kf-offsite`, `kf-readiness`, `kf-storage`, `kf-audit-verify`,
-  `kf-alert`, `kf-drill`) and the `kf-archive` group (`kf-backup` writes the archive,
-  `kf-offsite` reads it to ship it), each with no home and no shell;
-- creates `/etc/kf` traversable and every service subdirectory `0750 root:<identity>`, the
-  credential store `0700 root`, the two public trust directories `0755 root`, `/var/lib/kf-worker`,
+  `kf-alert`, `kf-drill`, `kf-attestor`), each with no home and no shell, the `kf-archive` group
+  (`kf-backup` writes the archive, `kf-offsite` reads it to ship it) and the `kf-attest` group
+  (`kf-attestor` serves its socket in it, `kf-api` alone may connect);
+- creates `/etc/kf` traversable and every service subdirectory `0750 root:<identity>` except
+  `/etc/kf/attestor`, which is `0700 kf-attestor`, the credential store `0700 root`, the two public trust directories `0755 root`, `/var/lib/kf-worker`,
   `/var/lib/kf-migrator` and the setgid archive `/srv/kf-backups`;
-- installs every environment file from its `*.example` template, `0640 root:<identity>`
+- installs every environment file from its `*.example` template (`attestor.env` among them),
+  `0640 root:<identity>`
   (`storage.env` `0600 kf-storage`), and completes it with what it can derive rather than ask
   for: the PostgreSQL 18 client directory; the drill's off-site source and label from
   `offsite.env`; and the artifacts store's endpoint, region, bucket and path style in
@@ -132,8 +137,9 @@ credential, two identities, an object-store policy. It:
   (`ckpt-<16 hex>`), its public half is published in `/etc/kf/checkpoint-public-keys/` before
   the id is written to `checkpoint.env`, so a new key always has a new id;
 - creates an empty `0600` file, owned correctly, for every secret only a person can supply
-  (database logins, object-store secrets, the alert webhook, the preservation key), so the only
-  remaining step is writing its value;
+  (database logins — among them `/etc/kf/attestor/database-url`, a login in `kf_attestor` only,
+  which the API's login must never be — object-store secrets, the alert webhook, the preservation
+  key), so the only remaining step is writing its value;
 - installs every shipped unit into `/etc/systemd/system` byte for byte and reloads systemd;
 - applies the orphan-collection policy to the storage key when `mc` has an admin alias
   (`KF_MC_ALIAS=<alias>`), and otherwise prints it; then asks the store, as `kf-storage`,
@@ -224,9 +230,9 @@ Missing store configuration is recorded `partial`, returns nonzero, and keeps re
 Run migration procedure in private-host guide. Only after it and real-provider preflight pass:
 
 ```sh
-sudo systemctl enable --now kf-api.service kf-worker.service kf-web.service
-sudo systemctl enable --now kf-checkpoint.timer kf-backup.timer \
-  kf-audit-verify.timer kf-restore-drill.timer kf-readiness.timer
+sudo systemctl enable --now kf-attestor.service kf-api.service kf-worker.service kf-web.service
+sudo systemctl enable --now kf-checkpoint.timer kf-backup.timer kf-storage.timer \
+  kf-audit-verify.timer kf-restore-drill.timer kf-readiness.timer kf-alert-heartbeat.timer
 ```
 
 Do not enable `kf-migrate.service`; start it once per reviewed release. Do not start nginx until
@@ -266,11 +272,13 @@ configuration that was measured slow.
 
 ## Failure handling
 
-Each unit has `OnFailure=kf-alert@%n.service`. Write that unit for whatever this deployment
-uses to reach a person — there is no default here, because a default that goes nowhere is
-worse than an absent one that fails to start.
+Each unit has `OnFailure=kf-alert@%n.service`. That unit ships: it runs
+`scripts/alert-dispatch.sh` as `kf-alert` and posts to the `https://` webhook in
+`/etc/kf/alert/webhook-url`, and it refuses to start while that file is empty — a default that
+goes nowhere is worse than an absent one that fails to start. Supplying the webhook is the
+deployment's part.
 
-The long-running services (`kf-api`, `kf-web`, `kf-worker`) restart on failure, and restart
+The long-running services (`kf-attestor`, `kf-api`, `kf-web`, `kf-worker`) restart on failure, and restart
 alone never reaches `failed`: the unit loops in `activating (auto-restart)` and `OnFailure=`
 never fires. Each therefore sets `StartLimitIntervalSec=30min` / `StartLimitBurst=5` in `[Unit]`,
 so a sixth start inside half an hour stops the loop, fails the unit and alerts. After fixing the

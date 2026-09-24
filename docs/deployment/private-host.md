@@ -10,7 +10,8 @@ host.
 - The only permitted profile is `KF_DEPLOYMENT_PROFILE=dogfood`.
 - Application processes run with `NODE_ENV=production`.
 - A reverse proxy terminates TLS before either the API or web process; the API receives
-  `KF_TLS_TERMINATED_UPSTREAM=1` and listens on a private interface.
+  `KF_TLS_TERMINATED_UPSTREAM=1` and listens on loopback only (`HOST=127.0.0.1`, pinned on the
+  unit's command line).
 - Keycloak authenticates the person. PostgreSQL remains the authority for identity links,
   current role assignments, classification and action permission.
 - The workstation build is promoted byte-for-byte. The private host does not run `pnpm build`,
@@ -37,6 +38,7 @@ reverse proxy ----> Keycloak (issuer, login, MFA/session policy)
         |
         +----------> Web :3000 ----> API :4000 (server-side bearer forwarding)
 
+API :4000 --(Unix socket)--> kf-attestor ----> PostgreSQL 18 (own login, kf_attestor)
 worker ---------------------> PostgreSQL 18
 checkpoint signer ----------> PostgreSQL 18 + isolated signing key
 ```
@@ -625,7 +627,8 @@ It generates the rollback-receipt HMAC key, the web session key, the readiness t
 the checkpoint signing key — whose id is its own fingerprint, published in
 `/etc/kf/checkpoint-public-keys/` before `CHECKPOINT_SIGNING_KEY_ID` is written — each `0600`,
 owned by the one identity that reads it, never printed and never on a command line. It creates
-the twelve service identities (including `kf-audit-verify` and `kf-drill`), installs the units
+the thirteen service identities (including `kf-audit-verify`, `kf-drill` and `kf-attestor`) and
+the `kf-archive` and `kf-attest` groups, installs the units
 and the environment templates, applies the storage key's orphan-collection policy when `mc` has
 an admin alias (`KF_MC_ALIAS`), and asks the object store whether that key really may list and
 delete versions. It ends by listing only what a person must supply, each with the exact file it
@@ -635,7 +638,8 @@ recovery key — for which `--generate-recovery-key <file>` or `--seal-drill-key
 sealing. [`deploy/systemd/README.md`](../../deploy/systemd/README.md) says what each piece is for.
 
 Re-run it after installing every new release: a release that adds an identity or a secret (the
-2026-09-23 one added `kf-drill`, `/etc/kf/drill/` and `/etc/kf/drill.env`) gets it created there,
+2026-09-23 one added `kf-drill`, `/etc/kf/drill/` and `/etc/kf/drill.env`; the 2026-09-24 one added
+`kf-attestor`, the `kf-attest` group, `/etc/kf/attestor/` and `/etc/kf/attestor.env`) gets it created there,
 not discovered by a unit failing at 04:00. `--check` exits 0 only when nothing is missing, and
 `kf-commissioning` points at it when a unit or a secret file is absent.
 
@@ -730,17 +734,12 @@ engineered away: an attacker in control of the API sees every bearer token and c
 attestation issued for any of them until the token itself expires (Keycloak access tokens: 300 s),
 so single use would have cost a round trip per transaction and bought nothing.
 
-Provision it before starting the API of a release that carries the migration:
-
-```sh
-# The Unix identity, and the socket group only kf-api shares with it.
-sudo useradd --system --user-group --home-dir /nonexistent --shell /usr/sbin/nologin kf-attestor
-sudo groupadd --system kf-attest
-sudo usermod -aG kf-attest kf-api
-sudo install -d -m 0700 -o kf-attestor -g kf-attestor /etc/kf/attestor
-sudo install -m 0600 -o kf-attestor -g kf-attestor /dev/null /etc/kf/attestor/database-url
-sudo install -m 0640 -o root -g kf-attestor attestor.env.example /etc/kf/attestor.env
-```
+Provision it before starting the API of a release that carries the migration. The Unix side is
+part of [Provision the host](#provision-the-host): re-running `provision-host.sh` on that release
+creates `kf-attestor`, the `kf-attest` socket group (`kf-attestor` and `kf-api` only),
+`/etc/kf/attestor` (`0700 kf-attestor`), an empty `0600` `/etc/kf/attestor/database-url`, and
+`/etc/kf/attestor.env` from its template, with the `OIDC_*` values copied from `api.env` once that
+is filled. Do not create them by hand; `--check` lists whatever is still missing.
 
 ```sql
 -- As the owner. kf_attestor (the group) comes from the migration; the LOGIN is the host's.
@@ -752,8 +751,8 @@ grant connect on database kf to kf_attestor_host;
 grant kf_service_actor to <the kf-storage login>;
 ```
 
-Write the attestor login's URL into `/etc/kf/attestor/database-url`, the same `OIDC_*` values as
-`api.env` into `/etc/kf/attestor.env`, then `systemctl enable --now kf-attestor.service` before
+Write the attestor login's URL into `/etc/kf/attestor/database-url`, confirm `/etc/kf/attestor.env`
+carries the same `OIDC_*` values as `api.env`, then `systemctl enable --now kf-attestor.service` before
 restarting `kf-api.service`. The API unit names `KF_ATTESTOR_SOCKET=/run/kf-attestor/attestor.sock`
 on its command line and waits up to ten seconds for the socket; the API refuses to start under the
 dogfood profile without it, or through a login that holds `kf_attestor` or `kf_service_actor`.
@@ -853,9 +852,9 @@ KF_EXPECTED_NODE_VERSION="$(kf_release_node_version)" \
 
 **`KF_REVERSE_PROXY_CONFIG` and `KF_RELEASE_DIR` were missing from this block until
 2026-08-24, and that was not cosmetic.** `reverse_proxy_posture` and
-`liminal_runtime_inventory` are two of the eight checks, both read one of those paths, and a
-check with no input reports `unverifiable` — which fails. So an operator following this
-document exactly could not reach 8/8 satisfied, and the two failures would name variables
+`liminal_runtime_inventory` are two of the checks (eight then; nine since `attestor_separation`),
+both read one of those paths, and a check with no input reports `unverifiable` — which fails. So
+an operator following this document exactly could not reach 8/8 satisfied, and the two failures would name variables
 this document had never mentioned. It was found by running `kf-commissioning` on a
 workstation, which had also never been done.
 

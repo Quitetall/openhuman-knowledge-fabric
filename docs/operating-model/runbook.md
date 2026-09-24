@@ -292,10 +292,15 @@ Nothing is auto-provisioned. A valid token for somebody nobody has linked is ref
 the actor list is who can be held responsible and it should not grow because a provider
 accepted a login.
 
-Linking is a recorded decision — `linkIdentity` stores who made it. Revoking is immediate:
-`revokeIdentity` sets `revoked_at`, and the next request with an already-issued token is
-refused rather than waiting for it to expire. The row stays; who used to be able to sign in as
-whom is a fact an investigation needs.
+Linking is a recorded decision — `linkIdentity` stores who made it. The application login cannot
+make it: since `20260923000200` `kf_app` holds no `INSERT` or `UPDATE` on `org.external_identity`,
+so the one supported way to link is `pnpm kf:grant-authority`, run over the owner connection
+(`DATABASE_OWNER_URL`), which links the identity, assigns the role and grants the clearance in one
+transaction (see [`identity-and-login.md`](../deployment/identity-and-login.md)). Revoking is
+immediate: `revokeIdentity` sets `revoked_at` — again over the owner connection; there is no
+command for it yet — and the next request with an already-issued token is refused rather than
+waiting for it to expire. The row stays; who used to be able to sign in as whom is a fact an
+investigation needs.
 
 A person who holds several roles states which one they are acting under per request. This is
 not a default the system can pick — choosing decides an authority question on their behalf,
@@ -373,23 +378,52 @@ to somebody.
 
 ## The API will not start
 
+- `NODE_ENV is required` — there is no default: the API refuses to start when it is unset rather than
+  assuming `development`. The shipped unit sets `NODE_ENV=production` on its command line.
+- `may listen only on loopback` — the `development` profile trusts identity headers and refuses
+  any `HOST` other than loopback. A reachable API uses `KF_DEPLOYMENT_PROFILE=dogfood`.
 - `KF_TLS_TERMINATED_UPSTREAM` — this process serves plain HTTP and refuses to run in staging
   or production unless the deployment asserts that something in front of it terminates TLS. If
   that assertion would be false, do not set it; fix the proxy.
+- `refusing to serve: database login ...` — the login in `DATABASE_URL_FILE` is a superuser,
+  has `BYPASSRLS`, is (or inherits) a table owner, or holds `kf_attestor` or `kf_service_actor`.
+  Row-level security or attestation would not bind it. Almost always the migrator's or the
+  attestor's URL in the API's file; supply a login that inherits `kf_app` and nothing more.
+- `KF_ATTESTOR_SOCKET is required` — the `dogfood` profile binds a person only on an attestation
+  from `kf-attestor`. The shipped unit sets it; under systemd the start instead fails at
+  `kf-attestor socket /run/kf-attestor/attestor.sock is absent` when the attestor is not running
+  — start `kf-attestor.service` first (see below).
 - `DATABASE_URL was supplied inline` — outside development the credential must arrive as
   `DATABASE_URL_FILE`. An environment variable is readable from `/proc/<pid>/environ` by
   anything running as the same user.
 - `is mode 644 — a secret readable beyond its owner` — `chmod 600`. Refused rather than warned,
   because a warning at startup is read once, on the day it is added.
 
+## Requests refused `not_attested`, or 401 for everybody
+
+The database binds a person for the API's login only on an attestation from `kf-attestor`
+(`20260924001000`). An act refused `not_attested` ("nobody attested that the actor is present")
+reached the database without one: the caller should identify again. When every bearer request
+fails at once, the attestor is the first suspect — `GET /ready` reports `attestor: failing` while
+the API cannot reach it on its socket. Check `systemctl status kf-attestor.service` and its journal:
+it refuses to start through a login that is not in `kf_attestor` or that is also in `kf_app` or
+`kf_worker`, and it needs `/etc/kf/attestor/database-url` and the same `OIDC_*` values as the API
+in `/etc/kf/attestor.env`. After a crash loop it stays `failed` until `systemctl reset-failed
+kf-attestor.service`. `kf-commissioning`'s `attestor_separation` check says whether the socket and
+secrets are still separated from everyone but `kf-api`.
+
 ## What is NOT covered here
 
-- **Token lifetime and refresh policy.** Provider configuration, not held in this repository.
+- **Token lifetime and refresh policy.** Provider configuration. The workstation realm
+  (`deploy/keycloak/knowledge-fabric-realm.json`) ships a 300-second access-token lifespan, and
+  `kf-commissioning`'s `identity_provider_policy` refuses a host realm with offline sessions idle
+  beyond 7 days or unbounded past 30, or refresh tokens that are not revoked on use. The host's
+  own access-token lifespan is still its reviewed configuration, not checked here.
 - **TLS certificates.** Issued and renewed at the proxy. This application refuses to run
   without the deployment asserting that a proxy is there, and can do nothing to verify it.
-- **`kf-alert@`.** Every scheduled unit declares `OnFailure=kf-alert@%n.service`; writing it
-  for whatever reaches a person here is an open item. There is no default, deliberately — a
-  default that goes nowhere is worse than an absent one that fails to start.
+- **Where alerts go.** `kf-alert@.service` ships: every unit's `OnFailure=` reaches it, and it
+  posts to the `https://` webhook in `/etc/kf/alert/webhook-url`. Which receiver that is — and
+  its rule to alert when the daily heartbeat stops arriving — is the deployment's to supply.
 - **Object store backups.** The database holds digests, not bytes. Back up the bucket on the
   same schedule, or a restore returns a catalogue of things you no longer have.
 

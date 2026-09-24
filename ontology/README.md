@@ -1,17 +1,21 @@
 # Ontology
 
-**This directory is canonical.** Everything under `generated/` is compiled from these six
+**This directory is canonical.** Everything under `generated/` is compiled from these seven
 files and must never be hand-edited — CI regenerates and fails on any difference, because a
 hand-edited generated file is an ontology change nobody reviewed.
 
 | File                  | Defines                                                                                                                       |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `meta.yaml`           | The envelope every object carries, shared types (`Money`, `ExternalReference`, `EvidenceReference`) and controlled value sets |
-| `object-types.yaml`   | The 21 object types, their states and their typed attributes                                                                  |
-| `relation-types.yaml` | The 34 typed relations and their inverses                                                                                     |
-| `action-types.yaml`   | The 30 actions — the only way a controlled fact changes                                                                       |
-| `state-machines.yaml` | The 8 lifecycles and their legal transitions                                                                                  |
-| `rules.yaml`          | The 10 machine-enforceable invariants and where each is enforced                                                              |
+| `object-types.yaml`   | The object types, their states and their typed attributes                                                                     |
+| `relation-types.yaml` | The typed relations and their inverses                                                                                        |
+| `action-types.yaml`   | The actions — the only way a controlled fact changes                                                                          |
+| `state-machines.yaml` | The lifecycles and their legal transitions                                                                                    |
+| `rules.yaml`          | The machine-enforceable invariants and where each is enforced                                                                 |
+| `projections.yaml`    | The declared readings of a master record (ADR 0013): anchor, traversal and ordered sections                                   |
+
+How many object, relation and action types there are today is in
+[`generated/measurements.md`](../generated/measurements.md).
 
 ```sh
 pnpm ontology:check    # validate + report drift in generated/. Never writes.
@@ -50,8 +54,8 @@ it becomes normative.
 ## Known gap — edge typing
 
 The R01 pack does not declare `source_types` / `target_types` on relations, so nothing
-currently stops an edge connecting two objects that have no business being connected. All
-34 relations raise **ONT-012** at warning severity, so the gap is counted on every run
+currently stops an edge connecting two objects that have no business being connected. Every
+relation raises **ONT-012** at warning severity, so the gap is counted on every run
 rather than living in a comment. Typing lands in Gate 6, alongside the object-type
 extension where the full inventory is known.
 
