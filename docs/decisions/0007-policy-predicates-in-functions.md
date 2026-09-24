@@ -123,3 +123,24 @@ knowing about, but not worth a rewrite.
 The wider lesson for the JIT decision: 1617x on a real table is far outside the 8–14x measured on
 the `controlled_document` and `training_requirement` shapes, so that commit understated its own
 result.
+
+### Measured 2026-09-25, with rows
+
+The measurement above was of empty tables, which shows the JIT half of the cost and hides the
+hashed-subplan half. `tests/database/rls-read-cost.test.ts` now seeds 2 000 lineages per
+organization across three organizations — each with a seal, a promotion receipt and two
+registrations, every reference a policy asks about present — and counts each table as a
+`kf_readonly` login with the context bound, JIT off as deployed (`KF_MEASURE_RLS=1`, harness
+container, one run on a shared workstation; medians of seven):
+
+| table                      | policy  | no policy | rows seen / stored |
+| -------------------------- | ------- | --------- | ------------------ |
+| `ml.run_lineage`           | 5.3 ms  | 0.6 ms    | 2 000 / 6 000      |
+| `ml.promotion_receipt`     | 23.1 ms | 0.9 ms    | 2 000 / 6 000      |
+| `ml.registry_registration` | 40.5 ms | 0.7 ms    | 4 000 / 12 000     |
+
+Planning time in the same run: 0.6, 4.1 and 7.9 ms. Each policy returned exactly its own
+organization's rows. None of the three is near the 950 ms `composition_input` cost, so the
+conclusion above stands with the missing half measured; `registry_registration` is the one to
+watch as the registry grows, being the most expensive per row and the only one whose CASE reaches
+three tables.
