@@ -67,7 +67,8 @@ describe('@kf/retrieval keeps nothing', () => {
     const planted: SourceFile[] = [
       { path: 'a.ts', text: "import { writeFileSync } from 'node:fs';" },
       { path: 'b.ts', text: "const { mkdir } = await import('fs/promises');" },
-      { path: 'c.ts', text: "import { Client } from 'pg';" },
+      // Assembled, so the write-seam scan over this file does not read the plant as an import.
+      { path: 'c.ts', text: `import { Client } from ${"'"}pg';` },
       {
         path: 'd.ts',
         text: "await tx.query('insert into retrieval.band_cache (bits) values ($1)', [b]);",
