@@ -47,13 +47,14 @@ technical guarantee. **Not mitigated: an operator who is also the checkpoint key
 
 The API process is the largest attack surface. Assume it is fully controlled.
 
-| Control                                                                        | Where                          | Proven by                                     |
-| ------------------------------------------------------------------------------ | ------------------------------ | --------------------------------------------- |
-| `kf_app` cannot UPDATE `core.object` outside the dispatcher                    | write guards, `20260811000800` | `tests/database/kernel.test.ts`               |
-| A controlled write with no transaction context is refused                      | `object_guard_1_context`       | same                                          |
-| A lifecycle move must be one the ontology permits **for the acting action**    | `object_guard_2_transition`    | same                                          |
-| Financial invariants are triggers, not application code                        | `20260811001200_finance.sql`   | `tests/end-to-end/reference-scenario.test.ts` |
-| Aggregate checks run SECURITY DEFINER so a narrowed scope cannot hide a breach | same                           | same                                          |
+| Control                                                                        | Where                                               | Proven by                                     |
+| ------------------------------------------------------------------------------ | --------------------------------------------------- | --------------------------------------------- |
+| `kf_app` cannot UPDATE `core.object` outside the dispatcher                    | write guards, `20260811000800`                      | `tests/database/kernel.test.ts`               |
+| A controlled write with no transaction context is refused                      | `object_guard_1_context`                            | same                                          |
+| A lifecycle move must be one the ontology permits **for the acting action**    | `object_guard_2_transition`                         | same                                          |
+| A closed record keeps its title, type, organization, domain and creation facts | `object_guard_4_closed_identity` (`20260925064200`) | `tests/database/closed-identity.test.ts`      |
+| Financial invariants are triggers, not application code                        | `20260811001200_finance.sql`                        | `tests/end-to-end/reference-scenario.test.ts` |
+| Aggregate checks run SECURITY DEFINER so a narrowed scope cannot hide a breach | same                                                | same                                          |
 
 **Until 2026-09-23 the rows above were the whole of T2, and they held only against a buggy
 API, not a hostile one.** A red-team pass executed as `kf_app` showed the context those guards
