@@ -48,3 +48,14 @@ distinct asker key into the durable `org.access_demand` aggregate: a record and 
 persons, never which persons (KF-SAS-RQ-221). A person whose key rotated between two replays is
 counted twice, so the count can overstate distinct people across a rotation; and a quiet report is
 not evidence of no unmet demand (§100.23).
+
+**A person's own recorded queries** (KF-SAS-RQ-221). `GET /search/recorded-queries` lists the
+caller's own recorded queries and nobody else's: `search.my_recorded_queries()` recomputes the
+bound principal's asker key under every live pseudonym key and returns the rows carrying it, so the
+application still never reads a key or an asker column, and there is no argument naming whose
+queries to list. `POST /search/recorded-queries/:id/replay` replays one of them through
+`replayRecordedQuery` — at the caller's ceiling now, which may be higher than the ceiling the
+query ran at — and so counts into `org.access_demand`. A replay of a query that is not the
+caller's own is answered as not found, exactly like an expired one; replaying other people's
+queries, which ADR 0029 envisages for somebody cleared higher, needs a listing of them and is not
+offered here. The web page is `/search/recorded`.

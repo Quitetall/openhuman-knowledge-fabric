@@ -1,7 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { withTransaction, type Pool, type Tx, bindPrincipal } from '@kf/database';
 import type { SemanticRetrieval } from '@kf/retrieval';
-import { composeSearch, type SemanticRanker } from '@kf/search';
+import { reaches as grantReaches, readCoverage as grantCoverage } from '@kf/authorization';
+import {
+  composeSearch,
+  listOwnRecordedQueries,
+  replayRecordedQuery,
+  type SemanticRanker,
+} from '@kf/search';
 import { readCoverage, reaches } from './documents/read-grant.js';
 import type { IdentifyCaller } from './actions.js';
 import { refuseUnidentified } from './actions.js';
@@ -92,4 +98,79 @@ export async function registerSearchRoutes(
       return reply.code(500).send({ error: 'search_unavailable' });
     }
   });
+
+  /**
+   * GET /search/recorded-queries — the caller's OWN recorded queries (KF-SAS-RQ-221), newest
+   * first. There is no parameter naming whose: the database recomputes the bound principal's
+   * pseudonymous asker key and returns only rows carrying it.
+   */
+  app.get('/search/recorded-queries', async (request, reply) => {
+    let caller;
+    try {
+      caller = await options.identify({ headers: request.headers as Record<string, unknown> });
+    } catch (error: unknown) {
+      return refuseUnidentified(reply, error);
+    }
+    try {
+      const queries = await withTransaction(options.pool, async (tx) => {
+        await bindPrincipal(tx, caller);
+        return listOwnRecordedQueries(tx);
+      });
+      return reply.send({ queries });
+    } catch (error: unknown) {
+      request.log.error({ err: error }, 'recorded query listing failed');
+      return reply.code(500).send({ error: 'search_unavailable' });
+    }
+  });
+
+  /**
+   * POST /search/recorded-queries/:id/replay — replay one of the caller's own recorded queries at
+   * their ceiling now (§64B). What the original ceiling withheld is returned and not stored; each
+   * such record the caller may read counts once, for this pseudonymous asker, into
+   * `org.access_demand` (search.record_demand). A query that is not the caller's own, expired, or
+   * unknown is the same 404.
+   */
+  app.post<{ Params: { id: string } }>(
+    '/search/recorded-queries/:id/replay',
+    async (request, reply) => {
+      let caller;
+      try {
+        caller = await options.identify({ headers: request.headers as Record<string, unknown> });
+      } catch (error: unknown) {
+        return refuseUnidentified(reply, error);
+      }
+      const id = request.params.id;
+      if (!UUID.test(id)) {
+        return reply.code(400).send({ error: 'invalid_search_query', field: 'id' });
+      }
+      try {
+        const replay = await withTransaction(options.pool, async (tx) => {
+          await bindPrincipal(tx, caller);
+          const own = await listOwnRecordedQueries(tx, id);
+          if (own.length === 0) return undefined;
+          const coverage = await grantCoverage(tx, caller);
+          return replayRecordedQuery(
+            tx,
+            {
+              organizationId: caller.organizationId,
+              maxClassification: caller.maxClassification,
+              attestation: caller.attestation,
+            },
+            {
+              reaches: (objectId, classification) =>
+                grantReaches(coverage, { id: objectId, classification }),
+            },
+            id,
+          );
+        });
+        if (replay === undefined) return reply.code(404).send({ error: 'not_found' });
+        return reply.send(replay);
+      } catch (error: unknown) {
+        request.log.error({ err: error }, 'recorded query replay failed');
+        return reply.code(500).send({ error: 'search_unavailable' });
+      }
+    },
+  );
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;

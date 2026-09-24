@@ -21,6 +21,44 @@ export async function recordQuery(tx: Tx, text: string): Promise<string | undefi
   return row.id;
 }
 
+/** One of the caller's own recorded queries. Names nobody: it is the caller's by construction. */
+export interface OwnRecordedQuery {
+  readonly id: string;
+  readonly text: string;
+  readonly askerCeiling: string;
+  readonly recordedAt: string;
+  readonly expiresAt: string;
+}
+
+/**
+ * The bound principal's own live recorded queries, newest first (KF-SAS-RQ-221). The seam
+ * recomputes the caller's pseudonymous asker key itself and takes no person, so there is no way to
+ * ask it for somebody else's. With `id`, at most that one — and only if it is the caller's.
+ */
+export async function listOwnRecordedQueries(
+  tx: Tx,
+  id?: string,
+): Promise<readonly OwnRecordedQuery[]> {
+  const rows = await tx.query<{
+    id: string;
+    query_text: string;
+    asker_ceiling: string;
+    recorded_at: Date;
+    expires_at: Date;
+  }>(
+    `select id, query_text, asker_ceiling, recorded_at, expires_at
+       from search.my_recorded_queries($1::uuid)`,
+    [id ?? null],
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    text: row.query_text,
+    askerCeiling: row.asker_ceiling,
+    recordedAt: row.recorded_at.toISOString(),
+    expiresAt: row.expires_at.toISOString(),
+  }));
+}
+
 export interface Replay {
   readonly recordedQueryId: string;
   readonly askerCeiling: string;
