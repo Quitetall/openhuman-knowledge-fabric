@@ -1,4 +1,4 @@
-import { digest } from '@kf/canonicalization';
+import { digest, taggedDigest } from '@kf/canonicalization';
 
 import {
   DOCUMENT_PROPOSAL_CONTEXT_FORMAT,
@@ -189,7 +189,7 @@ export function documentProposalContextDigest(claim: {
   };
   return claim.projection === undefined
     ? digest(fields)
-    : digest({ ...fields, projection: claim.projection, format: DOCUMENT_PROPOSAL_CONTEXT_FORMAT });
+    : taggedDigest(DOCUMENT_PROPOSAL_CONTEXT_FORMAT, { ...fields, projection: claim.projection });
 }
 
 /**

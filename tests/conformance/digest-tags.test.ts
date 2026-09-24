@@ -142,12 +142,6 @@ const ALLOWED: readonly Allowed[] = [
       'UNTAGGED: AI planner content/instruction/context digests, owned by the read-grant work this pass (remaining)',
   },
   {
-    path: 'packages/agent-tools/src/ai/proposal.ts',
-    line: 'const contextDigest = digest({',
-    reason:
-      'UNTAGGED: AI planner content/instruction/context digests, owned by the read-grant work this pass (remaining)',
-  },
-  {
     path: 'packages/artifacts/src/store.ts',
     line: "return createHash('sha256').update(bytes).digest('hex');",
     reason:
@@ -380,9 +374,9 @@ const ALLOWED: readonly Allowed[] = [
   },
   {
     path: 'packages/documents/src/proposal/model-provenance.ts',
-    line: 'const expectedContextDigest = digest({',
+    line: '? digest(fields)',
     reason:
-      'UNTAGGED: verifies the AI planner context digest agent-tools computes; moves with it (remaining)',
+      'legacy format: kf-ai-proposal-context-v1, the untagged context digest stored proposals recorded and are re-verified under',
   },
   {
     path: 'packages/export/src/backup-manifest/file-tree.ts',
