@@ -132,11 +132,11 @@ asserts its policy files carry nothing of OpenHuman's, and records every remaini
 exhaustively, so a new one fails and a removed one fails until the record says so. Measured, the
 pins are four files, not the one the table above implies:
 
-| File                                                                                  | Pin                                                                              |
-| ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `ontology/meta.yaml`                                                                  | the approved R01 pattern — the pack owner's act, unchanged                       |
-| `generated/json-schema/…schema.json`, `generated/openapi/…openapi.json`               | compiled from it                                                                 |
-| `packages/ontology-compiler/src/damm.ts` (`validateIdentifier`, `formatEnterpriseId`) | a **code** coupling, not governance: hard-codes `OH-` and OpenHuman's namespaces |
+| File                                                                                                    | Pin                                                                              |
+| ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `ontology/meta.yaml`                                                                                    | the approved R01 pattern — the pack owner's act, unchanged                       |
+| `generated/json-schema/knowledge-fabric.schema.json`, `generated/openapi/knowledge-fabric.openapi.json` | compiled from it                                                                 |
+| `packages/ontology-compiler/src/damm.ts` (`validateIdentifier`, `formatEnterpriseId`)                   | a **code** coupling, not governance: hard-codes `OH-` and OpenHuman's namespaces |
 
 The last one matters beyond the prefix: `registry-check`'s reject-vector gate calls
 `validateIdentifier`, so for a second registry it is vacuous — every `AC-` identifier is refused
