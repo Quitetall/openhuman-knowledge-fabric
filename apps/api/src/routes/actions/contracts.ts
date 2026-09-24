@@ -69,7 +69,15 @@ export interface ActionRoutesOptions {
   readonly effectiveAtBounds?: EffectiveAtBounds;
 }
 
-export type IdentifyCaller = (request: { headers: Record<string, unknown> }) => Promise<Caller>;
+export type IdentifyCaller = (request: {
+  headers: Record<string, unknown>;
+  /**
+   * With no `x-kf-acting-role`, act under the caller's ONLY live assignment in the organization
+   * rather than refusing (ADR 0034 §2). Several, or none, is still refused — as
+   * `assignment_ambiguous` listing them, or `no_live_assignment`. The capture route alone asks.
+   */
+  deriveAssignment?: boolean;
+}) => Promise<Caller>;
 
 export interface ActionRequestBody {
   readonly targetIds?: string[];

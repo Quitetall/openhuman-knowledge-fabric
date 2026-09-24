@@ -66,6 +66,15 @@ Functional now:
 - `POST /actions/:actionType`
 - `POST /verifications/bulk`, one `verify_record` act per record with basis `promoted_in_bulk`,
   answered per record (API only; this client has no control for it yet)
+- `POST /capture/observation` from the capture form at `/capture` (ADR 0034, KF-SAS-RQ-200/203).
+  The form asks for the note and, optionally, tags and the objects it is about; it sends no role,
+  idempotency key or row version in the body. The session's selected role travels as the
+  `x-kf-acting-role` header, as on every request; the API forms the idempotency key from a
+  gesture id this page generates once per form render (so a double submit replays) and the note's
+  digest. The result shows the observation's verification label exactly as the API returned it,
+  which at capture is the unverified label. This app writes nothing itself:
+  `tests/conformance/capture-surfaces.test.ts` refuses a database driver, `@kf/database`, the
+  dispatcher, or a SQL write statement anywhere under `apps/web`.
 - `GET /ml/runs/:authorityId/revisions/:revisionId` with independent event, lineage-member,
   segment, and promotion-receipt cursors (`limit`/`afterSequence`, `memberLimit`/`afterMember`,
   `segmentLimit`/`afterOrdinal`, `promotionLimit`/`afterReceiptDigest`)

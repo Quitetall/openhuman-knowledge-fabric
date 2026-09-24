@@ -21,10 +21,12 @@ export {
   resolveCaller,
   resolveIn,
   revokeIdentity,
+  soleAssignment,
   type Caller,
   type CallerRequest,
   type IdentityConfig,
   type IdentityFailure,
+  type LiveAssignment,
 } from './identity.js';
 
 export {

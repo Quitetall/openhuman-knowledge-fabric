@@ -62,15 +62,32 @@ export type IdentityFailure =
   | 'revoked_identity'
   | 'role_not_held'
   | 'classification_not_granted'
-  | 'no_role_requested';
+  | 'no_role_requested'
+  /** Asked to derive the assignment (ADR 0034 §2), and the person holds several live. */
+  | 'assignment_ambiguous'
+  /** Asked to derive the assignment, and the person holds none live in the organization. */
+  | 'no_live_assignment';
+
+/** One of the caller's own live assignments, as a refusal to guess between them lists it. */
+export interface LiveAssignment {
+  readonly assignmentId: string;
+  readonly roleId: string;
+  readonly scopeId: string;
+}
 
 export class IdentityRejected extends Error {
   readonly failure: IdentityFailure;
+  /**
+   * The caller's own live assignments, on `assignment_ambiguous` only: the refusal says what
+   * they may choose between, since they are the one who must choose. Never another person's.
+   */
+  readonly assignments: readonly LiveAssignment[] | undefined;
 
-  constructor(failure: IdentityFailure, message: string) {
+  constructor(failure: IdentityFailure, message: string, assignments?: readonly LiveAssignment[]) {
     super(message);
     this.name = 'IdentityRejected';
     this.failure = failure;
+    this.assignments = assignments;
   }
 }
 
@@ -154,6 +171,17 @@ export interface CallerRequest {
   readonly organizationId: string;
   /** Requested ceiling; database clearance may narrow it, never widen it. */
   readonly maxClassification: string;
+  /**
+   * When `actingRoleId` is empty: use the person's ONLY live assignment in the organization,
+   * and refuse — listing them — when there are several or none (ADR 0034 §2, KF-SAS-RQ-200).
+   *
+   * Only the capture route asks for this. Everywhere else an empty role is still refused as
+   * `no_role_requested`: for an institutional act, which assignment a person acts under is a
+   * choice they make. For recording that something happened, a person with one assignment has
+   * nothing to choose, and asking them is the friction ADR 0024 exists to remove. A person with
+   * several is still asked — the server never guesses between them.
+   */
+  readonly deriveAssignment?: boolean;
 }
 
 /**
@@ -174,7 +202,7 @@ export async function resolveCaller(
   if (request.token.trim() === '') {
     throw new IdentityRejected('no_token', 'no bearer token was supplied');
   }
-  if (request.actingRoleId.trim() === '') {
+  if (request.actingRoleId.trim() === '' && request.deriveAssignment !== true) {
     // Which role somebody is acting under is a choice, not a default. A person may hold
     // several, and picking one for them decides an authority question on their behalf.
     throw new IdentityRejected(
@@ -218,8 +246,19 @@ export async function resolveIn(
     readonly organizationId: string;
     readonly maxClassification: string;
     readonly authentication?: AuthenticationEvent;
+    readonly deriveAssignment?: boolean;
   },
 ): Promise<Caller> {
+  if (request.actingRoleId.trim() === '') {
+    if (request.deriveAssignment !== true) {
+      throw new IdentityRejected(
+        'no_role_requested',
+        'the acting role must be stated; holding a role is not the same as acting under it',
+      );
+    }
+    const derived = await deriveSoleAssignment(tx, request);
+    return resolveIn(tx, { ...request, actingRoleId: derived, deriveAssignment: false });
+  }
   // The resolvers bind their own provisional context for their lookups (20260923000100).
   //
   // `core.object` forces row-level security, which binds a SECURITY DEFINER function too, so
@@ -296,6 +335,65 @@ export async function resolveIn(
       methods: [],
     },
   };
+}
+
+/**
+ * The person's only live assignment in the organization, or a refusal naming what they hold.
+ *
+ * Read through `org.resolve_identity_assignments`, which only a login that may attest can call
+ * (20260925090000): the lookup happens before anybody is bound, because a binding is to an
+ * assignment and none has been chosen yet. The chosen one is then resolved exactly as a stated
+ * one would be — held, live, cleared — so deriving it skips no check.
+ */
+async function deriveSoleAssignment(
+  tx: Tx,
+  request: { readonly issuer: string; readonly subject: string; readonly organizationId: string },
+): Promise<string> {
+  const rows = await tx.query<{
+    person_id: string;
+    identity_revoked: boolean;
+    assignment_id: string | null;
+    role_id: string | null;
+    scope_id: string | null;
+  }>(
+    `select person_id, identity_revoked, assignment_id, role_id, scope_id
+       from org.resolve_identity_assignments($1, $2, $3)`,
+    [request.issuer, request.subject, request.organizationId],
+  );
+  if (rows.length === 0) {
+    throw new IdentityRejected(
+      'unknown_subject',
+      'this identity is not linked to a person in this system',
+    );
+  }
+  if (rows[0]!.identity_revoked) {
+    throw new IdentityRejected('revoked_identity', 'this identity link has been revoked');
+  }
+  const assignments: LiveAssignment[] = rows
+    .filter((row) => row.assignment_id !== null)
+    .map((row) => ({
+      assignmentId: row.assignment_id!,
+      roleId: row.role_id!,
+      scopeId: row.scope_id!,
+    }));
+  return soleAssignment(assignments);
+}
+
+/** One live assignment is the answer; several or none is a refusal the caller can act on. */
+export function soleAssignment(assignments: readonly LiveAssignment[]): string {
+  if (assignments.length === 1) return assignments[0]!.assignmentId;
+  if (assignments.length === 0) {
+    throw new IdentityRejected(
+      'no_live_assignment',
+      'you hold no live role assignment in this organization, so nothing can be recorded as you',
+    );
+  }
+  throw new IdentityRejected(
+    'assignment_ambiguous',
+    `you hold ${String(assignments.length)} live role assignments in this organization; name ` +
+      'the one you are acting in (x-kf-acting-role) — the server does not choose for you',
+    assignments,
+  );
 }
 
 /**

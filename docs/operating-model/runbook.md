@@ -546,6 +546,34 @@ in `/etc/kf/attestor.env`. After a crash loop it stays `failed` until `systemctl
 kf-attestor.service`. `kf-commissioning`'s `attestor_separation` check says whether the socket and
 secrets are still separated from everyone but `kf-api`.
 
+## A capture is refused: `acting_assignment_ambiguous` or `no_live_assignment`
+
+`POST /capture/observation` (and `kf note`, and the web capture form, which all reach it) forms
+the acting assignment itself: the caller's only live assignment in the organization (ADR 0034
+§2, KF-SAS-RQ-200). Two answers mean it could not:
+
+- **`422 acting_assignment_ambiguous`** — the person holds several live assignments and named
+  none. The body lists them (`assignments[].assignmentId`, `roleId`, `scopeId`). This is not a
+  fault: they choose one with `x-kf-acting-role` (`kf note --acting-role`; the web session's
+  selected role is sent for them). Do not "fix" it by retiring an assignment.
+- **`422 no_live_assignment`** — they hold none live in that organization. Recording anything,
+  even a note, needs a live assignment; granting one is `kf grant-authority`.
+
+Neither records anything. A `401 no_role_requested` from the capture route is not these: it
+means the deployment's kf-attestor predates assignment derivation and refused the request —
+deploy kf-attestor from the same release as the API.
+
+## Latency bars exceeded (`scripts/latency-bars.mjs` exits 1)
+
+ADR 0024 states its bars as numbers so they can fail. The harness measures three of them at the
+API — an act dispatched and committed (under 500 ms), the first useful search result for a text
+query (under 2 s), an Object View read (under 1 s) — and writes `generated/latency-bars.md`. It
+exits non-zero when any sample exceeds its bar, naming which. A breach is a breach of a
+specification requirement (SAS §8A, KF-SAS-RQ-201), not a tuning item to defer: find the
+regression (the section records the commit it measured) before re-running it on a quieter
+machine. A workstation run is labelled as one; the official figures come from a commissioned
+host.
+
 ## What is NOT covered here
 
 - **Token lifetime and refresh policy.** Provider configuration. The workstation realm
