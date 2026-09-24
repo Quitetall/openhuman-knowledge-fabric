@@ -123,6 +123,23 @@ cannot reconstruct: `## Options rejected` (what else was on the table and what k
 decision record is never rewritten to satisfy a later rule. A superseded record is kept in full.
 `tests/conformance/decision-records.test.ts` enforces both (KF-SAS-RQ-182).
 
+## The specification
+
+`docs/sas/KF_Software_Architecture_Specification.md` is governed by digest. Editing it is
+proposing a new revision (`war sas propose`); accepting one is the owner's act and no automation
+performs it. `tests/conformance/sas-governance.test.ts` holds the parts a test can
+(KF-SAS-RQ-180, RQ-183): the file's sha256 equals the newest revision's recorded digest; revisions
+form one predecessor chain and only the newest may be proposed; accepted digests match a frozen
+table and, where git history is present, a committed version of the document; each acceptance
+names a human; requirement identifiers only ever grow from one revision to the next; and the
+newest revision, the §106 index and the inline statements name the same set.
+
+An accepted revision needs a signed `oh.war/sas-acceptance-response/v1` under
+`docs/authority/responses/` — or an entry in `docs/sas/owner-pending.json`, which names the
+subject, the rule, the one file, who it waits on, why, and a `recorded` and `review_by` date. The
+test requires that list to equal the unsigned acceptances exactly, so an entry cannot outlive what
+it excuses. Adding an entry records that the owner owes an act; it never performs the act.
+
 ## What is not yours to do
 
 Some acts are reserved to a named human and no automation performs them:
