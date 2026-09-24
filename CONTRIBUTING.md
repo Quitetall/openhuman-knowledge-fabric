@@ -140,6 +140,14 @@ subject, the rule, the one file, who it waits on, why, and a `recorded` and `rev
 test requires that list to equal the unsigned acceptances exactly, so an entry cannot outlive what
 it excuses. Adding an entry records that the owner owes an act; it never performs the act.
 
+A requirement cited from another repository is an unverified claim until a tool resolves it
+(KF-SAS-RQ-184). `node scripts/resolve-sas-citations.mjs <file-or-dir>...` is that tool: it
+resolves every `KF-SAS-RQ-nnn` (bare or `sas://`) against `docs/sas/generated/NORMATIVE.json`,
+names the revision and digest it resolved against, reports retired and unresolved citations by
+file and line, and exits 1 on any unresolved one — and 3, not 0, when it found no citation at
+all. `tests/conformance/resolve-sas-citations.test.ts` runs it on fixtures and on this
+repository's own ADRs and Warrants.
+
 ## What is not yours to do
 
 Some acts are reserved to a named human and no automation performs them:
