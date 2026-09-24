@@ -60,7 +60,7 @@ function ownedActionIds(): ReadonlySet<string> {
  * An exemption on its own would be a hole, so the test below it asserts the dispatcher REFUSES
  * every id in this set. Both halves or neither.
  */
-const BOOTSTRAP_TIER: readonly string[] = ['bootstrap_organization'];
+const BOOTSTRAP_TIER: readonly string[] = ['bootstrap_organization', 'revoke_external_identity'];
 
 describe('the ontology and the dispatcher agree on what an action is', () => {
   it('declares no action that nothing can perform', () => {

@@ -233,6 +233,16 @@ Also verified: the audit event landed at `seq=14` chained from the previous head
 reported "nothing to do", wrote nothing, and did **not** mint a second action: re-running a setup
 command must not record a decision nobody made.
 
+### Withdrawing a link
+
+`pnpm kf:revoke-identity` undoes the link and is recorded the same way: a
+`revoke_external_identity` act with a required `--reason` and `--revoked-by`, an audit event, and
+`revoked_at` set in one transaction; the person's outstanding attestations are withdrawn with it,
+so the next request with that account's token is `401 revoked_identity`. A link already revoked is
+refused and nothing is written. See the
+[runbook](../operating-model/runbook.md#linking-a-person-to-an-identity-provider-account). Verified
+against the test harness (`tests/database/revoke-identity.test.ts`), not yet on the workstation.
+
 ### The founding grant
 
 `--granted-by` names the person who decided, and the act is recorded under a role assignment

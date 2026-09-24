@@ -370,6 +370,9 @@ const DECLARED_ADDITIONS = {
     'revise_warrant_draft',
     // Access grants (ADR 0016): revocation is an update naming this act, never a delete.
     'revoke_access',
+    // Bootstrap tier, as `bootstrap_organization`: an identity link is made and withdrawn only
+    // over the owner credential, and the withdrawal is recorded as this act (`kf revoke-identity`).
+    'revoke_external_identity',
     'revoke_secure_object_authority_key',
     'revoke_secure_object_capability',
     'submit_document_for_review',

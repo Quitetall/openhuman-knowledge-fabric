@@ -296,11 +296,28 @@ Linking is a recorded decision — `linkIdentity` stores who made it. The applic
 make it: since `20260923000200` `kf_app` holds no `INSERT` or `UPDATE` on `org.external_identity`,
 so the one supported way to link is `pnpm kf:grant-authority`, run over the owner connection
 (`DATABASE_OWNER_URL`), which links the identity, assigns the role and grants the clearance in one
-transaction (see [`identity-and-login.md`](../deployment/identity-and-login.md)). Revoking is
-immediate: `revokeIdentity` sets `revoked_at` — again over the owner connection; there is no
-command for it yet — and the next request with an already-issued token is refused rather than
-waiting for it to expire. The row stays; who used to be able to sign in as whom is a fact an
-investigation needs.
+transaction (see [`identity-and-login.md`](../deployment/identity-and-login.md)).
+
+Revoking is `pnpm kf:revoke-identity` (or `kf revoke-identity`), over the same owner connection:
+
+```sh
+DATABASE_OWNER_URL=... pnpm kf:revoke-identity \
+  --issuer https://sso.example.org/realms/kf --subject <sub> \
+  --revoked-by <your person uuid> --reason 'left the company 2026-09-24'
+# or name the link by its row: --identity <org.external_identity id>
+```
+
+It is the withdrawal of the decision grant-authority recorded, and it is recorded the same way: a
+`revoke_external_identity` action carrying the reason and the link's issuer and subject, targeting
+the person, under the role `--revoked-by` holds in that person's organization (or, when they hold
+none there — an emergency in an organization nobody can act in — under the bootstrap role, and the
+output says so), an audit event extending the chain, and `revoked_at` set, in one transaction. It
+refuses without a reason or a decider, and refuses a link already revoked without writing
+anything. Revoking is immediate: the attestations the person holds are withdrawn in the same
+transaction, so the next request with an already-issued token is refused (`401 revoked_identity`)
+rather than waiting for the token to expire. The row stays; who used to be able to sign in as whom
+is a fact an investigation needs, and because `(issuer, subject)` is unique the same account cannot
+later be linked again.
 
 A person who holds several roles states which one they are acting under per request. This is
 not a default the system can pick — choosing decides an authority question on their behalf,

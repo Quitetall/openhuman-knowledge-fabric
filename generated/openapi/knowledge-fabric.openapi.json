@@ -3,7 +3,7 @@
   "info": {
     "title": "OpenHuman Knowledge Fabric API",
     "version": "1.2.0-draft.1",
-    "description": "Generated from ontology source digest 895eb499d54039c9fcc490c3ec63f7d7aca8ea7b415db33ba6369e3bb732c8eb."
+    "description": "Generated from ontology source digest 322a61ec8fc9ea00b0d5381f97a4a48c58de1d6031a1b7362c1c1baa1e398ea2."
   },
   "paths": {
     "/objects/organization/{id}": {
@@ -3312,6 +3312,36 @@
         }
       }
     },
+    "/actions/revoke_external_identity": {
+      "post": {
+        "summary": "Execute revoke_external_identity",
+        "operationId": "revoke_external_identity",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
     "/actions/grant_access": {
       "post": {
         "summary": "Execute grant_access",
@@ -6194,6 +6224,7 @@
               "reactivate_person",
               "bootstrap_organization",
               "grant_person_clearance",
+              "revoke_external_identity",
               "grant_access",
               "revoke_access",
               "replicate_artifact_version",
