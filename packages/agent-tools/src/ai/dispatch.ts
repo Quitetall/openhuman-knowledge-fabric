@@ -1,4 +1,5 @@
 import {
+  requireCurrentDocumentProposalContextFormat,
   validateDocumentProposalModelProvenance,
   validateDocumentProposalOperation,
 } from '@kf/documents';
@@ -11,6 +12,7 @@ import { validateRequest } from './request.js';
 import { authorizeProvider } from './routing.js';
 import type {
   AiContextPlan,
+  AiContextProjectionRecord,
   AiContextPlannerInput,
   AiContextPlannerRepository,
   AiProposalRequest,
@@ -21,11 +23,15 @@ import type {
   RecordDocumentProposalPayloadBase,
 } from './types.js';
 
-/** Dispatch one proposal request after policy filtering; never applies returned operations. */
+/**
+ * Dispatch one proposal request after policy filtering; never applies returned operations. Internal:
+ * the public path is `planAndDispatchAiProposal`, whose plan names the projection itself.
+ */
 export async function dispatchAiProposal(
   provider: AiProvider,
   input: AiProposalRequest,
   policy: AiRoutingPolicy,
+  projection: AiContextProjectionRecord,
 ): Promise<AiProposalResult> {
   const request = validateRequest(input);
   const authorization = authorizeProvider(provider, request, policy);
@@ -33,7 +39,7 @@ export async function dispatchAiProposal(
   return markVerifiedResult({
     status: 'proposal',
     proposal,
-    provenance: proposalProvenance(provider, request, authorization),
+    provenance: proposalProvenance(provider, request, authorization, projection),
   });
 }
 
@@ -59,7 +65,7 @@ export async function dispatchPlannedAiProposal(
   return markVerifiedResult({
     status: 'proposal',
     proposal,
-    provenance: proposalProvenance(provider, request, authorization),
+    provenance: proposalProvenance(provider, request, authorization, plan.projection),
   });
 }
 
@@ -103,8 +109,15 @@ function candidateKey(candidate: {
   return `${candidate.subjectId}\0${candidate.revisionId}`;
 }
 
+/**
+ * The `record_document_proposal` payload for a verified planned result. The provenance's context
+ * must name the very projection and request the plan recorded (KF-SAS-RQ-115): a result paired
+ * with some other plan, or one whose projection was edited after planning, is refused here rather
+ * than recorded as drawn from a reading it was not drawn from.
+ */
 export function recordDocumentProposalPayload(options: {
   readonly proposalId: string;
+  readonly plan: AiContextPlan;
   readonly result: AiProposalResult;
 }): RecordDocumentProposalActionPayload {
   if (
@@ -120,6 +133,20 @@ export function recordDocumentProposalPayload(options: {
   const envelope = options.result.proposal.operations[0]!;
   const operation = validateDocumentProposalOperation(envelope.operation);
   const provenance = validateDocumentProposalModelProvenance(options.result.provenance);
+  requireCurrentDocumentProposalContextFormat(provenance);
+  const planned = options.plan.projection;
+  const recorded = provenance.context.projection!;
+  if (
+    provenance.request_id !== options.plan.request.requestId ||
+    recorded.definition_id !== planned.definitionId ||
+    recorded.definition_version !== planned.definitionVersion ||
+    recorded.corpus_digest !== planned.corpusDigest ||
+    recorded.projection_digest !== planned.projectionDigest
+  ) {
+    throw new Error(
+      'proposal provenance does not name the agent_context projection its plan recorded',
+    );
+  }
   const included = provenance.context.included_items.find(
     (item) => item.subject_id === envelope.subjectId && item.revision_id === envelope.precondition,
   );

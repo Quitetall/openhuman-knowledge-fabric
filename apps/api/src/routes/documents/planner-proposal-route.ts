@@ -82,6 +82,7 @@ export function registerDocumentPlannerProposalRoute(
           assertPlannerResultMatchesWorkspace(planned.result, workspace.row);
           const payload = recordDocumentProposalPayload({
             proposalId: claim.proposalId,
+            plan: planned.plan,
             result: planned.result,
           });
           return options.executeInTransaction(tx, {

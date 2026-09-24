@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { digest } from '@kf/canonicalization';
 import { recordVerification } from '@kf/domain';
 import { projectionResultDigest, type ProjectionResult } from '@kf/projections';
 import type { DocumentProposalOperation } from '../../documents/src/proposal.js';
@@ -9,6 +10,8 @@ import {
   recordDocumentProposalPayload,
   validateAiEvaluationResult,
   type AiContextCandidate,
+  type AiContextPlan,
+  type AiContextProjectionRecord,
   type AiContextPlannerInput,
   type AiContextPlannerRepository,
   type AiProvider,
@@ -16,8 +19,28 @@ import {
   type AiRoutingPolicy,
 } from './ai.js';
 import { dispatchAiProposal, dispatchPlannedAiProposal } from './ai/dispatch.js';
+import {
+  requireCurrentDocumentProposalContextFormat,
+  validateDocumentProposalModelProvenance,
+} from '../../documents/src/proposal.js';
 
 const SHA256 = 'a'.repeat(64);
+/** The agent_context Result an unplanned dispatch in these tests says its context came from. */
+const PROJECTION: AiContextProjectionRecord = {
+  definitionId: 'agent_context',
+  definitionVersion: 1,
+  corpusDigest: 'd'.repeat(64),
+  projectionDigest: 'e'.repeat(64),
+};
+/** The plan that would have produced `result`: its request, and PROJECTION. */
+function planOf(result: { readonly provenance: { readonly request_id: string } }): AiContextPlan {
+  return {
+    request: { ...request, requestId: result.provenance.request_id },
+    selected: [],
+    omitted: [],
+    projection: PROJECTION,
+  };
+}
 const CONTEXT_PROVENANCE_DIGEST = 'b'.repeat(64);
 const SOURCE_DIGEST = 'c'.repeat(64);
 
@@ -576,7 +599,7 @@ describe('AI proposal routing', () => {
   });
 
   it('records full local provider, policy, tokenizer, budget, and context provenance', async () => {
-    const result = await dispatchAiProposal(provider('local'), request, localPolicy);
+    const result = await dispatchAiProposal(provider('local'), request, localPolicy, PROJECTION);
 
     expect(result).toMatchObject({
       status: 'proposal',
@@ -607,8 +630,11 @@ describe('AI proposal routing', () => {
         },
       },
     });
+    // kf-ai-proposal-context-v2 (the tag and PROJECTION in the preimage), recomputed independently
+    // in Python: sha256(json.dumps(preimage, sort_keys=True, separators=(',', ':'))). The v1 value
+    // this replaced was 49853e71…1ed1.
     expect(result.provenance.context.context_digest).toBe(
-      '49853e71ba8f682cc846c2ad451d8777520def938f1821d0c93e0f8d6dc71ed1',
+      'ce6ad585abf6fcc5d87a68af353e8a298414432c81e5180120aa95912f8cbdee',
     );
     expect(result.provenance.context.included_items[0]?.content_digest).toBe(
       '811c761b862105f47145a81453ae4133f895e07bcf649f6444732c4c1d23e6a2',
@@ -630,7 +656,7 @@ describe('AI proposal routing', () => {
       ],
     };
 
-    const result = await dispatchAiProposal(provider('remote'), request, policy);
+    const result = await dispatchAiProposal(provider('remote'), request, policy, PROJECTION);
 
     expect(result.provenance.policy.decision).toEqual({
       locality: 'remote',
@@ -642,9 +668,9 @@ describe('AI proposal routing', () => {
   });
 
   it('refuses remote dispatch unless provider, model, classification, retention, and training policy are allowlisted', async () => {
-    await expect(dispatchAiProposal(provider('remote'), request, localPolicy)).rejects.toThrow(
-      /not allowlisted/,
-    );
+    await expect(
+      dispatchAiProposal(provider('remote'), request, localPolicy, PROJECTION),
+    ).rejects.toThrow(/not allowlisted/);
 
     const policy: AiRoutingPolicy = {
       ...localPolicy,
@@ -659,9 +685,9 @@ describe('AI proposal routing', () => {
         },
       ],
     };
-    await expect(dispatchAiProposal(provider('remote'), request, policy)).rejects.toThrow(
-      /classification ceiling/,
-    );
+    await expect(
+      dispatchAiProposal(provider('remote'), request, policy, PROJECTION),
+    ).rejects.toThrow(/classification ceiling/);
 
     let invoked = false;
     const unsafeProvider: AiProvider = {
@@ -684,9 +710,9 @@ describe('AI proposal routing', () => {
         },
       ],
     } as unknown as AiRoutingPolicy;
-    await expect(dispatchAiProposal(unsafeProvider, request, unsafeTrainingPolicy)).rejects.toThrow(
-      /training use/,
-    );
+    await expect(
+      dispatchAiProposal(unsafeProvider, request, unsafeTrainingPolicy, PROJECTION),
+    ).rejects.toThrow(/training use/);
     expect(invoked).toBe(false);
 
     const unsafeTransportPolicy = {
@@ -703,7 +729,7 @@ describe('AI proposal routing', () => {
       ],
     } as unknown as AiRoutingPolicy;
     await expect(
-      dispatchAiProposal(unsafeProvider, request, unsafeTransportPolicy),
+      dispatchAiProposal(unsafeProvider, request, unsafeTransportPolicy, PROJECTION),
     ).rejects.toThrow(/transport policy/);
     expect(invoked).toBe(false);
   });
@@ -723,7 +749,9 @@ describe('AI proposal routing', () => {
       }),
     } as unknown as AiProvider;
 
-    await expect(dispatchAiProposal(unsafe, request, localPolicy)).rejects.toThrow(/not supported/);
+    await expect(dispatchAiProposal(unsafe, request, localPolicy, PROJECTION)).rejects.toThrow(
+      /not supported/,
+    );
   });
 
   it('rejects proposals aimed outside the exact authorized context revision', async () => {
@@ -740,7 +768,7 @@ describe('AI proposal routing', () => {
         ],
       }),
     };
-    await expect(dispatchAiProposal(outside, request, localPolicy)).rejects.toThrow(
+    await expect(dispatchAiProposal(outside, request, localPolicy, PROJECTION)).rejects.toThrow(
       /authorized context/,
     );
 
@@ -757,7 +785,7 @@ describe('AI proposal routing', () => {
         ],
       }),
     };
-    await expect(dispatchAiProposal(stale, request, localPolicy)).rejects.toThrow(
+    await expect(dispatchAiProposal(stale, request, localPolicy, PROJECTION)).rejects.toThrow(
       /exact context revision/,
     );
   });
@@ -773,10 +801,10 @@ describe('AI proposal routing', () => {
     };
 
     await expect(
-      dispatchAiProposal(guarded, { ...request, tokenizer: '' }, localPolicy),
+      dispatchAiProposal(guarded, { ...request, tokenizer: '' }, localPolicy, PROJECTION),
     ).rejects.toThrow(/tokenizer/);
     await expect(
-      dispatchAiProposal(guarded, { ...request, tokenBudget: 0 }, localPolicy),
+      dispatchAiProposal(guarded, { ...request, tokenBudget: 0 }, localPolicy, PROJECTION),
     ).rejects.toThrow(/token budget/);
     await expect(
       dispatchAiProposal(
@@ -786,6 +814,7 @@ describe('AI proposal routing', () => {
           context: [{ ...request.context[0]!, provenanceDigest: 'not-a-digest' }],
         },
         localPolicy,
+        PROJECTION,
       ),
     ).rejects.toThrow(/provenance digest/);
     expect(invoked).toBe(false);
@@ -802,7 +831,7 @@ describe('AI proposal routing', () => {
     };
 
     await expect(
-      dispatchAiProposal(guarded, { ...request, tokenBudget: 11 }, localPolicy),
+      dispatchAiProposal(guarded, { ...request, tokenBudget: 11 }, localPolicy, PROJECTION),
     ).rejects.toThrow(/context token count exceeds token budget/);
     expect(invoked).toBe(false);
   });
@@ -813,6 +842,7 @@ describe('AI proposal routing', () => {
         provider('local'),
         { ...request, instruction: 'x'.repeat(16_385) },
         localPolicy,
+        PROJECTION,
       ),
     ).rejects.toThrow(/instruction exceeds/);
 
@@ -826,15 +856,17 @@ describe('AI proposal routing', () => {
         ],
       }),
     };
-    await expect(dispatchAiProposal(excessive, request, localPolicy)).rejects.toThrow(
+    await expect(dispatchAiProposal(excessive, request, localPolicy, PROJECTION)).rejects.toThrow(
       /exactly one operation/,
     );
   });
 
   it('converts one result into the exact record_document_proposal payload without action authority', async () => {
-    const result = await dispatchAiProposal(provider('local'), request, localPolicy);
+    const result = await dispatchAiProposal(provider('local'), request, localPolicy, PROJECTION);
 
-    expect(recordDocumentProposalPayload({ proposalId: 'proposal-01', result })).toEqual({
+    expect(
+      recordDocumentProposalPayload({ proposalId: 'proposal-01', plan: planOf(result), result }),
+    ).toEqual({
       proposal_id: 'proposal-01',
       basis_id: 'basis-01',
       proposal_kind: 'source_patch',
@@ -846,12 +878,12 @@ describe('AI proposal routing', () => {
       operations: [fragmentOperation],
       model_provenance: result.provenance,
     });
-    expect(recordDocumentProposalPayload({ proposalId: 'proposal-01', result })).not.toHaveProperty(
-      'actionType',
-    );
-    expect(recordDocumentProposalPayload({ proposalId: 'proposal-01', result })).not.toHaveProperty(
-      'actorId',
-    );
+    expect(
+      recordDocumentProposalPayload({ proposalId: 'proposal-01', plan: planOf(result), result }),
+    ).not.toHaveProperty('actionType');
+    expect(
+      recordDocumentProposalPayload({ proposalId: 'proposal-01', plan: planOf(result), result }),
+    ).not.toHaveProperty('actorId');
   });
 
   it('maps a composition operation to semantic_operations and its exact base field', async () => {
@@ -868,16 +900,23 @@ describe('AI proposal routing', () => {
       },
       inputs: [{ ordinal: 1, role: 'binding', binding_id: 'binding-1' }],
     };
-    const result = await dispatchAiProposal(provider('local', operation), request, localPolicy);
+    const result = await dispatchAiProposal(
+      provider('local', operation),
+      request,
+      localPolicy,
+      PROJECTION,
+    );
 
-    expect(recordDocumentProposalPayload({ proposalId: 'proposal-02', result })).toMatchObject({
+    expect(
+      recordDocumentProposalPayload({ proposalId: 'proposal-02', plan: planOf(result), result }),
+    ).toMatchObject({
       proposal_kind: 'semantic_operations',
       base_composition_revision_id: 'revision-01',
       operations: [operation],
     });
-    expect(recordDocumentProposalPayload({ proposalId: 'proposal-02', result })).not.toHaveProperty(
-      'base_fragment_revision_id',
-    );
+    expect(
+      recordDocumentProposalPayload({ proposalId: 'proposal-02', plan: planOf(result), result }),
+    ).not.toHaveProperty('base_fragment_revision_id');
   });
 
   it('provides a first-class LAMU adapter without granting tools or database access', async () => {
@@ -899,9 +938,127 @@ describe('AI proposal routing', () => {
       },
     });
 
-    const result = await dispatchAiProposal(lamu, request, localPolicy);
+    const result = await dispatchAiProposal(lamu, request, localPolicy, PROJECTION);
     expect(calls).toHaveLength(1);
     expect(calls[0]).not.toHaveProperty('tools');
     expect(result.provenance.provider.provider_id).toBe('lamu');
+  });
+});
+
+describe('the context claim names its projection under a tagged digest (RQ-115, RQ-016)', () => {
+  it('records the planned agent_context projection and the v2 tagged context digest', async () => {
+    const result = await dispatchAiProposal(provider('local'), request, localPolicy, PROJECTION);
+    const context = result.provenance.context;
+    expect(context.format).toBe('kf-ai-proposal-context-v2');
+    expect(context.projection).toEqual({
+      definition_id: 'agent_context',
+      definition_version: 1,
+      corpus_digest: 'd'.repeat(64),
+      projection_digest: 'e'.repeat(64),
+    });
+    // Recomputed here with the tag spelled inline, independent of the code under test.
+    expect(context.context_digest).toBe(
+      digest({
+        format: 'kf-ai-proposal-context-v2',
+        projection: context.projection,
+        tokenizer: context.tokenizer,
+        token_budget: context.token_budget,
+        instruction_digest: context.instruction_digest,
+        included_items: context.included_items,
+        omitted_subject_ids: context.omitted_subject_ids,
+      }),
+    );
+    // Moving the projection moves the digest: it is in the preimage, not beside it.
+    expect(() =>
+      validateDocumentProposalModelProvenance({
+        ...result.provenance,
+        context: {
+          ...context,
+          projection: { ...context.projection!, projection_digest: 'f'.repeat(64) },
+        },
+      }),
+    ).toThrow(/context_digest does not match/);
+  });
+
+  it('refuses to record a result against a plan whose projection it does not name', async () => {
+    const result = await dispatchAiProposal(provider('local'), request, localPolicy, PROJECTION);
+    expect(() =>
+      recordDocumentProposalPayload({
+        proposalId: 'proposal-03',
+        plan: {
+          ...planOf(result),
+          projection: { ...PROJECTION, projectionDigest: 'f'.repeat(64) },
+        },
+        result,
+      }),
+    ).toThrow(/does not name the agent_context projection its plan recorded/);
+    expect(() =>
+      recordDocumentProposalPayload({
+        proposalId: 'proposal-03',
+        plan: { ...planOf(result), request: { ...request, requestId: 'another-request' } },
+        result,
+      }),
+    ).toThrow(/does not name the agent_context projection its plan recorded/);
+  });
+
+  it('carries the planner projection end to end through planAndDispatchAiProposal', async () => {
+    const repository: AiContextPlannerRepository = {
+      authorizedLexicalCandidates: async () => [
+        candidate('document-01', {
+          content: request.context[0]!.content,
+          tokenCount: 12,
+          provenanceDigest: CONTEXT_PROVENANCE_DIGEST,
+          sourceDigest: CONTEXT_PROVENANCE_DIGEST,
+          lexicalScore: 0.9,
+        }),
+      ],
+      authorizedTypedRelationCandidates: async () => [],
+      authorizeSelectedCandidates: async (_scope, candidates) => candidates,
+    };
+    const { plan, result } = await planAndDispatchAiProposal(
+      repository,
+      provider('local'),
+      { ...plannerInput(), requestId: request.requestId, tokenBudget: request.tokenBudget },
+      localPolicy,
+    );
+    expect(result.provenance.context.projection).toEqual({
+      definition_id: plan.projection.definitionId,
+      definition_version: plan.projection.definitionVersion,
+      corpus_digest: plan.projection.corpusDigest,
+      projection_digest: plan.projection.projectionDigest,
+    });
+    expect(
+      recordDocumentProposalPayload({ proposalId: 'proposal-04', plan, result }).model_provenance,
+    ).toEqual(result.provenance);
+  });
+
+  it('still verifies a stored v1 claim, and refuses to record one', async () => {
+    const result = await dispatchAiProposal(provider('local'), request, localPolicy, PROJECTION);
+    const { format: _format, projection: _projection, ...v1 } = result.provenance.context;
+    const legacy = {
+      ...result.provenance,
+      context: {
+        ...v1,
+        context_digest: digest({
+          tokenizer: v1.tokenizer,
+          token_budget: v1.token_budget,
+          instruction_digest: v1.instruction_digest,
+          included_items: v1.included_items,
+          omitted_subject_ids: v1.omitted_subject_ids,
+        }),
+      },
+    };
+    const verified = validateDocumentProposalModelProvenance(legacy);
+    expect(verified.context.format).toBeUndefined();
+    expect(() => requireCurrentDocumentProposalContextFormat(verified)).toThrow(
+      /kf-ai-proposal-context-v2/,
+    );
+    // A v2-tagged claim cannot pass with the untagged digest: the tag is part of the preimage.
+    expect(() =>
+      validateDocumentProposalModelProvenance({
+        ...result.provenance,
+        context: { ...result.provenance.context, context_digest: legacy.context.context_digest },
+      }),
+    ).toThrow(/context_digest does not match/);
   });
 });

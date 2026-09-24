@@ -1,10 +1,12 @@
 import { digest } from '@kf/canonicalization';
 
-import type {
-  DocumentProposalContextKind,
-  DocumentProposalIncludedContextProvenance,
-  DocumentProposalModelProvenance,
-  DocumentProposalProviderPolicyDecision,
+import {
+  DOCUMENT_PROPOSAL_CONTEXT_FORMAT,
+  type DocumentProposalContextKind,
+  type DocumentProposalContextProjection,
+  type DocumentProposalIncludedContextProvenance,
+  type DocumentProposalModelProvenance,
+  type DocumentProposalProviderPolicyDecision,
 } from './contracts.js';
 import {
   atOrBelow,
@@ -135,7 +137,81 @@ function omittedSubjectIds(value: readonly unknown[], includedSubjects: Set<stri
   });
 }
 
-/** Validate and freeze the exact model/provider/policy/context claim stored with a proposal. */
+function contextProjection(value: unknown): DocumentProposalContextProjection {
+  const projection = record(value, 'model provenance context.projection');
+  exactKeys(
+    projection,
+    ['definition_id', 'definition_version', 'corpus_digest', 'projection_digest'],
+    'model provenance context.projection',
+  );
+  if (projection['definition_id'] !== 'agent_context') {
+    throw new Error('model provenance context.projection must be the agent_context projection');
+  }
+  return Object.freeze({
+    definition_id: 'agent_context',
+    definition_version: positiveOrdinal(
+      projection['definition_version'],
+      'model provenance context.projection.definition_version',
+    ),
+    corpus_digest: sha256(
+      projection['corpus_digest'],
+      'model provenance context.projection.corpus_digest',
+    ),
+    projection_digest: sha256(
+      projection['projection_digest'],
+      'model provenance context.projection.projection_digest',
+    ),
+  });
+}
+
+/**
+ * The digest of a model proposal's context claim (KF-SAS-RQ-016).
+ *
+ * With a projection it is the v2 form: `format: 'kf-ai-proposal-context-v2'` inside the canonical
+ * preimage (packages/canonicalization/AUTHORITY.md, "Format tags"), and the projection the context
+ * was drawn from beside it. Without one it is the v1 form — the same fields, untagged — which
+ * exists only so proposals recorded before v2 still verify; nothing new is recorded under it.
+ */
+export function documentProposalContextDigest(claim: {
+  readonly projection?: DocumentProposalContextProjection;
+  readonly tokenizer: string;
+  readonly token_budget: number;
+  readonly instruction_digest: string;
+  readonly included_items: readonly DocumentProposalIncludedContextProvenance[];
+  readonly omitted_subject_ids: readonly string[];
+}): string {
+  const fields = {
+    tokenizer: claim.tokenizer,
+    token_budget: claim.token_budget,
+    instruction_digest: claim.instruction_digest,
+    included_items: claim.included_items,
+    omitted_subject_ids: claim.omitted_subject_ids,
+  };
+  return claim.projection === undefined
+    ? digest(fields)
+    : digest({ ...fields, projection: claim.projection, format: DOCUMENT_PROPOSAL_CONTEXT_FORMAT });
+}
+
+/**
+ * Refuse a claim recorded under a superseded context format. Verifying a stored proposal accepts
+ * v1, which proposals recorded before v2 carry; recording a new one does not.
+ */
+export function requireCurrentDocumentProposalContextFormat(
+  provenance: DocumentProposalModelProvenance,
+): void {
+  if (provenance.context.format !== DOCUMENT_PROPOSAL_CONTEXT_FORMAT) {
+    throw new Error(
+      `model provenance context must be ${DOCUMENT_PROPOSAL_CONTEXT_FORMAT}, naming the ` +
+        'agent_context projection it was drawn from',
+    );
+  }
+}
+
+/**
+ * Validate and freeze the exact model/provider/policy/context claim stored with a proposal. Accepts
+ * a v1 context claim so stored proposals keep verifying; `requireCurrentDocumentProposalContextFormat`
+ * is what a new proposal must also pass.
+ */
 export function validateDocumentProposalModelProvenance(
   value: unknown,
 ): DocumentProposalModelProvenance {
@@ -173,9 +249,14 @@ export function validateDocumentProposalModelProvenance(
   });
 
   const rawContext = record(provenance['context'], 'model provenance context');
+  const tagged = Object.hasOwn(rawContext, 'format');
+  if (tagged && rawContext['format'] !== DOCUMENT_PROPOSAL_CONTEXT_FORMAT) {
+    throw new Error('model provenance context.format is not supported');
+  }
   exactKeys(
     rawContext,
     [
+      ...(tagged ? ['format', 'projection'] : []),
       'tokenizer',
       'token_budget',
       'instruction_digest',
@@ -185,6 +266,7 @@ export function validateDocumentProposalModelProvenance(
     ],
     'model provenance context',
   );
+  const projection = tagged ? contextProjection(rawContext['projection']) : undefined;
   if (!Array.isArray(rawContext['included_items']) || rawContext['included_items'].length === 0) {
     throw new Error('model provenance context.included_items must be a non-empty array');
   }
@@ -223,7 +305,8 @@ export function validateDocumentProposalModelProvenance(
     rawContext['context_digest'],
     'model provenance context.context_digest',
   );
-  const expectedContextDigest = digest({
+  const expectedContextDigest = documentProposalContextDigest({
+    ...(projection === undefined ? {} : { projection }),
     tokenizer,
     token_budget: tokenBudget,
     instruction_digest: instructionDigest,
@@ -234,6 +317,7 @@ export function validateDocumentProposalModelProvenance(
     throw new Error('model provenance context.context_digest does not match its exact claim');
   }
   const context = Object.freeze({
+    ...(projection === undefined ? {} : { format: DOCUMENT_PROPOSAL_CONTEXT_FORMAT, projection }),
     tokenizer,
     token_budget: tokenBudget,
     instruction_digest: instructionDigest,

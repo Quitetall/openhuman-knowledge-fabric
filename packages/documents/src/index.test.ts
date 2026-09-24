@@ -565,6 +565,7 @@ describe('document action chain', () => {
     subjectId: string,
     revisionId: string,
     contentDigest: string,
+    format: 'v2' | 'legacy-v1' = 'v2',
   ) => {
     const contextClaim = {
       tokenizer: 'fixture-tokenizer-v1',
@@ -596,8 +597,28 @@ describe('document action chain', () => {
         policy_id: 'fixture-local-policy-v1',
         decision: { locality: 'local' as const, classification_ceiling: 'internal' as const },
       },
-      context: { ...contextClaim, context_digest: digest(contextClaim) },
+      // v2 (kf-ai-proposal-context-v2) names the agent_context projection and carries its tag in
+      // the digest's preimage; v1 is the untagged form proposals recorded before it carry.
+      context:
+        format === 'legacy-v1'
+          ? { ...contextClaim, context_digest: digest(contextClaim) }
+          : {
+              format: 'kf-ai-proposal-context-v2' as const,
+              projection: agentContextProjection,
+              ...contextClaim,
+              context_digest: digest({
+                ...contextClaim,
+                projection: agentContextProjection,
+                format: 'kf-ai-proposal-context-v2',
+              }),
+            },
     };
+  };
+  const agentContextProjection = {
+    definition_id: 'agent_context' as const,
+    definition_version: 1,
+    corpus_digest: hexDigest('6'),
+    projection_digest: hexDigest('7'),
   };
 
   beforeAll(async () => {
@@ -2560,6 +2581,49 @@ describe('document action chain', () => {
         'author',
       ),
     ).rejects.toMatchObject({ detail: { rule: 'KF-DOC-PROPOSAL-014' } });
+    // A claim under the superseded untagged context digest, naming no projection, verifies (it is
+    // what stored proposals carry) and is refused as a NEW record (KF-SAS-RQ-016, RQ-115).
+    await expect(
+      call(
+        'record_document_proposal',
+        [fragmentId],
+        {
+          proposal_id: uuid(),
+          basis_id: basisId,
+          proposal_kind: 'source_patch',
+          proposed_by_kind: 'model',
+          model_provider: 'local-test',
+          model_profile: 'deterministic-fixture',
+          model_request_id: 'request-test-only',
+          model_provenance: modelProvenance(
+            basisId,
+            fragmentId,
+            fragmentRevision2Id,
+            fragmentRevisionDigest,
+            'legacy-v1',
+          ),
+          base_fragment_revision_id: fragmentRevision2Id,
+          operations: [
+            {
+              operation: 'replace_fragment_source',
+              media_type: 'text/markdown',
+              classification: 'internal',
+              holder_id: uuid(),
+              previous_holder_id: fragmentRevisionHolderId,
+              holder: {
+                kind: 'git',
+                repository: 'local/openhuman',
+                commit_sha: commit('0'),
+                path: 'docs/atoms/purpose.md',
+                submodule_commit_sha: null,
+                content_digest: hexDigest('0'),
+              },
+            },
+          ],
+        },
+        'author',
+      ),
+    ).rejects.toMatchObject({ detail: { rule: 'KF-DOC-PROPOSAL-017' } });
     await call(
       'record_document_proposal',
       [fragmentId],
