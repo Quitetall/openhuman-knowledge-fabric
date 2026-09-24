@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
-import { IdentityRejected } from '@kf/authorization';
+import { AttestorUnavailable, IdentityRejected } from '@kf/authorization';
 import { withTransaction, bindPrincipal } from '@kf/database';
-import { CallerRejected, unidentified } from '../actions.js';
+import { CallerRejected, refuseUnidentified } from '../actions.js';
 import type { MlRoutesOptions } from '../ml.js';
 import { MlSchemaUnavailable, requireMlSchema } from '../../schema-contract.js';
 import type { MlRunQuery } from './contracts.js';
@@ -19,8 +19,12 @@ export function registerRunProjectionRoute(app: FastifyInstance, options: MlRout
         headers: request.headers as Record<string, unknown>,
       });
     } catch (error: unknown) {
-      if (error instanceof CallerRejected || error instanceof IdentityRejected) {
-        return reply.code(401).send(unidentified(error));
+      if (
+        error instanceof CallerRejected ||
+        error instanceof IdentityRejected ||
+        error instanceof AttestorUnavailable
+      ) {
+        return refuseUnidentified(reply, error);
       }
       request.log.error({ err: error }, 'ML run caller identification failed');
       return reply.code(500).send({ error: 'internal_error', requestId: request.id });

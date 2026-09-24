@@ -805,8 +805,9 @@ Before any shared user is admitted:
    logs `refusing to serve: database login …` and exits. Row-level security does not bind such
    a login, so serving through it would silently disable every tenant and classification policy.
 10. Verify the attestor: a valid token succeeds through the API, `/ready` reports
-    `checks.attestor: ok`, stopping `kf-attestor.service` turns bearer requests into 401 and
-    `/ready` into 503, and the API refuses to start when `/etc/kf/api/database-url` names a
+    `checks.attestor: ok`, stopping `kf-attestor.service` turns bearer requests into
+    `503 attestor_unavailable` (never 401, never 500), logs `kf-attestor is unreachable` once with
+    the socket path, and turns `/ready` into 503, and the API refuses to start when `/etc/kf/api/database-url` names a
     login that holds `kf_attestor` or `kf_service_actor`.
 11. Reboot host and re-run checks. Service that works only in install shell is not
     deployed.

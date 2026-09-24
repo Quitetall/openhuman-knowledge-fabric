@@ -18,7 +18,7 @@ import {
   type ProjectionRenderTarget,
 } from '@kf/projections';
 import type { ProjectionDefinition } from '@kf/ontology-compiler';
-import { unidentified } from '../actions.js';
+import { refuseUnidentified } from '../actions.js';
 import type { DocumentRoutesOptions } from './contracts.js';
 
 const TARGETS = new Set<ProjectionRenderTarget>(['json', 'markdown', 'html']);
@@ -124,7 +124,7 @@ export function registerMasterRecordProjectionRoute(
           headers: request.headers as Record<string, unknown>,
         });
       } catch (error: unknown) {
-        return reply.code(401).send(unidentified(error));
+        return refuseUnidentified(reply, error);
       }
 
       return withTransaction(options.pool, async (tx) => {

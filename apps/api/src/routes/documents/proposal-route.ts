@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { ActionRejected } from '@kf/actions';
 import { withTransaction, bindPrincipal } from '@kf/database';
-import { unidentified } from '../actions.js';
+import { refuseUnidentified } from '../actions.js';
 import type { DocumentRoutesOptions } from './contracts.js';
 import {
   parseDocumentProposal,
@@ -43,7 +43,7 @@ export function registerDocumentProposalRoute(
       try {
         identity = await options.identify({ headers: request.headers as Record<string, unknown> });
       } catch (error: unknown) {
-        return reply.code(401).send(unidentified(error));
+        return refuseUnidentified(reply, error);
       }
       try {
         const claim = parseDocumentProposalClaim(request.body ?? {});

@@ -38,6 +38,7 @@ import {
   createCallerIdentifier,
   CallerRejected,
   callerFrom,
+  refuseUnidentified,
   unidentified,
 } from './actions/auth.js';
 import type { ActionRoutesOptions, Caller, IdentifyCaller } from './actions/contracts.js';
@@ -46,7 +47,7 @@ import { registerReadRoutes } from './actions/read-routes.js';
 import { registerActionPostRoute, registerUnavailableActionRoute } from './actions/write-route.js';
 
 export type { ActionRoutesOptions, Caller, IdentifyCaller };
-export { CallerRejected, callerFrom, createCallerIdentifier, unidentified };
+export { CallerRejected, callerFrom, createCallerIdentifier, refuseUnidentified, unidentified };
 
 export async function registerActionRoutes(
   app: FastifyInstance,

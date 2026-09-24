@@ -146,6 +146,11 @@ the table below was observed before that change.
 The third row matters as much as the fourth: a correctly signed token from the wrong issuer is
 refused, so the check is not "is this a JWT".
 
+Any of those rows with `kf-attestor` down answers `503` `attestor_unavailable` instead: nobody
+could be asked whether the token is good, so the caller is neither refused nor let in, and the
+API never falls back to verifying it in-process (asserted by `tests/permissions/attestor.test.ts`
+and `apps/api/src/app.test.ts`, not observed on this walk).
+
 The fourth row is the designed stopping point, and it is where the walk ends.
 
 ---

@@ -9,7 +9,7 @@ import {
   type MasterRecordManifest,
 } from '@kf/documents';
 import { project, ProjectionRefused, type ProjectionCorpus } from '@kf/projections';
-import { unidentified } from '../actions.js';
+import { refuseUnidentified } from '../actions.js';
 import { actionRejectionBody } from '../actions/errors.js';
 import type { DocumentRoutesOptions } from './contracts.js';
 import { projectionMembersOf } from './master-record-projection-route.js';
@@ -60,7 +60,7 @@ async function serveObjectView(
   try {
     identity = await options.identify({ headers: request.headers as Record<string, unknown> });
   } catch (error: unknown) {
-    return reply.code(401).send(unidentified(error));
+    return refuseUnidentified(reply, error);
   }
 
   // Everything below runs in one transaction and only DESCRIBES the reply; the reply is

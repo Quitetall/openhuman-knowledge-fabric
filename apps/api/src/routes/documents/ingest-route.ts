@@ -26,7 +26,7 @@ import {
   withPreparsedDocuments,
 } from '@kf/documents';
 import { deniedPathRule, formatContentRefusal, scanContent } from '../../ingest/content-policy.js';
-import { unidentified } from '../actions.js';
+import { refuseUnidentified } from '../actions.js';
 import { documentParseRefusalBody } from '../actions/errors.js';
 import { DOCUMENT_IMPORT_BODY_LIMIT_BYTES, type DocumentRoutesOptions } from './contracts.js';
 
@@ -131,7 +131,7 @@ export function registerIngestRoute(app: FastifyInstance, options: DocumentRoute
       try {
         identity = await options.identify({ headers: request.headers as Record<string, unknown> });
       } catch (error: unknown) {
-        return reply.code(401).send(unidentified(error));
+        return refuseUnidentified(reply, error);
       }
       if (options.store === undefined) {
         return reply.code(503).send({

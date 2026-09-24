@@ -30,12 +30,14 @@ export {
 export {
   ATTESTOR_MAX_BODY_BYTES,
   ATTESTOR_PATH,
+  AttestorUnavailable,
   LocalAttestor,
   SocketAttestor,
   encodeAttestedCaller,
   encodeRefusal,
   parseAttestorRequest,
   type Attestor,
+  type AttestorAvailability,
   type SocketAttestorOptions,
 } from './attestor.js';
 

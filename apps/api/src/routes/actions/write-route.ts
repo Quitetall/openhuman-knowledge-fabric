@@ -17,7 +17,7 @@ import {
   type EffectiveAtBounds,
 } from './effective-at.js';
 import { actionRejectionBody } from './errors.js';
-import { unidentified } from './auth.js';
+import { refuseUnidentified } from './auth.js';
 
 interface ActionPostRouteOptions {
   readonly execute: ActionRoutesOptions['execute'];
@@ -52,7 +52,7 @@ export function registerActionPostRoute(
     try {
       caller = await options.identify({ headers: request.headers as Record<string, unknown> });
     } catch (err: unknown) {
-      return reply.code(401).send(unidentified(err));
+      return refuseUnidentified(reply, err);
     }
 
     const body = request.body ?? {};

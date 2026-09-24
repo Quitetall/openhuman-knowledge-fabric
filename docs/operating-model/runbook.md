@@ -399,13 +399,19 @@ to somebody.
 - `is mode 644 — a secret readable beyond its owner` — `chmod 600`. Refused rather than warned,
   because a warning at startup is read once, on the day it is added.
 
-## Requests refused `not_attested`, or 401 for everybody
+## Requests refused `not_attested`, or 503 `attestor_unavailable` for everybody
 
 The database binds a person for the API's login only on an attestation from `kf-attestor`
 (`20260924001000`). An act refused `not_attested` ("nobody attested that the actor is present")
-reached the database without one: the caller should identify again. When every bearer request
-fails at once, the attestor is the first suspect — `GET /ready` reports `attestor: failing` while
-the API cannot reach it on its socket. Check `systemctl status kf-attestor.service` and its journal:
+reached the database without one: the caller should identify again. When the API cannot reach the
+attestor at all — its socket is absent or refuses the connection, it does not answer within 5 s, or
+it answers 5xx — every bearer request answers `503 {"error":"attestor_unavailable"}` with
+`Retry-After: 5`. It fails closed: there is no local fallback, and nobody is bound. A token the
+attestor _refuses_ is still `401` with its failure code; `503` means nobody could be asked. The
+API logs the outage once, when it starts, at `error` with the socket path and cause
+(`"kf-attestor is unreachable; …"`, `socket`, `reason` such as `ENOENT`, `ECONNREFUSED`, `EACCES`,
+`timeout` or `status 500`), and once at `info` when it answers again (`"kf-attestor is answering
+again"`); `GET /ready` reports `attestor: failing` meanwhile. Check `systemctl status kf-attestor.service` and its journal:
 it refuses to start through a login that is not in `kf_attestor` or that is also in `kf_app` or
 `kf_worker`, and it needs `/etc/kf/attestor/database-url` and the same `OIDC_*` values as the API
 in `/etc/kf/attestor.env`. After a crash loop it stays `failed` until `systemctl reset-failed

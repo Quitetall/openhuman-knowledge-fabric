@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { DEFAULT_REASON_REQUIRED } from '@kf/actions';
 import { bindPrincipal, PrincipalRefused, withTransaction, type Pool, type Tx } from '@kf/database';
 import { projectProgress } from '@kf/work-control';
-import { unidentified } from './auth.js';
+import { refuseUnidentified } from './auth.js';
 import type { Caller, IdentifyCaller } from './contracts.js';
 
 interface ReadRouteOptions {
@@ -40,7 +40,7 @@ function registerProjectReadRoute(app: FastifyInstance, options: ReadRouteOption
     try {
       caller = await identifyCaller(options.identify, request.headers as Record<string, unknown>);
     } catch (err: unknown) {
-      return reply.code(401).send(unidentified(err));
+      return refuseUnidentified(reply, err);
     }
 
     return withTransaction(options.pool, async (tx) => {
@@ -80,7 +80,7 @@ function registerAvailableActionsRoute(app: FastifyInstance, options: ReadRouteO
     try {
       caller = await identifyCaller(options.identify, request.headers as Record<string, unknown>);
     } catch (err: unknown) {
-      return reply.code(401).send(unidentified(err));
+      return refuseUnidentified(reply, err);
     }
 
     return withTransaction(options.pool, async (tx) => {
@@ -130,7 +130,7 @@ function registerHistoryRoute(app: FastifyInstance, options: ReadRouteOptions): 
     try {
       caller = await identifyCaller(options.identify, request.headers as Record<string, unknown>);
     } catch (err: unknown) {
-      return reply.code(401).send(unidentified(err));
+      return refuseUnidentified(reply, err);
     }
 
     return withTransaction(options.pool, async (tx) => {

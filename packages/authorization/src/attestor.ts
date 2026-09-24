@@ -141,19 +141,66 @@ export function encodeRefusal(err: IdentityRejected): {
   return { status: 401, body: { failure: err.failure, message: err.message } };
 }
 
-export interface SocketAttestorOptions {
-  /** Give up on an answer after this long. The API answers the request 401 meanwhile. */
-  readonly timeoutMillis?: number;
+/**
+ * kf-attestor could not be asked: its socket is absent or refuses the connection, it did not
+ * answer in time, or it answered that it could not attest (5xx). Nothing is known about the
+ * caller, so this is neither a refusal of them (401) nor a defect in the API (500): the API
+ * answers 503 `attestor_unavailable` and binds nobody. There is no local fallback — a fallback
+ * would be the API attesting to people itself, which is the separation this exists to keep.
+ */
+export class AttestorUnavailable extends Error {
+  /** The socket that was dialled, for the operator's log. Never sent to a caller. */
+  readonly socketPath: string;
+  /** What went wrong, as a short code: ENOENT, ECONNREFUSED, EACCES, timeout, status 500, ... */
+  readonly reason: string;
+
+  constructor(socketPath: string, reason: string, options?: ErrorOptions) {
+    super(`kf-attestor at ${socketPath} is unavailable (${reason})`, options);
+    this.name = 'AttestorUnavailable';
+    this.socketPath = socketPath;
+    this.reason = reason;
+  }
 }
+
+/** Whether kf-attestor answered the last time it was asked, and if not, why. */
+export type AttestorAvailability =
+  | { readonly available: true; readonly socketPath: string }
+  | { readonly available: false; readonly socketPath: string; readonly reason: string };
+
+export interface SocketAttestorOptions {
+  /** Give up on an answer after this long. The API answers the request 503 meanwhile. */
+  readonly timeoutMillis?: number;
+  /**
+   * Told when the attestor goes from answering to not answering, and back. Transitions only, so
+   * an outage is logged once with the socket path rather than once per request.
+   */
+  readonly onAvailabilityChange?: (state: AttestorAvailability) => void;
+}
+
+/** Connection-level failures: nothing on the other end of the socket took the request. */
+const UNREACHABLE_CODES: ReadonlySet<string> = new Set([
+  'ENOENT',
+  'ECONNREFUSED',
+  'EACCES',
+  'ENOTSOCK',
+  'ECONNRESET',
+  'EPIPE',
+]);
+
+class AttestorTimedOut extends Error {}
 
 /** The API's side of the socket. */
 export class SocketAttestor implements Attestor {
   readonly #socketPath: string;
   readonly #timeoutMillis: number;
+  readonly #onAvailabilityChange: ((state: AttestorAvailability) => void) | undefined;
+  /** Undefined until the first exchange, so the first failure is reported too. */
+  #available: boolean | undefined;
 
   constructor(socketPath: string, options: SocketAttestorOptions = {}) {
     this.#socketPath = socketPath;
     this.#timeoutMillis = options.timeoutMillis ?? 5_000;
+    this.#onAvailabilityChange = options.onAvailabilityChange;
   }
 
   get socketPath(): string {
@@ -172,7 +219,7 @@ export class SocketAttestor implements Attestor {
         'the acting role must be stated; holding a role is not the same as acting under it',
       );
     }
-    const { status, body } = await this.#exchange('POST', ATTESTOR_PATH, request);
+    const { status, body } = await this.#reach('POST', ATTESTOR_PATH, request);
     if (status === 200) return decodeAttestedCaller(body);
     if (status === 401 && typeof body === 'object' && body !== null) {
       const failure = (body as Record<string, unknown>)['failure'];
@@ -190,10 +237,57 @@ export class SocketAttestor implements Attestor {
   /** Whether the attestor is up and answering on its socket. For readiness only. */
   async healthy(): Promise<boolean> {
     try {
-      return (await this.#exchange('GET', '/health', undefined)).status === 200;
+      return (await this.#reach('GET', '/health', undefined)).status === 200;
     } catch {
       return false;
     }
+  }
+
+  /**
+   * One exchange, with every way of not reaching the attestor turned into AttestorUnavailable
+   * and the availability transition reported. A body that is not JSON, or not an attested
+   * caller, stays a plain Error: that is an attestor that answered wrongly, not one that is down.
+   */
+  async #reach(
+    method: 'GET' | 'POST',
+    path: string,
+    payload: unknown,
+  ): Promise<{ status: number; body: unknown }> {
+    let answer: { status: number; body: unknown };
+    try {
+      answer = await this.#exchange(method, path, payload);
+    } catch (err: unknown) {
+      const code = (err as NodeJS.ErrnoException | undefined)?.code;
+      if (err instanceof AttestorTimedOut) throw this.#down('timeout', err);
+      if (typeof code === 'string' && UNREACHABLE_CODES.has(code)) throw this.#down(code, err);
+      throw err;
+    }
+    // The attestor's own refusal to attest for a reason of its own (its database is down).
+    if (answer.status >= 500) throw this.#down(`status ${answer.status}`);
+    this.#transition(true, undefined);
+    return answer;
+  }
+
+  #down(reason: string, cause?: unknown): AttestorUnavailable {
+    this.#transition(false, reason);
+    return new AttestorUnavailable(
+      this.#socketPath,
+      reason,
+      cause === undefined ? undefined : { cause },
+    );
+  }
+
+  #transition(available: boolean, reason: string | undefined): void {
+    if (this.#available === available) return;
+    // A first success is not news; a first failure is.
+    const report = this.#available !== undefined || !available;
+    this.#available = available;
+    if (!report || this.#onAvailabilityChange === undefined) return;
+    this.#onAvailabilityChange(
+      available
+        ? { available: true, socketPath: this.#socketPath }
+        : { available: false, socketPath: this.#socketPath, reason: reason ?? 'unknown' },
+    );
   }
 
   #exchange(
@@ -239,7 +333,9 @@ export class SocketAttestor implements Attestor {
           res.on('error', reject);
         },
       );
-      req.on('timeout', () => req.destroy(new Error('the attestor did not answer in time')));
+      req.on('timeout', () =>
+        req.destroy(new AttestorTimedOut('the attestor did not answer in time')),
+      );
       req.on('error', reject);
       req.end(data);
     });

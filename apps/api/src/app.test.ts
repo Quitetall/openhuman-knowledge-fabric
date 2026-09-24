@@ -326,6 +326,41 @@ describe('identity on every route, not only /actions', () => {
   });
 });
 
+describe('an unreachable attestor', () => {
+  it('answers 503 attestor_unavailable on every bearer route, never 401 or 500', async () => {
+    // The dogfood shape with kf-attestor down: a valid-looking caller cannot be verified, so the
+    // answer is an outage (retry), not a refusal (sign in again) or a defect (page someone).
+    const config = {
+      ...loadConfig({
+        ...baseEnv,
+        LOG_LEVEL: 'silent',
+        DATABASE_URL: 'postgres://kf_app@127.0.0.1:1/kf',
+        OIDC_ISSUER: 'http://localhost:8080/realms/knowledge-fabric',
+        OIDC_AUDIENCE: 'knowledge-fabric-api',
+        OIDC_JWKS_URI:
+          'http://localhost:8080/realms/knowledge-fabric/protocol/openid-connect/certs',
+      }),
+      deploymentProfile: 'dogfood' as const,
+      attestorSocket: '/nonexistent/kf-attestor.sock',
+    };
+    const app = await buildApp(config);
+    const headers = {
+      authorization: 'Bearer not-checked-because-nobody-can-check-it',
+      'x-kf-acting-role': '01930000-0000-7000-8000-000000000002',
+      'x-kf-organization': '01930000-0000-7000-8000-000000000003',
+    };
+    try {
+      for (const url of ['/search?q=pump', '/ml/runs/run_a/revisions/rev_b', '/documents']) {
+        const res = await app.inject({ method: 'GET', url, headers });
+        expect(res.statusCode, `${url}: ${res.body}`).toBe(503);
+        expect(res.json(), url).toMatchObject({ error: 'attestor_unavailable' });
+      }
+    } finally {
+      await app.close();
+    }
+  });
+});
+
 describe('error bodies', () => {
   it('answers an unhandled failure with a request id, never the error text', async () => {
     // Fastify's default handler returned err.message on a 500. From pg that names the host,

@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { explainAccess } from '@kf/authorization';
 import { setResolvedAccessContext, withTransaction } from '@kf/database';
 import { enumeratePermittedSet } from '@kf/documents';
-import { unidentified } from '../actions.js';
+import { refuseUnidentified } from '../actions.js';
 import type { DocumentRoutesOptions } from './contracts.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -44,7 +44,7 @@ export function registerAccessExplanationRoute(
           headers: request.headers as Record<string, unknown>,
         });
       } catch (error: unknown) {
-        return reply.code(401).send(unidentified(error));
+        return refuseUnidentified(reply, error);
       }
 
       return withTransaction(options.pool, async (tx) => {
