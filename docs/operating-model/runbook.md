@@ -399,6 +399,9 @@ the application login cannot read or write it, rows are never deleted, and a wit
 change a row accepts. It is **not** an act on the audit chain — an agent client belongs to no
 organization and targets no record — so the row is its own record. Withdrawal is immediate: the
 next attestation for that client is refused; one already issued lives out its minute.
+Declarations are **not** in the preservation export: they are this deployment's trust in clients of
+its own realm, so after a restore the owner declares the agents the new host should accept. Each
+act's recorded `agent_participation` does travel, in `actions.json`.
 
 The realm side (`identity_provider_policy`): a client may have standard token exchange switched on
 only if it is confidential and stamps `act.client_id` with its own id (the shipped

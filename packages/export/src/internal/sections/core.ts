@@ -16,9 +16,14 @@ export const CORE_SECTIONS = [
   },
   {
     name: 'actions',
+    // `agent_participation` (ADR 0035, 20260925100000) is last so that an archive written before
+    // it existed differs only by the missing key. Such an archive restores every act with it
+    // null, which is what each of them was: nothing acted through an agent before the column.
+    // The restore is an administrator session, which keeps the value the archive states rather
+    // than deriving one from a bound attestation (core.action_agent_participation).
     sql: `select id, organization_id, request_digest, action_type, actor_id, acting_role_id,
                  target_ids, parameters, preconditions, idempotency_key, recorded_at,
-                 effective_at, request_id, reason, result_status, result
+                 effective_at, request_id, reason, result_status, result, agent_participation
             from core.action order by id`,
   },
   {

@@ -859,7 +859,7 @@ for what was measured). On a host:
 `core.action.agent_participation` then names the agent on every act dispatched through its token,
 and is null for a person acting directly. The database writes it from the attestation; the API
 cannot set it. **Rolling back past this migration** drops the column, the declarations and the
-attestor's recorded agent: take an export first if the participation history must survive.
+attestor's recorded agent: take an export first if the participation history must survive (the export carries `agent_participation` in `actions.json`; declarations are not exported — a restored host's owner declares its own agents).
 
 ## Host preflight and evidence
 
