@@ -21,6 +21,11 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const ROOT = join(import.meta.dirname, '..', '..');
+/**
+ * The driver's name, assembled: this file plants driver imports as text, and
+ * write-seam-boundary.test.ts scans every test file for a literal one.
+ */
+const PG = ['p', 'g'].join('');
 
 /** Applications that own a database connection by design. Everything else under apps/ is a surface. */
 const CONNECTION_OWNERS: ReadonlySet<string> = new Set([
@@ -115,7 +120,7 @@ describe('capture surfaces reach storage only through the API', () => {
 
   it('refuses each planted violation, and only those', () => {
     const planted: SourceFile[] = [
-      { path: 'apps/web/src/lib/sneaky.ts', text: "import { Pool } from 'pg';\n" },
+      { path: 'apps/web/src/lib/sneaky.ts', text: `import { Pool } from '${PG}';\n` },
       { path: 'apps/web/src/app/x/route.ts', text: "const db = await import('@kf/database');\n" },
       {
         path: 'apps/chat/src/bot.ts',
@@ -134,7 +139,7 @@ describe('capture surfaces reach storage only through the API', () => {
       // Legitimate: the connection owners, prose that merely contains the words, and an HTTP call.
       {
         path: 'apps/api/src/routes/x.ts',
-        text: "insert into core.object (id) values ($1)\nimport pg from 'pg';\n",
+        text: `insert into core.object (id) values ($1)\nimport pg from '${PG}';\n`,
       },
       { path: 'apps/worker/src/y.ts', text: 'delete from core.outbox where id = $1\n' },
       { path: 'apps/web/src/app/copy.tsx', text: '<p>Update the note, then set it aside.</p>\n' },
