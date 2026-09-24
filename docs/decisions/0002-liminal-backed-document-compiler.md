@@ -272,6 +272,26 @@ runs without database credentials, network access, ambient source discovery or a
 authority; KF supplies all authorized inputs. Timeout, crash, oversized output, malformed
 response or digest mismatch records one failed run and publishes no partial view.
 
+> **UPDATED 2026-09-25 — reproduction is checked, not assumed (KF-SAS-RQ-102).** Until now
+> nothing compared two compilations of the same sources by the same compiler, so a
+> nondeterministic compiler would have been indistinguishable from a deterministic one. Two
+> structural facts had made the exact case impossible — `compilation_basis.basis_digest` is
+> unique, so an identical Basis is never compiled twice, and a re-record under one request with
+> a different output is refused ("idempotent compiler replay differs") — but a Basis also carries
+> the compiler's **qualification**, which is a governance fact about the binary, not part of
+> what it computes. Revoking a registration and registering the same pinned binary with a new
+> qualification (the draft-to-qualified path this section describes) therefore produces a new
+> Basis over the same sources and the same binary, and its run was never compared with the
+> first. Migration `20260925160100_compilation_reproduces.sql` makes that comparison: a succeeded
+> run whose Basis equals an earlier succeeded run's Basis in everything but
+> `compiler.qualification` (and the digest over it) must reproduce that run's semantic digest
+> and its set of `(target, content digest)` views, or the database refuses to record it. The
+> worker records the refusal as a failed run with `failure_code = 'nondeterministic_output'`
+> naming the run it failed to reproduce, rather than retrying it into silence. What this does
+> not do: re-run the compiler to test determinism on its own schedule (it checks every
+> reproduction that happens and causes none), or refuse to _accept_ the earlier run that a later
+> one failed to reproduce — that failure is on the record, and acceptance does not yet read it.
+
 KF SHALL expose this through one deep document-compiler interface with two adapters: pinned
 Liminal process for production and deterministic in-memory adapter for tests. Pandoc and
 other importers feed source IR; they do not bypass the compiler interface.
