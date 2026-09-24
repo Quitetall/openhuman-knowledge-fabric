@@ -36,7 +36,27 @@ export interface DocumentProposalIncludedContextProvenance {
   readonly provenance_digest: string;
 }
 
+/**
+ * The digest format of a model proposal's context claim (KF-SAS-RQ-016). v2 carries its tag inside
+ * the preimage and names the agent_context projection the context was drawn from (RQ-115). v1 is
+ * the earlier untagged preimage with no projection; stored proposals still carry it and verify
+ * under it, and no new proposal may be recorded with it.
+ */
+export const DOCUMENT_PROPOSAL_CONTEXT_FORMAT = 'kf-ai-proposal-context-v2' as const;
+
+/** Which `agent_context` Result the context was drawn from, as the planner recorded it. */
+export interface DocumentProposalContextProjection {
+  readonly definition_id: 'agent_context';
+  readonly definition_version: number;
+  readonly corpus_digest: string;
+  readonly projection_digest: string;
+}
+
 export interface DocumentProposalContextProvenance {
+  /** Absent on a v1 (legacy, untagged) claim; always present on a new one. */
+  readonly format?: typeof DOCUMENT_PROPOSAL_CONTEXT_FORMAT;
+  /** Present exactly when `format` is. */
+  readonly projection?: DocumentProposalContextProjection;
   readonly tokenizer: string;
   readonly token_budget: number;
   readonly instruction_digest: string;

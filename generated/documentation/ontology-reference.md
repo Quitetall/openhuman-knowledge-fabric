@@ -1,9 +1,9 @@
 <!-- GENERATED from ontology/ — do not edit. -->
-<!-- ontology_version: 1.2.0-draft.1 · source_digest: 7b96da3eb2b3f1ee99ff36c18ec0e256474897e41db1b4d7b310e8136d50d536 -->
+<!-- ontology_version: 1.2.0-draft.1 · source_digest: 3a7c8740ce21967150bf8ae411a7386f086cc3f19fb5a1f0a73b717ea14abece -->
 
 # Ontology reference
 
-Compiled from `ontology/`. 40 object types, 42 relation types, 165 action types, 25 state machines, 15 invariants, 4 corpus projections.
+Compiled from `ontology/`. 40 object types, 42 relation types, 170 action types, 26 state machines, 15 invariants, 4 corpus projections.
 
 ## Object types
 
@@ -12,7 +12,7 @@ Compiled from `ontology/`. 40 object types, 42 relation types, 165 action types,
 | `organization` | organization | — | organization | 3 |
 | `person` | organization | — | person | 2 |
 | `role_assignment` | organization | — | — | 3 |
-| `engagement` | commercial | — | — | 5 |
+| `engagement` | commercial | — | engagement | 5 |
 | `product_system` | configuration | ITM | — | 5 |
 | `initiative_project` | project | PRJ *(proposed)* | initiative_project | 10 |
 | `work_package` | project | — | work_package | 8 |
@@ -234,6 +234,11 @@ Compiled from `ontology/`. 40 object types, 42 relation types, 165 action types,
 | `record_engagement` | — | role only |
 | `plan_milestone` | — | role only |
 | `define_deliverable` | — | role only |
+| `activate_engagement` | engagement | role only |
+| `suspend_engagement` | engagement | role only |
+| `resume_engagement` | engagement | role only |
+| `close_engagement` | engagement | role only |
+| `terminate_engagement` | engagement | role only |
 | `create_warrant_draft` | — | role only |
 | `revise_warrant_draft` | — | role only |
 | `submit_warrant` | warrant | role only |
@@ -677,6 +682,25 @@ stateDiagram-v2
     captured --> withdrawn: withdraw_observation
     promoted --> [*]
     withdrawn --> [*]
+```
+
+### `engagement`
+
+Initial: `draft` · Terminal: `closed`, `terminated`
+
+```mermaid
+stateDiagram-v2
+    [*] --> draft
+    draft --> active: activate_engagement
+    active --> suspended: suspend_engagement
+    suspended --> active: resume_engagement
+    active --> closed: close_engagement
+    suspended --> closed: close_engagement
+    draft --> terminated: terminate_engagement
+    active --> terminated: terminate_engagement
+    suspended --> terminated: terminate_engagement
+    closed --> [*]
+    terminated --> [*]
 ```
 
 ## Invariants

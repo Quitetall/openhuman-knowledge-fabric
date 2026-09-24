@@ -445,6 +445,15 @@ describe('POST /documents/:id/planner/proposal', () => {
         provider: { provider_id: 'lamu', model_id: 'model-1', locality: 'local' },
         policy: { policy_id: 'local-first-v1' },
         context: {
+          // KF-SAS-RQ-115: the recorded claim names the agent_context Result the planner drew
+          // the context from, under the tagged v2 digest (KF-SAS-RQ-016).
+          format: 'kf-ai-proposal-context-v2',
+          projection: {
+            definition_id: 'agent_context',
+            definition_version: 1,
+            corpus_digest: 'e'.repeat(64),
+            projection_digest: agentContextOver([DOCUMENT_ID]).projectionDigest,
+          },
           included_items: [
             expect.objectContaining({
               subject_id: SUBJECT_ID,

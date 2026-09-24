@@ -172,8 +172,8 @@ beforeAll(async () => {
   await create('deliverable', 'define_deliverable', {
     title: 'Browsable deliverable',
     work_package_id: workPackage,
-    deliverable_kind: 'test_report',
-    definition_of_done: 'A report that every view answers.',
+    description: 'A report that every view answers.',
+    acceptance_criteria: ['Every view answers 200.'],
   });
   const decision = await create('decision_record', 'propose_decision', {
     title: 'Browsable decision',

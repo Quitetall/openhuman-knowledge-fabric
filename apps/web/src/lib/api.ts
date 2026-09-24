@@ -75,5 +75,18 @@ export type {
 } from './api/document-proposal';
 export type { DocumentProposalOutcome } from './api/document-operations';
 export type { MetricPanel, MetricView } from './api/metrics';
-export { getSearchResults, parseSearchResponse } from './api/search';
-export type { SearchHit, SearchRequest, SearchResponse } from './api/search';
+export {
+  getOwnRecordedQueries,
+  getSearchResults,
+  parseSearchResponse,
+  replayRecordedQuery,
+} from './api/search';
+export type {
+  OwnRecordedQuery,
+  RecordedQueryReplay,
+  SearchHit,
+  SearchRequest,
+  SearchResponse,
+  SemanticSearchHit,
+  WithholdingNote,
+} from './api/search';

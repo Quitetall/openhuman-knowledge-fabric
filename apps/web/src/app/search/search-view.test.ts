@@ -56,4 +56,16 @@ describe('search result navigation', () => {
     expect(recordHref('initiative_project', 'project-1')).toBe('/projects/project-1');
     expect(recordHref('decision_record', 'decision-1')).toBeUndefined();
   });
+
+  it('asks for near misses only when the box is ticked, and refuses any other value', () => {
+    expect(parseSearchPageParams({ q: 'x', nearMisses: 'true' })).toEqual({
+      status: 'submitted',
+      request: { text: 'x', limit: 50, nearMisses: true },
+    });
+    expect(parseSearchPageParams({ q: 'x' })).toEqual({
+      status: 'submitted',
+      request: { text: 'x', limit: 50 },
+    });
+    expect(parseSearchPageParams({ q: 'x', nearMisses: 'yes' })).toEqual({ status: 'invalid' });
+  });
 });

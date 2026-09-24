@@ -326,18 +326,27 @@ describe('2. work is packaged and ordered', () => {
       payload: {
         title: 'Enclosure STEP assembly',
         work_package_id: packageId,
-        deliverable_kind: 'design',
-        definition_of_done: 'STEP assembly that opens cleanly and matches the drawing package.',
+        description: 'STEP assembly of the enclosure, with its drawing package.',
+        acceptance_criteria: [
+          'STEP assembly opens cleanly',
+          'Geometry matches the drawing package',
+        ],
+        due_date: '2026-11-30',
       },
     });
     const deliverableId = deliverable.objectIds[0]!;
     expect(await stateOf(deliverableId)).toBe('planned');
     expect(
-      await read<{ work_package_id: string; deliverable_kind: string }>(
-        'select work_package_id, deliverable_kind from work.deliverable where id = $1',
+      await read<{ work_package_id: string; acceptance_criteria: string[]; due_date: string }>(
+        `select work_package_id, acceptance_criteria, due_date::text
+           from work.deliverable where id = $1`,
         [deliverableId],
       ),
-    ).toEqual({ work_package_id: packageId, deliverable_kind: 'design' });
+    ).toEqual({
+      work_package_id: packageId,
+      acceptance_criteria: ['STEP assembly opens cleanly', 'Geometry matches the drawing package'],
+      due_date: '2026-11-30',
+    });
 
     // An engagement with the organization itself is refused as the caller's input.
     await expect(

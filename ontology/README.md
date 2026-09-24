@@ -81,10 +81,34 @@ types that had none gained them in draft.8 too (KF-SAS-RQ-142): `record_engageme
 `plan_milestone` and `define_deliverable`, owned by `@kf/work-control`, each writing the typed row
 that already existed (`org.engagement`, `work.milestone`, `work.deliverable`). None of the three
 types has a state machine, so each is born in its first declared state (`draft`, `planned`,
-`planned`) by the same rule. `work.deliverable`'s columns predate the ontology's `deliverable`
-fields and differ from them (`deliverable_kind` and `definition_of_done` in the table; the
-ontology's `description`, `acceptance_criteria`, `due_date` and `work_order` have no column), so
-`define_deliverable` writes what the table holds — a recorded divergence, not a resolution.
+`planned`) by the same rule.
+
+`work.deliverable` now holds the ontology's `deliverable` fields (migration `20260925130100`). Its
+columns predated them and differed (`deliverable_kind`, `definition_of_done`), and the ontology is
+the one that was right: `deliverable` is an R01 type, which `tests/conformance/r01-golden.test.ts`
+holds byte-identical to the released pack, and its `acceptance_criteria` are what an
+`acceptance_record`'s `criteria_results` are judged against, which a single free-text
+`definition_of_done` cannot be. The columns are `work_package_id`, `work_order_id` (optional, and
+when given the order must cover the package — a composite key on `work.work_order_scope`),
+`description`, `acceptance_criteria` and `due_date`; `artifact_refs` has no column because the
+artifacts handed over for a deliverable are `work.deliverable_submission` rows, as the other
+array-of-reference fields are child rows. Existing rows kept everything: `definition_of_done`
+became the `description` and the one acceptance criterion, and both retired values are kept,
+per deliverable, in `work.deliverable_retired_attribute` — read-only, exported, never written by
+an application role. `define_deliverable` writes the ontology's fields.
+`tests/database/deliverable-fields.test.ts` holds the table's columns equal to the ontology's
+fields under that mapping.
+
+`engagement` gained a lifecycle in draft.8 as well (`state-machines.yaml`, the third machine
+given to a type R01 approved without one, after `organization` and `person`). R01 declared its
+five states — `draft, active, suspended, closed, terminated` — and `state_machine: null`, so an
+engagement `record_engagement` created stayed in `draft` whatever became of the agreement. The
+transitions run between R01's own states and invent none: `activate_engagement` (draft → active),
+`suspend_engagement` and `resume_engagement` (active ⇄ suspended), `close_engagement` (active or
+suspended → closed, the agreement ran its course) and `terminate_engagement` (draft, active or
+suspended → terminated, ended early or never taken up). `closed` and `terminated` are terminal;
+a renewed agreement is a new engagement. The acts are handler-free and none is institutional, for
+the reason `record_engagement` is not. `tests/database/engagement-lifecycle.test.ts` walks it.
 
 `observation` (ADR 0034, proposed) is the one type whose create act is deliberately cheap:
 `record_observation` needs a live assignment and no act grant, and the server forms the acting

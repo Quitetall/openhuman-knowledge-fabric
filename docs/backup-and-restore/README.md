@@ -24,7 +24,20 @@ after 90 days, and a backup retained longer than that would keep them past their
 **data** is therefore left out of the dump (`--exclude-table-data`, one per table declared under
 `transientTables` in `docs/architecture/master-record-boundary.json`), and they are excluded from
 the canonical export. The tables themselves are restored empty. A restore that finds rows in them
-has found a defect, not a success.
+has found a defect, not a success. The same holds for the context seal key and for person
+attestations (sixty-second proofs of presence): a restored host mints its own.
+
+**Who takes it.** A deployed host runs `backup.sh` as a login holding `kf_backup` and nothing
+else, and row-level security binds that login. So the dump runs with `--enable-row-security`,
+and every table whose rows it carries has a policy letting `kf_backup` read the whole table;
+`kf_backup` reads the derived search and retrieval tables the same way, because nothing in the
+restore path rebuilds them. The tables whose rows are left out are granted `MAINTAIN` — enough
+for `pg_dump` to lock them, not to read them — so dropping an exclusion from the script makes the
+dump fail rather than keep what it must not. Until 2026-09-24 none of this held: `kf_backup` could
+not reach `search` or `retrieval`, could not lock thirteen tables or read any sequence, and had no
+policy on `core.object`, so a backup as that login failed outright, and an export as it would have
+held no records. The drill ran as the superuser and passed. It now also runs the whole script as
+a `kf_backup` login (`tests/backup-restore/drill.test.ts`, "backup as the backup login").
 
 Neither the dump nor the export substitutes for the other. The dump answers "get us running
 again this afternoon". The export answers "can this still be read in 2045". The backup

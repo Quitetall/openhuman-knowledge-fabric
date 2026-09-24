@@ -50,7 +50,14 @@ Functional now:
   `record_document_proposal` action, with exact target, row-version, revision, current Holder,
   Basis id, and Basis digest preconditions
 - `GET /search` for classification-aware canonical search; the API limits results to the selected
-  organization and caller classification ceiling before returning them
+  organization and caller classification ceiling before returning them. `/search` renders the
+  composed answer (KF-SAS-RQ-224): the lexical and semantic lists apart, each under its ranking's
+  name; near misses only when the reader ticks for them, labelled with their scoring function
+  (RQ-217); the withheld count as one sentence in ADR 0037's terms; and why the semantic ranking is
+  missing when the engine could not rank (RQ-216)
+- `GET /search/recorded-queries` and `POST /search/recorded-queries/:id/replay` behind
+  `/search/recorded`: the reader's own recorded queries, and a replay of one at their ceiling now,
+  which shows what the original ceiling withheld and counts toward access demand (RQ-221)
 - `GET /publications/:publicationId/revisions/:controlledRevisionId/views/:compiledViewId` is a
   read-only API delivery boundary for an already-authorized signed public bundle. It is
   fail-closed until operators supply immutable signed-bundle storage and trusted public

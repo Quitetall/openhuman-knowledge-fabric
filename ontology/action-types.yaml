@@ -705,9 +705,9 @@ action_types:
   # ── Creating the work-control records that had no act (KF-SAS-RQ-142) ─────────────────
   # engagement, milestone and deliverable existed as typed tables and object types with no
   # act to create one, so the reference scenario seeded its engagement with an owner insert.
-  # Each act creates one record and its typed row (@kf/work-control). None of the three types
-  # has a state machine, so each is born in its FIRST declared state and drives nothing, as the
-  # R01 product and quality creates are. None is institutional: recording that an engagement
+  # Each act creates one record and its typed row (@kf/work-control), born in its type's FIRST
+  # declared state, and drives nothing, as the R01 product and quality creates are. (engagement
+  # has since gained a machine whose initial state is that same `draft`.) None is institutional: recording that an engagement
   # was signed, that a milestone is planned or that a deliverable is due approves nothing.
   - id: record_engagement
     audited: true
@@ -721,6 +721,30 @@ action_types:
     audited: true
     transactional: true
     drives: []
+
+  # ── The engagement lifecycle (state-machines.yaml `engagement`, added 2026-09-24) ─────────
+  # R01 declared engagement's five states and no transitions, so a recorded engagement stayed in
+  # draft forever. Handler-free: each moves the state its machine names and nothing else.
+  - id: activate_engagement
+    audited: true
+    transactional: true
+    drives: [engagement]
+  - id: suspend_engagement
+    audited: true
+    transactional: true
+    drives: [engagement]
+  - id: resume_engagement
+    audited: true
+    transactional: true
+    drives: [engagement]
+  - id: close_engagement
+    audited: true
+    transactional: true
+    drives: [engagement]
+  - id: terminate_engagement
+    audited: true
+    transactional: true
+    drives: [engagement]
 
   # ── OpenWarrant SAS §67 controlled actions (ADR 0019) ─────────────────────────────────
   # Thirty-two names, in §67's four groups, exactly as OpenWarrant's seam spells them. Phase

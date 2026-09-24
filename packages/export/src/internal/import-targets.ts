@@ -121,6 +121,7 @@ export const PRESERVATION_IMPORT_TARGETS = {
   'work-order-scopes': 'work.work_order_scope',
   'work-order-amendments': 'work.work_order_amendment',
   deliverables: 'work.deliverable',
+  'deliverable-retired-attributes': 'work.deliverable_retired_attribute',
   'work-executions': 'work.work_execution',
   'deliverable-submissions': 'work.deliverable_submission',
   'acceptance-records': 'work.acceptance_record',

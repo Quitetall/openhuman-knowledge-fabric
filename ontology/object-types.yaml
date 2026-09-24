@@ -95,7 +95,8 @@ object_types:
     authority_domain: commercial
     enterprise_namespace: null
     first_class: true
-    state_machine: null
+    # Was null through R01, which declared the states below and no transitions between them.
+    state_machine: engagement
     states: [draft, active, suspended, closed, terminated]
     fields:
       - {
