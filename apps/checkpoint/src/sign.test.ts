@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createPublicKey, generateKeyPairSync } from 'node:crypto';
-import { auditChainDigest, GENESIS_DIGEST } from '@kf/canonicalization';
+import { auditChainDigest, type AuditLinkFormat, GENESIS_DIGEST } from '@kf/canonicalization';
 import { leafHash } from './merkle.js';
 import {
   auditSequence,
@@ -15,8 +15,15 @@ import {
   type AuditEntry,
 } from './sign.js';
 
-/** A chain of `n` events, linked exactly the way the dispatcher links them. */
-function chain(n: number, mutate?: (e: AuditEntry, i: number) => AuditEntry): AuditEntry[] {
+/**
+ * A chain of `n` events, linked the way the dispatcher links them under `format` — v1 by default,
+ * because the frozen legacy checkpoint vectors below were signed over v1 links.
+ */
+function chain(
+  n: number,
+  mutate?: (e: AuditEntry, i: number) => AuditEntry,
+  format: AuditLinkFormat | ((index: number) => AuditLinkFormat) = 'kf-audit-link-v1',
+): AuditEntry[] {
   const out: AuditEntry[] = [];
   let prev = GENESIS_DIGEST;
   for (let i = 0; i < n; i++) {
@@ -31,7 +38,8 @@ function chain(n: number, mutate?: (e: AuditEntry, i: number) => AuditEntry): Au
       before_digest: 'a'.repeat(64),
       after_digest: 'b'.repeat(64),
     };
-    const d = auditChainDigest(prev, body);
+    const linkFormat = typeof format === 'function' ? format(i) : format;
+    const d = auditChainDigest(prev, body, linkFormat);
     let entry: AuditEntry = {
       seq: String(i + 1),
       id: `0193cccc-0000-7000-8000-${String(i).padStart(12, '0')}`,
@@ -49,6 +57,7 @@ function chain(n: number, mutate?: (e: AuditEntry, i: number) => AuditEntry): Au
       after_digest: body.after_digest,
       prev_digest: prev,
       digest: d,
+      link_format: linkFormat,
     };
     if (mutate) entry = mutate(entry, i);
     out.push(entry);
@@ -88,6 +97,51 @@ describe('chain verification', () => {
     const events = chain(5);
     const withHole = [...events.slice(0, 2), ...events.slice(3)];
     expect(verifyChain(withHole, GENESIS_DIGEST).ok).toBe(false);
+  });
+});
+
+describe('chain verification under recorded link formats', () => {
+  const cutover = (at: number) => (i: number) =>
+    i < at ? ('kf-audit-link-v1' as const) : ('kf-audit-link-v2' as const);
+
+  it('accepts a v2 chain, and a v1 chain that cuts over to v2', () => {
+    expect(verifyChain(chain(4, undefined, 'kf-audit-link-v2'), GENESIS_DIGEST)).toEqual({
+      ok: true,
+    });
+    expect(verifyChain(chain(5, undefined, cutover(2)), GENESIS_DIGEST)).toEqual({ ok: true });
+  });
+
+  it('verifies each link under the format it recorded, not the current one', () => {
+    // A v2 link relabelled v1 no longer recomputes: the tag is in the preimage.
+    const relabelled = chain(
+      3,
+      (e, i) => (i === 1 ? { ...e, link_format: 'kf-audit-link-v1' } : e),
+      'kf-audit-link-v2',
+    );
+    const result = verifyChain(relabelled, GENESIS_DIGEST);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.atSeq).toBe('2');
+  });
+
+  it('refuses a v1 link after a v2 one even when its v1 digest is correct', () => {
+    const regressed = chain(4, undefined, (i) =>
+      i === 2 ? 'kf-audit-link-v1' : 'kf-audit-link-v2',
+    );
+    const result = verifyChain(regressed, GENESIS_DIGEST);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.atSeq).toBe('3');
+      expect(result.detail).toMatch(/never regress/);
+    }
+  });
+
+  it('refuses a link format it does not know', () => {
+    const unknown = chain(2, (e, i) =>
+      i === 1 ? { ...e, link_format: 'kf-audit-link-v9' as AuditLinkFormat } : e,
+    );
+    const result = verifyChain(unknown, GENESIS_DIGEST);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.atSeq).toBe('2');
   });
 });
 

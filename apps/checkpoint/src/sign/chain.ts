@@ -1,4 +1,10 @@
-import { auditChainDigest, canonicalize } from '@kf/canonicalization';
+import {
+  auditChainDigest,
+  auditLinkFormatMayFollow,
+  type AuditLinkFormat,
+  canonicalize,
+  isAuditLinkFormat,
+} from '@kf/canonicalization';
 
 import type { AuditEntry, AuditSequence, CheckpointFormat } from './contracts.js';
 import { auditSequence, isCheckpointFormat, legacyWireNumber } from './sequences.js';
@@ -73,6 +79,7 @@ export function verifyChain(
   expectedFirstPrev: string,
 ): { ok: true } | { ok: false; atSeq: AuditSequence; detail: string } {
   let prev = expectedFirstPrev;
+  let previousFormat: AuditLinkFormat | undefined;
   for (const e of entries) {
     if (e.prev_digest !== prev) {
       return {
@@ -81,16 +88,34 @@ export function verifyChain(
         detail: `prev_digest is ${e.prev_digest}, expected ${prev}`,
       };
     }
-    const recomputed = auditChainDigest(prev, {
-      action_id: e.action_id,
-      action_type: e.action_type,
-      actor_id: e.actor_id,
-      acting_role_id: e.acting_role_id,
-      object_ids: e.object_ids,
-      effective_at: e.effective_at,
-      before_digest: e.before_digest,
-      after_digest: e.after_digest,
-    });
+    if (!isAuditLinkFormat(e.link_format)) {
+      return {
+        ok: false,
+        atSeq: e.seq,
+        detail: `link format ${String(e.link_format)} is not one this verifier knows`,
+      };
+    }
+    if (!auditLinkFormatMayFollow(previousFormat, e.link_format)) {
+      return {
+        ok: false,
+        atSeq: e.seq,
+        detail: `link format ${e.link_format} follows ${String(previousFormat)}; formats never regress`,
+      };
+    }
+    const recomputed = auditChainDigest(
+      prev,
+      {
+        action_id: e.action_id,
+        action_type: e.action_type,
+        actor_id: e.actor_id,
+        acting_role_id: e.acting_role_id,
+        object_ids: e.object_ids,
+        effective_at: e.effective_at,
+        before_digest: e.before_digest,
+        after_digest: e.after_digest,
+      },
+      e.link_format,
+    );
     if (e.digest !== recomputed) {
       return {
         ok: false,
@@ -99,6 +124,7 @@ export function verifyChain(
       };
     }
     prev = e.digest;
+    previousFormat = e.link_format;
   }
   return { ok: true };
 }

@@ -1,6 +1,12 @@
 import { createHash, generateKeyPairSync, sign as edSign, type KeyObject } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { auditChainDigest, canonicalBytes, digest, GENESIS_DIGEST } from '@kf/canonicalization';
+import {
+  auditChainDigest,
+  CURRENT_AUDIT_LINK_FORMAT,
+  canonicalBytes,
+  digest,
+  GENESIS_DIGEST,
+} from '@kf/canonicalization';
 import { withTransaction, type Tx } from '@kf/database';
 import { createFabricDispatcher } from '@kf/orchestrator';
 import {
@@ -236,16 +242,20 @@ async function insertPromotionDecisionFixture(
     .update(`promotion-authority-state:${actionId}`)
     .digest('hex');
   const prevDigest = head?.digest ?? GENESIS_DIGEST;
-  const auditDigest = auditChainDigest(prevDigest, {
-    action_id: actionId,
-    action_type: 'authorize_ml_promotion',
-    actor_id: actorId,
-    acting_role_id: roleId,
-    object_ids: [object.id],
-    effective_at: effectiveAt,
-    before_digest: stateDigest,
-    after_digest: stateDigest,
-  });
+  const auditDigest = auditChainDigest(
+    prevDigest,
+    {
+      action_id: actionId,
+      action_type: 'authorize_ml_promotion',
+      actor_id: actorId,
+      acting_role_id: roleId,
+      object_ids: [object.id],
+      effective_at: effectiveAt,
+      before_digest: stateDigest,
+      after_digest: stateDigest,
+    },
+    CURRENT_AUDIT_LINK_FORMAT,
+  );
   await tx.query(
     `insert into core.audit_event
        (action_id, actor_id, acting_role_id, action_type, object_id, effective_at,

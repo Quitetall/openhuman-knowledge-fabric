@@ -45,7 +45,7 @@ export async function legacyArtifactMaterialization(
             to_char(event.effective_at at time zone 'UTC',
                     'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "effectiveAt",
             event.before_digest as "beforeDigest", event.after_digest as "afterDigest",
-            event.prev_digest as "prevDigest",
+            event.prev_digest as "prevDigest", event.link_format as "linkFormat",
             event.digest as "auditDigest",
             artifact.id as "artifactId", version.id as "versionId",
             version.storage_uri as "storageUri", version.storage_version as "storageVersion"

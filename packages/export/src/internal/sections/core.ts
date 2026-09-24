@@ -53,10 +53,13 @@ export const CORE_SECTIONS = [
   {
     name: 'audit-events',
     // Ordered by seq, not id: the chain is DEFINED over this order, so exporting it any
-    // other way would make the imported chain unverifiable.
+    // other way would make the imported chain unverifiable. `link_format` travels with each
+    // row because a link verifies only under the format it was recorded with; an archive
+    // written before the column existed restores every link as kf-audit-link-v1, which is
+    // what each of them was (importer/sections.ts).
     sql: `select seq, id, action_id, actor_id, acting_role_id, action_type, object_id,
                  recorded_at, effective_at, request_id, reason, before_digest, after_digest,
-                 prev_digest, digest
+                 prev_digest, digest, link_format
             from core.audit_event order by seq`,
   },
   {

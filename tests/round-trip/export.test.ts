@@ -23,9 +23,12 @@ import {
 } from '@kf/artifacts';
 import {
   auditChainDigest,
+  type AuditLinkFormat,
+  CURRENT_AUDIT_LINK_FORMAT,
   canonicalize,
   compareCanonicalText,
   digestBytes,
+  GENESIS_DIGEST,
 } from '@kf/canonicalization';
 import {
   createExport,
@@ -125,16 +128,20 @@ beforeAll(async () => {
     const head = await tx.one<{ digest: string }>(
       'select digest from core.audit_event order by seq desc limit 1',
     );
-    const auditDigest = auditChainDigest(head.digest, {
-      action_id: PRECISE_ACTION_ID,
-      action_type: actionType.id,
-      actor_id: f.performerId,
-      acting_role_id: f.performerRoleId,
-      object_ids: [preciseTargetId],
-      effective_at: PRECISE_EFFECTIVE_AT,
-      before_digest: null,
-      after_digest: null,
-    });
+    const auditDigest = auditChainDigest(
+      head.digest,
+      {
+        action_id: PRECISE_ACTION_ID,
+        action_type: actionType.id,
+        actor_id: f.performerId,
+        acting_role_id: f.performerRoleId,
+        object_ids: [preciseTargetId],
+        effective_at: PRECISE_EFFECTIVE_AT,
+        before_digest: null,
+        after_digest: null,
+      },
+      CURRENT_AUDIT_LINK_FORMAT,
+    );
     await tx.query(
       `insert into core.audit_event
          (action_id, actor_id, acting_role_id, action_type, object_id, recorded_at,
@@ -678,6 +685,91 @@ describe('preservation export', () => {
     }
   }, 180_000);
 
+  it('restores an archive written before links recorded their format, and refuses a regression', async () => {
+    // Every backup taken before 20260924001100 has no `link_format` and holds untagged v1
+    // links. Rebuild exactly that from the current export: drop the column and re-chain every
+    // link under v1, as the dispatcher of the day computed it.
+    const sectionRows = (path: string): Record<string, unknown>[] =>
+      JSON.parse(pkg.files.find((x) => x.path === path)!.content) as Record<string, unknown>[];
+    const targets = new Map(
+      sectionRows('actions.json').map((action) => [action['id'], action['target_ids']]),
+    );
+    const rechain = (
+      formatAt: (index: number) => AuditLinkFormat,
+      recordFormat: boolean,
+    ): Record<string, unknown>[] => {
+      let prevDigest = GENESIS_DIGEST;
+      return sectionRows('audit-events.json').map((row, index) => {
+        const { link_format: _recorded, ...rest } = row;
+        const timestamp = row['effective_at'] as { text: string };
+        const format = formatAt(index);
+        const digest = auditChainDigest(
+          prevDigest,
+          {
+            action_id: row['action_id'] as string,
+            action_type: row['action_type'] as string,
+            actor_id: row['actor_id'] as string,
+            acting_role_id: row['acting_role_id'] as string,
+            object_ids: targets.get(row['action_id']) as string[],
+            effective_at: timestamp.text.replace(/(\.\d{3})\d{3}Z$/, '$1Z'),
+            before_digest: row['before_digest'] as string | null,
+            after_digest: row['after_digest'] as string | null,
+          },
+          format,
+        );
+        const rechained = { ...rest, prev_digest: prevDigest, digest };
+        prevDigest = digest;
+        return recordFormat ? { ...rechained, link_format: format } : rechained;
+      });
+    };
+    const events = sectionRows('audit-events.json');
+    expect(events.length).toBeGreaterThan(2);
+    expect(events.every((row) => row['link_format'] === CURRENT_AUDIT_LINK_FORMAT)).toBe(true);
+
+    const fresh = await startHarness();
+    try {
+      const beforeFormats = await repack(
+        pkg,
+        'audit-events.json',
+        rechain(() => 'kf-audit-link-v1', false),
+      );
+      const restored = await withTransaction(fresh.adminPool, async (tx) => {
+        await importExport(tx, beforeFormats, PRESERVATION_VERIFICATION);
+        return tx.query<{ link_format: string }>(
+          'select distinct link_format from core.audit_event',
+        );
+      });
+      expect(restored).toEqual([{ link_format: 'kf-audit-link-v1' }]);
+      const readiness = await withTransaction(fresh.adminPool, (tx) =>
+        tx.one<{ breaks: string }>('select breaks::text from core.readiness_audit_chain()'),
+      );
+      expect(readiness.breaks).toBe('0');
+    } finally {
+      await fresh.stop();
+    }
+
+    const regressed = await startHarness();
+    try {
+      // v2, then one correctly computed v1 link, then v2 again: every digest recomputes under
+      // its own recorded format, so only the order rule can refuse it.
+      const regression = rechain(
+        (index) => (index === 1 ? 'kf-audit-link-v1' : 'kf-audit-link-v2'),
+        true,
+      );
+      await expect(
+        withTransaction(regressed.adminPool, async (tx) =>
+          importExport(
+            tx,
+            await repack(pkg, 'audit-events.json', regression),
+            PRESERVATION_VERIFICATION,
+          ),
+        ),
+      ).rejects.toThrow(/audit link format kf-audit-link-v1 follows kf-audit-link-v2/);
+    } finally {
+      await regressed.stop();
+    }
+  }, 180_000);
+
   it('restores original format-1 archives through an explicit fixed-point upconverter', async () => {
     const legacy = asLegacyV1(pkg);
     expect(legacy.manifest.format_version).toBe('1');
@@ -865,16 +957,20 @@ describe('preservation export', () => {
         return {
           ...row,
           prev_digest: prevDigest,
-          digest: auditChainDigest(prevDigest, {
-            action_id: row['action_id'] as string,
-            action_type: row['action_type'] as string,
-            actor_id: row['actor_id'] as string,
-            acting_role_id: row['acting_role_id'] as string,
-            object_ids: action['target_ids'] as string[],
-            effective_at: timestamp.text.replace(/(\.\d{3})\d{3}Z$/, '$1Z'),
-            before_digest: row['before_digest'] as string | null,
-            after_digest: row['after_digest'] as string | null,
-          }),
+          digest: auditChainDigest(
+            prevDigest,
+            {
+              action_id: row['action_id'] as string,
+              action_type: row['action_type'] as string,
+              actor_id: row['actor_id'] as string,
+              acting_role_id: row['acting_role_id'] as string,
+              object_ids: action['target_ids'] as string[],
+              effective_at: timestamp.text.replace(/(\.\d{3})\d{3}Z$/, '$1Z'),
+              before_digest: row['before_digest'] as string | null,
+              after_digest: row['after_digest'] as string | null,
+            },
+            CURRENT_AUDIT_LINK_FORMAT,
+          ),
         };
       });
       await expect(

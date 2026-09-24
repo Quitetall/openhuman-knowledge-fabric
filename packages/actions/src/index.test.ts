@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Tx } from '@kf/database';
-import { auditChainDigest, GENESIS_DIGEST } from '@kf/canonicalization';
+import { auditChainDigest, CURRENT_AUDIT_LINK_FORMAT, GENESIS_DIGEST } from '@kf/canonicalization';
 import {
   createTransactionalDispatcher,
   createTransactionalPreflight,
@@ -65,16 +65,20 @@ function replayReceipt(request: ActionRequest = PURE_TRANSITION_REQUEST) {
   const effectiveAt = '2026-08-14T12:00:00.000Z';
   const beforeDigest = null;
   const afterDigest = 'b'.repeat(64);
-  const auditDigest = auditChainDigest(GENESIS_DIGEST, {
-    action_id: id,
-    action_type: request.actionType,
-    actor_id: request.actorId,
-    acting_role_id: request.actingRoleId,
-    object_ids: [...request.targetIds].sort(),
-    effective_at: effectiveAt,
-    before_digest: beforeDigest,
-    after_digest: afterDigest,
-  });
+  const auditDigest = auditChainDigest(
+    GENESIS_DIGEST,
+    {
+      action_id: id,
+      action_type: request.actionType,
+      actor_id: request.actorId,
+      acting_role_id: request.actingRoleId,
+      object_ids: [...request.targetIds].sort(),
+      effective_at: effectiveAt,
+      before_digest: beforeDigest,
+      after_digest: afterDigest,
+    },
+    CURRENT_AUDIT_LINK_FORMAT,
+  );
   return {
     id,
     actor_id: request.actorId,
@@ -99,6 +103,7 @@ function replayReceipt(request: ActionRequest = PURE_TRANSITION_REQUEST) {
     event_before_digest: beforeDigest,
     event_after_digest: afterDigest,
     event_prev_digest: GENESIS_DIGEST,
+    event_link_format: CURRENT_AUDIT_LINK_FORMAT,
     audit_digest: auditDigest,
   };
 }

@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { auditChainDigest, compareCanonicalText } from '@kf/canonicalization';
+import {
+  AUDIT_LINK_FORMATS,
+  auditChainDigest,
+  type AuditLinkFormat,
+  compareCanonicalText,
+  CURRENT_AUDIT_LINK_FORMAT,
+} from '@kf/canonicalization';
 import { withTransaction, type Tx } from '@kf/database';
 import {
   bindContext,
@@ -310,29 +316,88 @@ describe('the database binds the principal, and writes match it', () => {
         { before: null, after: null },
         { before: 'cd'.repeat(32), after: 'ef'.repeat(32) },
       ];
-      for (const c of cases) {
-        const expected = auditChainDigest(prev, {
-          action_id: ids[0]!,
-          action_type: 'create_initiative',
-          actor_id: ids[1]!,
-          acting_role_id: ids[2]!,
-          object_ids: [...ids].sort(compareCanonicalText),
-          effective_at: effectiveAt,
-          before_digest: c.before,
-          after_digest: c.after,
-        });
-        const computed = await withTransaction(h.adminPool, (tx) =>
-          tx.one<{ d: string }>(
-            `select core.audit_event_digest($1, $2, 'create_initiative', $3, $4, $5::uuid[],
-                                            $6::timestamptz, $7, $8) as d`,
-            [prev, ids[0], ids[1], ids[2], [...ids].reverse(), effectiveAt, c.before, c.after],
-          ),
-        );
-        expect(computed.d).toBe(expected);
+      for (const format of AUDIT_LINK_FORMATS) {
+        for (const c of cases) {
+          const expected = auditChainDigest(
+            prev,
+            {
+              action_id: ids[0]!,
+              action_type: 'create_initiative',
+              actor_id: ids[1]!,
+              acting_role_id: ids[2]!,
+              object_ids: [...ids].sort(compareCanonicalText),
+              effective_at: effectiveAt,
+              before_digest: c.before,
+              after_digest: c.after,
+            },
+            format,
+          );
+          const computed = await withTransaction(h.adminPool, (tx) =>
+            tx.one<{ d: string }>(
+              `select core.audit_event_digest($9, $1, $2, 'create_initiative', $3, $4, $5::uuid[],
+                                              $6::timestamptz, $7, $8) as d`,
+              [
+                prev,
+                ids[0],
+                ids[1],
+                ids[2],
+                [...ids].reverse(),
+                effectiveAt,
+                c.before,
+                c.after,
+                format,
+              ],
+            ),
+          );
+          expect(computed.d, format).toBe(expected);
+        }
       }
+      // The nine-argument function is the v1 digest every recorded link before the cutover
+      // carries; it must go on agreeing with the untagged TypeScript preimage.
+      const legacy = await withTransaction(h.adminPool, (tx) =>
+        tx.one<{ d: string }>(
+          `select core.audit_event_digest($1, $2, 'create_initiative', $3, $4, $5::uuid[],
+                                          $6::timestamptz, null, null) as d`,
+          [prev, ids[0], ids[1], ids[2], ids, effectiveAt],
+        ),
+      );
+      expect(legacy.d).toBe(
+        auditChainDigest(
+          prev,
+          {
+            action_id: ids[0]!,
+            action_type: 'create_initiative',
+            actor_id: ids[1]!,
+            acting_role_id: ids[2]!,
+            object_ids: ids,
+            effective_at: effectiveAt,
+            before_digest: null,
+            after_digest: null,
+          },
+          'kf-audit-link-v1',
+        ),
+      );
     });
 
-    async function appendEvent(tx: Tx, actionId: string, forgeDigest: boolean): Promise<void> {
+    it('refuses a link format it does not know', async () => {
+      await expect(
+        withTransaction(h.adminPool, (tx) =>
+          tx.one(
+            `select core.audit_event_digest('kf-audit-link-v3', repeat('0', 64), $1,
+                                            'create_initiative', $1, $1, array[$1]::uuid[],
+                                            now(), null, null)`,
+            [randomUUID()],
+          ),
+        ),
+      ).rejects.toThrow(/unknown audit link format/);
+    });
+
+    async function appendEvent(
+      tx: Tx,
+      actionId: string,
+      forgeDigest: boolean,
+      options: { computeAs?: AuditLinkFormat; recordAs?: AuditLinkFormat } = {},
+    ): Promise<void> {
       const head = await tx.one<{ digest: string }>(
         'select digest from core.audit_event order by seq desc limit 1',
       );
@@ -341,21 +406,30 @@ describe('the database binds the principal, and writes match it', () => {
         [actionId],
       );
       const effectiveAt = action.effective_at.toISOString();
-      const real = auditChainDigest(head.digest, {
-        action_id: actionId,
-        action_type: 'create_initiative',
-        actor_id: f.performerId,
-        acting_role_id: f.performerRoleId,
-        object_ids: [...action.target_ids].sort(compareCanonicalText),
-        effective_at: effectiveAt,
-        before_digest: null,
-        after_digest: null,
-      });
+      const real = auditChainDigest(
+        head.digest,
+        {
+          action_id: actionId,
+          action_type: 'create_initiative',
+          actor_id: f.performerId,
+          acting_role_id: f.performerRoleId,
+          object_ids: [...action.target_ids].sort(compareCanonicalText),
+          effective_at: effectiveAt,
+          before_digest: null,
+          after_digest: null,
+        },
+        options.computeAs ?? CURRENT_AUDIT_LINK_FORMAT,
+      );
+      // `link_format` is named only when a test asks to; otherwise the database's default
+      // applies, exactly as it does for `appendAuditEvent`.
+      const recorded = options.recordAs === undefined ? '' : ', link_format';
       await tx.query(
         `insert into core.audit_event
            (action_id, actor_id, acting_role_id, action_type, object_id, effective_at,
-            prev_digest, digest)
-         values ($1, $2, $3, 'create_initiative', $4, $5, $6, $7)`,
+            prev_digest, digest${recorded})
+         values ($1, $2, $3, 'create_initiative', $4, $5, $6, $7${
+           options.recordAs === undefined ? '' : ', $8'
+         })`,
         [
           actionId,
           f.performerId,
@@ -364,6 +438,7 @@ describe('the database binds the principal, and writes match it', () => {
           effectiveAt,
           head.digest,
           forgeDigest ? 'f'.repeat(64) : real,
+          ...(options.recordAs === undefined ? [] : [options.recordAs]),
         ],
       );
     }
@@ -378,6 +453,40 @@ describe('the database binds the principal, and writes match it', () => {
       await expect(
         asApp(async (tx) => appendEvent(tx, await actAsPerformer(tx, [f.organizationId]), true)),
       ).rejects.toThrow(/digest does not match its content/);
+    });
+
+    it('records every new link as kf-audit-link-v2 without the writer naming it', async () => {
+      const recorded = await asApp(async (tx) => {
+        const actionId = await actAsPerformer(tx, [f.organizationId]);
+        await appendEvent(tx, actionId, false);
+        return tx.one<{ link_format: string }>(
+          'select link_format from core.audit_event where action_id = $1',
+          [actionId],
+        );
+      });
+      expect(recorded.link_format).toBe('kf-audit-link-v2');
+    });
+
+    it('refuses a v1 link after the cutover, whether or not it says it is one', async () => {
+      // A writer that still computes the untagged digest, recorded under the default format:
+      // the database recomputes v2 and the digests differ.
+      await expect(
+        asApp(async (tx) =>
+          appendEvent(tx, await actAsPerformer(tx, [f.organizationId]), false, {
+            computeAs: 'kf-audit-link-v1',
+          }),
+        ),
+      ).rejects.toThrow(/digest does not match its content/);
+      // The same link claiming to be v1 — the digest would verify under v1, so it is the format
+      // that is refused.
+      await expect(
+        asApp(async (tx) =>
+          appendEvent(tx, await actAsPerformer(tx, [f.organizationId]), false, {
+            computeAs: 'kf-audit-link-v1',
+            recordAs: 'kf-audit-link-v1',
+          }),
+        ),
+      ).rejects.toThrow(/link format kf-audit-link-v1 is not kf-audit-link-v2/);
     });
 
     it('refuses an event for an action this transaction is not performing', async () => {

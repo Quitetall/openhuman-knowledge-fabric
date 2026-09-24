@@ -20,6 +20,7 @@ export interface RawEvent extends Record<string, unknown> {
   after_digest: string | null;
   prev_digest: string;
   digest: string;
+  link_format: string;
 }
 
 export interface PositionedEvent {

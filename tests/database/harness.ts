@@ -14,7 +14,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { auditChainDigest, GENESIS_DIGEST } from '@kf/canonicalization';
+import { auditChainDigest, CURRENT_AUDIT_LINK_FORMAT, GENESIS_DIGEST } from '@kf/canonicalization';
 import {
   attestationFor,
   createPool,
@@ -585,16 +585,20 @@ export async function seedFixtures(
         'select digest from core.audit_event order by seq desc limit 1',
       );
       const previousDigest = previousAudit?.digest ?? GENESIS_DIGEST;
-      const clearanceAuditDigest = auditChainDigest(previousDigest, {
-        action_id: clearanceAction,
-        action_type: 'create_initiative',
-        actor_id: reviewerId,
-        acting_role_id: reviewerRoleId,
-        object_ids: [orgObj],
-        effective_at: clearanceEffectiveAt,
-        before_digest: null,
-        after_digest: null,
-      });
+      const clearanceAuditDigest = auditChainDigest(
+        previousDigest,
+        {
+          action_id: clearanceAction,
+          action_type: 'create_initiative',
+          actor_id: reviewerId,
+          acting_role_id: reviewerRoleId,
+          object_ids: [orgObj],
+          effective_at: clearanceEffectiveAt,
+          before_digest: null,
+          after_digest: null,
+        },
+        CURRENT_AUDIT_LINK_FORMAT,
+      );
       await tx.query(
         `insert into core.audit_event
            (action_id, actor_id, acting_role_id, action_type, object_id, effective_at, reason,

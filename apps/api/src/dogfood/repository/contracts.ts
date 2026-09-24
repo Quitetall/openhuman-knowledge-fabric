@@ -11,6 +11,8 @@ export interface LegacyActionMaterialization extends Record<string, unknown> {
   readonly beforeDigest: string | null;
   readonly afterDigest: string | null;
   readonly prevDigest: string;
+  /** The format the event's link digest was recorded under; verified under exactly that. */
+  readonly linkFormat: string;
   readonly auditDigest: string;
 }
 
