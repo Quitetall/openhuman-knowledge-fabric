@@ -33,6 +33,9 @@ describe('a replay shows what the original ceiling withheld', () => {
     expect(html).toContain('Second source pricing');
     expect(html).toContain('1 record matching this query was withheld');
     expect(html).toContain('never who');
+    // KF-SAS-RQ-229: a record shown by a replay is labelled as it is everywhere else.
+    expect(html).toContain(UNVERIFIED_LABEL);
+    expect(html).toContain('data-verified="false"');
   });
 
   it('says so when nothing was withheld, and shows a refusal as one', () => {
