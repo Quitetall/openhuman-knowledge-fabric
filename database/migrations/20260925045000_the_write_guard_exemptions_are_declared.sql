@@ -22,6 +22,8 @@ as $$
     ('registry.object_state', 'ontology reference data'),
     ('registry.object_type', 'ontology reference data'),
     ('registry.relation_type', 'ontology reference data'),
+    -- Which types each relation may connect (SAS §100.2, 20260925030300).
+    ('registry.relation_type_endpoint', 'ontology reference data'),
     ('registry.retention_class', 'ontology reference data'),
     ('registry.rule_definition', 'ontology reference data'),
     ('registry.schema_release', 'ontology reference data'),

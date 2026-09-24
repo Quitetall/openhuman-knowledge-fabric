@@ -12,6 +12,14 @@ import {
   registerSupplier,
   submitDocumentForReview,
 } from './quality-materializers.js';
+import {
+  defineBaseline,
+  defineRelease,
+  defineRequirement,
+  identifyRisk,
+  registerProductSystem,
+  registerTest,
+} from './record-materializers.js';
 import { defineTest, planTestExecution, proposeRiskControl } from './verification-materializers.js';
 
 export const PRODUCT_QUALITY_MATERIALIZERS: Readonly<Record<string, ActionMaterializer>> = {
@@ -27,4 +35,10 @@ export const PRODUCT_QUALITY_MATERIALIZERS: Readonly<Record<string, ActionMateri
   propose_risk_control: proposeRiskControl,
   define_test: defineTest,
   plan_test_execution: planTestExecution,
+  register_product_system: registerProductSystem,
+  define_requirement: defineRequirement,
+  identify_risk: identifyRisk,
+  register_test: registerTest,
+  define_baseline: defineBaseline,
+  define_release: defineRelease,
 };

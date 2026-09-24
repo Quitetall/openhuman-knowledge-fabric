@@ -1,9 +1,9 @@
 <!-- GENERATED from ontology/ — do not edit. -->
-<!-- ontology_version: 1.2.0-draft.1 · source_digest: 322a61ec8fc9ea00b0d5381f97a4a48c58de1d6031a1b7362c1c1baa1e398ea2 -->
+<!-- ontology_version: 1.2.0-draft.1 · source_digest: d9f48f4a70455b4c0c265e4dc68d01caa222739ce2909af18dcb75e44132bb72 -->
 
 # Ontology reference
 
-Compiled from `ontology/`. 39 object types, 41 relation types, 153 action types, 24 state machines, 15 invariants, 4 corpus projections.
+Compiled from `ontology/`. 40 object types, 42 relation types, 162 action types, 25 state machines, 15 invariants, 4 corpus projections.
 
 ## Object types
 
@@ -48,6 +48,7 @@ Compiled from `ontology/`. 39 object types, 41 relation types, 153 action types,
 | `milestone` | project | MST | — | 4 |
 | `work_order_amendment` | commercial | AMD | — | 3 |
 | `warrant` | project | WAR | warrant | 7 |
+| `observation` | project | — | observation | 3 |
 
 ## Relation types
 
@@ -94,6 +95,7 @@ Compiled from `ontology/`. 39 object types, 41 relation types, 153 action types,
 | `calibrated_with` | calibrates |  |
 | `raised_against` | raised |  |
 | `remediated_by` | remediates |  |
+| `concerns` | concerned_in |  |
 
 ## Actions
 
@@ -149,7 +151,7 @@ Compiled from `ontology/`. 39 object types, 41 relation types, 153 action types,
 | `retire_authored_fragment` | authored_fragment | role only |
 | `add_document_composition` | — | role only |
 | `revise_document_composition` | — | role only |
-| `change_document_source_holder` | — | role only |
+| `change_document_source_holder` | — | act |
 | `request_document_compilation` | — | role only |
 | `compile_master_record` | — | role only |
 | `accept_document_compilation` | — | act |
@@ -220,6 +222,15 @@ Compiled from `ontology/`. 39 object types, 41 relation types, 153 action types,
 | `execute_test` | test_execution | role only |
 | `record_test_result` | test_execution | role only |
 | `invalidate_test_execution` | test_execution | act |
+| `record_observation` | — | role only |
+| `promote_observation` | observation | act |
+| `withdraw_observation` | observation | role only |
+| `register_product_system` | — | role only |
+| `define_requirement` | — | role only |
+| `identify_risk` | — | role only |
+| `register_test` | — | role only |
+| `define_baseline` | — | role only |
+| `define_release` | — | role only |
 | `create_warrant_draft` | — | role only |
 | `revise_warrant_draft` | — | role only |
 | `submit_warrant` | warrant | role only |
@@ -650,6 +661,19 @@ stateDiagram-v2
     active --> inactive: deactivate_person
     inactive --> active: reactivate_person
     active --> inactive: retire_organization
+```
+
+### `observation`
+
+Initial: `captured` · Terminal: `promoted`, `withdrawn`
+
+```mermaid
+stateDiagram-v2
+    [*] --> captured
+    captured --> promoted: promote_observation
+    captured --> withdrawn: withdraw_observation
+    promoted --> [*]
+    withdrawn --> [*]
 ```
 
 ## Invariants

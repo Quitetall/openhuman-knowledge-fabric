@@ -19,7 +19,13 @@
 #   remainder    the mandatory last section; named so its presence in output is a check
 #   sort         declared envelope fields only
 #   parameters   typed from meta.yaml kinds; bound at read time, part of the projection digest
-#   budgets      hard ceilings the engine refuses to exceed rather than silently truncate
+#   budgets      hard ceilings the engine refuses to exceed rather than silently truncate:
+#                max_members (members admitted) and max_runtime_ms (a deadline on evaluation).
+#                Both are required, and max_depth, max_members and max_runtime_ms are each
+#                capped by the grammar's ceiling (PROJECTION_GRAMMAR_LIMITS in the compiler)
+#
+# The grammar is CLOSED (KF-SAS-RQ-116): a key not named above is refused by the compiler, not
+# ignored, because an ignored `max_detph` would read as a bound and be none.
 #
 # No expressions, no SQL. Anything this cannot say is a reason to add a primitive here, where
 # it is reviewed, rather than a reason to write a query somewhere it is not.
@@ -39,7 +45,7 @@ projection_definitions:
       - { id: org_view, title: Organization view, select: unreached }
     remainder: { id: raw_corpus, title: Raw corpus }
     sort: [object_type, title, object_id]
-    budgets: { max_members: 100000 }
+    budgets: { max_members: 100000, max_runtime_ms: 5000 }
 
   # Everything, unsectioned. The identity projection: a reading that adds no reading.
   - id: raw_corpus
@@ -50,16 +56,16 @@ projection_definitions:
     sections: []
     remainder: { id: raw_corpus, title: Raw corpus }
     sort: [object_type, title, object_id]
-    budgets: { max_members: 100000 }
+    budgets: { max_members: 100000, max_runtime_ms: 5000 }
 
   # What a model is handed. Not a render format: a definition family with its own digest, so
   # "what did the agent actually see" is a projection result, exact source ids and digests
   # included, that the model can summarize but cannot enlarge.
   #
   # token_budget is bound and carried into the projection digest today; it does not yet cut
-  # content — member budgets are the only ceiling the engine applies (ADR 0014, "budgets beyond
-  # member count"). Two bundles with different budgets are therefore distinguishable by digest
-  # while identical in membership, until the budget governs rendering.
+  # content — member and runtime budgets are the only ceilings the engine applies (ADR 0014,
+  # "budgets beyond member count"). Two bundles with different budgets are therefore
+  # distinguishable by digest while identical in membership, until the budget governs rendering.
   - id: agent_context
     title: Agent context bundle
     version: 1
@@ -77,7 +83,7 @@ projection_definitions:
         }
     remainder: { id: raw_corpus, title: Everything else }
     sort: [object_type, title, object_id]
-    budgets: { max_members: 20000 }
+    budgets: { max_members: 20000, max_runtime_ms: 5000 }
 
   # The Object View. One definition serves every object type: anchor at the member the reader
   # names, walk every relation both directions one hop (backlinks come free), keep only the
@@ -96,4 +102,4 @@ projection_definitions:
       - { id: relationships, title: Relationships, select: reached }
     remainder: { id: other, title: Other }
     sort: [object_type, title, object_id]
-    budgets: { max_members: 5000 }
+    budgets: { max_members: 5000, max_runtime_ms: 1000 }

@@ -24,6 +24,12 @@ export function relevanceClosureWithMetrics(
   personId: string,
   edges: readonly RelevanceEdge[],
   policies: readonly RelationPolicy[],
+  /**
+   * Called once per node taken off the queue. The projection engine passes its runtime deadline
+   * here (KF-SAS-RQ-116): composition and provenance walk to a fixpoint, so the walk's cost is
+   * bounded by the corpus, and this is where a runtime budget can actually stop it.
+   */
+  tick: () => void = () => undefined,
 ): {
   readonly ids: ReadonlySet<string>;
   readonly fanoutByAnchorType: Readonly<Record<string, number>>;
@@ -50,6 +56,7 @@ export function relevanceClosureWithMetrics(
   const visitedStates = new Set<string>([stateKey(queue[0]!)]);
   let queueIndex = 0;
   while (queueIndex < queue.length) {
+    tick();
     const current = queue[queueIndex++]!;
     const candidates = [...(outgoing.get(current.id) ?? []), ...(incoming.get(current.id) ?? [])];
     for (const edge of candidates) {

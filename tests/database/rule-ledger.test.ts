@@ -125,6 +125,7 @@ const LEDGER: readonly LedgerEntry[] = [
       'work.work_order: an execution names exactly one order by construction.',
     evidence: [
       'tests/database/rule-ledger.test.ts > carries KF-WORK-001 and KF-WORK-002 as columns',
+      'tests/database/rule-ledger.test.ts > refuses an execution, or an order, that names none',
     ],
   },
   {
@@ -135,6 +136,7 @@ const LEDGER: readonly LedgerEntry[] = [
       'so an order names exactly one project and one engagement.',
     evidence: [
       'tests/database/rule-ledger.test.ts > carries KF-WORK-001 and KF-WORK-002 as columns',
+      'tests/database/rule-ledger.test.ts > refuses an execution, or an order, that names none',
       'tests/end-to-end/reference-scenario.test.ts > issues a work order against exactly one project and one engagement',
     ],
   },
@@ -145,9 +147,12 @@ const LEDGER: readonly LedgerEntry[] = [
       'The state machine gives accepted decisions one exit (supersede_decision) and rejected ' +
       'ones none, so every other act on them is an illegal transition. The KF-DEC-001 ' +
       'precondition registered on accept/reject/correct sits behind that check and is not ' +
-      'reached; the body is content.adr_decision_body, which is append-only.',
+      'reached; the body is content.adr_decision_body, which is append-only. The content half ' +
+      "— a decided decision's title and its alternatives — is frozen by 20260925030000, which " +
+      'raises KF-DEC-001 from the database.',
     evidence: [
       'tests/database/rule-ledger.test.ts > refuses every act on an accepted or rejected decision but supersession',
+      "tests/database/rule-ledger.test.ts > refuses rewriting a decided decision's title or its alternatives",
     ],
   },
   {
@@ -279,6 +284,40 @@ describe('the ledger is honest about coverage', () => {
   });
 });
 
+/**
+ * What the frozen R01 reference validator implements, counted against its own source.
+ *
+ * Every rule claims `validator` in rules.yaml; SAS §100.1 says the shipped `validate_graph.py`
+ * implements four of R01's ten. Three of the four are declared invariants — its fourth check,
+ * invoice line totals, is a sum no rule names — and each is matched here to a message only that
+ * check prints, so the count cannot claim a rule the validator does not refuse. The file is
+ * frozen (tests/conformance/r01-golden); the gap is carried as a pack known gap.
+ */
+const VALIDATOR_IMPLEMENTS: Readonly<Record<string, string>> = {
+  'KF-GRAPH-001': 'dangling edge',
+  'KF-FIN-001': 'accepted value exceeds authorization',
+  'KF-FIN-003': 'payment overallocated',
+};
+
+describe('the frozen R01 validator', () => {
+  it('implements three declared rules, and the count is checked against its source', () => {
+    const validator = readFileSync(
+      join(ROOT, 'tests', 'conformance', 'r01-golden', 'validate_graph.py'),
+      'utf8',
+    );
+    for (const [rule, message] of Object.entries(VALIDATOR_IMPLEMENTS)) {
+      expect(
+        LEDGER.map((e) => e.rule),
+        `${rule} is not a ledger rule`,
+      ).toContain(rule);
+      expect(validator, `${rule} is not in the shipped validator`).toContain(message);
+    }
+    // The distance, stated rather than implied: the other twelve rules' `validator` claims are
+    // discharged by the database and the dispatcher, not by the distributed validator.
+    expect(LEDGER.length - Object.keys(VALIDATOR_IMPLEMENTS).length).toBe(12);
+  });
+});
+
 describe('rules the ledger records as enforced by the database', () => {
   it('carries KF-WORK-001 and KF-WORK-002 as columns', async () => {
     // NOT NULL plus one foreign key is "exactly one" by construction: there is no shape these
@@ -305,6 +344,87 @@ describe('rules the ledger records as enforced by the database', () => {
       { col: 'work_order.engagement_id', nullable: 'NO', target: 'org.engagement' },
       { col: 'work_order.project_id', nullable: 'NO', target: 'work.initiative_project' },
     ]);
+  });
+
+  it('refuses an execution, or an order, that names none', async () => {
+    // The catalog check above says the columns are NOT NULL; this watches the refusal happen.
+    const execution = await createObject(h.adminPool, f, {
+      type: 'work_execution',
+      domain: 'commercial',
+      state: 'draft',
+      title: 'Orphan execution',
+      createdBy: f.performerId,
+    });
+    await expect(
+      withTransaction(h.adminPool, async (tx) => {
+        await bindContext(tx, f);
+        await tx.query(
+          `insert into work.work_execution
+             (id, work_order_id, performed_by, submitted_by, recorded_by, period_start,
+              period_end, summary, claimed_value_minor, currency)
+           values ($1, null, $2, $2, $2, current_date, current_date, 'x', 0, 'GBP')`,
+          [execution, f.performerId],
+        );
+      }),
+    ).rejects.toThrow(/null value in column "work_order_id"/);
+    const order = await createObject(h.adminPool, f, {
+      type: 'work_order',
+      domain: 'commercial',
+      state: 'draft',
+      title: 'Orphan order',
+      createdBy: f.performerId,
+    });
+    await expect(
+      withTransaction(h.adminPool, async (tx) => {
+        await bindContext(tx, f);
+        await tx.query(
+          `insert into work.work_order
+             (id, project_id, engagement_id, order_number, scope_summary, ceiling_minor, currency)
+           values ($1, null, null, 'WO-LEDGER-1', 'x', 0, 'GBP')`,
+          [order],
+        );
+      }),
+    ).rejects.toThrow(/null value in column "(project_id|engagement_id)"/);
+  });
+
+  it("refuses rewriting a decided decision's title or its alternatives", async () => {
+    // KF-DEC-001's content half (20260925030000). A proposal is still being written, so the
+    // same rewrite on it is admitted — the guard is on decided records, not on decisions.
+    const decided = await createObject(h.adminPool, f, {
+      type: 'decision_record',
+      domain: 'engineering',
+      state: 'accepted',
+      title: 'Use touchproof DIN',
+      createdBy: f.performerId,
+    });
+    const proposal = await createObject(h.adminPool, f, {
+      type: 'decision_record',
+      domain: 'engineering',
+      state: 'proposed',
+      title: 'Draft wording',
+      createdBy: f.performerId,
+    });
+    const rewrite = (id: string) =>
+      withTransaction(h.adminPool, async (tx) => {
+        await bindContext(tx, f);
+        await tx.query(
+          `update core.object set title = 'Use a different connector',
+                                  row_version = row_version + 1 where id = $1`,
+          [id],
+        );
+      });
+    await expect(rewrite(decided)).rejects.toThrow(/KF-DEC-001/);
+    await expect(
+      withTransaction(h.adminPool, async (tx) => {
+        await bindContext(tx, f);
+        await tx.query(
+          `insert into engineering.decision_alternative (decision_id, summary, rejected_because)
+           values ($1, 'An alternative nobody considered', 'Added after the fact')`,
+          [decided],
+        );
+      }),
+    ).rejects.toThrow(/KF-DEC-001/);
+    await expect(rewrite(proposal)).resolves.toBeUndefined();
   });
 
   it('enforces the financial rules in the database, not only in preconditions', async () => {

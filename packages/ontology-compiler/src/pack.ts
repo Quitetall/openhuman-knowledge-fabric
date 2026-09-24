@@ -53,8 +53,10 @@ export function packGaps(): readonly string[] {
     'validate_graph.py implements 4 of 10 invariants (KF-FIN-001, KF-FIN-003 partially, ' +
       'plus invoice line totals). The remaining six exist only in prose, which §27.1 calls ' +
       'nonconforming. Gate 3 enforces all ten as database constraints and action preconditions.',
-    'Relation types declare no source_types/target_types, so nothing constrains which object ' +
-      'types an edge may connect. Tracked as ONT-012; typing lands in Gate 6.',
+    'Every relation type declares source_types/target_types (vocabulary edge_types) and the ' +
+      'database refuses an undeclared pair, but the carried-forward validate_graph.py does not ' +
+      'check endpoint types, so a graph validated only by it can still hold an edge the typing ' +
+      'forbids.',
     'The manifest is unsigned. §5 requires a signed or approved release manifest before the ' +
       'package is normative.',
   ];

@@ -1,9 +1,10 @@
 import { canonicalize, digest } from '@kf/canonicalization';
 import { isRecordVerification } from '@kf/domain';
-import type {
-  ProjectionDefinition,
-  ProjectionFilter,
-  ProjectionSection,
+import {
+  PROJECTION_GRAMMAR_LIMITS,
+  type ProjectionDefinition,
+  type ProjectionFilter,
+  type ProjectionSection,
 } from '@kf/ontology-compiler';
 import { relevanceClosureWithMetrics } from './closure.js';
 import { neighbourhood } from './neighbourhood.js';
@@ -25,6 +26,7 @@ export class ProjectionRefused extends Error {
       | 'missing_parameter'
       | 'parameter_type'
       | 'budget_exceeded'
+      | 'unbounded_definition'
       | 'coverage'
       | 'foreign_member'
       | 'unlabelled_member',
@@ -168,6 +170,57 @@ function byKey(fields: readonly string[]) {
   };
 }
 
+/** How `project` reads the clock. Injected by tests; the default is the monotonic clock. */
+export interface ProjectOptions {
+  readonly now?: () => number;
+}
+
+/**
+ * Refuse a definition that is not statically bounded (KF-SAS-RQ-116).
+ *
+ * The compiler already refuses one, but the engine reads definitions from a compiled artifact
+ * (or, later, from organization-authored records), and a bound checked only upstream is a bound
+ * that holds only while every upstream path is the compiler.
+ */
+function assertBounded(definition: ProjectionDefinition): void {
+  const { maxMembers, maxRuntimeMs } = definition.budgets as {
+    readonly maxMembers?: unknown;
+    readonly maxRuntimeMs?: unknown;
+  };
+  const within = (value: unknown, ceiling: number): boolean =>
+    typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= ceiling;
+  if (!within(maxMembers, PROJECTION_GRAMMAR_LIMITS.maxMembers)) {
+    throw new ProjectionRefused(
+      'unbounded_definition',
+      `projection ${definition.id} declares no member budget within ` +
+        `${String(PROJECTION_GRAMMAR_LIMITS.maxMembers)}`,
+    );
+  }
+  if (!within(maxRuntimeMs, PROJECTION_GRAMMAR_LIMITS.maxRuntimeMs)) {
+    throw new ProjectionRefused(
+      'unbounded_definition',
+      `projection ${definition.id} declares no runtime budget within ` +
+        `${String(PROJECTION_GRAMMAR_LIMITS.maxRuntimeMs)} ms`,
+    );
+  }
+  const depth = definition.traverse?.maxDepth;
+  if (
+    definition.traverse !== undefined &&
+    !(
+      typeof depth === 'number' &&
+      Number.isInteger(depth) &&
+      depth >= 0 &&
+      depth <= PROJECTION_GRAMMAR_LIMITS.maxDepth
+    )
+  ) {
+    throw new ProjectionRefused(
+      'unbounded_definition',
+      `projection ${definition.id} walks to depth ${String(depth)}; the grammar ceiling is ` +
+        String(PROJECTION_GRAMMAR_LIMITS.maxDepth),
+    );
+  }
+}
+
 /**
  * Evaluate one projection over one corpus. Pure and deterministic: the same input yields the
  * same Result bytes, which is what makes `projectionDigest` mean something.
@@ -177,8 +230,22 @@ function byKey(fields: readonly string[]) {
  *   coverage  — every member lands in exactly one section, the remainder taking what nothing
  *               claimed. A member with no section is a thrown error, not a quiet omission.
  */
-export function project(input: ProjectionInput): ProjectionResult {
+export function project(input: ProjectionInput, options: ProjectOptions = {}): ProjectionResult {
   const { definition, corpus, graph } = input;
+  assertBounded(definition);
+  // The runtime budget is a deadline, checked as the work is done rather than after it: a
+  // walk that overruns is stopped and refused, never allowed to finish and then reported late.
+  const now = options.now ?? (() => performance.now());
+  const deadline = now() + definition.budgets.maxRuntimeMs;
+  const tick = (): void => {
+    if (now() > deadline) {
+      throw new ProjectionRefused(
+        'budget_exceeded',
+        `projection ${definition.id} exceeded its runtime budget of ` +
+          `${String(definition.budgets.maxRuntimeMs)} ms. Refusing rather than truncating.`,
+      );
+    }
+  };
   const parameters = bindParameters(definition, input.parameters);
 
   for (const member of corpus.members) {
@@ -235,7 +302,7 @@ export function project(input: ProjectionInput): ProjectionResult {
       traverse.relations === 'all' || traverse.relations === 'person_anchors'
         ? undefined
         : new Set(traverse.relations);
-    const walk = neighbourhood(anchorId, graph.edges, traverse.maxDepth, allowed);
+    const walk = neighbourhood(anchorId, graph.edges, traverse.maxDepth, allowed, tick);
     reached = walk.ids;
     edges = walk.edges;
   } else if (traverse !== undefined) {
@@ -250,7 +317,7 @@ export function project(input: ProjectionInput): ProjectionResult {
           ? policy
           : { ...policy, personAnchor: false },
     );
-    const closure = relevanceClosureWithMetrics(corpus.personId, graph.edges, policies);
+    const closure = relevanceClosureWithMetrics(corpus.personId, graph.edges, policies, tick);
     reached = closure.ids;
     fanoutByAnchorType = closure.fanoutByAnchorType;
     fanoutByPropagationClass = closure.fanoutByPropagationClass;
@@ -280,6 +347,7 @@ export function project(input: ProjectionInput): ProjectionResult {
   for (const section of definition.sections) buckets.set(section.id, []);
   buckets.set(definition.remainder.id, []);
   for (const member of candidates) {
+    tick();
     const home = definition.sections.find(
       (s) => selects(s, member) && admits(s.filter, member, reached),
     );
@@ -321,6 +389,7 @@ export function project(input: ProjectionInput): ProjectionResult {
     }
   }
 
+  tick();
   const sectionCounts = Object.fromEntries(sections.map((s) => [s.id, s.members.length]));
   const placedIds = new Set(sections.flatMap((s) => s.members.map((m) => m.objectId)));
   const resultEdges =

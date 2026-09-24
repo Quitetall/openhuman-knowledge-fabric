@@ -51,13 +51,69 @@ spec §1.2 makes a contradiction between prose and machine artifacts release-blo
 **R01 should not be approved as issued.** These five corrections belong in the pack before
 it becomes normative.
 
-## Known gap — edge typing
+## Edge typing
 
-The R01 pack does not declare `source_types` / `target_types` on relations, so nothing
-currently stops an edge connecting two objects that have no business being connected. Every
-relation raises **ONT-012** at warning severity, so the gap is counted on every run
-rather than living in a comment. Typing lands in Gate 6, alongside the object-type
-extension where the full inventory is known.
+Every relation in `relation-types.yaml` declares `source_types` and `target_types` (SAS §100.2,
+closed in draft.8). The seed mirrors them into `registry.relation_type_endpoint`, and
+`core.relation`'s endpoint trigger (`20260925030300`) refuses an edge whose source or target type
+is not declared for its end — against seeded data, so the ontology stays the authority. A relation
+that omits either end is an ONT-012 **error**; it was a warning, counted on every run, while R01's
+relations were untyped.
+
+The generic relations (`linked_to`, `supersedes`, `derived_from`, `depends_on` and the PROV
+relations) admit any type at both ends, written as the YAML anchor `*any_type` so the breadth is
+declared rather than implied. `supersedes` in particular admits a pair of different types; a
+same-type rule is not expressible in this grammar yet.
+
+This narrows R01, which admitted every pair. `tests/conformance/edge-typing.test.ts` holds the
+narrowing to two conditions — no R01 edge carried typing to be redefined, and every edge of R01's
+own example graph is admitted — and the r01-golden comparison strips the typing only under them.
+
+## Every type is created by an act
+
+A type with no create act can only come into existence through an owner-credential insert —
+no actor, no authority, no audit event. `tests/conformance/create-act-coverage.test.ts` maps
+every object type to the act that creates it, or to a written reason it has none, and fails on
+a type in neither list. The R01 product and quality types (`product_system`, `requirement`,
+`risk`, `test`, `baseline`, `release`) gained create acts in draft.8 (KF-SAS-RQ-143); R01 gives
+them states and no lifecycle, so each is born in its first declared state. `engagement`,
+`deliverable` and `milestone` still have none and are recorded there as work-control gaps
+(KF-SAS-RQ-142).
+
+`observation` (ADR 0034, proposed) is the one type whose create act is deliberately cheap:
+`record_observation` needs a live assignment and no act grant, and the server forms the acting
+assignment and the idempotency key (`formObservationRequest` in `@kf/work-control`).
+`promote_observation` is institutional (`requires: act`); `withdraw_observation` is not. What an
+observation is about is `concerns` relations from it, and a record it was promoted into is
+`derived_from` it.
+
+## Where each rule is enforced
+
+`rules.yaml` says where each invariant is enforced; `tests/database/rule-ledger.test.ts` is the
+record of whether it is. Every rule has a ledger entry citing a test that plants a violation,
+and the citation is checked by title, so renaming or deleting the test fails the ledger. All
+fifteen are live in the database or the dispatcher. The `validator` claim is counted
+separately: the frozen R01 `validate_graph.py` refuses three declared rules (KF-GRAPH-001,
+KF-FIN-001, KF-FIN-003 — its fourth check, invoice line totals, is not a declared rule), and
+the ledger asserts that count against the validator's own source (SAS §100.1).
+
+## The projection grammar is closed and bounded
+
+`projections.yaml` is a closed grammar (SAS §60, KF-SAS-RQ-116). The loader refuses any key it
+does not name — at the top of a definition and inside `traverse`, `filter`, `sections`,
+`parameters`, `remainder` and `budgets` — because an ignored `max_detph` would read as a bound
+and be none. Every definition declares `budgets.max_members` and `budgets.max_runtime_ms`, and
+no definition may exceed the grammar's ceilings (`PROJECTION_GRAMMAR_LIMITS` in
+`packages/ontology-compiler/src/model.ts`: depth 8, 30 000 ms, 100 000 members; ONT-018). The
+engine (`@kf/projections`) re-checks the same ceilings on whatever definition it is handed and
+turns `max_runtime_ms` into a deadline checked per node walked and per member placed: an
+overrun is refused, never truncated.
+
+What the depth ceiling bounds is `traverse.max_depth` — the anchor's first stance. After the
+first hop, composition and provenance walk to a fixpoint, bounded by the corpus (and so by
+`max_members`) and by the runtime deadline rather than by depth. That is deliberate, recorded in
+`packages/projections/src/closure.ts`: a depth cut there would turn a budget into silent
+membership loss.
 
 ## Editing
 
