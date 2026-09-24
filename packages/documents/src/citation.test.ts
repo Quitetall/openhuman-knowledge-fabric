@@ -10,6 +10,7 @@
  *   the digest changes when the cited TEXT changes, not merely when the document does
  */
 
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import type { DocumentAtom } from './internal/parse-contract.js';
 import { compareSectionPaths, indexSections } from './citation/sections.js';
@@ -307,5 +308,34 @@ describe('assembling a briefing that grows', () => {
       assembleBriefing([{ ...registry, citation: 'OH-DOC-000001-3 §3' }]),
     );
     expect(rendered).toMatch(/revision not pinned/);
+  });
+});
+
+describe('citation digests carry their format tags (KF-SAS-RQ-016)', () => {
+  // Spelled out byte for byte rather than computed by the code under test. Neither digest is
+  // stored anywhere; each is computed on request, so it moved onto its tag with no predecessor
+  // to keep verifiable.
+  const sha = (text: string): string => createHash('sha256').update(text).digest('hex');
+  const atoms: DocumentAtom[] = [
+    { ordinal: 1, kind: 'heading', level: 1, text: 'One', attributes: {}, digest: 'd1' },
+    { ordinal: 2, kind: 'paragraph', level: null, text: 'Body', attributes: {}, digest: 'd2' },
+  ];
+
+  it('an excerpt is kf-citation-excerpt-v1 over its atoms in order', () => {
+    const excerpt = resolveCitation(atoms, parseCitation('OH-DOC-000001-1 §1'));
+    expect(excerpt.digest).toBe(
+      sha(
+        '{"atoms":[{"digest":"d1","ordinal":1},{"digest":"d2","ordinal":2}],' +
+          '"format":"kf-citation-excerpt-v1"}',
+      ),
+    );
+  });
+
+  it('a briefing is kf-citation-briefing-v1 over its excerpt digests in order', () => {
+    const briefing = assembleBriefing([{ citation: 'OH-DOC-000001-1 §1', atoms }]);
+    const excerpt = briefing.entries[0]!.excerpt.digest;
+    expect(briefing.digest).toBe(
+      sha(`{"excerpts":["${excerpt}"],"format":"kf-citation-briefing-v1"}`),
+    );
   });
 });

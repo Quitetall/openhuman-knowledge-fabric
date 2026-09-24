@@ -62,6 +62,13 @@ atoms: [atom preimages], conversionLoss }`). All are recorded with their exact p
   projection contract such as `kf.pandoc-atoms.v2` is the parser's own vocabulary for what an
   atom is — chosen by the parser, not a digest format — and is unchanged.
 
+- `kf-citation-excerpt-v1` (`{ atoms: [{ ordinal, digest }] }`) and `kf-citation-briefing-v1`
+  (`{ excerpts: [digest] }`) — a resolved citation's and an assembled briefing's digests. Both
+  are computed on request and compared to nothing stored, so they moved onto their tags with no
+  earlier form to keep verifiable; the untagged line hashes they replace were never recorded.
+- `kf-projection-result-v2` and `kf-action-request-v1` are now spelled through `taggedDigest`,
+  byte-identically (their goldens did not move).
+
 Two digests defined here, or hashed with what is defined here, carry versions whose history
 matters to a verifier:
 

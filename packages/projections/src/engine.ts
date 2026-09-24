@@ -1,4 +1,4 @@
-import { canonicalize, digest } from '@kf/canonicalization';
+import { canonicalize, taggedDigest } from '@kf/canonicalization';
 import { isRecordVerification } from '@kf/domain';
 import {
   PROJECTION_GRAMMAR_LIMITS,
@@ -432,8 +432,7 @@ export function project(input: ProjectionInput, options: ProjectOptions = {}): P
   // whether each was shown as verified and on what basis. Two readings that differ only in
   // which members were labelled unverified told their readers different things. The format tag
   // is in the preimage (KF-SAS-RQ-158), so a v2 digest cannot collide with a v1 one.
-  const projectionDigest = digest({
-    format: body.format,
+  const projectionDigest = taggedDigest(body.format, {
     definition: body.definition,
     parameters: body.parameters,
     source: body.source,
