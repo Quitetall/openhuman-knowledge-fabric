@@ -106,6 +106,7 @@ export function createAttestorServer(attestor: Attestor, log: AttestorLog = sile
         organization: caller.organizationId,
         assignment: caller.actingRoleId,
         ceiling: caller.maxClassification,
+        agent: caller.agent ?? null,
       });
       answer(response, 200, encodeAttestedCaller(caller));
     } catch (err: unknown) {

@@ -17,6 +17,7 @@ export {
   IdentityRejected,
   OIDC_SIGNING_ALGORITHMS,
   TokenVerifier,
+  agentOf,
   linkIdentity,
   resolveCaller,
   resolveIn,
