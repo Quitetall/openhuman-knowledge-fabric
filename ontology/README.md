@@ -99,6 +99,17 @@ an application role. `define_deliverable` writes the ontology's fields.
 `tests/database/deliverable-fields.test.ts` holds the table's columns equal to the ontology's
 fields under that mapping.
 
+`engagement` gained a lifecycle in draft.8 as well (`state-machines.yaml`, the third machine
+given to a type R01 approved without one, after `organization` and `person`). R01 declared its
+five states — `draft, active, suspended, closed, terminated` — and `state_machine: null`, so an
+engagement `record_engagement` created stayed in `draft` whatever became of the agreement. The
+transitions run between R01's own states and invent none: `activate_engagement` (draft → active),
+`suspend_engagement` and `resume_engagement` (active ⇄ suspended), `close_engagement` (active or
+suspended → closed, the agreement ran its course) and `terminate_engagement` (draft, active or
+suspended → terminated, ended early or never taken up). `closed` and `terminated` are terminal;
+a renewed agreement is a new engagement. The acts are handler-free and none is institutional, for
+the reason `record_engagement` is not. `tests/database/engagement-lifecycle.test.ts` walks it.
+
 `observation` (ADR 0034, proposed) is the one type whose create act is deliberately cheap:
 `record_observation` needs a live assignment and no act grant, and the server forms the acting
 assignment and the idempotency key (`formObservationRequest` in `@kf/work-control`).

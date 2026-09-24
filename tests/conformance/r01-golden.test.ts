@@ -237,6 +237,8 @@ const DECLARED_ADDITIONS = {
   ],
   action_types: [
     'accept_document_compilation',
+    // The engagement lifecycle (2026-09-24). R01 declared its states and no transitions.
+    'activate_engagement',
     'add_authored_fragment',
     'add_controlled_document',
     'add_document_composition',
@@ -265,6 +267,7 @@ const DECLARED_ADDITIONS = {
     'check_capa_effectiveness',
     'close_capa',
     'close_complaint',
+    'close_engagement',
     'close_nonconformity',
     'compile_master_record',
     'consume_secure_object_capability',
@@ -377,6 +380,7 @@ const DECLARED_ADDITIONS = {
     'resolve_warrant_blocker',
     'resolve_warrant_dispute',
     'restrict_supplier',
+    'resume_engagement',
     'resume_warrant',
     'retire_authored_fragment',
     'retire_configuration_item',
@@ -399,6 +403,8 @@ const DECLARED_ADDITIONS = {
     'supersede_controlled_document',
     'supersede_test_definition',
     'supersede_warrant',
+    'suspend_engagement',
+    'terminate_engagement',
     'triage_complaint',
     // Storage locations (ADR 0017): re-hash one location; the outcome is recorded either way.
     'verify_artifact_location',
@@ -447,6 +453,10 @@ const DECLARED_MACHINE_ADDITIONS: Readonly<Record<string, string>> = {
     'organization could be created and never retired. With no uniqueness rule on legal name ' +
     'that made unlimited permanent duplicates reachable without breaking a rule — a bootstrap ' +
     'defect produced eight in one session. The transitions use only R01 states and invent none.',
+  engagement:
+    'R01 declared states `draft, active, suspended, closed, terminated` and `state_machine: ' +
+    'null`, and `record_engagement` creates one in `draft`, where it then stayed whatever became ' +
+    'of the agreement. The transitions use only R01 states and invent none.',
   person:
     'R01 declared states `active, inactive` and `state_machine: null`, so a person could never ' +
     'leave. Retiring an organization then had nowhere to put its people: the first retirement, ' +

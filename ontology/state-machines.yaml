@@ -355,3 +355,27 @@ state_machines:
     transitions:
       - { from: captured, to: promoted, action: promote_observation }
       - { from: captured, to: withdrawn, action: withdraw_observation }
+
+  # ADDED 2026-09-24. R01 approved `engagement` with states `draft, active, suspended, closed,
+  # terminated` and `state_machine: null`, and since draft.8 `record_engagement` creates one in
+  # `draft` — where it then stayed, whatever became of the agreement. Five states are a lifecycle
+  # somebody meant; only the transitions were missing. This adds them between R01's own states
+  # and invents none, as the organization and person machines did.
+  #
+  # `closed` is an engagement that ran its course, `terminated` one ended early or never taken up
+  # (a draft recorded for an agreement that was not signed leaves by termination, not deletion,
+  # Law 6). Both are terminal: a new agreement with the same counterparty is a new engagement.
+  # `suspended` is reversible. None of the acts is institutional: recording what happened to an
+  # agreement approves nothing (the same reasoning as record_engagement).
+  - id: engagement
+    initial: draft
+    terminal: [closed, terminated]
+    transitions:
+      - { from: draft, to: active, action: activate_engagement }
+      - { from: active, to: suspended, action: suspend_engagement }
+      - { from: suspended, to: active, action: resume_engagement }
+      - { from: active, to: closed, action: close_engagement }
+      - { from: suspended, to: closed, action: close_engagement }
+      - { from: draft, to: terminated, action: terminate_engagement }
+      - { from: active, to: terminated, action: terminate_engagement }
+      - { from: suspended, to: terminated, action: terminate_engagement }
