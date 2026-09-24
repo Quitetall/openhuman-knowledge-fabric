@@ -39,4 +39,4 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 ADR 0024's latency bars (KF-SAS-RQ-201) are measured against a running stack by
 `scripts/latency-bars.mjs`, which writes dated sections to
 [`generated/latency-bars.md`](latency-bars.md). They are runtime figures, so this file only cites
-them. Newest run: `2026-09-24T11:26:24.440Z — workstation`; 1 recorded, 0 from a commissioned host. Every recorded run is a workstation run; none is official.
+them. Newest run: `2026-09-24T13:18:44.665Z — workstation`; 2 recorded, 0 from a commissioned host. Every recorded run is a workstation run; none is official.
