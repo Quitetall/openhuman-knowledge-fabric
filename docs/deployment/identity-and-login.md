@@ -114,6 +114,11 @@ aud: ["knowledge-fabric-api", "account"]
 That first entry is produced by the audience mapper and is exactly what `apps/api/src/config.ts`
 validates. It was the single most likely thing to be silently wrong, and it is right.
 
+Since ADR 0035 the web client carries a second audience mapper, naming `knowledge-fabric-agent`,
+so that an agent may exchange the person's token; measured 2026-09-24, the token's `aud` is then
+`["knowledge-fabric-api", "knowledge-fabric-agent", "account"]`, and the API's audience check is
+unaffected (see [An agent acting for a person](#an-agent-acting-for-a-person--token-shape-verified-end-to-end-derived)).
+
 **PKCE is enforced, not merely offered.** Falsified on a fresh, unused code: presenting the wrong
 verifier returns `400 invalid_grant — PKCE verification failed: Code mismatch`.
 
@@ -279,6 +284,88 @@ FIRST clearance in an organization through the dispatcher is circular — the cl
 to already exist. It runs on the owner connection instead, which is also why it is a command a
 human types and not an HTTP route: `linkIdentity` says "somebody decides that this account is that
 person, and that decision is recorded with who made it."
+
+## An agent acting for a person — token shape verified, end to end derived
+
+ADR 0035 (proposed): an agent that forms and dispatches an act for a named person does so on a
+**delegated token** obtained by OAuth 2.0 Token Exchange (RFC 8693). The act is the person's —
+actor, role, clearance and grants are theirs — and the ledger records the agent's client id in
+`core.action.agent_participation` (KF-SAS-RQ-204).
+
+### What Keycloak 26.4 actually issues — verified
+
+Measured 2026-09-24 against `quay.io/keycloak/keycloak:26.4` (26.4.7, the pinned image), in a
+throwaway container that imported the committed realm, with a probe user and — in that container
+only — the password grant switched on for `knowledge-fabric-web` to obtain the subject token:
+
+| exchange requested by                                                      | `sub`      | `azp`                    | `act`                                                                      |
+| -------------------------------------------------------------------------- | ---------- | ------------------------ | -------------------------------------------------------------------------- |
+| a client with standard token exchange on and **no** act mapper             | the person | the requesting client    | **absent**                                                                 |
+| `knowledge-fabric-agent` (exchange on, the shipped `act-client-id` mapper) | the person | `knowledge-fabric-agent` | `{"client_id": "knowledge-fabric-agent"}`                                  |
+| a client with standard token exchange off                                  | —          | —                        | refused: "Standard token exchange is not enabled for the requested client" |
+
+So **Keycloak 26.4's standard token exchange emits no `act` claim of its own.** It records the
+requesting client only as `azp`, and it ignores an `actor_token` (the request succeeds, with no
+delegation in the result). Delegation with a native `act`/`may_act` exists only as an experimental
+feature of later releases, which this deployment does not run. The committed realm therefore gives
+each agent client an `oidc-hardcoded-claim-mapper` that stamps `act.client_id` with the client's
+own id: a token is issued _to_ the agent client only when that client authenticated for it, so the
+claim is Keycloak's signed statement of which client holds the token. The exchanged token also
+carries no `auth_time`, so an agent can never satisfy a step-up policy: money, release and
+control-withdrawal acts stay with the person in a fresh session. That is the fail-closed direction
+and is left so.
+
+### What `kf-attestor` accepts
+
+After the signature, issuer, audience, algorithm and expiry checks it always made:
+
+- **No `act`**: a direct act. `agent_participation` is null.
+- **`act` is an object with exactly `client_id`**, a non-empty string equal to the token's `azp`:
+  an act through that agent. Anything else — `act` not an object, a nested `act.act` (depth 1
+  only), a `sub` instead of a `client_id`, a `client_id` that is not the `azp` — is a token defect,
+  refused as `invalid_token` like every other.
+- **The client must be a declared agent.** `core.issue_attestation` refuses a `client_id` that is
+  not live in `org.declared_agent`, and refuses a token with no `act` whose `azp` _is_ a declared
+  agent (a declared agent whose realm lost its mapper must not pass as the person). Both answer
+  `401 undeclared_agent`, and nothing is attested.
+
+The declared list is Knowledge Fabric's, not the realm's, for the reason role claims are never
+read: a realm administrator could otherwise make any client an agent without touching this
+system. Keycloak says which client holds the token; the database says whether that client may
+take part. `kf declare-agent` (owner credential) writes the declaration; see the
+[runbook](../operating-model/runbook.md#declaring-an-agent-client).
+
+### How participation reaches the ledger
+
+The attestation row stores the agent's client id. `core.bind_principal` reads it from the matching
+attestation and seals it into the transaction (`kf.agent_participation`), and a trigger on
+`core.action` copies the sealed value into `agent_participation` on every insert, overwriting
+anything the application supplied. The column is not in the audit-chain preimage, so the audit
+digest is unchanged; the preservation export carries it in `actions.json`, and an archive written
+before the column restores with it null.
+
+### Using it — derived
+
+1. Declare the client: `kf declare-agent --client knowledge-fabric-agent --declared-by <uuid> --reason '…'`.
+2. Give the agent its client secret out of band (the export masks it) and keep it with the agent.
+3. The person's own token (from `knowledge-fabric-web`, which lists `knowledge-fabric-agent` as an
+   audience so it can be exchanged) is exchanged by the agent:
+
+   ```sh
+   curl -s -u knowledge-fabric-agent:<secret> \
+     -d grant_type=urn:ietf:params:oauth:grant-type:token-exchange \
+     -d subject_token=<the person's access token> \
+     -d subject_token_type=urn:ietf:params:oauth:token-type:access_token \
+     -d audience=knowledge-fabric-api \
+     "$OIDC_ISSUER/protocol/openid-connect/token"
+   ```
+
+4. The agent calls the API with the exchanged token and the person's `x-kf-acting-role`,
+   exactly as the person would.
+
+Step 3 was run in the throwaway container above; step 4 is exercised by
+`tests/permissions/agent-participation.test.ts` against the real attestor over its socket with
+tokens of the measured shape, not yet against a live Keycloak and API together.
 
 ## What remains
 

@@ -834,6 +834,33 @@ release: the previous API binds without an attestation, which the new `core.bind
 refuses. The down section is real (not forward-only) for exactly that reason, and it re-opens
 precisely the gap described above, nothing wider.
 
+### Agents acting for a person (ADR 0035, migration `20260925100000`)
+
+An agent forms and dispatches an act for a person on a token it obtained by **standard token
+exchange**, and the attestor verifies which client holds it. Keycloak 26.4 records the exchanging
+client only as `azp`, so each agent client carries a hardcoded-claim mapper stamping
+`act.client_id` with its own id (the committed realm's `knowledge-fabric-agent` is the shape; see
+[`identity-and-login.md`](identity-and-login.md#an-agent-acting-for-a-person--token-shape-verified-end-to-end-derived)
+for what was measured). On a host:
+
+1. In the host realm, give each agent client: confidential access, **Standard token exchange** on
+   (`standard.token.exchange.enabled`), an `act-client-id` mapper (`oidc-hardcoded-claim-mapper`,
+   claim `act.client_id`, value = the client id, access token only), and an audience mapper for the
+   API's audience. Add the agent as an audience of the person-facing client, which is what lets
+   the agent exchange that client's tokens. Re-export and review as for any realm change.
+   `identity_provider_policy` refuses exchange on a public client or on one without its own
+   `act.client_id` mapper, and any mapper stamping `act` for another client.
+2. Declare it in the database, over the owner credential:
+   `pnpm kf:declare-agent --client <id> --declared-by <person uuid> --reason <text>`. Until then
+   every token that names it is refused `401 undeclared_agent`.
+3. Hand the agent its client secret out of band. Nothing about the agent is configured in
+   `kf-api` or `kf-attestor`; the attestor reads the declaration from the database per request.
+
+`core.action.agent_participation` then names the agent on every act dispatched through its token,
+and is null for a person acting directly. The database writes it from the attestation; the API
+cannot set it. **Rolling back past this migration** drops the column, the declarations and the
+attestor's recorded agent: take an export first if the participation history must survive.
+
 ## Host preflight and evidence
 
 Before any shared user is admitted:

@@ -45,3 +45,22 @@ is refused by the attestor (tests at each seam).
 
 Keycloak's token-exchange feature must be enabled for the agent clients; commissioning checks it.
 The `core.action` row gains one column; the audit digest is unchanged by this decision.
+
+## Implementation notes (2026-09-24; for the owner's review, not a change to the decision)
+
+- **Keycloak 26.4 emits no `act` claim.** Its standard token exchange records the exchanging
+  client only as `azp`, and ignores `actor_token` (measured against the pinned 26.4.7 image;
+  `docs/deployment/identity-and-login.md`). Each agent client in the realm therefore stamps
+  `act.client_id` with its own id by a hardcoded-claim mapper, and `kf-attestor` requires `act` to
+  be exactly `{ "client_id": <azp> }`, one level deep.
+- **"Declared agent" is declared in Knowledge Fabric, not in the realm.** Decision 2 reads "a
+  declared agent in the realm"; the implementation keeps the declaration in `org.declared_agent`,
+  written only over the owner credential by `kf declare-agent`, and `core.issue_attestation`
+  refuses any other client. A realm-side attribute would let a realm administrator make a client
+  an agent without touching this system — the reason role claims are never read. The realm's part
+  is the shape, checked at commissioning: exchange only on confidential clients that stamp their
+  own `act.client_id`.
+- A declared agent's token that arrives _without_ `act` (its mapper removed) is refused, so an
+  agent cannot pass as the person by losing its claim.
+- The declaration is a row with its decider, reason, login and time, not an act on the audit chain:
+  it belongs to no organization and targets no record.
