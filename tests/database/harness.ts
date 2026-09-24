@@ -688,7 +688,7 @@ export async function bindContext(
 }
 
 /**
- * Record an act in the ledger and bind it as this transaction's action, returning its id.
+ * Record an act in the ledger and bind it as this transaction's action.
  *
  * Every row the application writes belongs to an act the ledger records in the same transaction
  * (20260925020000), so a direct write records one: a `correct_record` by the bound person, on the
@@ -701,7 +701,15 @@ export async function recordAct(
   f: Fixtures,
   actorId: string = f.performerId,
   actingRoleId: string = roleOf(f, actorId),
-): Promise<string> {
+  options: {
+    /**
+     * Leave the chain link to the caller, via the returned `audit()`. For writes that must come
+     * before the act's audit event, as the dispatcher orders them (a master record's insert
+     * policy refuses one whose act is already audited).
+     */
+    readonly deferAudit?: boolean;
+  } = {},
+): Promise<{ readonly actionId: string; audit(): Promise<void> }> {
   const actionId = randomUUID();
   await tx.query('select core.set_transaction_context($1, $2, $3, $4)', [
     actorId,
@@ -725,18 +733,21 @@ export async function recordAct(
   );
   // And its chain link, through the one implementation of the chain arithmetic: an act with no
   // audit receipt is refused by the preservation importer, rightly.
-  await appendAuditEvent(tx, {
-    actionId,
-    actionType: 'correct_record',
-    actorId,
-    actingRoleId,
-    objectIds: [f.organizationId],
-    effectiveAt,
-    reason: 'harness direct write',
-    beforeDigest: null,
-    afterDigest: null,
-  });
-  return actionId;
+  const audit = async (): Promise<void> => {
+    await appendAuditEvent(tx, {
+      actionId,
+      actionType: 'correct_record',
+      actorId,
+      actingRoleId,
+      objectIds: [f.organizationId],
+      effectiveAt,
+      reason: 'harness direct write',
+      beforeDigest: null,
+      afterDigest: null,
+    });
+  };
+  if (options.deferAudit !== true) await audit();
+  return { actionId, audit };
 }
 
 /** Bind a reader as one of the fixture people, at their full ceiling unless narrowed. */

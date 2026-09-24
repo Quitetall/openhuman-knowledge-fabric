@@ -754,15 +754,19 @@ describe('master-record runtime', () => {
       });
       // The application's compile writes rows, so it records its act in this transaction
       // (20260925020000); the admin-recorded `actionId` above belongs to an earlier one.
-      const compileAction = await recordAct(tx, fixtures, fixtures.reviewerId);
-      return compileAndRecordMasterRecord(tx, {
+      const compile = await recordAct(tx, fixtures, fixtures.reviewerId, undefined, {
+        deferAudit: true,
+      });
+      const compiled = await compileAndRecordMasterRecord(tx, {
         personId: fixtures.reviewerId,
         organizationId: fixtures.organizationId,
         effectiveClassification: 'restricted',
         recordedBy: fixtures.reviewerId,
-        recordedByAction: compileAction,
+        recordedByAction: compile.actionId,
         compiledAt: '2026-08-26T01:00:00.000Z',
       });
+      await compile.audit();
+      return compiled;
     });
     const removed = withdrawn.manifest.withdrawn.find(
       (member) => member.objectId === candidate!.objectId,
