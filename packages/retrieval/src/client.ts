@@ -154,7 +154,7 @@ export class RetrievalClient {
       {
         type: 'bands',
         organizationId: bitmaps.organizationId,
-        bandVersion: bitmaps.bandVersion.toString(),
+        bandVersion: bitmaps.bandVersion,
         generation: bitmaps.generation,
         slotCount: bitmaps.slotCount,
         bands,

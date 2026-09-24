@@ -26,6 +26,12 @@ describe('parseMasterRecordArgs', () => {
     expect(() => parseMasterRecordArgs(['--format', 'pdf'])).toThrow(/--format must be/);
   });
 
+  it('refuses an inline bearer token by name, and names --token-file (SAS §76)', () => {
+    for (const argv of [['--token', 'secret'], ['--token=secret']]) {
+      expect(() => parseMasterRecordArgs(argv)).toThrow('unknown option --token; use --token-file');
+    }
+  });
+
   it('refuses an unknown flag', () => {
     expect(() => parseMasterRecordArgs(['--person', 'x'])).toThrow(/unknown option --person/);
   });

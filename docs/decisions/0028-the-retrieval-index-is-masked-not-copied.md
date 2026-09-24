@@ -98,6 +98,20 @@ the slot map moved even when nothing was reclassified. `(band_version, lamu_gene
 both, published at the existing `meta.json` commit point, and any mismatch takes the pad-false
 path rather than serving a mask built against a different slot order.
 
+**Amended 2026-09-24: the band version carries an epoch, so a lost row cannot replay a version.**
+`retrieval.band_version` is derived and excluded from preservation, so a restore that leaves it
+out recreates the row on the next band-moving write — and the counter used to restart at 1. A
+bitmap cached at version 7 before the loss would then be accepted again once the counter climbed
+back to 7, over records that had since moved. The row now carries `epoch uuid`, a fresh `uuidv7()`
+whenever the row is created, and the version token is `<epoch>.<counter>`; a lost row therefore
+comes back under a new epoch and no token it issues can equal one issued before. While no row
+exists the token is `unversioned.<random>`, fresh on every read, so nothing built in that window
+is ever reused. `@kf/retrieval` compares and caches on the whole token
+(`20260925064100_band_version_has_an_epoch.sql`). Not covered: a point-in-time restore of the
+whole database brings back an older row with its old epoch, and a process that outlives such a
+restore holds bitmaps it must not trust, and nothing yet forces it to restart. Recorded as a
+residual, not solved.
+
 **A degraded engine refuses; it never returns a short result set.** `retrieval_unavailable` is an
 explicit error. Where KF falls back to lexical search, the response carries a withholding-ledger
 entry under KF-SAS-RQ-120 stating that semantic ranking was unavailable. This is not a new flag:

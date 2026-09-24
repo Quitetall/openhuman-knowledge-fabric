@@ -78,6 +78,11 @@ export function parseMasterRecordArgs(argv: readonly string[]): MasterRecordCliA
     'reason',
   ]);
   for (const key of Object.keys(values)) {
+    // A bearer token on the command line is in shell history and `/proc/<pid>/cmdline`. The
+    // refusal names the one supported alternative, as `kf ingest` does (SAS §76).
+    if (key === 'token') {
+      throw new MasterRecordCliError('unknown option --token; use --token-file');
+    }
     if (!known.has(key)) throw new MasterRecordCliError(`unknown option --${key}`);
   }
   const format = values['format'] ?? 'html';

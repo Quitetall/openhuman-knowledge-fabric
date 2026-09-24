@@ -81,7 +81,13 @@ async function createRole(tx: Tx, organizationId: string, actorId: string): Prom
   return id;
 }
 
-export async function bootstrapIdentity(owner: Pool): Promise<DogfoodIdentity> {
+/**
+ * Find or create the configured organization and its local operator.
+ *
+ * `legalName` is `KF_ORGANIZATION_LEGAL_NAME` (`requiredOrganizationLegalName`): the deploying
+ * organization is configuration, never a literal here (KF-SAS-RQ-192, SAS §100.16).
+ */
+export async function bootstrapIdentity(owner: Pool, legalName: string): Promise<DogfoodIdentity> {
   return withTransaction(owner, async (tx) => {
     await setAccessContext(tx, {
       organizationId: BOOTSTRAP_IDENTITY,
@@ -99,8 +105,9 @@ export async function bootstrapIdentity(owner: Pool): Promise<DogfoodIdentity> {
         `select o.id
            from core.object o
            join org.organization g on g.id = o.id
-          where g.legal_name = 'OpenHuman Technologies LLC'
+          where g.legal_name = $1
           order by o.created_at limit 1`,
+        [legalName],
       )
     )?.id;
     if (organizationId === undefined) {
@@ -109,7 +116,7 @@ export async function bootstrapIdentity(owner: Pool): Promise<DogfoodIdentity> {
         classification: 'public',
         authorityDomain: 'organization',
         lifecycleState: 'active',
-        title: 'OpenHuman Technologies LLC',
+        title: legalName,
         organizationId: BOOTSTRAP_IDENTITY,
         createdBy: BOOTSTRAP_IDENTITY,
       });
@@ -121,8 +128,8 @@ export async function bootstrapIdentity(owner: Pool): Promise<DogfoodIdentity> {
       );
       await tx.query(
         `insert into org.organization (id, legal_name, organization_kind)
-         values ($1, 'OpenHuman Technologies LLC', 'company')`,
-        [organizationId],
+         values ($1, $2, 'company')`,
+        [organizationId, legalName],
       );
     }
     await setAccessContext(tx, { organizationId, maxClassification: 'restricted' });

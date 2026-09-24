@@ -58,6 +58,16 @@ DATABASE_URL="$DATABASE_OWNER_URL" pnpm db:migrate
 pnpm dogfood:load -- --source-dir /path/to/OpenHuman_Technologies
 ```
 
+The loader needs `KF_ORGANIZATION_LEGAL_NAME`, the legal name of the organization it seeds, and
+refuses to run without it: the deploying organization's identity is configuration, not source
+(KF-SAS-RQ-192), and no file under `apps/`, `packages/`, `scripts/` or `deploy/` may name it
+(`apps/api/src/dogfood/legal-name.test.ts` fails the build if one does). The loader finds the
+organization by exactly this name and creates it when absent, so keep the value identical across
+runs against one database; a different name seeds a second organization whose operator holds no
+clearance, and the run stops at the clearance check. A database loaded before 2026-09-24 was
+seeded under the name the bootstrap used to hard-code; set the variable to that name to keep
+using it.
+
 The loader ends with a paste-ready block: `KF_DEV_ORGANIZATION`, `KF_DEV_ACTOR`,
 `KF_DEV_ACTING_ROLE` and `DATABASE_URL_FILE`. Copy it into `.env`, then reload it and start the
 applications:
@@ -169,7 +179,7 @@ sets `NODE_ENV=development` and reads `attestor-database-url` and the socket pat
 until it answers `GET /health` on the socket — `KF_ATTESTOR_SOCKET` if set, else
 `$XDG_RUNTIME_DIR/kf-attestor.sock` — and only then starts the API and the web app with
 `KF_DEPLOYMENT_PROFILE=dogfood`, the same socket, and the API reading `dogfood-api-database-url`.
-No process is handed `DATABASE_OWNER_URL` or the development login, whatever `.env` holds. It
+No process is handed `DATABASE_OWNER_URL`, `DATABASE_OWNER_URL_FILE` or the development login, whatever `.env` holds. It
 refuses to start, naming what is missing, when the logins were never created or an `OIDC_*` /
 `KF_WEB_*` value is unset, and stops everything when any part exits or on Ctrl-C. The worker is not
 started: it needs a `kf_worker` login no workstation command creates, and this rehearsal is about

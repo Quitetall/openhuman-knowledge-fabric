@@ -9,7 +9,7 @@
  *   retire-organization     an organization nobody can act in (bootstrap tier)
  *   revoke-identity         withdraw a provider account's link to a person (bootstrap tier)
  *
- * The bootstrap-tier commands need DATABASE_OWNER_URL and are refused without it; the others
+ * The bootstrap-tier commands need DATABASE_OWNER_URL_FILE and are refused without it; the others
  * never see an owner credential.
  */
 

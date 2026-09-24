@@ -15,6 +15,8 @@ const ENV: NodeJS.ProcessEnv = {
   KF_DEPLOYMENT_PROFILE: 'development',
   DATABASE_URL_FILE: '/state/knowledge-fabric/dev-database-url',
   DATABASE_OWNER_URL: 'postgres://kf_owner:dev-only-not-a-secret@localhost:5432/kf',
+  // The owner-tier commands read this first (RQ-151), so it is the same credential.
+  DATABASE_OWNER_URL_FILE: '/state/knowledge-fabric/owner-database-url',
 };
 const everything = (): boolean => true;
 
@@ -48,6 +50,7 @@ describe('planDogfoodDev', () => {
     if (!plan.ok) throw new Error('unexpected refusal');
     for (const env of [plan.attestor.env, plan.apps.env]) {
       expect(env['DATABASE_OWNER_URL']).toBeUndefined();
+      expect(env['DATABASE_OWNER_URL_FILE']).toBeUndefined();
       expect(env['DATABASE_URL']).toBeUndefined();
       expect(env['DATABASE_URL_FILE']).not.toContain('dev-database-url');
     }

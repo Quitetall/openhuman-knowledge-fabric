@@ -69,7 +69,7 @@ and that document disagree, that document is right.
 
 ```sh
 pnpm install
-cp .env.example .env
+cp .env.example .env                                  # then set KF_ORGANIZATION_LEGAL_NAME in it
 set -a; . ./.env; set +a
 docker compose up -d                                  # PostgreSQL 18, MinIO, Keycloak
 DATABASE_URL="$DATABASE_OWNER_URL" pnpm db:migrate
