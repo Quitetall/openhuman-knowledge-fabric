@@ -1,4 +1,5 @@
 import type { Pool } from '@kf/database';
+import { recordVerification } from '@kf/domain';
 import { searchIn, type SearchHit } from '@kf/search';
 import { scoped } from './scope.js';
 import type { AgentScope, AvailableAction, HistoryEntry, ObjectSummary } from './types.js';
@@ -32,10 +33,18 @@ export async function readRecord(
       classification: string;
       row_version: string;
       created_at: Date;
+      verified_at: Date | null;
+      verified_by: string | null;
+      verification_basis: string | null;
     }>(
-      `select id, enterprise_id, object_type, title, lifecycle_state, classification,
-              row_version, created_at
-         from core.object where id = $1`,
+      // Left join: absence IS the unverified state. Under the caller's row security the
+      // verification row is visible exactly when the record is (`object_verification_read`).
+      `select o.id, o.enterprise_id, o.object_type, o.title, o.lifecycle_state, o.classification,
+              o.row_version, o.created_at,
+              v.verified_at, v.verified_by, v.basis as verification_basis
+         from core.object o
+         left join core.object_verification v on v.object_id = o.id
+        where o.id = $1`,
       [objectId],
     );
     if (row === undefined) return undefined;
@@ -48,6 +57,7 @@ export async function readRecord(
       classification: row.classification,
       rowVersion: row.row_version,
       createdAt: row.created_at.toISOString(),
+      verification: verificationOfRow(row),
     };
   });
 }
@@ -112,4 +122,18 @@ export async function availableActions(
       requiresChoice: toStates.length > 1,
     }));
   });
+}
+
+/** A verification row's columns as the reads select them; any fact missing reads as unverified. */
+export function verificationOfRow(row: {
+  readonly verified_at: Date | null;
+  readonly verified_by: string | null;
+  readonly verification_basis: string | null;
+}) {
+  const { verified_at: at, verified_by: by, verification_basis: basis } = row;
+  return recordVerification(
+    at === null || by === null || basis === null
+      ? undefined
+      : { basis, verifiedAt: at, verifiedBy: by },
+  );
 }

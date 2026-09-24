@@ -11,9 +11,14 @@
  * caller may not see.
  */
 
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDispatcher } from '@kf/actions';
+import { InMemoryObjectStore } from '@kf/artifacts';
 import { withTransaction } from '@kf/database';
+import { createDocumentActionAtoms } from '@kf/documents';
+import { UNVERIFIED_LABEL } from '@kf/domain';
+import { createFabricDispatcher } from '@kf/orchestrator';
 import {
   AGENT_TOOLS,
   availableActions,
@@ -201,6 +206,113 @@ describe('scope: an agent sees what its principal sees', () => {
     const hits = await findRecords(h.pool, scope('internal'), { text: 'contractor rate' });
     expect(hits.map((x) => x.objectId)).not.toContain(restrictedRecord);
     expect(await verificationOf(h.pool, scope('internal'), restrictedRecord)).toBeUndefined();
+  });
+});
+
+/**
+ * An agent's context says a record is unverified in the words a person's page uses
+ * (KF-SAS-RQ-229): every read that returns a record carries its verification. And a record the
+ * principal cannot see contributes nothing — not even the fact that somebody checked it.
+ */
+describe('record verification in what an agent reads', () => {
+  let pointer: string;
+
+  beforeAll(async () => {
+    pointer = await createObject(h.adminPool, f, {
+      type: 'decision_record',
+      domain: 'engineering',
+      state: 'proposed',
+      title: 'Points at the restricted rework rate',
+      createdBy: f.performerId,
+    });
+    await withTransaction(h.adminPool, async (tx) => {
+      await bindContext(tx, f);
+      await tx.query(
+        `insert into core.relation (relation_type, source_id, target_id, created_by)
+         values ('supersedes', $1, $2, $3)`,
+        [pointer, restrictedRecord, f.performerId],
+      );
+    });
+    const execute = createFabricDispatcher(
+      h.pool,
+      createDocumentActionAtoms({
+        store: new InMemoryObjectStore(),
+        parser: {
+          async parse() {
+            return undefined;
+          },
+        },
+      }),
+    );
+    // Different bases, so the second is not refused by the pace on individual review.
+    for (const [target, basis] of [
+      [decision, 'promoted_in_bulk'],
+      [restrictedRecord, 'reviewed_individually'],
+    ] as const) {
+      const outcome = await execute({
+        actionType: 'verify_record',
+        actorId: f.reviewerId,
+        actingRoleId: f.reviewerRoleId,
+        targetIds: [target],
+        organizationId: f.organizationId,
+        maxClassification: 'restricted',
+        idempotencyKey: `agent-verify-${randomUUID()}`,
+        reason: 'read it against the source',
+        payload: { basis },
+      });
+      expect(outcome.status).toBe('applied');
+    }
+  }, 60_000);
+
+  it('read_record says unverified, or who verified it and how', async () => {
+    expect((await readRecord(h.pool, scope(), successor))?.verification).toEqual({
+      verified: false,
+      label: UNVERIFIED_LABEL,
+    });
+    expect((await readRecord(h.pool, scope(), decision))?.verification).toMatchObject({
+      verified: true,
+      basis: 'promoted_in_bulk',
+      verifiedBy: f.reviewerId,
+      label: expect.stringMatching(/^verified promoted in bulk by /),
+    });
+  });
+
+  it('trace_relations labels the record each edge reaches', async () => {
+    const edges = await traceRelations(h.pool, scope(), successor);
+    expect(edges.find((e) => e.toId === decision)?.toVerification).toMatchObject({
+      verified: true,
+      basis: 'promoted_in_bulk',
+    });
+  });
+
+  it('find_records hits carry it too', async () => {
+    const hits = await findRecords(h.pool, scope(), { text: 'resistor' });
+    expect(hits.find((x) => x.objectId === decision)?.verification.verified).toBe(true);
+    expect(hits.find((x) => x.objectId === successor)?.verification).toEqual({
+      verified: false,
+      label: UNVERIFIED_LABEL,
+    });
+  });
+
+  it('reveals nothing about the verification of a record the principal cannot see', async () => {
+    // At restricted the principal sees the record, the edge to it, and that it was reviewed.
+    const seen = await traceRelations(h.pool, scope('restricted'), pointer);
+    expect(seen.find((e) => e.toId === restrictedRecord)?.toVerification).toMatchObject({
+      verified: true,
+      basis: 'reviewed_individually',
+    });
+    // At internal, none of it: the record, the edge, the hit and the verification are all absent.
+    expect(await readRecord(h.pool, scope('internal'), restrictedRecord)).toBeUndefined();
+    expect(await traceRelations(h.pool, scope('internal'), pointer)).toEqual([]);
+    const hits = await findRecords(h.pool, scope('internal'), { text: 'contractor rate' });
+    expect(hits.map((x) => x.objectId)).not.toContain(restrictedRecord);
+    const everything = JSON.stringify([
+      await readRecord(h.pool, scope('internal'), pointer),
+      await traceRelations(h.pool, scope('internal'), pointer),
+      hits,
+    ]);
+    expect(everything).not.toContain('reviewed_individually');
+    expect(everything).not.toContain(restrictedRecord);
   });
 });
 

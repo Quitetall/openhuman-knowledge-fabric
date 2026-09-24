@@ -1,3 +1,5 @@
+import type { RecordVerification } from '@kf/domain';
+
 export interface AgentScope {
   readonly organizationId: string;
   readonly maxClassification: string;
@@ -17,6 +19,13 @@ export interface ObjectSummary {
   readonly classification: string;
   readonly rowVersion: string;
   readonly createdAt: string;
+  /**
+   * Whether anybody has verified this record (`core.object_verification`, KF-SAS-RQ-228 to
+   * RQ-232), with the label a reader is shown. An agent's context says a record is unverified
+   * in the same words a person's page does; an unverified record is not evidence (RQ-230).
+   * Not to be confused with `verification_of`, which reports test verification of a subject.
+   */
+  readonly verification: RecordVerification;
 }
 
 export interface HistoryEntry {
@@ -40,6 +49,8 @@ export interface TracedEdge {
   readonly toTitle: string;
   readonly toType: string;
   readonly depth: number;
+  /** Whether anybody has verified the record this edge reaches (see `ObjectSummary`). */
+  readonly toVerification: RecordVerification;
 }
 
 export interface VerificationSummary {
