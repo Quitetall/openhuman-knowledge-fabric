@@ -1,7 +1,7 @@
 schema = "oh.war/sas-revision/v1"
 version = "0.1.0-draft.8"
 source = "docs/sas/KF_Software_Architecture_Specification.md"
-sha256 = "a31b50a6b568bca1a8d3928f9d19634552d1da3ef5e6780c1ca28650eca35253"
+sha256 = "0bf0423da2278fe9c26b8e1982bf5f00d0842d75858f7c3522abc312142e4148"
 state = "proposed"
 predecessor = "0.1.0-draft.7"
 architecture_changing = true
@@ -183,3 +183,7 @@ KF-SAS-RQ-242 = "The database refuses an application or service write that belon
 KF-SAS-RQ-243 = "A closed record's identity-bearing fields are immutable for every session, the owner's included"
 KF-SAS-RQ-244 = "Every relation declares its endpoint types, and the database refuses an edge of an undeclared shape"
 KF-SAS-RQ-245 = "A backup is taken by a backup-only login, holds every row it claims, and its restore is proven from that login's backup"
+KF-SAS-RQ-246 = "Delegation goes one level deep, and every new role assignment and project membership ends within 366 days"
+KF-SAS-RQ-247 = "A recorded query is disclosed only to its asker; another person's replay returns only the aggregate"
+KF-SAS-RQ-248 = "An export from an earlier exporter of the same format imports, converted as its migrations converted"
+KF-SAS-RQ-249 = "A process addresses a store only at its declared, bound address, which never changes and carries no credential"

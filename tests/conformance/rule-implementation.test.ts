@@ -84,6 +84,7 @@ const LOCAL_FAMILIES: readonly string[] = [
   'KF-VER', // test execution and result shape
   'KF-QMS', // nonconformity and CAPA closure preconditions
   'KF-COMPILER', // the compiler process itself failed
+  'KF-DOC-DETERMINISM', // a requalified compiler did not reproduce the run before it (RQ-102)
   'KF-MISSING', // a required record was not found
   'KF-ART', // an evidence storage key the server did not derive for the bound organization
 ];

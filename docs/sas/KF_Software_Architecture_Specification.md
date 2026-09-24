@@ -751,6 +751,16 @@ high; a grant says over what.
 The three legacy tables could not become views. `org.role_assignment` is itself a `core.object`
 and a foreign-key target from `ml.*`, so it stays a table and projects into the view.
 
+Both sources that project into the view are bounded ([ADR 0036](../decisions/0036-delegation-is-one-level-and-assignments-expire.md),
+proposed and implemented; `20260925153600`). Delegation goes one level deep: the database refuses a
+role assignment whose `delegated_by` holds the role only by delegation, and an access grant whose
+`delegated_from` is itself delegated, so "who can act" is answerable from two rows. And every new
+role assignment and project membership ends within 366 days of its start; renewal is a new,
+attributed assignment, so the review is the act. Rows made before the rule are grandfathered and
+reported by readiness (`assignment_review_dates`) until renewed. The one exception is the
+bootstrap write — an administrator session acting as the bootstrap identity
+(`org.is_bootstrap_write()`) — and it is excepted from the end date only, never from the depth.
+
 **KF-SAS-RQ-039.** Read authorization SHALL be the intersection of row-level visibility and live
 grant coverage, and a principal with no grant SHALL have an empty corpus.
 
@@ -758,6 +768,9 @@ grant coverage, and a principal with no grant SHALL have an empty corpus.
 overlap in time.
 
 **KF-SAS-RQ-041.** The read path and the write path SHALL consult the same grant view.
+
+**KF-SAS-RQ-246.** A delegated role assignment or access grant SHALL NOT be delegated again, and
+every new role assignment and project membership SHALL end within 366 days of its start.
 
 ## 19. Explaining a denial
 
@@ -1815,8 +1828,15 @@ unreferenced content in a store.
 
 ADR 0017. Where the bytes are is a **set of locations**, each verifiable on its own.
 
-`content.artifact_store` declares a store: an id, a kind, an endpoint, whether it is writable,
-and whether it is public. `content.artifact_location` records one version's presence in one
+`content.artifact_store` declares a store: an id, a kind, a bound address (endpoint and bucket,
+never credentials — an endpoint carrying a user or password is refused by a check), whether it is
+writable, and whether it is public. Every process that holds a store — the API, ingestion, the
+worker, `kf-storage` and the dogfood loader — resolves it through `StoreRegistry.fromDatabase`
+against these rows before building a client, and is refused (`StoreAddressMismatch`) when its
+configured address differs. A store is declared and bound only through
+`content.bind_artifact_store`, which binds an address to a store that has none and never rebinds;
+no application role can insert or update the table (`20260925160000`). The checkpoint runner's
+anchor bucket is not an artifact store and is outside the registry by design. `content.artifact_location` records one version's presence in one
 store with a role — `working`, `hot_cache`, `durable_copy`, `evidence_copy`, `public_copy` — a
 URI, a store version, and its own verification state.
 
@@ -1832,6 +1852,10 @@ role and verification state.
 
 **KF-SAS-RQ-096.** A read that falls back to a secondary copy SHALL serve only a copy whose
 digest has been verified.
+
+**KF-SAS-RQ-249.** A process SHALL address a store only through the address its declaration
+records, and SHALL refuse to use one whose configured address differs; a store's recorded address
+SHALL NOT be changed once bound, and SHALL NOT carry a credential.
 
 ## 51. Replication and verification
 
@@ -1899,6 +1923,15 @@ engine for PDF.
 Determinism is the requirement, not the format list: the same atoms and the same toolchain
 produce the same bytes, which is what makes the content address meaningful.
 
+The exact repeat cannot arise — a compilation basis is unique and a second, different result for
+one request is refused — but a basis also carries the compiler's qualification state, so
+requalifying the same pinned binary made a new basis over the same sources that nothing compared
+with the old. A compilation whose basis matches an earlier succeeded run in everything but that
+qualification must now reproduce the earlier run's semantic and view digests, or it is recorded as
+the request's failed run with `nondeterministic_output`, naming the run it did not reproduce
+(`20260925160100`, `KF-DOC-DETERMINISM-001`; [ADR 0002](../decisions/0002-liminal-backed-document-compiler.md)'s
+dated note). What that does not do is in §100.35.
+
 **KF-SAS-RQ-102.** Compilation SHALL be deterministic for a given source and toolchain, and the
 result SHALL be addressed by its digest.
 
@@ -1934,6 +1967,18 @@ A backup is not valid until it has been restored, so the drill runs the **shippe
 rather than a test-only path.
 
 **KF-SAS-RQ-104.** An export imported into an empty database SHALL re-export byte-identically.
+
+An export written by an earlier exporter must import too, because the backups are exactly that. A
+table whose shape a migration changed is converted on import as the migration converted it, keyed
+on what the archive itself carries — `work.deliverable`'s retired columns become
+`work.deliverable_retired_attribute` rows (`20260925130100`,
+`tests/round-trip/deliverable-upconversion.test.ts`) — and a section missing from a format-2
+archive is accepted only when `section-eras.ts` names it as added later without a format bump,
+file, manifest entry and count all absent together. A blanket rule would accept a truncated export.
+
+**KF-SAS-RQ-248.** An export written by an earlier exporter of the same format SHALL import into
+the current schema, each changed-shape table converted as its migration converted it, and a
+section SHALL be accepted as absent only when it is named as a later addition.
 
 **KF-SAS-RQ-105.** Restore SHALL be exercised on a schedule using the shipped scripts, and its
 result SHALL be recorded.
@@ -2082,6 +2127,14 @@ without a UI change, and that is the acceptance test for the design — now a te
 `tests/database/object-view-every-type.test.ts` creates a record of every declared type and reads
 its view. The view labels an unverified record as every projection does (§59), and reads the
 verification live rather than from the compiled record.
+
+History is read by index. An object's history is every audit event naming it and every event of an
+act that targeted it; the second leg used to walk the whole ledger, because `@>` on arrays is not
+leakproof and row security therefore refused the index. `core.actions_targeting` answers the
+lookup under the policy's own organization predicate and returns act ids only, the events being
+read under the caller's row security, and the index no longer defers its entries to a pending list
+every reader would scan (`20260925142200`, `tests/database/history-plan.test.ts`). The residual is
+§100.36.
 
 **Reading has no side effects** ([ADR 0033](../decisions/0033-the-database-binds-the-principal.md),
 amending ADR 0015). A view is over the reader's master record, and when that record was absent or
@@ -2405,10 +2458,16 @@ recomputes the bound principal's key under every live key and takes no person ar
 runs at their ceiling now, returns what the original ceiling withheld without storing it, and
 counts each such record they may read once, for that pseudonym, into `org.access_demand`.
 
-What this section describes and the build does not offer is the replay by *somebody else* — an
-executive, cleared higher, re-running lower-cleared people's queries — which is the replay that
-produces the aggregate's strongest signal. §100.31 records it, and §100.30 the rotation's cost: a
-person whose key rotated between two queries counts as two askers.
+The replay by *somebody else* — somebody cleared higher re-running lower-cleared people's queries,
+which produces the aggregate's strongest signal — is built as the aggregate alone
+(`POST /search/demand/replay`; ADR 0029, amended 2026-09-24). The server re-runs the organization's
+recorded queries asked below the caller's ceiling, at the caller's ceiling and grants, and counts
+what each original ceiling withheld; the caller receives records they may read, each with its
+count of distinct persons, and how many queries were replayed — never a query's text, its
+recorded-query id or time, or its asker. Other people's recorded queries are never listed to
+anyone, and no attributed read of the log is built: "its own act requiring its own grant" is met
+only by the owner credential and a list of candidates, as above. §100.30 records the rotation's
+cost: a person whose key rotated between two queries counts as two askers.
 
 **KF-SAS-RQ-220.** A stored thing that is neither authoritative nor rebuildable SHALL be declared a
 transient observation, SHALL carry a stated expiry, and SHALL be excluded from the preservation
@@ -2417,6 +2476,9 @@ export, the master-record boundary, checkpoint coverage and any backup retained 
 **KF-SAS-RQ-221.** Recorded queries SHALL be transient observations rather than records, and a
 durable demand aggregate over them SHALL identify records and counts of distinct persons, never
 which persons.
+
+**KF-SAS-RQ-247.** A recorded query SHALL NOT be disclosed to anyone but its asker; a replay by
+another person SHALL return only the aggregate.
 
 How much of that may be told to the person who asked is [ADR 0037](../decisions/0037-what-a-query-withheld-is-a-count-within-your-ceiling.md)'s
 answer, proposed and implemented: one count, `withheldCount`, of matching records at or below
@@ -2646,8 +2708,10 @@ the lifecycle R01 declared states for and no transitions — activate, suspend, 
 terminate, through dispatched acts (`tests/database/engagement-lifecycle.test.ts`) — and
 `work.deliverable` holds the fields the ontology declares for a deliverable rather than the older
 columns it predated them with, which are kept per row in `work.deliverable_retired_attribute`
-(`20260925130100`). Closing an engagement does not yet check for active work orders under it
-(§100.34).
+(`20260925130100`). An engagement cannot be closed or terminated while a work order that is not
+terminal references it, and no work order can be issued under an ended engagement — rule
+KF-ENG-001, checked as the transition's precondition and again by the database
+(`20260925142100`, `tests/database/engagement-lifecycle.test.ts`).
 
 **KF-SAS-RQ-142.** The full work-control path SHALL be reachable through declared actions alone,
 and an end-to-end test SHALL exercise it without direct table writes.
@@ -2708,7 +2772,10 @@ and widens nothing.
 `kf` is the operator and ingestion interface. `kf ingest` drives the planner and the typed
 document actions. `kf:grant-authority` performs the three acts that used to stand between a
 verified token and a usable session — link the subject to a person, assign a role, grant a
-clearance — as one command that records a real act and extends the audit chain.
+clearance — as one command that records a real act and extends the audit chain. The assignment
+ends at `--valid-to`, at most 366 days away and one year by default, and `--renew` ends the live
+assignment now and records a new one (ADR 0036, §18); `kf:declare-service-actor` defaults the same
+way, which partly supersedes ADR 0020's "nothing defaulted" for the end date alone.
 `kf:revoke-identity` withdraws one: given the link's id, or its issuer and subject, and a
 required deciding person and reason, it records a `revoke_external_identity` act extending the
 audit chain, sets the link's `revoked_at` in the same transaction, and withdraws every attestation
@@ -3187,7 +3254,7 @@ The supersession graph, which nothing else in the repository states in one place
 | amended | 0011's identity key by 0013; 0004's seven-day floor, waived by 0032; 0015's read, which no longer compiles a stale master record, by 0033 |
 | builds on | 0014→0013; 0015→0014; 0016→{0008, 0011, 0013}; 0017→{0004, 0006}; 0018→{0006, 0016}; 0019→0018; 0020→{0016, 0017}; 0021→{0006, 0016}; 0022→0009; 0027→{0011, 0016, 0025, 0026}; 0028→{0010, 0016, 0023, 0027}; 0029→{0016, 0024}; 0030→{0002, 0010, 0013, 0023, 0028} |
 | supersedes a rationale rather than a record | 0028 supersedes the "no `pgvector`" reasoning in `database/migrations/20260811001800_search.sql`, on the condition that reasoning set |
-| proposed, awaiting the owner | 0034→{0024, 0031} and 0035→{0020, 0033}, implemented; 0036→0016, not yet implemented; 0037→{0027, 0029}, implemented |
+| proposed, awaiting the owner | 0034→{0024, 0031}, 0035→{0020, 0033}, 0036→{0016, 0020} and 0037→{0027, 0029}, all implemented |
 
 A superseded record is kept in full. ADR 0008 remains as the measured problem and the options
 history even though its recommendation no longer applies, because deleting it would leave ADR
@@ -3437,9 +3504,15 @@ and §70.2 explains why un-pinning `meta.yaml` is a governance act.
 **100.4 Replication and verification are not scheduled anywhere.** The service and timer exist;
 no host runs them. Bears on KF-SAS-RQ-097.
 
-**100.5 The checkpoint runner and the ingestion path address the working store directly**, rather
-than through the store registry. Reads degrade correctly; writes reach one store. Bears on
-KF-SAS-RQ-095.
+**100.5 Store addresses are bound by whoever presents them first.** Narrowed in
+`0.1.0-draft.8`, which first recorded that the checkpoint runner and ingestion addressed the
+working store directly. The checkpoint runner never did — its anchor bucket is not an artifact
+store — and every process that holds a store now resolves it against its declared row and binds an
+address through one seam that never rebinds (§50, `20260925160000`). Until then nothing but tests
+had declared a `durable` store, so replication into one would have failed on a foreign key. What
+remains: the first process to present a store's address binds it, and nothing checks that address
+against an approved one; and the checkpoint anchor bucket is outside the registry by design. Bears
+on KF-SAS-RQ-095 and RQ-249.
 
 **100.6 Two schema packs are signed snapshots that no longer describe their source**, admitted
 with reasons, and one registry pack is in the same state. Each is an admission that a re-cut and
@@ -3452,13 +3525,15 @@ first of those gaps; the re-cut is `pnpm ontology:pack 1.0.0-draft.5`, and the s
 with rows by `tests/database/rls-read-cost.test.ts`, the figures in ADR 0007's dated section, none
 near the 950 ms of their sibling (§39). Bears on KF-SAS-RQ-075.
 
-**100.8 Delegation depth is unbounded.** `delegated_from` is recorded; no rule yet says how far a
-delegated grant may go. [ADR 0036](../decisions/0036-delegation-is-one-level-and-assignments-expire.md),
-proposed, decides depth one; it is not implemented. Bears on KF-SAS-RQ-039.
+**100.8 Delegation depth is unbounded — closed.** Closed in `0.1.0-draft.8`: the database
+refuses a delegation of a delegated role assignment or access grant
+([ADR 0036](../decisions/0036-delegation-is-one-level-and-assignments-expire.md), proposed and
+implemented; §18, `20260925153600`). Bears on KF-SAS-RQ-039 and RQ-246.
 
-**100.9 Role assignments and project memberships do not expire.** Grants are effective-dated; the
-two mechanisms that project into them are not. ADR 0036, proposed and not implemented, would
-require an end within 366 days on every new one, renewal being a new attributed assignment.
+**100.9 Role assignments and project memberships do not expire — closed.** Closed in
+`0.1.0-draft.8`: every new one ends within 366 days, renewal being a new attributed assignment
+(ADR 0036, §18, §76). What remains is what was made before the rule: those rows are grandfathered,
+and readiness reports each as having no review date until it is renewed. Bears on KF-SAS-RQ-246.
 
 **100.10 No host has ever been commissioned.** Phase 9 is not started. Four of the five v1.0
 criteria queue behind it, and one carries a floor that cannot begin counting until it exists.
@@ -3558,9 +3633,9 @@ kernel and no design removes it. Recorded as an accepted limit rather than left 
 bias.** Narrowed in `0.1.0-draft.8`, which first stated that nothing recorded queries, expired them
 or computed the aggregate. Queries are now recorded pseudonymously (`20260925070000`), every
 transient table is swept at 90 days, and a person's replay of their own recorded query counts what
-it recovers into `org.access_demand` (§64B). The replay §64B describes as the aggregate's strongest
-signal — a higher-cleared person re-running other people's queries — is not offered (§100.31). And
-the bias stands: the aggregate measures demand only from people who searched for what they could
+it recovers into `org.access_demand` (§64B), and somebody cleared higher replays other people's
+queries server-side for the aggregate alone (`POST /search/demand/replay`, §100.31). The bias
+stands: the aggregate measures demand only from people who searched for what they could
 not find, so a quiet report is not evidence of no unmet demand. Bears on KF-SAS-RQ-220 through
 RQ-222.
 
@@ -3651,18 +3726,24 @@ person whose queries straddle a rotation is two askers to the aggregate, so a re
 distinct-person count can overstate its demand by the number of people who asked across a
 rotation. Accepted as the cost of a pseudonym that expires; bears on KF-SAS-RQ-221.
 
-**100.31 Nobody can replay another person's query.** §64B's replay is by "somebody cleared for
-those records", and the aggregate's strongest signal is a higher-cleared person re-running
-lower-cleared people's queries. What is built is a person replaying their own (§64B); there is no
-route, view or grant for replaying another's, and ADR 0029's "its own act requiring its own grant"
-for reading the log with attribution is met only by the owner credential. Bears on KF-SAS-RQ-221
-and RQ-222.
+**100.31 Nobody can replay another person's query — closed.** Closed in `0.1.0-draft.8` by the
+aggregate-only replay (§64B, `POST /search/demand/replay`, ADR 0029 amended 2026-09-24): the
+server re-runs lower-cleared queries at the caller's ceiling and returns records and distinct-person
+counts, never a query or its asker. Listing another person's queries is deliberately not built,
+and ADR 0029's "its own act requiring its own grant" for an attributed read is met only by the
+owner credential. Bears on KF-SAS-RQ-221, RQ-222 and RQ-247.
 
-**100.32 An archive exported before `20260925130100` is not shown to restore.**
-`work.deliverable` moved to the ontology's fields in that migration, keeping the old columns per
-row in `work.deliverable_retired_attribute`. An archive taken before it carries the old columns,
-and no importer mapping or round-trip test covers restoring one into the new shape. Bears on
-KF-SAS-RQ-104.
+**100.32 An archive exported before `20260925130100` is not shown to restore — narrowed.**
+Narrowed in `0.1.0-draft.8`: an archive carrying `work.deliverable`'s old columns is converted on
+import as the migration converted it, and a format-2 archive written before any of the eleven
+sections `section-eras.ts` names — every section added from 2026-09-20 on — restores
+(`tests/round-trip/deliverable-upconversion.test.ts`, §56). Two things remain. Thirty sections
+arrived between 2026-08-26 and 2026-09-02 without a format bump either, and are not named, so an
+archive written between the bump (2026-08-15) and their arrival is refused; whether absence means
+no rows has not been established for each of them, and a name in the list is a claim that it
+does. And a format-1 archive is refused by the verifier,
+so the importer's format-1 path is unreachable. No host has ever retained an archive from either
+window. Bears on KF-SAS-RQ-104 and RQ-248.
 
 **100.33 Agent declarations do not travel in the export.** `org.declared_agent` is left out of
 the canonical export by design — a restore target has its own realm and its owner declares its own
@@ -3672,11 +3753,24 @@ it again. Recorded so that a restore runbook does not discover it. The backup, w
 host rather than seeding another, does carry them (`20260925135000`). Bears on KF-SAS-RQ-103 and
 RQ-204.
 
-**100.34 Closing an engagement does not check its work.** An engagement now has a lifecycle (§73),
-and `close_engagement` and `terminate_engagement` are handler-free transitions: nothing refuses
-closing an engagement under which work orders are still active. Whether that should be refused, or
-recorded as a condition of the close, is a domain decision the ontology has not made. Bears on
-KF-SAS-RQ-142.
+**100.34 Closing an engagement does not check its work — closed.** Closed in `0.1.0-draft.8`
+by rule KF-ENG-001: an engagement cannot close or terminate while a non-terminal work order
+references it, and no work order is issued under an ended engagement — a precondition, and a
+database trigger behind it (§73, `20260925142100`). The domain decision the entry named is the
+author's and is the owner's to confirm with this revision. Bears on KF-SAS-RQ-142.
+
+**100.35 Compilation is checked for reproduction, not proven deterministic.** A requalified
+compiler's run that fails to reproduce an earlier run over the same sources is refused (§54), but
+nothing re-runs the compiler on a schedule to test determinism, so a nondeterministic compiler is
+caught only when something happens to compile the same sources again; acceptance does not yet read
+the recorded failure, so an earlier run a later one failed to reproduce can still be accepted; and
+the views a refused run materialized stay in the store, unreferenced.
+Bears on KF-SAS-RQ-102.
+
+**100.36 A history read still pays the audit policy per event.** The ledger lookup is by index
+(§61, `20260925142200`); the audit events it leads to are read under `core.audit_event`'s row
+security, whose object check grows with the corpus, and no commissioned host has measured it.
+Bears on KF-SAS-RQ-117.
 
 **KF-SAS-RQ-186.** The set of tables forced under row-level security SHALL be derivable from the
 migrations, and any difference between that set and the running database SHALL be reconciled.
@@ -3826,7 +3920,7 @@ record which program owns each federated fact.
 
 | Revision | Date | Change |
 |---|---|---|
-| `0.1.0-draft.8` | 2026-09-24 | Brings this document in line with the security hardening of 2026-09-23/24 and with everything built on it before acceptance. The hardening began with a red-team pass run as `kf_app`, which showed that row-level security held against a buggy API and not a hostile one: every `kf.*` setting the policies read was the application's to write, and the ledger, the audit chain, role assignments, identity links and verifications all accepted rows no act had made. §17 now states that the database binds the principal — a sealed context, `core.bind_principal` deriving organization and ceiling from a live assignment and clearance, the application only narrowing — and §24 the attestation boundary: `kf-attestor` verifies RS256 and the database binds a person for the API's login only on its current attestation, the replay window being the token's life, which commissioning now caps at 300 s, and an attestor that cannot be asked is a 503 outage with no fallback. The database also recomputes audit digests (§30), checks act authority on the ledger row (§20), forces row security on every table that enables it and reconciles a running database against the migrations' declared set (§38), so KF-SAS-RQ-073 is met and §100.15 is closed; refuses a domain write that belongs to no recorded act (§25); fixes a closed record's identity and a decided decision's words (§41); and refuses an edge whose endpoint types its relation does not declare (§35). Authority rows are minted only by the owner credential, and an identity link is withdrawn only there, as `kf:revoke-identity`'s recorded act (§33, §76). An agent acts for a named person on an exchanged token, its participation written into the ledger by the database (§24, ADR 0035). An observation is captured in one gesture on three surfaces (§8A, ADR 0034); three of ADR 0024's five latency bars are measured (§8A). Every projection, Object View, agent read and search hit labels an unverified record (§59, `kf-projection-result-v2`); agent reads and the AI planner ask the read grant and consume the reader's `agent_context` projection (§32, §59); the projection grammar is closed and bounded in depth, size and runtime (§60). The retrieval index's Fabric half is built — per-query masks, a band version that never repeats, embed-on-ingest, composed rankings, a withheld count within the asker's ceiling (§64A, §64B, ADR 0037) — and queries are recorded under an expiring pseudonym and replayable by their asker. §43, §45 and §86 state the install and migration scripts, correcting a false claim that a test pinned the seeded ontology's digest; §88 the backup login that until then could not take a backup. §13 and §29 state the database clock and the caller's `effectiveAt` bounds; §48–§49 the ingest order and the recorded orphan sweep; §61 ADR 0033's amendment of ADR 0015. §28 gains `not_attested`, HTTP 401, as a thirteenth code. Every remaining source count is removed in favour of [`generated/measurements.md`](../../generated/measurements.md), which gains schemas, triggers, views, indexes, foreign keys, checks, group roles, forward-only migrations, packages and systemd units, and excludes SQL comments. §102's format tags are reconciled with the code, and §100.27's two untagged digests are resolved in the same draft, the remaining untagged ones enumerated by a gate. §100 closes .2, .7, .12, .15, .16 and .19 and the labelling half of .26; narrows .1, .3, .18, .21, .23 and .27; and appends .28–.34, the first of which records that the owner has not confirmed KF-SAS-RQ-038's clarified reading. Thirteen requirements appended (KF-SAS-RQ-233 to RQ-245); six retitled in place (RQ-038 to ADR 0027's session ceiling, RQ-042, RQ-044, RQ-150, RQ-181 and RQ-222), because the earlier wording was wrong about the design or narrower than what was built, and each keeps its identifier; none removed. Architecture-changing under §94.3, carrying [ADR 0033](../decisions/0033-the-database-binds-the-principal.md), and citing ADRs 0034 to 0037, which are proposed and await the owner. |
+| `0.1.0-draft.8` | 2026-09-24 | Brings this document in line with the security hardening of 2026-09-23/24 and with everything built on it before acceptance. The hardening began with a red-team pass run as `kf_app`, which showed that row-level security held against a buggy API and not a hostile one: every `kf.*` setting the policies read was the application's to write, and the ledger, the audit chain, role assignments, identity links and verifications all accepted rows no act had made. §17 now states that the database binds the principal — a sealed context, `core.bind_principal` deriving organization and ceiling from a live assignment and clearance, the application only narrowing — and §24 the attestation boundary: `kf-attestor` verifies RS256 and the database binds a person for the API's login only on its current attestation, the replay window being the token's life, which commissioning now caps at 300 s, and an attestor that cannot be asked is a 503 outage with no fallback. The database also recomputes audit digests (§30), checks act authority on the ledger row (§20), forces row security on every table that enables it and reconciles a running database against the migrations' declared set (§38), so KF-SAS-RQ-073 is met and §100.15 is closed; refuses a domain write that belongs to no recorded act (§25); fixes a closed record's identity and a decided decision's words (§41); and refuses an edge whose endpoint types its relation does not declare (§35). Authority rows are minted only by the owner credential, and an identity link is withdrawn only there, as `kf:revoke-identity`'s recorded act (§33, §76). An agent acts for a named person on an exchanged token, its participation written into the ledger by the database (§24, ADR 0035). An observation is captured in one gesture on three surfaces (§8A, ADR 0034); three of ADR 0024's five latency bars are measured (§8A). Every projection, Object View, agent read and search hit labels an unverified record (§59, `kf-projection-result-v2`); agent reads and the AI planner ask the read grant and consume the reader's `agent_context` projection (§32, §59); the projection grammar is closed and bounded in depth, size and runtime (§60). The retrieval index's Fabric half is built — per-query masks, a band version that never repeats, embed-on-ingest, composed rankings, a withheld count within the asker's ceiling (§64A, §64B, ADR 0037) — and queries are recorded under an expiring pseudonym and replayable by their asker. §43, §45 and §86 state the install and migration scripts, correcting a false claim that a test pinned the seeded ontology's digest; §88 the backup login that until then could not take a backup. §13 and §29 state the database clock and the caller's `effectiveAt` bounds; §48–§49 the ingest order and the recorded orphan sweep; §61 ADR 0033's amendment of ADR 0015. §28 gains `not_attested`, HTTP 401, as a thirteenth code. Every remaining source count is removed in favour of [`generated/measurements.md`](../../generated/measurements.md), which gains schemas, triggers, views, indexes, foreign keys, checks, group roles, forward-only migrations, packages and systemd units, and excludes SQL comments. §102's format tags are reconciled with the code, and §100.27's two untagged digests are resolved in the same draft, the remaining untagged ones enumerated by a gate. Delegation is one level deep and every new assignment ends within a year (§18, ADR 0036); every process resolves its stores against their declared, bound address (§50); a requalified compiler must reproduce the run before it (§54); an archive from an earlier exporter imports (§56); another person's recorded queries are replayed only as the aggregate (§64B); an object's history is read by index (§61); and an engagement cannot close over live work (§73). §100 closes .2, .7, .8, .9, .12, .15, .16, .19, .31 and .34 and the labelling half of .26; narrows .1, .3, .5, .18, .21, .23, .27 and .32; and appends .28–.36, the first of which records that the owner has not confirmed KF-SAS-RQ-038's clarified reading. Seventeen requirements appended (KF-SAS-RQ-233 to RQ-249); six retitled in place (RQ-038 to ADR 0027's session ceiling, RQ-042, RQ-044, RQ-150, RQ-181 and RQ-222), because the earlier wording was wrong about the design or narrower than what was built, and each keeps its identifier; none removed. Architecture-changing under §94.3, carrying [ADR 0033](../decisions/0033-the-database-binds-the-principal.md), and citing ADRs 0034 to 0037, which are proposed and await the owner. |
 | `0.1.0-draft.7` | 2026-09-20 | Records the owner's waiver of ADR 0004's seven-day floor on compiler cutover ([ADR 0032](../decisions/0032-the-seven-day-floor-is-waived.md)). The other three conditions stand: twice-compiled byte-identical output, five action paths exercised, zero unexplained drift. §93.1 restated, because it asserted a floor that no longer applies. No requirement added, removed or retitled; not architecture-changing under §94.3 — the waived condition was a procedural floor rather than an architectural rule, and what it gave up is recorded in the ADR rather than in a requirement. |
 | `0.1.0-draft.6` | 2026-09-18 | Corrects a conflation in `draft.5`. §48A used "draft" and "unverified" interchangeably, and they are not the same: `draft` is the initial state of 8 of the 24 state machines in `ontology/state-machines.yaml`, while the rest begin at `planned`, `proposed`, `active`, `open`, `captured`, `prospective`, `in_service` or `received`. A work order that begins at `planned` was never a draft, so the previous wording's rules did not reach it — and "any initial state" is wrong in the other direction, since equipment beginning at `in_service` is not unverified. Verification is therefore orthogonal to lifecycle: a record may be `active` and unverified, or `draft` and verified. KF-SAS-RQ-228 is retitled from "a draft" to "an unverified record", RQ-232 is appended stating the orthogonality, §48A's prose and title are corrected, and §100.26 is restated — it had recorded the same error. One requirement appended, one retitled, none removed; architecture-changing under §94.3, carrying [ADR 0031](../decisions/0031-a-draft-is-a-record-that-says-so.md), corrected in place while proposed. |
 | `0.1.0-draft.5` | 2026-09-14 | Adds §48A, which settles whether a low-friction capture path is compatible with KF-SAS-RQ-021's refusal to admit a container. It is, under one rule: a gesture may produce many acts, never zero and never one covering many. Records what an unverified record is — a record under Law 6, exported marked, a labelled member of a master record rather than a silent omission, and not citable as evidence — and requires a promotion act to say whether it was reviewed individually or promoted in bulk, so that "verified" keeps its meaning. Adds §100.26: the draft state is presently a label that nothing filters on, which inverts the build order, because a capture path filling a store whose rules do not exist puts unverified material into master records and into the permanent export. Five requirements appended, none removed or retitled; architecture-changing under §94.3, carrying [ADR 0031](../decisions/0031-a-draft-is-a-record-that-says-so.md). |
@@ -4110,3 +4204,7 @@ from evidence, never recorded here (§97.3).
 | KF-SAS-RQ-243 | A closed record's identity-bearing fields are immutable for every session, the owner's included |
 | KF-SAS-RQ-244 | Every relation declares its endpoint types, and the database refuses an edge of an undeclared shape |
 | KF-SAS-RQ-245 | A backup is taken by a backup-only login, holds every row it claims, and its restore is proven from that login's backup |
+| KF-SAS-RQ-246 | Delegation goes one level deep, and every new role assignment and project membership ends within 366 days |
+| KF-SAS-RQ-247 | A recorded query is disclosed only to its asker; another person's replay returns only the aggregate |
+| KF-SAS-RQ-248 | An export from an earlier exporter of the same format imports, converted as its migrations converted |
+| KF-SAS-RQ-249 | A process addresses a store only at its declared, bound address, which never changes and carries no credential |
