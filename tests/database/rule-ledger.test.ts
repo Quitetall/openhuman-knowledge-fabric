@@ -55,7 +55,7 @@ interface LedgerEntry {
 /**
  * The ledger. EXHAUSTIVE — a rule in the ontology with no entry here fails the first test.
  *
- * All fifteen are live, and each cites the test that watches it refuse. Until 2026-09-25 this
+ * All sixteen are live, and each cites the test that watches it refuse. Until 2026-09-25 this
  * said six of fifteen, and that the work and finance tables did not exist: it had not been
  * revisited since Gate 5 landed them, and the financial rules had been enforced by database
  * triggers and action preconditions for weeks while this file called them pending.
@@ -207,6 +207,19 @@ const LEDGER: readonly LedgerEntry[] = [
     ],
   },
   {
+    rule: 'KF-ENG-001',
+    status: 'live',
+    note:
+      'close_engagement and terminate_engagement refuse while a non-terminal work order names ' +
+      'the engagement (work-control precondition); the triggers ' +
+      'work.assert_engagement_ends_after_its_orders and work.assert_order_under_live_engagement ' +
+      'are the authority, under a lock on the engagement row.',
+    evidence: [
+      'tests/database/engagement-lifecycle.test.ts > KF-ENG-001: refuses to close or terminate an engagement while a work order under it is open',
+      'tests/database/engagement-lifecycle.test.ts > KF-ENG-001: the database refuses the state change and a new order, whatever the caller',
+    ],
+  },
+  {
     rule: 'KF-PROJ-002',
     status: 'live',
     note:
@@ -228,9 +241,9 @@ describe('the ledger is honest about coverage', () => {
     expect(LEDGER.map((e) => e.rule).sort()).toEqual(rules.map((r) => r.id).sort());
   });
 
-  it('reports fifteen of fifteen enforced, each with a cited test', () => {
+  it('reports sixteen of sixteen enforced, each with a cited test', () => {
     expect(LEDGER.filter((e) => e.status === 'pending').map((e) => e.rule)).toEqual([]);
-    expect(LEDGER.filter((e) => e.status === 'live')).toHaveLength(15);
+    expect(LEDGER.filter((e) => e.status === 'live')).toHaveLength(16);
     for (const e of LEDGER.filter((x) => x.status === 'live')) {
       expect(
         e.evidence.length,
@@ -271,9 +284,10 @@ describe('the ledger is honest about coverage', () => {
     );
     const live = new Set(LEDGER.filter((e) => e.status === 'live').map((e) => e.rule));
     expect(claiming.map((r) => r.id).filter((id) => !live.has(id))).toEqual([]);
-    // Not vacuous: five rules claim database enforcement.
+    // Not vacuous: six rules claim database enforcement.
     expect(claiming.map((r) => r.id)).toEqual(
       expect.arrayContaining([
+        'KF-ENG-001',
         'KF-FIN-001',
         'KF-FIN-002',
         'KF-FIN-003',
@@ -312,9 +326,9 @@ describe('the frozen R01 validator', () => {
       ).toContain(rule);
       expect(validator, `${rule} is not in the shipped validator`).toContain(message);
     }
-    // The distance, stated rather than implied: the other twelve rules' `validator` claims are
-    // discharged by the database and the dispatcher, not by the distributed validator.
-    expect(LEDGER.length - Object.keys(VALIDATOR_IMPLEMENTS).length).toBe(12);
+    // The distance, stated rather than implied: the other thirteen rules (KF-ENG-001 claims no
+    // validator) are discharged by the database and the dispatcher, not the distributed validator.
+    expect(LEDGER.length - Object.keys(VALIDATOR_IMPLEMENTS).length).toBe(13);
   });
 });
 

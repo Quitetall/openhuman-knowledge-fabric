@@ -144,3 +144,90 @@ describe('the engagement lifecycle', () => {
     expect(await stateOf(closed)).toBe('closed');
   });
 });
+
+/**
+ * KF-ENG-001: an engagement does not end while a work order under it is open, and no order is
+ * placed under an engagement that has ended.
+ */
+describe('an engagement ends after its work orders', () => {
+  async function orderUnder(engagement: string): Promise<string> {
+    const project = (
+      await act('create_initiative', [], {
+        title: `Project ${randomUUID().slice(0, 8)}`,
+        objective: 'Work under an engagement.',
+        sponsor_id: f.reviewerId,
+      })
+    ).objectIds[0]!;
+    const order = await createObject(h.adminPool, f, {
+      type: 'work_order',
+      domain: 'commercial',
+      state: 'draft',
+      title: 'Work order',
+      createdBy: f.reviewerId,
+    });
+    await withTransaction(h.adminPool, async (tx) => {
+      await bindContext(tx, f, f.reviewerId);
+      await tx.query(
+        `insert into work.work_order
+           (id, project_id, engagement_id, order_number, scope_summary, ceiling_minor, currency)
+         values ($1, $2, $3, $4, 'Scope', 1000, 'GBP')`,
+        [order, project, engagement, `WO-${randomUUID().slice(0, 8)}`],
+      );
+    });
+    return order;
+  }
+
+  it('KF-ENG-001: refuses to close or terminate an engagement while a work order under it is open', async () => {
+    const engagement = await recorded();
+    await act('activate_engagement', [engagement]);
+    const order = await orderUnder(engagement);
+
+    for (const actionType of ['close_engagement', 'terminate_engagement']) {
+      await expect(act(actionType, [engagement]), actionType).rejects.toMatchObject({
+        failure: 'precondition_failed',
+        message: expect.stringMatching(/^KF-ENG-001: .*\(draft\)/),
+      });
+    }
+    expect(await stateOf(engagement)).toBe('active');
+
+    // Once the order is in a terminal state, the engagement can close.
+    const cancelled = await execute({
+      actionType: 'correct_record',
+      actorId: f.reviewerId,
+      actingRoleId: f.reviewerRoleId,
+      organizationId: f.organizationId,
+      maxClassification: 'restricted',
+      targetIds: [order],
+      reason: 'The order was never issued; cancelling it before the engagement closes.',
+      idempotencyKey: `engagement-cancel-order-${randomUUID()}`,
+      payload: { to_state: 'cancelled' } as never,
+    });
+    expect(cancelled.status, JSON.stringify(cancelled)).toBe('applied');
+    expect(await stateOf(order)).toBe('cancelled');
+    expect((await act('close_engagement', [engagement])).status).toBe('applied');
+    expect(await stateOf(engagement)).toBe('closed');
+  });
+
+  it('KF-ENG-001: the database refuses the state change and a new order, whatever the caller', async () => {
+    // The trigger is the authority: a write that bypasses the act meets it too.
+    const engagement = await recorded();
+    await act('activate_engagement', [engagement]);
+    await orderUnder(engagement);
+    await expect(
+      withTransaction(h.adminPool, async (tx) => {
+        await bindContext(tx, f, f.reviewerId);
+        await tx.query(`update core.object set lifecycle_state = 'terminated' where id = $1`, [
+          engagement,
+        ]);
+      }),
+    ).rejects.toThrow(/KF-ENG-001: .* while 1 work order\(s\) under it are open/);
+    expect(await stateOf(engagement)).toBe('active');
+
+    const ended = await recorded();
+    await act('terminate_engagement', [ended]);
+    expect(await stateOf(ended)).toBe('terminated');
+    await expect(orderUnder(ended)).rejects.toThrow(
+      /KF-ENG-001: engagement .* is terminated; a work order cannot be placed under it/,
+    );
+  });
+});

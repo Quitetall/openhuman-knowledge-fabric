@@ -110,7 +110,13 @@ transitions run between R01's own states and invent none: `activate_engagement` 
 suspended → closed, the agreement ran its course) and `terminate_engagement` (draft, active or
 suspended → terminated, ended early or never taken up). `closed` and `terminated` are terminal;
 a renewed agreement is a new engagement. The acts are handler-free and none is institutional, for
-the reason `record_engagement` is not. `tests/database/engagement-lifecycle.test.ts` walks it.
+the reason `record_engagement` is not. An engagement ends after its work orders (rule
+`KF-ENG-001`): `close_engagement` and `terminate_engagement` are refused while a work order naming
+it (`work.work_order.engagement_id`) is in a state the `work_order` machine does not mark terminal,
+and no work order can be placed under an engagement that has ended — a work-control precondition
+names the open orders, and database triggers are the authority
+(`20260925142100_an_engagement_ends_after_its_work_orders.sql`).
+`tests/database/engagement-lifecycle.test.ts` walks it.
 
 `observation` (ADR 0034, proposed) is the one type whose create act is deliberately cheap:
 `record_observation` needs a live assignment and no act grant, and the server forms the acting
