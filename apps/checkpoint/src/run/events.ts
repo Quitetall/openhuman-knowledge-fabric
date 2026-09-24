@@ -1,3 +1,5 @@
+import type { AuditLinkFormat } from '@kf/canonicalization';
+
 import { auditSequence, type AuditEntry } from '../sign.js';
 import type { PositionedEvent, RawEvent } from './contracts.js';
 
@@ -44,5 +46,8 @@ export function toEntry(r: RawEvent): AuditEntry {
     after_digest: r.after_digest,
     prev_digest: r.prev_digest,
     digest: r.digest,
+    // Validated where the link is recomputed: an unknown format breaks the chain there, with
+    // the sequence it broke at, rather than failing the whole read here.
+    link_format: r.link_format as AuditLinkFormat,
   };
 }

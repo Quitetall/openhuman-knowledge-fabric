@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import Fastify from 'fastify';
 import { InMemoryObjectStore } from '@kf/artifacts';
+import { digest } from '@kf/canonicalization';
 import { enumerateAccessCoverage, explainAccess, type AccessExplanation } from '@kf/authorization';
 import { withTransaction } from '@kf/database';
 import { createDocumentActionAtoms, enumeratePermittedSet } from '@kf/documents';
@@ -440,7 +441,11 @@ describe('access is a grant', () => {
       const own = await app.inject({ method: 'GET', url: `/objects/${probe}/access` });
       expect(own.statusCode, own.body).toBe(200);
       const explanation = own.json() as AccessExplanation;
-      expect(explanation.format).toBe('kf-access-explanation-v1');
+      expect(explanation.format).toBe('kf-access-explanation-v2');
+      // KF-SAS-RQ-016: the digest is over the RFC 8785 form of everything but the time it was
+      // produced and the digest itself — reproducible by anyone from the JSON they were served.
+      const { explainedAt: _explainedAt, explanationDigest, ...facts } = explanation;
+      expect(explanationDigest).toBe(digest(facts));
       expect(explanation.personId).toBe(fixtures.performerId);
       expect(explanation.decision).toBe('visible');
       expect(own.headers['x-kf-explanation-digest']).toBe(explanation.explanationDigest);

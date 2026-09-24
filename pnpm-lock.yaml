@@ -393,6 +393,9 @@ importers:
       '@kf/actions':
         specifier: workspace:*
         version: link:../actions
+      '@kf/canonicalization':
+        specifier: workspace:*
+        version: link:../canonicalization
       '@kf/database':
         specifier: workspace:*
         version: link:../database

@@ -1,5 +1,7 @@
 import type { KeyObject } from 'node:crypto';
 
+import type { AuditLinkFormat } from '@kf/canonicalization';
+
 export type AuditSequence = string;
 export type LegacyCheckpointFormat = 'kf.audit-checkpoint.v1' | 'kf.audit-checkpoint.v2';
 export type CheckpointFormat = LegacyCheckpointFormat | 'kf.audit-checkpoint.v3';
@@ -23,6 +25,12 @@ export interface AuditEntry {
   readonly after_digest: string | null;
   readonly prev_digest: string;
   readonly digest: string;
+  /**
+   * The format the link digest was recorded under. Not a leaf field: the leaf commits to
+   * `digest`, and a digest recomputes only under the format it was made with, so relabelling
+   * a row breaks the chain without the checkpoint format having to change.
+   */
+  readonly link_format: AuditLinkFormat;
 }
 
 interface CheckpointCommon {

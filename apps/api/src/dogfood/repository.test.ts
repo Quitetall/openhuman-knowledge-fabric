@@ -20,16 +20,20 @@ function auditedAction(targetId: string) {
   const prevDigest = '0'.repeat(64);
   const beforeDigest = null;
   const afterDigest = 'a'.repeat(64);
-  const auditDigest = auditChainDigest(prevDigest, {
-    action_id: ACTION_ID,
-    action_type: 'attach_evidence',
-    actor_id: ACTOR_ID,
-    acting_role_id: ROLE_ID,
-    object_ids: [targetId],
-    effective_at: EFFECTIVE_AT,
-    before_digest: beforeDigest,
-    after_digest: afterDigest,
-  });
+  const auditDigest = auditChainDigest(
+    prevDigest,
+    {
+      action_id: ACTION_ID,
+      action_type: 'attach_evidence',
+      actor_id: ACTOR_ID,
+      acting_role_id: ROLE_ID,
+      object_ids: [targetId],
+      effective_at: EFFECTIVE_AT,
+      before_digest: beforeDigest,
+      after_digest: afterDigest,
+    },
+    'kf-audit-link-v1',
+  );
   return {
     actionId: ACTION_ID,
     requestDigest: legacyDigest(ACTION_ID),
@@ -43,6 +47,7 @@ function auditedAction(targetId: string) {
     beforeDigest,
     afterDigest,
     prevDigest,
+    linkFormat: 'kf-audit-link-v1',
     auditDigest,
   };
 }

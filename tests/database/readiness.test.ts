@@ -359,6 +359,39 @@ describe('noticing things', () => {
     expect(check(await assessReadiness(h.adminPool), 'audit_chain')?.status).toBe('ok');
   });
 
+  it('counts a link format that regresses as a break', async () => {
+    // Every link here was appended after 20260924001100, so all are kf-audit-link-v2. Relabel
+    // the newest as v1 behind the triggers' back: its predecessor still links, so only the
+    // format-order rule can see it.
+    const events = await withTransaction(h.adminPool, async (tx) =>
+      tx.one<{ n: number; v2: number }>(
+        `select count(*)::integer as n,
+                count(*) filter (where link_format = 'kf-audit-link-v2')::integer as v2
+           from core.audit_event`,
+      ),
+    );
+    expect(events.n).toBeGreaterThan(1);
+    expect(events.v2).toBe(events.n);
+    const relabel = (format: string) =>
+      withTransaction(h.adminPool, async (tx) => {
+        await tx.query("set local session_replication_role = 'replica'");
+        await tx.query(
+          `update core.audit_event set link_format = $1
+            where seq = (select max(seq) from core.audit_event)`,
+          [format],
+        );
+      });
+    await relabel('kf-audit-link-v1');
+    try {
+      const chain = serviceCheck(await assessReadiness(h.adminPool), 'audit_chain');
+      expect(chain?.status).toBe('failed');
+      expect(chain?.measured).toMatchObject({ breaks: 1 });
+    } finally {
+      await relabel('kf-audit-link-v2');
+    }
+    expect(check(await assessReadiness(h.adminPool), 'audit_chain')?.status).toBe('ok');
+  });
+
   it('notices records that cannot be found', async () => {
     await withTransaction(h.adminPool, async (tx) =>
       tx.query(

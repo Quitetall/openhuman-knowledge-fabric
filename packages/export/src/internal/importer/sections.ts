@@ -35,6 +35,19 @@ function predatesSection(pkg: ExportPackage, name: string): boolean {
   return !pkg.files.some((file) => file.path === `${name}.json`);
 }
 
+/**
+ * An archive written before `core.audit_event.link_format` existed (20260924001100) carries no
+ * format per link, and every link in it is the untagged kf-audit-link-v1 — nothing wrote
+ * anything else until that migration. The format is supplied explicitly rather than left to the
+ * column default, which is the CURRENT format and would restore every old link as unverifiable.
+ * A row that does carry the column keeps exactly what it says; the chain check that follows the
+ * restore then verifies each link under it. No export format bump: the file is still the same
+ * rows, and an old archive still restores.
+ */
+function withRecordedLinkFormat(row: Row): Row {
+  return Object.hasOwn(row, 'link_format') ? row : { ...row, link_format: 'kf-audit-link-v1' };
+}
+
 export async function restoreSections(
   tx: Tx,
   pkg: ExportPackage,
@@ -47,6 +60,9 @@ export async function restoreSections(
     if (table === undefined) continue;
     if (predatesSection(pkg, name)) continue;
     let rows = sectionRows(pkg, name);
+    if (name === 'audit-events') {
+      rows = rows.map(withRecordedLinkFormat);
+    }
     if (pkg.manifest.format_version === '1' && name === 'audit-checkpoints') {
       rows = rows.map((row) => ({ ...row, format_version: 'kf.audit-checkpoint.v1' }));
     }

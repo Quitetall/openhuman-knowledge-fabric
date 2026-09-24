@@ -1,4 +1,8 @@
-import { auditChainDigest, compareCanonicalText } from '@kf/canonicalization';
+import {
+  auditChainDigest,
+  compareCanonicalText,
+  CURRENT_AUDIT_LINK_FORMAT,
+} from '@kf/canonicalization';
 import type { Tx } from '@kf/database';
 import type { ActionRequest, EffectContext } from './contracts.js';
 import type { PreparedActionState } from './state.js';
@@ -35,17 +39,23 @@ export async function appendAuditEvent(tx: Tx, entry: AuditChainEntry): Promise<
   const head = await tx.one<{ digest: string }>('select digest from core.audit_chain_head');
   const prevDigest = head.digest;
   const objectIds = [...entry.objectIds].sort(compareCanonicalText);
-  const auditDigest = auditChainDigest(prevDigest, {
-    action_id: entry.actionId,
-    action_type: entry.actionType,
-    actor_id: entry.actorId,
-    acting_role_id: entry.actingRoleId,
-    object_ids: objectIds,
-    effective_at: entry.effectiveAt.toISOString(),
-    before_digest: entry.beforeDigest,
-    after_digest: entry.afterDigest,
-  });
+  const auditDigest = auditChainDigest(
+    prevDigest,
+    {
+      action_id: entry.actionId,
+      action_type: entry.actionType,
+      actor_id: entry.actorId,
+      acting_role_id: entry.actingRoleId,
+      object_ids: objectIds,
+      effective_at: entry.effectiveAt.toISOString(),
+      before_digest: entry.beforeDigest,
+      after_digest: entry.afterDigest,
+    },
+    CURRENT_AUDIT_LINK_FORMAT,
+  );
 
+  // `link_format` is not named: the database sets it, and refuses any row that names a format
+  // other than the current one.
   await tx.query(
     `insert into core.audit_event
          (action_id, actor_id, acting_role_id, action_type, object_id, effective_at,

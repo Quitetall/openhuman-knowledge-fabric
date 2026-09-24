@@ -1,4 +1,9 @@
-import { auditChainDigest, compareCanonicalText, digest } from '@kf/canonicalization';
+import {
+  auditChainDigest,
+  compareCanonicalText,
+  digest,
+  isAuditLinkFormat,
+} from '@kf/canonicalization';
 import type { Tx } from '@kf/database';
 import {
   ActionRejected,
@@ -71,6 +76,7 @@ export async function replayPriorAction(
     event_before_digest: string | null;
     event_after_digest: string | null;
     event_prev_digest: string | null;
+    event_link_format: string | null;
     audit_digest: string | null;
   }>(
     `select action.id, action.actor_id::text, action.acting_role_id::text,
@@ -93,6 +99,7 @@ export async function replayPriorAction(
             event.before_digest as event_before_digest,
             event.after_digest as event_after_digest,
             event.prev_digest as event_prev_digest,
+            event.link_format as event_link_format,
             event.digest as audit_digest
        from core.action action
        left join lateral (
@@ -134,19 +141,24 @@ export async function replayPriorAction(
   if (
     targetIdsAreValid &&
     prior.event_prev_digest !== null &&
-    prior.event_effective_at_wire !== null
+    prior.event_effective_at_wire !== null &&
+    isAuditLinkFormat(prior.event_link_format)
   ) {
     try {
-      recomputedAuditDigest = auditChainDigest(prior.event_prev_digest, {
-        action_id: prior.id,
-        action_type: prior.action_type,
-        actor_id: prior.actor_id,
-        acting_role_id: prior.acting_role_id,
-        object_ids: [...prior.target_ids].sort(compareCanonicalText),
-        effective_at: prior.event_effective_at_wire,
-        before_digest: prior.event_before_digest,
-        after_digest: prior.event_after_digest,
-      });
+      recomputedAuditDigest = auditChainDigest(
+        prior.event_prev_digest,
+        {
+          action_id: prior.id,
+          action_type: prior.action_type,
+          actor_id: prior.actor_id,
+          acting_role_id: prior.acting_role_id,
+          object_ids: [...prior.target_ids].sort(compareCanonicalText),
+          effective_at: prior.event_effective_at_wire,
+          before_digest: prior.event_before_digest,
+          after_digest: prior.event_after_digest,
+        },
+        prior.event_link_format,
+      );
     } catch {
       recomputedAuditDigest = undefined;
     }

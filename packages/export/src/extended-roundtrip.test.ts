@@ -1,6 +1,11 @@
 import { createHash, generateKeyPairSync } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { auditChainDigest, digest, GENESIS_DIGEST } from '@kf/canonicalization';
+import {
+  auditChainDigest,
+  CURRENT_AUDIT_LINK_FORMAT,
+  digest,
+  GENESIS_DIGEST,
+} from '@kf/canonicalization';
 import { withTransaction, type Tx } from '@kf/database';
 import {
   createExport,
@@ -1545,16 +1550,20 @@ describe('extended preservation coverage', () => {
         let previousDigest = GENESIS_DIGEST;
         for (const [index, action] of actions.entries()) {
           const afterDigest = sha256(61 + index);
-          const auditDigest = auditChainDigest(previousDigest, {
-            action_id: action.id,
-            action_type: action.action_type,
-            actor_id: action.actor_id,
-            acting_role_id: action.acting_role_id,
-            object_ids: action.target_ids,
-            effective_at: action.effective_at,
-            before_digest: null,
-            after_digest: afterDigest,
-          });
+          const auditDigest = auditChainDigest(
+            previousDigest,
+            {
+              action_id: action.id,
+              action_type: action.action_type,
+              actor_id: action.actor_id,
+              acting_role_id: action.acting_role_id,
+              object_ids: action.target_ids,
+              effective_at: action.effective_at,
+              before_digest: null,
+              after_digest: afterDigest,
+            },
+            CURRENT_AUDIT_LINK_FORMAT,
+          );
           await insert(tx, 'core.audit_event', {
             seq: index + 1,
             id: index === 0 ? ids.auditEvent : uuid(),

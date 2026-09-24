@@ -60,6 +60,8 @@ export {
 export {
   ACCESS_ACTION_IDS,
   ACCESS_EFFECTS,
+  ACCESS_EXPLANATION_FORMAT,
+  accessExplanationDigest,
   coveringGrants,
   enumerateAccessCoverage,
   explainAccess,
