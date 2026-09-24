@@ -28,6 +28,20 @@ export const assertAuthorizedCompilationRun = async (
       objectId: object.id,
     });
   }
+  // KF-SAS-RQ-102: the same sources and pinned compiler once produced something else, so no
+  // output of theirs is accepted (20260925170000; the trigger on the acceptance row is the
+  // authority, this is the reason a caller can act on).
+  const unreproduced = await tx.one<{ failed_run_id: string | null }>(
+    'select content.compilation_reproduction_failure($1::uuid) as failed_run_id',
+    [runId],
+  );
+  if (unreproduced.failed_run_id !== null) {
+    refuseDocument(
+      'KF-DOC-DETERMINISM-002',
+      'the same sources and pinned compiler did not reproduce this compilation',
+      { runId, failedRunId: unreproduced.failed_run_id },
+    );
+  }
   const basisFragments = await tx.query<{ fragment_revision_id: string }>(
     `select fragment_revision_id
        from content.compilation_basis_fragment

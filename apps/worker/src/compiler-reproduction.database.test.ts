@@ -12,8 +12,13 @@
  *      worker records a failed run `nondeterministic_output` naming run 1 instead;
  *   3. B revoked, C (`unratified`) registered, the same sources compile to X again — succeeded.
  *
- * Not covered: acceptance reading the recorded failure (it does not yet), and a compiler that is
- * nondeterministic only between two runs nobody asked for.
+ * And acceptance reads that record (migration 20260925170000): once a run over the same sources
+ * and pinned compiler failed as `nondeterministic_output`, no succeeded run of theirs is accepted
+ * (KF-DOC-DETERMINISM-002) — not the run it named, and not a later one that happens to reproduce
+ * it — by the precondition and, with the precondition removed, by the database. A run with no
+ * failed reproduction, and a different binary over the same sources, are still accepted.
+ *
+ * Not covered: a compiler that is nondeterministic only between two runs nobody asked for.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -55,17 +60,28 @@ const PIN = {
   runtimeClosureDigest: 'f'.repeat(64),
 };
 
-type Qualification = {
-  readonly state: 'not_run' | 'incomplete' | 'unratified';
-  readonly receiptDigest: null;
-  readonly ratified: false;
-};
+type Qualification =
+  | {
+      readonly state: 'not_run' | 'incomplete' | 'unratified';
+      readonly receiptDigest: null;
+      readonly ratified: false;
+    }
+  | { readonly state: 'qualified'; readonly receiptDigest: string; readonly ratified: true };
 
-const qualified = (state: Qualification['state']): Qualification => ({
+const qualified = (state: 'not_run' | 'incomplete' | 'unratified'): Qualification => ({
   state,
   receiptDigest: null,
   ratified: false,
 });
+
+/** A ratified qualification, distinguished by its receipt: acceptance takes only these. */
+const ratified = (receipt: string): Qualification => ({
+  state: 'qualified',
+  receiptDigest: receipt.repeat(64),
+  ratified: true,
+});
+
+type Execute = ReturnType<typeof createFabricDispatcher>;
 
 describe('a compilation reproduces the one before it (KF-SAS-RQ-102)', () => {
   let harness: Harness;
@@ -80,7 +96,10 @@ describe('a compilation reproduces the one before it (KF-SAS-RQ-102)', () => {
     targetIds: readonly string[],
     payload: Readonly<Record<string, unknown>>,
     author?: boolean,
+    via?: Execute,
   ) => Promise<{ readonly actionId: string; readonly objectIds: readonly string[] }>;
+  /** The same atoms without the acceptance precondition: what the database refuses on its own. */
+  let executeUnchecked: Execute;
 
   beforeAll(async () => {
     harness = await startHarness();
@@ -91,21 +110,24 @@ describe('a compilation reproduces the one before it (KF-SAS-RQ-102)', () => {
     const sourceKey = `ingest/${fixtures.organizationId}/${sourceDigest}`;
     await store.put(sourceKey, sourceBytes, 'text/markdown');
 
-    const execute = createFabricDispatcher(
-      harness.pool,
-      createDocumentActionAtoms({
-        store,
-        parser: {
-          async parse() {
-            return undefined;
-          },
+    const atoms = createDocumentActionAtoms({
+      store,
+      parser: {
+        async parse() {
+          return undefined;
         },
-      }),
-    );
+      },
+    });
+    const execute = createFabricDispatcher(harness.pool, atoms);
+    const { accept_document_compilation: _unchecked, ...otherPreconditions } = atoms.preconditions;
+    executeUnchecked = createFabricDispatcher(harness.pool, {
+      ...atoms,
+      preconditions: otherPreconditions,
+    });
     let sequence = 0;
-    call = (actionType, targetIds, payload, author = false) => {
+    call = (actionType, targetIds, payload, author = false, via = execute) => {
       sequence += 1;
-      return execute({
+      return via({
         actionType,
         actorId: author ? fixtures.performerId : fixtures.reviewerId,
         actingRoleId: author ? fixtures.performerRoleId : fixtures.reviewerRoleId,
@@ -243,6 +265,7 @@ describe('a compilation reproduces the one before it (KF-SAS-RQ-102)', () => {
   async function registerPin(
     qualification: Qualification,
     revoke?: string,
+    pin: typeof PIN = PIN,
   ): Promise<{ registrationId: string; basis: CompilationBasis }> {
     if (revoke !== undefined) {
       await withTransaction(harness.adminPool, (tx) =>
@@ -254,7 +277,7 @@ describe('a compilation reproduces the one before it (KF-SAS-RQ-102)', () => {
         ),
       );
     }
-    const identity = { ...PIN, qualification };
+    const identity = { ...pin, qualification };
     const registrationId = await registerTestDocumentCompiler(
       harness.adminPool,
       identity,
@@ -333,6 +356,23 @@ describe('a compilation reproduces the one before it (KF-SAS-RQ-102)', () => {
     return runtime.process(requested.actionId);
   }
 
+  function accept(runId: string, via?: Execute): ReturnType<typeof call> {
+    return withTransaction(harness.adminPool, (tx) =>
+      tx.one<{ run_digest: string }>(
+        'select run_digest from content.compilation_run where id = $1',
+        [runId],
+      ),
+    ).then(({ run_digest }) =>
+      call(
+        'accept_document_compilation',
+        [compositionId],
+        { document_policy: 'ordinary', run_id: runId, run_digest },
+        false,
+        via,
+      ),
+    );
+  }
+
   async function recorded(runId: string): Promise<Record<string, unknown>> {
     return withTransaction(harness.adminPool, (tx) =>
       tx.one(
@@ -374,5 +414,53 @@ describe('a compilation reproduces the one before it (KF-SAS-RQ-102)', () => {
     const third = await compile(c.basis, '# Compiled once\n');
     expect(third.status).toBe('succeeded');
     expect(await recorded(third.runId)).toMatchObject({ run_status: 'succeeded', views: 1 });
+  });
+
+  it('does not accept a compilation of sources the same pinned compiler failed to reproduce', async () => {
+    // Its own binary, so its own source identity, separate from the test above.
+    const pin = { ...PIN, executableDigest: '7'.repeat(64) };
+    const a = await registerPin(ratified('1'), undefined, pin);
+    const first = await compile(a.basis, '# Accepted once\n');
+    expect(first.status).toBe('succeeded');
+    // No failed reproduction yet: the run is accepted.
+    await expect(accept(first.runId)).resolves.toMatchObject({ actionId: expect.any(String) });
+
+    const b = await registerPin(ratified('2'), a.registrationId, pin);
+    const second = await compile(b.basis, '# Accepted differently\n');
+    expect(second.status).toBe('failed');
+    expect(await recorded(second.runId)).toMatchObject({
+      failure_code: 'nondeterministic_output',
+    });
+
+    // The run the failure named is no longer accepted...
+    await expect(accept(first.runId)).rejects.toThrow(/KF-DOC-DETERMINISM-002/);
+
+    // ...nor a later requalification that happens to reproduce it: the binary, given these
+    // sources, has produced something else.
+    const c = await registerPin(ratified('3'), b.registrationId, pin);
+    const third = await compile(c.basis, '# Accepted once\n');
+    expect(third.status).toBe('succeeded');
+    await expect(accept(third.runId)).rejects.toThrow(/KF-DOC-DETERMINISM-002/);
+
+    // The database refuses it without the precondition.
+    await expect(accept(third.runId, executeUnchecked)).rejects.toThrow(
+      new RegExp(
+        `KF-DOC-DETERMINISM-002: compilation run ${third.runId} cannot be accepted: ` +
+          `run ${second.runId} `,
+      ),
+    );
+
+    // A different binary over the same sources has no failed reproduction and is accepted, with
+    // and without the precondition.
+    const other = await registerPin(ratified('4'), undefined, {
+      ...PIN,
+      executableDigest: '8'.repeat(64),
+    });
+    const fourth = await compile(other.basis, '# Accepted by another binary\n');
+    expect(fourth.status).toBe('succeeded');
+    await expect(accept(fourth.runId)).resolves.toMatchObject({ actionId: expect.any(String) });
+    await expect(accept(fourth.runId, executeUnchecked)).resolves.toMatchObject({
+      actionId: expect.any(String),
+    });
   });
 });
