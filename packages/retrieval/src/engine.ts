@@ -125,16 +125,21 @@ export class SemanticRetrieval {
     if ('status' in bitmaps) return bitmaps;
     const scope = await run((tx) => engineScope(tx, query.clearance, query.coverage));
     // No transaction is open from here until the engine answers.
-    const outcome = await this.client.search({
-      organizationId: query.organizationId,
-      bandVersion: bitmaps.bandVersion.toString(),
-      generation: bitmaps.generation,
-      ceiling: scope.ceiling,
-      allow: scope.allow,
-      deny: [],
-      query: query.query,
-      k: query.k,
-    });
+    // The bitmaps are keyed on the band version, which moves in the act's transaction, before
+    // the worker writes the record's vector. The engine's slot count is what says they are short.
+    const outcome = await this.client.search(
+      {
+        organizationId: query.organizationId,
+        bandVersion: bitmaps.bandVersion.toString(),
+        generation: bitmaps.generation,
+        ceiling: scope.ceiling,
+        allow: scope.allow,
+        deny: [],
+        query: query.query,
+        k: query.k,
+      },
+      bitmaps.slotCount,
+    );
     if (outcome.status === 'unavailable' && outcome.rebuildBands) {
       this.pushed.delete(query.organizationId);
     }

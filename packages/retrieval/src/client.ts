@@ -349,11 +349,29 @@ export class RetrievalClient {
     }
   }
 
-  async search(request: Omit<SearchRequest, 'type'>): Promise<RetrievalOutcome> {
+  /**
+   * Rank one query under the bands last pushed.
+   *
+   * `bandsSlotCount` is how many slots those bands cover. The engine's handshake says how many
+   * it holds, and when the two differ the bands describe a different index than the one about to
+   * be scanned: an engine that has grown since pads the new slots closed, so a record whose vector
+   * landed after its band version moved would stay unfindable until the next reclassification.
+   * That is answered like a lost band push — `unavailable`, rebuild — before the query is sent.
+   */
+  async search(
+    request: Omit<SearchRequest, 'type'>,
+    bandsSlotCount?: number,
+  ): Promise<RetrievalOutcome> {
     const opened = await this.handshake();
     if ('status' in opened) return opened;
     const { session, hello } = opened;
     try {
+      if (bandsSlotCount !== undefined && hello.slotCount !== bandsSlotCount) {
+        return unavailable(
+          `engine holds ${String(hello.slotCount)} slots, the bands cover ${bandsSlotCount}`,
+          true,
+        );
+      }
       const answer = await session.ask({ type: 'search', ...request });
       if ('failure' in answer) return unavailable(answer.failure);
       if (answer.type === 'error') {

@@ -4,7 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { BandBitmaps } from './index.js';
+import type { Tx } from '@kf/database';
 import { RetrievalClient, type RetrievalOutcome } from './client.js';
+import { SemanticRetrieval, type TransactionRunner } from './engine.js';
 import { BANDS, type Band } from './protocol.js';
 
 /**
@@ -223,6 +225,55 @@ describe.runIf(ENGINE_BIN !== '')('the retrieval client against the real engine'
       status: 'unavailable',
       rebuildBands: true,
     });
+  });
+
+  it('finds a record whose vector lands after its band version moved', async () => {
+    // The act that records LATE moves the band version in its own transaction; the worker's pump
+    // writes LATE's vector afterwards, and nothing moves the band version again.
+    const late = { id: '01a00000-0000-7000-8000-000000000007', band: 'public' as const };
+    const bandOfNow = (id: string): Band | undefined => (id === late.id ? late.band : bandOf(id));
+    const run: TransactionRunner = (fn) =>
+      fn({
+        query: async (sql: string, params: readonly unknown[]) => {
+          if (sql.includes('retrieval.band-version')) return [{ epoch: 'e2', version: '1' }];
+          if (sql.includes('retrieval.slot-bands')) {
+            return (params[1] as string[]).map((id, index) => ({
+              slot: index + 1,
+              classification: bandOfNow(id) ?? null,
+            }));
+          }
+          return [];
+        },
+      } as unknown as Tx);
+    const semantic = new SemanticRetrieval(client);
+    const ask = () =>
+      semantic.rank(run, {
+        organizationId: ORG,
+        clearance: 'restricted',
+        coverage: {
+          organizationWide: [
+            {
+              source: 'test',
+              sourceId: 'org',
+              scopeObjectId: 'org',
+              classificationCeiling: null,
+              reason: 'test',
+            },
+          ],
+          byObject: new Map(),
+        },
+        query: QUERY,
+        k: 100,
+      });
+
+    expect(hitIds(await ask())).not.toContain(late.id);
+    const written = await client.writeVector({
+      organizationId: ORG,
+      objectId: late.id,
+      text: `${QUERY} late`,
+    });
+    expect(written).toMatchObject({ ok: true });
+    expect(hitIds(await ask()), 'the new slot must not stay padded closed').toContain(late.id);
   });
 
   it('keeps no record text even in the decrypted store, and the audit can see what is there', () => {
