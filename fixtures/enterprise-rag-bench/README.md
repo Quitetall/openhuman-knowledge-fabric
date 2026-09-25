@@ -43,7 +43,12 @@ both answer to the `doc_id`. 50 001 documents:
 | jira         |        677 | confidential 447, internal 230                                     |
 | **all**      | **50 001** | internal 32 262, confidential 14 182, restricted 3 408, public 149 |
 
-and 35 762 need-to-know grants (`overlay/stats.json`). `--full` loads every document
+and 35 762 need-to-know grants (`overlay/stats.json`). Loaded on the workstation (2026-09-25):
+49 973 documents and 35 744 grants; KF's content rules refused 25 (Slack and mail with numbers
+shaped like US social-security numbers, rule `us-ssn` — counted, not failures), and 3 Slack
+threads containing NUL characters fail with a 500 (the parse preimage is not valid JSON for
+PostgreSQL). About 1 h 45 min at `--jobs 6` on a loaded box; `--resume` ingests only what the ids
+file does not yet record. `--full` loads every document
 (`extract.py --full` first, which writes `manifest-full.jsonl`); it has not been run.
 
 Each document is one artifact (`text/markdown`, the corpus's content byte for byte; Slack and mail

@@ -362,10 +362,11 @@ export async function reindex(state, objectIds) {
 }
 
 export function parseLoadArgs(argv, usage, { defaultJobs = 4 } = {}) {
-  const out = { sample: false, full: false, jobs: defaultJobs, corpus: undefined };
+  const out = { sample: false, full: false, resume: false, jobs: defaultJobs, corpus: undefined };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--sample') out.sample = true;
+    else if (a === '--resume') out.resume = true;
     else if (a === '--full') out.full = true;
     else if (a === '--corpus') out.corpus = argv[++i];
     else if (a === '--jobs') out.jobs = Number(argv[++i]);
@@ -513,8 +514,23 @@ async function ingestDocuments(fixture, opts, office, ids, tally) {
   // ingested at once can outwait the lock budget and the API answers 500. What failed in the
   // parallel pass is tried once more, one at a time (a replay costs nothing), and only what
   // fails twice is reported.
+  // --resume: a large load that stopped part-way need not replay what the ids file already
+  // records (a replay re-sends and re-parses the file); only the rest is ingested. A run without
+  // it replays everything, which is the no-op proof.
+  const recorded = (doc) => {
+    const entry = ids.documents[doc.key];
+    return (
+      entry?.artifactId !== undefined &&
+      (doc.derived === undefined || entry.textArtifactId !== undefined)
+    );
+  };
+  const todo = opts.resume ? fixture.documents.filter((doc) => !recorded(doc)) : fixture.documents;
+  if (opts.resume)
+    log(
+      `  --resume: ${fixture.documents.length - todo.length} already recorded, ${todo.length} to go`,
+    );
   let refused = await pass(
-    fixture.documents.map((doc) => ({ doc, textOnly: false })),
+    todo.map((doc) => ({ doc, textOnly: false })),
     opts.jobs,
   );
   if (refused.length > 0) {

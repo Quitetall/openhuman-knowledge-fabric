@@ -82,7 +82,7 @@ function checkGrants(f: Fixture): void {
       expect(RANK[d.classification]! > RANK[p!.ceiling]!, `${d.key} → ${reader}`).toBe(true);
     }
     expect(d.reason.length).toBeLessThanOrEqual(2000);
-    expect(d.title.length).toBeLessThanOrEqual(512);
+    expect(d.title.length).toBeLessThanOrEqual(240);
     expect(existsSync(d.file), `${d.key} ${d.file}`).toBe(true);
     if (d.derived !== undefined) expect(existsSync(d.derived.file), d.derived.file).toBe(true);
   }

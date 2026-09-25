@@ -5,6 +5,17 @@
 import path from 'node:path';
 
 /**
+ * KF's object title limit (core.object: 1 to 240 characters). The ingest route accepts a title up
+ * to 512 and answers the rest with a 500; a longer title is cut here, keeping `suffix` whole.
+ */
+export const TITLE_MAX = 240;
+export function fitTitle(title, suffix = '') {
+  const room = TITLE_MAX - suffix.length;
+  const head = title.trim();
+  return (head.length <= room ? head : `${head.slice(0, room - 1).trimEnd()}…`) + suffix;
+}
+
+/**
  * `row` is a manifest file entry; `root` the directory its `path` is relative to; `dataDir`
  * the directory its `text.file` is relative to. `describe` gives the corpus's own wording.
  */
@@ -12,7 +23,7 @@ export function loadableFile(row, { root, dataDir, classification, readers, desc
   const d = describe(row);
   const loadable = {
     key: row.key,
-    title: d.title.slice(0, 512),
+    title: fitTitle(d.title),
     classification,
     artifactKind: d.artifactKind,
     mediaType: row.mediaType,
@@ -24,7 +35,7 @@ export function loadableFile(row, { root, dataDir, classification, readers, desc
   };
   if (row.text !== null && row.text !== undefined) {
     loadable.derived = {
-      title: `${d.title.slice(0, 480)} — extracted text`,
+      title: fitTitle(d.title, ' — extracted text'),
       mediaType: 'text/markdown',
       file: path.join(dataDir, row.text.file),
       sha256: row.text.sha256,

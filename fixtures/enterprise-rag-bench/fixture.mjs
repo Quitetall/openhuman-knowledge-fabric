@@ -5,6 +5,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fitTitle } from '../lib/file-corpus.mjs';
 import { readJson, readJsonLines } from '../lib/loader.mjs';
 import {
   ARTIFACT_KINDS,
@@ -60,7 +61,7 @@ export async function documentsIn(dir, people, manifest = 'manifest.jsonl') {
 /** The loader's view of one document. */
 export function toLoadable(doc) {
   const source = SOURCE_LABEL[doc.source_type] ?? doc.source_type;
-  const title = `${doc.title} — ${source}`.slice(0, 512);
+  const title = fitTitle(doc.title, ` — ${source}`);
   return {
     key: doc.key,
     title,

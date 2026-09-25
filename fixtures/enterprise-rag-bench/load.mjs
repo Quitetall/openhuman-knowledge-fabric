@@ -17,7 +17,7 @@ import { fixture } from './fixture.mjs';
 
 const opts = parseLoadArgs(
   process.argv.slice(2),
-  'usage: pnpm fixture enterprise-rag-bench [--sample | --full] [--corpus <dir>] [--jobs <n>]',
+  'usage: pnpm fixture enterprise-rag-bench [--sample | --full] [--resume] [--corpus <dir>] [--jobs <n>]',
   { defaultJobs: 6 },
 );
 const f = await fixture({
