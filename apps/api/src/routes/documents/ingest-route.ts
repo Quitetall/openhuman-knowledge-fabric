@@ -8,7 +8,8 @@
  * act and the audit entry are indistinguishable from a CLI ingest. Nothing here reaches past
  * the dispatcher.
  *
- * One file per request, inline as base64, up to the same limit the document import allows.
+ * One file per request, inline as base64, up to the size its bytes can be downloaded back at
+ * (`INGEST_MAX_SOURCE_BYTES`).
  * The classification is the record's own and is refused above the session's ceiling by the
  * insert policy, exactly as everywhere else.
  */
@@ -28,7 +29,11 @@ import {
 import { deniedPathRule, formatContentRefusal, scanContent } from '../../ingest/content-policy.js';
 import { refuseUnidentified } from '../actions.js';
 import { documentParseRefusalBody } from '../actions/errors.js';
-import { DOCUMENT_IMPORT_BODY_LIMIT_BYTES, type DocumentRoutesOptions } from './contracts.js';
+import {
+  INGEST_BODY_LIMIT_BYTES,
+  INGEST_MAX_SOURCE_BYTES,
+  type DocumentRoutesOptions,
+} from './contracts.js';
 
 export interface IngestBody {
   readonly title?: unknown;
@@ -39,6 +44,8 @@ export interface IngestBody {
   readonly revisionLabel?: unknown;
   readonly reason?: unknown;
   readonly idempotencyKey?: unknown;
+  /** The artifact this file was made from (a text extraction, a rendition); see attach_evidence. */
+  readonly derivedFrom?: unknown;
 }
 
 const ARTIFACT_KINDS = new Set([
@@ -67,6 +74,7 @@ interface ParsedIngest {
   readonly revisionLabel?: string;
   readonly reason?: string;
   readonly idempotencyKey?: string;
+  readonly derivedFrom?: string;
 }
 
 const CLASSIFICATION_RANK: Readonly<Record<string, number>> = {
@@ -88,6 +96,15 @@ function text(value: unknown, field: string, max = 512): string {
   return value.trim();
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function uuid(value: unknown, field: string): string {
+  if (typeof value !== 'string' || !UUID.test(value)) {
+    throw new TypeError(`${field} must be the uuid of an artifact`);
+  }
+  return value.toLowerCase();
+}
+
 export function parseIngest(body: IngestBody): ParsedIngest {
   const title = text(body.title, 'title');
   const artifactKind = text(body.artifactKind, 'artifactKind', 64);
@@ -101,6 +118,11 @@ export function parseIngest(body: IngestBody): ParsedIngest {
   }
   const bytes = Buffer.from(body.contentBase64, 'base64');
   if (bytes.length === 0) throw new TypeError('contentBase64 decodes to nothing');
+  if (bytes.length > INGEST_MAX_SOURCE_BYTES) {
+    throw new TypeError(
+      `the file is ${String(bytes.length)} bytes; ingest takes at most ${String(INGEST_MAX_SOURCE_BYTES)}, the size a source can be downloaded back at`,
+    );
+  }
   if (bytes.toString('base64').replace(/=+$/, '') !== body.contentBase64.replace(/=+$/, '')) {
     throw new TypeError('contentBase64 is not valid base64');
   }
@@ -118,6 +140,9 @@ export function parseIngest(body: IngestBody): ParsedIngest {
     ...(body.idempotencyKey === undefined
       ? {}
       : { idempotencyKey: text(body.idempotencyKey, 'idempotencyKey', 200) }),
+    ...(body.derivedFrom === undefined
+      ? {}
+      : { derivedFrom: uuid(body.derivedFrom, 'derivedFrom') }),
   };
   return out;
 }
@@ -125,7 +150,7 @@ export function parseIngest(body: IngestBody): ParsedIngest {
 export function registerIngestRoute(app: FastifyInstance, options: DocumentRoutesOptions): void {
   app.post<{ Body: IngestBody }>(
     '/ingest',
-    { bodyLimit: DOCUMENT_IMPORT_BODY_LIMIT_BYTES },
+    { bodyLimit: INGEST_BODY_LIMIT_BYTES },
     async (request, reply) => {
       let identity;
       try {
@@ -227,6 +252,7 @@ export function registerIngestRoute(app: FastifyInstance, options: DocumentRoute
           media_type: source.mediaType,
           storage_uri: storageKey,
           ...(source.revisionLabel === undefined ? {} : { revision_label: source.revisionLabel }),
+          ...(source.derivedFrom === undefined ? {} : { derived_from: source.derivedFrom }),
         };
         const idempotencyKey =
           source.idempotencyKey ??

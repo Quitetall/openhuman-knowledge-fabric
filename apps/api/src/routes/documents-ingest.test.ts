@@ -6,7 +6,12 @@ import { digestBytes } from '@kf/canonicalization';
 import type { Pool } from '@kf/database';
 import { DocumentParseRefused } from '@kf/documents';
 import { registerIngestRoute } from './documents/ingest-route.js';
-import type { DocumentRoutesOptions } from './documents/contracts.js';
+import {
+  DEFAULT_DOCUMENT_SOURCE_DOWNLOAD_MAX_BYTES,
+  INGEST_BODY_LIMIT_BYTES,
+  INGEST_MAX_SOURCE_BYTES,
+  type DocumentRoutesOptions,
+} from './documents/contracts.js';
 
 /**
  * `POST /ingest` is the CLI's copy path as a request a session can make: the bytes land
@@ -264,5 +269,79 @@ describe('POST /ingest', () => {
     });
     expect(dotenv.statusCode).toBe(422);
     expect(dotenv.json()).toMatchObject({ error: 'content_refused', detail: { rule: 'dotfile' } });
+  });
+
+  it('carries derivedFrom into the act as derived_from, and refuses one that is not a uuid', async () => {
+    const store = new InMemoryObjectStore();
+    const execute = vi.fn(async () => ({
+      actionId: 'a2',
+      status: 'applied' as const,
+      replayed: false,
+      objectIds: ['artifact-2'],
+      auditDigest: 'd2',
+    }));
+    const app = Fastify({ logger: false });
+    registerIngestRoute(
+      app,
+      options(store, execute as DocumentRoutesOptions['executeInTransaction']),
+    );
+    const source = '01a0d662-55a3-7e90-be92-da9ffd827a4f';
+    const response = await app.inject({
+      method: 'POST',
+      url: '/ingest',
+      payload: { ...VALID, derivedFrom: source.toUpperCase() },
+    });
+    expect(response.statusCode, response.body).toBe(201);
+    const request = (execute.mock.calls[0] as unknown[])[1] as Record<string, unknown>;
+    expect((request['payload'] as Record<string, unknown>)['derived_from']).toBe(source);
+
+    const refused = await app.inject({
+      method: 'POST',
+      url: '/ingest',
+      payload: { ...VALID, derivedFrom: 'the pdf' },
+    });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json()).toMatchObject({ error: 'invalid_ingest' });
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  it('takes a file up to the size it can be downloaded back at, and refuses one past it', async () => {
+    // A scanned 15 MB PDF is ordinary; the 16 MiB JSON body limit this route used to share with
+    // the import refused every file over ~12 MB before it reached the route at all.
+    expect(INGEST_MAX_SOURCE_BYTES).toBe(DEFAULT_DOCUMENT_SOURCE_DOWNLOAD_MAX_BYTES);
+    expect(INGEST_BODY_LIMIT_BYTES).toBeGreaterThan(Math.ceil(INGEST_MAX_SOURCE_BYTES / 3) * 4);
+    const store = new InMemoryObjectStore();
+    const execute = vi.fn(async () => ({
+      actionId: 'a3',
+      status: 'applied' as const,
+      replayed: false,
+      objectIds: ['artifact-3'],
+      auditDigest: 'd3',
+    }));
+    const app = Fastify({ logger: false });
+    registerIngestRoute(
+      app,
+      options(store, execute as DocumentRoutesOptions['executeInTransaction']),
+    );
+    const large = Buffer.alloc(15 * 1024 * 1024, 0x20);
+    const accepted = await app.inject({
+      method: 'POST',
+      url: '/ingest',
+      payload: { ...VALID, mediaType: 'application/pdf', contentBase64: large.toString('base64') },
+    });
+    expect(accepted.statusCode, accepted.body.slice(0, 200)).toBe(201);
+    const tooLarge = Buffer.alloc(INGEST_MAX_SOURCE_BYTES + 1, 0x20);
+    const refused = await app.inject({
+      method: 'POST',
+      url: '/ingest',
+      payload: {
+        ...VALID,
+        mediaType: 'application/pdf',
+        contentBase64: tooLarge.toString('base64'),
+      },
+    });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json()).toMatchObject({ error: 'invalid_ingest' });
+    expect(execute).toHaveBeenCalledTimes(1);
   });
 });

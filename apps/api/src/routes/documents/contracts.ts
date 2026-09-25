@@ -10,6 +10,14 @@ import type { ReadAgentContext } from './agent-context.js';
 export const DOCUMENT_IMPORT_BODY_LIMIT_BYTES = 16 * 1024 * 1024;
 export const DEFAULT_DOCUMENT_SOURCE_DOWNLOAD_MAX_BYTES = 20 * 1024 * 1024;
 export const DEFAULT_DOCUMENT_PROJECTION_DOWNLOAD_MAX_BYTES = 50 * 1024 * 1024;
+/**
+ * `POST /ingest` takes a file up to the size its bytes can be downloaded back at, base64-encoded
+ * in JSON. It shared the import's 16 MiB body limit until 2026-09-24, which refused every file
+ * over about 12 MB of bytes: 17 of the 1 004 PDFs of the first corpus-sized fixture (scanned
+ * documents, 12-15 MB each) could not be ingested at all.
+ */
+export const INGEST_MAX_SOURCE_BYTES = DEFAULT_DOCUMENT_SOURCE_DOWNLOAD_MAX_BYTES;
+export const INGEST_BODY_LIMIT_BYTES = Math.ceil(INGEST_MAX_SOURCE_BYTES / 3) * 4 + 64 * 1024;
 export const IMPORT_CLASSIFICATION = 'internal';
 
 export interface DocumentImportBody {
