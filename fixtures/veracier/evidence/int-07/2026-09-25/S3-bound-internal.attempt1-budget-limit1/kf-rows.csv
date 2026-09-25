@@ -1,0 +1,8 @@
+# window: 2026-09-25 20:52:59.613062+00 .. 2026-09-25 20:53:09.540632+00
+## search.context_disclosure
+id,recorded_at,operation,refusal,object_id,object_classification,revision,text_digest,references_digest,reference_count,omitted_count,agent_participation,asker_rank,asker_key,corpus_digest,expires_at
+01a0da57-db29-7808-94bf-ba56aea995c9,2026-09-25 20:53:05.89631+00,retrieve,,,,,,b197cc08800086d31716dc0fa53244b8c4be460e85d90c541af80fa0263cb998,1,0,,1,45a5eac018b604dac532f31fd5984864ce1181dfa4229c8f0b7cd1dc6fe2f1f6,e016ef31f2cc06b80fc1e8e99c35aa3eb5f97a3a6680fa3023ac69a1da2dcbb7,2026-12-24 20:53:05.89631+00
+01a0da57-e319-7af6-99dd-210fb47e239d,2026-09-25 20:53:07.929588+00,read,,01a0d688-019a-7cf0-80b7-4fd1f00d2b13,internal,83802af06e9a7836869a418107de4305bd89ce31e2a63e35d4c90e2f6e6d9d9b,21463fb62a03e1901e772ec77f87b6cfc7195be46fadc6d4053cdc5b07f2d78a,,,,,1,45a5eac018b604dac532f31fd5984864ce1181dfa4229c8f0b7cd1dc6fe2f1f6,e016ef31f2cc06b80fc1e8e99c35aa3eb5f97a3a6680fa3023ac69a1da2dcbb7,2026-12-24 20:53:07.929588+00
+## search.recorded_query (ids only; query_text deliberately not selected)
+id,recorded_at,asker_ceiling,asker_rank,asker_key,expires_at
+01a0da57-d559-79b0-82a7-f23f6b387b43,2026-09-25 20:53:04.438283+00,internal,1,45a5eac018b604dac532f31fd5984864ce1181dfa4229c8f0b7cd1dc6fe2f1f6,2026-12-24 20:53:04.438283+00

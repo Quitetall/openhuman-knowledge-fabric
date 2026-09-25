@@ -1,0 +1,4 @@
+id,principal_id,granted_at,revoked_at,reason
+01a0d68b-92d5-70b6-acbd-ebfdaf6de0a2,01a0d684-b777-7d66-bc8a-3f4131d63408,2026-09-25 03:11:06.445395+00,,Need-to-know matrix VER-GOV-RIM-001: Directeur de la sécurit
+01a0d68b-92dd-7fed-b35f-26a391dcea44,01a0d684-d6cf-7708-a410-8ac13e07dfca,2026-09-25 03:11:06.454907+00,,Need-to-know matrix VER-GOV-RIM-001: Directeur commercial Gr
+01a0da5d-9347-7ad7-b908-ec35944a2592,01a0d684-c375-7c90-b7f3-5fecec3edad2,2026-09-25 20:59:20.759692+00,2026-09-25 20:59:29.847918+00,INT-07 S5: a need-to-know grant added to a record while a LA

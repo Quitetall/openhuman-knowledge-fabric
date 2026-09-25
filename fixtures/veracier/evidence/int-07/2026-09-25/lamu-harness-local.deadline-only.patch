@@ -1,0 +1,13 @@
+diff --git a/lamu-rs/scripts/context-proof/kf_source.py b/lamu-rs/scripts/context-proof/kf_source.py
+index 51c364b..2e8dabe 100644
+--- a/lamu-rs/scripts/context-proof/kf_source.py
++++ b/lamu-rs/scripts/context-proof/kf_source.py
+@@ -156,7 +156,7 @@ def main():
+         api, base = start_api("api")
+         status, info, _, _ = call(base, "info")
+         assert status == 200, info
+-        deadline = int(time.time() * 1000) + 900_000
++        deadline = int(time.time() * 1000) + 280_000
+         status, control, _, _ = call(base, "controls", {"deadline_unix_ms": deadline})
+         assert status == 200, control
+ 

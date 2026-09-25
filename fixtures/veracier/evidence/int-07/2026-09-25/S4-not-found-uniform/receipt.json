@@ -1,0 +1,61 @@
+{
+  "schema": "int07.s4-forged-read/v1",
+  "lamu_source_commit": "e256e59a6c77b94968576ae5a614599722c45bc5",
+  "binary_sha256": "5f92c0c121d7b483f2cd9577ef8fd28e635e109358e3ce718ffb3d7693ffd7e3",
+  "backend_sha256": "dc62c844a61abee62abc75ae7237adb0b34b1215c95614de00adcd7765b2139a",
+  "kf": {
+    "url": "http://127.0.0.1:4100",
+    "organization": "01a0d684-9975-7ea6-8f8b-27942a7289bc",
+    "acting_role": "01a0d685-1cd0-78d3-9f39-9b013606056a",
+    "classification": "internal"
+  },
+  "expect": "source_unavailable",
+  "acceptance": "pending (owner or independent reviewer)",
+  "reads": [
+    {
+      "label": "control-record (restricted, above pauline)",
+      "record": "01a0d688-50cb-7e2c-8958-72259f96e25a",
+      "compile_status": 503,
+      "refusal": "source_unavailable",
+      "response_sha256": "f1044887792dcd93935fc73f4b594d9923fcf39d69501c77065b1a571bd5fb0d",
+      "response": {
+        "code": "source_unavailable",
+        "lamu_error": {
+          "action": "retry",
+          "code": "source_unavailable",
+          "message": "",
+          "retryable": true,
+          "schema": "lamu.error/v1"
+        },
+        "operation_id": "s4-forged-0",
+        "status": "refused"
+      },
+      "shape_sha256": "f965027b5613f93700ec78f01f6fe8304a26bca61f27b685cc584f28c65ad0ec"
+    },
+    {
+      "label": "random-uuid (never existed)",
+      "record": "25a998b1-c9a9-44d5-9d23-321e79e2e26e",
+      "compile_status": 503,
+      "refusal": "source_unavailable",
+      "response_sha256": "50acd19f4e30a1ec40d16e04627cdfa4d9237fbb74b49d98ee733b748af2d275",
+      "response": {
+        "code": "source_unavailable",
+        "lamu_error": {
+          "action": "retry",
+          "code": "source_unavailable",
+          "message": "",
+          "retryable": true,
+          "schema": "lamu.error/v1"
+        },
+        "operation_id": "s4-forged-1",
+        "status": "refused"
+      },
+      "shape_sha256": "f965027b5613f93700ec78f01f6fe8304a26bca61f27b685cc584f28c65ad0ec"
+    }
+  ],
+  "checks": {
+    "every_forged_read_refused_as_expected": true,
+    "refusals_indistinguishable_in_lamu": true
+  },
+  "status": "pass"
+}

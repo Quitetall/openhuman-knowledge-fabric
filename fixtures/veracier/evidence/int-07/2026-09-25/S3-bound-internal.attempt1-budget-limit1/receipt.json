@@ -1,0 +1,39 @@
+{
+  "schema": "lamu.kf-source-proof/v1",
+  "source_commit": "e256e59a6c77b94968576ae5a614599722c45bc5",
+  "working_diff_sha256": "8c748439da904e23555c62fdb5131ebd404701af78dd23157ab53c75efd7d616",
+  "binary_sha256": "5f92c0c121d7b483f2cd9577ef8fd28e635e109358e3ce718ffb3d7693ffd7e3",
+  "backend_sha256": "dc62c844a61abee62abc75ae7237adb0b34b1215c95614de00adcd7765b2139a",
+  "harness_hashes": {
+    "lamu-rs/scripts/context-proof/kf_source.py": "299134ff706b9a04eb214dea7ffd58fd023b953556b5f2d25e605fbd6c36a23d",
+    "lamu-rs/scripts/context-proof/run.py": "5733d41f3173b68e96141177f4a70e5f0099dc3448edd14666cbe15a9cfa64a4"
+  },
+  "kf": {
+    "url": "http://127.0.0.1:4100",
+    "organization": "01a0d684-9975-7ea6-8f8b-27942a7289bc",
+    "acting_role": "01a0d685-1cd0-78d3-9f39-9b013606056a",
+    "classification": "internal"
+  },
+  "query_sha256": "435e7b249eda9fbf73665cda567ed3232bc47ddf043316d93f01acba75926a18",
+  "expect": "ok",
+  "quality_claim": false,
+  "acceptance": "pending (owner or independent reviewer)",
+  "observations": {
+    "before_sources_exit": 0,
+    "sources": {
+      "status": 200,
+      "count": 1,
+      "refusal": null
+    },
+    "compile": {
+      "status": 422,
+      "refusal": "insufficient_budget"
+    }
+  },
+  "checks": {
+    "forbidden_refs_not_retrieved": true
+  },
+  "status": "fail",
+  "failure_type": "AssertionError",
+  "failure_detail": "{'status': 422, 'refusal': 'insufficient_budget'}"
+}

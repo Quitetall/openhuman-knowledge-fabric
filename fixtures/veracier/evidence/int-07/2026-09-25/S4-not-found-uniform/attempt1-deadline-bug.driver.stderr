@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/mnt/4tb/kf-wt-context/fixtures/veracier/evidence/int-07/2026-09-25/scripts/s4_forged_read.py", line 75, in <module>
+    assert status == 200, control
+           ^^^^^^^^^^^^^
+AssertionError: {'code': 'invalid_request', 'lamu_error': {'action': 'fix_request', 'code': 'invalid_request', 'message': '', 'retryable': False, 'schema': 'lamu.error/v1'}, 'operation_id': '', 'status': 'refused'}
