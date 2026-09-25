@@ -239,6 +239,24 @@ Sign in at <http://localhost:3100>; the personas' passwords are in one owner-onl
 `~/.config/kf/veracier-personas.txt`. Loading twice is a no-op. The corpus itself is not in the
 repository; the fixture's README says where it is expected and what is committed.
 
+## Several companies, one stack: the multi-organization fixture
+
+[`fixtures/multi/`](../../fixtures/multi/README.md) loads every fixture corpus into one stack, each
+fictional company as its own KF organization: Véracier, Redwood Inference
+([EnterpriseRAG-Bench](../../fixtures/enterprise-rag-bench/README.md), MIT), The Agent Company
+([TheAgentCompany](../../fixtures/theagentcompany/README.md), MIT) and three
+[DRBench](../../fixtures/drbench/README.md) companies (Apache-2.0). It is the Véracier stack script
+under the compose project `kf-multi` (web 3200, API 4200, Keycloak 18180):
+
+```sh
+fixtures/multi/stack.sh up
+fixtures/multi/stack.sh load --sample   # every corpus's committed sample; `load` for all of it
+```
+
+`pnpm fixture <corpus> [--sample]` loads one corpus. `tests/deployment/multi-org-isolation.test.ts`
+(`KF_MULTI_LIVE=1`) proves that no organization's people can search, read, count or act on
+another's records.
+
 ## Verification
 
 `pnpm gate` runs all of it in CI's order, fail-fast, and is the only list that cannot go

@@ -1,0 +1,56 @@
+{
+  "tasks": 101,
+  "files": 1957,
+  "missing_from_dataset": [
+    "drbench/data/tasks/DR0029/files/DI0011/roundcube_email_20251119_004913.jsonl",
+    "drbench/data/tasks/DR0038/files/DI0006/PR-engagements-overview.docx"
+  ],
+  "by_company": {
+    "Elexion Automotive": 592,
+    "Lee's Market": 621,
+    "MediConn Solutions": 744
+  },
+  "by_format": {
+    "docx": 548,
+    "jsonl": 312,
+    "pdf": 572,
+    "pptx": 287,
+    "xlsx": 238
+  },
+  "by_classification": {
+    "confidential": 576,
+    "internal": 1357,
+    "public": 6,
+    "restricted": 18
+  },
+  "by_company_and_classification": {
+    "Elexion Automotive confidential": 150,
+    "Elexion Automotive internal": 439,
+    "Elexion Automotive restricted": 3,
+    "Lee's Market confidential": 170,
+    "Lee's Market internal": 444,
+    "Lee's Market public": 5,
+    "Lee's Market restricted": 2,
+    "MediConn Solutions confidential": 256,
+    "MediConn Solutions internal": 474,
+    "MediConn Solutions public": 1,
+    "MediConn Solutions restricted": 13
+  },
+  "by_qa_type": {
+    "distractor": 1388,
+    "insight": 569
+  },
+  "by_method": {
+    "jsonl:markdown": 312,
+    "libreoffice:xlsx+pandoc": 238,
+    "pandoc:pptx": 287,
+    "parsed by KF": 548,
+    "pdftotext": 572
+  },
+  "grants": 454,
+  "people": {
+    "Lee's Market": 17,
+    "MediConn Solutions": 16,
+    "Elexion Automotive": 12
+  }
+}

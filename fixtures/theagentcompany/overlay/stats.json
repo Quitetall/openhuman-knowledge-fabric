@@ -1,0 +1,36 @@
+{
+  "files": 640,
+  "skipped": 42,
+  "by_format": {
+    "csv": 12,
+    "docx": 4,
+    "jpeg": 2,
+    "jpg": 4,
+    "md": 4,
+    "ods": 1,
+    "odt": 7,
+    "pdf": 547,
+    "png": 2,
+    "txt": 15,
+    "xlsx": 42
+  },
+  "by_classification": {
+    "confidential": 532,
+    "internal": 60,
+    "public": 26,
+    "restricted": 22
+  },
+  "by_method": {
+    "libreoffice:xlsx+pandoc": 1,
+    "ocr": 2,
+    "ocr:image(normalized)": 1,
+    "ocr:image": 7,
+    "pandoc:csv": 12,
+    "pandoc:xlsx": 42,
+    "parsed by KF": 30,
+    "pdftotext": 545
+  },
+  "derived_texts": 610,
+  "grants": 37,
+  "people": 17
+}

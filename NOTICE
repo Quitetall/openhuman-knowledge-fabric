@@ -11,3 +11,14 @@ Attribution belongs here; documentation does not.
 fixtures/veracier contains data derived from EDiTh — Enterprise Digital Twin
 Benchmark (Adèle Guignochau and Igor Carron, LightOn, 2026), released under the
 Apache License, Version 2.0: https://huggingface.co/datasets/lightonai/edith
+
+fixtures/enterprise-rag-bench contains data from EnterpriseRAG-Bench (Onyx /
+DanswerAI, Inc., 2026), released under the MIT License (fixtures/enterprise-rag-bench/LICENSE-DATA):
+https://huggingface.co/datasets/onyx-dot-app/EnterpriseRAG-Bench
+
+fixtures/drbench contains data from DRBench (ServiceNow, 2025), released under
+the Apache License, Version 2.0: https://huggingface.co/datasets/ServiceNow/drbench
+
+fixtures/theagentcompany contains data from TheAgentCompany (2024), released
+under the MIT License (fixtures/theagentcompany/LICENSE-DATA):
+https://github.com/TheAgentCompany/TheAgentCompany

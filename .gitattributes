@@ -1,0 +1,3 @@
+# The fixture corpora's samples are the corpora's own bytes, checked byte for byte against a
+# regeneration (`generate-overlay.mjs --check`); no end-of-line conversion may touch them.
+fixtures/*/sample/** -text
