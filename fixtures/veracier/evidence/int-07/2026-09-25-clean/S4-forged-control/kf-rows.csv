@@ -1,0 +1,6 @@
+# window: 2026-09-25 22:39:18.404841+00 .. 2026-09-25 22:39:33.364928+00
+## search.context_disclosure
+id,recorded_at,operation,refusal,object_id,object_classification,revision,text_digest,references_digest,reference_count,omitted_count,agent_participation,asker_rank,asker_key,corpus_digest,expires_at
+01a0dab9-51bc-7f69-b905-5950359e3fe6,2026-09-25 22:39:33.296061+00,read,KF-CTX-001,,,,,,,,,1,45a5eac018b604dac532f31fd5984864ce1181dfa4229c8f0b7cd1dc6fe2f1f6,,2026-12-24 22:39:33.296061+00
+## search.recorded_query (ids only; query_text deliberately not selected)
+id,recorded_at,asker_ceiling,asker_rank,asker_key,expires_at

@@ -1,0 +1,51 @@
+{
+  "schema": "lamu.kf-source-proof/v1",
+  "source_commit": "75fc86d4af0bd868ec3260ea50d0ccf354a93453",
+  "working_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "binary_sha256": "06c9553573486f14171fa718f5b239554d2f4c18f71cff517cbdd71917c496d1",
+  "backend_sha256": "dc62c844a61abee62abc75ae7237adb0b34b1215c95614de00adcd7765b2139a",
+  "harness_hashes": {
+    "lamu-rs/scripts/context-proof/kf_source.py": "7242b86e5e153349215de88a7efd560f8eb01f42746fe5a40ae73baf826dfdd6",
+    "lamu-rs/scripts/context-proof/run.py": "5733d41f3173b68e96141177f4a70e5f0099dc3448edd14666cbe15a9cfa64a4"
+  },
+  "kf": {
+    "url": "http://127.0.0.1:4100",
+    "organization": "01a0d684-9975-7ea6-8f8b-27942a7289bc",
+    "acting_role": "01a0d685-127e-7eea-8a88-344340d51f03",
+    "classification": "restricted"
+  },
+  "query_sha256": "036bb178aaa52b5a6786e2b7d41f35f7a4fe3d463bd1c59aa19693c6112acfb9",
+  "expect": "ok",
+  "quality_claim": false,
+  "acceptance": "pending (owner or independent reviewer)",
+  "observations": {
+    "before_sources_exit": 0,
+    "sources": {
+      "status": 200,
+      "count": 1,
+      "refusal": null
+    },
+    "retrieved_refs": [
+      {
+        "adapter": "knowledge-fabric",
+        "record": "01a0d688-50cb-7e2c-8958-72259f96e25a",
+        "revision": "646b94a1952f8949f3719f9096faecebc67b129c842be58418ca63587ce68bf0",
+        "digest": "7e30d290dd03ce42b9f43427d5cb14723d3a50244b2fd1fc2c501c235675c45c"
+      }
+    ],
+    "compile": {
+      "status": 200,
+      "refusal": null
+    },
+    "paused_s": 1.0,
+    "execute": {
+      "status": 200,
+      "outcome": "ok"
+    }
+  },
+  "checks": {
+    "expected_outcome": true,
+    "source_stable": true
+  },
+  "status": "pass"
+}

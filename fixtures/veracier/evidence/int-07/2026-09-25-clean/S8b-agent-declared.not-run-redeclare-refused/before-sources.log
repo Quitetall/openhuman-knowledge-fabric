@@ -1,0 +1,2 @@
+2026-09-25T22:43:04.366Z POST /master-record/compile -> HTTP 401
+{"error":"undeclared_agent","message":"the token names an agent client that is not declared to act for people here"}

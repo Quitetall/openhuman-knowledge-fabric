@@ -1,0 +1,12 @@
+HTTP/1.1 404 Not Found
+content-type: application/json; charset=utf-8
+x-request-id: fae52869-f73d-4e17-840d-1ce618f1b118
+x-content-type-options: nosniff
+x-frame-options: DENY
+referrer-policy: no-referrer
+cache-control: no-store
+content-length: 41
+Date: Fri, 25 Sep 2026 22:39:45 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
