@@ -5,6 +5,8 @@
 #   fixtures/veracier/stack/stack.sh up       # dependencies, migrations, logins, realm, apps
 #   fixtures/veracier/stack/stack.sh load     # load the fixture (--sample: ~80 documents), restart
 #   fixtures/veracier/stack/stack.sh restart  # restart the applications (logins kept)
+#   fixtures/veracier/stack/stack.sh retrieval  # start only the embedding server and engine
+#   fixtures/veracier/stack/stack.sh reindex  # rebuild the search index, queue every record for embedding
 #   fixtures/veracier/stack/stack.sh down     # stop the apps and the containers (data kept)
 #   fixtures/veracier/stack/stack.sh status   # what is running, and where
 #   fixtures/veracier/stack/stack.sh reset    # down, then DELETE the fixture's volumes and state
@@ -22,6 +24,18 @@
 # search), and the web application as a production build (`next start`). Each holds exactly one
 # database login, created by `pnpm dogfood:logins`; none is handed the owner credential.
 #
+# Semantic ranking (on by default; KF_VERACIER_SEMANTIC=0 leaves search lexical): a loopback
+# embedding server (embed-server.py, BAAI/bge-m3 at a pinned revision, prepared once into
+# KF_VERACIER_EMBED_MODEL_DIR) and LAMU's retrieval engine (`lamu kf-retrieval serve`, from
+# KF_VERACIER_LAMU_BIN) on a Unix socket in the run directory. The engine's at-rest key is made by
+# `lamu kf-retrieval keygen` into $state/retrieval/kf-index.key (0600, never argv or env), and its
+# embedder identity is pinned on first start into $state/retrieval/embedder-pin, so a later start
+# against another embedder is refused rather than adopted. The API and the worker are given
+# KF_RETRIEVAL_SOCKET; the worker embeds each record it indexes through the engine's vectors-only
+# write. Both stay up across `restart` and `load`; `down` stops them. If either fails to come up,
+# the applications start WITHOUT KF_RETRIEVAL_SOCKET and say so: search is then lexical, and every
+# answer carries its `semantic_ranking_unavailable` entry, rather than the web app staying down.
+#
 # Loopback only. Keycloak runs `start-dev` and PostgreSQL and MinIO use the public development
 # credentials from docker-compose.yml; this is not a network service.
 
@@ -36,6 +50,17 @@ run="$state/run"
 export KF_VERACIER_WEB_PORT="${KF_VERACIER_WEB_PORT:-3100}"
 export KF_VERACIER_API_PORT="${KF_VERACIER_API_PORT:-4100}"
 keycloak_origin='http://localhost:18080'
+retrieval="$state/retrieval"
+semantic="${KF_VERACIER_SEMANTIC:-1}"
+# A `lamu` built with `kf-retrieval` (LAMU-WAR-0016): the one installed for this fixture, else PATH.
+lamu_default="$HOME/.local/libexec/kf-veracier/lamu"
+[ -x "$lamu_default" ] || lamu_default=lamu
+lamu_bin="${KF_VERACIER_LAMU_BIN:-$lamu_default}"
+# `embed-server.py prepare` writes this once from the Hub checkpoint (see that file).
+embed_model_dir="${KF_VERACIER_EMBED_MODEL_DIR:-$HOME/.local/share/kf-veracier/bge-m3-f16}"
+embed_port="${KF_VERACIER_EMBED_PORT:-8021}"
+embed_url="http://127.0.0.1:$embed_port"
+retrieval_socket="$run/retrieval.sock"
 realm='knowledge-fabric'
 web_origin="http://localhost:$KF_VERACIER_WEB_PORT"
 
@@ -96,7 +121,9 @@ start_process() { # start_process <name> <cwd> <command...>
   # A session of its own, whose leader writes its OWN pid before it execs: that pid is also the
   # process group, so `down` stops the process and anything it started (next start's server).
   # Recording `$!` instead recorded setsid's short-lived parent whenever setsid had to fork.
-  (cd "$cwd" && setsid bash -c 'echo $$ > "$0"; exec "$@"' "$run/$name.pid" "$@" \
+  # `exec`: without it the background subshell forks setsid and waits on it for the process's
+  # whole life, holding this script's stdout open, so `stack.sh up | tee` never finished.
+  (cd "$cwd" && exec setsid bash -c 'echo $$ > "$0"; exec "$@"' "$run/$name.pid" "$@" \
     >"$logs/$name.log" 2>&1 </dev/null &)
   local waited=0
   until [ -s "$run/$name.pid" ] || [ "$waited" -ge 50 ]; do
@@ -215,7 +242,68 @@ fixture_organization() {
     2>/dev/null || true
 }
 
+# The embedding server and the retrieval engine. Idempotent: what is running is left running.
+start_retrieval() {
+  semantic_ready=0
+  if [ "$semantic" != 1 ]; then
+    echo '== semantic ranking off (KF_VERACIER_SEMANTIC=0): search is lexical'
+    return 0
+  fi
+  echo '== semantic ranking (embedding server, retrieval engine)'
+  if ! "$lamu_bin" kf-retrieval --help >/dev/null 2>&1; then
+    echo "  $lamu_bin has no kf-retrieval command; set KF_VERACIER_LAMU_BIN" >&2
+    return 1
+  fi
+  if [ ! -f "$embed_model_dir/PROVENANCE.json" ]; then
+    echo "  no prepared bge-m3 in $embed_model_dir; run embed-server.py prepare (its header)" >&2
+    return 1
+  fi
+  install -d -m 0700 "$retrieval"
+  if [ ! -f "$retrieval/kf-index.key" ]; then
+    "$lamu_bin" kf-retrieval keygen --out "$retrieval/kf-index.key" 2>&1 | sed 's/^/  /'
+  fi
+  if ! pid_alive "$run/embed.pid" && ss -ltn "sport = :$embed_port" | grep -q LISTEN; then
+    echo "  port $embed_port is already in use by something this script did not start" >&2
+    return 1
+  fi
+  start_process embed "$here" python3 embed-server.py serve --model-dir "$embed_model_dir" \
+    --port "$embed_port"
+  wait_for 'embedding server' "${KF_VERACIER_EMBED_WAIT:-240}" curl -sf "$embed_url/health" ||
+    return 1
+  if [ ! -s "$retrieval/embedder-pin" ]; then
+    "$lamu_bin" kf-retrieval identity --embedder serve --serve-url "$embed_url" \
+      >"$retrieval/embedder-pin.tmp" || return 1
+    mv "$retrieval/embedder-pin.tmp" "$retrieval/embedder-pin"
+  fi
+  local pin
+  pin="$(cat "$retrieval/embedder-pin")"
+  # `nohup`: every `lamu` process asks for SIGTERM when its parent dies and exits when it is
+  # reparented (PR_SET_PDEATHSIG and an orphan watchdog, LAMU ADR 0004), and SIGHUP ignored is
+  # LAMU's declared marker for a detached service that must outlive whatever launched it.
+  start_process retrieval "$repo" nohup "$lamu_bin" kf-retrieval serve \
+    --socket "$retrieval_socket" \
+    --store "$retrieval/store" --key-file "$retrieval/kf-index.key" --embedder serve \
+    --serve-url "$embed_url" --pin-embedder "$pin" --socket-mode 600 --allow-uid "$(id -u)"
+  wait_for 'retrieval engine' 120 test -S "$retrieval_socket" || return 1
+  echo "  engine pinned to $pin"
+  semantic_ready=1
+}
+
+stop_retrieval() {
+  for name in retrieval embed; do
+    if pid_alive "$run/$name.pid"; then
+      kill -TERM -- "-$(cat "$run/$name.pid")" 2>/dev/null || kill -TERM "$(cat "$run/$name.pid")"
+      echo "  stopped $name"
+    fi
+    rm -f "$run/$name.pid"
+  done
+}
+
 start_apps() {
+  if ! start_retrieval; then
+    echo "  !! semantic ranking did NOT start (see $logs/embed.log, $logs/retrieval.log);" >&2
+    echo '  !! the applications start lexical-only' >&2
+  fi
   echo '== applications'
   for port in "$KF_VERACIER_API_PORT" "$KF_VERACIER_WEB_PORT"; do
     if ! pid_alive "$run/api.pid" && ss -ltn "sport = :$port" | grep -q LISTEN; then
@@ -224,6 +312,11 @@ start_apps() {
     fi
   done
   app_env
+  if [ "$semantic_ready" = 1 ]; then
+    export KF_RETRIEVAL_SOCKET="$retrieval_socket"
+  else
+    unset KF_RETRIEVAL_SOCKET
+  fi
   local files="$state/knowledge-fabric"
   local organization
   organization="$(fixture_organization)"
@@ -271,12 +364,13 @@ load() {
 
 down() {
   stop_apps
+  stop_retrieval
   if [ -f "$state/keycloak-admin-password" ]; then compose stop >/dev/null 2>&1 || true; fi
   echo '  containers stopped (volumes kept; `reset` deletes them)'
 }
 
 status() {
-  for name in attestor api worker web; do
+  for name in embed retrieval attestor api worker web; do
     if pid_alive "$run/$name.pid"; then
       printf '  %-9s running  pid %s\n' "$name" "$(cat "$run/$name.pid")"
     else
@@ -303,11 +397,16 @@ case "$command" in
     stop_apps
     start_apps
     ;;
+  retrieval)
+    install -d -m 0700 "$state" "$logs" "$run"
+    start_retrieval
+    ;;
+  reindex) (cd "$repo" && node fixtures/veracier/load.mjs --reindex) ;;
   down) down ;;
   status) status ;;
   reset) reset ;;
   *)
-    echo "usage: $0 up|load [--sample]|restart|down|status|reset" >&2
+    echo "usage: $0 up|load [--sample]|restart|retrieval|reindex|down|status|reset" >&2
     exit 2
     ;;
 esac

@@ -37,6 +37,7 @@ const REALM = 'knowledge-fabric';
 function parseArgs(argv) {
   const out = {
     sample: false,
+    reindexOnly: false,
     corpus: process.env.KF_VERACIER_CORPUS ?? '/mnt/4tb/data/veracier',
     state: process.env.KF_VERACIER_STATE ?? path.join(homedir(), '.local', 'state', 'kf-veracier'),
     personas:
@@ -51,11 +52,12 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--sample') out.sample = true;
+    else if (a === '--reindex') out.reindexOnly = true;
     else if (a === '--corpus') out.corpus = argv[++i];
     else if (a === '--jobs') out.jobs = Number(argv[++i]);
     else if (a === '--help' || a === '-h') {
       process.stdout.write(
-        'usage: pnpm fixture:veracier [--sample] [--corpus <dir>] [--jobs <n>]\n',
+        'usage: pnpm fixture:veracier [--sample] [--corpus <dir>] [--jobs <n>] | --reindex\n',
       );
       process.exit(0);
     } else throw new Error(`unknown argument ${a}`);
@@ -498,6 +500,14 @@ async function governedRecords(opts, owner, overlay, sessions, boot, ids) {
  * exception to the dispatcher), so no outbox row announces them and the worker never indexes
  * them; readiness then reports them as unfindable. The index is disposable and rebuilt by the
  * worker's own login, which is what this does: it touches no record.
+ *
+ * The same login then queues every indexed record for embedding (`retrieval.enqueue_embedding`,
+ * the derived queue's documented rebuild; the ids are listed on the owner credential, because the
+ * worker's login reads the index under row security and sees none of it). Records the worker
+ * delivered while no retrieval engine was attached were indexed and never embedded, and the
+ * bootstrap tier's were never delivered at all; the worker's embedding pump sends each through
+ * the engine's vectors-only write once one is attached (KF_RETRIEVAL_SOCKET). Without an engine
+ * the queue waits. `--reindex` runs only this.
  */
 async function reindex(opts) {
   const file = path.join(opts.state, 'knowledge-fabric', 'worker-database-url');
@@ -513,6 +523,24 @@ async function reindex(opts) {
   try {
     const row = await withTransaction(pool, (tx) => tx.one('select search.rebuild() as n'));
     log(`== search index rebuilt by the worker's login: ${row.n} records`);
+    // The worker's login reads search.document under row security and sees none of it, so the
+    // ids come from the owner credential the bootstrap tier already uses; the enqueue itself is the
+    // worker's, through the one seam granted to it.
+    const owner = createPool({ connectionString: opts.ownerUrl, maxConnections: 1 });
+    let objectIds;
+    try {
+      objectIds = (
+        await withTransaction(owner, (tx) =>
+          tx.query('select object_id from search.document order by object_id'),
+        )
+      ).map((r) => r.object_id);
+    } finally {
+      await owner.end();
+    }
+    const queued = await withTransaction(pool, (tx) =>
+      tx.one('select retrieval.enqueue_embedding($1::uuid[]) as n', [objectIds]),
+    );
+    log(`== queued for embedding by the worker's login: ${queued.n} records`);
   } finally {
     await pool.end();
   }
@@ -520,6 +548,11 @@ async function reindex(opts) {
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
+  if (opts.reindexOnly) {
+    process.env.PGPASSWORD ??= 'dev-only-not-a-secret';
+    await reindex(opts);
+    return;
+  }
   const overlayDir = path.join(HERE, 'overlay');
   const overlay = {
     company: await readJson(path.join(overlayDir, 'company.json')),

@@ -21,16 +21,18 @@ fixture adds. The repository `NOTICE` carries the attribution.
 
 ## What is here
 
-| file                   | what it is                                                                                                             |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `extract-text.mjs`     | text extraction: `pdftotext -layout`, and tesseract OCR (300 dpi) for scanned pages, in the document's own language(s) |
-| `overlay-source.mjs`   | the decisions: entities, askers and staff, the classification rules, which departments read which folders              |
-| `records.mjs`          | the governed records (projects, NCRs, requirements, …) and the documents each rests on                                 |
-| `generate-overlay.mjs` | writes `overlay/*.json` from the above plus the corpus index and text; deterministic (seeded), `--check` compares      |
-| `overlay/`             | the committed overlay: `people`, `documents` (classification, readers), `records`, `sample`, `stats`                   |
-| `load.mjs`             | the loader (`pnpm fixture:veracier [--sample]`)                                                                        |
-| `stack/`               | the fixture's own workstation stack (`stack.sh up`, `load`, `restart`, `down`, `reset`)                                |
-| `search-baseline.mjs`  | recall@10 of the benchmark's questions through KF search, as each asker; writes `reports/search-baseline.{md,json}`    |
+| file                    | what it is                                                                                                             |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `extract-text.mjs`      | text extraction: `pdftotext -layout`, and tesseract OCR (300 dpi) for scanned pages, in the document's own language(s) |
+| `overlay-source.mjs`    | the decisions: entities, askers and staff, the classification rules, which departments read which folders              |
+| `records.mjs`           | the governed records (projects, NCRs, requirements, …) and the documents each rests on                                 |
+| `generate-overlay.mjs`  | writes `overlay/*.json` from the above plus the corpus index and text; deterministic (seeded), `--check` compares      |
+| `overlay/`              | the committed overlay: `people`, `documents` (classification, readers), `records`, `sample`, `stats`                   |
+| `load.mjs`              | the loader (`pnpm fixture:veracier [--sample]`)                                                                        |
+| `stack/`                | the fixture's own workstation stack (`stack.sh up`, `load`, `restart`, `down`, `reset`)                                |
+| `search-baseline.mjs`   | recall@10 of the benchmark's questions through KF search, as each asker; writes `reports/search-baseline.{md,json}`    |
+| `context-example.mjs`   | compiles an agent context for one question as its asker, through search and `agent_context`, and checks its sources    |
+| `stack/embed-server.py` | the loopback embedding server (BAAI/bge-m3) the retrieval engine embeds through                                        |
 
 ## Bring it up
 
@@ -60,6 +62,56 @@ It runs the processes a dogfood host runs, in the **dogfood** profile, built fro
 application as a production build. Each holds one database login from `pnpm dogfood:logins`,
 re-keyed on every `up`; none is handed the owner credential. `KF_VERACIER_SKIP_BUILD=1` skips the
 build.
+
+## Semantic ranking
+
+`stack.sh up` and `restart` also start semantic ranking unless `KF_VERACIER_SEMANTIC=0`:
+
+- **the embedding model** — [BAAI/bge-m3](https://huggingface.co/BAAI/bge-m3), MIT licence, revision
+  `5617a9f61b028005a4858fdac845db406aefb181` (`pytorch_model.bin` sha256 `b5e0ce34…6aad38`, the
+  Hub's own LFS digest). Multilingual (the corpus is French, English, German, Italian, Spanish),
+  symmetric (no query/passage prefixes), 1 024 dimensions, 8 192 tokens, dense output only. Chosen
+  over multilingual-e5-large (MIT as well) for its 8 192-token context against e5's 512, so all but
+  14 of the 1 004 extracted texts are embedded whole (measured with its tokenizer: median 2 692
+  tokens, longest 9 220; the rest are truncated at 8 192), and because it needs no
+  `query:`/`passage:` prefixes, which LAMU's serve embedder does not send.
+  It is prepared once, into float16 safetensors with a `PROVENANCE.json` naming both digests:
+
+  ```sh
+  python3 fixtures/veracier/stack/embed-server.py prepare \
+    --source <a download of the revision above> --out ~/.local/share/kf-veracier/bge-m3-f16
+  ```
+
+  `stack/embed-server.py serve` loads that directory (≈1.8 GB of GPU memory; CPU if there is no
+  GPU), binds 127.0.0.1 only and speaks the two routes LAMU's `HttpServeEmbedder` probes
+  (`/health`, `/v1/embeddings`). Nothing leaves the host (KF-SAS-RQ-218).
+
+- **the retrieval engine** — LAMU's `lamu kf-retrieval serve` (LAMU-WAR-0016), from
+  `KF_VERACIER_LAMU_BIN` (default `~/.local/libexec/kf-veracier/lamu`, else `lamu` on PATH), on
+  `$state/run/retrieval.sock` (0600; the API and worker run as the same account). Its at-rest key
+  is made by `lamu kf-retrieval keygen` into `$state/retrieval/kf-index.key` (0600, never argv or
+  env), its encrypted store is `$state/retrieval/store`, and its embedder identity is pinned on
+  first start into `$state/retrieval/embedder-pin` (`BAAI/bge-m3@5617a9f61b02`).
+
+The API and the worker are started with `KF_RETRIEVAL_SOCKET`; the worker embeds each record it
+indexes through the engine's vectors-only write. If the embedder or the engine does not come up,
+the applications start without it and search is lexical, saying so in every answer's `withheld`.
+
+Records indexed while no engine was attached were never embedded. `stack.sh reindex` (the
+loader's `--reindex`) rebuilds the search index and queues every indexed record for embedding
+through `retrieval.enqueue_embedding`, on the worker's own login; the worker's pump then embeds
+them. `lamu kf-retrieval audit --store $state/retrieval/store --key-file
+$state/retrieval/kf-index.key --needle-stdin` (engine stopped) checks that a sentence from the
+corpus is not in the decrypted store.
+
+## Context compilation
+
+`node fixtures/veracier/context-example.mjs --question QUAL-01 --compare youssef.amrani` compiles
+an agent context for a question as its asker — the semantic list of `GET /search`, the person's
+`agent_context` projection, each source's text through `GET /documents/:id/source` — under a
+token budget, then checks that every source is a member of that projection and a document the
+overlay says the person may read, and lists what the second person's package lacks. The package
+(with text) goes to `$state/context-examples/`, 0600; stdout carries ids, titles and digests.
 
 ## Personas
 
@@ -182,9 +234,9 @@ pages OCR'd in all), no failures. Thinnest: one scanned purchase order at 184 ch
 ## Search baseline
 
 `node fixtures/veracier/search-baseline.mjs` asks each of the benchmark's questions through
-`GET /search` as its asker and writes `reports/search-baseline.md`. It is lexical only; when the
-API runs with a retrieval engine (`KF_RETRIEVAL_SOCKET`), the same script scores the semantic list
-beside it.
+`GET /search` as its asker and writes `reports/search-baseline.md`: recall@10 of the lexical list,
+the semantic list, and the two as served (lexical list first, then semantic, as the web application
+shows them), for the question as written and as `or`'d content words.
 
 ## Known gaps
 
