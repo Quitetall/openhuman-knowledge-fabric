@@ -32,8 +32,10 @@ ceiling is `none` when no organization-wide grant reaches any band, so that only
 scorable), and `write_vector` (object id and text; the engine keeps a vector and the identifier
 and nothing else). `slots`, `write_vector`, the `none` ceiling, `capabilities` and the result's
 `ranking` name were added in September 2026 without a version bump: each is an optional field or a
-new message, which the protocol's own rule makes additive. None is implemented on the engine's side
-yet (SAS §100.21).
+new message, which the protocol's own rule makes additive. SAS §100.21 still records them as unbuilt
+on the engine's side. As of 2026-09-24 LAMU has an unverified candidate, `lamu kf-retrieval serve`
+(LAMU-WAR-0016), and `src/real-engine.test.ts` runs this client against it. That test is opt-in and
+is skipped unless `KF_RETRIEVAL_ENGINE_BIN` names a `lamu` binary.
 
 ## Semantic ranking for one query
 
