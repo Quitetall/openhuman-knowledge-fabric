@@ -20,6 +20,7 @@ try {
     [
       `${logins.apiLogin} (kf_app only)            -> ${logins.apiUrlFile}`,
       `${logins.attestorLogin} (kf_attestor only) -> ${logins.attestorUrlFile}`,
+      `${logins.workerLogin} (kf_worker only)   -> ${logins.workerUrlFile}`,
       '',
       'Next, with the OIDC_* values set in .env:  pnpm dev:dogfood',
       '',

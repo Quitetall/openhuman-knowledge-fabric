@@ -5,7 +5,7 @@
  * login the loader makes (`kf_api_dev`, kf_app + kf_attestor) is refused by BOTH dogfood
  * processes. This proves the replacement end to end against real PostgreSQL:
  *
- *   - the two logins hold exactly one role each, a stray membership is revoked on re-run, and
+ *   - the three logins hold exactly one role each, a stray membership is revoked on re-run, and
  *     their connection strings are written 0600;
  *   - the REAL attestor, started through its `dev` entry with nothing but the state directory,
  *     passes its own login check and answers on the socket;
@@ -64,6 +64,19 @@ async function memberships(login: string): Promise<string[]> {
   );
 }
 
+async function createsInDatabase(login: string): Promise<boolean> {
+  return withTransaction(
+    h.adminPool,
+    async (tx) =>
+      (
+        await tx.one<{ can: boolean }>(
+          `select has_database_privilege($1, current_database(), 'CREATE') as can`,
+          [login],
+        )
+      ).can,
+  );
+}
+
 function healthy(): Promise<boolean> {
   return new Promise((resolve) => {
     const req = request({ socketPath: socket, path: '/health', timeout: 1000 }, (res) => {
@@ -90,7 +103,13 @@ describe('pnpm dogfood:logins', () => {
     expect(logins.attestorUrlFile).toBe(join(state, 'knowledge-fabric', 'attestor-database-url'));
     expect(await memberships('kf_api_dogfood')).toEqual(['kf_app']);
     expect(await memberships('kf_attestor_dev')).toEqual(['kf_attestor']);
-    for (const file of [logins.apiUrlFile, logins.attestorUrlFile]) {
+    expect(logins.workerUrlFile).toBe(join(state, 'knowledge-fabric', 'worker-database-url'));
+    expect(await memberships('kf_worker_dogfood')).toEqual(['kf_worker']);
+    // The job queue creates its own schema; only the worker's login may create in the database.
+    expect(await createsInDatabase('kf_worker_dogfood')).toBe(true);
+    expect(await createsInDatabase('kf_api_dogfood')).toBe(false);
+    expect(await createsInDatabase('kf_attestor_dev')).toBe(false);
+    for (const file of [logins.apiUrlFile, logins.attestorUrlFile, logins.workerUrlFile]) {
       expect(statSync(file).mode & 0o777).toBe(0o600);
       // The stale password is gone: every run re-keys.
       expect(readFileSync(file, 'utf8')).not.toContain(':stale@');
@@ -100,6 +119,9 @@ describe('pnpm dogfood:logins', () => {
     expect(api.username).toBe('kf_api_dogfood');
     expect(attest.username).toBe('kf_attestor_dev');
     expect(api.password).not.toBe(attest.password);
+    const worker = new URL(readFileSync(logins.workerUrlFile, 'utf8').trim());
+    expect(worker.username).toBe('kf_worker_dogfood');
+    expect(worker.password).not.toBe(api.password);
   });
 
   it('the real attestor, through its dev entry, accepts its login and answers', async () => {

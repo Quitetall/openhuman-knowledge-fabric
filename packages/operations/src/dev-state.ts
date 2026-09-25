@@ -19,6 +19,12 @@ export const DEV_STATE_FILES = {
   dogfoodApi: 'dogfood-api-database-url',
   /** `kf_attestor_dev`: kf_attestor and nothing else. kf-attestor. */
   attestor: 'attestor-database-url',
+  /**
+   * `kf_worker_dogfood`: kf_worker, plus CREATE and TEMP on the database for the job queue's own
+   * schema. The worker beside a dogfood API: without it no outbox row is delivered and the
+   * search index stays empty.
+   */
+  worker: 'worker-database-url',
 } as const;
 
 export type DevStateFile = keyof typeof DEV_STATE_FILES;
@@ -28,6 +34,7 @@ export const DEV_STATE_OVERRIDES: Readonly<Record<DevStateFile, string>> = {
   developmentApi: 'KF_DEV_DATABASE_URL_FILE',
   dogfoodApi: 'KF_DOGFOOD_API_DATABASE_URL_FILE',
   attestor: 'KF_ATTESTOR_DATABASE_URL_FILE',
+  worker: 'KF_WORKER_DATABASE_URL_FILE',
 };
 
 /** `$XDG_STATE_HOME/knowledge-fabric`, defaulting to `~/.local/state/knowledge-fabric`. */

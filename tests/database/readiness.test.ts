@@ -787,6 +787,36 @@ describe('row security is reconciled with the migrations (KF-SAS-RQ-186)', () =>
     }
   });
 
+  it('declares the job queue: graphile_worker tables as the worker leaves them are not a finding', async () => {
+    // What the worker's job-queue library creates on its first start (dogfood-vm.md): tables that
+    // enable row security without forcing it, and a migration ledger with none. Before
+    // 20260926000200 every installation that ran the worker reported five differences here.
+    await withTransaction(h.adminPool, async (tx) => {
+      await tx.query('create schema graphile_worker');
+      await tx.query('create table graphile_worker._private_jobs (id bigint)');
+      await tx.query('alter table graphile_worker._private_jobs enable row level security');
+      await tx.query('create table graphile_worker.migrations (id int)');
+    });
+    try {
+      const check = serviceCheck(await assessReadiness(h.adminPool), 'row_security_reconciled');
+      expect(check?.status).toBe('ok');
+      // The exemption is the queue's schema and nothing else: the same shape anywhere else is.
+      await withTransaction(h.adminPool, async (tx) => {
+        await tx.query('create table core.queue_look_alike (id bigint)');
+        await tx.query('alter table core.queue_look_alike enable row level security');
+      });
+      const elsewhere = serviceCheck(await assessReadiness(h.adminPool), 'row_security_reconciled');
+      expect(elsewhere?.status).toBe('failed');
+      expect(elsewhere?.detail).toContain('core.queue_look_alike (enabled_not_forced)');
+      expect(elsewhere?.detail).not.toContain('graphile_worker');
+    } finally {
+      await withTransaction(h.adminPool, async (tx) => {
+        await tx.query('drop table if exists core.queue_look_alike');
+        await tx.query('drop schema graphile_worker cascade');
+      });
+    }
+  });
+
   it('keeps the declared ops exception: a new ops table without row security is not a finding', async () => {
     await withTransaction(h.adminPool, (tx) => tx.query('create table ops.hand_made (id int)'));
     try {

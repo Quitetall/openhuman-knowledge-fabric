@@ -9,8 +9,16 @@
  * process here. `local-development.md` used to have the owner type the two logins in psql; this
  * does it, the same way `createAppLogin` makes kf_api_dev:
  *
- *   kf_api_dogfood   kf_app, nothing else     -> DEV_STATE_FILES.dogfoodApi
- *   kf_attestor_dev  kf_attestor, nothing else -> DEV_STATE_FILES.attestor
+ *   kf_api_dogfood     kf_app, nothing else     -> DEV_STATE_FILES.dogfoodApi
+ *   kf_attestor_dev    kf_attestor, nothing else -> DEV_STATE_FILES.attestor
+ *   kf_worker_dogfood  kf_worker (+ CREATE, TEMP) -> DEV_STATE_FILES.worker
+ *
+ * The worker login is the third (2026-09-24). Without a worker no outbox row is delivered, so
+ * nothing a dogfood API records is ever indexed for search; the first fixture company loaded on
+ * a workstation found exactly that. Its two database grants are the ones `dogfood-vm.md` records
+ * for the host: the job queue creates and migrates its own `graphile_worker` schema on every
+ * start (`CREATE SCHEMA IF NOT EXISTS` checks the privilege before the existence), and uses
+ * temporary tables.
  *
  * Each gets a fresh random password on every run, never printed; its connection string is written
  * owner-only (0600) to the workstation state directory, which only the user running both
@@ -25,23 +33,27 @@ import {
   DOGFOOD_API_LOGIN,
   generateAppPassword,
   scramVerifier,
+  WORKER_LOGIN,
   writeOwnerOnly,
 } from './config.js';
 
 export interface DogfoodLogins {
   readonly apiLogin: string;
   readonly attestorLogin: string;
+  readonly workerLogin: string;
   /** Where the dogfood API's connection string was written (0600). */
   readonly apiUrlFile: string;
   /** Where kf-attestor's connection string was written (0600). */
   readonly attestorUrlFile: string;
+  /** Where the worker's connection string was written (0600). */
+  readonly workerUrlFile: string;
 }
 
 /** Create or re-key `login` so that it holds exactly `role`, and return the database name. */
 async function provisionLogin(
   owner: Pool,
   login: string,
-  role: 'kf_app' | 'kf_attestor',
+  role: 'kf_app' | 'kf_attestor' | 'kf_worker',
   password: string,
 ): Promise<string> {
   return withTransaction(owner, async (tx) => {
@@ -77,6 +89,15 @@ async function provisionLogin(
       [login],
     );
     await tx.query(connect.sql);
+    // The job queue's schema, created by the worker itself; every other login is refused it.
+    const queue = await tx.one<{ sql: string }>(
+      `select format(case when $2::text = 'kf_worker'
+                          then 'grant create, temporary on database %I to %I'
+                          else 'revoke create, temporary on database %I from %I' end,
+                     current_database(), $1::text) as sql`,
+      [login, role],
+    );
+    await tx.query(queue.sql);
     return (await tx.one<{ name: string }>('select current_database() as name')).name;
   });
 }
@@ -90,7 +111,7 @@ function urlFor(ownerUrl: string, login: string, password: string, database: str
 }
 
 /**
- * Create both logins and write their connection strings. Each file is written before the next
+ * Create the three logins and write their connection strings. Each file is written before the next
  * login is touched, so a run that fails part-way leaves every login it re-keyed with a file that
  * works for it.
  */
@@ -118,10 +139,20 @@ export async function createDogfoodLogins(
     urlFor(ownerUrl, ATTESTOR_LOGIN, attestorPassword, attestorDatabase),
   );
 
+  const workerUrlFile = devStateFile('worker', env);
+  const workerPassword = generateAppPassword();
+  const workerDatabase = await provisionLogin(owner, WORKER_LOGIN, 'kf_worker', workerPassword);
+  await writeOwnerOnly(
+    workerUrlFile,
+    urlFor(ownerUrl, WORKER_LOGIN, workerPassword, workerDatabase),
+  );
+
   return {
     apiLogin: DOGFOOD_API_LOGIN,
     attestorLogin: ATTESTOR_LOGIN,
+    workerLogin: WORKER_LOGIN,
     apiUrlFile,
     attestorUrlFile,
+    workerUrlFile,
   };
 }

@@ -9,6 +9,12 @@ export const APP_LOGIN = 'kf_api_dev';
 export const DOGFOOD_API_LOGIN = 'kf_api_dogfood';
 /** kf-attestor's workstation login: kf_attestor and nothing else (`pnpm dogfood:logins`). */
 export const ATTESTOR_LOGIN = 'kf_attestor_dev';
+/**
+ * The worker's workstation login: kf_worker, and CREATE/TEMP on the database because the job
+ * queue creates and migrates its own `graphile_worker` schema on every start (dogfood-vm.md
+ * records the same two grants on the host). Nothing else (`pnpm dogfood:logins`).
+ */
+export const WORKER_LOGIN = 'kf_worker_dogfood';
 /** MinIO's development secret from docker-compose.yml: public on purpose, loopback only. */
 export const DEV_S3_SECRET = 'dev-only-not-a-secret';
 
