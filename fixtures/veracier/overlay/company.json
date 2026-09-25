@@ -1,0 +1,60 @@
+{
+  "legal_name": "Véracier Industries S.A.",
+  "entities": {
+    "veracier_sa": {
+      "name": "Véracier Industries S.A.",
+      "short": "Groupe",
+      "site": "Paris (siège)",
+      "country": "FR"
+    },
+    "veracier_aero": {
+      "name": "Véracier Aero S.A.S.",
+      "short": "Aero",
+      "site": "Toulouse",
+      "country": "FR"
+    },
+    "veracier_defense": {
+      "name": "Véracier Défense & Sécurité S.A.S.",
+      "short": "Défense",
+      "site": "Palaiseau (Saclay)",
+      "country": "FR"
+    },
+    "veracier_energie": {
+      "name": "Véracier Énergie S.A.S.",
+      "short": "Énergie",
+      "site": "Valence",
+      "country": "FR"
+    },
+    "veracier_gmbh": {
+      "name": "Véracier GmbH",
+      "short": "GmbH",
+      "site": "Stuttgart",
+      "country": "DE"
+    },
+    "veracier_uk": {
+      "name": "Véracier UK Ltd",
+      "short": "UK",
+      "site": "Filton, Bristol",
+      "country": "GB"
+    },
+    "veracier_inc": {
+      "name": "Véracier Inc.",
+      "short": "Inc.",
+      "site": "Wichita, KS",
+      "country": "US"
+    },
+    "veracier_maroc": {
+      "name": "Véracier Maroc S.A.R.L.",
+      "short": "Maroc",
+      "site": "Casablanca (zone franche)",
+      "country": "MA"
+    },
+    "precistec": {
+      "name": "Précis-Tec S.A. (acquise)",
+      "short": "Précis-Tec",
+      "site": "Mérignac",
+      "country": "FR"
+    }
+  },
+  "source": "EDiTh — Enterprise Digital Twin Benchmark (Apache-2.0), fictional"
+}

@@ -146,28 +146,36 @@ KF_WEB_SESSION_SECRET=<canonical-base64-encoding-of-32-random-bytes>
 Since migration `20260924001000` a `dogfood` API binds a person only on an attestation from a
 separate `kf-attestor` process, reached over a Unix socket. The API refuses to start without
 `KF_ATTESTOR_SOCKET` or through a login that holds `kf_attestor`; the attestor refuses a login that
-holds `kf_app` or `kf_worker`. So the dogfood profile needs two logins the development one is not:
+holds `kf_app` or `kf_worker`. So the dogfood profile needs logins the development one does not:
 
-| Login             | Holds                      | Used by                             | Written (0600) to                                   |
-| ----------------- | -------------------------- | ----------------------------------- | --------------------------------------------------- |
-| `kf_api_dev`      | `kf_app` and `kf_attestor` | the **development** API (unchanged) | `$XDG_STATE_HOME/knowledge-fabric/dev-database-url` |
-| `kf_api_dogfood`  | `kf_app` only              | the **dogfood** API                 | `…/knowledge-fabric/dogfood-api-database-url`       |
-| `kf_attestor_dev` | `kf_attestor` only         | `kf-attestor`                       | `…/knowledge-fabric/attestor-database-url`          |
+| Login               | Holds                            | Used by                             | Written (0600) to                                   |
+| ------------------- | -------------------------------- | ----------------------------------- | --------------------------------------------------- |
+| `kf_api_dev`        | `kf_app` and `kf_attestor`       | the **development** API (unchanged) | `$XDG_STATE_HOME/knowledge-fabric/dev-database-url` |
+| `kf_api_dogfood`    | `kf_app` only                    | the **dogfood** API                 | `…/knowledge-fabric/dogfood-api-database-url`       |
+| `kf_attestor_dev`   | `kf_attestor` only               | `kf-attestor`                       | `…/knowledge-fabric/attestor-database-url`          |
+| `kf_worker_dogfood` | `kf_worker`, CREATE/TEMP on `kf` | the worker beside a dogfood API     | `…/knowledge-fabric/worker-database-url`            |
+
+The worker login is the newest (2026-09-24). Without a worker no outbox row is delivered, so
+nothing a dogfood API records is indexed for search; its two database grants are the ones
+[`dogfood-vm.md`](dogfood-vm.md) records for the host, because the job queue creates and migrates
+its own `graphile_worker` schema on every start. Readiness declares that schema
+(`20260926000200`), so a running worker no longer reads as five undeclared tables.
 
 `kf_api_dev` stays: the development profile has no token to hand an attestor, so its API attests
 in-process through that login, and `pnpm dev` is unchanged. Neither dogfood process accepts it.
 
-Create the two dogfood logins once (owner connection, like the loader; refused on a provisioned
+Create the dogfood logins once (owner connection, like the loader; refused on a provisioned
 host, without `NODE_ENV=development` set by the script, or for a non-loopback database):
 
 ```sh
 pnpm dogfood:logins
 ```
 
-Each run re-keys both logins with fresh random passwords — never printed, and sent to PostgreSQL
+Each run re-keys every login with fresh random passwords — never printed, and sent to PostgreSQL
 as SCRAM verifiers so the plaintext never appears in its `log_statement = ddl` log — revokes any
-other role either has picked up, and writes each connection string owner-only (override the paths
-with `KF_DOGFOOD_API_DATABASE_URL_FILE` and `KF_ATTESTOR_DATABASE_URL_FILE`). With the dogfood
+other role one has picked up, and writes each connection string owner-only (override the paths
+with `KF_DOGFOOD_API_DATABASE_URL_FILE`, `KF_ATTESTOR_DATABASE_URL_FILE` and
+`KF_WORKER_DATABASE_URL_FILE`). With the dogfood
 `OIDC_*` and `KF_WEB_*` values above set in `.env`, start the profile:
 
 ```sh
@@ -183,16 +191,21 @@ until it answers `GET /health` on the socket — `KF_ATTESTOR_SOCKET` if set, el
 No process is handed `DATABASE_OWNER_URL`, `DATABASE_OWNER_URL_FILE` or the development login, whatever `.env` holds. It
 refuses to start, naming what is missing, when the logins were never created or an `OIDC_*` /
 `KF_WEB_*` value is unset, and stops everything when any part exits or on Ctrl-C. The worker is not
-started: it needs a `kf_worker` login no workstation command creates, and this rehearsal is about
-identity. The attestor alone is `pnpm --filter @kf/attestor dev`.
+started by it — this rehearsal is about identity — although `pnpm dogfood:logins` now writes its
+login; `node apps/worker/dist/main.js` with `DATABASE_URL_FILE` naming `worker-database-url` runs
+it, and the Véracier fixture stack below does. The attestor alone is
+`pnpm --filter @kf/attestor dev`.
 
 If the attestor stops while the API runs, bearer requests answer `503 attestor_unavailable` —
 never a local fallback — and the API logs the outage once with the socket path.
 
 This procedure is covered by `tests/deployment/dogfood-logins.test.ts` (the logins, the real
 attestor started through its `dev` entry, a dogfood API passing its startup login check) and
-`tests/deployment/dev-dogfood-runner.test.ts` (the order); it has not yet been walked end to end
-against a workstation Keycloak.
+`tests/deployment/dev-dogfood-runner.test.ts` (the order). This page said it had not been walked
+end to end against a workstation Keycloak; on 2026-09-24 the Véracier fixture stack walked the same
+processes and logins (not `pnpm dev:dogfood` itself) against one: 56 people signing in through the
+realm's form, the attestor vouching for every request, and the web application's sign-in and
+context selection driven in a browser.
 
 The browser selects a role assignment, organization and classification ceiling after login.
 The web server sends `Authorization: Bearer ...` plus that context to the API. The token
@@ -204,6 +217,27 @@ Do not share this Compose stack. Its Keycloak `start-dev` mode and database/obje
 credentials are intentionally unsuitable for a network service. A shared dogfood instance
 follows the private-host contract, uses `NODE_ENV=production`, terminates TLS and supplies
 secrets from owner-only files.
+
+## A corpus-sized fixture: Véracier Industries
+
+[`fixtures/veracier/`](../../fixtures/veracier/README.md) is a fictional industrial group — 1 004
+documents from the EDiTh benchmark (Apache-2.0) in six languages, 56 people with roles, clearances
+and need-to-know grants, and about seventy governed records — loaded through the real paths:
+`kf bootstrap-organization` and `kf grant-authority` for the bootstrap tier, then every act as a
+request to the API by the person who performs it. It brings its own stack in the dogfood profile
+(PostgreSQL, MinIO and Keycloak under the compose project `kf-veracier`, plus kf-attestor, the
+API, the worker and the web application on ports 4100 and 3100), so it runs beside the default
+stack without touching it:
+
+```sh
+fixtures/veracier/stack/stack.sh up     # dependencies, migrations, logins, build, applications
+fixtures/veracier/stack/stack.sh load   # the fixture (`load --sample` for 80 documents)
+fixtures/veracier/stack/stack.sh down   # stop; `reset` deletes the fixture's volumes and state
+```
+
+Sign in at <http://localhost:3100>; the personas' passwords are in one owner-only file,
+`~/.config/kf/veracier-personas.txt`. Loading twice is a no-op. The corpus itself is not in the
+repository; the fixture's README says where it is expected and what is committed.
 
 ## Verification
 
