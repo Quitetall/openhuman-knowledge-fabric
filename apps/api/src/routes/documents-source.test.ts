@@ -115,6 +115,44 @@ describe('GET /documents/:id/source', () => {
     expect(response.headers['content-disposition']).toContain('marketing-brochure-2026.md-v1');
   });
 
+  it('shows a PDF or plain text in place when asked, and everything else only as an attachment', async () => {
+    const store = new InMemoryObjectStore();
+    const serve = async (mediaType: string, query: string) => {
+      const stored = await store.put(`artifacts/${mediaType}`, SOURCE, mediaType);
+      const app = Fastify({ logger: false });
+      await registerDocumentRoutes(app, {
+        pool: pool(
+          {
+            document_number: 'extracted.txt',
+            revision: 'v1',
+            media_type: mediaType,
+            size_bytes: String(SOURCE.byteLength),
+            sha256: digestOf(SOURCE),
+            storage_uri: `artifacts/${mediaType}`,
+            storage_version: stored.versionId,
+          },
+          true,
+        ),
+        identify: caller(),
+        store,
+        preflightInTransaction: vi.fn(async () => undefined),
+        executeInTransaction: vi.fn(),
+      });
+      return app.inject({ method: 'GET', url: `/documents/${DOCUMENT_ID}/source${query}` });
+    };
+    const pdf = await serve('application/pdf', '?disposition=inline');
+    expect(pdf.headers['content-disposition']).toMatch(/^inline; /);
+    const text = await serve('text/plain', '?disposition=inline');
+    expect(text.headers['content-disposition']).toMatch(/^inline; /);
+    expect(text.headers['content-type']).toBe('text/plain; charset=utf-8');
+    // Markdown, HTML or anything a browser might render with behaviour stays an attachment.
+    const markdown = await serve('text/html', '?disposition=inline');
+    expect(markdown.headers['content-disposition']).toMatch(/^attachment; /);
+    const unasked = await serve('application/pdf', '');
+    expect(unasked.headers['content-disposition']).toMatch(/^attachment; /);
+    expect(unasked.headers['x-content-type-options']).toBe('nosniff');
+  });
+
   it('fails closed when stored bytes no longer match the authoritative digest', async () => {
     const store = new InMemoryObjectStore();
     const stored = await store.put('documents/source', SOURCE, 'text/markdown');

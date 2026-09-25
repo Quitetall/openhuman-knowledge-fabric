@@ -155,6 +155,11 @@ describe('the founding grant', () => {
     });
     expect(action.actor_id).toBe(founded.personId);
     expect(action.acting_role_id).toBe(founded.roleAssignmentId);
+    // A UUIDv7 like every other object id: the founding assignment was a random v4 until
+    // 2026-09-24, and the web context picker, which validates a UUIDv7, could not be given it.
+    expect(founded.roleAssignmentId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
     expect(await liveAuthority(founded.personId, founded.organizationId)).toEqual({
       roles: 1,
       clearances: 1,

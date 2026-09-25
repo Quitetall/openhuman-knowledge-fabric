@@ -356,7 +356,12 @@ export async function runGrantAuthority(
       // Minted here so the transaction context can name it BEFORE the row exists: the object
       // guard requires a context on every core.object write, and the context names the role
       // being exercised, which is this one.
-      foundingAssignmentId = randomUUID();
+      //
+      // A UUIDv7, like every other object id (`core.object.id` defaults to uuidv7()). It was a
+      // random v4 until 2026-09-24, and the web application's context picker — which validates
+      // an assignment id as a UUIDv7 before it asks the API — could then never be given the
+      // founder's own assignment: the first fixture company's CEO could not sign in to act.
+      foundingAssignmentId = (await tx.one<{ id: string }>('select uuidv7()::text as id')).id;
       grantorRole = { id: foundingAssignmentId };
     }
 
