@@ -39,3 +39,8 @@ export const PACKAGE = {
   role: 'Preservation export and round-trip',
   owns: [],
 } as const;
+
+export { readWarrantRuntimeEvidence } from './warrant-runtime-evidence.js';
+export type { WarrantRuntimeEvidence } from './warrant-runtime-evidence.js';
+
+export { readArchiveRuntimeBinding } from './archive-runtime-binding.js';

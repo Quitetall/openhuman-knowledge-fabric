@@ -1,0 +1,1182 @@
+{
+  "producer_commit": "c3ae3658",
+  "archive_sha256": "2bb15eaca0e2910de33f13031e82d3736f3333434df902bc9a0d8cdf0d161e4a",
+  "basis": {
+    "schema": "oh.war/runtime-archive-basis/v1-draft.1",
+    "archive_digest": "sha256:20d2b93cce9be053a7ecc8973ef9b27a962c7d442210dd3f05f416a67d1f185b",
+    "subject": "war://01a09e54-1e85-7a81-ad46-75d006c36f89",
+    "warrant_id": "01a09e54-1e85-7a81-ad46-75d006c36f89",
+    "current_contract": {
+      "revision": 1,
+      "digest": "f939ac362436daac04957e54b68314d4916f62d638b34fc087cbf15013dc554e"
+    },
+    "retained_contracts": [],
+    "stage_inventory": {
+      "declarations": [
+        {
+          "source": "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/atoms/45-milestones.yaml",
+          "source_digest": "sha256:5538831139d4fc29ab524a2648426aa659f36b9ea171faf79e3d0e5510bda8f0",
+          "manifest_source": "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/manifest.toml",
+          "graph": {
+            "milestones": [
+              {
+                "id": "M1",
+                "title": "Prepare interface and positive/refusal fixtures",
+                "stage_refs": [
+                  "STAGE-001"
+                ],
+                "obligation_refs": [
+                  "OBL-001",
+                  "OBL-002"
+                ]
+              },
+              {
+                "id": "M2",
+                "title": "Deliver and test bounded outcome",
+                "depends_on": [
+                  "M1"
+                ],
+                "stage_refs": [
+                  "STAGE-002"
+                ],
+                "obligation_refs": [
+                  "OBL-001",
+                  "OBL-002"
+                ]
+              },
+              {
+                "id": "M3",
+                "title": "Review exact result for qualification",
+                "depends_on": [
+                  "M2"
+                ],
+                "stage_refs": [
+                  "STAGE-003"
+                ],
+                "obligation_refs": [
+                  "OBL-003",
+                  "OBL-004"
+                ]
+              }
+            ],
+            "stages": [
+              {
+                "id": "STAGE-001",
+                "title": "Prepare interface and positive/refusal fixtures",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://codex",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              },
+              {
+                "id": "STAGE-002",
+                "title": "Deliver and test bounded outcome",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://codex",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              },
+              {
+                "id": "STAGE-003",
+                "title": "Review exact result for qualification",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://independent-verifier",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              }
+            ]
+          }
+        },
+        {
+          "source": "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/atoms/45-milestones.yaml",
+          "source_digest": "sha256:5538831139d4fc29ab524a2648426aa659f36b9ea171faf79e3d0e5510bda8f0",
+          "manifest_source": "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/manifest.toml",
+          "graph": {
+            "milestones": [
+              {
+                "id": "M1",
+                "title": "Prepare interface and positive/refusal fixtures",
+                "stage_refs": [
+                  "STAGE-001"
+                ],
+                "obligation_refs": [
+                  "OBL-001",
+                  "OBL-002"
+                ]
+              },
+              {
+                "id": "M2",
+                "title": "Deliver and test bounded outcome",
+                "depends_on": [
+                  "M1"
+                ],
+                "stage_refs": [
+                  "STAGE-002"
+                ],
+                "obligation_refs": [
+                  "OBL-001",
+                  "OBL-002"
+                ]
+              },
+              {
+                "id": "M3",
+                "title": "Review exact result for qualification",
+                "depends_on": [
+                  "M2"
+                ],
+                "stage_refs": [
+                  "STAGE-003"
+                ],
+                "obligation_refs": [
+                  "OBL-003",
+                  "OBL-004"
+                ]
+              }
+            ],
+            "stages": [
+              {
+                "id": "STAGE-001",
+                "title": "Prepare interface and positive/refusal fixtures",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://codex",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              },
+              {
+                "id": "STAGE-002",
+                "title": "Deliver and test bounded outcome",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://codex",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              },
+              {
+                "id": "STAGE-003",
+                "title": "Review exact result for qualification",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://independent-verifier",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              }
+            ]
+          }
+        },
+        {
+          "source": "__ow_archive__/history/2661d6483b72165d754ea5561fe7a68bcf199f76/docs/warrants/OW-WAR-0075/atoms/45-milestones.yaml",
+          "source_digest": "sha256:74cd4071824eab035f41a3fdfc14cb119e6c67e7c0f4eeb17cfa5800d3821dc5",
+          "manifest_source": "__ow_archive__/history/2661d6483b72165d754ea5561fe7a68bcf199f76/docs/warrants/OW-WAR-0075/manifest.toml",
+          "graph": {
+            "milestones": [
+              {
+                "id": "M1",
+                "title": "Parse minimal documents and framing refusal fixtures",
+                "stage_refs": [
+                  "STAGE-001"
+                ],
+                "obligation_refs": [
+                  "OBL-001",
+                  "OBL-002"
+                ]
+              },
+              {
+                "id": "M2",
+                "title": "Validate document kinds and extensions through the same driver",
+                "depends_on": [
+                  "M1"
+                ],
+                "stage_refs": [
+                  "STAGE-002"
+                ],
+                "obligation_refs": [
+                  "OBL-001",
+                  "OBL-002"
+                ]
+              },
+              {
+                "id": "M3",
+                "title": "Independently verify exact spans and validity boundaries",
+                "depends_on": [
+                  "M2"
+                ],
+                "stage_refs": [
+                  "STAGE-003"
+                ],
+                "obligation_refs": [
+                  "OBL-003",
+                  "OBL-004"
+                ]
+              }
+            ],
+            "stages": [
+              {
+                "id": "STAGE-001",
+                "title": "Parse minimal documents and framing refusal fixtures",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://codex",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              },
+              {
+                "id": "STAGE-002",
+                "title": "Validate document kinds and extensions through the same driver",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://codex",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              },
+              {
+                "id": "STAGE-003",
+                "title": "Independently verify exact spans and validity boundaries",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://independent-verifier",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              }
+            ]
+          }
+        },
+        {
+          "source": "__ow_archive__/history/651ea2d002e4e61dbaddb9262b3e8959a110ea8d/docs/warrants/OW-WAR-0075/atoms/45-milestones.yaml",
+          "source_digest": "sha256:74cd4071824eab035f41a3fdfc14cb119e6c67e7c0f4eeb17cfa5800d3821dc5",
+          "manifest_source": "__ow_archive__/history/651ea2d002e4e61dbaddb9262b3e8959a110ea8d/docs/warrants/OW-WAR-0075/manifest.toml",
+          "graph": {
+            "milestones": [
+              {
+                "id": "M1",
+                "title": "Parse minimal documents and framing refusal fixtures",
+                "stage_refs": [
+                  "STAGE-001"
+                ],
+                "obligation_refs": [
+                  "OBL-001",
+                  "OBL-002"
+                ]
+              },
+              {
+                "id": "M2",
+                "title": "Validate document kinds and extensions through the same driver",
+                "depends_on": [
+                  "M1"
+                ],
+                "stage_refs": [
+                  "STAGE-002"
+                ],
+                "obligation_refs": [
+                  "OBL-001",
+                  "OBL-002"
+                ]
+              },
+              {
+                "id": "M3",
+                "title": "Independently verify exact spans and validity boundaries",
+                "depends_on": [
+                  "M2"
+                ],
+                "stage_refs": [
+                  "STAGE-003"
+                ],
+                "obligation_refs": [
+                  "OBL-003",
+                  "OBL-004"
+                ]
+              }
+            ],
+            "stages": [
+              {
+                "id": "STAGE-001",
+                "title": "Parse minimal documents and framing refusal fixtures",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://codex",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              },
+              {
+                "id": "STAGE-002",
+                "title": "Validate document kinds and extensions through the same driver",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://codex",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              },
+              {
+                "id": "STAGE-003",
+                "title": "Independently verify exact spans and validity boundaries",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://independent-verifier",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              }
+            ]
+          }
+        },
+        {
+          "source": "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/atoms/45-milestones.yaml",
+          "source_digest": "sha256:5538831139d4fc29ab524a2648426aa659f36b9ea171faf79e3d0e5510bda8f0",
+          "manifest_source": "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/manifest.toml",
+          "graph": {
+            "milestones": [
+              {
+                "id": "M1",
+                "title": "Prepare interface and positive/refusal fixtures",
+                "stage_refs": [
+                  "STAGE-001"
+                ],
+                "obligation_refs": [
+                  "OBL-001",
+                  "OBL-002"
+                ]
+              },
+              {
+                "id": "M2",
+                "title": "Deliver and test bounded outcome",
+                "depends_on": [
+                  "M1"
+                ],
+                "stage_refs": [
+                  "STAGE-002"
+                ],
+                "obligation_refs": [
+                  "OBL-001",
+                  "OBL-002"
+                ]
+              },
+              {
+                "id": "M3",
+                "title": "Review exact result for qualification",
+                "depends_on": [
+                  "M2"
+                ],
+                "stage_refs": [
+                  "STAGE-003"
+                ],
+                "obligation_refs": [
+                  "OBL-003",
+                  "OBL-004"
+                ]
+              }
+            ],
+            "stages": [
+              {
+                "id": "STAGE-001",
+                "title": "Prepare interface and positive/refusal fixtures",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://codex",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              },
+              {
+                "id": "STAGE-002",
+                "title": "Deliver and test bounded outcome",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://codex",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              },
+              {
+                "id": "STAGE-003",
+                "title": "Review exact result for qualification",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://independent-verifier",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              }
+            ]
+          }
+        },
+        {
+          "source": "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/atoms/45-milestones.yaml",
+          "source_digest": "sha256:5538831139d4fc29ab524a2648426aa659f36b9ea171faf79e3d0e5510bda8f0",
+          "manifest_source": "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/manifest.toml",
+          "graph": {
+            "milestones": [
+              {
+                "id": "M1",
+                "title": "Prepare interface and positive/refusal fixtures",
+                "stage_refs": [
+                  "STAGE-001"
+                ],
+                "obligation_refs": [
+                  "OBL-001",
+                  "OBL-002"
+                ]
+              },
+              {
+                "id": "M2",
+                "title": "Deliver and test bounded outcome",
+                "depends_on": [
+                  "M1"
+                ],
+                "stage_refs": [
+                  "STAGE-002"
+                ],
+                "obligation_refs": [
+                  "OBL-001",
+                  "OBL-002"
+                ]
+              },
+              {
+                "id": "M3",
+                "title": "Review exact result for qualification",
+                "depends_on": [
+                  "M2"
+                ],
+                "stage_refs": [
+                  "STAGE-003"
+                ],
+                "obligation_refs": [
+                  "OBL-003",
+                  "OBL-004"
+                ]
+              }
+            ],
+            "stages": [
+              {
+                "id": "STAGE-001",
+                "title": "Prepare interface and positive/refusal fixtures",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://codex",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              },
+              {
+                "id": "STAGE-002",
+                "title": "Deliver and test bounded outcome",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://codex",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              },
+              {
+                "id": "STAGE-003",
+                "title": "Review exact result for qualification",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://independent-verifier",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              }
+            ]
+          }
+        },
+        {
+          "source": "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/atoms/45-milestones.yaml",
+          "source_digest": "sha256:5538831139d4fc29ab524a2648426aa659f36b9ea171faf79e3d0e5510bda8f0",
+          "manifest_source": "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/manifest.toml",
+          "graph": {
+            "milestones": [
+              {
+                "id": "M1",
+                "title": "Prepare interface and positive/refusal fixtures",
+                "stage_refs": [
+                  "STAGE-001"
+                ],
+                "obligation_refs": [
+                  "OBL-001",
+                  "OBL-002"
+                ]
+              },
+              {
+                "id": "M2",
+                "title": "Deliver and test bounded outcome",
+                "depends_on": [
+                  "M1"
+                ],
+                "stage_refs": [
+                  "STAGE-002"
+                ],
+                "obligation_refs": [
+                  "OBL-001",
+                  "OBL-002"
+                ]
+              },
+              {
+                "id": "M3",
+                "title": "Review exact result for qualification",
+                "depends_on": [
+                  "M2"
+                ],
+                "stage_refs": [
+                  "STAGE-003"
+                ],
+                "obligation_refs": [
+                  "OBL-003",
+                  "OBL-004"
+                ]
+              }
+            ],
+            "stages": [
+              {
+                "id": "STAGE-001",
+                "title": "Prepare interface and positive/refusal fixtures",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://codex",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              },
+              {
+                "id": "STAGE-002",
+                "title": "Deliver and test bounded outcome",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://codex",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              },
+              {
+                "id": "STAGE-003",
+                "title": "Review exact result for qualification",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://independent-verifier",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              }
+            ]
+          }
+        },
+        {
+          "source": "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/atoms/45-milestones.yaml",
+          "source_digest": "sha256:5538831139d4fc29ab524a2648426aa659f36b9ea171faf79e3d0e5510bda8f0",
+          "manifest_source": "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/manifest.toml",
+          "graph": {
+            "milestones": [
+              {
+                "id": "M1",
+                "title": "Prepare interface and positive/refusal fixtures",
+                "stage_refs": [
+                  "STAGE-001"
+                ],
+                "obligation_refs": [
+                  "OBL-001",
+                  "OBL-002"
+                ]
+              },
+              {
+                "id": "M2",
+                "title": "Deliver and test bounded outcome",
+                "depends_on": [
+                  "M1"
+                ],
+                "stage_refs": [
+                  "STAGE-002"
+                ],
+                "obligation_refs": [
+                  "OBL-001",
+                  "OBL-002"
+                ]
+              },
+              {
+                "id": "M3",
+                "title": "Review exact result for qualification",
+                "depends_on": [
+                  "M2"
+                ],
+                "stage_refs": [
+                  "STAGE-003"
+                ],
+                "obligation_refs": [
+                  "OBL-003",
+                  "OBL-004"
+                ]
+              }
+            ],
+            "stages": [
+              {
+                "id": "STAGE-001",
+                "title": "Prepare interface and positive/refusal fixtures",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://codex",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              },
+              {
+                "id": "STAGE-002",
+                "title": "Deliver and test bounded outcome",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://codex",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              },
+              {
+                "id": "STAGE-003",
+                "title": "Review exact result for qualification",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://independent-verifier",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              }
+            ]
+          }
+        },
+        {
+          "source": "docs/warrants/OW-WAR-0075/atoms/45-milestones.yaml",
+          "source_digest": "sha256:5538831139d4fc29ab524a2648426aa659f36b9ea171faf79e3d0e5510bda8f0",
+          "manifest_source": "docs/warrants/OW-WAR-0075/manifest.toml",
+          "graph": {
+            "milestones": [
+              {
+                "id": "M1",
+                "title": "Prepare interface and positive/refusal fixtures",
+                "stage_refs": [
+                  "STAGE-001"
+                ],
+                "obligation_refs": [
+                  "OBL-001",
+                  "OBL-002"
+                ]
+              },
+              {
+                "id": "M2",
+                "title": "Deliver and test bounded outcome",
+                "depends_on": [
+                  "M1"
+                ],
+                "stage_refs": [
+                  "STAGE-002"
+                ],
+                "obligation_refs": [
+                  "OBL-001",
+                  "OBL-002"
+                ]
+              },
+              {
+                "id": "M3",
+                "title": "Review exact result for qualification",
+                "depends_on": [
+                  "M2"
+                ],
+                "stage_refs": [
+                  "STAGE-003"
+                ],
+                "obligation_refs": [
+                  "OBL-003",
+                  "OBL-004"
+                ]
+              }
+            ],
+            "stages": [
+              {
+                "id": "STAGE-001",
+                "title": "Prepare interface and positive/refusal fixtures",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://codex",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              },
+              {
+                "id": "STAGE-002",
+                "title": "Deliver and test bounded outcome",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://codex",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              },
+              {
+                "id": "STAGE-003",
+                "title": "Review exact result for qualification",
+                "executor_kind": "agent",
+                "responsibility_tier": "T2",
+                "executor_ref": "agent://independent-verifier",
+                "context_sections": [
+                  "20-basis.md#Required context",
+                  "40-work-order.md#Premade Instructions",
+                  "60-assurance.md#Acceptance Obligations"
+                ],
+                "budget_tokens": 24000
+              }
+            ]
+          }
+        }
+      ],
+      "unresolved": [],
+      "history_retained": true,
+      "execution_coverage_established": false
+    },
+    "contract_history_coverage": {
+      "state": "retained",
+      "paths": [
+        "__ow_archive__/history.json",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/commit.txt",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/atoms/10-intent.md",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/atoms/20-basis.md",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/atoms/40-work-order.md",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/atoms/45-milestones.yaml",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/atoms/60-assurance.md",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-boundary-tests.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-clippy-final.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-clippy.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-core-final.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-core-tests.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-default-clippy.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-depth-regression.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-fmt-final.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-01.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-02.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-03.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-04.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-05.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-06.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-07.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-08.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-09.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-10.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-11.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-probe-final.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-probe-mutation.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-01.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-02.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-03.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-04.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-05.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-06.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-07.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-08.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-09.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-10.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-11.log",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/evidence/sdk-parser/source-inventory.json",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/generated/WAR.json",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/generated/WAR.md",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/implementation/progress.json",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/implementation/sdk-parser-notes.md",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/journal.jsonl",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/manifest.toml",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/plan/proposal.json",
+        "__ow_archive__/history/0ecf17e97ea2495c793b458f765aafaa682239b3/docs/warrants/OW-WAR-0075/rationale.toml",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/commit.txt",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/atoms/10-intent.md",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/atoms/20-basis.md",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/atoms/40-work-order.md",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/atoms/45-milestones.yaml",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/atoms/60-assurance.md",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-boundary-tests.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-clippy-final.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-clippy.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-core-final.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-core-tests.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-default-clippy.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-depth-regression.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-fmt-final.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-01.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-02.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-03.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-04.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-05.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-06.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-07.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-08.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-09.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-10.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-11.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-probe-final.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-probe-mutation.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-01.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-02.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-03.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-04.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-05.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-06.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-07.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-08.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-09.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-10.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-11.log",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/evidence/sdk-parser/source-inventory.json",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/generated/WAR.json",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/generated/WAR.md",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/implementation/progress.json",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/implementation/sdk-parser-notes.md",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/journal.jsonl",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/manifest.toml",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/plan/proposal.json",
+        "__ow_archive__/history/136cbb1585c7afb515f12db77170cbbe6b1ffa6b/docs/warrants/OW-WAR-0075/rationale.toml",
+        "__ow_archive__/history/2661d6483b72165d754ea5561fe7a68bcf199f76/commit.txt",
+        "__ow_archive__/history/2661d6483b72165d754ea5561fe7a68bcf199f76/docs/warrants/OW-WAR-0075/atoms/10-intent.md",
+        "__ow_archive__/history/2661d6483b72165d754ea5561fe7a68bcf199f76/docs/warrants/OW-WAR-0075/atoms/20-basis.md",
+        "__ow_archive__/history/2661d6483b72165d754ea5561fe7a68bcf199f76/docs/warrants/OW-WAR-0075/atoms/40-work-order.md",
+        "__ow_archive__/history/2661d6483b72165d754ea5561fe7a68bcf199f76/docs/warrants/OW-WAR-0075/atoms/45-milestones.yaml",
+        "__ow_archive__/history/2661d6483b72165d754ea5561fe7a68bcf199f76/docs/warrants/OW-WAR-0075/atoms/60-assurance.md",
+        "__ow_archive__/history/2661d6483b72165d754ea5561fe7a68bcf199f76/docs/warrants/OW-WAR-0075/generated/WAR.json",
+        "__ow_archive__/history/2661d6483b72165d754ea5561fe7a68bcf199f76/docs/warrants/OW-WAR-0075/generated/WAR.md",
+        "__ow_archive__/history/2661d6483b72165d754ea5561fe7a68bcf199f76/docs/warrants/OW-WAR-0075/journal.jsonl",
+        "__ow_archive__/history/2661d6483b72165d754ea5561fe7a68bcf199f76/docs/warrants/OW-WAR-0075/manifest.toml",
+        "__ow_archive__/history/2661d6483b72165d754ea5561fe7a68bcf199f76/docs/warrants/OW-WAR-0075/plan/proposal.json",
+        "__ow_archive__/history/2661d6483b72165d754ea5561fe7a68bcf199f76/docs/warrants/OW-WAR-0075/rationale.toml",
+        "__ow_archive__/history/651ea2d002e4e61dbaddb9262b3e8959a110ea8d/commit.txt",
+        "__ow_archive__/history/651ea2d002e4e61dbaddb9262b3e8959a110ea8d/docs/warrants/OW-WAR-0075/atoms/10-intent.md",
+        "__ow_archive__/history/651ea2d002e4e61dbaddb9262b3e8959a110ea8d/docs/warrants/OW-WAR-0075/atoms/20-basis.md",
+        "__ow_archive__/history/651ea2d002e4e61dbaddb9262b3e8959a110ea8d/docs/warrants/OW-WAR-0075/atoms/40-work-order.md",
+        "__ow_archive__/history/651ea2d002e4e61dbaddb9262b3e8959a110ea8d/docs/warrants/OW-WAR-0075/atoms/45-milestones.yaml",
+        "__ow_archive__/history/651ea2d002e4e61dbaddb9262b3e8959a110ea8d/docs/warrants/OW-WAR-0075/atoms/60-assurance.md",
+        "__ow_archive__/history/651ea2d002e4e61dbaddb9262b3e8959a110ea8d/docs/warrants/OW-WAR-0075/generated/WAR.json",
+        "__ow_archive__/history/651ea2d002e4e61dbaddb9262b3e8959a110ea8d/docs/warrants/OW-WAR-0075/generated/WAR.md",
+        "__ow_archive__/history/651ea2d002e4e61dbaddb9262b3e8959a110ea8d/docs/warrants/OW-WAR-0075/journal.jsonl",
+        "__ow_archive__/history/651ea2d002e4e61dbaddb9262b3e8959a110ea8d/docs/warrants/OW-WAR-0075/manifest.toml",
+        "__ow_archive__/history/651ea2d002e4e61dbaddb9262b3e8959a110ea8d/docs/warrants/OW-WAR-0075/plan/proposal.json",
+        "__ow_archive__/history/651ea2d002e4e61dbaddb9262b3e8959a110ea8d/docs/warrants/OW-WAR-0075/rationale.toml",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/commit.txt",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/atoms/10-intent.md",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/atoms/20-basis.md",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/atoms/40-work-order.md",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/atoms/45-milestones.yaml",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/atoms/60-assurance.md",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-boundary-tests.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-clippy-final.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-clippy.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-core-final.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-core-tests.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-default-clippy.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-depth-regression.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-fmt-final.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-01.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-02.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-03.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-04.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-05.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-06.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-07.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-08.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-09.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-10.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-11.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-probe-final.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-probe-mutation.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-01.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-02.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-03.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-04.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-05.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-06.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-07.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-08.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-09.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-10.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-11.log",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/evidence/sdk-parser/source-inventory.json",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/generated/WAR.json",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/generated/WAR.md",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/implementation/sdk-parser-notes.md",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/journal.jsonl",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/manifest.toml",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/plan/proposal.json",
+        "__ow_archive__/history/81fcd29ef030edfa5782fb7d722e3e97e72de9ba/docs/warrants/OW-WAR-0075/rationale.toml",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/commit.txt",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/atoms/10-intent.md",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/atoms/20-basis.md",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/atoms/40-work-order.md",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/atoms/45-milestones.yaml",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/atoms/60-assurance.md",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-boundary-tests.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-clippy-final.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-clippy.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-core-final.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-core-tests.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-default-clippy.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-depth-regression.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-fmt-final.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-01.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-02.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-03.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-04.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-05.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-06.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-07.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-08.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-09.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-10.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-11.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-probe-final.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-probe-mutation.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-01.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-02.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-03.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-04.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-05.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-06.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-07.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-08.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-09.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-10.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-11.log",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/evidence/sdk-parser/source-inventory.json",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/generated/WAR.json",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/generated/WAR.md",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/implementation/sdk-parser-notes.md",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/journal.jsonl",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/manifest.toml",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/plan/proposal.json",
+        "__ow_archive__/history/8280bb94b8bcfb921bb7a14000504a2b15faa41a/docs/warrants/OW-WAR-0075/rationale.toml",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/commit.txt",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/atoms/10-intent.md",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/atoms/20-basis.md",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/atoms/40-work-order.md",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/atoms/45-milestones.yaml",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/atoms/60-assurance.md",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-boundary-tests.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-clippy-final.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-clippy.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-core-final.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-core-tests.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-default-clippy.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-depth-regression.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-fmt-final.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-01.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-02.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-03.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-04.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-05.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-06.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-07.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-08.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-09.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-10.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-11.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-probe-final.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-probe-mutation.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-01.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-02.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-03.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-04.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-05.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-06.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-07.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-08.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-09.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-10.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-11.log",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/evidence/sdk-parser/source-inventory.json",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/generated/WAR.json",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/generated/WAR.md",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/implementation/progress.json",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/implementation/sdk-parser-notes.md",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/journal.jsonl",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/manifest.toml",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/plan/proposal.json",
+        "__ow_archive__/history/8f688e1e531a0a9bc7a5711a78c4583d8cc09f3e/docs/warrants/OW-WAR-0075/rationale.toml",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/commit.txt",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/atoms/10-intent.md",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/atoms/20-basis.md",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/atoms/40-work-order.md",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/atoms/45-milestones.yaml",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/atoms/60-assurance.md",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-boundary-tests.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-clippy-final.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-clippy.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-core-final.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-core-tests.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-default-clippy.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-depth-regression.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-fmt-final.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-01.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-02.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-03.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-04.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-05.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-06.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-07.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-08.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-09.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-10.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-11.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-probe-final.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-probe-mutation.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-01.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-02.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-03.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-04.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-05.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-06.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-07.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-08.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-09.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-10.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-11.log",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/evidence/sdk-parser/source-inventory.json",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/generated/WAR.json",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/generated/WAR.md",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/implementation/progress.json",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/implementation/sdk-parser-notes.md",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/journal.jsonl",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/manifest.toml",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/plan/proposal.json",
+        "__ow_archive__/history/dffffaa2411497e1e17f52dae530da7b5142c558/docs/warrants/OW-WAR-0075/rationale.toml",
+        "docs/warrants/OW-WAR-0075/atoms/10-intent.md",
+        "docs/warrants/OW-WAR-0075/atoms/20-basis.md",
+        "docs/warrants/OW-WAR-0075/atoms/40-work-order.md",
+        "docs/warrants/OW-WAR-0075/atoms/45-milestones.yaml",
+        "docs/warrants/OW-WAR-0075/atoms/60-assurance.md",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-boundary-tests.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-clippy-final.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-clippy.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-core-final.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-core-tests.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-default-clippy.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-depth-regression.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-fmt-final.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-01.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-02.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-03.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-04.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-05.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-06.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-07.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-08.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-09.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-10.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-green-11.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-probe-final.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-probe-mutation.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-01.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-02.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-03.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-04.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-05.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-06.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-07.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-08.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-09.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-10.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/ow-0075-red-11.log",
+        "docs/warrants/OW-WAR-0075/evidence/sdk-parser/source-inventory.json",
+        "docs/warrants/OW-WAR-0075/generated/WAR.json",
+        "docs/warrants/OW-WAR-0075/generated/WAR.md",
+        "docs/warrants/OW-WAR-0075/implementation/progress.json",
+        "docs/warrants/OW-WAR-0075/implementation/sdk-parser-notes.md",
+        "docs/warrants/OW-WAR-0075/journal.jsonl",
+        "docs/warrants/OW-WAR-0075/manifest.toml",
+        "docs/warrants/OW-WAR-0075/plan/proposal.json",
+        "docs/warrants/OW-WAR-0075/rationale.toml"
+      ]
+    },
+    "authority_activated": false,
+    "qualified": false
+  },
+  "limitation": "Source and dispatch binding fixture only; provider rows are synthetic, not production execution or authorization."
+}

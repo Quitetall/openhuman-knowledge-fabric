@@ -9,6 +9,7 @@
 
 import { ActionRejected, type ActionEffect } from '@kf/actions';
 import type { Tx } from '@kf/database';
+import { parseRequestedNextAction } from './submission-contract.js';
 
 type Payload = Readonly<Record<string, unknown>> | undefined;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -218,7 +219,7 @@ export const registerWarrantSubmission: ActionEffect = async (tx, request, objec
       strings(request.payload, 'artifact_refs'),
       strings(request.payload, 'blocker_refs'),
       strings(request.payload, 'deviation_refs'),
-      str(request.payload, 'requested_next_action'),
+      parseRequestedNextAction(request.payload?.['requested_next_action']),
       bool(request.payload, 'declared_as_deliverable', false),
       request.actorId,
       ctx.actionId,

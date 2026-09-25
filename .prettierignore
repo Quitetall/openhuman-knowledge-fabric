@@ -28,3 +28,9 @@ docs/gates/
 docs/decisions/generated/
 # Master records as the API returned them, byte for byte. A formatter would change the digest.
 examples/
+
+# Byte-identical OpenWarrant schema projection; checked against its manifest.
+packages/warrants/src/generated/openwarrant/
+
+# Canonical producer bytes: shared OW-WAR-0111 preservation fixture.
+tests/fixtures/openwarrant-preservation/

@@ -1,0 +1,39 @@
+{
+  "producer_revision": "85ab27cb50ac706ee900e91b34a3df838fd56712",
+  "producer_binary_sha256": "e69f1a9ae357e32f235895b6345e51bbf32f23bb1570ec3938b8f9243fb9314e",
+  "archive_sha256": "b6318636c97fa0fbae729add05b13a5539e7c7388d5f37f2152a2fc3765e2fbb",
+  "basis": {
+    "schema": "oh.war/runtime-archive-basis/v1-draft.1",
+    "archive_digest": "sha256:728c3eac235938e826ff35bb270b5fd84191a364f6f73a2307a3bbcedfb2e3b8",
+    "subject": "war://01a0b53a-3315-7ed3-a369-35af9154f89d",
+    "warrant_id": "01a0b53a-3315-7ed3-a369-35af9154f89d",
+    "current_contract": {
+      "revision": 1,
+      "digest": "c508a1eac053965c53730e993847a9cfce8a84922a6811a9586a254834117dd0"
+    },
+    "retained_contracts": [],
+    "contract_history_coverage": {
+      "state": "retained",
+      "paths": [
+        "__ow_archive__/history.json",
+        "__ow_archive__/history/18fe1a23e8a9393f11993975e570eebe4e98f8ca/commit.txt",
+        "__ow_archive__/history/18fe1a23e8a9393f11993975e570eebe4e98f8ca/docs/warrants/OW-WAR-0002/atoms/10-intent.md",
+        "__ow_archive__/history/18fe1a23e8a9393f11993975e570eebe4e98f8ca/docs/warrants/OW-WAR-0002/atoms/20-basis.md",
+        "__ow_archive__/history/18fe1a23e8a9393f11993975e570eebe4e98f8ca/docs/warrants/OW-WAR-0002/atoms/40-work-order.md",
+        "__ow_archive__/history/18fe1a23e8a9393f11993975e570eebe4e98f8ca/docs/warrants/OW-WAR-0002/atoms/45-milestones.yaml",
+        "__ow_archive__/history/18fe1a23e8a9393f11993975e570eebe4e98f8ca/docs/warrants/OW-WAR-0002/atoms/60-assurance.md",
+        "__ow_archive__/history/18fe1a23e8a9393f11993975e570eebe4e98f8ca/docs/warrants/OW-WAR-0002/journal.jsonl",
+        "__ow_archive__/history/18fe1a23e8a9393f11993975e570eebe4e98f8ca/docs/warrants/OW-WAR-0002/manifest.toml",
+        "docs/warrants/OW-WAR-0002/atoms/10-intent.md",
+        "docs/warrants/OW-WAR-0002/atoms/20-basis.md",
+        "docs/warrants/OW-WAR-0002/atoms/40-work-order.md",
+        "docs/warrants/OW-WAR-0002/atoms/45-milestones.yaml",
+        "docs/warrants/OW-WAR-0002/atoms/60-assurance.md",
+        "docs/warrants/OW-WAR-0002/journal.jsonl",
+        "docs/warrants/OW-WAR-0002/manifest.toml"
+      ]
+    },
+    "authority_activated": false,
+    "qualified": false
+  }
+}
