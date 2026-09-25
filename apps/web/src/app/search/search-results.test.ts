@@ -56,6 +56,11 @@ function list(html: string, name: string): string {
 }
 
 describe('the search page renders the composed answer, not just the hits', () => {
+  it('links every hit, including types without a dossier page, to where it can be read', () => {
+    const html = render(response());
+    expect(html).toContain('href="/objects/exact-1"');
+  });
+
   it('shows the lexical and semantic lists apart, each with its ranking name', () => {
     const html = render(response({ semantic: { ranking: SEMANTIC, hits: [related] } }));
     const lexical = list(html, 'lexical');

@@ -1,7 +1,8 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import type { Caller } from './api';
+import { ApiError, get, parseDocumentsResponse, type Caller } from './api';
 import {
+  type AuthorityContext,
   loadWebIdentityConfig,
   openWebSession,
   sanitizeReturnTo,
@@ -9,6 +10,7 @@ import {
   type DogfoodIdentityConfig,
   type WebSession,
 } from './auth';
+import type { ContextCheck } from './auth/resume';
 import { developmentCaller } from './caller';
 
 export function dogfoodConfig(): DogfoodIdentityConfig {
@@ -42,4 +44,28 @@ export async function webCaller(returnTo = '/documents'): Promise<Caller> {
     bearerToken: session.accessToken,
     ...session.context,
   };
+}
+
+/**
+ * Ask the API whether this session may act in `context`. The one check both a fresh selection
+ * and a renewed session pass through before a context is sealed into the session cookie.
+ */
+export async function confirmContextWithApi(
+  session: WebSession,
+  context: AuthorityContext,
+): Promise<ContextCheck> {
+  const caller: Caller = {
+    authentication: 'oidc',
+    actorId: session.subject,
+    bearerToken: session.accessToken,
+    ...context,
+  };
+  try {
+    // This is not a client-side guess. API verifies bearer subject, active role assignment,
+    // organization boundary and classification context before selection is persisted.
+    await get('/documents', caller, parseDocumentsResponse);
+    return 'confirmed';
+  } catch (error: unknown) {
+    return error instanceof ApiError && error.isRefusal ? 'refused' : 'unavailable';
+  }
 }

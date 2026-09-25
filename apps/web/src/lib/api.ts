@@ -27,7 +27,17 @@ export type {
 } from './api/operations';
 export { parseAvailableActionsView, parseHistoryView, parseProjectView } from './api/project-views';
 export type { AvailableActionsView, HistoryView, ProjectView } from './api/project-views';
+export { getSessionAssignments, parseSessionAssignments } from './api/session-assignments';
+export type { SessionAssignment, SessionAssignments } from './api/session-assignments';
 export { parseObjectView, refreshObjectView } from './api/object-views';
+export {
+  ARTIFACT_TEXT_LIMIT_BYTES,
+  artifactDerivation,
+  artifactFile,
+  getArtifactText,
+  isPlainText,
+} from './api/artifacts';
+export type { ArtifactDerivation, ArtifactFile, ArtifactText } from './api/artifacts';
 export type { ObjectView, ObjectViewMember } from './api/object-views';
 export { parseDocumentDetail, parseDocumentsResponse } from './api/document-views';
 export type {

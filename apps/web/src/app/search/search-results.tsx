@@ -32,7 +32,11 @@ type AnyHit = SearchHit | SemanticSearchHit;
 function HitCard({ hit, detail }: { readonly hit: AnyHit; readonly detail: string }) {
   const href = recordHref(hit.objectType, hit.objectId);
   return (
-    <article style={{ border: '1px solid #cbd5e1', borderRadius: '0.65rem', padding: '1rem' }}>
+    <article
+      data-object-type={hit.objectType}
+      data-object-id={hit.objectId}
+      style={{ border: '1px solid #cbd5e1', borderRadius: '0.65rem', padding: '1rem' }}
+    >
       <div
         style={{
           display: 'flex',
@@ -43,13 +47,9 @@ function HitCard({ hit, detail }: { readonly hit: AnyHit; readonly detail: strin
         }}
       >
         <h4 style={{ fontSize: '1rem', margin: 0 }}>
-          {href === undefined ? (
-            hit.title
-          ) : (
-            <Link href={href} style={{ color: '#0f766e' }}>
-              {hit.title}
-            </Link>
-          )}
+          <Link href={href} style={{ color: '#0f766e' }}>
+            {hit.title}
+          </Link>
         </h4>
         <Badge state={hit.lifecycleState} />
       </div>
@@ -96,7 +96,11 @@ export function SearchResults({
         </p>
       )}
 
-      <section aria-labelledby="search-lexical-heading" data-list="lexical">
+      <section
+        aria-labelledby="search-lexical-heading"
+        data-list="lexical"
+        data-total={lexical.total}
+      >
         <h3 id="search-lexical-heading" style={{ fontSize: '1.05rem', margin: 0 }}>
           Exact matches
         </h3>

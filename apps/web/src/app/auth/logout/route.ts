@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import {
+  CONTEXT_HINT_COOKIE,
   ID_TOKEN_HINT_COOKIE,
   OIDC_TRANSACTION_COOKIE,
   openIdTokenHint,
@@ -11,7 +12,12 @@ import { discoverOidc, logoutUrl } from '../../../lib/oidc';
 import { dogfoodConfig } from '../../../lib/session';
 
 function expire(response: NextResponse): NextResponse {
-  for (const name of [SESSION_COOKIE, OIDC_TRANSACTION_COOKIE, ID_TOKEN_HINT_COOKIE]) {
+  for (const name of [
+    SESSION_COOKIE,
+    OIDC_TRANSACTION_COOKIE,
+    ID_TOKEN_HINT_COOKIE,
+    CONTEXT_HINT_COOKIE,
+  ]) {
     response.cookies.set(name, '', {
       httpOnly: true,
       secure: true,

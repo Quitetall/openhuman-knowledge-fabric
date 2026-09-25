@@ -27,6 +27,18 @@ development fixtures. Encrypted session values are capped at 3,800 bytes, includ
 authority context; an oversized identity-provider token fails login instead of being silently
 dropped by the browser's cookie limit.
 
+Optional: `KF_WEB_ORGANIZATION=<organization UUIDv7>` names the deployment's organization. With it
+(or once a context has been chosen), the context picker asks the API (`GET /session/assignments`,
+bearer and organization only) which live role assignments the person holds there and offers them
+as a choice, with ceilings up to their clearance; the typed-ids form stays available beneath it.
+Nothing is granted by the list: the choice is still validated by the API before it is kept.
+
+A successful choice is also remembered in `__Host-kf_context_hint` (sealed like the session, no
+token, 12 hours from the choice). The session lives only as long as its access token, so after
+renewal the callback re-validates the remembered context with the API for the same OIDC subject
+and, if accepted, returns the person to the page they asked for without the picker. Sign-out
+clears it.
+
 Web client must be public, use authorization code plus required PKCE S256, and allow exact
 callback and post-logout URLs. Access token must carry KF API audience. OIDC role claims are
 ignored; subject must already be linked to `org.person`, and selected role assignment must be

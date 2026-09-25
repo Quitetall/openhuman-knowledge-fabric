@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import {
+  CONTEXT_HINT_COOKIE,
   ID_TOKEN_HINT_COOKIE,
   OIDC_TRANSACTION_COOKIE,
   openOidcTransaction,
@@ -8,8 +9,9 @@ import {
   publicUrl,
   SESSION_COOKIE,
 } from '../../../lib/auth';
+import { resumeChosenContext } from '../../../lib/auth/resume';
 import { discoverOidc, exchangeAuthorizationCode } from '../../../lib/oidc';
-import { dogfoodConfig } from '../../../lib/session';
+import { confirmContextWithApi, dogfoodConfig } from '../../../lib/session';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,11 +58,37 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       transaction,
       code,
     );
-    const compact = await sealWebSession(session, config.sessionKey);
+    // A session lives only as long as its access token, so a person renews every few minutes.
+    // The context they chose earlier is offered again only if the API accepts it for this new
+    // token; otherwise they choose, exactly as on a first sign-in.
+    const resumed = await resumeChosenContext(
+      request.cookies.get(CONTEXT_HINT_COOKIE)?.value,
+      session,
+      config.sessionKey,
+      (context) => confirmContextWithApi(session, context),
+    );
+    const compact = await sealWebSession(
+      resumed.kind === 'resumed' ? { ...session, context: resumed.context } : session,
+      config.sessionKey,
+    );
     const hint = await sealIdTokenHint(idToken, session.expiresAt, config.sessionKey);
-    const destination = publicUrl(request, '/session/select');
-    destination.searchParams.set('next', transaction.returnTo);
+    let destination: URL;
+    if (resumed.kind === 'resumed') {
+      destination = publicUrl(request, transaction.returnTo);
+    } else {
+      destination = publicUrl(request, '/session/select');
+      destination.searchParams.set('next', transaction.returnTo);
+    }
     const response = clearTransaction(NextResponse.redirect(destination));
+    if (resumed.kind === 'choose' && resumed.discardHint) {
+      response.cookies.set(CONTEXT_HINT_COOKIE, '', {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        path: '/',
+        expires: new Date(0),
+      });
+    }
     response.cookies.set(SESSION_COOKIE, compact, {
       httpOnly: true,
       secure: true,

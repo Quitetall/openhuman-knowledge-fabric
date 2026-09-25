@@ -2,6 +2,8 @@
 
 export {
   CLASSIFICATIONS,
+  CONTEXT_HINT_COOKIE,
+  CONTEXT_HINT_LIFETIME_SECONDS,
   ID_TOKEN_HINT_COOKIE,
   MAX_WEB_COOKIE_VALUE_BYTES,
   OIDC_TRANSACTION_COOKIE,
@@ -10,6 +12,7 @@ export {
 export type {
   AuthorityContext,
   Classification,
+  ContextHint,
   DogfoodIdentityConfig,
   OidcTransaction,
   WebIdentityConfig,
@@ -19,9 +22,11 @@ export { loadWebIdentityConfig } from './auth/config';
 export { publicOrigin, publicUrl } from './auth/origin';
 export { makePkceTransaction, sanitizeReturnTo, validateContextSelection } from './auth/context';
 export {
+  openContextHint,
   openIdTokenHint,
   openOidcTransaction,
   openWebSession,
+  sealContextHint,
   sealIdTokenHint,
   sealOidcTransaction,
   sealWebSession,

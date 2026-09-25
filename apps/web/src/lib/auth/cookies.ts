@@ -1,8 +1,15 @@
 import { EncryptJWT, jwtDecrypt, type JWTPayload } from 'jose';
 import { validateContextSelection } from './context';
-import { MAX_WEB_COOKIE_VALUE_BYTES, type OidcTransaction, type WebSession } from './types';
+import {
+  MAX_WEB_COOKIE_VALUE_BYTES,
+  type AuthorityContext,
+  type ContextHint,
+  type OidcTransaction,
+  type WebSession,
+} from './types';
 
-type CookieKind = 'kf-web-session-v1' | 'kf-oidc-transaction-v1' | 'kf-id-token-hint-v1';
+type CookieKind =
+  'kf-web-session-v1' | 'kf-oidc-transaction-v1' | 'kf-id-token-hint-v1' | 'kf-context-hint-v1';
 
 async function seal(
   kind: CookieKind,
@@ -174,4 +181,50 @@ export async function openIdTokenHint(
   if (typeof data !== 'object' || data === null) return undefined;
   const idToken = (data as Record<string, unknown>)['idToken'];
   return typeof idToken === 'string' && idToken !== '' ? idToken : undefined;
+}
+
+/**
+ * Seal the context a person chose, for the callback to offer again after the session renews.
+ * It carries the subject and the three context values and nothing that authenticates: a stolen
+ * hint lets nobody act, and the callback still asks the API before using it.
+ */
+export async function sealContextHint(
+  hint: ContextHint,
+  expiresAt: number,
+  key: Uint8Array,
+): Promise<string> {
+  const context = validateContextSelection(hint);
+  if (typeof hint.subject !== 'string' || hint.subject === '') {
+    throw new Error('context hint requires the subject that chose it');
+  }
+  return enforceCookieBudget(
+    await seal('kf-context-hint-v1', { subject: hint.subject, ...context }, expiresAt, key),
+    'Context hint',
+  );
+}
+
+/**
+ * Open a context hint for `subject`, or return undefined. A hint written for any other subject
+ * is refused: whoever signs in next on a shared browser must not inherit the last person's role.
+ */
+export async function openContextHint(
+  compact: string | undefined,
+  key: Uint8Array,
+  subject: string,
+): Promise<AuthorityContext | undefined> {
+  const envelope = await open(compact, 'kf-context-hint-v1', key);
+  const data = envelope?.['data'];
+  if (typeof data !== 'object' || data === null) return undefined;
+  const value = data as Record<string, unknown>;
+  if (typeof value['subject'] !== 'string' || value['subject'] === '') return undefined;
+  if (subject === '' || value['subject'] !== subject) return undefined;
+  try {
+    return validateContextSelection({
+      actingRoleId: value['actingRoleId'],
+      organizationId: value['organizationId'],
+      maxClassification: value['maxClassification'],
+    });
+  } catch {
+    return undefined;
+  }
 }

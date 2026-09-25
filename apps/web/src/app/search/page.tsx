@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { ApiError, getSearchResults, type SearchResponse } from '../../lib/api';
 import { webCaller } from '../../lib/session';
 import { SearchResults } from './search-results';
-import { parseSearchPageParams, type SearchPageParams } from './search-view';
+import { parseSearchPageParams, searchReturnPath, type SearchPageParams } from './search-view';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Search' };
@@ -13,8 +13,9 @@ export default async function SearchPage({
 }: {
   readonly searchParams: Promise<SearchPageParams>;
 }) {
-  const parsed = parseSearchPageParams(await searchParams);
-  const caller = await webCaller('/search');
+  const params = await searchParams;
+  const parsed = parseSearchPageParams(params);
+  const caller = await webCaller(searchReturnPath(params));
   let response: SearchResponse | undefined;
   let loadError: string | undefined;
 

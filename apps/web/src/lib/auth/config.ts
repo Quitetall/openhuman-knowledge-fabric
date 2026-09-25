@@ -1,5 +1,6 @@
 import { readFileSync, statSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
+import { uuidV7 } from './context';
 import type { WebIdentityConfig } from './types';
 
 type Environment = Readonly<Record<string, string | undefined>>;
@@ -90,6 +91,18 @@ function configuredSessionKey(env: Environment): Uint8Array {
   );
 }
 
+/**
+ * The deployment's organization, optional. Held to the same shape the context selection accepts
+ * for an organization, so a configured value can always be chosen; a malformed one fails startup
+ * rather than silently turning the picker back into three blank fields.
+ */
+function configuredOrganization(env: Environment): string | undefined {
+  const value = env['KF_WEB_ORGANIZATION']?.trim();
+  if (value === undefined || value === '') return undefined;
+  if (!uuidV7(value)) throw new Error('KF_WEB_ORGANIZATION must be an organization UUIDv7');
+  return value.toLowerCase();
+}
+
 /** Resolve web identity once per request. No incomplete dogfood fallback exists. */
 export function loadWebIdentityConfig(env: Environment = process.env): WebIdentityConfig {
   const profile = required(env, 'KF_DEPLOYMENT_PROFILE');
@@ -104,11 +117,13 @@ export function loadWebIdentityConfig(env: Environment = process.env): WebIdenti
     required(env, 'KF_WEB_OIDC_REDIRECT_URI'),
     'KF_WEB_OIDC_REDIRECT_URI',
   );
+  const organizationId = configuredOrganization(env);
   return {
     profile,
     issuer: issuer.toString().replace(/\/$/, ''),
     clientId,
     redirectUri: redirectUri.toString(),
     sessionKey: configuredSessionKey(env),
+    ...(organizationId === undefined ? {} : { organizationId }),
   };
 }

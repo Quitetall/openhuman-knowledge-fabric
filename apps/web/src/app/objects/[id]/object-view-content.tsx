@@ -11,6 +11,7 @@ import { formatInstant, formatState } from '@kf/ui';
 import type { ObjectView, ObjectViewMember } from '../../../lib/api';
 import { Badge } from '../../components/badge';
 import { VerificationNote } from '../../components/verification-note';
+import { ArtifactPanel, type ArtifactPanelData } from './artifact-panel';
 
 /** Prominent fields: everything the typed payload carries, one row each, values as text. */
 function payloadRows(member: ObjectViewMember): readonly { key: string; value: string }[] {
@@ -32,7 +33,17 @@ function payloadRows(member: ObjectViewMember): readonly { key: string; value: s
   return rows;
 }
 
-export function ObjectViewContent({ view }: { readonly view: ObjectView }) {
+/**
+ * `artifact` is the one type-specific addition: an artifact IS a file, and a page that showed its
+ * metadata rows without a way to open the file would describe the record without reaching it.
+ */
+export function ObjectViewContent({
+  view,
+  artifact,
+}: {
+  readonly view: ObjectView;
+  readonly artifact?: ArtifactPanelData;
+}) {
   const { subject } = view;
   const byId = new Map(view.relationships.map((m) => [m.objectId, m]));
   const rows = payloadRows(subject);
@@ -47,6 +58,8 @@ export function ObjectViewContent({ view }: { readonly view: ObjectView }) {
       </h1>
       {subject.lifecycleState === undefined ? null : <Badge state={subject.lifecycleState} />}
       <VerificationNote verification={subject.verification} />
+
+      {artifact === undefined ? null : <ArtifactPanel view={view} data={artifact} />}
 
       <h2 style={{ fontSize: '1rem', marginTop: '2rem' }}>Overview</h2>
       {rows.length === 0 ? (

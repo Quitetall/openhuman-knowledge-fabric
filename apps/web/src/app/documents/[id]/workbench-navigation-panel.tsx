@@ -1,5 +1,6 @@
 import { formatState } from '@kf/ui';
 import type { DocumentWorkspace, WorkspaceNavigationLink } from '../../../lib/api';
+import { recordHref } from '../../search/search-view';
 
 function LinkList({ links }: { readonly links: readonly WorkspaceNavigationLink[] }) {
   if (links.length === 0) return <p>No records visible.</p>;
@@ -7,7 +8,8 @@ function LinkList({ links }: { readonly links: readonly WorkspaceNavigationLink[
     <ul>
       {links.map((link) => (
         <li key={link.id}>
-          <strong>{formatState(link.relationType)}</strong> {link.direction} {link.peerTitle}{' '}
+          <strong>{formatState(link.relationType)}</strong> {link.direction}{' '}
+          <a href={recordHref(link.peerObjectType, link.peerObjectId)}>{link.peerTitle}</a>{' '}
           <small style={{ color: '#64748b' }}>
             {link.peerObjectType} · {link.peerObjectId}
           </small>

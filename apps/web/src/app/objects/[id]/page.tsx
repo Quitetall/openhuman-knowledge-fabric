@@ -15,13 +15,50 @@ import { redirect } from 'next/navigation';
 import {
   get,
   ApiError,
+  ARTIFACT_TEXT_LIMIT_BYTES,
+  artifactDerivation,
+  artifactFile,
+  getArtifactText,
+  isPlainText,
   parseObjectView,
   refreshObjectView,
+  type Caller,
   type ObjectView,
 } from '../../../lib/api';
 import { webCaller } from '../../../lib/session';
 import { loadObjectView } from './object-view-load';
 import { ObjectViewContent } from './object-view-content';
+import type { ArtifactPanelData, ArtifactTextOutcome } from './artifact-panel';
+
+/**
+ * The file panel for an artifact: its own retained version, the extraction pair around it, and
+ * the text to show inline — the extracted text of an original, or a text artifact's own bytes.
+ * The text is read through the API's source route as this viewer; a refusal there is shown as
+ * a refusal, never papered over with the projection's metadata.
+ */
+async function artifactPanelData(view: ObjectView, caller: Caller): Promise<ArtifactPanelData> {
+  const file = artifactFile(view.subject);
+  const derivation = artifactDerivation(view);
+  const textId =
+    derivation.extractedTextId ??
+    (file !== undefined && isPlainText(file.mediaType) ? view.subject.objectId : undefined);
+  if (textId === undefined) return { derivation, ...(file === undefined ? {} : { file }) };
+  let text: ArtifactTextOutcome;
+  try {
+    const read = await getArtifactText(textId, caller);
+    text = { kind: 'shown', artifactId: textId, limitBytes: ARTIFACT_TEXT_LIMIT_BYTES, ...read };
+  } catch (error: unknown) {
+    text = {
+      kind: 'unavailable',
+      artifactId: textId,
+      reason:
+        error instanceof ApiError && error.isRefusal
+          ? error.message
+          : 'the API could not serve it just now.',
+    };
+  }
+  return { derivation, text, ...(file === undefined ? {} : { file }) };
+}
 
 export async function generateMetadata({
   params,
@@ -79,6 +116,8 @@ export default async function ObjectPage({ params }: { params: Promise<{ id: str
     );
   }
   const view: ObjectView = outcome.view;
+  const artifact =
+    view.subject.objectType === 'artifact' ? await artifactPanelData(view, caller) : undefined;
 
-  return <ObjectViewContent view={view} />;
+  return <ObjectViewContent view={view} {...(artifact === undefined ? {} : { artifact })} />;
 }

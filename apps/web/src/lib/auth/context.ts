@@ -57,10 +57,22 @@ export function makePkceTransaction(
   };
 }
 
-function uuidV7(value: unknown): value is string {
+export function uuidV7(value: unknown): value is string {
   return (
     typeof value === 'string' &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+  );
+}
+
+/**
+ * Any RFC 4122 UUID of versions 1 to 8. A role assignment is an immutable record, and assignments
+ * minted before identifiers were time-ordered are version 4; refusing them here would lock their
+ * holders out of a role the API still honours. The API, not this shape, decides whether it is live.
+ */
+function rfc4122Uuid(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
   );
 }
 
@@ -69,7 +81,7 @@ export function validateContextSelection(input: {
   readonly organizationId: unknown;
   readonly maxClassification: unknown;
 }): AuthorityContext {
-  if (!uuidV7(input.actingRoleId)) throw new Error('acting role must be a UUIDv7');
+  if (!rfc4122Uuid(input.actingRoleId)) throw new Error('acting role must be a UUID');
   if (!uuidV7(input.organizationId)) throw new Error('organization must be a UUIDv7');
   if (
     typeof input.maxClassification !== 'string' ||

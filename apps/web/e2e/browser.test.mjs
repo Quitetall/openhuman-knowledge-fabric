@@ -268,6 +268,22 @@ test(
               institutional: { ready: false, checks: institutionalChecks },
             });
           }
+          if (url.pathname === '/api/session/assignments' && request.method === 'GET') {
+            // The picker asks before any role is chosen: bearer and organization only.
+            assert.equal(request.headers['x-kf-acting-role'], undefined);
+            if (
+              request.headers.authorization !== 'Bearer fixture-access-token' ||
+              request.headers['x-kf-organization'] !== ORGANIZATION_ID
+            ) {
+              return json(response, 401, { error: 'unidentified', message: 'bearer refused' });
+            }
+            return json(response, 200, {
+              organizationId: ORGANIZATION_ID,
+              personId: '01900000-0000-7000-8000-000000000003',
+              clearance: 'internal',
+              assignments: [{ assignmentId: ROLE_ID, roleId: 'work_order_manager', validTo: null }],
+            });
+          }
           if (
             request.headers.authorization !== 'Bearer fixture-access-token' ||
             request.headers['x-kf-organization'] !== ORGANIZATION_ID ||
@@ -284,10 +300,24 @@ test(
             assert.equal(request.method, 'GET');
             assert.equal(url.searchParams.get('q'), 'constitution');
             assert.equal(url.searchParams.get('limit'), '50');
-            if (classification === 'public') return json(response, 200, { hits: [] });
+            const lexical = (hits) => ({
+              hits,
+              lexical: {
+                ranking: 'kf.lexical.full_text+partial_identifier.v1',
+                exhaustive: true,
+                total: hits.length,
+                complete: true,
+                hits,
+              },
+              withheld: [],
+              withheldCount: 0,
+            });
+            if (classification === 'public') return json(response, 200, lexical([]));
             assert.equal(classification, 'internal');
-            return json(response, 200, {
-              hits: [
+            return json(
+              response,
+              200,
+              lexical([
                 {
                   objectId: DOCUMENT_ID,
                   objectType: 'controlled_document',
@@ -297,8 +327,8 @@ test(
                   rank: 0.98,
                   matchedBy: 'full_text',
                 },
-              ],
-            });
+              ]),
+            );
           }
 
           const segments = url.pathname.split('/').slice(2).map(decodeURIComponent);
@@ -813,6 +843,7 @@ test(
       KF_WEB_OIDC_REDIRECT_URI: `${webOrigin}/auth/callback`,
       KF_WEB_SESSION_SECRET_FILE: secretPath,
       KF_API_URL: `${fixtureOrigin}/api`,
+      KF_WEB_ORGANIZATION: ORGANIZATION_ID,
     };
     delete nextEnvironment.KF_WEB_SESSION_SECRET;
     let nextLogs = '';
@@ -882,17 +913,42 @@ test(
       assert.equal(sessionCookie.secure, true);
       assert.equal(sessionCookie.sameSite, 'Lax');
 
-      await page.getByLabel('Acting role assignment UUIDv7').fill(BAD_ROLE_ID);
-      await page.getByLabel('Organization UUIDv7').fill(ORGANIZATION_ID);
-      await page.getByLabel('Maximum classification').selectOption('internal');
-      await page.getByRole('button', { name: 'Validate with KF API' }).click();
+      // Typed ids stay available behind the picker, and the API still refuses a bad one.
+      await page.getByText('Enter ids manually').click();
+      await page.getByLabel('Acting role assignment id (UUID)').fill(BAD_ROLE_ID);
+      await page.getByLabel('Organization id (UUIDv7)').fill(ORGANIZATION_ID);
+      await page.getByLabel('Maximum classification (typed ids)').selectOption('internal');
+      await page.getByRole('button', { name: 'Validate typed ids with KF API' }).click();
       await page.waitForURL(/error=denied/);
       await assert.doesNotReject(() => page.getByText('API refused this role').waitFor());
 
-      await page.getByLabel('Acting role assignment UUIDv7').fill(ROLE_ID);
-      await page.getByLabel('Organization UUIDv7').fill(ORGANIZATION_ID);
-      await page.getByRole('button', { name: 'Validate with KF API' }).click();
+      // The picker lists the person's live assignment from the API, preselected as the only one,
+      // and offers no ceiling above their clearance.
+      const onlyRole = page.getByRole('radio', { name: /Work order manager/ });
+      assert.equal(await onlyRole.isChecked(), true);
+      const ceiling = page.getByLabel('Maximum classification', { exact: true });
+      assert.equal(await ceiling.inputValue(), 'internal');
+      assert.deepEqual(
+        await ceiling.locator('option').evaluateAll((options) => options.map((o) => o.value)),
+        ['public', 'internal'],
+      );
+      await page.getByRole('button', { name: 'Validate with KF API', exact: true }).click();
       await page.waitForURL(`${webOrigin}/documents`);
+      const hintCookie = (await context.cookies(webOrigin)).find(
+        (cookie) => cookie.name === '__Host-kf_context_hint',
+      );
+      assert.ok(hintCookie, 'the chosen context must be remembered for renewal');
+      assert.equal(hintCookie.httpOnly, true);
+      assert.equal(hintCookie.secure, true);
+      assert.equal(hintCookie.sameSite, 'Lax');
+      assert.equal(hintCookie.value.includes(ROLE_ID), false);
+
+      // Renewal: the session ends with its access token; signing in again lands back on the page
+      // asked for, in the same API-validated context, without the picker.
+      await context.clearCookies({ name: '__Host-kf_session' });
+      await page.goto(`${webOrigin}/documents`);
+      await page.waitForURL(`${webOrigin}/documents`);
+      await assert.doesNotReject(() => page.getByText('OpenHuman Document Constitution').waitFor());
       await assert.doesNotReject(() => page.getByText('OpenHuman Document Constitution').waitFor());
       const authorityContext = page.getByLabel('Current authority context');
       await assert.doesNotReject(() =>
@@ -1122,9 +1178,7 @@ test(
       await assert.doesNotReject(() =>
         page.getByRole('link', { name: 'OpenHuman Document Constitution' }).waitFor(),
       );
-      await assert.doesNotReject(() =>
-        page.getByText('Showing 1 visible match (request limit 50).').waitFor(),
-      );
+      await assert.doesNotReject(() => page.getByText('All 1 exact match.').waitFor());
 
       await page.getByRole('link', { name: 'ML runs' }).click();
       await page.getByLabel('Run authority').fill(RUN_AUTHORITY_ID);
@@ -1184,8 +1238,8 @@ test(
         new URL(page.url()).searchParams.get('next'),
         `/ml/runs/${RUN_AUTHORITY_ID}/revisions/${RUN_REVISION_ID}`,
       );
-      await page.getByLabel('Maximum classification').selectOption('public');
-      await page.getByRole('button', { name: 'Validate with KF API' }).click();
+      await page.getByLabel('Maximum classification', { exact: true }).selectOption('public');
+      await page.getByRole('button', { name: 'Validate with KF API', exact: true }).click();
       await page.waitForURL(
         `${webOrigin}/ml/runs/${RUN_AUTHORITY_ID}/revisions/${RUN_REVISION_ID}`,
       );
@@ -1200,7 +1254,7 @@ test(
 
       await page.goto(`${webOrigin}/search?q=constitution`);
       await assert.doesNotReject(() =>
-        page.getByText('No visible matches in current access context.').waitFor(),
+        page.getByText('No exact matches in your current access context.').waitFor(),
       );
 
       await page.goto(`${webOrigin}/documents`);
@@ -1251,6 +1305,11 @@ test(
       assert.equal(
         signedOutCookies.some((cookie) => cookie.name === '__Host-kf_session'),
         false,
+      );
+      assert.equal(
+        signedOutCookies.some((cookie) => cookie.name === '__Host-kf_context_hint'),
+        false,
+        'sign-out must forget the remembered context too',
       );
       assert.deepEqual(apiMutations, [
         'POST /api/documents',
