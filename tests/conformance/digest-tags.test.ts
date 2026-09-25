@@ -86,6 +86,12 @@ const ALLOWED: readonly Allowed[] = [
     reason: 'not a digest: a random idempotency key, hashed only to shape it',
   },
   {
+    path: 'packages/export/src/warrant-runtime-evidence.ts',
+    line: 'const computed = digest({',
+    reason:
+      "self-tagged: OpenWarrant's dispatch digest, whose preimage carries digest_domain oh.war/dispatch/v1",
+  },
+  {
     path: 'apps/api/src/overview/collect.ts',
     line: "const hash = createHash('sha256').update('kf-overview-v1');",
     reason: 'self-tagged: streamed over file bytes with kf-overview-v1 as its first input',

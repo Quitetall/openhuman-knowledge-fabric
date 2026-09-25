@@ -1,6 +1,6 @@
 import { runtimeContractIdentity } from './runtime-contract-identity.js';
 import type { KeyObject } from 'node:crypto';
-import { digest } from '@kf/canonicalization';
+import { digest, taggedDigest } from '@kf/canonicalization';
 import { isRecord } from './internal/format.js';
 import type { ExportPackage } from './internal/types.js';
 import { verifyExport } from './internal/verifier.js';
@@ -142,7 +142,7 @@ export function readWarrantRuntimeEvidence(
     stageBindings.push({ ...packet });
   }
   return {
-    manifestDigest: digest(pkg.manifest),
+    manifestDigest: taggedDigest('kf-warrant-runtime-manifest-v1', { manifest: pkg.manifest }),
     databaseSnapshotDigest: snapshot,
     warrant,
     contracts,
