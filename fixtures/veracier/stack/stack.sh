@@ -7,6 +7,8 @@
 #   fixtures/veracier/stack/stack.sh restart  # restart the applications (logins kept)
 #   fixtures/veracier/stack/stack.sh retrieval  # start only the embedding server and engine
 #   fixtures/veracier/stack/stack.sh reindex  # rebuild the search index, queue every record for embedding
+#   fixtures/veracier/stack/stack.sh agent-client <id>  # an ADR 0035 agent client in the realm (secret 0600
+#                                                        # in $state/agent-clients); declare it with kf declare-agent
 #   fixtures/veracier/stack/stack.sh down     # stop the apps and the containers (data kept)
 #   fixtures/veracier/stack/stack.sh status   # what is running, and where
 #   fixtures/veracier/stack/stack.sh reset    # down, then DELETE the fixture's volumes and state
@@ -402,11 +404,12 @@ case "$command" in
     start_retrieval
     ;;
   reindex) (cd "$repo" && node fixtures/veracier/load.mjs --reindex) ;;
+  agent-client) node "$here/agent-client.mjs" "$@" ;;
   down) down ;;
   status) status ;;
   reset) reset ;;
   *)
-    echo "usage: $0 up|load [--sample]|restart|retrieval|reindex|down|status|reset" >&2
+    echo "usage: $0 up|load [--sample]|restart|retrieval|reindex|agent-client <id>|down|status|reset" >&2
     exit 2
     ;;
 esac

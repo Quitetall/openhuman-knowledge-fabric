@@ -75,7 +75,36 @@ aerovalve AV-3000 texte extrait`.
 | S6 grant revoked: during the pause, the Records Office revokes marc's live grant `01a0da5e-deb1…` | `access_denied` | **pass**. Execute returned 403, and KF logged `KF-CTX-002`. The grant was restored through the same path as `01a0daba-d7e1…`, with the original reason (`restore.log`, `grants-after-restore.csv`). S7 then read the control as marc again. | `S6-grant-revoked/receipt.json` |
 | S7 persistence: S1 again with `--audit-needle-file` | the needle reaches LAMU; no file keeps it; the package does not survive a restart | **pass**. All seven checks are true, including `scanner_detects_planted_needle`, and the replay after restart returned 503. On the KF side, 5 needles were searched for (`kf-needle-scan.json`, `kf-container-log-scan.json`): 0 hits in every fixture log (api, attestor, worker, embed, retrieval, web, …), 0 in `search.context_disclosure` (216 rows, every column), 0 in `search.recorded_query` (362 rows) and 0 in the postgres, keycloak and minio container logs. Both controls hit 5/5: the corpus file, and `search.document.body` (the lexical index keeps text by design). | `S7-persistence/receipt.json` |
 | S8a delegated token, agent **undeclared** | refused | **pass**. Retrieve returned `sources:access_denied`; the attestor refused with `undeclared_agent`. There is no KF row. The token carried `act.client_id = azp = knowledge-fabric-agent`. | `S8a-agent-undeclared/receipt.json` |
-| S8b delegated token, agent declared | `ok`, with agent participation recorded | **not run in this pack.** `kf declare-agent` refused: *"a withdrawn agent is not re-declared under the same client id. Register a new client."* The client was withdrawn after the first pack. The token was therefore still refused (`S8b-agent-declared.not-run-redeclare-refused/`, fail at `before-sources`: 401 `undeclared_agent`). Running S8b again would need a new Keycloak client, with token exchange, the `act` mapper and a web-client audience mapper. That is a realm change to the owner's fixture, so it was left for the owner. The passing S8b is in `../2026-09-25/S8b-agent-declared/` (LAMU `e256e59` + local patch `aa97ec74`): all 10 rows carry `agent_participation = knowledge-fabric-agent`. The refusal is also evidence that a withdrawal holds. | — |
+| S8b delegated token, agent declared | `ok`, with agent participation on every row | **pass**. Client `knowledge-fabric-agent-int07b` was registered by `fixtures/veracier/stack/stack.sh agent-client` (below), declared with `kf declare-agent`, exchanged for marc (`act.client_id = azp = knowledge-fabric-agent-int07b`, `exchange.log`), and withdrawn after the run (`declare-agent.log`). Retrieve, compile and execute were all ok. All 10 KF rows (1 retrieve, 9 reads of the control) carry `agent_participation = knowledge-fabric-agent-int07b` (`kf-rows.csv`). | `S8b-agent-declared/receipt.json` |
+
+### S8b attempts kept as evidence
+
+- **`S8b-agent-declared.not-run-redeclare-refused/`.** `kf declare-agent` refused to re-declare
+  `knowledge-fabric-agent`, the client withdrawn after the first pack. The refusal was *"a withdrawn
+  agent is not re-declared under the same client id. Register a new client."* The delegated token
+  was then refused 401 `undeclared_agent` at `before-sources`. This shows that a withdrawal holds.
+- **`S8b-agent-declared.aborted-int07-output-dir-reused/`.** This was my error, not a KF or LAMU
+  finding. The first new client, `knowledge-fabric-agent-int07`, was declared, but the harness
+  refused to start because its output directory existed from the earlier attempt
+  (`FileExistsError`). The agent was then withdrawn at 22:48:16 UTC, and no request reached KF with
+  its token: the window's dump is empty. Because a withdrawn id cannot be declared again, the run
+  that passed used a second client, `knowledge-fabric-agent-int07b`.
+
+### Registering a fixture agent client (reproducible)
+
+`fixtures/veracier/stack/stack.sh agent-client <id>` runs `stack/agent-client.mjs` against the
+loopback realm only. The client is built as ADR 0035 and `docs/deployment/identity-and-login.md`
+describe, with the committed realm's `knowledge-fabric-agent` as the template:
+
+- it is confidential, with standard token exchange on;
+- it has no browser flow, no direct grant and no service account, and `fullScopeAllowed` is false;
+- it carries a hard-coded `act.client_id` equal to its own id, and the `knowledge-fabric-api`
+  audience;
+- `knowledge-fabric-web` gains an audience mapper naming the new client.
+
+The script is idempotent. It writes the secret to
+`~/.local/state/kf-veracier/agent-clients/<id>.secret` (0600) and never prints it. Declaring the
+client to KF stays a separate owner-credential act, `kf declare-agent`.
 
 ## Retention declaration (owner decision 2026-09-25)
 
@@ -118,8 +147,14 @@ days.
     `01a0da5d-9347` and `01a0dab9-c9d3`.
 - **Control revision.** It has moved, because its revision covers grant rows. Master records
   compiled before 22:41 UTC are stale for the control until refreshed.
-- **Declared agents.** `org.declared_agent` holds one row, `knowledge-fabric-agent`, withdrawn at
-  21:04:51 UTC. Nothing was declared in this pack.
+- **Declared agents.** `org.declared_agent` holds three rows, all withdrawn, so no agent is live
+  (`S8-declared-agent-after.csv`):
+  - `knowledge-fabric-agent`, withdrawn 21:04:51;
+  - `knowledge-fabric-agent-int07`, withdrawn 22:48:16;
+  - `knowledge-fabric-agent-int07b`, withdrawn 22:49:16.
+- **Realm clients.** The realm keeps the test clients `knowledge-fabric-agent-int07` and `-int07b`,
+  and `knowledge-fabric-web` keeps one audience mapper for each. They are harmless while undeclared,
+  because the attestor refuses them. Their secrets are 0600 files in the fixture state.
 - **Master records.** marc and pauline compiled their own master records before each run. These
   are recorded acts.
 
@@ -146,4 +181,5 @@ now does S4 itself.
 - `records-office-act.sh`
 - `kf-dump.sh`
 - `kf-needle-scan.py`
-- `exchange-agent-token.py`
+- `exchange-agent-token.py` (optional third argument: an agent client id, whose secret it reads
+  from the fixture state)
