@@ -11,6 +11,7 @@ import {
   createDocumentActionAtoms,
   documentConversionLossDigest,
   documentProjectionDigest,
+  enumeratePermittedSet,
   latestMasterRecord,
   type DocumentParser,
 } from '@kf/documents';
@@ -39,8 +40,8 @@ import {
  *   - retrieve + read: the caller's semantic list, kept to their agent_context, each reference's
  *     digest the SHA-256 of exactly what read returns; both recorded, bound to the corpus digest.
  *   - current authority: a grant revoked between retrieve and read is 403 KF-CTX-002; a record
- *     revised between them is 409 KF-CTX-003; a stale master record is 409 KF-CTX-004; each
- *     refusal is recorded.
+ *     revised between them is 409 KF-CTX-003; a record the master record does not include at its
+ *     current revision is 409 KF-CTX-004 (and left out of a retrieval); each refusal is recorded.
  *   - existence: a record in another organization, an id that names nothing, a malformed id and a
  *     record above the caller's clearance all answer the same 404 byte for byte, and the record of
  *     each names nothing.
@@ -563,7 +564,7 @@ describe('current authority between retrieve and read', () => {
     ]);
   });
 
-  it('answers 409 KF-CTX-004 when the master record went stale, and the disclosure is not made', async () => {
+  it('answers 409 KF-CTX-004 for a record the master record does not include at that revision', async () => {
     const steady = await attachText(
       'context-steady',
       'Nothing about this file changes.\n',
@@ -572,23 +573,49 @@ describe('current authority between retrieve and read', () => {
     await compile(performer());
     engineIds = [steady];
     const [reference] = referencesOf(await retrieve(performer()));
-    // Something else in the organization changes: the claim no longer describes the corpus.
-    await attachText('context-unrelated', 'An unrelated new file.\n', 'internal');
+    // Something else in the organization changes: this record is still in the claim at the same
+    // revision, so it still reads.
+    const later = await attachText(
+      'context-later',
+      'A file added after the master record was compiled.\n',
+      'internal',
+    );
+    expect((await read(performer(), reference)).statusCode).toBe(200);
 
+    // The new record is readable, but not in the person's agent_context until they compile: the
+    // retrieval leaves it out (and counts it), and a read of its exact current reference is 409.
     const since = await now();
-    const refused = await read(performer(), reference);
+    engineIds = [later];
+    expect(referencesOf(await retrieve(performer()))).toEqual([]);
+    const current = await withTransaction(h.pool, async (tx) => {
+      await bindReader(tx, f, f.performerId);
+      const [member] = await enumeratePermittedSet(tx, f.performerId, f.organizationId, undefined, [
+        later,
+      ]);
+      return {
+        adapter: 'knowledge-fabric',
+        record: later,
+        revision: member!.contentDigest,
+        digest: digestBytes(Buffer.from('A file added after the master record was compiled.\n')),
+      };
+    });
+    const refused = await read(performer(), current);
     expect(refused.statusCode, refused.body).toBe(409);
     expect(refused.json()).toEqual({ error: 'master_record_stale', rule: 'KF-CTX-004' });
-    const again = await retrieve(performer());
-    expect(again.statusCode, again.body).toBe(409);
     expect(await disclosuresSince(since)).toEqual([
-      expect.objectContaining({ operation: 'read', refusal: 'KF-CTX-004', object_id: steady }),
-      expect.objectContaining({ operation: 'retrieve', refusal: 'KF-CTX-004', object_id: null }),
+      expect.objectContaining({
+        operation: 'retrieve',
+        refusal: null,
+        reference_count: 0,
+        omitted_count: 1,
+      }),
+      expect.objectContaining({ operation: 'read', refusal: 'KF-CTX-004', object_id: later }),
     ]);
 
-    // Compiled again, the same reference reads.
+    // Compiled, the same reference reads, and the retrieval serves it.
     await compile(performer());
-    expect((await read(performer(), reference)).statusCode).toBe(200);
+    expect((await read(performer(), current)).statusCode).toBe(200);
+    expect(referencesOf(await retrieve(performer()))).toEqual([current]);
   });
 });
 
@@ -757,6 +784,25 @@ describe('the seam records only what it can stand behind', () => {
         record(tx, ['retrieve', null, 'c'.repeat(64), null, null, null, 'd'.repeat(64), 0, 0]),
       ),
     ).rejects.toThrow(/not the bound person's current master record/u);
+  });
+
+  it('refuses a read bound to a claim that did not include the record at that revision', async () => {
+    const corpus = await corpusDigestOf(performer());
+    await expect(
+      asApp((tx) =>
+        record(tx, [
+          'read',
+          null,
+          corpus,
+          f.organizationId,
+          'e'.repeat(64),
+          'f'.repeat(64),
+          null,
+          null,
+          null,
+        ]),
+      ),
+    ).rejects.toThrow(/is not in the master record it is bound to/u);
   });
 
   it('refuses to name a record in a not-found refusal', async () => {

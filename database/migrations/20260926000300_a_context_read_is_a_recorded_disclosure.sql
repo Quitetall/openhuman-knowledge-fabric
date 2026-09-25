@@ -107,7 +107,8 @@ grant maintain on search.context_disclosure to kf_backup;
  * The seam believes none of its arguments about authority. The functions here run as the owner,
  * which row security may not bind, so every check filters explicitly on the bound organization and
  * ceiling. An answer's corpus digest must be that of the bound person's latest master record in the
- * organization at or below the bound ceiling — the claim `agent_context` is evaluated over. A named
+ * organization at or below the bound ceiling — the claim `agent_context` is evaluated over — and a
+ * read's record must be one that claim included at the revision served. A named
  * record must be one the bound ceiling reaches in the organization, except for KF-CTX-002 (a grant
  * that no longer reaches it), where it must instead be a record one of the person's own master
  * records included: the only record a refusal may name that the reader cannot see now is one KF
@@ -133,6 +134,7 @@ declare
   v_org       uuid := core.current_organization();
   v_rank      integer := core.current_classification_rank();
   v_latest    text;
+  v_claim     uuid;
   v_id        uuid;
 begin
   if v_principal is null or v_org is null then
@@ -141,7 +143,7 @@ begin
   end if;
 
   if p_corpus_digest is not null then
-    select m.corpus_digest into v_latest
+    select m.id, m.corpus_digest into v_claim, v_latest
       from content.master_record m
       join registry.classification c on c.id = m.effective_classification
      where m.person_id = v_principal::uuid
@@ -151,6 +153,18 @@ begin
      limit 1;
     if v_latest is distinct from p_corpus_digest then
       raise exception 'corpus digest % is not the bound person''s current master record', p_corpus_digest
+        using errcode = 'insufficient_privilege';
+    end if;
+    -- A read is bound to the claim only if the claim included that record at that revision: the
+    -- record is then a member of the person's agent_context, exactly as disclosed.
+    if p_operation = 'read' and p_refusal is null and not exists (
+      select 1 from content.master_record_item i
+       where i.master_record_id = v_claim
+         and i.object_id = p_object
+         and i.item_state = 'included'
+         and i.content_digest = p_revision) then
+      raise exception 'record % at revision % is not in the master record it is bound to',
+        p_object, p_revision
         using errcode = 'insufficient_privilege';
     end if;
   end if;

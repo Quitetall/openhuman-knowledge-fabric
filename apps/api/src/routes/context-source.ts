@@ -14,11 +14,13 @@
  * kf-attestor and bind the principal in every transaction, and decide from live rows, never from what
  * an earlier call returned. `read` answers:
  *
- *   200 — the record is in the caller's live permitted set at the same revision and text digest, and
- *         their latest master record still claims exactly that set (its corpus digest is recorded);
+ *   200 — the caller may read the record now, at the revision and text digest asked for, and their
+ *         latest master record included it at that revision, so it is a member of their
+ *         agent_context (its corpus digest is recorded);
  *   409 KF-CTX-003 — the record is still readable but its revision or text moved;
- *   409 KF-CTX-004 / 005 — readable and unchanged, but the caller's master record is stale or absent,
- *         so there is no current agent_context to bind the disclosure to (compile it first);
+ *   409 KF-CTX-004 / 005 — readable and unchanged, but the caller's latest master record does not
+ *         include it at this revision, or they have none: it is not in their agent_context, and
+ *         there is nothing to bind the disclosure to (compile it first);
  *   403 KF-CTX-002 — no longer readable, and one of the caller's own master records included it;
  *   404 KF-CTX-001 — anything else: absent, another organization's, above the ceiling, or never
  *         granted. One body, byte for byte, whatever the reason.
@@ -45,20 +47,23 @@ import type { ObjectStore, StoreRegistry } from '@kf/artifacts';
 import { AttestorUnavailable, reaches as grantReaches, readCoverage } from '@kf/authorization';
 import { digestBytes } from '@kf/canonicalization';
 import { bindPrincipal, PrincipalRefused, withTransaction, type Pool, type Tx } from '@kf/database';
+import { CURRENT_MASTER_RECORD_MEMBER_FORMAT } from '@kf/documents';
 import type { SemanticRetrieval } from '@kf/retrieval';
 import { composeSearch, type SemanticRanker } from '@kf/search';
 import type { Caller, IdentifyCaller } from './actions.js';
 import { refuseUnidentified } from './actions.js';
 import { degradedReadFrom, readVerifiedDocumentBytes } from './documents/source-bytes.js';
 import {
-  agentContextCorpus,
+  claimedRevisions,
   CONTEXT_REFUSALS,
   CONTEXT_SOURCE_ADAPTER,
   CONTEXT_SOURCE_RECORD_SCHEMA,
   decodeText,
   describeText,
   MAX_CONTEXT_RESPONSE_BYTES,
+  latestClaim,
   onceIncluded,
+  permittedAmong,
   recordContextDisclosure,
   referenceOf,
   referencesDigest,
@@ -213,18 +218,27 @@ export async function registerContextSourceRoutes(
         const outcome = await bound(
           caller,
           async (tx): Promise<Outcome<{ references: SourceReference[] }>> => {
-            const corpus = await agentContextCorpus(tx, caller);
-            if (corpus.status !== 'current') {
-              await recordContextDisclosure(tx, { operation: 'retrieve', refusal: corpus.status });
-              return { refused: corpus.status };
+            const claim = await latestClaim(tx, caller);
+            if (claim === undefined) {
+              await recordContextDisclosure(tx, {
+                operation: 'retrieve',
+                refusal: 'master_record_not_found',
+              });
+              return { refused: 'master_record_not_found' };
             }
+            const ids = hits.map((hit) => hit.objectId);
+            const members = await permittedAmong(tx, caller, claim.memberFormat, ids);
+            const claimed = await claimedRevisions(tx, claim, ids);
             const references: SourceReference[] = [];
             let omitted = 0;
             for (const hit of hits) {
-              const member = corpus.members.get(hit.objectId);
-              // Outside the agent_context projection (an exclusion or a hold the search re-check
-              // does not apply), or text the consumer could not take: left out, and counted.
-              const text = member === undefined ? undefined : await describeText(tx, member);
+              const member = members.get(hit.objectId);
+              // Outside the agent_context projection at this revision (an exclusion or a hold the
+              // search re-check does not apply, or a change since the claim was compiled), or text
+              // the consumer could not take: left out, and counted.
+              const inProjection =
+                member !== undefined && claimed.get(member.objectId) === member.contentDigest;
+              const text = inProjection ? await describeText(tx, member) : undefined;
               if (member === undefined || text === undefined || text.oversize) {
                 omitted += 1;
                 continue;
@@ -233,7 +247,7 @@ export async function registerContextSourceRoutes(
             }
             await recordContextDisclosure(tx, {
               operation: 'retrieve',
-              corpusDigest: corpus.corpusDigest,
+              corpusDigest: claim.corpusDigest,
               referencesDigest: referencesDigest(references),
               referenceCount: references.length,
               omittedCount: omitted,
@@ -294,8 +308,14 @@ export async function registerContextSourceRoutes(
             return { refused: refusal };
           };
 
-          const corpus = await agentContextCorpus(tx, caller);
-          const member = corpus.members.get(reference.record);
+          const claim = await latestClaim(tx, caller);
+          const members = await permittedAmong(
+            tx,
+            caller,
+            claim?.memberFormat ?? CURRENT_MASTER_RECORD_MEMBER_FORMAT,
+            [reference.record],
+          );
+          const member = members.get(reference.record);
           if (member === undefined) {
             return (await onceIncluded(tx, caller, reference.record))
               ? decline('grant_withdrawn', true)
@@ -305,7 +325,11 @@ export async function registerContextSourceRoutes(
           if (member.contentDigest !== reference.revision || text.digest !== reference.digest) {
             return decline('revision_mismatch', true);
           }
-          if (corpus.status !== 'current') return decline(corpus.status, true);
+          if (claim === undefined) return decline('master_record_not_found', true);
+          const claimed = await claimedRevisions(tx, claim, [member.objectId]);
+          if (claimed.get(member.objectId) !== member.contentDigest) {
+            return decline('master_record_stale', true);
+          }
           if (text.oversize) return decline('source_text_unavailable', true);
 
           let body: string | undefined;
@@ -349,7 +373,7 @@ export async function registerContextSourceRoutes(
           }
           await recordContextDisclosure(tx, {
             operation: 'read',
-            corpusDigest: corpus.corpusDigest,
+            corpusDigest: claim.corpusDigest,
             objectId: member.objectId,
             revision: member.contentDigest,
             textDigest: reference.digest,

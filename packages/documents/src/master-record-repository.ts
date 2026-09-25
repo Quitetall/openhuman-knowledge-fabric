@@ -115,6 +115,9 @@ export async function enumeratePermissionSet(
   // A stored claim is re-checked under the member format it RECORDED
   // (`masterRecordMemberFormat(manifest)`); a new compilation uses the current one.
   memberFormat: MasterRecordMemberFormat = CURRENT_MASTER_RECORD_MEMBER_FORMAT,
+  // The same set restricted to these ids — one definition of "visible member", read for a few
+  // records rather than the organization (the context source's per-record re-check).
+  only?: readonly string[],
 ): Promise<readonly PermissionMember[]> {
   // The payloads are read in ONE call over every visible id, never once per row: the one-object
   // form walks the catalog and plans ~235 statements per object, which made every Object View
@@ -131,14 +134,16 @@ export async function enumeratePermissionSet(
               v.verified_at, v.verified_by, v.basis as verified_basis
          from core.object o
          left join core.object_verification v on v.object_id = o.id
-        where o.organization_id = $1
+        where o.organization_id = $1${only === undefined ? '' : ' and o.id = any($3::uuid[])'}
      )
      select visible.*, payloads.payload as content_payload
        from visible
        join content.master_record_payloads(array(select visible.id from visible), $2) payloads
          on payloads.object_id = visible.id
       order by visible.id`,
-    [organizationId, masterRecordPayloadFormat(memberFormat)],
+    only === undefined
+      ? [organizationId, masterRecordPayloadFormat(memberFormat)]
+      : [organizationId, masterRecordPayloadFormat(memberFormat), [...only]],
   );
   return rows.map((row) => ({
     objectId: row.id,
@@ -184,8 +189,10 @@ export async function enumeratePermittedSet(
   personId: string,
   organizationId: string,
   memberFormat: MasterRecordMemberFormat = CURRENT_MASTER_RECORD_MEMBER_FORMAT,
+  /** Restrict to these ids; the same rules, applied to fewer records. */
+  only?: readonly string[],
 ): Promise<readonly PermissionMember[]> {
-  const visible = await enumeratePermissionSet(tx, organizationId, memberFormat);
+  const visible = await enumeratePermissionSet(tx, organizationId, memberFormat, only);
   const coverage = await enumerateAccessCoverage(tx, personId, organizationId);
   const excluded = await tx.query<{ object_id: string } & Record<string, unknown>>(
     `select object_id from content.person_entitlement_exclusion

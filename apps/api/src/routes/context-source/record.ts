@@ -4,11 +4,13 @@
  * The routes in `../context-source.ts` answer LAMU's context compiler. Everything they decide is
  * decided here, inside a transaction the caller has already bound as the person:
  *
- *   - which records the person's agent context holds NOW (`agentContextCorpus`): the live permitted
- *     set, and whether their latest master record still claims exactly it. `agent_context`'s sections
- *     cover the corpus with a remainder (§59), so a record is a member of that projection's `included`
- *     members exactly when it is a member of the claim — and, while the claim is current, exactly when
- *     it is in the live permitted set. The corpus digest an answer is bound to is that claim's.
+ *   - whether the person may read a record NOW (`permittedAmong`): the master record's own
+ *     definition of the permitted set, applied to the records in question rather than the whole
+ *     organization, so every call re-checks current authority without enumerating the corpus.
+ *   - whether the record is in their agent_context at that revision (`latestClaim`,
+ *     `claimedRevisions`): their latest master record included it at that member digest.
+ *     `agent_context`'s sections cover the corpus with a remainder (§59), so its `included` members
+ *     are exactly the claim's. The corpus digest an answer is bound to is that claim's.
  *   - what the text of a record is (`describeText`): the verified bytes of its source when the source
  *     is text, otherwise its facts as the master record carries them, canonicalized.
  *   - whether the person was ever told a record exists (`onceIncluded`): one of their own master
@@ -22,11 +24,9 @@
 import { canonicalize, digestBytes, taggedDigest } from '@kf/canonicalization';
 import type { Tx } from '@kf/database';
 import {
-  assertPermissionSetInvariant,
   enumeratePermittedSet,
-  latestMasterRecord,
   masterRecordMemberFormat,
-  type MasterRecordManifest,
+  type MasterRecordMemberFormat,
   type PermissionMember,
 } from '@kf/documents';
 import {
@@ -90,58 +90,81 @@ export interface ContextSourceRecord {
   readonly retention: 'ephemeral';
 }
 
-export type AgentContextCorpus =
-  | {
-      readonly status: 'current';
-      readonly corpusDigest: string;
-      /** The claim's included members, which are the live permitted set. */
-      readonly members: ReadonlyMap<string, PermissionMember>;
-    }
-  | {
-      readonly status: 'master_record_stale' | 'master_record_not_found';
-      /** The live permitted set, which no current claim describes. */
-      readonly members: ReadonlyMap<string, PermissionMember>;
-    };
-
 /**
- * The corpus the person's `agent_context` projection is evaluated over, checked against current
- * authority exactly as `GET /master-record/projections/agent_context` checks it. The session must be
- * bound as `reader`.
+ * The claim the person's `agent_context` projection is evaluated over: their latest master record
+ * visible at the bound ceiling, as `GET /master-record/projections/agent_context` selects it. Its
+ * corpus digest is what every answer is bound to; the manifest is not read.
  */
-export async function agentContextCorpus(
+export interface AgentContextClaim {
+  readonly id: string;
+  readonly corpusDigest: string;
+  readonly memberFormat: MasterRecordMemberFormat;
+}
+
+export async function latestClaim(
   tx: Tx,
   reader: { readonly actorId: string; readonly organizationId: string },
-): Promise<AgentContextCorpus> {
-  const record = await latestMasterRecord(tx, reader.actorId, reader.organizationId);
-  const manifest = record?.['manifest'] as MasterRecordManifest | undefined;
-  // A stored claim is re-checked under the member format it recorded; with none, the current one.
-  const permitted =
-    manifest === undefined
-      ? await enumeratePermittedSet(tx, reader.actorId, reader.organizationId)
-      : await enumeratePermittedSet(
-          tx,
-          reader.actorId,
-          reader.organizationId,
-          masterRecordMemberFormat(manifest),
-        );
-  const members = new Map(permitted.map((member) => [member.objectId, member]));
-  if (record === undefined || manifest === undefined) {
-    return { status: 'master_record_not_found', members };
-  }
-  const corpusDigest = String(record['corpus_digest']);
-  try {
-    assertPermissionSetInvariant(
-      {
-        corpusDigest,
-        included: Array.isArray(manifest.included) ? manifest.included : [],
-        withdrawn: Array.isArray(manifest.withdrawn) ? manifest.withdrawn : [],
-      },
-      permitted,
-    );
-  } catch {
-    return { status: 'master_record_stale', members };
-  }
-  return { status: 'current', corpusDigest, members };
+): Promise<AgentContextClaim | undefined> {
+  const row = await tx.maybeOne<{ id: string; corpus_digest: string; format: string | null }>(
+    `select /* context-source.latest-claim */
+            id, corpus_digest, manifest ->> 'format' as format
+       from content.master_record
+      where person_id = $1 and organization_id = $2
+      order by compiled_at desc, recorded_at desc, id desc
+      limit 1`,
+    [reader.actorId, reader.organizationId],
+  );
+  if (row === undefined) return undefined;
+  return {
+    id: row.id,
+    corpusDigest: row.corpus_digest,
+    memberFormat: masterRecordMemberFormat({ format: row.format }),
+  };
+}
+
+/**
+ * The live permitted members among `ids`: the master record's own definition of what the person
+ * may read now (row security, grants, entitlement exclusions, retention holds), applied to these
+ * records only, with each member's digest under the claim's member format.
+ */
+export async function permittedAmong(
+  tx: Tx,
+  reader: { readonly actorId: string; readonly organizationId: string },
+  memberFormat: MasterRecordMemberFormat,
+  ids: readonly string[],
+): Promise<ReadonlyMap<string, PermissionMember>> {
+  if (ids.length === 0) return new Map();
+  const members = await enumeratePermittedSet(
+    tx,
+    reader.actorId,
+    reader.organizationId,
+    memberFormat,
+    ids,
+  );
+  return new Map(members.map((member) => [member.objectId, member]));
+}
+
+/**
+ * The revision at which the claim included each of `ids`. A record is in the person's
+ * agent_context at a revision exactly when their claim included it at that member digest:
+ * `agent_context`'s sections cover the corpus with a remainder (§59), so its `included` members
+ * are the claim's.
+ */
+export async function claimedRevisions(
+  tx: Tx,
+  claim: AgentContextClaim,
+  ids: readonly string[],
+): Promise<ReadonlyMap<string, string>> {
+  if (ids.length === 0) return new Map();
+  const rows = await tx.query<{ object_id: string; content_digest: string }>(
+    `select /* context-source.claimed-revisions */ object_id, content_digest
+       from content.master_record_item
+      where master_record_id = $1
+        and object_id = any($2::uuid[])
+        and item_state = 'included'`,
+    [claim.id, [...ids]],
+  );
+  return new Map(rows.map((row) => [row.object_id, row.content_digest]));
 }
 
 /**
