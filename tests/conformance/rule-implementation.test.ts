@@ -87,6 +87,11 @@ const LOCAL_FAMILIES: readonly string[] = [
   'KF-DOC-DETERMINISM', // a requalified compiler did not reproduce the run before it (RQ-102)
   'KF-MISSING', // a required record was not found
   'KF-ART', // an evidence storage key the server did not derive for the bound organization
+  // The context source's refusals (apps/api/src/routes/context-source/record.ts): current
+  // authority over a read for an agent — not found, grant withdrawn, revision moved, master
+  // record stale or absent, no semantic ranking, no servable text. Read authorization is enforced
+  // by row security and grants, which rules.yaml does not declare as one of its invariants.
+  'KF-CTX',
 ];
 
 function declaredRules(): ReadonlyMap<string, string> {

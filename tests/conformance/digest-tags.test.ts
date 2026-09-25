@@ -97,6 +97,12 @@ const ALLOWED: readonly Allowed[] = [
     reason: 'self-tagged: streamed over file bytes with kf-overview-v1 as its first input',
   },
   {
+    path: 'apps/api/src/routes/context-source.ts',
+    line: "if (body === undefined || digestBytes(Buffer.from(body, 'utf8')) !== reference.digest) {",
+    reason:
+      "protocol: LAMU's SourceRef.digest is the bare SHA-256 of the served text, which context_kf.rs recomputes over the bytes it receives; for a text source it equals the artifact version's recorded sha256",
+  },
+  {
     path: 'apps/api/src/routes/documents/master-record-link-route.ts',
     line: "const suppliedDigest = digestBytes(Buffer.from(request.params.token, 'utf8'));",
     reason:

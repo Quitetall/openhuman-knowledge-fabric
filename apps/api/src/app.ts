@@ -58,6 +58,7 @@ import { registerDocumentRoutes } from './routes/documents.js';
 import type { ProjectionLinks } from '@kf/projections';
 import { registerMlRoutes } from './routes/ml.js';
 import { registerSearchRoutes } from './routes/search.js';
+import { registerContextSourceRoutes } from './routes/context-source.js';
 import { RetrievalClient, SemanticRetrieval } from '@kf/retrieval';
 import { registerIdentifierRoutes } from './routes/identifiers.js';
 import { registerVerificationRoutes } from './routes/verifications.js';
@@ -551,18 +552,25 @@ export async function buildApp(
         : { links: projectionLinks(config.publicOrigins) }),
     });
     await registerMlRoutes(app, { pool, identify, executeInTransaction });
+    // One client per engine for the life of the process, so the embedder pin (KF-SAS-RQ-218)
+    // is the process's; absent, search is lexical only and says so (KF-SAS-RQ-216), and the
+    // context source refuses to retrieve.
+    const semantic =
+      config.retrievalSocket === undefined
+        ? undefined
+        : new SemanticRetrieval(new RetrievalClient({ socketPath: config.retrievalSocket }));
     await registerSearchRoutes(app, {
       pool,
       identify,
-      // One client per engine for the life of the process, so the embedder pin (KF-SAS-RQ-218)
-      // is the process's; absent, search is lexical only and says so (KF-SAS-RQ-216).
-      ...(config.retrievalSocket === undefined
-        ? {}
-        : {
-            semantic: new SemanticRetrieval(
-              new RetrievalClient({ socketPath: config.retrievalSocket }),
-            ),
-          }),
+      ...(semantic === undefined ? {} : { semantic }),
+    });
+    // LAMU's context compiler reads through these (apps/api/src/routes/context-source.ts).
+    await registerContextSourceRoutes(app, {
+      pool,
+      identify,
+      store: objectStore,
+      ...(stores === undefined ? {} : { stores }),
+      ...(semantic === undefined ? {} : { semantic }),
     });
     await registerIdentifierRoutes(app, { pool, identify });
   }

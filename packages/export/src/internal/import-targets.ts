@@ -193,6 +193,9 @@ export const PRESERVATION_TABLE_EXCLUSIONS = {
   'search.asker_key': 'transient observation (§64B): the pseudonym key; rotates every 90 days',
   'retrieval.disclosure':
     'transient observation (§64B): digests of served semantic answers; expire in 90 days',
+  'search.context_disclosure':
+    'transient observation (§64B): what each context-source retrieval and read disclosed to an ' +
+    'agent, or refused, as digests; expires in 90 days',
   'core.principal_attestation':
     'transient proof a person was present (20260924001000): digests only, expired within 60 s, ' +
     'never evidence of an act — the action and audit rows are',

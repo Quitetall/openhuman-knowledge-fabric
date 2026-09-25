@@ -1,7 +1,8 @@
 /**
  * The transient-observation sweep (§64B, ADR 0029, KF-SAS-RQ-220).
  *
- * Deletes every expired recorded query, demand contribution, disclosure digest and pseudonym key.
+ * Deletes every expired recorded query, demand contribution, disclosure digest, context-source
+ * disclosure and pseudonym key.
  * Losing one is the intended behaviour, not a fault; the sweep is what makes the stated expiry
  * true in the working store, and the export, checkpoint and backup exclusions make it true
  * everywhere else.
