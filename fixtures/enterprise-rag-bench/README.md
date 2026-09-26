@@ -47,7 +47,8 @@ and 35 762 need-to-know grants (`overlay/stats.json`). Loaded on the workstation
 49 973 documents and 35 744 grants; KF's content rules refused 25 (Slack and mail with numbers
 shaped like US social-security numbers, rule `us-ssn` — counted, not failures), and 3 Slack
 threads containing NUL characters fail with a 500 (the parse preimage is not valid JSON for
-PostgreSQL). About 1 h 45 min at `--jobs 6` on a loaded box; `--resume` ingests only what the ids
+PostgreSQL; since fixed — each NUL is replaced by U+FFFD and recorded as a
+`nul_character_replaced` conversion loss, so `--resume` loads them). About 1 h 45 min at `--jobs 6` on a loaded box; `--resume` ingests only what the ids
 file does not yet record. `--full` loads every document
 (`extract.py --full` first, which writes `manifest-full.jsonl`); it has not been run.
 

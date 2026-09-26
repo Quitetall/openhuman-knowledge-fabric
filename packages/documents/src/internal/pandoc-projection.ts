@@ -9,6 +9,7 @@ import {
   nonEmptyPandocAttr,
   parseLoss,
 } from './pandoc-text.js';
+import { replaceNulCharacters } from './pandoc-nul.js';
 import type { PandocDocument } from './pandoc-types.js';
 
 function walkBlocks(
@@ -165,12 +166,14 @@ export function atomsFromPandoc(document: PandocDocument): DocumentAtom[] {
   return atoms;
 }
 
-export function projectionFromPandoc(document: PandocDocument): {
+export function projectionFromPandoc(source: PandocDocument): {
   readonly atoms: readonly DocumentAtom[];
   readonly conversionLoss: readonly DocumentParseLoss[];
 } {
   const atoms: DocumentAtom[] = [];
-  const conversionLoss: DocumentParseLoss[] = [];
+  // Before anything reads it: no atom, attribute or loss source may carry a NUL (pandoc-nul.ts).
+  const { document, losses } = replaceNulCharacters(source);
+  const conversionLoss: DocumentParseLoss[] = [...losses];
   if (document.meta !== undefined && digest(document.meta as JsonValue) !== digest({})) {
     parseLoss(
       conversionLoss,
