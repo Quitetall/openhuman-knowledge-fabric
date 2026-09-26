@@ -23,8 +23,11 @@ import type { Pool } from '@kf/database';
 import {
   IdentityRejected,
   resolveCaller,
+  resolveHoldings,
   type Caller,
   type CallerRequest,
+  type HeldOrganization,
+  type Holdings,
   type IdentityFailure,
   type LiveAssignment,
   type TokenVerifier,
@@ -33,6 +36,11 @@ import {
 export interface Attestor {
   /** Verify the token, resolve the person, and return the caller with its attestation. */
   identify(request: CallerRequest): Promise<Caller>;
+  /**
+   * Verify the token and list every live assignment its own person holds, by organization
+   * (20260926120000). Attests nothing: a choice among them is still an `identify`.
+   */
+  holdings(token: string): Promise<Holdings>;
 }
 
 export class LocalAttestor implements Attestor {
@@ -47,12 +55,27 @@ export class LocalAttestor implements Attestor {
   identify(request: CallerRequest): Promise<Caller> {
     return resolveCaller(this.#pool, this.#verifier, request);
   }
+
+  holdings(token: string): Promise<Holdings> {
+    return resolveHoldings(this.#pool, this.#verifier, token);
+  }
 }
 
-/** The one path kf-attestor serves. */
+/** The path kf-attestor attests on. */
 export const ATTESTOR_PATH = '/attest';
+/** The path kf-attestor lists a token's own person's assignments on, across organizations. */
+export const ATTESTOR_HOLDINGS_PATH = '/holdings';
 /** Bodies larger than this are refused unread: a bearer token and three ids fit many times over. */
 export const ATTESTOR_MAX_BODY_BYTES = 16 * 1024;
+/**
+ * Answers larger than this are refused: an attested caller is well under a kilobyte, and a list
+ * of holdings at the caps below is well under this.
+ */
+export const ATTESTOR_MAX_ANSWER_BYTES = 256 * 1024;
+/** More organizations or assignments than anybody holds: a longer list is a defect, not a menu. */
+const MAX_HELD_ORGANIZATIONS = 64;
+const MAX_HELD_ASSIGNMENTS = 200;
+const MAX_LEGAL_NAME = 512;
 
 const IDENTITY_FAILURES: ReadonlySet<IdentityFailure> = new Set<IdentityFailure>([
   'no_token',
@@ -96,6 +119,20 @@ export function parseAttestorRequest(body: unknown): CallerRequest | undefined {
   };
 }
 
+/**
+ * Read a holdings request as the attestor accepts it: the bearer token and nothing else. There is
+ * no field naming a person or an organization, and one that tries is refused rather than ignored.
+ */
+export function parseHoldingsRequest(body: unknown): { token: string } | undefined {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return undefined;
+  const record = body as Record<string, unknown>;
+  const keys = Object.keys(record);
+  if (keys.length !== 1 || keys[0] !== 'token' || typeof record['token'] !== 'string') {
+    return undefined;
+  }
+  return { token: record['token'] };
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** The assignments a refusal listed, or undefined for anything that is not such a list. */
@@ -117,6 +154,58 @@ function decodeAssignments(value: unknown): LiveAssignment[] | undefined {
     out.push({ assignmentId: a['assignmentId'], roleId: a['roleId'], scopeId: a['scopeId'] });
   }
   return out;
+}
+
+/** Holdings as they cross the socket. */
+export function encodeHoldings(holdings: Holdings): Record<string, unknown> {
+  return {
+    personId: holdings.personId,
+    organizations: holdings.organizations.map((held) => ({
+      organizationId: held.organizationId,
+      legalName: held.legalName,
+      assignments: held.assignments.map((a) => ({
+        assignmentId: a.assignmentId,
+        roleId: a.roleId,
+        scopeId: a.scopeId,
+      })),
+    })),
+  };
+}
+
+/** Holdings as the API reads them off the socket, or a thrown Error for anything else. */
+export function decodeHoldings(body: unknown): Holdings {
+  const refuse = (): never => {
+    throw new Error('the attestor answered with a body that is not a list of holdings');
+  };
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return refuse();
+  const record = body as Record<string, unknown>;
+  const personId = record['personId'];
+  const organizations = record['organizations'];
+  if (typeof personId !== 'string' || !UUID.test(personId)) return refuse();
+  if (
+    !Array.isArray(organizations) ||
+    organizations.length === 0 ||
+    organizations.length > MAX_HELD_ORGANIZATIONS
+  ) {
+    return refuse();
+  }
+  const seen = new Set<string>();
+  let total = 0;
+  const out: HeldOrganization[] = organizations.map((entry: unknown) => {
+    if (typeof entry !== 'object' || entry === null) return refuse();
+    const held = entry as Record<string, unknown>;
+    const organizationId = held['organizationId'];
+    const legalName = held['legalName'];
+    if (typeof organizationId !== 'string' || !UUID.test(organizationId)) return refuse();
+    if (seen.has(organizationId)) return refuse();
+    seen.add(organizationId);
+    if (typeof legalName !== 'string' || legalName.length > MAX_LEGAL_NAME) return refuse();
+    const assignments = decodeAssignments(held['assignments']) ?? refuse();
+    total += assignments.length;
+    if (assignments.length === 0 || total > MAX_HELD_ASSIGNMENTS) return refuse();
+    return { organizationId, legalName, assignments };
+  });
+  return { personId, organizations: out };
 }
 
 /** A caller as it crosses the socket: dates as ISO strings, absent values as null. */
@@ -238,6 +327,24 @@ const UNREACHABLE_CODES: ReadonlySet<string> = new Set([
 
 class AttestorTimedOut extends Error {}
 
+/** A non-200 answer as the error it stands for: the identity refusal it names, or a defect. */
+function refusalOf(status: number, body: unknown): Error {
+  if (status === 401 && typeof body === 'object' && body !== null) {
+    const failure = (body as Record<string, unknown>)['failure'];
+    const message = (body as Record<string, unknown>)['message'];
+    if (typeof failure === 'string' && IDENTITY_FAILURES.has(failure as IdentityFailure)) {
+      return new IdentityRejected(
+        failure as IdentityFailure,
+        typeof message === 'string' ? message : 'identity rejected',
+        failure === 'assignment_ambiguous'
+          ? decodeAssignments((body as Record<string, unknown>)['assignments'])
+          : undefined,
+      );
+    }
+  }
+  return new Error(`the attestor answered ${status}`);
+}
+
 /** The API's side of the socket. */
 export class SocketAttestor implements Attestor {
   readonly #socketPath: string;
@@ -270,20 +377,16 @@ export class SocketAttestor implements Attestor {
     }
     const { status, body } = await this.#reach('POST', ATTESTOR_PATH, request);
     if (status === 200) return decodeAttestedCaller(body);
-    if (status === 401 && typeof body === 'object' && body !== null) {
-      const failure = (body as Record<string, unknown>)['failure'];
-      const message = (body as Record<string, unknown>)['message'];
-      if (typeof failure === 'string' && IDENTITY_FAILURES.has(failure as IdentityFailure)) {
-        throw new IdentityRejected(
-          failure as IdentityFailure,
-          typeof message === 'string' ? message : 'identity rejected',
-          failure === 'assignment_ambiguous'
-            ? decodeAssignments((body as Record<string, unknown>)['assignments'])
-            : undefined,
-        );
-      }
+    throw refusalOf(status, body);
+  }
+
+  async holdings(token: string): Promise<Holdings> {
+    if (token.trim() === '') {
+      throw new IdentityRejected('no_token', 'no bearer token was supplied');
     }
-    throw new Error(`the attestor answered ${status}`);
+    const { status, body } = await this.#reach('POST', ATTESTOR_HOLDINGS_PATH, { token });
+    if (status === 200) return decodeHoldings(body);
+    throw refusalOf(status, body);
   }
 
   /** Whether the attestor is up and answering on its socket. For readiness only. */
@@ -365,7 +468,7 @@ export class SocketAttestor implements Attestor {
           let size = 0;
           res.on('data', (chunk: Buffer) => {
             size += chunk.length;
-            if (size > ATTESTOR_MAX_BODY_BYTES) {
+            if (size > ATTESTOR_MAX_ANSWER_BYTES) {
               req.destroy(new Error('the attestor answer is too large'));
               return;
             }

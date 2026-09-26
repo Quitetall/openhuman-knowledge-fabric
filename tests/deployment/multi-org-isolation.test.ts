@@ -12,7 +12,8 @@
  *              forbidden — and the same answer for B's id as for an id that exists nowhere
  *   act        a grant on B's artifact, an observation about it: not found, nothing recorded
  *   context    A's token with B's organization, with B's assignment: refused; B's assignments
- *              are never listed to A
+ *              are never listed to A, and A's menu of every organization (/session/contexts)
+ *              names A's own and nothing of B's
  *
  * Each probe is checked to be able to fail: every organization's probe words ARE found by its own
  * reader (a probe that finds nothing anywhere would prove nothing), and each foreign id is read
@@ -291,6 +292,21 @@ describe.skipIf(!live)(
             expect(listed.status, `${a.org.id} → ${what}: assignments`).not.toBe(200);
           const text = JSON.stringify(listed.body);
           for (const p of Object.values(b.ids.people)) expect(text).not.toContain(p.assignmentId);
+          // Every organization's menu (20260926120000) is the token's own person's, whatever
+          // the request names: A's organization under its legal name, and nothing of B's.
+          const everywhere = await answer(session, 'GET', '/session/contexts');
+          expect(everywhere.status, `${a.org.id} → ${what}: contexts`).toBe(200);
+          const menu = everywhere.body as {
+            organizations: { organizationId: string; legalName: string }[];
+          };
+          expect(
+            menu.organizations.find((o) => o.organizationId === a.ids.organizationId)?.legalName,
+            `${a.org.id} → ${what}: its own organization is listed`,
+          ).toBe(a.org.legalName);
+          const all = JSON.stringify(everywhere.body);
+          expect(all).not.toContain(b.ids.organizationId);
+          expect(all).not.toContain(JSON.stringify(b.org.legalName).slice(1, -1));
+          for (const p of Object.values(b.ids.people)) expect(all).not.toContain(p.assignmentId);
         }
       }
     });

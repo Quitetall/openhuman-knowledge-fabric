@@ -3,12 +3,13 @@ import {
   IdentityRejected,
   LocalAttestor,
   TokenVerifier,
+  holdingsFrom,
   soleAssignment,
   type Attestor,
 } from '@kf/authorization';
 import { withTransaction, type Pool } from '@kf/database';
 import type { FastifyReply } from 'fastify';
-import type { Caller, IdentifyCaller } from './contracts.js';
+import type { Caller, IdentifyCaller, ListHoldings } from './contracts.js';
 
 export class CallerRejected extends Error {}
 
@@ -178,5 +179,63 @@ export function createCallerIdentifier(
       maxClassification: header('x-kf-classification') || 'internal',
       ...(request.deriveAssignment === true ? { deriveAssignment: true } : {}),
     });
+  };
+}
+
+/**
+ * The one way a route learns everything the caller's own person holds (20260926120000).
+ *
+ * The same two paths as `createCallerIdentifier`, decided the same way. With an identity provider,
+ * the bearer token goes to the attestor, which verifies it and lists the assignments of the
+ * person it is linked to; nothing else in the request reaches the lookup. Without one, only the
+ * development profile's header path, over the lookup only a login that may attest can call.
+ */
+export function createHoldingsLister(
+  pool: Pool,
+  tokens: Attestor | TokenVerifier | undefined,
+  options: CallerIdentifierOptions,
+): ListHoldings {
+  const attestor = tokens instanceof TokenVerifier ? new LocalAttestor(pool, tokens) : tokens;
+  return async ({ headers }) => {
+    if (attestor === undefined) {
+      if (!options.trustHeaders) {
+        throw new CallerRejected(
+          'no identity provider is configured and header identity is not trusted',
+        );
+      }
+      const actor = headers['x-kf-actor'];
+      if (typeof actor !== 'string' || !HEADER_UUID.test(actor)) {
+        throw new CallerRejected('x-kf-actor must name a person');
+      }
+      const rows = await withTransaction(pool, (tx) =>
+        tx.query<{
+          organization_id: string;
+          legal_name: string;
+          assignment_id: string;
+          role_id: string;
+          scope_id: string;
+        }>(
+          `select organization_id, legal_name, assignment_id, role_id, scope_id
+             from org.live_assignments_everywhere_of($1)`,
+          [actor],
+        ),
+      );
+      return holdingsFrom(
+        actor,
+        rows.map((row) => ({
+          organizationId: row.organization_id,
+          legalName: row.legal_name,
+          assignmentId: row.assignment_id,
+          roleId: row.role_id,
+          scopeId: row.scope_id,
+        })),
+      );
+    }
+    const authorization = headers['authorization'];
+    const token =
+      typeof authorization === 'string' && /^bearer /i.test(authorization)
+        ? authorization.slice(7).trim()
+        : '';
+    return attestor.holdings(token);
   };
 }

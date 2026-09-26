@@ -53,7 +53,7 @@ import { timingSafeEqual } from 'node:crypto';
 import type { ApiConfig } from './config.js';
 import { createCallerIdentifier, registerActionRoutes } from './routes/actions.js';
 import { DEFAULT_EFFECTIVE_AT_BOUNDS } from './routes/actions/effective-at.js';
-import { attestorUnavailable } from './routes/actions/auth.js';
+import { attestorUnavailable, createHoldingsLister } from './routes/actions/auth.js';
 import { registerDocumentRoutes } from './routes/documents.js';
 import type { ProjectionLinks } from '@kf/projections';
 import { registerMlRoutes } from './routes/ml.js';
@@ -531,7 +531,11 @@ export async function buildApp(
     // One gesture, one observation (ADR 0034): the seam `kf note`, the web form and agents share.
     registerCaptureRoutes(app, { pool, execute, identify });
     // What a signed-in person may choose between when they pick their context.
-    registerSessionRoutes(app, { pool, identify });
+    registerSessionRoutes(app, {
+      pool,
+      identify,
+      holdings: createHoldingsLister(pool, tokens, { trustHeaders }),
+    });
     await registerDocumentRoutes(app, {
       pool,
       // Absent only for hand-built test configs; the projection routes then answer 503.
