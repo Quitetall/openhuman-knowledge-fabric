@@ -26,6 +26,7 @@ import {
   preparseDocument,
   withPreparsedDocuments,
 } from '@kf/documents';
+import { OBJECT_TITLE_MAX_CHARACTERS, objectTitleProblem } from '@kf/record-atoms';
 import { deniedPathRule, formatContentRefusal, scanContent } from '../../ingest/content-policy.js';
 import { refuseUnidentified } from '../actions.js';
 import { documentParseRefusalBody } from '../actions/errors.js';
@@ -93,6 +94,8 @@ function text(value: unknown, field: string, max = 512): string {
   if (typeof value !== 'string' || value.trim() === '' || value.length > max) {
     throw new TypeError(`${field} must be a non-empty string of at most ${String(max)} characters`);
   }
+  // PostgreSQL text cannot hold NUL; refused here rather than failing the insert with a 500.
+  if (value.includes('\u0000')) throw new TypeError(`${field} must not contain NUL characters`);
   return value.trim();
 }
 
@@ -106,7 +109,12 @@ function uuid(value: unknown, field: string): string {
 }
 
 export function parseIngest(body: IngestBody): ParsedIngest {
-  const title = text(body.title, 'title');
+  // The record's own limit (core.object: 1 to 240 characters), refused before a byte is stored.
+  // Not truncated: a title is how people find and cite the record, so a shortened one is a name
+  // nobody chose. The caller shortens it knowing what it is (the fixture loaders do).
+  const title = text(body.title, 'title', OBJECT_TITLE_MAX_CHARACTERS * 2);
+  const titleProblem = objectTitleProblem(title);
+  if (titleProblem !== undefined) throw new TypeError(titleProblem);
   const artifactKind = text(body.artifactKind, 'artifactKind', 64);
   if (!ARTIFACT_KINDS.has(artifactKind)) {
     throw new TypeError(`artifactKind must be one of ${[...ARTIFACT_KINDS].join(', ')}`);
