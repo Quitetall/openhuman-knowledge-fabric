@@ -243,8 +243,9 @@ describe('the workbench against the real schema', () => {
       return { target, workspace };
     });
     expect(outcome.target).toEqual({ status: 'unavailable' });
-    expect(outcome.workspace.status).toBe('ready');
-    expect(outcome.workspace.composition.nodes).toEqual([]);
+    const workspace = outcome.workspace;
+    if (workspace.status !== 'ready') throw new Error(workspace.status);
+    expect(workspace.composition.nodes).toEqual([]);
   });
 
   it('answers a record in another organization exactly as an id that names nothing', async () => {
