@@ -413,7 +413,7 @@ describe('retrieve and read, allowed', () => {
     expect(factsRead.statusCode, factsRead.body).toBe(200);
     const factsText = (factsRead.json() as { text: string }).text;
     expect(JSON.parse(factsText)).toMatchObject({
-      schema: 'kf.context-facts/v1',
+      schema: 'kf.context-facts/v2',
       objectId: facts,
       objectType: 'decision_record',
       title: 'Context source probe decision',
@@ -468,6 +468,114 @@ describe('retrieve and read, allowed', () => {
     );
     expect(dump).not.toContain('alpha bearing');
     expect(dump).not.toContain('Context source probe');
+  });
+
+  it('serves a non-text record as its content facts, never its grants, their reasons or other records’ rows', async () => {
+    const REASON = 'need-to-know-reason-needle-5d3f';
+    const bytes = Buffer.from('%PDF-1.7 not text\n', 'utf8');
+    const sha256 = digestOf(bytes);
+    const storageUri = `ingest/${f.organizationId}/${sha256}`;
+    await store.put(storageUri, bytes, 'application/pdf');
+    const pdf = (
+      await execute()({
+        ...reviewer(),
+        targetIds: [],
+        actionType: 'attach_evidence',
+        idempotencyKey: 'context-facts-pdf',
+        payload: {
+          title: 'Supplier audit report.pdf',
+          artifact_kind: 'document',
+          classification: 'internal',
+          sha256,
+          size_bytes: bytes.length,
+          media_type: 'application/pdf',
+          storage_uri: storageUri,
+          revision_label: 'R02',
+        },
+      })
+    ).objectIds[0]!;
+    await index(pdf);
+    const grantId = await execute()({
+      ...reviewer(),
+      targetIds: [pdf],
+      actionType: 'grant_access',
+      idempotencyKey: `grant-${randomUUID()}`,
+      reason: REASON,
+      payload: { principal_kind: 'person', principal_id: capped.personId, capability: 'read' },
+    }).then(() =>
+      withTransaction(h.adminPool, (tx) =>
+        tx.one<{ id: string }>(
+          `select id from org.access_grant where scope_object_id = $1 and revoked_at is null`,
+          [pdf],
+        ),
+      ),
+    );
+    await compile(performer());
+    engineIds = [pdf];
+    const [reference] = referencesOf(await retrieve(performer()));
+    const served = await read(performer(), reference);
+    expect(served.statusCode, served.body).toBe(200);
+    const text = (served.json() as { text: string }).text;
+    expect(digestBytes(Buffer.from(text, 'utf8'))).toBe(reference!.digest);
+
+    // Not who may see it, or why, or who wrote which row, or where the bytes are stored.
+    const facts = JSON.parse(text) as Record<string, unknown>;
+    for (const absent of [
+      REASON,
+      grantId.id,
+      capped.personId,
+      'access_grant',
+      storageUri,
+      'created_by',
+      'row_version',
+      f.reviewerId,
+    ]) {
+      expect(text, absent).not.toContain(absent);
+    }
+
+    // What the record says: its title, type, state, its own typed row and its file's version.
+    expect(facts).toEqual({
+      schema: 'kf.context-facts/v2',
+      objectId: pdf,
+      objectType: 'artifact',
+      classification: 'internal',
+      title: 'Supplier audit report.pdf',
+      lifecycle_state: 'draft',
+      enterprise_id: null,
+      created_at: expect.any(String) as unknown,
+      updated_at: expect.any(String) as unknown,
+      records: {
+        'content.artifact': expect.objectContaining({ artifact_kind: 'document' }) as unknown,
+      },
+      versions: [
+        {
+          version_no: 1,
+          revision_label: 'R02',
+          media_type: 'application/pdf',
+          size_bytes: bytes.length,
+          sha256,
+          created_at: expect.any(String) as unknown,
+        },
+      ],
+    });
+    // A grant change moves the revision (the member digest covers the grants) and not the text:
+    // the old reference is 409 KF-CTX-003, and the one retrieved after compiling has the same digest.
+    await execute()({
+      ...reviewer(),
+      targetIds: [pdf],
+      actionType: 'revoke_access',
+      idempotencyKey: `revoke-${randomUUID()}`,
+      reason: 'the capped reader is done with the audit',
+      payload: { grant_id: grantId.id },
+    });
+    const moved = await read(performer(), reference);
+    expect(moved.statusCode, moved.body).toBe(409);
+    expect(moved.json()).toEqual({ error: 'revision_mismatch', rule: 'KF-CTX-003' });
+    await compile(performer());
+    const [after] = referencesOf(await retrieve(performer()));
+    expect(after!.revision).not.toBe(reference!.revision);
+    expect(after!.digest).toBe(reference!.digest);
+    expect((await read(performer(), after)).statusCode).toBe(200);
   });
 
   it('keeps the list to the agent_context projection, which is the master record’s corpus', async () => {
@@ -862,9 +970,12 @@ describe('the seam records only what it can stand behind', () => {
       classification: 'internal' as const,
       contentDigest: 'e'.repeat(64),
       title: 'Order',
-      content: { b: 1, a: 2 },
+      content: { 'engineering.decision': { b: 1, a: 2 } },
     };
-    expect(contextFacts(member)).toBe(contextFacts({ ...member, content: { a: 2, b: 1 } }));
+    expect(contextFacts(member)).toBe(
+      contextFacts({ ...member, content: { 'engineering.decision': { a: 2, b: 1 } } }),
+    );
+    expect(contextFacts(member)).toContain('"a":2,"b":1');
   });
 });
 

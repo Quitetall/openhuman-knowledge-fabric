@@ -37,7 +37,7 @@ import {
 
 export const CONTEXT_SOURCE_ADAPTER = 'knowledge-fabric';
 export const CONTEXT_SOURCE_RECORD_SCHEMA = 'kf.context-source-record/v1';
-export const CONTEXT_FACTS_SCHEMA = 'kf.context-facts/v1';
+export const CONTEXT_FACTS_SCHEMA = 'kf.context-facts/v2';
 /** The digest of a retrieval's reference list, as recorded. */
 export const REFERENCES_DIGEST_FORMAT = 'kf-context-source-references-v1';
 /**
@@ -209,15 +209,75 @@ function mediaTypeOf(value: string): string {
   return (value.split(';')[0] ?? '').trim().toLowerCase();
 }
 
-/** A record's facts as the master record carries them, canonical so the bytes never vary. */
+/** The envelope fields that say what a record is; the rest are bookkeeping or authority. */
+const ENVELOPE_FACTS = ['enterprise_id', 'lifecycle_state', 'created_at', 'updated_at'] as const;
+/** What a version of a file is, without where it is stored or who stored it. */
+const VERSION_FACTS = [
+  'version_no',
+  'revision_label',
+  'media_type',
+  'size_bytes',
+  'sha256',
+  'created_at',
+] as const;
+
+function pick(
+  row: unknown,
+  keys: readonly string[],
+): Readonly<Record<string, unknown>> | undefined {
+  if (row === null || typeof row !== 'object' || Array.isArray(row)) return undefined;
+  const source = row as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const key of keys) if (source[key] !== undefined) out[key] = source[key];
+  return out;
+}
+
+/**
+ * A record's facts: what the record says, and nothing about who may see it or why.
+ *
+ * The master-record payload the facts are taken from is built for IDENTITY, not disclosure: it
+ * carries every row that references the record — its access grants with their reasons, the
+ * identity links a person made for others, observations and derivation links of OTHER records
+ * (whose own grants were never asked) — plus bookkeeping (who wrote each row, row and schema
+ * versions, retention class, the object-store key of every version). `kf.context-facts/v1` served
+ * all of it. v2 serves, from that payload:
+ *
+ *   - the envelope's title, type, classification, lifecycle state, enterprise id and times;
+ *   - the record's own typed rows (`schema.table`, one per extension table), without their `id`;
+ *   - of each file version, its number, label, media type, size, SHA-256 and time.
+ *
+ * Never a referencing collection (`schema.table.column`), a locator or relationship list, or an
+ * envelope field outside the list above.
+ *
+ * The digest covers exactly this text. The REVISION is still the member digest, which covers the
+ * whole payload, grants included: a grant change moves the revision and not the text, and a
+ * SourceRef taken before it is answered 409 KF-CTX-003 like any other move, so the caller
+ * re-retrieves (and, if the claim no longer matches, recompiles) under the authority that holds now.
+ */
 export function contextFacts(member: PermissionMember): string {
+  const payload = member.content ?? {};
+  const envelope = pick(payload['core.object'], ENVELOPE_FACTS) ?? {};
+  const records: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (key === 'core.object' || key.split('.').length !== 2) continue;
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) continue;
+    const { id: _id, ...row } = value as Record<string, unknown>;
+    records[key] = row;
+  }
+  const versions = Array.isArray(payload['content.artifact_version'])
+    ? (payload['content.artifact_version'] as unknown[])
+        .map((version) => pick(version, VERSION_FACTS))
+        .filter((version) => version !== undefined)
+    : [];
   return canonicalize({
     schema: CONTEXT_FACTS_SCHEMA,
     objectId: member.objectId,
     objectType: member.objectType,
     classification: member.classification,
     title: member.title ?? '',
-    content: member.content ?? {},
+    ...envelope,
+    records,
+    ...(versions.length === 0 ? {} : { versions }),
   });
 }
 
