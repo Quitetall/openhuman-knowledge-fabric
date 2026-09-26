@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* global fetch, URLSearchParams */
+/* global fetch */
 // Register an agent client in the Véracier fixture's loopback realm, shaped as ADR 0035 and
 // docs/deployment/identity-and-login.md ("Using it — derived") require:
 //

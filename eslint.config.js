@@ -25,6 +25,16 @@ export default tseslint.config(
     },
   },
   {
+    // Recorded evidence: the scripts that ran for a dated report, kept byte-for-byte so the
+    // report can be re-read against them. They cannot take the `/* global fetch */` comment the
+    // maintained fixtures use without ceasing to be what ran, so the Node 24 globals they call
+    // are declared here, for these paths only (the int-07 runs call fetch and setTimeout).
+    files: ['fixtures/**/evidence/**/*.mjs'],
+    languageOptions: {
+      globals: { fetch: 'readonly', setTimeout: 'readonly', clearTimeout: 'readonly' },
+    },
+  },
+  {
     rules: {
       '@typescript-eslint/no-unused-vars': [
         'error',
