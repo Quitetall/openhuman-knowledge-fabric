@@ -20,13 +20,20 @@ inputs:
 runs:
   using: composite
   steps:
+    # `seccomp` is libseccomp's command-line tools, for /usr/bin/scmp_sys_resolver: the check
+    # in packages/documents/src/seccomp.test.ts that numbers every syscall the compiler filter
+    # denies as libseccomp does, on x86_64 and aarch64. It is `runIf` the resolver exists, and
+    # the hosted image does not ship it, so that check SKIPPED on every CI run while the
+    # sandbox's real-bubblewrap tests ran beside it. Checked before adding: all 110 of the
+    # filter's numbers match Ubuntu 24.04's libseccomp 2.5.5 (2026-09-26).
     - name: Provision compiler sandbox integration dependency
       shell: bash
       run: |
         sudo apt-get update
-        sudo apt-get install --yes bubblewrap
+        sudo apt-get install --yes bubblewrap seccomp
         test -x /usr/bin/bwrap
         /usr/bin/bwrap --version
+        test -x /usr/bin/scmp_sys_resolver
 
     # PANDOC IS A RUNTIME DEPENDENCY OF DOCUMENT IMPORT, and was documented nowhere until this
     # run found it. `packages/documents/src/internal/pandoc-parser.ts` does `spawn('pandoc',

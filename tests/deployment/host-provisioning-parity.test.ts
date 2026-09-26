@@ -51,6 +51,8 @@ describe('every workflow that runs the gate provisions the same host contract', 
     const action = readFileSync(join(ROOT, ACTION, 'action.yml'), 'utf8');
     for (const required of [
       'bubblewrap',
+      // libseccomp's resolver, which the compiler filter's syscall numbers are checked against.
+      'scmp_sys_resolver',
       'pandoc',
       // The PDF engine pandoc renders through; a separate package the hosted image lacks.
       'pdflatex',
