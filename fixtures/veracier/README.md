@@ -150,6 +150,16 @@ grant change moves the revision without moving the text: a SourceRef taken befor
 KF-CTX-003, and a fresh retrieve (after `POST /master-record/compile` if the claim is stale) gives
 the new revision with the same digest.
 
+**Refusals before binding.** A retrieve, read, revision check or `GET /search` that kf-attestor
+refuses after verifying the token — `classification_not_granted`, `undeclared_agent`,
+`role_not_held`, `unknown_subject`, `revoked_identity`, `assignment_ambiguous`,
+`no_live_assignment` — is recorded by the attestor in `search.identification_refusal`: the
+organization asked for (only if it exists), the surface, the failure, the agent client the token
+named, the rank of the classification asked for, and the asker as the recorded-query pseudonym (the
+person's, found from the identity link, or the token subject's when it is linked to nobody). No
+token and no person column; 90 days, swept. Token defects are not recorded: nothing verified
+names anybody. The attestor's log line says `recorded: true|false`.
+
 ## Personas
 
 Every person in the overlay has a Keycloak account. Their passwords are generated once into **one

@@ -14,6 +14,7 @@ export const PACKAGE: PackageManifest = {
 };
 
 export {
+  IDENTIFICATION_SURFACES,
   IdentityRejected,
   OIDC_SIGNING_ALGORITHMS,
   TokenVerifier,
@@ -26,6 +27,7 @@ export {
   type Caller,
   type CallerRequest,
   type IdentityConfig,
+  type IdentificationSurface,
   type IdentityFailure,
   type LiveAssignment,
 } from './identity.js';

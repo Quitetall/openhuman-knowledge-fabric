@@ -1,6 +1,12 @@
 import type { ActionRequest } from '@kf/actions';
 import type { Pool } from '@kf/database';
-import type { Attestor, AuthenticationEvent, StepUpPolicy, TokenVerifier } from '@kf/authorization';
+import type {
+  Attestor,
+  AuthenticationEvent,
+  IdentificationSurface,
+  StepUpPolicy,
+  TokenVerifier,
+} from '@kf/authorization';
 import type { EffectiveAtBounds } from './effective-at.js';
 
 /**
@@ -83,6 +89,11 @@ export type IdentifyCaller = (request: {
    * `assignment_ambiguous` listing them, or `no_live_assignment`. The capture route alone asks.
    */
   deriveAssignment?: boolean;
+  /**
+   * The surface asked, for a route whose refusals before binding are recorded
+   * (`search.identification_refusal`): the context-source routes and search.
+   */
+  surface?: IdentificationSurface;
 }) => Promise<Caller>;
 
 export interface ActionRequestBody {

@@ -21,8 +21,10 @@
 import { request as httpRequest } from 'node:http';
 import type { Pool } from '@kf/database';
 import {
+  IDENTIFICATION_SURFACES,
   IdentityRejected,
   resolveCaller,
+  type IdentificationSurface,
   type Caller,
   type CallerRequest,
   type IdentityFailure,
@@ -87,12 +89,21 @@ export function parseAttestorRequest(body: unknown): CallerRequest | undefined {
   }
   const derive = record['deriveAssignment'];
   if (derive !== undefined && typeof derive !== 'boolean') return undefined;
+  // Absent from an API older than 20260926200200; anything outside the vocabulary is refused.
+  const surface = record['surface'];
+  if (
+    surface !== undefined &&
+    (typeof surface !== 'string' || !IDENTIFICATION_SURFACES.has(surface as IdentificationSurface))
+  ) {
+    return undefined;
+  }
   return {
     token,
     actingRoleId,
     organizationId,
     maxClassification,
     ...(derive === true ? { deriveAssignment: true } : {}),
+    ...(surface === undefined ? {} : { surface: surface as IdentificationSurface }),
   };
 }
 

@@ -49,7 +49,12 @@
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ObjectStore, StoreRegistry } from '@kf/artifacts';
-import { AttestorUnavailable, reaches as grantReaches, readCoverage } from '@kf/authorization';
+import {
+  AttestorUnavailable,
+  reaches as grantReaches,
+  readCoverage,
+  type IdentificationSurface,
+} from '@kf/authorization';
 import { digestBytes } from '@kf/canonicalization';
 import { bindPrincipal, PrincipalRefused, withTransaction, type Pool, type Tx } from '@kf/database';
 import { CURRENT_MASTER_RECORD_MEMBER_FORMAT, type PermissionMember } from '@kf/documents';
@@ -119,6 +124,7 @@ export async function registerContextSourceRoutes(
   async function handle(
     request: FastifyRequest,
     reply: FastifyReply,
+    surface: IdentificationSurface,
     serve: (caller: Caller, store: ObjectStore) => Promise<FastifyReply>,
   ): Promise<FastifyReply> {
     if (!directLoopback(request)) {
@@ -126,7 +132,12 @@ export async function registerContextSourceRoutes(
     }
     let caller: Caller;
     try {
-      caller = await options.identify({ headers: request.headers as Record<string, unknown> });
+      // The surface is named so a refusal before anybody is bound is recorded by kf-attestor
+      // (search.identification_refusal, 20260926200200).
+      caller = await options.identify({
+        headers: request.headers as Record<string, unknown>,
+        surface,
+      });
     } catch (error: unknown) {
       return refuseUnidentified(reply, error);
     }
@@ -177,7 +188,7 @@ export async function registerContextSourceRoutes(
       },
     },
     (request, reply) =>
-      handle(request, reply, async (caller) => {
+      handle(request, reply, 'context-source/retrieve', async (caller) => {
         const semantic = options.semantic;
         if (semantic === undefined) {
           return refuse(reply, caller, {
@@ -353,7 +364,7 @@ export async function registerContextSourceRoutes(
     '/context-source/read',
     { bodyLimit: 4096, schema: sourceReferenceSchema },
     (request, reply) =>
-      handle(request, reply, async (caller, store) => {
+      handle(request, reply, 'context-source/read', async (caller, store) => {
         const reference = request.body;
         // Not an identifier this Fabric issues, so nothing it could name: the one not-found answer.
         if (!UUID.test(reference.record)) {
@@ -440,7 +451,7 @@ export async function registerContextSourceRoutes(
     '/context-source/revision',
     { bodyLimit: 4096, schema: sourceReferenceSchema },
     (request, reply) =>
-      handle(request, reply, async (caller) => {
+      handle(request, reply, 'context-source/revision', async (caller) => {
         const reference = request.body;
         if (!UUID.test(reference.record)) {
           return refuse(reply, caller, { operation: 'revision', refusal: 'not_found' });

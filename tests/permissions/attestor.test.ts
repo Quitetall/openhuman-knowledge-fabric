@@ -71,9 +71,10 @@ async function token(
     expiresIn?: string;
     omitExpiration?: boolean;
     alg?: 'RS256' | 'RS512';
+    extra?: Record<string, unknown>;
   } = {},
 ): Promise<string> {
-  const jwt = new SignJWT({})
+  const jwt = new SignJWT(claims.extra ?? {})
     .setProtectedHeader({ alg: claims.alg ?? 'RS256', kid: 'test-key' })
     .setSubject(claims.subject ?? 'auth0|reviewer')
     .setIssuer(claims.issuer ?? ISSUER)
@@ -326,6 +327,23 @@ describe('the API routes, bound only through the attestation', () => {
     expect((r.json() as { refused: unknown[] }).refused).toEqual([]);
   });
 
+  it('names the search surface, so a refusal of GET /search before binding is recorded', async () => {
+    const since = await refusalsNow();
+    const r = await api.inject({
+      method: 'GET',
+      url: '/search?q=anything',
+      headers: await headers(await token({ subject: 'auth0|unlinked-searcher' })),
+    });
+    expect(r.statusCode, r.body).toBe(401);
+    expect(await refusalsSince(since)).toEqual([
+      expect.objectContaining({
+        surface: 'search',
+        failure: 'unknown_subject',
+        asker_kind: 'subject',
+      }),
+    ]);
+  });
+
   it('refuses a forged token at the door', async () => {
     const r = await api.inject({
       method: 'GET',
@@ -334,6 +352,146 @@ describe('the API routes, bound only through the attestation', () => {
     });
     expect(r.statusCode, r.body).toBe(401);
     expect(r.json()).toMatchObject({ error: 'invalid_token' });
+  });
+});
+
+interface RefusalRow extends Record<string, unknown> {
+  organization_id: string;
+  surface: string;
+  failure: string;
+  agent_client_id: string | null;
+  asker_kind: string;
+  asker_rank: number;
+  person_key: boolean;
+}
+
+async function refusalsNow(): Promise<Date> {
+  return (await withTransaction(h.adminPool, (tx) => tx.one<{ now: Date }>('select now() as now')))
+    .now;
+}
+
+/** Every refusal recorded since `since`, oldest first, with whether its key is the reviewer's. */
+async function refusalsSince(since: Date): Promise<RefusalRow[]> {
+  return withTransaction(h.adminPool, (tx) =>
+    tx.query<RefusalRow>(
+      `select organization_id, surface, failure, agent_client_id, asker_kind, asker_rank,
+              exists (select 1 from search.asker_key k
+                       where r.asker_key = public.hmac(convert_to($2, 'UTF8'), k.key, 'sha256'))
+                as person_key
+         from search.identification_refusal r
+        where recorded_at >= $1
+        order by recorded_at, id`,
+      [since, f.reviewerId],
+    ),
+  );
+}
+
+describe('a refusal before anybody is bound is recorded, attributably and naming nobody', () => {
+  const on = (surface: string, over: Parameters<typeof asked>[1] = {}, ceiling = 'restricted') => ({
+    ...asked('', over),
+    maxClassification: ceiling,
+    surface: surface as 'context-source/read',
+  });
+
+  it('records each refusal of a verified token on a named surface, under the asker pseudonym', async () => {
+    const since = await refusalsNow();
+    const refusals: [string, string][] = [];
+    const attempt = async (request: ReturnType<typeof on>, bearer: string) => {
+      const err = await attestor.identify({ ...request, token: bearer }).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(IdentityRejected);
+      refusals.push([request.surface, (err as IdentityRejected).failure]);
+    };
+    // The person's own role, a ceiling this database does not know; another's role; a delegated
+    // token naming an agent nobody declared; a subject nobody linked.
+    await attempt(on('context-source/retrieve', {}, 'top-secret'), await token());
+    await attempt(on('context-source/read', { actingRoleId: f.performerRoleId }), await token());
+    await attempt(
+      on('context-source/revision', {}, 'internal'),
+      await token({ extra: { azp: 'rogue-agent', act: { client_id: 'rogue-agent' } } }),
+    );
+    await attempt(on('search'), await token({ subject: 'auth0|stranger-2' }));
+    expect(refusals).toEqual([
+      ['context-source/retrieve', 'classification_not_granted'],
+      ['context-source/read', 'role_not_held'],
+      ['context-source/revision', 'undeclared_agent'],
+      ['search', 'unknown_subject'],
+    ]);
+
+    const rows = await refusalsSince(since);
+    expect(rows).toEqual([
+      {
+        organization_id: f.organizationId,
+        surface: 'context-source/retrieve',
+        failure: 'classification_not_granted',
+        agent_client_id: null,
+        asker_kind: 'person',
+        asker_rank: 3,
+        person_key: true,
+      },
+      expect.objectContaining({
+        surface: 'context-source/read',
+        failure: 'role_not_held',
+        asker_kind: 'person',
+        asker_rank: 3,
+        person_key: true,
+      }),
+      expect.objectContaining({
+        surface: 'context-source/revision',
+        failure: 'undeclared_agent',
+        agent_client_id: 'rogue-agent',
+        asker_kind: 'person',
+        asker_rank: 1,
+        person_key: true,
+      }),
+      expect.objectContaining({
+        surface: 'search',
+        failure: 'unknown_subject',
+        asker_kind: 'subject',
+        person_key: false,
+      }),
+    ]);
+  });
+
+  it('records nothing for a token defect, an unnamed surface or an organization that does not exist', async () => {
+    const since = await refusalsNow();
+    for (const [request, bearer] of [
+      [on('context-source/read'), await token({ issuer: 'https://evil.invalid/' })],
+      [asked('', { actingRoleId: f.performerRoleId }), await token()],
+      [
+        on('context-source/read', { organizationId: '01930000-0000-7000-8000-0000000000ff' }),
+        await token(),
+      ],
+    ] as const) {
+      const err = await attestor.identify({ ...request, token: bearer }).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(IdentityRejected);
+    }
+    expect(await refusalsSince(since)).toEqual([]);
+  });
+
+  it('is readable in the organization without the pseudonym, and writable only by the attestor', async () => {
+    await expect(
+      withTransaction(bareApp, async (tx) => {
+        await bindPrincipal(tx, await attestor.identify(asked(await token())));
+        return tx.query('select asker_key from search.identification_refusal');
+      }),
+    ).rejects.toThrow(/permission denied/u);
+    const visible = await withTransaction(bareApp, async (tx) => {
+      await bindPrincipal(tx, await attestor.identify(asked(await token())));
+      return tx.query<{ failure: string }>(
+        'select failure from search.identification_refusal order by recorded_at',
+      );
+    });
+    expect(visible.length).toBeGreaterThan(0);
+    await expect(
+      withTransaction(bareApp, async (tx) => {
+        await bindPrincipal(tx, await attestor.identify(asked(await token())));
+        return tx.query(
+          `select search.record_identification_refusal('i', 's', $1, 'public', 'search',
+                                                       'unknown_subject', null)`,
+          [f.organizationId],
+        );
+      }),
+    ).rejects.toThrow(/permission denied/u);
   });
 });
 

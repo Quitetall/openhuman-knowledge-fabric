@@ -85,8 +85,45 @@ export interface LiveAssignment {
   readonly scopeId: string;
 }
 
+/**
+ * The surfaces whose refusals, made before anybody is bound, are recorded
+ * (`search.identification_refusal`, 20260926200200): the context source LAMU reads, and search.
+ * The API names the surface in its request to the attestor; a refusal on any other route stays a
+ * log line.
+ */
+export type IdentificationSurface =
+  'context-source/retrieve' | 'context-source/read' | 'context-source/revision' | 'search';
+
+export const IDENTIFICATION_SURFACES: ReadonlySet<IdentificationSurface> =
+  new Set<IdentificationSurface>([
+    'context-source/retrieve',
+    'context-source/read',
+    'context-source/revision',
+    'search',
+  ]);
+
+/**
+ * The refusals that follow a VERIFIED token, and so have a subject to attribute them to. The token
+ * defects and `no_role_requested` come before verification and are not recorded.
+ */
+const RECORDED_FAILURES: ReadonlySet<IdentityFailure> = new Set<IdentityFailure>([
+  'unknown_subject',
+  'revoked_identity',
+  'role_not_held',
+  'classification_not_granted',
+  'assignment_ambiguous',
+  'no_live_assignment',
+  'undeclared_agent',
+]);
+
 export class IdentityRejected extends Error {
   readonly failure: IdentityFailure;
+  /**
+   * Whether the refusal was recorded in `search.identification_refusal`: true when it was, false
+   * when recording was attempted and failed, undefined when it is not a recorded refusal. The
+   * answer to the caller is the refusal either way; this is for the attestor's log.
+   */
+  recorded: boolean | undefined;
   /**
    * The caller's own live assignments, on `assignment_ambiguous` only: the refusal says what
    * they may choose between, since they are the one who must choose. Never another person's.
@@ -98,6 +135,7 @@ export class IdentityRejected extends Error {
     this.name = 'IdentityRejected';
     this.failure = failure;
     this.assignments = assignments;
+    this.recorded = undefined;
   }
 }
 
@@ -244,6 +282,50 @@ export interface CallerRequest {
    * several is still asked — the server never guesses between them.
    */
   readonly deriveAssignment?: boolean;
+  /** Which surface was asked, when its refusals are recorded (`IdentificationSurface`). */
+  readonly surface?: IdentificationSurface;
+}
+
+/** What a verified token contributes: who, until when, through which agent, and how. */
+interface VerifiedToken {
+  readonly issuer: string;
+  readonly subject: string;
+  readonly expiresAt: Date;
+  readonly agent: string | undefined;
+  readonly authentication: AuthenticationEvent;
+  readonly authorizedParty: string | undefined;
+}
+
+const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+
+/**
+ * Record a refusal of a verified token (20260926200200), in its own transaction: the one that
+ * refused has rolled back. The database finds the person from the identity link; this passes the
+ * token's issuer and subject, the organization and ceiling asked for, and the agent it named.
+ */
+async function recordRefusal(
+  pool: Pool,
+  refusal: IdentityRejected,
+  request: CallerRequest & { readonly surface: IdentificationSurface },
+  token: Pick<VerifiedToken, 'issuer' | 'subject' | 'agent'>,
+): Promise<void> {
+  try {
+    await withTransaction(pool, (tx) =>
+      tx.query('select search.record_identification_refusal($1, $2, $3, $4, $5, $6, $7)', [
+        token.issuer,
+        token.subject,
+        UUID_SHAPE.test(request.organizationId) ? request.organizationId : null,
+        request.maxClassification,
+        request.surface,
+        refusal.failure,
+        token.agent ?? null,
+      ]),
+    );
+    refusal.recorded = true;
+  } catch {
+    // The caller is refused either way; what failed is the record, which the attestor logs.
+    refusal.recorded = false;
+  }
 }
 
 /**
@@ -292,6 +374,30 @@ export async function resolveCaller(
   const agent = agentOf(payload);
   const authorizedParty = typeof payload['azp'] === 'string' ? payload['azp'] : undefined;
 
+  const token: VerifiedToken = {
+    issuer,
+    subject,
+    expiresAt,
+    agent,
+    authentication,
+    authorizedParty,
+  };
+  const surface = request.surface;
+  if (surface === undefined) return attest(pool, request, token);
+  try {
+    return await attest(pool, request, token);
+  } catch (error: unknown) {
+    // A refusal of a verified token on a named surface is recorded before it is answered.
+    if (error instanceof IdentityRejected && RECORDED_FAILURES.has(error.failure)) {
+      await recordRefusal(pool, error, { ...request, surface }, token);
+    }
+    throw error;
+  }
+}
+
+/** The database half of `resolveCaller`: resolve the verified subject, and attest. */
+function attest(pool: Pool, request: CallerRequest, token: VerifiedToken): Promise<Caller> {
+  const { issuer, subject, expiresAt, agent, authentication, authorizedParty } = token;
   return withTransaction(pool, async (tx) => {
     const caller = await resolveIn(tx, { issuer, subject, authentication, ...request });
     // The database re-checks the assignment and clamps the ceiling again as it attests; the

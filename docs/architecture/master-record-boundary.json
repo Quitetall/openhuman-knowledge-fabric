@@ -180,6 +180,10 @@
     {
       "table": "search.context_disclosure",
       "expiry": "90 days"
+    },
+    {
+      "table": "search.identification_refusal",
+      "expiry": "90 days"
     }
   ],
   "transientDecision": "Transient observations (§64B, ADR 0029) are neither permission members nor rebuildable projections: they are kept for their stated expiry and then swept, and are excluded from the preservation export, checkpoint coverage and backup data, so no copy outlives the window."
