@@ -1,7 +1,10 @@
 # INT-07 — KF source-policy proof for LAMU 0.7, clean re-run (2026-09-25)
 
-**Acceptance: pending (owner or independent reviewer).** This pack is evidence only. It accepts
-nothing, and every receipt's `acceptance` field says the same.
+**Acceptance: accepted by the owner, Brian Lam, on 2026-09-26** ("Accept release check."), relayed
+by the KF session and not signed by him. It was recorded here after the runs, so every receipt's
+`acceptance` field still reads pending, as it did when the harness wrote it; the receipts are left
+byte-for-byte as written because this README cites their digests. A signed acceptance, if LAMU's
+gate requires one, is the owner's act.
 
 This re-runs `../2026-09-25/` against LAMU main **`75fc86d`**, with **no local harness patch**. Every
 receipt has `source_commit 75fc86d…` and `working_diff_sha256 e3b0c442…`, the SHA-256 of an empty
