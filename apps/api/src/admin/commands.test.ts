@@ -10,6 +10,7 @@ import {
   runBootstrapCommand,
   runGrantAuthorityCommand,
   runRetireOrganizationCommand,
+  runDeclareServiceActorCommand,
   runRevokeIdentityCommand,
 } from './commands.js';
 
@@ -93,6 +94,7 @@ describe('owner-tier commands refuse an inline owner URL in production (RQ-151)'
     runGrantAuthorityCommand,
     runRevokeIdentityCommand,
     runRetireOrganizationCommand,
+    runDeclareServiceActorCommand,
   ];
 
   it.each(commands.map((command) => [command.name, command] as const))(

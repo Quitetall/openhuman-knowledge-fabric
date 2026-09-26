@@ -28,6 +28,11 @@ import {
   runDeclareAgent,
 } from './declare-agent.js';
 import {
+  parseDeclareServiceActorArgs,
+  planDeclareServiceActor,
+  runDeclareServiceActor,
+} from './declare-service-actor.js';
+import {
   parseGrantAuthorityArgs,
   planGrantAuthority,
   runGrantAuthority,
@@ -311,6 +316,63 @@ export async function runDeclareAgentCommand(
         '  the realm must stamp act.client_id on its tokens (identity_provider_policy checks it)\n',
       );
     }
+    return 0;
+  } catch (error: unknown) {
+    err.write(`${message(error)}\n`);
+    return 1;
+  } finally {
+    await owner.end();
+  }
+}
+
+/**
+ * `kf:declare-service-actor` (ADR 0020): the result as JSON on `out`, refusals one per line on
+ * `err`, and an exit code — 2 for a usage or plan refusal, 1 for a failure — like the other
+ * owner-tier commands.
+ */
+export async function runDeclareServiceActorCommand(
+  argv: readonly string[],
+  env: NodeJS.ProcessEnv = process.env,
+  out: Out = process.stdout,
+  err: Out = process.stderr,
+): Promise<number> {
+  const url = ownerUrl(env, err);
+  if (url === undefined) return 1;
+  let request;
+  try {
+    request = parseDeclareServiceActorArgs(argv);
+  } catch (error: unknown) {
+    err.write(`${message(error)}\n`);
+    return 2;
+  }
+  const plan = planDeclareServiceActor(request);
+  if (!plan.ok || plan.declaration === undefined) {
+    err.write('refusing to declare a service actor:\n');
+    for (const refusal of plan.refusals) err.write(`  - ${refusal}\n`);
+    return 2;
+  }
+  const declaration = plan.declaration;
+  const owner = createPool({ connectionString: url, maxConnections: 1 });
+  try {
+    const result = await runDeclareServiceActor(owner, declaration);
+    out.write(
+      `${JSON.stringify(
+        {
+          service_actor: declaration.name,
+          person_id: result.personId,
+          role_assignment_id: result.roleAssignmentId,
+          role_assignment_valid_to: result.roleAssignmentValidTo?.toISOString() ?? null,
+          clearance_id: result.clearanceId,
+          action_id: result.actionId,
+          reused: result.reused,
+          next:
+            'set KF_STORAGE_ACTOR=<person_id> KF_STORAGE_ROLE=<role_assignment_id> for kf-storage; ' +
+            'renew before role_assignment_valid_to with kf:grant-authority --renew (ADR 0036)',
+        },
+        null,
+        2,
+      )}\n`,
+    );
     return 0;
   } catch (error: unknown) {
     err.write(`${message(error)}\n`);
