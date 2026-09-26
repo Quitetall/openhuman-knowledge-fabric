@@ -228,7 +228,7 @@ export async function buildApp(
   // and echoes the URL back. The path of a request that matched nothing is whatever the caller
   // typed, so it is neither logged (request-log.ts) nor repeated.
   app.setNotFoundHandler((request, reply) =>
-    reply.code(404).send({ error: 'route_not_found', requestId: request.id }),
+    reply.code(404).send({ error: 'not_found', requestId: request.id }),
   );
 
   app.get('/health', async () => ({
