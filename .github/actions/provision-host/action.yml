@@ -168,6 +168,40 @@ runs:
           esac
         done
 
+    # THE OBJECT STORE THE PRESERVATION DRILL RESTORES INTO, which no registry serves any more.
+    # tests/database/warrant-preservation.test.ts stops a real MinIO, copies its /data, and
+    # reconnects the restored records to a new one. It pinned MinIO's upstream images by digest,
+    # and MinIO has archived its community edition: Docker Hub answers 404, Quay has no such
+    # manifest and dl.min.io answers 410. A workstation that had pulled them kept passing; a
+    # clean runner failed both tests with "unauthorized: access to the requested resource is
+    # not authorized" (run 36081852155). tests/fixtures/minio-image/build.sh builds the same
+    # releases from their pinned source commits; the saved images are cached by the hash of
+    # that directory, so the ~2 minute build is paid once per change to it.
+    - name: Restore the fixture object-store images
+      id: fixture-images
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+      with:
+        path: ~/.cache/kf-fixture-images
+        key: kf-fixture-images-${{ runner.os }}-${{ hashFiles('tests/fixtures/minio-image/**') }}
+
+    - name: Build the fixture object-store images from source
+      shell: bash
+      env:
+        CACHED: ${{ steps.fixture-images.outputs.cache-hit }}
+      run: |
+        set -euo pipefail
+        archive="${HOME}/.cache/kf-fixture-images/minio-images.tar"
+        if [ "${CACHED}" = 'true' ]; then
+          docker load --input "${archive}"
+        fi
+        # Builds only what is missing, so a cache hit builds nothing and a miss builds both,
+        # then saves them for the cache to keep. The script owns the image tags.
+        if [ "${CACHED}" = 'true' ]; then
+          tests/fixtures/minio-image/build.sh
+        else
+          tests/fixtures/minio-image/build.sh --save "${archive}"
+        fi
+
     # THE FOURTH THING THE HOST CONTRACT ASKS FOR, and the last one this runner was missing.
     # `docs/deployment/private-host.md`: "Install a Node.js version allowed by package.json
     # (>=24.18.1 <25) as the real executable /usr/bin/node. Service units and Liminal runtime

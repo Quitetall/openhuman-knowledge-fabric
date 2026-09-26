@@ -62,6 +62,9 @@ describe('every workflow that runs the gate provisions the same host contract', 
       // restore-drill-source).
       'gnupg',
       'rsync',
+      // The MinIO images the preservation drill runs, built from source because no registry
+      // serves them (tests/fixtures/minio-image/build.sh).
+      'tests/fixtures/minio-image/build.sh',
     ]) {
       expect(action, `${ACTION} no longer provisions ${required}`).toContain(required);
     }
