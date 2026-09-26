@@ -27,10 +27,9 @@
 // The package (with document text) is written 0600 under the fixture's state directory, never into
 // the repository; stdout carries identifiers, titles, digests and the checks only.
 //
-// This is the KF half of LAMU context compilation: LAMU's `KfSource` adapter
-// (lamu-api/src/context_kf.rs) expects `POST /context-source/retrieve` and
-// `POST /context-source/read` on the API, which KF does not serve yet. This script is what those
-// two routes would do, done with the routes KF has.
+// This is the KF half of LAMU context compilation done with KF's general routes. LAMU's `KfSource`
+// adapter (lamu-api/src/context_kf.rs) uses the context-source routes, which KF serves
+// (`POST /context-source/retrieve`, `/read`, `/revision`; README, "Context source for LAMU").
 
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';

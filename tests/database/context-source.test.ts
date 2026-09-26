@@ -204,6 +204,15 @@ async function read(caller: Caller, reference: unknown): Promise<LightMyRequestR
   });
 }
 
+async function revisionOf(caller: Caller, reference: unknown): Promise<LightMyRequestResponse> {
+  who = caller;
+  return app.inject({
+    method: 'POST',
+    url: '/context-source/revision',
+    payload: reference as Record<string, unknown>,
+  });
+}
+
 interface Reference {
   adapter: string;
   record: string;
@@ -976,6 +985,119 @@ describe('the seam records only what it can stand behind', () => {
       contextFacts({ ...member, content: { 'engineering.decision': { a: 2, b: 1 } } }),
     );
     expect(contextFacts(member)).toContain('"a":2,"b":1');
+  });
+});
+
+describe('the revision check answers as read does, without the text', () => {
+  it('answers {revision, digest} for a readable reference, and records operation revision', async () => {
+    const text = 'Revision check probe: a file whose text is never sent.\n';
+    const probe = await attachText('context-revision-probe', text, 'internal');
+    await compile(performer());
+    engineIds = [probe];
+    const [reference] = referencesOf(await retrieve(performer()));
+    const since = await now();
+    const answered = await revisionOf(performer(), reference);
+    expect(answered.statusCode, answered.body).toBe(200);
+    expect(answered.json()).toEqual({ revision: reference!.revision, digest: reference!.digest });
+    expect(answered.body).not.toContain('never sent');
+    expect(await disclosuresSince(since)).toEqual([
+      expect.objectContaining({
+        operation: 'revision',
+        refusal: null,
+        corpus_digest: await corpusDigestOf(performer()),
+        object_id: probe,
+        revision: reference!.revision,
+        text_digest: reference!.digest,
+      }),
+    ]);
+  });
+
+  it('refuses with read’s status, body and record for every refusal', async () => {
+    const reader = person(capped.personId, capped.assignmentId);
+    const granted = await attachText(
+      'context-revision-granted',
+      'Granted, then withdrawn, for the revision check.\n',
+      'internal',
+    );
+    const grantId = await grant(granted, capped.personId);
+    await compile(reader);
+    engineIds = [granted];
+    const [withdrawnRef] = referencesOf(await retrieve(reader));
+    await execute()({
+      ...reviewer(),
+      targetIds: [granted],
+      actionType: 'revoke_access',
+      idempotencyKey: `revoke-${randomUUID()}`,
+      reason: 'withdrawn for the revision check',
+      payload: { grant_id: grantId },
+    });
+
+    const steady = await attachText(
+      'context-revision-steady',
+      'Steady text for the revision check.\n',
+      'internal',
+    );
+    await compile(performer());
+    engineIds = [steady];
+    const [steadyRef] = referencesOf(await retrieve(performer()));
+    const later = await attachText(
+      'context-revision-later',
+      'Added after the claim, for the revision check.\n',
+      'internal',
+    );
+    const laterRef = await withTransaction(h.pool, async (tx) => {
+      await bindReader(tx, f, f.performerId);
+      const [member] = await enumeratePermittedSet(tx, f.performerId, f.organizationId, undefined, [
+        later,
+      ]);
+      return {
+        adapter: 'knowledge-fabric',
+        record: later,
+        revision: member!.contentDigest,
+        digest: digestBytes(Buffer.from('Added after the claim, for the revision check.\n')),
+      };
+    });
+
+    const cases: [Caller, unknown][] = [
+      [reader, withdrawnRef],
+      [performer(), { ...steadyRef, digest: 'f'.repeat(64) }],
+      [performer(), laterRef],
+      [performer(), { ...steadyRef, record: randomUUID() }],
+      [performer(), { ...steadyRef, record: 'not-a-uuid' }],
+    ];
+    const rules: string[] = [];
+    for (const [caller, reference] of cases) {
+      const since = await now();
+      const viaRead = await read(caller, reference);
+      const readRows = await disclosuresSince(since);
+      const between = await now();
+      const viaRevision = await revisionOf(caller, reference);
+      const revisionRows = await disclosuresSince(between);
+      expect(viaRevision.statusCode, viaRevision.body).toBe(viaRead.statusCode);
+      expect(viaRevision.rawPayload.equals(viaRead.rawPayload)).toBe(true);
+      expect(revisionRows.map(({ operation: _o, ...row }) => row)).toEqual(
+        readRows.map(({ operation: _o, ...row }) => row),
+      );
+      expect(revisionRows.map((row) => row.operation)).toEqual(['revision']);
+      rules.push((viaRevision.json() as { rule: string }).rule);
+    }
+    expect(rules).toEqual(['KF-CTX-002', 'KF-CTX-003', 'KF-CTX-004', 'KF-CTX-001', 'KF-CTX-001']);
+  });
+
+  it('is refused to a forwarded caller, like the other routes', async () => {
+    who = performer();
+    const forwarded = await app.inject({
+      method: 'POST',
+      url: '/context-source/revision',
+      headers: { 'x-forwarded-for': '203.0.113.9' },
+      payload: {
+        adapter: 'knowledge-fabric',
+        record: randomUUID(),
+        revision: 'a'.repeat(64),
+        digest: 'b'.repeat(64),
+      },
+    });
+    expect(forwarded.statusCode).toBe(403);
   });
 });
 

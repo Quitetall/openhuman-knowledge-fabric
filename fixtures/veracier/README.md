@@ -113,6 +113,43 @@ token budget, then checks that every source is a member of that projection and a
 overlay says the person may read, and lists what the second person's package lacks. The package
 (with text) goes to `$state/context-examples/`, 0600; stdout carries ids, titles and digests.
 
+## Context source for LAMU
+
+LAMU's `KfSource` (`lamu-api/src/context_kf.rs`) reads KF through three routes on the API, each on
+a direct loopback connection only, each identifying the caller from the bearer token through
+kf-attestor and deciding from live rows (`apps/api/src/routes/context-source.ts`). A SourceRef is
+`{adapter: "knowledge-fabric", record, revision, digest}`: `revision` is the record's
+master-record member digest, `digest` the SHA-256 of the exact text `read` returns.
+
+| route                           | body             | answers                                  |
+| ------------------------------- | ---------------- | ---------------------------------------- |
+| `POST /context-source/retrieve` | `{query, limit}` | `{references: [SourceRef]}`              |
+| `POST /context-source/read`     | SourceRef        | `kf.context-source-record/v1` (the text) |
+| `POST /context-source/revision` | SourceRef        | `{revision, digest}` — no text           |
+
+**`revision` is for the recheck (PERF-09).** It takes the decision `read` takes — readable now, at
+this revision and text digest, in the caller's latest master record at this revision — and answers
+with the same status, the same body and the same `KF-CTX-*` rule for every refusal: 404 KF-CTX-001
+(one byte-identical body for absent, foreign, above the ceiling or never granted), 403 KF-CTX-002
+(no longer readable, and one of the caller's own master records included it), 409 KF-CTX-003
+(revision or text moved), 409 KF-CTX-004/005 (the master record is stale, or there is none), 503
+KF-CTX-007 (text over the read bound). On 200 it answers `{revision, digest}`, equal to the
+SourceRef it was asked about. Each call is recorded in `search.context_disclosure` as operation
+`revision`, with the record, revision and text digest and no text. It reads no bytes from the
+store, so a source whose bytes are not UTF-8 (or whose record would exceed the 2 MiB response
+bound) passes `revision` and is refused KF-CTX-007 by `read`. For LAMU: `recheck` can call
+`revision` and compare the answer with the SourceRef instead of reading the text, keeping `read`
+for `read_exact`; a mismatch there is `RevisionMismatch`, as any 409 is.
+
+**Facts (`kf.context-facts/v2`).** A record whose source is not text is read as its canonical
+facts: title, type, classification, lifecycle state, enterprise id and times; its own typed rows;
+and each file version's number, label, media type, size, SHA-256 and time. Its access grants and
+their reasons, the rows of other records that reference it, and bookkeeping (who wrote each row,
+row and schema versions, storage keys) are not served. The revision still covers the grants, so a
+grant change moves the revision without moving the text: a SourceRef taken before it is 409
+KF-CTX-003, and a fresh retrieve (after `POST /master-record/compile` if the claim is stale) gives
+the new revision with the same digest.
+
 ## Personas
 
 Every person in the overlay has a Keycloak account. Their passwords are generated once into **one

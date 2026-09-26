@@ -90,6 +90,12 @@ export interface ContextSourceRecord {
   readonly retention: 'ephemeral';
 }
 
+/** What `POST /context-source/revision` answers: the SourceRef's revision and digest, no text. */
+export interface ContextSourceRevision {
+  readonly revision: string;
+  readonly digest: string;
+}
+
 /**
  * The claim the person's `agent_context` projection is evaluated over: their latest master record
  * visible at the bound ceiling, as `GET /master-record/projections/agent_context` selects it. Its
@@ -342,7 +348,7 @@ export function referencesDigest(references: readonly SourceReference[]): string
 }
 
 export interface ContextDisclosure {
-  readonly operation: 'retrieve' | 'read';
+  readonly operation: 'retrieve' | 'read' | 'revision';
   readonly refusal?: ContextRefusal | undefined;
   readonly corpusDigest?: string | undefined;
   readonly objectId?: string | undefined;
