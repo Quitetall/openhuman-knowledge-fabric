@@ -243,9 +243,16 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
+      # This job runs node on one dependency-free script (scripts/war-check-gate.mjs imports only
+      # node: builtins) and installs nothing, so it has no package-manager cache to restore.
+      # setup-node v5 turns that cache ON by itself when package.json names a `packageManager`,
+      # and ours names pnpm, which this job never sets up: the step died with "Unable to locate
+      # executable file: pnpm" before war was provisioned (run 36081852155). Off, explicitly,
+      # rather than installing pnpm only to satisfy a cache probe.
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
 
       # The pin (OpenWarrant commit, Rust toolchain, rustup-init digest) lives in the action, so
       # it is stated once, next to the build it governs.
