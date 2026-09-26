@@ -150,6 +150,13 @@ runs:
         # backup and restore drills — see the same value without repeating it.
         client_dir=/usr/lib/postgresql/18/bin
         echo "KF_POSTGRES_CLIENT_DIR=${client_dir}" >> "${GITHUB_ENV}"
+        # And FIRST ON PATH, so nothing that names a client tool bare gets the image's
+        # PostgreSQL 16. `postgresql-client-18` installs into the versioned directory only; the
+        # /usr/bin names are postgresql-common's pg_wrapper, which picks the version of the
+        # image's existing 16 cluster, and a test that ran bare
+        # `pg_restore --list` on the drill's 18 archive failed with "unsupported version (1.16)
+        # in file header". One toolchain means one toolchain, on every lookup path.
+        echo "${client_dir}" >> "${GITHUB_PATH}"
         for tool in psql pg_dump pg_dumpall pg_restore; do
           path="${client_dir}/${tool}"
           test -x "${path}" || { echo "::error::missing ${path}"; exit 1; }

@@ -720,7 +720,14 @@ describe('backup as the backup login', () => {
 
     // The transient observations are declared out of the dump (KF-SAS-RQ-220): the table is
     // defined in it, and its rows are not.
-    const listing = execFileSync('pg_restore', ['--list', join(destination, 'dump.pgcustom')], {
+    //
+    // The SAME pg_restore the drill restores with (kf_configure_postgres_client in
+    // scripts/lib/secret.sh), not whichever one PATH offers: an archive is a versioned format,
+    // and hosted CI's ambient pg_restore is PostgreSQL 16, which refused this PostgreSQL 18
+    // dump with "unsupported version (1.16) in file header" while the drill itself passed.
+    const clientDir = process.env['KF_POSTGRES_CLIENT_DIR'];
+    const pgRestore = clientDir === undefined ? 'pg_restore' : join(clientDir, 'pg_restore');
+    const listing = execFileSync(pgRestore, ['--list', join(destination, 'dump.pgcustom')], {
       encoding: 'utf8',
     });
     expect(listing).toMatch(/TABLE search recorded_query/);
