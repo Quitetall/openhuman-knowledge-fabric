@@ -64,6 +64,7 @@ import { registerIdentifierRoutes } from './routes/identifiers.js';
 import { registerVerificationRoutes } from './routes/verifications.js';
 import { registerCaptureRoutes } from './routes/capture.js';
 import { registerSessionRoutes } from './routes/session.js';
+import { requestLogSerializers } from './request-log.js';
 import { hasRequiredSchema } from './schema-contract.js';
 
 export const SERVICE_NAME = 'openhuman-knowledge-fabric-api';
@@ -106,6 +107,8 @@ function mayReadReadinessDetail(request: FastifyRequest, token: string | undefin
 export interface AppDependencies {
   readonly objectStore?: ObjectStore;
   readonly documentParser?: DocumentParser;
+  /** Where log lines go instead of stdout: a test seam, to read what the log would have said. */
+  readonly logStream?: { write(line: string): void };
 }
 
 export async function buildApp(
@@ -131,6 +134,10 @@ export async function buildApp(
       // Structured JSON logs (directive §3 observability). Pretty-printing is a
       // developer-tooling concern and is applied outside the process.
       formatters: { level: (label) => ({ level: label }) },
+      // A request is logged as its route, never its URL, and an error without the fields that
+      // quote row contents (request-log.ts): query text and record text stay out of the log.
+      serializers: requestLogSerializers,
+      ...(dependencies.logStream === undefined ? {} : { stream: dependencies.logStream }),
     },
     // Every request carries a correlation id; actions record it in the audit event.
     genReqId: () => crypto.randomUUID(),
@@ -216,6 +223,13 @@ export async function buildApp(
       .code(status)
       .send({ error: error.code ?? 'bad_request', message: error.message, requestId: request.id });
   });
+
+  // Fastify's default not-found handler logs "Route GET:<url> not found", query string and all,
+  // and echoes the URL back. The path of a request that matched nothing is whatever the caller
+  // typed, so it is neither logged (request-log.ts) nor repeated.
+  app.setNotFoundHandler((request, reply) =>
+    reply.code(404).send({ error: 'route_not_found', requestId: request.id }),
+  );
 
   app.get('/health', async () => ({
     service: SERVICE_NAME,
