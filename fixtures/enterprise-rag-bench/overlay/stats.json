@@ -1,0 +1,51 @@
+{
+  "selection": "every expected_doc_id of the 500 questions, plus the documents with the smallest sha256('kf-erb-2026-09:' + doc_id) until the target",
+  "documents": 50001,
+  "expected_documents": 722,
+  "by_source_type": {
+    "confluence": 697,
+    "fireflies": 1020,
+    "github": 849,
+    "gmail": 11612,
+    "google_drive": 2408,
+    "hubspot": 1428,
+    "jira": 677,
+    "linear": 3518,
+    "slack": 27792
+  },
+  "by_classification": {
+    "confidential": 14182,
+    "internal": 32262,
+    "public": 149,
+    "restricted": 3408
+  },
+  "by_source_and_classification": {
+    "confluence confidential": 138,
+    "confluence internal": 517,
+    "confluence public": 42,
+    "fireflies confidential": 951,
+    "fireflies internal": 67,
+    "fireflies restricted": 2,
+    "github internal": 742,
+    "github public": 107,
+    "gmail confidential": 8254,
+    "gmail restricted": 3358,
+    "google_drive confidential": 352,
+    "google_drive internal": 2008,
+    "google_drive restricted": 48,
+    "hubspot confidential": 1428,
+    "jira confidential": 447,
+    "jira internal": 230,
+    "linear confidential": 80,
+    "linear internal": 3438,
+    "slack confidential": 2532,
+    "slack internal": 25260
+  },
+  "grants": 35762,
+  "people": 167,
+  "people_by_tier": {
+    "leadership": 16,
+    "manager": 47,
+    "staff": 104
+  }
+}

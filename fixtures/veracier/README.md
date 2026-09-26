@@ -246,6 +246,8 @@ shows them), for the question as written and as `or`'d content words.
   German, Italian and Spanish words are matched unstemmed.
 - The bootstrap tier (`kf bootstrap-organization`, `kf grant-authority`) writes people and role
   assignments without an outbox row, so the worker never indexes them and readiness reports them
-  as unfindable. The loader ends by running `search.rebuild()` on the worker's login.
+  as unfindable. The loader ends by indexing exactly those objects (`search.index_object`) on the
+  worker's login (a whole `search.rebuild()` outlasts the statement budget on a stack that also
+  holds the multi-organization fixture's corpora).
 - The first visit to a record's object page answers `master_record_stale` and the page refreshes
   the person's master record itself; each refresh is recorded as that person's act.

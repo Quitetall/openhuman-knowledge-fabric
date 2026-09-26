@@ -1,22 +1,23 @@
-# The Véracier fixture's own copy of the workstation dependency stack.
+# A fixture's own copy of the workstation dependency stack.
 #
 # Layered over the repository's docker-compose.yml (`-f docker-compose.yml -f <this>`) under the
-# project name `kf-veracier`, so it has its own volumes and its own container names and ports and
-# can run beside, or instead of, the default stack without touching its data. Every port stays on
-# loopback, for the same reason the base file gives: the credentials are public development values.
+# project name stack.sh gives it (KF_STACK_PROJECT, default `kf-veracier`), so it has its own
+# volumes and its own container names and ports and can run beside, or instead of, the default
+# stack — or another fixture stack — without touching its data. Every port stays on loopback, for
+# the same reason the base file gives: the credentials are public development values.
 services:
   postgres:
-    container_name: kf-veracier-postgres
+    container_name: ${KF_STACK_PROJECT:-kf-veracier}-postgres
     ports: !override
-      - '127.0.0.1:15432:5432'
+      - '127.0.0.1:${KF_STACK_PG_PORT:-15432}:5432'
   minio:
-    container_name: kf-veracier-minio
+    container_name: ${KF_STACK_PROJECT:-kf-veracier}-minio
     ports: !override
-      - '127.0.0.1:19000:9000'
-      - '127.0.0.1:19001:9001'
+      - '127.0.0.1:${KF_STACK_MINIO_PORT:-19000}:9000'
+      - '127.0.0.1:${KF_STACK_MINIO_CONSOLE_PORT:-19001}:9001'
   minio-init:
-    container_name: kf-veracier-minio-init
+    container_name: ${KF_STACK_PROJECT:-kf-veracier}-minio-init
   keycloak:
-    container_name: kf-veracier-keycloak
+    container_name: ${KF_STACK_PROJECT:-kf-veracier}-keycloak
     ports: !override
-      - '127.0.0.1:18080:8080'
+      - '127.0.0.1:${KF_STACK_KEYCLOAK_PORT:-18080}:8080'

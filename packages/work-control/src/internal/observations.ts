@@ -94,7 +94,25 @@ const recordObservation: ActionMaterializer = async (tx, request) => {
 const recordSubjects: ActionEffect = async (tx, request, objects, ctx) => {
   const observation = objects.find((o) => o.object_type === 'observation');
   if (observation === undefined) return;
-  for (const subject of uuidList(request.payload?.['subjects'], 'subjects')) {
+  const subjects = uuidList(request.payload?.['subjects'], 'subjects');
+  // A subject the actor cannot see — another organization's, or one that does not exist — is
+  // refused as not found before any edge is drawn. `relation_write` would refuse the edge on the
+  // same predicate (both endpoints visible in core.object), but as an unhandled policy violation,
+  // a 500. The answer is the same whether the id exists elsewhere or nowhere.
+  if (subjects.length > 0) {
+    const visible = await tx.query<{ id: string }>(
+      'select id from core.object where id = any($1::uuid[])',
+      [subjects],
+    );
+    if (visible.length !== subjects.length) {
+      throw new ActionRejected(
+        'object_not_visible',
+        'one or more subjects do not exist or are not visible to this actor',
+        { requested: subjects.length, found: visible.length },
+      );
+    }
+  }
+  for (const subject of subjects) {
     await tx.query(
       `insert into core.relation (relation_type, source_id, target_id, created_by, authorizing_action)
        values ('concerns', $1, $2, $3, $4)`,

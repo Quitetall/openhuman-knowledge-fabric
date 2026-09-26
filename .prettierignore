@@ -44,3 +44,17 @@ fixtures/veracier/reports/
 # Proof evidence (receipts, raw HTTP bodies, row dumps) as the runs wrote them, byte for byte: the
 # receipts and the README cite their digests, and a formatter would move them.
 fixtures/veracier/evidence/
+
+# The other fixture corpora (fixtures/enterprise-rag-bench, drbench, theagentcompany): their
+# overlays and samples are generated and checked byte for byte against a regeneration from the
+# corpus (`generate-overlay.mjs --check`); a sample holds the corpus's own files, which must stay
+# the bytes the corpus published. Their search reports are rewritten by every baseline run.
+fixtures/enterprise-rag-bench/overlay/
+fixtures/enterprise-rag-bench/sample/
+fixtures/enterprise-rag-bench/reports/
+fixtures/drbench/overlay/
+fixtures/drbench/sample/
+fixtures/drbench/reports/
+fixtures/theagentcompany/overlay/
+fixtures/theagentcompany/sample/
+fixtures/theagentcompany/reports/

@@ -22,31 +22,36 @@
 // the first idempotency conflict and says so.
 
 import { existsSync } from 'node:fs';
-import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { randomBytes } from 'node:crypto';
-import { homedir } from 'node:os';
+import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { adminToken, ensureUser } from './lib/keycloak.mjs';
-import { ApiError, PersonaSession, mapLimit, ownerSession } from './lib/kf.mjs';
+import { mapLimit, ownerSession } from '../lib/kf.mjs';
+import {
+  REPO,
+  Tally,
+  bootstrapCounterparties,
+  bootstrapOrganization,
+  ensureAccounts,
+  grantAuthorities,
+  grantRead,
+  log,
+  personaSessions,
+  readJson,
+  reindex,
+} from '../lib/loader.mjs';
+import { personasFile, stackSettings } from '../lib/stack.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const REPO = path.resolve(HERE, '..', '..');
-const REALM = 'knowledge-fabric';
 
 function parseArgs(argv) {
+  const stack = stackSettings();
   const out = {
     sample: false,
     reindexOnly: false,
     corpus: process.env.KF_VERACIER_CORPUS ?? '/mnt/4tb/data/veracier',
-    state: process.env.KF_VERACIER_STATE ?? path.join(homedir(), '.local', 'state', 'kf-veracier'),
-    personas:
-      process.env.KF_VERACIER_PERSONAS ??
-      path.join(homedir(), '.config', 'kf', 'veracier-personas.txt'),
-    api: `http://127.0.0.1:${process.env.KF_VERACIER_API_PORT ?? '4100'}`,
-    keycloak: process.env.KF_VERACIER_KEYCLOAK ?? 'http://localhost:18080',
-    web: `http://localhost:${process.env.KF_VERACIER_WEB_PORT ?? '3100'}`,
-    ownerUrl: 'postgres://kf_owner@localhost:15432/kf?sslmode=disable',
+    state: stack.state,
+    personas: personasFile('veracier'),
+    stack,
     jobs: 4,
   };
   for (let i = 0; i < argv.length; i += 1) {
@@ -66,197 +71,44 @@ function parseArgs(argv) {
   return out;
 }
 
-const log = (...parts) => process.stdout.write(`${parts.join(' ')}\n`);
-
-async function readJson(file) {
-  return JSON.parse(await readFile(file, 'utf8'));
-}
-
-/** Each person's password, generated once and kept in ONE owner-only file. */
-async function personaPasswords(file, people) {
-  await mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
-  const known = new Map();
-  if (existsSync(file)) {
-    for (const line of (await readFile(file, 'utf8')).split('\n')) {
-      if (line.startsWith('#') || line.trim() === '') continue;
-      const [username, password] = line.split('\t');
-      if (username && password) known.set(username, password);
-    }
-  }
-  let added = 0;
-  for (const p of people) {
-    if (!known.has(p.username)) {
-      known.set(p.username, randomBytes(18).toString('base64url'));
-      added += 1;
-    }
-  }
-  const lines = [
-    '# Véracier fixture personas — local Keycloak passwords (fixtures/veracier). Owner-only.',
-    '# username<TAB>password<TAB>name — title<TAB>persona',
-    ...people.map((p) =>
-      [p.username, known.get(p.username), `${p.name} — ${p.title}`, p.persona ?? ''].join('\t'),
-    ),
-    '',
-  ];
-  await writeFile(file, lines.join('\n'), { mode: 0o600 });
-  await chmod(file, 0o600);
-  return { passwords: known, added };
-}
-
-const counts = new Map();
-function tally(what, replayed) {
-  const c = counts.get(what) ?? { new: 0, replayed: 0 };
-  c[replayed ? 'replayed' : 'new'] += 1;
-  counts.set(what, c);
-}
+const counts = new Tally();
+const tally = (what, replayed) => counts.add(what, replayed);
 
 async function bootstrap(opts, owner, overlay) {
   const { company, people, records } = overlay;
-  log('== bootstrap tier (owner credential, kf CLI)');
   const ceo = people.find((p) => p.persona === 'ceo');
-  const lookupOrg = async () =>
-    (await owner.query('select org.organization_by_name($1) as id', [company.legal_name]))[0]?.id ??
-    null;
-  let organizationId = await lookupOrg();
-  if (organizationId === null) {
-    await owner.kf([
-      'bootstrap-organization',
-      '--legal-name',
-      company.legal_name,
-      '--person',
-      ceo.name,
-      '--kind',
-      'company',
-    ]);
-    organizationId = await lookupOrg();
-    log(`  organization created: ${company.legal_name} ${organizationId}`);
-  } else {
-    log(`  organization exists: ${company.legal_name} ${organizationId}`);
-  }
-  const personId = async (name) =>
-    (
-      await owner.scoped(
-        organizationId,
-        'select id from org.person where organization = $1 and display_name = $2 order by id limit 1',
-        [organizationId, name],
-      )
-    )[0]?.id;
-  const ids = {};
-  let createdPeople = 0;
-  for (const p of people) {
-    let id = await personId(p.name);
-    if (id === undefined) {
-      await owner.kf([
-        'bootstrap-organization',
-        '--organization',
-        organizationId,
-        '--person',
-        p.name,
-      ]);
-      id = await personId(p.name);
-      createdPeople += 1;
-    }
-    ids[p.key] = id;
-  }
-  log(`  people: ${people.length} (${createdPeople} created)`);
-
-  const counterparties = {};
-  for (const c of records.counterparties) {
-    let id = (await owner.query('select org.organization_by_name($1) as id', [c.legal_name]))[0]
-      ?.id;
-    if (id === null || id === undefined) {
-      await owner.kf([
-        'bootstrap-organization',
-        '--legal-name',
-        c.legal_name,
-        '--person',
-        c.contact,
-        '--kind',
-        c.kind,
-      ]);
-      id = (await owner.query('select org.organization_by_name($1) as id', [c.legal_name]))[0].id;
-    }
-    counterparties[c.key] = id;
-  }
-  log(`  counterparty organizations: ${records.counterparties.length}`);
-  return { organizationId, personIds: ids, counterparties, ceo };
+  const { organizationId, personIds } = await bootstrapOrganization(owner, {
+    legalName: company.legal_name,
+    kind: 'company',
+    founder: ceo,
+    people,
+  });
+  const counterparties = await bootstrapCounterparties(owner, records.counterparties);
+  return { organizationId, personIds, counterparties, ceo };
 }
 
 async function accounts(opts, overlay) {
-  log('== accounts (Keycloak, realm knowledge-fabric)');
-  const { passwords, added } = await personaPasswords(opts.personas, overlay.people);
-  const kcPassword = (
-    await readFile(path.join(opts.state, 'keycloak-admin-password'), 'utf8')
-  ).trim();
-  const subjects = {};
-  let created = 0;
-  let token = await adminToken(opts.keycloak, kcPassword);
-  let issued = Date.now();
-  for (const p of overlay.people) {
-    if (Date.now() - issued > 45_000) {
-      token = await adminToken(opts.keycloak, kcPassword);
-      issued = Date.now();
-    }
-    const user = await ensureUser(opts.keycloak, REALM, token, p, passwords.get(p.username));
-    subjects[p.key] = user.subject;
-    if (user.created) created += 1;
-  }
-  log(
-    `  ${overlay.people.length} accounts (${created} created); passwords: ${opts.personas} (0600, ${added} new)`,
+  return ensureAccounts(
+    opts.stack,
+    overlay.people,
+    opts.personas,
+    'Véracier fixture personas — local Keycloak passwords (fixtures/veracier).',
   );
-  return { subjects, passwords };
 }
 
 async function authority(opts, owner, overlay, boot, subjects) {
-  log('== authority (kf grant-authority: identity link, role assignment, clearance)');
-  const issuer = `${opts.keycloak}/realms/${REALM}`;
-  const ordered = [boot.ceo, ...overlay.people.filter((p) => p.key !== boot.ceo.key)];
-  let changed = 0;
-  for (const p of ordered) {
-    const args = [
-      'grant-authority',
-      '--person',
-      boot.personIds[p.key],
-      '--organization',
-      boot.organizationId,
-      '--role',
-      p.role,
-      '--clearance',
-      p.clearance,
-      '--granted-by',
-      boot.personIds[boot.ceo.key],
-      '--issuer',
-      issuer,
-      '--subject',
-      subjects[p.key],
-      '--reason',
+  return grantAuthorities(owner, {
+    people: overlay.people,
+    founder: boot.ceo,
+    organizationId: boot.organizationId,
+    personIds: boot.personIds,
+    subjects,
+    issuer: opts.stack.oidc.issuer,
+    reason: (p) =>
       `Véracier authority matrix VER-GOV-2026-01: ${p.name}, ${p.title}, acts as ${p.role} ` +
-        `cleared to ${p.clearance}` +
-        (p.ceiling === p.clearance ? '' : `, organization-wide reading capped at ${p.ceiling}`),
-    ];
-    if (p.ceiling !== p.clearance) args.push('--role-ceiling', p.ceiling);
-    const out = await owner.kf(args);
-    if (!/already held|nothing to change|unchanged/i.test(out)) changed += 1;
-  }
-  const assignments = {};
-  for (const p of overlay.people) {
-    const row = (
-      await owner.scoped(
-        boot.organizationId,
-        `select id from org.role_assignment
-          where subject_id = $1 and scope_id = $2 and role_id = $3
-            and valid_from <= now() and (valid_to is null or valid_to > now())
-          order by valid_from desc limit 1`,
-        [boot.personIds[p.key], boot.organizationId, p.role],
-      )
-    )[0];
-    if (row === undefined) throw new Error(`${p.name} holds no live ${p.role} assignment`);
-    assignments[p.key] = row.id;
-  }
-  log(
-    `  ${overlay.people.length} people authorized (${changed} grant-authority runs changed something)`,
-  );
-  return assignments;
+      `cleared to ${p.clearance}` +
+      (p.ceiling === p.clearance ? '' : `, organization-wide reading capped at ${p.ceiling}`),
+  });
 }
 
 function reasonFor(doc) {
@@ -323,24 +175,8 @@ async function documents(opts, overlay, sessions, ids) {
   return refused;
 }
 
-async function grant(office, targetId, principalId, reason, key) {
-  try {
-    const res = await office.act('grant_access', {
-      targetIds: [targetId],
-      idempotencyKey: key,
-      reason,
-      payload: { principal_kind: 'person', principal_id: principalId, capability: 'read' },
-    });
-    tally('grant_access', res.status === 200);
-  } catch (error) {
-    // A live grant made by an earlier run under a different key is the same fact; anything else
-    // is a real refusal.
-    if (error instanceof ApiError && /already overlaps/.test(JSON.stringify(error.body))) {
-      tally('grant_access', true);
-      return;
-    }
-    throw error;
-  }
+function grant(office, targetId, principalId, reason, key) {
+  return grantRead(office, targetId, principalId, reason, key, counts);
 }
 
 async function needToKnow(opts, overlay, sessions, boot, ids) {
@@ -507,9 +343,10 @@ async function governedRecords(opts, owner, overlay, sessions, boot, ids) {
  * delivered while no retrieval engine was attached were indexed and never embedded, and the
  * bootstrap tier's were never delivered at all; the worker's embedding pump sends each through
  * the engine's vectors-only write once one is attached (KF_RETRIEVAL_SOCKET). Without an engine
- * the queue waits. `--reindex` runs only this.
+ * the queue waits. `--reindex` runs only this; a load uses the shared `reindex` for the
+ * bootstrap tier's objects, and the worker embeds the rest as it indexes them.
  */
-async function reindex(opts) {
+async function reindexAll(opts) {
   const file = path.join(opts.state, 'knowledge-fabric', 'worker-database-url');
   if (!existsSync(file)) {
     log('  (no worker login in the state directory: search index not rebuilt)');
@@ -550,7 +387,7 @@ async function main() {
   const opts = parseArgs(process.argv.slice(2));
   if (opts.reindexOnly) {
     process.env.PGPASSWORD ??= 'dev-only-not-a-secret';
-    await reindex(opts);
+    await reindexAll(opts);
     return;
   }
   const overlayDir = path.join(HERE, 'overlay');
@@ -565,34 +402,23 @@ async function main() {
     overlay.documents = overlay.documents.filter((d) => sample.has(d.doc_id));
   }
   log(
-    `Véracier fixture → ${opts.api} (${opts.sample ? 'sample' : 'full'}: ${overlay.documents.length} documents)`,
+    `Véracier fixture → ${opts.stack.api} (${opts.sample ? 'sample' : 'full'}: ${overlay.documents.length} documents)`,
   );
 
   process.env.PGPASSWORD ??= 'dev-only-not-a-secret';
-  const owner = ownerSession(REPO, opts.ownerUrl);
+  const owner = ownerSession(REPO, opts.stack.ownerUrl);
   const idsFile = path.join(opts.state, 'veracier-ids.json');
   try {
     const boot = await bootstrap(opts, owner, overlay);
     const { subjects, passwords } = await accounts(opts, overlay);
     const assignments = await authority(opts, owner, overlay, boot, subjects);
 
-    const oidc = {
-      issuer: `${opts.keycloak}/realms/${REALM}`,
-      clientId: 'knowledge-fabric-web',
-      redirectUri: `${opts.web}/auth/callback`,
-    };
-    const sessions = new Map(
-      overlay.people.map((p) => [
-        p.key,
-        new PersonaSession({
-          oidc,
-          apiOrigin: opts.api,
-          person: p,
-          password: passwords.get(p.username),
-          organizationId: boot.organizationId,
-          assignmentId: assignments[p.key],
-        }),
-      ]),
+    const sessions = personaSessions(
+      opts.stack,
+      overlay.people,
+      passwords,
+      boot.organizationId,
+      assignments,
     );
     const ids = existsSync(idsFile) ? await readJson(idsFile) : { documents: {}, records: {} };
     ids.organizationId = boot.organizationId;
@@ -614,17 +440,16 @@ async function main() {
       await governedRecords(opts, owner, overlay, sessions, boot, ids);
       if (refused.length > 0)
         log(`  ${refused.length} ingest refusal(s) above; they are reported, not retried`);
-      await reindex(opts);
+      await reindex(opts.state, [
+        boot.organizationId,
+        ...Object.values(boot.personIds),
+        ...Object.values(boot.counterparties),
+        ...Object.values(assignments),
+      ]);
     } finally {
       await save();
     }
-    log('== summary (new / replayed)');
-    for (const [what, c] of [...counts].sort())
-      log(`  ${what.padEnd(28)} ${c.new} / ${c.replayed}`);
-    const fresh = [...counts.values()].reduce((n, c) => n + c.new, 0);
-    log(
-      fresh === 0 ? '  nothing new: this database already held the fixture' : `  ${fresh} new acts`,
-    );
+    counts.print();
     log(`  organization ${boot.organizationId}; ids in ${idsFile}`);
   } finally {
     await owner.end();

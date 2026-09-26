@@ -322,6 +322,44 @@ describe('the request carries the note and nothing about authority (RQ-200)', ()
     }
     expect(await observationCount()).toBe(before);
   });
+
+  it('refuses a subject in another organization exactly as one that does not exist, and records nothing', async () => {
+    // A real second organization, and a record in it its own performer captured.
+    const other = await seedFixtures(h.adminPool, { auditClearance: false });
+    const foreign = await dev.inject({
+      method: 'POST',
+      url: '/capture/observation',
+      headers: {
+        'x-kf-actor': other.performerId,
+        'x-kf-organization': other.organizationId,
+        'x-kf-classification': 'restricted',
+        'x-kf-acting-role': other.performerRoleId,
+      },
+      payload: { body: 'Another organization’s note.', gesture_id: 'g-foreign-subject' },
+    });
+    expect(foreign.statusCode, foreign.body).toBe(201);
+    const foreignId = (foreign.json() as { observationId: string }).observationId;
+
+    const before = await observationCount();
+    const refusals: unknown[] = [];
+    for (const [label, subject] of [
+      ['foreign', foreignId],
+      ['nowhere', '01a0d6d3-0000-7000-8000-000000000000'],
+    ] as const) {
+      const res = await dev.inject({
+        method: 'POST',
+        url: '/capture/observation',
+        headers: as(noter),
+        payload: { body: `About ${label}.`, subjects: [subject], gesture_id: `g-subject-${label}` },
+      });
+      // Not found — never forbidden, never a 500 — and the same answer for both.
+      expect(res.statusCode, `${label}: ${res.body}`).toBe(404);
+      refusals.push(res.json());
+    }
+    expect(refusals[0]).toEqual(refusals[1]);
+    expect(refusals[0]).toMatchObject({ error: 'object_not_visible' });
+    expect(await observationCount()).toBe(before);
+  });
 });
 
 describe('the assignment is formed, never guessed', () => {

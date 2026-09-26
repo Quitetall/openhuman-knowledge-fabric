@@ -1,0 +1,398 @@
+{
+  "source": "ghcr.io/theagentcompany/servers-owncloud:latest /var/www/html/data/theagentcompany/files",
+  "files": [
+    {
+      "key": "f3ac582d89df8e52b",
+      "path": "Documents/Admin/TAC_personell_data.csv",
+      "format": "csv",
+      "mediaType": "text/csv",
+      "bytes": 4601,
+      "sha256": "09a784eaba196d200ff4ad9ed03f1c8015663d9dcd4e7999e3a0cb6bf2b2baab",
+      "text": {
+        "file": "text/Documents/Admin/TAC_personell_data.csv.md",
+        "method": "pandoc:csv",
+        "sha256": "1549f86b5c2e65146f216116cf7d96e17a3c29865ce18aa53c0ec1bf7cba702b",
+        "chars": 4465,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "fc90c4a5389ec9d13",
+      "path": "Documents/Admin/Task_assignment.xlsx",
+      "format": "xlsx",
+      "mediaType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "bytes": 12739,
+      "sha256": "2211de54e346bb94a85093d40103baf94d41dc75efed4d530567762930cd9dbe",
+      "text": {
+        "file": "text/Documents/Admin/Task_assignment.xlsx.md",
+        "method": "pandoc:xlsx",
+        "sha256": "5c255f0783ba227561cf6ed5cc3979672dcfa414941c7bfb4ef84facacaf48d6",
+        "chars": 410,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "f4489f7e6a9808d2a",
+      "path": "Documents/Administrative Specialist/Reimbursement Policy.pdf",
+      "format": "pdf",
+      "mediaType": "application/pdf",
+      "bytes": 20954,
+      "sha256": "d659cf7f0b72a19ba875d028d2fda749f187dc18e89efcf7b8bfeb85f51d901a",
+      "text": {
+        "file": "text/Documents/Administrative Specialist/Reimbursement Policy.pdf.md",
+        "method": "pdftotext",
+        "sha256": "9601a74bc2a0a6174f4715c9dc29474cf6ea2639854481fafdc077dab8da3f0c",
+        "chars": 3935,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "f61f504b730e8dae4",
+      "path": "Documents/Administrative Specialist/cloudtech_industries_quote.pdf",
+      "format": "pdf",
+      "mediaType": "application/pdf",
+      "bytes": 2301,
+      "sha256": "01c0e22dd9d65a2d9705f43e62af71b46d983f814a51b1c2a2a1dea3d076a147",
+      "text": {
+        "file": "text/Documents/Administrative Specialist/cloudtech_industries_quote.pdf.md",
+        "method": "pdftotext",
+        "sha256": "9aa473949bd754c76cbcfe032262502c11e9ba0ae83cad71b7944045d39d6596",
+        "chars": 365,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "f3951646eea256f50",
+      "path": "Documents/Administrative Specialist/datacore_enterprise_quote.pdf",
+      "format": "pdf",
+      "mediaType": "application/pdf",
+      "bytes": 1976,
+      "sha256": "8207fba934d48e2e75a5a6afa0ae76d397d219b0136487b7292a8390116057e8",
+      "text": {
+        "file": "text/Documents/Administrative Specialist/datacore_enterprise_quote.pdf.md",
+        "method": "pdftotext",
+        "sha256": "7f67157505f89665fffa73b1c14b3a589bf153cdff78323a7f4c7a4f336b5677",
+        "chars": 297,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "f2d14ec1eaea9d6b5",
+      "path": "Documents/Administrative Specialist/products.pdf",
+      "format": "pdf",
+      "mediaType": "application/pdf",
+      "bytes": 14938,
+      "sha256": "e144dbde6ae8f05e5cef1ab01e02441b7b45ea6ac64603a7db1445a51aae5a99",
+      "text": {
+        "file": "text/Documents/Administrative Specialist/products.pdf.md",
+        "method": "pdftotext",
+        "sha256": "fcea997ae0f6f507dc5c92baeba2b4b2f55121d4148b5115b4395eb8badd9078",
+        "chars": 1544,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "fc67b022636ce6c73",
+      "path": "Documents/Data Analysis/Coffee Shop/analysis.txt",
+      "format": "txt",
+      "mediaType": "text/plain",
+      "bytes": 247,
+      "sha256": "0dae7f807e1f0eb0f02b6b1a57101edafc545efa3ebe77f7d672e251177a8cc0",
+      "text": null
+    },
+    {
+      "key": "feb11f2319570d0db",
+      "path": "Documents/Data Analysis/Coffee Shop/products.csv",
+      "format": "csv",
+      "mediaType": "text/csv",
+      "bytes": 416,
+      "sha256": "d57fa95c53ed7fcb40de40916e116fee93f6aeb902a1cf0b22f89c35baec8a85",
+      "text": {
+        "file": "text/Documents/Data Analysis/Coffee Shop/products.csv.md",
+        "method": "pandoc:csv",
+        "sha256": "364e524f2848f918b878cbdaa05e7b4090b809b8519609cffa523028c81acc74",
+        "chars": 411,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "f0cd5e6874ab646aa",
+      "path": "Documents/Employee_Manual.odt",
+      "format": "odt",
+      "mediaType": "application/vnd.oasis.opendocument.text",
+      "bytes": 8566,
+      "sha256": "7241f355761b0d2b6440b714e9c0141b55601bb946d3a8d1bc1050cf52e79053",
+      "text": null
+    },
+    {
+      "key": "f8e7ce0df4ad92bb7",
+      "path": "Documents/Engineering/oncall_arrangement.txt",
+      "format": "txt",
+      "mediaType": "text/plain",
+      "bytes": 100,
+      "sha256": "9c37882e10957f9e95f5a7d7ccb08ee1ac55658c3149e19587e17f44bb651831",
+      "text": null
+    },
+    {
+      "key": "facb749f42a02a3e9",
+      "path": "Documents/Financials/July-September 2024 Financials.ods",
+      "format": "ods",
+      "mediaType": "application/vnd.oasis.opendocument.spreadsheet",
+      "bytes": 25931,
+      "sha256": "dad2a93343d9690cec4dce1c77722cb61c2eceb1281e49bf25a79881808b6e01",
+      "text": {
+        "file": "text/Documents/Financials/July-September 2024 Financials.ods.md",
+        "method": "libreoffice:xlsx+pandoc",
+        "sha256": "04c383a7b23006c79acb4ec1efe65349277cfc6201064506a42a915838a171c4",
+        "chars": 2435,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "fcee1b5ff1089363f",
+      "path": "Documents/Financials/Qualified_R&D_Activities.md",
+      "format": "md",
+      "mediaType": "text/markdown",
+      "bytes": 1331,
+      "sha256": "01f60678803ddf4df831a526f2d4586da75482f2e39850cbe65012760f24405a",
+      "text": null
+    },
+    {
+      "key": "f9e088dead96507b6",
+      "path": "Documents/Financials/TAC_salary.xlsx",
+      "format": "xlsx",
+      "mediaType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "bytes": 5771,
+      "sha256": "2c62322af8cd58361c81c3896fec091950007f459beceec8efb44691535cd91c",
+      "text": {
+        "file": "text/Documents/Financials/TAC_salary.xlsx.md",
+        "method": "pandoc:xlsx",
+        "sha256": "c57f11213f4cef566d6b83a9ff5b0885e5c54a5c89a9e683ae0c586371a91cf4",
+        "chars": 432,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "fe8b6ecdb0d14552a",
+      "path": "Documents/Financials/budget.xlsx",
+      "format": "xlsx",
+      "mediaType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "bytes": 15086,
+      "sha256": "db3f317516a3ad4028751f6bbe2228ae4a3d850244bc1a0d632a1262f2aa9f44",
+      "text": {
+        "file": "text/Documents/Financials/budget.xlsx.md",
+        "method": "pandoc:xlsx",
+        "sha256": "3cf7be3cb7152771a28ef9dc6d444f4c8ffc6f3384f74d06a78814b5dc201e9d",
+        "chars": 15098,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "fc5375e8392c5623d",
+      "path": "Documents/Financials/invoices_pdf/INV0000.pdf",
+      "format": "pdf",
+      "mediaType": "application/pdf",
+      "bytes": 2070,
+      "sha256": "e6b915d521cab55fe88e35b82ce1269c1c5e3b107e64758dbb892cd522d2a0dc",
+      "text": {
+        "file": "text/Documents/Financials/invoices_pdf/INV0000.pdf.md",
+        "method": "pdftotext",
+        "sha256": "edf482b79f0efdffc1120bed0a0e793b9185d06f1b8c116791b833c8f39257af",
+        "chars": 312,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "f54964ebebeb682ff",
+      "path": "Documents/Financials/invoices_pdf/INV0001.pdf",
+      "format": "pdf",
+      "mediaType": "application/pdf",
+      "bytes": 2188,
+      "sha256": "68bb5d4a33d130721019d5e8001fc974706a0b8aba58cde567d76d53a75a0883",
+      "text": {
+        "file": "text/Documents/Financials/invoices_pdf/INV0001.pdf.md",
+        "method": "pdftotext",
+        "sha256": "189703f9de2b3607fada0ecdea689ff6fe6a1f6458f004cda7c42070f1fda065",
+        "chars": 169,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "f5de713bedc921876",
+      "path": "Documents/Financials/invoices_pdf/INV0002.pdf",
+      "format": "pdf",
+      "mediaType": "application/pdf",
+      "bytes": 2113,
+      "sha256": "d1ca9ab51552024edccdd359eaa4b652bc1c1bac225ab484eba0cdefe787e49c",
+      "text": {
+        "file": "text/Documents/Financials/invoices_pdf/INV0002.pdf.md",
+        "method": "pdftotext",
+        "sha256": "622a1b85848de01aa85261a0e005a26477b004ff5c063c21ae8ca418dc0dbc7a",
+        "chars": 361,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "fe9f5a8feb33bd31d",
+      "path": "Documents/Financials/payments.xlsx",
+      "format": "xlsx",
+      "mediaType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "bytes": 21478,
+      "sha256": "da972cbfc34b89eca3bc74dfcf88d96dab9905ef25fcbdc6e621b8b82656bb47",
+      "text": {
+        "file": "text/Documents/Financials/payments.xlsx.md",
+        "method": "pandoc:xlsx",
+        "sha256": "2115c8db9212f4cf87a502344dd9b6775154d37e07cf029fdcd80c86a103f31e",
+        "chars": 17264,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "f7a9ae70d1aa7a125",
+      "path": "Documents/Financials/receipt.jpg",
+      "format": "jpg",
+      "mediaType": "image/jpeg",
+      "bytes": 129994,
+      "sha256": "827bf37b382e0d623d43f2025fd3630d120009bdfc94d8d2687fe9aa99d96520",
+      "text": {
+        "file": "text/Documents/Financials/receipt.jpg.md",
+        "method": "ocr:image",
+        "sha256": "6b7502385db19433861ab18ea5b181fb76439d52e8b0a5d27d6f7e03983c5792",
+        "chars": 262,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "f48ec9519a636b450",
+      "path": "Documents/Human Resources Team/Attendance/april-attendance-data.csv",
+      "format": "csv",
+      "mediaType": "text/csv",
+      "bytes": 6411,
+      "sha256": "9e82c6d57dbde59cee85afce3f4a79b074520fb4d029702866bb336dac376ffa",
+      "text": {
+        "file": "text/Documents/Human Resources Team/Attendance/april-attendance-data.csv.md",
+        "method": "pandoc:csv",
+        "sha256": "6407aa7d29a0b9f3da28649c72021966ad368f83c9a7e5377768984bfab6b2cb",
+        "chars": 5956,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "f7ae2241a34ed286f",
+      "path": "Documents/Human Resources Team/Employee Password/password-collection-with-error.odt",
+      "format": "odt",
+      "mediaType": "application/vnd.oasis.opendocument.text",
+      "bytes": 23799,
+      "sha256": "9c0dc39958a38ad03565679a479b098f5f71ae69b312f03b3e63fdea2620e9e6",
+      "text": null
+    },
+    {
+      "key": "fca18d79720ef50f1",
+      "path": "Documents/Human Resources Team/Employee Password/password-rules.odt",
+      "format": "odt",
+      "mediaType": "application/vnd.oasis.opendocument.text",
+      "bytes": 13483,
+      "sha256": "36c824b4f01528e7b0e6764a90dd0befafec05e482659ffdbf5521631ba8ef6e",
+      "text": null
+    },
+    {
+      "key": "f369a89c959f18df4",
+      "path": "Documents/Human Resources Team/Immigration/Dates_For_Filing.png",
+      "format": "png",
+      "mediaType": "image/png",
+      "bytes": 270455,
+      "sha256": "139a5672fef648b32efbd0c1e2fdabd6ba56dd77f44e45d8fa0c39b8605a1e45",
+      "text": {
+        "file": "text/Documents/Human Resources Team/Immigration/Dates_For_Filing.png.md",
+        "method": "ocr:image",
+        "sha256": "2d209defab2fb1ee00912e7d95bb60acd4bd873b3ca15e5d550b7c8ebadb889c",
+        "chars": 531,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "f6e135c17d02d418e",
+      "path": "Documents/Human Resources Team/Personnell_File.odt",
+      "format": "odt",
+      "mediaType": "application/vnd.oasis.opendocument.text",
+      "bytes": 28041,
+      "sha256": "e19e2ff3988ec2ed915f9e87571df40c3f7a27be2350e9c98a6263d65afc5025",
+      "text": null
+    },
+    {
+      "key": "fc44538536e55c85c",
+      "path": "Documents/Human Resources Team/Salary_Analysis_Report.odt",
+      "format": "odt",
+      "mediaType": "application/vnd.oasis.opendocument.text",
+      "bytes": 8032,
+      "sha256": "2e5990bdae62b4c68e009af42733001d0c508c8463c64bac9f55c19bc725e53e",
+      "text": null
+    },
+    {
+      "key": "f345e2a1659f96430",
+      "path": "Documents/Human Resources Team/salary.txt",
+      "format": "txt",
+      "mediaType": "text/plain",
+      "bytes": 700,
+      "sha256": "749ea3d7a5e9f3f1bcd86694299025d3e4e478840f92b41db00a785dd21d2827",
+      "text": null
+    },
+    {
+      "key": "fe783e9d5e08a4871",
+      "path": "Documents/Marketing/Task_assignments.xlsx",
+      "format": "xlsx",
+      "mediaType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "bytes": 7232,
+      "sha256": "a70a3d1f6e32553c834a94917186e790d9a93ea0d17d9267ad9bcd76049bafae",
+      "text": {
+        "file": "text/Documents/Marketing/Task_assignments.xlsx.md",
+        "method": "pandoc:xlsx",
+        "sha256": "88d669a1ad29368ab56ea15c9562441a773014775e72110e70ebc19bec431d0c",
+        "chars": 2676,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "fc7e4c48f12d16bee",
+      "path": "Documents/Q1 Planning and Allocation/Effort.Planning.2025.docx",
+      "format": "docx",
+      "mediaType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "bytes": 40333,
+      "sha256": "dcd6ba95c78a4aab441e3e1080707568bc96ab070d8b46415b1b325cd779dd4e",
+      "text": null
+    },
+    {
+      "key": "fd1dfe20f891d1cea",
+      "path": "Documents/Q1 Planning and Allocation/core_competencies.xlsx",
+      "format": "xlsx",
+      "mediaType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "bytes": 5844,
+      "sha256": "bcb7d3298bb852b6ce2fba0afa02f821fd4f0325a8ab5909393ec1bbd6c497d1",
+      "text": {
+        "file": "text/Documents/Q1 Planning and Allocation/core_competencies.xlsx.md",
+        "method": "pandoc:xlsx",
+        "sha256": "b880846adada8a7d4422cad5379e95398d7960d39a403c014e3c09900f7d3a40",
+        "chars": 425,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "fbc35fee7d9876c7e",
+      "path": "Documents/Research/Noise Simulation/noise_simulation_analysis_sheet.txt",
+      "format": "txt",
+      "mediaType": "text/plain",
+      "bytes": 1168,
+      "sha256": "c03d938d44e1f3d60c49e8b8752a58a8b77866dc187319de98f17d3fc39ca1af",
+      "text": null
+    },
+    {
+      "key": "f806182036c947093",
+      "path": "Documents/TAC_overview.md",
+      "format": "md",
+      "mediaType": "text/markdown",
+      "bytes": 1388,
+      "sha256": "504f19054be9b3c2ed74841332dee564e88ee98c0f990d54c50b057605350e53",
+      "text": null
+    }
+  ]
+}
