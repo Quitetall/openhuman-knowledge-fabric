@@ -34,7 +34,7 @@
 #   KF_STACK_WEB_PORT / KF_STACK_API_PORT / KF_STACK_KEYCLOAK_PORT                3100 / 4100 / 18080
 #   KF_STACK_PG_PORT / KF_STACK_MINIO_PORT / KF_STACK_MINIO_CONSOLE_PORT          15432 / 19000 / 19001
 #   KF_STACK_FIXTURE        what `load` loads (`node fixtures/cli.mjs <it>`)      veracier
-#   KF_STACK_ORGANIZATION   legal name the web app's context picker lists         Véracier Industries S.A.
+#   KF_STACK_ORGANIZATION   legal name the web app's context picker lists first   Véracier Industries S.A.
 #   KF_STACK_SKIP_BUILD     1 skips the build (KF_VERACIER_SKIP_BUILD also works)
 #   KF_STACK_EMBED_PORT     the embedding server's loopback port                   8021
 #
@@ -259,7 +259,8 @@ up() {
 }
 
 # The fixture's organization (KF_STACK_ORGANIZATION), once the loader has created it: the web application's context
-# picker lists a person's assignments in it (KF_WEB_ORGANIZATION). Empty before the first load.
+# picker lists it first (KF_WEB_ORGANIZATION), above any other organization the person holds an
+# assignment in. Empty before the first load.
 fixture_organization() {
   # Through stdin: psql interpolates :'name' (quoted, so any legal name is safe) there, not in -c.
   echo "select coalesce(org.organization_by_name(:'name')::text, '')" |
@@ -363,7 +364,7 @@ start_apps() {
   wait_for 'web' 60 curl -sf -o /dev/null "http://127.0.0.1:$KF_STACK_WEB_PORT/"
   if [ -z "$organization" ]; then
     echo '  (no fixture organization yet: load it, then `stack.sh restart` so the web app lists'
-    echo '   assignments in the context picker)'
+    echo '   it first in the context picker)'
   fi
   status
 }

@@ -54,11 +54,14 @@ One 0600 file per corpus under `~/.config/kf/` — `veracier-personas.txt`,
 (`rw.`, `tac.`, `lm.`, `mc.`, `ea.`; Véracier's are bare) and every e-mail is `@<company>.example`,
 so the one realm holds them all without collision (a test checks it).
 
-The web application's context picker lists assignments in the **one** organization it is
-configured for (`KF_WEB_ORGANIZATION`; this stack names Redwood Inference). A person of any other
-organization signs in the same way and chooses their context with the typed form beneath the
-picker — organization id, role assignment id, ceiling, from `<state>/<corpus>-ids.json` — which
-the API validates exactly as it validates a picked one.
+The web application's context picker lists every live role assignment the signed-in person
+holds, grouped by organization under its legal name (`GET /session/contexts`), so a person of
+any of the organizations signs in and picks their context from the list without typing an id.
+The list is the token's own person's and nobody else's: it names no organization they hold nothing
+in. `KF_WEB_ORGANIZATION` (this stack names Redwood Inference) only puts that organization first.
+The typed form beneath the picker — organization id, role assignment id, ceiling, from
+`<state>/<corpus>-ids.json` — stays as a fallback, and the API validates it exactly as it validates
+a picked one.
 
 ## Tenant isolation
 

@@ -31,8 +31,9 @@ export interface DogfoodIdentityConfig {
   readonly redirectUri: string;
   readonly sessionKey: Uint8Array;
   /**
-   * The deployment's organization, when the operator names one. It only lets the context picker
-   * ask the API which assignments the person holds there; it grants nothing.
+   * The deployment's organization, when the operator names one: a preference, not a limit. The
+   * context picker lists every organization the person holds a live assignment in and puts this
+   * one first; it grants nothing and hides nothing.
    */
   readonly organizationId?: string;
 }

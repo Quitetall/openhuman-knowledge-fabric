@@ -268,20 +268,28 @@ test(
               institutional: { ready: false, checks: institutionalChecks },
             });
           }
-          if (url.pathname === '/api/session/assignments' && request.method === 'GET') {
-            // The picker asks before any role is chosen: bearer and organization only.
+          if (url.pathname === '/api/session/contexts' && request.method === 'GET') {
+            // The picker asks before any context is chosen, with the bearer token alone: no
+            // organization, no role, no person. Whose holdings these are is the token's to say.
             assert.equal(request.headers['x-kf-acting-role'], undefined);
-            if (
-              request.headers.authorization !== 'Bearer fixture-access-token' ||
-              request.headers['x-kf-organization'] !== ORGANIZATION_ID
-            ) {
+            assert.equal(request.headers['x-kf-organization'], undefined);
+            assert.equal(request.headers['x-kf-actor'], undefined);
+            if (request.headers.authorization !== 'Bearer fixture-access-token') {
               return json(response, 401, { error: 'unidentified', message: 'bearer refused' });
             }
             return json(response, 200, {
-              organizationId: ORGANIZATION_ID,
               personId: '01900000-0000-7000-8000-000000000003',
-              clearance: 'internal',
-              assignments: [{ assignmentId: ROLE_ID, roleId: 'work_order_manager', validTo: null }],
+              organizations: [
+                {
+                  organizationId: ORGANIZATION_ID,
+                  legalName: 'OpenHuman Fixture Organization',
+                  clearance: 'internal',
+                  assignments: [
+                    { assignmentId: ROLE_ID, roleId: 'work_order_manager', validTo: null },
+                  ],
+                  refused: null,
+                },
+              ],
             });
           }
           if (
@@ -926,6 +934,10 @@ test(
       // and offers no ceiling above their clearance.
       const onlyRole = page.getByRole('radio', { name: /Work order manager/ });
       assert.equal(await onlyRole.isChecked(), true);
+      // Grouped under the organization's legal name, so nobody has to recognise an id.
+      await assert.doesNotReject(() =>
+        page.getByRole('heading', { name: 'OpenHuman Fixture Organization' }).waitFor(),
+      );
       const ceiling = page.getByLabel('Maximum classification', { exact: true });
       assert.equal(await ceiling.inputValue(), 'internal');
       assert.deepEqual(
