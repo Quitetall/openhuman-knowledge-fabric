@@ -248,9 +248,16 @@ describe('pandoc runs under limits a hostile source cannot choose', () => {
   }
 
   it('refuses a source that exhausts the heap ceiling, typed as memory', async () => {
-    // 1 000 nested blockquotes peak near 300 MiB unbounded (measured, pandoc 3.10.2); the
-    // production case was 5 000 and 8.5 GB. A 32 MiB ceiling makes the same shape refuse.
-    const source = Buffer.from(`${'> '.repeat(1000)}x`);
+    // The source has to need more heap than the ceiling on EVERY pandoc a host may carry, so
+    // its size, not a parser pathology, is what exhausts it. The production case (5 000 nested
+    // blockquotes, 8.5 GB) is a regression of recent readers: 1 000 of them peak near 28 MiB
+    // resident under pandoc 3.10.2 and at 59 KB under 3.1.3, the version Ubuntu 24.04 ships
+    // and hosted CI runs, where this test parsed happily and failed. 2 MiB of plain paragraphs
+    // is ~138 MB resident on both (measured 2026-09-26: 3.1.3 138.4 MB, 3.10.2 139.0 MB, each
+    // finishing unbounded in under 2 s), four times the 32 MiB ceiling, and well under the
+    // 20 MiB source cap — so the refusal can only come from the heap ceiling.
+    const paragraph = `${'word '.repeat(20)}\n\n`;
+    const source = Buffer.from(paragraph.repeat(Math.ceil((2 * 1024 * 1024) / paragraph.length)));
     const parser = new PandocDocumentParser({ maxHeapMiB: 32 });
     const outcome = await parser.parse(source, 'text/markdown').then(
       () => 'parsed',
