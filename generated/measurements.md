@@ -12,17 +12,17 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 
 | Measure | Count | Derived from |
 | --- | ---: | --- |
-| migrations | 138 | files under `database/migrations/` |
+| migrations | 140 | files under `database/migrations/` |
 | forward-only migrations | 27 | migrations declaring `-- kf:forward-only <reason>` in their down-section |
 | schemas | 14 | distinct `create schema` names in migration up-sections |
-| tables created | 192 | in migration up-sections |
-| row-security policies | 484 | in migration up-sections |
+| tables created | 193 | in migration up-sections |
+| row-security policies | 485 | in migration up-sections |
 | triggers created | 192 | literal `create trigger` statements in migration up-sections |
-| security definer declarations | 174 | in migration up-sections; a function redefined is declared again |
+| security definer declarations | 177 | in migration up-sections; a function redefined is declared again |
 | views | 13 | distinct view names in migration up-sections |
-| indexes created | 97 | explicit `create index` statements in migration up-sections |
+| indexes created | 98 | explicit `create index` statements in migration up-sections |
 | foreign-key references | 494 | `references` clauses in migration up-sections |
-| check constraints | 804 | `check (` clauses in migration up-sections |
+| check constraints | 812 | `check (` clauses in migration up-sections |
 | group roles | 11 | distinct `NOLOGIN` roles created in migration up-sections |
 | workspace packages | 31 | 25 libraries under `packages/`, 6 executables under `apps/` |
 | systemd services | 14 | `*.service` units under `deploy/systemd/`, the `kf-alert@` template counted once |
@@ -30,9 +30,9 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 | action types | 170 | declared in `ontology/action-types.yaml` |
 | object types | 40 | declared in `ontology/object-types.yaml` |
 | relation types | 42 | declared in `ontology/relation-types.yaml` |
-| decision records | 37 | atoms under `docs/decisions/atoms/` — 35 accepted, 2 superseded |
+| decision records | 38 | atoms under `docs/decisions/atoms/` — 35 accepted, 1 proposed, 2 superseded |
 | architecture requirements | 180 | distinct identifiers in §106 |
-| test files | 284 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
+| test files | 291 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
 
 ## Runtime measurements, cited rather than derived
 
