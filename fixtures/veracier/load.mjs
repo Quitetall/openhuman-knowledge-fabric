@@ -375,7 +375,7 @@ async function reindexAll(opts) {
     // The worker's login reads search.document under row security and sees none of it, so the
     // ids come from the owner credential the bootstrap tier already uses; the enqueue itself is the
     // worker's, through the one seam granted to it.
-    const owner = createPool({ connectionString: opts.ownerUrl, maxConnections: 1 });
+    const owner = createPool({ connectionString: opts.stack.ownerUrl, maxConnections: 1 });
     let objectIds;
     try {
       objectIds = (

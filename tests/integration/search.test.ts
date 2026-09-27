@@ -366,6 +366,25 @@ describe('a question finds what it is about, in the record’s own language (202
     expect(english.found, 'the probe: English stemming alone would not have found it').toBe(false);
   });
 
+  it('finds term hits only in the bound caller’s own scope, and none for an unbound session', async () => {
+    const hits = (tx: Parameters<Parameters<typeof withTransaction>[1]>[0]) =>
+      tx.query<{ object_id: string }>(
+        `select object_id from search.term_hits(array[to_tsquery('english', 'contractor')], null, null, null)`,
+      );
+    // search.term_hits is a definer seam; its scope comes from the sealed context and nothing else.
+    expect(await withTransaction(h.pool, hits)).toEqual([]);
+    const asRestricted = await withTransaction(h.pool, async (tx) => {
+      await bindReader(tx, f, f.performerId, 'restricted');
+      return hits(tx);
+    });
+    expect(asRestricted.map((r) => r.object_id)).toContain(restrictedOrder);
+    const asInternal = await withTransaction(h.pool, async (tx) => {
+      await bindReader(tx, f, f.performerId, 'internal');
+      return hits(tx);
+    });
+    expect(asInternal.map((r) => r.object_id)).not.toContain(restrictedOrder);
+  });
+
   it('keeps an English record English and a title with no language as it was', async () => {
     const rows = await withTransaction(h.adminPool, async (tx) =>
       tx.query<{ object_id: string; languages: string }>(
