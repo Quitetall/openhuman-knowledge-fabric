@@ -324,8 +324,8 @@ export function personaSessions(settings, people, passwords, organizationId, ass
  * exception to the dispatcher), so no outbox row announces them and the worker never indexes
  * them; readiness then reports them as unfindable. The worker's own login indexes exactly those
  * objects (`search.index_object`, what the outbox would have run). The index is disposable and
- * this touches no record. A whole `search.rebuild()` would do too, but on a stack holding
- * tens of thousands of documents it outlasts the statement budget.
+ * this touches no record. A whole rebuild would do too (`stack.sh reindex`, in batches since
+ * 20260926100100), but re-indexes every record rather than the few the bootstrap tier wrote.
  */
 export async function reindex(state, objectIds) {
   const file = path.join(state, 'knowledge-fabric', 'worker-database-url');

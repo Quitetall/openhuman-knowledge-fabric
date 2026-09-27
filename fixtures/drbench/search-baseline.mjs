@@ -11,7 +11,7 @@
 // query is the fairer number.
 
 import path from 'node:path';
-import { scoreQuestions, summarize, writeReport } from '../lib/baseline.mjs';
+import { readPrevious, scoreQuestions, summarize, writeReport } from '../lib/baseline.mjs';
 import { corpusSessions } from '../lib/sessions.mjs';
 import { DEFAULT_DATA, HERE, SAMPLE_DIR, companiesIn } from './fixture.mjs';
 import { CORPUS, personKey, rank } from './overlay-source.mjs';
@@ -67,6 +67,7 @@ if (out !== undefined) {
     ],
     results,
     summary,
+    previous: await readPrevious(path.join(HERE, 'reports', 'search-baseline.2026-09-25.json')),
   });
 }
 process.stdout.write(`${JSON.stringify(summary.overall)}\n`);

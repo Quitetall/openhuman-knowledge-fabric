@@ -358,8 +358,20 @@ async function reindexAll(opts) {
     maxConnections: 1,
   });
   try {
-    const row = await withTransaction(pool, (tx) => tx.one('select search.rebuild() as n'));
-    log(`== search index rebuilt by the worker's login: ${row.n} records`);
+    // In batches, one short transaction each (search.rebuild_batch, 20260926100100): one statement
+    // over every record outlasts the statement budget on a stack holding tens of thousands.
+    let after = null;
+    let rebuilt = 0;
+    for (;;) {
+      const batch = await withTransaction(pool, (tx) =>
+        tx.one('select indexed, last_object from search.rebuild_batch($1::uuid, 500)', [after]),
+      );
+      if (Number(batch.indexed) === 0 || batch.last_object === null) break;
+      rebuilt += Number(batch.indexed);
+      after = batch.last_object;
+      if (rebuilt % 5000 < 500) log(`  … ${rebuilt} records re-indexed`);
+    }
+    log(`== search index rebuilt by the worker's login: ${rebuilt} records`);
     // The worker's login reads search.document under row security and sees none of it, so the
     // ids come from the owner credential the bootstrap tier already uses; the enqueue itself is the
     // worker's, through the one seam granted to it.

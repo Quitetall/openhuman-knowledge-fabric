@@ -1,0 +1,20 @@
+{
+  "date": "2026-09-25",
+  "commit": "3b7a2258",
+  "summary": {
+    "k": 10,
+    "questions": 40,
+    "documents": 1004,
+    "mean_verbatim_lexical_recall": 0.0168,
+    "mean_keywords_lexical_recall": 0.1793,
+    "mean_verbatim_semantic_recall": 0.1866,
+    "mean_keywords_semantic_recall": 0.202,
+    "mean_verbatim_composed_recall": 0.1767,
+    "mean_keywords_composed_recall": 0.1793,
+    "semantic_unavailable": 0,
+    "verbatim_lexical_filled": 5,
+    "keywords_lexical_filled": 40,
+    "mean_keywords_lexical_recall_upper_bound": 0.5911,
+    "semantic": "present"
+  }
+}

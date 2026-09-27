@@ -235,19 +235,20 @@ pages OCR'd in all), no failures. Thinnest: one scanned purchase order at 184 ch
 
 `node fixtures/veracier/search-baseline.mjs` asks each of the benchmark's questions through
 `GET /search` as its asker and writes `reports/search-baseline.md`: recall@10 of the lexical list,
-the semantic list, and the two as served (lexical list first, then semantic, as the web application
-shows them), for the question as written and as `or`'d content words.
+the semantic list, and the fused list the API serves first and the web application shows first,
+for the question as written and as `or`'d content words, beside the numbers of the run before
+(`reports/search-baseline.2026-09-25.json`).
 
 ## Known gaps
 
 - KF's ontology has no customer engagement kind (`contractor`, `supplier`, `employee`,
   `research_collaboration`, `laboratory_service`); only the supplier contracts are engagements.
-- The lexical index uses PostgreSQL's `english` configuration for every language, so French,
-  German, Italian and Spanish words are matched unstemmed.
+- KF holds no declared language for a document, so the lexical index detects it from the text's
+  function words (`search.detect_languages`); MASTER_INDEX's `language` column is used only to
+  measure that detection, not to set it.
 - The bootstrap tier (`kf bootstrap-organization`, `kf grant-authority`) writes people and role
   assignments without an outbox row, so the worker never indexes them and readiness reports them
   as unfindable. The loader ends by indexing exactly those objects (`search.index_object`) on the
-  worker's login (a whole `search.rebuild()` outlasts the statement budget on a stack that also
-  holds the multi-organization fixture's corpora).
+  worker's login (a whole rebuild would do too; `stack.sh reindex` runs one in batches).
 - The first visit to a record's object page answers `master_record_stale` and the page refreshes
   the person's master record itself; each refresh is recorded as that person's act.
