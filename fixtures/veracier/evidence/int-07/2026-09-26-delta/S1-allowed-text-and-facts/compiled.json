@@ -1,0 +1,17 @@
+{
+  "package_id": "adb0462a1745c066247401e035998287b6fbc1aba41d7441ecef05d8501d5f02",
+  "sources": [
+    {
+      "adapter": "knowledge-fabric",
+      "record": "01a0d688-50cb-7e2c-8958-72259f96e25a",
+      "revision": "81da1409261605d2f2dddcd1fd9c2120d529c4f4a95a7f563cdb59cc84d60cf2",
+      "digest": "7e30d290dd03ce42b9f43427d5cb14723d3a50244b2fd1fc2c501c235675c45c"
+    },
+    {
+      "adapter": "knowledge-fabric",
+      "record": "01a0d688-4fc9-743f-8290-60c284671c5d",
+      "revision": "65093ea7481221ab777b31705b5b0af971e82859a6da99b89fb6652d7fae06be",
+      "digest": "d6b3d8d2cbe6ac4a710e0deeffdf1aa603a11e2bead3f73e8441837eab05cb33"
+    }
+  ]
+}
