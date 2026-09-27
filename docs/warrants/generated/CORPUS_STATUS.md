@@ -17,11 +17,11 @@ Source: every Warrant under the configured warrants path, its sidecar records, a
 - **digest:** `sha256:cd221037a66d3b94cfdaf77215b58bc36982491a337af3d5e6ddfc65b574dd37`
 - Revision 0.1.0-draft.7 is ACCEPTED (§101.2) and normative. A Warrant compiles against the revision its authorization recorded (§14), so a later revision does not move an authorized contract: 1 against 0.1.0-draft.7.
 
-**Requirements (180 in §106)** — strictest rung first:
+**Requirements (192 in §106)** — strictest rung first:
 
 | satisfied | in_progress | claimed | unaddressed | superseded |
 |---|---|---|---|---|
-| **0** | 0 | 12 | 168 | 0 |
+| **0** | 0 | 12 | 180 | 0 |
 
 ## Objectives (SAS §98 phases)
 
@@ -79,7 +79,7 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 
 ## Requirements (SAS §106, §34.3)
 
-**Unaddressed (168)** — no Warrant names these. Several may be built; the gap is bookkeeping, and it is listed rather than hidden:
+**Unaddressed (180)** — no Warrant names these. Several may be built; the gap is bookkeeping, and it is listed rather than hidden:
 
 - `KF-SAS-RQ-001` — One coherent typed graph over records whose authorities remain distinct
 - `KF-SAS-RQ-002` — Visibility, immutability and integrity enforced in the database
@@ -249,6 +249,18 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 - `KF-SAS-RQ-247` — A recorded query is disclosed only to its asker; another person's replay returns only the aggregate
 - `KF-SAS-RQ-248` — An export from an earlier exporter of the same format imports, converted as its migrations converted
 - `KF-SAS-RQ-249` — A process addresses a store only at its declared, bound address, which never changes and carries no credential
+- `KF-SAS-RQ-250` — A context read is recorded as a disclosure bound to the corpus of the master record that included it at the revision served, or it is not made
+- `KF-SAS-RQ-251` — Every refusal of a context read is recorded, and one for a record the reader was never shown names no record
+- `KF-SAS-RQ-252` — "No longer permitted" only for a record the reader's own master record included; every other refusal is one identical not-found
+- `KF-SAS-RQ-253` — A context source re-checks current authority on every call, refuses a moved record, and serves only a direct loopback caller
+- `KF-SAS-RQ-254` — One qualification protocol for every person; roles differ only in their pack, and nothing branches on a role or title
+- `KF-SAS-RQ-255` — A requirement states an outcome and the evidence that counts; opening a document establishes nothing unless acknowledgement is the outcome
+- `KF-SAS-RQ-256` — Evidence is acknowledged, located or demonstrated, and a mode is never upgraded
+- `KF-SAS-RQ-257` — The reviewer who accepts the work credits its evidence in the same act; no duplicate approval
+- `KF-SAS-RQ-258` — Qualification grants nothing and a permission implies none; the database enforces one only where an action declares it
+- `KF-SAS-RQ-259` — Only a behavioural revision of a requirement creates a gap, and only for the scope it touches
+- `KF-SAS-RQ-260` — A mandatory requirement names what becomes unsafe, unauthorized or unreliable without it
+- `KF-SAS-RQ-261` — An unavailable resource or reviewer is the organization's blocker, never the person's failure
 
 | requirement | status | would_satisfy | implementers |
 |---|---|---|---|
@@ -432,6 +444,18 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 | `KF-SAS-RQ-247` | unaddressed | 0 | — |
 | `KF-SAS-RQ-248` | unaddressed | 0 | — |
 | `KF-SAS-RQ-249` | unaddressed | 0 | — |
+| `KF-SAS-RQ-250` | unaddressed | 0 | — |
+| `KF-SAS-RQ-251` | unaddressed | 0 | — |
+| `KF-SAS-RQ-252` | unaddressed | 0 | — |
+| `KF-SAS-RQ-253` | unaddressed | 0 | — |
+| `KF-SAS-RQ-254` | unaddressed | 0 | — |
+| `KF-SAS-RQ-255` | unaddressed | 0 | — |
+| `KF-SAS-RQ-256` | unaddressed | 0 | — |
+| `KF-SAS-RQ-257` | unaddressed | 0 | — |
+| `KF-SAS-RQ-258` | unaddressed | 0 | — |
+| `KF-SAS-RQ-259` | unaddressed | 0 | — |
+| `KF-SAS-RQ-260` | unaddressed | 0 | — |
+| `KF-SAS-RQ-261` | unaddressed | 0 | — |
 
 ## Warrants (1) — invalid 0 · draft 1 · ready_to_resolve 0 · would_satisfy 0 · resolved **0**
 

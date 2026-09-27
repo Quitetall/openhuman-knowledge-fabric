@@ -17,6 +17,15 @@ decided: 2026-09-23
   compiles a stale master record. `GET /objects/:id` answers `409 master_record_stale`, and
   `POST /objects/:id/refresh` performs the compile as an explicit act.
 
+> **UPDATED 2026-09-26 — a correction to this record's description, not to its decision.** Decision
+> 2 says `core.bind_principal` "clamps the ceiling to the person's clearance". It does not, and never
+> did: a requested ceiling above the clearance is refused. `org.resolve_effective_classification`
+> raises "requested classification … exceeds clearance …" (`20260923000100`), so nobody is bound,
+> and `kf-attestor`, which resolves the same function before it attests, answers 401
+> `classification_not_granted`. A request at or below the clearance binds the level requested. The
+> decision stands as taken — the application may only narrow, never widen — and SAS
+> `0.1.0-draft.9` §17 carries the same correction.
+
 ## Context
 
 Every guard, policy and trigger reads who is acting, where, and at what ceiling from `kf.*`

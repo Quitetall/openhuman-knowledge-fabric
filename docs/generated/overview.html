@@ -279,8 +279,8 @@
       <div><dt>Contract digest</dt><dd>cd221037a66d</dd></div>
       <div><dt>Accepted</dt><dd>2026-09-20</dd></div>
       <div><dt>Authority</dt><dd>Brian Lam</dd></div>
-      <div><dt>Requirements</dt><dd>180 &middot; append&#8209;only</dd></div>
-      <div><dt>Source digest</dt><dd>62bd1f043f29</dd></div>
+      <div><dt>Requirements</dt><dd>192 &middot; append&#8209;only</dd></div>
+      <div><dt>Source digest</dt><dd>fb184bf559a0</dd></div>
     </dl>
   </header>
 
@@ -299,13 +299,13 @@
       </div>
       <div class="axis">
         <span class="eyebrow">Requirements claimed</span>
-        <div class="ratio"><span class="n">12</span><span class="d">&thinsp;/&thinsp;180</span></div>
-        <div class="meter"><i class="fill-open" style="width:7%"></i></div>
+        <div class="ratio"><span class="n">12</span><span class="d">&thinsp;/&thinsp;192</span></div>
+        <div class="meter"><i class="fill-open" style="width:6%"></i></div>
         <p>Declared by a Warrant. Claimed is not satisfied &mdash; status is derived from evidence, and a claim is where evidence starts.</p>
       </div>
       <div class="axis">
         <span class="eyebrow">Requirements satisfied</span>
-        <div class="ratio"><span class="n">0</span><span class="d">&thinsp;/&thinsp;180</span></div>
+        <div class="ratio"><span class="n">0</span><span class="d">&thinsp;/&thinsp;192</span></div>
         <div class="meter"></div>
         <p>Shown. No Warrant has resolved, so nothing reads above claimed, and this column stays at zero until one does.</p>
       </div>
@@ -340,7 +340,7 @@
   <section>
     <div class="head">
       <h2>Requirements, by group</h2>
-      <span class="eyebrow">180 &middot; 12 claimed &middot; 168 unaddressed</span>
+      <span class="eyebrow">192 &middot; 12 claimed &middot; 180 unaddressed</span>
     </div>
 
     <div class="groups">
@@ -355,10 +355,12 @@
       <div class="grp"><span>Retrieval, 2026-09-14 (ADR 0028)</span><span class="ct">11</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
       <div class="grp"><span>What the principal binding left open, 2026-09-24 (ADR 0033)</span><span class="ct">10</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
       <div class="grp"><span>Interfaces</span><span class="ct">9</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
+      <div class="grp"><span>Qualification, 2026-09-26 (ADR 0038, specified and not built)</span><span class="ct">8</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
       <div class="grp"><span>Governance</span><span class="ct">7</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
       <div class="grp"><span>The database binds the principal, 2026-09-24 (ADR 0033)</span><span class="ct">7</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
       <div class="grp"><span>Capture and verification, 2026-09-14 (ADR 0031)</span><span class="ct">6</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
       <div class="grp"><span>Friction and use, 2026-09-04 (ADR 0024)</span><span class="ct">5</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
+      <div class="grp"><span>The context source, 2026-09-26</span><span class="ct">4</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
       <div class="grp"><span>Purpose and thesis</span><span class="ct">3</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
       <div class="grp"><span>Scope decisions of 2026-09-04</span><span class="ct">3</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
       <div class="grp"><span>The three layers, 2026-09-14 (ADR 0030)</span><span class="ct">3</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
@@ -381,7 +383,7 @@
   <section>
     <div class="head">
       <h2>Recorded gaps</h2>
-      <span class="eyebrow">&sect;100 &middot; 35</span>
+      <span class="eyebrow">&sect;100 &middot; 40</span>
     </div>
 
     <ul class="gaps">
@@ -404,7 +406,7 @@
       <li><b>100.17</b><span>The phase ladder is full against a hard cap</span></li>
       <li><b>100.18</b><span>Two of ADR 0024's latency bars are unmeasured, no bar has a commissioned host's figure, and there is no chat integration</span></li>
       <li><b>100.19</b><span>How an agent authenticates when acting for a named human is undecided — closed</span></li>
-      <li><b>100.21</b><span>The retrieval architecture is built on the Fabric's side and largely unbuilt on the engine's</span></li>
+      <li><b>100.21</b><span>The retrieval engine is built, and nobody independent has verified it</span></li>
       <li><b>100.22</b><span>Vectors are readable in the serving process</span></li>
       <li><b>100.23</b><span>The demand aggregate is fed only by people replaying their own queries, and has a known bias</span></li>
       <li><b>100.24</b><span>No objective after v1.0 can be scheduled</span></li>
@@ -420,13 +422,18 @@
       <li><b>100.34</b><span>Closing an engagement does not check its work — closed</span></li>
       <li><b>100.35</b><span>Compilation is checked for reproduction, not proven deterministic</span></li>
       <li><b>100.36</b><span>A history read still pays the audit policy per event</span></li>
+      <li><b>100.37</b><span>A token linked to nobody can add identification refusals under any organization</span></li>
+      <li><b>100.38</b><span>A record moved to another organization is answered &quot;no longer permitted&quot;</span></li>
+      <li><b>100.39</b><span>The retrieval engine's key is not released by the Fabric</span></li>
+      <li><b>100.40</b><span>A clean machine cannot start the object store</span></li>
+      <li><b>100.41</b><span>Qualification is specified and not built</span></li>
     </ul>
 
     <p class="note" style="margin-top:1.2rem">A gap is recorded in an enumerable place or it is not recorded. There is not one <code>TODO</code>, <code>FIXME</code> or <code>HACK</code> in the repository &mdash; gaps live here, in decision records, in pack manifests, or as named checker warnings, where a reader will find them and a gate can count them.</p>
   </section>
 
   <footer>
-    Generated by <code>kf overview</code> from source digest <code>62bd1f043f29</code> &mdash; a hash over the specification and the Warrant manifests this page projects, not over the commit containing it, which could not exist before the page was written. No wall&#8209;clock timestamp appears above, deliberately: a generated artifact that differs on every build turns a drift check into noise. Counts are the most perishable claims here; re&#8209;derive rather than trust them. Where this sheet and the specification disagree, the specification governs; where the specification and the code disagree, the code is right and the specification has drifted.
+    Generated by <code>kf overview</code> from source digest <code>fb184bf559a0</code> &mdash; a hash over the specification and the Warrant manifests this page projects, not over the commit containing it, which could not exist before the page was written. No wall&#8209;clock timestamp appears above, deliberately: a generated artifact that differs on every build turns a drift check into noise. Counts are the most perishable claims here; re&#8209;derive rather than trust them. Where this sheet and the specification disagree, the specification governs; where the specification and the code disagree, the code is right and the specification has drifted.
   </footer>
 
 </div>
