@@ -107,7 +107,8 @@ export const IDENTIFICATION_SURFACES: ReadonlySet<IdentificationSurface> =
  * defects and `no_role_requested` come before verification and are not recorded.
  */
 const RECORDED_FAILURES: ReadonlySet<IdentityFailure> = new Set<IdentityFailure>([
-  'unknown_subject',
+  // Not `unknown_subject`: a subject linked to nobody belongs to no organization, and the database
+  // records a refusal only for a person of the organization named (20260927000100).
   'revoked_identity',
   'role_not_held',
   'classification_not_granted',
@@ -310,18 +311,23 @@ async function recordRefusal(
   token: Pick<VerifiedToken, 'issuer' | 'subject' | 'agent'>,
 ): Promise<void> {
   try {
-    await withTransaction(pool, (tx) =>
-      tx.query('select search.record_identification_refusal($1, $2, $3, $4, $5, $6, $7)', [
-        token.issuer,
-        token.subject,
-        UUID_SHAPE.test(request.organizationId) ? request.organizationId : null,
-        request.maxClassification,
-        request.surface,
-        refusal.failure,
-        token.agent ?? null,
-      ]),
+    const row = await withTransaction(pool, (tx) =>
+      tx.one<{ id: string | null }>(
+        'select search.record_identification_refusal($1, $2, $3, $4, $5, $6, $7) as id',
+        [
+          token.issuer,
+          token.subject,
+          UUID_SHAPE.test(request.organizationId) ? request.organizationId : null,
+          request.maxClassification,
+          request.surface,
+          refusal.failure,
+          token.agent ?? null,
+        ],
+      ),
     );
-    refusal.recorded = true;
+    // Null: the database wrote nothing, because the subject is not a person of the organization
+    // named (20260927000100). The attestor's log line is then the only trace, by design.
+    refusal.recorded = row.id !== null;
   } catch {
     // The caller is refused either way; what failed is the record, which the attestor logs.
     refusal.recorded = false;
