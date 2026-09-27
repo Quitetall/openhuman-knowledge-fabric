@@ -207,4 +207,13 @@ export const PRESERVATION_TABLE_EXCLUSIONS = {
   'core.write_guard_exemption':
     'schema configuration written by migration 20260925011000 and pinned by its test; a restore ' +
     'into a migrated database already holds it',
+  'content.master_record_input_exemption':
+    'schema configuration written by migration 20260926110100 and pinned by its test; a restore ' +
+    'into a migrated database already holds it',
+  'content.master_record_currency':
+    'transient observation (§64B): a compilation found a claim current as of a snapshot of THIS ' +
+    'server; meaningless after a restore, and expires in 7 days',
+  'content.master_record_input_write':
+    'transient observation (§64B): which transactions of THIS server wrote a master-record input; ' +
+    'meaningless after a restore, and expires in 30 days',
 } as const;

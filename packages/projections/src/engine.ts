@@ -10,6 +10,7 @@ import { relevanceClosureWithMetrics } from './closure.js';
 import { neighbourhood } from './neighbourhood.js';
 import type {
   ProjectionClassification,
+  ProjectionCorpus,
   ProjectionInput,
   ProjectionMember,
   ProjectionParameterValue,
@@ -231,6 +232,112 @@ function assertBounded(definition: ProjectionDefinition): void {
  *               claimed. A member with no section is a thrown error, not a quiet omission.
  */
 export function project(input: ProjectionInput, options: ProjectOptions = {}): ProjectionResult {
+  return evaluate(input, options, undefined);
+}
+
+/**
+ * A corpus handed to `projectNeighbourhood`: only the members an object reading can place — the
+ * members among the anchor's neighbourhood — and how many members the whole corpus has.
+ */
+export interface NeighbourhoodCorpus extends ProjectionCorpus {
+  /** Members of the whole corpus, included and withdrawn; `members` is the part in reach. */
+  readonly corpusMemberCount: number;
+}
+
+/**
+ * Whether a definition can be evaluated over its anchor's neighbourhood alone with the same Result
+ * as over the whole corpus: an object reading whose declared filter admits only what the walk
+ * reached. Every other member is then excluded by that filter — counted, never placed — so it
+ * needs to be counted and nothing more.
+ */
+export function isNeighbourhoodReading(definition: ProjectionDefinition): boolean {
+  return (
+    definition.anchor === 'object' &&
+    definition.traverse !== undefined &&
+    definition.filter?.reachability === 'reached'
+  );
+}
+
+function assertNeighbourhoodReading(definition: ProjectionDefinition): void {
+  if (!isNeighbourhoodReading(definition)) {
+    throw new ProjectionRefused(
+      'coverage',
+      `projection ${definition.id} places members outside its anchor's neighbourhood; ` +
+        'it must be evaluated over the whole corpus',
+    );
+  }
+}
+
+/** The member budget, applied to however many members a reading evaluates. */
+export function assertMemberBudget(definition: ProjectionDefinition, memberCount: number): void {
+  assertBounded(definition);
+  if (memberCount > definition.budgets.maxMembers) {
+    throw new ProjectionRefused(
+      'budget_exceeded',
+      `projection ${definition.id} admits at most ${String(definition.budgets.maxMembers)} ` +
+        `members; the corpus has ${String(memberCount)}. Refusing rather than truncating.`,
+    );
+  }
+}
+
+/**
+ * The ids an object reading can place: the anchor and everything its structural walk reaches over
+ * `graph`. A caller that loads exactly the corpus members among these, and passes them with the
+ * corpus's size to `projectNeighbourhood`, gets the Result `project` gives over the whole corpus.
+ * `graph` needs only the edges touching the nodes the walk expands (every node within
+ * `traverse.maxDepth - 1` hops of the anchor); more edges change nothing.
+ */
+export function neighbourhoodScope(
+  definition: ProjectionDefinition,
+  parameters: Readonly<Record<string, ProjectionParameterValue>>,
+  graph: ProjectionInput['graph'],
+): ReadonlySet<string> {
+  assertBounded(definition);
+  assertNeighbourhoodReading(definition);
+  const bound = bindParameters(definition, parameters);
+  return walkFromObject(definition, String(bound['object_id']), graph.edges).ids;
+}
+
+/**
+ * `project` over the anchor's neighbourhood only (see `neighbourhoodScope`). Refuses a definition
+ * that could place a member outside it, and a member outside it — a caller that loaded more than
+ * the scope has loaded something the reading is not about.
+ */
+export function projectNeighbourhood(
+  input: ProjectionInput & { readonly corpus: NeighbourhoodCorpus },
+  options: ProjectOptions = {},
+): ProjectionResult {
+  assertNeighbourhoodReading(input.definition);
+  const { corpusMemberCount } = input.corpus;
+  if (!Number.isSafeInteger(corpusMemberCount) || corpusMemberCount < input.corpus.members.length) {
+    throw new ProjectionRefused(
+      'coverage',
+      `projection ${input.definition.id} was given ${String(input.corpus.members.length)} members ` +
+        `of a corpus it was told has ${String(corpusMemberCount)}`,
+    );
+  }
+  return evaluate(input, options, { corpusMemberCount });
+}
+
+function walkFromObject(
+  definition: ProjectionDefinition,
+  anchorId: string,
+  edges: readonly RelevanceEdge[],
+  tick?: () => void,
+): { readonly ids: ReadonlySet<string>; readonly edges: readonly RelevanceEdge[] } {
+  const traverse = definition.traverse!;
+  const allowed =
+    traverse.relations === 'all' || traverse.relations === 'person_anchors'
+      ? undefined
+      : new Set(traverse.relations);
+  return neighbourhood(anchorId, edges, traverse.maxDepth, allowed, tick);
+}
+
+function evaluate(
+  input: ProjectionInput,
+  options: ProjectOptions,
+  scope: { readonly corpusMemberCount: number } | undefined,
+): ProjectionResult {
   const { definition, corpus, graph } = input;
   assertBounded(definition);
   // The runtime budget is a deadline, checked as the work is done rather than after it: a
@@ -265,13 +372,9 @@ export function project(input: ProjectionInput, options: ProjectOptions = {}): P
       );
     }
   }
-  if (corpus.members.length > definition.budgets.maxMembers) {
-    throw new ProjectionRefused(
-      'budget_exceeded',
-      `projection ${definition.id} admits at most ${String(definition.budgets.maxMembers)} ` +
-        `members; the corpus has ${String(corpus.members.length)}. Refusing rather than truncating.`,
-    );
-  }
+  // Over a neighbourhood the budget bounds what the reading evaluates — the members in reach —
+  // rather than a corpus it never loads.
+  assertMemberBudget(definition, corpus.members.length);
 
   // The anchor. A person reading starts at the person; an object reading starts at the member
   // the reader named — and it must BE a member: anchoring outside the corpus would let a
@@ -298,13 +401,19 @@ export function project(input: ProjectionInput, options: ProjectOptions = {}): P
   let edges: readonly RelevanceEdge[] | undefined;
   const traverse = definition.traverse;
   if (traverse !== undefined && definition.anchor === 'object') {
-    const allowed =
-      traverse.relations === 'all' || traverse.relations === 'person_anchors'
-        ? undefined
-        : new Set(traverse.relations);
-    const walk = neighbourhood(anchorId, graph.edges, traverse.maxDepth, allowed, tick);
+    const walk = walkFromObject(definition, anchorId, graph.edges, tick);
     reached = walk.ids;
     edges = walk.edges;
+    if (scope !== undefined) {
+      const outside = corpus.members.find((member) => !reached.has(member.objectId));
+      if (outside !== undefined) {
+        throw new ProjectionRefused(
+          'coverage',
+          `member ${outside.objectId} is outside the neighbourhood of ${anchorId}, which is all ` +
+            `a neighbourhood reading of ${definition.id} was given`,
+        );
+      }
+    }
   } else if (traverse !== undefined) {
     const allowed =
       traverse.relations === 'person_anchors' || traverse.relations === 'all'
@@ -327,7 +436,8 @@ export function project(input: ProjectionInput, options: ProjectOptions = {}): P
   // excludes is not placed anywhere — that is what a narrowing means — but it is counted, so a
   // Result can never look complete while quietly omitting members.
   const candidates = corpus.members.filter((member) => admits(definition.filter, member, reached));
-  const excludedByFilter = corpus.members.length - candidates.length;
+  const corpusMemberCount = scope?.corpusMemberCount ?? corpus.members.length;
+  const excludedByFilter = corpusMemberCount - candidates.length;
   const selects = (section: ProjectionSection, member: ProjectionMember): boolean => {
     switch (section.select) {
       case 'anchor':
@@ -415,7 +525,7 @@ export function project(input: ProjectionInput, options: ProjectOptions = {}): P
     ...(resultEdges === undefined ? {} : { edges: resultEdges }),
     measurements: {
       memberCount: candidates.length,
-      corpusMemberCount: corpus.members.length,
+      corpusMemberCount,
       excludedByFilter,
       unverifiedCount: sections.reduce(
         (n, s) => n + s.members.filter((m) => !m.verification.verified).length,
