@@ -1,0 +1,2 @@
+{"level":"info","time":1790476233959,"pid":1094383,"hostname":"onyx-maurader-BrianBigPC","reqId":"a97a3404-79e2-4ca9-b81f-6553ebb508c5","req":{"method":"GET","route":"/search","query":["limit","q"],"host":"127.0.0.1:4100","remoteA
+{"level":"info","time":1790476256254,"pid":1094383,"hostname":"onyx-maurader-BrianBigPC","reqId":"dd87c31e-fc80-4530-bb6e-8b88589b7fa7","req":{"method":"GET","route":"/search","query":["limit","q"],"host":"127.0.0.1:4100","remoteA

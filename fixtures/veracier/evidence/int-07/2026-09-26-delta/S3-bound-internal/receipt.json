@@ -1,0 +1,64 @@
+{
+  "schema": "lamu.kf-source-proof/v1",
+  "source_commit": "f093d515c01c23930577b32d19548e48dc662dc1",
+  "working_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "binary_sha256": "733094baee116448c41a01fb1c7203713685cccc94053686b38c3aaaf19b47b6",
+  "backend_sha256": "dc62c844a61abee62abc75ae7237adb0b34b1215c95614de00adcd7765b2139a",
+  "harness_hashes": {
+    "lamu-rs/scripts/context-proof/kf_source.py": "7242b86e5e153349215de88a7efd560f8eb01f42746fe5a40ae73baf826dfdd6",
+    "lamu-rs/scripts/context-proof/run.py": "5733d41f3173b68e96141177f4a70e5f0099dc3448edd14666cbe15a9cfa64a4"
+  },
+  "kf": {
+    "url": "http://127.0.0.1:4100",
+    "organization": "01a0d684-9975-7ea6-8f8b-27942a7289bc",
+    "acting_role": "01a0d685-1cd0-78d3-9f39-9b013606056a",
+    "classification": "internal"
+  },
+  "query_sha256": "435e7b249eda9fbf73665cda567ed3232bc47ddf043316d93f01acba75926a18",
+  "expect": "ok",
+  "quality_claim": false,
+  "acceptance": "pending (owner or independent reviewer)",
+  "observations": {
+    "before_sources_exit": 0,
+    "sources": {
+      "status": 200,
+      "count": 3,
+      "refusal": null
+    },
+    "retrieved_refs": [
+      {
+        "adapter": "knowledge-fabric",
+        "record": "01a0d688-019a-7cf0-80b7-4fd1f00d2b13",
+        "revision": "83802af06e9a7836869a418107de4305bd89ce31e2a63e35d4c90e2f6e6d9d9b",
+        "digest": "c90239fe2cb9316690fb96e5d7916b44f5895b1316497b2911b8203f3b3f74ac"
+      },
+      {
+        "adapter": "knowledge-fabric",
+        "record": "01a0d687-f8d8-725f-af2f-840796c37c66",
+        "revision": "fe4cbdfe90b622e60780909b1b689d1c9a96a2cf718d6ec17050009c6d36400b",
+        "digest": "2da987798e41d36fb3825fee3fec14363b113e7297d701f5678f6bc1756551dc"
+      },
+      {
+        "adapter": "knowledge-fabric",
+        "record": "01a0d688-726c-7d22-874f-f8ae5bf791a0",
+        "revision": "7c199a42bcf66e721cf2f910787ef12b05f1ab6121edb01188dd413bdce2eab7",
+        "digest": "93be34906763c3bba93c1405bcd26c00b25c4b6acc6e1aac6a08fac54c7edadf"
+      }
+    ],
+    "compile": {
+      "status": 200,
+      "refusal": null
+    },
+    "execute": {
+      "status": 200,
+      "outcome": "ok"
+    }
+  },
+  "checks": {
+    "forbidden_refs_not_retrieved": true,
+    "forbidden_refs_not_in_package": true,
+    "expected_outcome": true,
+    "source_stable": true
+  },
+  "status": "pass"
+}

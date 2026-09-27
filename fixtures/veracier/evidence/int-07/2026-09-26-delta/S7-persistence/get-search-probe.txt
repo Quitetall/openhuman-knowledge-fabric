@@ -1,0 +1,2 @@
+attempt 1 (earlier): HTTP 503 attestor_unavailable (kf-attestor socket timeout on the loaded box; api.log records it)
+attempt 2: GET /search?q=<Q2 url-encoded>&limit=3 as marc.lefevre -> 200 (body not kept)
