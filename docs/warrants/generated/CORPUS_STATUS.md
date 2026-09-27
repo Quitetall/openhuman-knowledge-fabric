@@ -158,7 +158,7 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 - `KF-SAS-RQ-105` — Restore is exercised on a schedule using the shipped scripts
 - `KF-SAS-RQ-110` — A person can obtain the complete set of records about them they may see
 - `KF-SAS-RQ-111` — A master record's identity is its corpus; an unchanged corpus replays
-- `KF-SAS-RQ-112` — Staleness is computed from the current corpus, not asserted by the writer
+- `KF-SAS-RQ-112` — Staleness is computed by comparing the corpus, or shown absent by the database's record of input writes since the compilation's snapshot, never asserted by the writer
 - `KF-SAS-RQ-113` — Every reading is a declared projection whose members subset the corpus
 - `KF-SAS-RQ-114` — Projection sections cover the corpus with an explicit remainder
 - `KF-SAS-RQ-115` — Agent context is a projection under the same invariants as a human reading
@@ -223,7 +223,7 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 - `KF-SAS-RQ-221` — Recorded queries are transient observations; the durable demand aggregate names records and counts of distinct persons, never which persons
 - `KF-SAS-RQ-222` — What a query withheld is computed on demand at the asking person's ceiling, never persisted, and disclosed to them only as one count within their ceiling
 - `KF-SAS-RQ-223` — A band bitmap or derived scope tag lives only for the life of its process and never reaches durable storage
-- `KF-SAS-RQ-224` — Lexical and semantic rankings are composed rather than merged, the lexical one stays exhaustive, and each result names the ranking that produced it
+- `KF-SAS-RQ-224` — One list fused from the lexical and semantic rankings by a named, stated method, served beside the exhaustive lexical ranking and the semantic one, each fused result naming where each ranking placed it
 - `KF-SAS-RQ-225` — Text may transit to an on-host embedder and is never persisted there; a controlled record offered to a persisting path is refused
 - `KF-SAS-RQ-226` — A derived index never decides visibility from a denormalised copy; the decision is taken against the record in the same statement
 - `KF-SAS-RQ-227` — One gesture may dispatch many acts; at least one per item, never one covering several

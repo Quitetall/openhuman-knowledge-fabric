@@ -2851,6 +2851,22 @@ application's non-leakproof `@>` use the index) with fast update off (a pending 
 by every lookup). `tests/database/history-plan.test.ts` holds the buffers flat while unrelated
 acts grow tenfold; the old query went from 3,076 to 33,633 buffers on the same data.
 
+_Amended 2026-09-26:_ the view reads one neighbourhood, not the whole claim. For a reader of
+~50 000 records (the kf-fixa fixture) every view took 12-16 s, 94 % of it re-enumerating the
+permitted set to decide staleness, and the refresh never finished: the item insert policy expanded
+the manifest once per member. Now (20260926110000, 20260926110100) the claim's currency is asked
+first of the database's record of input writes — a compilation of the reader's own record stores
+the snapshot it read under, and the claim is current if no transaction it did not see has written
+an input since, under the same context and catalog, before any grant boundary; otherwise the corpus
+is enumerated and compared exactly as before. The Result is then evaluated over the anchor's
+neighbourhood alone (`projectNeighbourhood`): the edges touching the anchor, the claim's members
+among what they reach, read by key, each re-checked live, and the claim's size to count the rest.
+`tests/database/object-view-scoped.test.ts` compares it, byte for byte, with the whole-claim
+reading for every record of a neighbourhood with a backlink, a second hop, a withdrawn and a
+verified member, on both paths. One difference is deliberate: the member budget bounds the members
+the reading evaluates, not the size of a corpus it never loads, so a reader of more than 5 000
+records is served rather than refused with 413.
+
 **Every object type gets the page with no per-type code.** `apps/web/src/app/objects/[id]`
 renders the Result generically — envelope, typed payload as rows, relationships with direction
 and relation type, actions from this state, history. A type added to the ontology is browsable

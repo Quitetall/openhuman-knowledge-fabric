@@ -931,6 +931,14 @@ matching attestation is refused as `not_attested`, answered HTTP 401. Where a pe
 acting assignment — a capture gesture (§8A) — the API asks the attestor to derive it, and the
 attestor, which has just verified that person's token, looks up their live assignments through
 functions only its login may call (`20260925090000`): their only one, or a refusal listing them.
+The web application's context picker is answered the same way: `GET /session/contexts` asks the
+attestor, with the bearer token alone, for every live assignment the token's own person holds in any
+organization (`20260926120000`), grouped by organization under its legal name, never naming an
+organization they hold nothing in. Any `x-kf-*` header the request carries is dropped, so nothing in
+it can name another person or organization; each organization is then described under the person's
+own bound context there, and one that cannot be — its clearance or assignment refused — is listed
+with the refusal and no assignments. The route chooses nothing: the person still selects the context
+and the API still validates it.
 Both processes run from the same installed release under `/opt/kf`, so the protocol between them
 is promoted as one artifact (§86).
 
@@ -1486,8 +1494,14 @@ is in [`generated/measurements.md`](../../generated/measurements.md); what each 
 | `secure_object` | secure-object capabilities, authority keys, erasure |
 
 `search` carries its own statement of what it is not: nothing there is a source of truth, and
-`search.rebuild()` reconstructs every row from `core.object` and the typed tables. A derived
-index that could not be rebuilt would be a second authority by accident.
+`search.rebuild()` reconstructs every row from `core.object` and the typed tables, in batches
+(`search.rebuild_batch`), resumably, deleting nothing first (`20260926100100`). `@kf/search`'s
+`rebuild` runs each batch as its own short transaction and resumes from the last record it indexed;
+a row is replaced in place, never deleted first, so a rebuild stopped half way leaves every row
+either rebuilt or as it was, never missing. Until then the rebuild was one statement that deleted
+the index and outlasted the statement budget on the multi-organization fixture (§93A), so the
+function that keeps the index disposable could not run where it was most needed. A derived index
+that could not be rebuilt would be a second authority by accident.
 
 The database says the same (`20260925020000`): every schema carries a comment opening with the
 domain this table gives it, or saying it is derived and not an authority, and
@@ -2188,8 +2202,43 @@ format and have no default, so no caller reads one believing it is the other.
 **KF-SAS-RQ-111.** A master record's identity SHALL be its corpus, and an unchanged corpus SHALL
 compile to the same record rather than a conflict.
 
+**Currency is known without recounting the corpus** (`20260926110100`). Comparing the current corpus
+to the recorded one means enumerating the whole permitted set with every member's payload, and an
+Object View asked that on every read, so reading one record cost reading all of them. The database
+now records enough to answer "nothing has moved" without it:
+
+- `content.master_record_input_write` — one row per writing transaction and organization, written
+  by a statement-level trigger (`zz_master_record_input_written`) on every table of the governed
+  schemas the permitted set is read from, except those `content.master_record_input_exemption` lists
+  with a reason each. The organization is the one the writer's sealed context is bound to; an
+  administrator or unbound writer counts as writing for every organization.
+  `tests/database/object-view-scoped.test.ts` refuses a table with neither the trigger nor an
+  exemption, pins the list, and proves that no row-security policy of a noted table, nor any function one calls,
+  reads an exempt one. The exemption list is itself under row security (`20260926110200`).
+- `content.master_record_currency` — one row per compilation a person makes of their own record:
+  the claim, the snapshot taken before the compilation read anything, the context it read under
+  (organization, acting assignment, classification rank), a fingerprint of the catalog the reading
+  depends on, and the next moment a grant or role assignment reaching that organization starts or
+  stops. The database takes all of it from the sealed context and the catalog, and refuses a
+  snapshot later than the present one; the caller supplies only which claim and which earlier
+  snapshot, and an earlier snapshot can only make the answer "unknown" more often.
+
+`content.master_record_current_format` answers "current" only when such a row matches the caller's
+bound context, is unexpired, its boundary has not passed, its catalog fingerprint is today's, and no
+transaction the snapshot did not see has written an input in the caller's organization or in all of
+them. It never answers "stale": when it cannot show currency the reader enumerates and compares
+exactly as before. Both tables are transient observations (§64B), swept, and kept out of the export
+and of backup data, because a snapshot names transactions of one server; the sweep keeps every write
+row a live currency row still needs.
+
 **KF-SAS-RQ-112.** Staleness SHALL be computed by comparing the current corpus to the recorded
-one, not asserted by the writer.
+one, or shown absent by the database's record that no input of the reading has been written since
+the compilation's snapshot, and SHALL NOT be asserted by the writer.
+
+RQ-112 is retitled in place in `0.1.0-draft.9`, not clarified. Its `0.1.0-draft.8` wording admitted
+one way of knowing — comparison — and the database's record of writes is a second, which reads no
+corpus; so what satisfies the requirement changed, though what it protects did not: staleness is
+still never the writer's assertion, and the record can only ever show a claim current.
 
 ## 59. Projections
 
@@ -2295,6 +2344,28 @@ application issues that POST itself when the browser reports the navigation as t
 — same-origin, or typed and bookmarked, by `Sec-Fetch-Site`, and never a prefetch — and asks for a
 click otherwise.
 
+**A view reads one neighbourhood, and knows its claim is current without recounting it.** The view
+is evaluated over the anchor's neighbourhood with the claim's size, and yields the Result the whole
+claim yields; its member budget bounds the members it evaluates. `projectNeighbourhood`
+(`@kf/projections`) accepts only a definition whose declared filter admits nothing the walk did not
+reach, so every member outside the neighbourhood would be excluded — counted, never placed — and it
+is given the claim's size so that what it never loaded is still counted;
+`tests/database/object-view-scoped.test.ts` holds the two paths byte-identical over every record of
+a fixture neighbourhood. Whether the claim is current is asked first of the database's record of
+writes (§58, `20260926110100`), and only when that cannot show it is the permitted set enumerated
+and compared. The refresh also recompiles a claim that is current but could be shown so only by
+enumerating, which the compilation reuses (ADR 0013) and records, so the next views are answered
+from the record again. Compiling at that size was made possible by `20260926110000`: a claim's items
+are written in one statement from the stored manifest, and a statement-level trigger checks every
+new item against its manifest in one set difference, where the insert policy had expanded the
+manifest once per item.
+
+**One difference is deliberate.** The member budget bounded the corpus, so a reader of more than
+5 000 records — `object_view`'s declared `max_members` — was refused 413 however small the
+neighbourhood. It now bounds the members a reading evaluates, so such a reader is served; a
+neighbourhood larger than the budget is still refused 413, by counting, never truncated. ADR 0015
+carries the change.
+
 **KF-SAS-RQ-117.** Every object type SHALL have a read view derived from ontology metadata,
 requiring no type-specific presentation code.
 
@@ -2363,6 +2434,57 @@ failure direction is safe by construction rather than by punctuality.
 Found while specifying §64A, which avoids the same failure by holding no authorization input at
 all, and fixed in the same revision that found it.
 
+**How a query matches** (`20260926100000`). Until then a query was read as web-search syntax over
+English stems: every word had to match, so a question typed as a sentence found almost nothing, and
+every record was stemmed as English, though most of Véracier's are French. The fixture reports
+(§93A) keep the numbers from before.
+
+- **Each record in its own languages.** `search.detect_languages` counts, in the first 5 000
+  characters of a record's text, the function words (the configuration's stopwords) of each of
+  English, French, German, Italian, Spanish, Portuguese and Dutch. The language whose function words
+  the text uses most is its language; a second is kept when its own function words, not also the
+  first's, number at least half the first's, because the corpora hold bilingual documents. A text
+  with fewer than three function words is no evidence and stays English, as every record was before.
+  The record's vector is one vector per detected language, concatenated, and
+  `search.document.languages` records which.
+- **Every term in every language.** A query's terms are its words less the function words of its own
+  language, at most 64, and each term matches every supported language's stem of it and its
+  unstemmed (`simple`) form, so a French question finds an English record through the English stem.
+- **A record matches when it holds at least half of what the query says.** Its share is the sum of
+  the BM25 inverse document frequencies of the terms it matches over the sum for all the query's
+  terms, the frequencies counted over the records within the caller's ceiling in the scope searched.
+  A word every record holds says almost nothing and a word no record holds says the most, so a
+  question whose subject is absent matches little rather than everything that shares a word with it.
+- **Ranked by that share, then phrase, then `ts_rank`.** Ties in the share go to a record holding the
+  whole query as a phrase in one of its languages, then to PostgreSQL's `ts_rank`, which weighs a
+  title above a body. A partial identifier (`CNB-22` of `CNB-2201`, by trigram) is looked for only
+  when full text cannot answer — a query of at most three words and 64 characters with a term no
+  record holds as a word, or with no term — and scores below every full-text match. The ranking is
+  named `kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2`; it was
+  `kf.lexical.full_text+partial_identifier.v1`.
+- **Stated defaults, not tuned.** The one-half floor, BM25's inverse document frequency, the language
+  rule and the fusion constant of §64A are stated defaults. None was fitted to an evaluation set,
+  the fixture corpora's included.
+
+It is still exhaustive within its rule: every record the caller can read that holds half of the
+query is counted in the answer's total and reachable by paging, and a query of one term matches every
+record holding it.
+
+**A behaviour change: the query has no operators.** Quotes, a leading `-` and `or` were web-search
+syntax, and are not interpreted now: every word is a term, and "or" is an English function word. A
+caller who quoted a phrase to require it gets the phrase ranked higher, not required, and one who
+wrote `-term` to exclude a word no longer excludes it.
+
+**Terms are matched once per record, not once per term per record** (`20260926100300`). Row security
+on `search.document` evaluated its read policy for every row of every term's index scan, so a long
+question cost seconds at an organization's size. `search.term_hits` finds each term's records by the
+index within the caller's own bound organization and ceiling, read from the sealed context and never
+from an argument, with `core.object`'s read predicate written as a join; it is `SECURITY DEFINER`
+only so that the join and not the per-row policy does that filtering, names no organization, raises
+no ceiling, returns identifiers and term numbers only, and returns nothing to a session with no
+context bound. `search.lexical_matches` stays `SECURITY INVOKER` and keeps only the records row
+security admits through `search.document`, so the policy still decides, once per matching record.
+
 **KF-SAS-RQ-121.** Search SHALL use one index for all audiences, filtered at read time by the
 same authorization context as every other read.
 
@@ -2429,8 +2551,14 @@ a slot-parallel array that the index needs to score positionally is not an autho
 a specification that a correct implementation fails is worse than none.
 
 **Where the version lives, and why the bitmaps do not.** The database holds one row per
-organization recording a band version, moved by a trigger on every insert, reclassification,
-organization change and deletion of a record. That row is a derived table, excluded from the
+organization recording a band version, moved, once per transaction and at its commit, by a
+deferred trigger on every insert, reclassification, organization change (both organizations) and
+deletion of a record (`20260926100200`). It had moved at the first write, and the row lock that
+took was held for the rest of the transaction, so two parallel ingests into one organization ran one
+at a time. At commit, the version still moves in the same transaction as the band change, two
+committing transactions still serialize on the row, and a bitmap is still valid only at the version
+it was built at; a session that sets its constraints immediate gets the old locking and is no less
+correct. That row is a derived table, excluded from the
 master-record boundary alongside `search.document`, and it is the only durable
 authorization-related thing this design adds. The bitmaps themselves are built from it and from
 the live records, per process, and are never written anywhere. Two other things the design stores
@@ -2492,17 +2620,36 @@ index, whose structure is built over a fixed row set. Any design placing an appr
 behind a row policy needs masked scoring or accepts silent recall collapse for the least-cleared
 reader. That holds regardless of where the index runs.
 
-**The Fabric composes rankings; it does not delegate retrieval wholesale.** Two ways to find a
+**The Fabric fuses rankings; it does not delegate retrieval wholesale.** Two ways to find a
 record, and they fail differently. Lexical search answers "every record naming `SOP-QMS-012`" and
-its answer is exhaustive — that is the property §64 exists for, and an auditor's question is not
-answered by a ranking that is usually about right. Semantic search answers "records about this",
-including ones that use none of the caller's words, and cannot be exhaustive by construction.
+its answer is exhaustive within its rule (§64) — that is the property §64 exists for, and an
+auditor's question is not answered by a ranking that is usually about right. Semantic search
+answers "records about this", including ones that use none of the caller's words, and cannot be
+exhaustive by construction.
 
-So the lexical index stays here (§64), the semantic ranking comes from the engine, and the compiler
-presents both. Merging them into one order would destroy the property §64 was built for: a merged
-list cannot show which results are the complete lexical answer, because a semantically near record
-sits in the same list and looks identical. Composition keeps both — an auditor reads the lexical
-ranking and knows it is complete; an agent reads both and gets the wider reach.
+So the lexical index stays here (§64), the semantic ranking comes from the engine, and the answer
+serves three lists (`composeSearch`, `packages/search/src/compose.ts`). First, `ranked`: one list
+fused from the lexical page and the re-checked semantic list by reciprocal rank fusion (Cormack,
+Clarke and Büttcher, SIGIR 2009) with its published constant, k = 60 — each record's score is the
+sum, over the lists it is in, of 1 / (60 + its place there), which needs no comparison between the
+lexical score and the engine's. It is named `kf.fused.rrf.v1(k=60; …)`, the method, its constant and
+the names of the rankings it fused, and every fused result names where each ranking placed it — the
+web shows "Word match #3 · Related by meaning #1" — so a merely similar record never reads as a match on the
+words. Fusion adds no record and drops none it has room for; ties go to the better single place,
+then the lexical place, then the identifier. Beside it, the two source lists, each under its own
+ranking's name: `lexical`, the exhaustive answer with its total, and `semantic`, the engine's order.
+Without a semantic list the fused list is the lexical page in its own order, and its name says so.
+
+**`0.1.0-draft.8`'s wording is superseded, and why.** It required the rankings to be composed
+rather than merged, on the argument that a merged list cannot show which results are the complete
+lexical answer. Built that way, the web showed the lexical list first and the semantic list after
+it, and that composed answer lost to the semantic list alone on Véracier (the numbers are in its
+report, §93A): the lexical list took the first places whether or not its records were the better
+ones, and people read the first places. The argument's premise no longer holds either — a fused
+result names where each ranking placed it, and the exhaustive lexical list is still served beside
+the fused one — so the requirement now asks for fusion by a named, stated method, the exhaustive
+lexical ranking and the semantic ranking beside it, and every fused result's places. KF-SAS-RQ-224
+is retitled in place and keeps its identifier.
 
 This also settles what the Fabric takes from a retrieval engine. Such an engine is a full suite,
 and the Fabric uses the part of it the boundary permits and the Fabric lacks: semantic ranking over
@@ -2556,9 +2703,9 @@ what was disclosed SHALL be held by the kernel as a digest of that trace.
 retrieval engine SHALL exist only for the life of the process holding it, and SHALL NOT be written
 to durable storage of any kind.
 
-**KF-SAS-RQ-224.** The Fabric SHALL compose lexical and semantic rankings rather than merging them
-into a single order, SHALL keep the lexical ranking exhaustive within its scope, and every result
-SHALL name the ranking that produced it.
+**KF-SAS-RQ-224.** The Fabric SHALL serve one list fused from the lexical and semantic rankings by
+a named, stated method, SHALL serve the exhaustive lexical ranking and the semantic ranking beside
+it, and every fused result SHALL name where each ranking placed it.
 
 **KF-SAS-RQ-225.** Record text MAY transit to an embedder on the same host and SHALL NOT be
 persisted by it; the Fabric SHALL write controlled records only through a path that persists no
@@ -3498,11 +3645,31 @@ suite.
 
 **Véracier searches by meaning.** Its stack runs the retrieval engine of §64A beside the Fabric,
 with a local embedder — BAAI/bge-m3 (MIT) at a pinned revision, loaded offline and bound to
-loopback (`fixtures/veracier/stack/`). The multi-organization stack's search is lexical only.
+loopback (`fixtures/veracier/stack/`). The multi-organization stack starts no engine of its own;
+the other corpora's baselines are scored with the API given one (`KF_RETRIEVAL_SOCKET`, the seam
+`fixtures/lib/baseline.mjs` shares), and each report says whether semantic ranking was present.
 
 **Numbers belong to reports.** Each corpus's search baseline is written by its
 `search-baseline.mjs` to `fixtures/<corpus>/reports/search-baseline.md` and `.json`, and is cited
 from there, never retyped here or anywhere else.
+
+**The baselines are fused, and keep the numbers they replace.** Since `0.1.0-draft.9` every
+baseline scores the lexical list, the semantic list and the fused list served first (§64A), each
+under its ranking's name, and keeps the previous run's summary beside it as
+`reports/search-baseline.2026-09-25.json`, shown in the report's "before" columns: every word
+required, English stemming for every language, and two lists shown lexical first. The four reports
+— [`veracier`](../../fixtures/veracier/reports/search-baseline.md),
+[`enterprise-rag-bench`](../../fixtures/enterprise-rag-bench/reports/search-baseline.md),
+[`drbench`](../../fixtures/drbench/reports/search-baseline.md) and
+[`theagentcompany`](../../fixtures/theagentcompany/reports/search-baseline.md) — say, read
+honestly, that fusion beats both of its sources on two corpora, EnterpriseRAG-Bench and DRBench,
+and falls below the semantic list alone on the other two, Véracier and TheAgentCompany. The reason
+is where the words do not overlap: Véracier's questions name people, products and figures in words
+its mostly French documents do not hold, and TheAgentCompany's are whole task statements, so few
+records hold half of a question, and the word matches that remain rank records the semantic list
+does not; reciprocal rank fusion places those among its first ten. Véracier's report records that
+reason; TheAgentCompany's records only the query design behind it. §100.45 carries it as a gap.
+Nothing was tuned to move these numbers (§64).
 
 The corpora have already paid for themselves in defects, each surfaced by loading a company
 rather than a test's handful of records: a NUL in a source answered 500 (§52.1); scanned PDFs exceeded the ingest body limit and
@@ -4022,12 +4189,20 @@ same, read live; and a record whose verification the reader cannot see is labell
 verification is visible to this reader". What remains is the first paragraph's: a paced basis is
 not a proven one. Bears on KF-SAS-RQ-229 and RQ-231.
 
-**100.25 The composed ranking is unmeasured.** §64A composes a lexical ranking from this
-repository with a semantic ranking from an engine tuned against a different lexical leg, on public
-corpora with no clearances. The engine's published numbers therefore say nothing about how the
-composition behaves here, and nothing yet measures it. Stated because the same transfer argument
-decided against porting the engine onto this database, and it points at the Fabric as readily as it
-pointed there. Bears on KF-SAS-RQ-224.
+**100.25 The fused ranking is measured on four fixture corpora, and nowhere else — narrowed.**
+Retitled and narrowed in `0.1.0-draft.9`; `0.1.0-draft.8` titled it "The composed ranking is
+unmeasured". §64A fuses a lexical ranking from this repository with a semantic ranking from an engine
+tuned against a different lexical leg, on public corpora with no clearances, so the engine's
+published numbers said nothing about how the combination behaves here. It is now measured: each of
+the four fixture corpora's baselines scores the lexical, semantic and fused lists as served, under
+each report's named askers' own clearances and grants (§93A,
+[`veracier`](../../fixtures/veracier/reports/search-baseline.md),
+[`enterprise-rag-bench`](../../fixtures/enterprise-rag-bench/reports/search-baseline.md),
+[`drbench`](../../fixtures/drbench/reports/search-baseline.md),
+[`theagentcompany`](../../fixtures/theagentcompany/reports/search-baseline.md)). What remains is
+that four public corpora are not an organization's records, that each baseline is one run with no
+variance stated, and that on two of them fusion falls below the semantic list alone (§100.45).
+Bears on KF-SAS-RQ-224.
 
 **100.27 Some digests are still not domain-separated as KF-SAS-RQ-016 requires.** Found while
 reconciling §102 for `0.1.0-draft.8`, as two: the audit chain's link digest, with no format tag in
@@ -4173,6 +4348,37 @@ design ADR 0038 proposes. Nothing of it is in the ontology, the database or the 
 record, no act, no qualification an action can declare. The owner's sequence places it last, after
 hosting and the correctness pass, and ADR 0038 awaits the owner's acceptance.
 
+**100.42 After any write in an organization, an Object View falls back to recounting.** The record
+of input writes (§58, `20260926110100`) is per organization and per transaction, not per reader:
+any write to an input in the organization — a record created, changed, granted or excluded, by
+anybody, or by an administrator session, whose writes count for every organization —
+means the next `GET /objects/:id` of every reader there cannot show their claim current from the record and enumerates the permitted set
+instead, which takes seconds at the size of the fixture organizations (the measurements are in the
+commit that built it, `f91bb212`), until that reader refreshes and their compilation records a new
+snapshot. The fallback is exact, so this costs time, never correctness; in an organization writing
+continuously it is the common case, not the exception. Bears on KF-SAS-RQ-112 and RQ-201.
+
+**100.43 The master-record reads other than the Object View still read the whole manifest.**
+`GET /master-record`, the projection routes over it, and the context source's `latestClaim` (§64C)
+still read the claim's whole manifest — `latestClaim` for its format alone, which PostgreSQL cannot
+take without detoasting the whole value — and the first two still enumerate the whole permitted set
+to compare, so each costs what one Object View cost before `0.1.0-draft.9`. Bears on KF-SAS-RQ-110
+and RQ-201.
+
+**100.44 The embedding pump sends one request at a time.** The worker claims a batch of the
+embedding queue and hands each record's text to the engine in turn (`apps/worker/src/embedding.ts`),
+so a large ingest becomes findable by meaning at the speed of one embedding after another. Nothing
+is lost or disclosed by the delay — an unembedded record is padded closed (§64A) and still found by
+its words — but nothing bounds it either. Bears on KF-SAS-RQ-201.
+
+**100.45 Weak word matches pull the fused list below the semantic list alone.** Reciprocal rank
+fusion trusts both lists' places equally, so where the query's words and the records' words overlap
+poorly the few word matches that remain — records holding half of the question, not the ones it
+is about — take places in the fused list that semantic ranking alone would have given to better
+records. The fixture baselines show it on Véracier and TheAgentCompany (§93A). Nothing here is
+tuned to hide it (§64): the floor and the fusion constant are stated defaults. Bears on
+KF-SAS-RQ-224 and RQ-201.
+
 **KF-SAS-RQ-186.** The set of tables forced under row-level security SHALL be derivable from the
 migrations, and any difference between that set and the running database SHALL be reconciled.
 
@@ -4249,6 +4455,12 @@ rather than reinterpreting it, and a chain or sequence never moves back to an ol
   facts served as a non-text record's text, whose SHA-256 is the reference's digest, so the name is
   inside the bytes digested. `kf.context-facts/v1`, which carried the whole master-record payload,
   grant reasons included, is no longer served.
+- **Names of rankings, not digest tags** (§64A; each is returned with the list it names, and none
+  is in a digest's preimage): `kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2`, the
+  lexical ranking since `20260926100000`, which replaces `kf.lexical.full_text+partial_identifier.v1`;
+  `kf.fused.rrf.v1(k=60; …)`, the fused list, whose parentheses carry its constant and the names of
+  the rankings it fused; and `kf.near-miss.rank-window.v1(…)`, the near-miss window's scoring
+  function (RQ-217). The engine's own ranking names itself (`lamu.kf.masked-cosine.v1`).
 - **Listed before, and not digest tags:** `kf:audit-chain:v1` and `kf-action-idempotency-lock-v1`
   key advisory locks; `kf-master-record-boundary-v1` labels
   `docs/architecture/master-record-boundary.json` and no code reads it.
@@ -4331,7 +4543,7 @@ record which program owns each federated fact.
 
 | Revision | Date | Change |
 |---|---|---|
-| `0.1.0-draft.9` | 2026-09-26 | Records the owner's decisions since `draft.8` and what was built under them, and corrects one statement `draft.8` got wrong. ADRs 0034 to 0037 were accepted on 2026-09-24, and every place this document called them proposed now says so (§8A, §18, §24, §64B, §96, §100); every ADR is now an OpenWarrant atom, its old path a link to it (§96). The correction: §17 and ADR 0033 said a requested ceiling above the person's clearance is clamped to it, and it is refused — `org.resolve_effective_classification` raises and the attestor answers 401 `classification_not_granted` — so both now say so, ADR 0033 with a dated note, the decision unchanged. §64C states the context source LAMU's compiler reads — retrieve, read and revision, loopback only, current authority on every call, refusals `KF-CTX-001` to `-007` with one byte-identical not-found, and every answer and decision's refusal recorded in `search.context_disclosure`, bound to the reader's master-record corpus — and INT-07, the source-policy proof over it, which the owner accepted on 2026-09-26; a non-text record is served as its content alone, `kf.context-facts/v2`. §64B records identification refusals made before anyone is bound, the owner's 2026-09-25 decision that a retrieval's query text is kept as every search's is, and that `draft.8`'s retention claim was incomplete because the API's request log kept query URLs. §52 records a NUL as conversion loss and indexes a file's parsed text; §48 refuses a title outside 1 to 240 characters, takes a file up to its download limit, and lets a derived text name its source; §8A answers an observation about an unseen record 404; §64A states the client's stale-bitmap fix. §93A states the fixture corpora, their licences, the ordered-pair isolation test and where their baselines live. §24A specifies qualification as [ADR 0038](../decisions/atoms/KF-ADR-0038-qualification-is-evidence-against-a-versioned-pack.md) proposes it, marked specified and not built. §102 gains the context source's digest tag and schema names and the Warrant runtime manifest's tag. §100 narrows and retitles .21 — the retrieval engine is built in LAMU and unverified by anyone independent — and appends .37–.41: an unlinked token's identification refusals, a moved record answered 403, the engine's key not released by the Fabric, object-store images that no longer exist, and qualification unbuilt. Twelve requirements appended (KF-SAS-RQ-250 to RQ-261: four for the context source, eight for qualification); none retitled or removed. Architecture-changing under §94.3, carrying ADR 0038, proposed. |
+| `0.1.0-draft.9` | 2026-09-26 | Records the owner's decisions since `draft.8` and what was built under them, and corrects one statement `draft.8` got wrong. ADRs 0034 to 0037 were accepted on 2026-09-24, and every place this document called them proposed now says so (§8A, §18, §24, §64B, §96, §100); every ADR is now an OpenWarrant atom, its old path a link to it (§96). The correction: §17 and ADR 0033 said a requested ceiling above the person's clearance is clamped to it, and it is refused — `org.resolve_effective_classification` raises and the attestor answers 401 `classification_not_granted` — so both now say so, ADR 0033 with a dated note, the decision unchanged. §64C states the context source LAMU's compiler reads — retrieve, read and revision, loopback only, current authority on every call, refusals `KF-CTX-001` to `-007` with one byte-identical not-found, and every answer and decision's refusal recorded in `search.context_disclosure`, bound to the reader's master-record corpus — and INT-07, the source-policy proof over it, which the owner accepted on 2026-09-26; a non-text record is served as its content alone, `kf.context-facts/v2`. §64B records identification refusals made before anyone is bound, the owner's 2026-09-25 decision that a retrieval's query text is kept as every search's is, and that `draft.8`'s retention claim was incomplete because the API's request log kept query URLs. §52 records a NUL as conversion loss and indexes a file's parsed text; §48 refuses a title outside 1 to 240 characters, takes a file up to its download limit, and lets a derived text name its source; §8A answers an observation about an unseen record 404; §64A states the client's stale-bitmap fix. §93A states the fixture corpora, their licences, the ordered-pair isolation test and where their baselines live. §24A specifies qualification as [ADR 0038](../decisions/atoms/KF-ADR-0038-qualification-is-evidence-against-a-versioned-pack.md) proposes it, marked specified and not built. §102 gains the context source's digest tag and schema names and the Warrant runtime manifest's tag. Amended before acceptance with the search-and-scale work merged on 2026-09-26. Search serves one list fused from the lexical and semantic rankings by reciprocal rank fusion, `kf.fused.rrf.v1(k=60; …)`, beside the exhaustive lexical list and the semantic list, every fused result naming where each ranking placed it (§64A); `draft.8`'s requirement that the rankings be composed rather than merged is superseded, because the composed answer the web showed lexical first lost to the semantic list alone. Lexical search matches a record holding at least half of the query's IDF-weighted information, ranked by that share, then phrase, then `ts_rank`, as `kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2`; each record is indexed in its detected languages (English, French, German, Italian, Spanish, Portuguese, Dutch, a second kept when strong), and a query term matches every language's stem and its simple form; quotes, `-term` and `or` are no longer operators, a behaviour change; the floor, IDF, language rule and fusion constant are stated defaults, not tuned (§64, `20260926100000`, `20260926100300`). `search.rebuild()` runs in batches, resumably, deleting nothing first (§36, `20260926100100`). The band version moves once per transaction, at its commit, by a deferred trigger, in both organizations of an organization change (§64A, `20260926100200`). The context picker lists every live assignment the token's own person holds, in every organization, under its legal name (§24, `20260926120000`). An Object View reads one neighbourhood with its claim's size and yields the whole claim's Result, its member budget bounding what it evaluates, so a reader of more than 5 000 records is served rather than refused 413; its claim's currency is shown from the database's record of input writes since the compilation's snapshot — `content.master_record_input_write`, `content.master_record_currency`, a statement trigger on every governed input table — before any recount; and a claim's items are checked against its manifest once per statement (§58, §61, `20260926110000` to `110200`). §93A's baselines are fused and keep the numbers they replace; §102 lists the ranking names. §100 narrows and retitles .21 — the retrieval engine is built in LAMU and unverified by anyone independent — and .25, the fused ranking now measured on four corpora, and appends .37–.45: an unlinked token's identification refusals, a moved record answered 403, the engine's key not released by the Fabric, object-store images that no longer exist, qualification unbuilt, an Object View recounting after any write in its organization, the other master-record reads still reading the whole manifest, an embedding pump one request at a time, and weak word matches pulling the fused list below the semantic list alone. Twelve requirements appended (KF-SAS-RQ-250 to RQ-261: four for the context source, eight for qualification); two retitled in place, each keeping its identifier — RQ-224 from composing to fusing, and RQ-112 to admit the database's record of writes beside comparison as a way of showing a claim current, never asserted by the writer; none removed. Architecture-changing under §94.3, carrying ADR 0038, proposed. |
 | `0.1.0-draft.8` | 2026-09-24 | Brings this document in line with the security hardening of 2026-09-23/24 and with everything built on it before acceptance. The hardening began with a red-team pass run as `kf_app`, which showed that row-level security held against a buggy API and not a hostile one: every `kf.*` setting the policies read was the application's to write, and the ledger, the audit chain, role assignments, identity links and verifications all accepted rows no act had made. §17 now states that the database binds the principal — a sealed context, `core.bind_principal` deriving organization and ceiling from a live assignment and clearance, the application only narrowing — and §24 the attestation boundary: `kf-attestor` verifies RS256 and the database binds a person for the API's login only on its current attestation, the replay window being the token's life, which commissioning now caps at 300 s, and an attestor that cannot be asked is a 503 outage with no fallback. The database also recomputes audit digests (§30), checks act authority on the ledger row (§20), forces row security on every table that enables it and reconciles a running database against the migrations' declared set (§38), so KF-SAS-RQ-073 is met and §100.15 is closed; refuses a domain write that belongs to no recorded act (§25); fixes a closed record's identity and a decided decision's words (§41); and refuses an edge whose endpoint types its relation does not declare (§35). Authority rows are minted only by the owner credential, and an identity link is withdrawn only there, as `kf:revoke-identity`'s recorded act (§33, §76). An agent acts for a named person on an exchanged token, its participation written into the ledger by the database (§24, ADR 0035). An observation is captured in one gesture on three surfaces (§8A, ADR 0034); three of ADR 0024's five latency bars are measured (§8A). Every projection, Object View, agent read and search hit labels an unverified record (§59, `kf-projection-result-v2`); agent reads and the AI planner ask the read grant and consume the reader's `agent_context` projection (§32, §59); the projection grammar is closed and bounded in depth, size and runtime (§60). The retrieval index's Fabric half is built — per-query masks, a band version that never repeats, embed-on-ingest, composed rankings, a withheld count within the asker's ceiling (§64A, §64B, ADR 0037) — and queries are recorded under an expiring pseudonym and replayable by their asker. §43, §45 and §86 state the install and migration scripts, correcting a false claim that a test pinned the seeded ontology's digest; §88 the backup login that until then could not take a backup. §13 and §29 state the database clock and the caller's `effectiveAt` bounds; §48–§49 the ingest order and the recorded orphan sweep; §61 ADR 0033's amendment of ADR 0015. §28 gains `not_attested`, HTTP 401, as a thirteenth code. Every remaining source count is removed in favour of [`generated/measurements.md`](../../generated/measurements.md), which gains schemas, triggers, views, indexes, foreign keys, checks, group roles, forward-only migrations, packages and systemd units, and excludes SQL comments. §102's format tags are reconciled with the code, and §100.27's two untagged digests are resolved in the same draft, the remaining untagged ones enumerated by a gate. Delegation is one level deep and every new assignment ends within a year (§18, ADR 0036); every process resolves its stores against their declared, bound address (§50); a requalified compiler must reproduce the run before it (§54); an archive from an earlier exporter imports (§56); another person's recorded queries are replayed only as the aggregate (§64B); an object's history is read by index (§61); and an engagement cannot close over live work (§73). §100 closes .2, .7, .8, .9, .12, .15, .16, .19, .31 and .34 and the labelling half of .26; narrows .1, .3, .5, .18, .21, .23, .27 and .32; and appends .28–.36, the first of which records that the owner has not confirmed KF-SAS-RQ-038's clarified reading. Seventeen requirements appended (KF-SAS-RQ-233 to RQ-249); six retitled in place (RQ-038 to ADR 0027's session ceiling, RQ-042, RQ-044, RQ-150, RQ-181 and RQ-222), because the earlier wording was wrong about the design or narrower than what was built, and each keeps its identifier; none removed. Architecture-changing under §94.3, carrying [ADR 0033](../decisions/0033-the-database-binds-the-principal.md), and citing ADRs 0034 to 0037, which are proposed and await the owner. |
 | `0.1.0-draft.7` | 2026-09-20 | Records the owner's waiver of ADR 0004's seven-day floor on compiler cutover ([ADR 0032](../decisions/0032-the-seven-day-floor-is-waived.md)). The other three conditions stand: twice-compiled byte-identical output, five action paths exercised, zero unexplained drift. §93.1 restated, because it asserted a floor that no longer applies. No requirement added, removed or retitled; not architecture-changing under §94.3 — the waived condition was a procedural floor rather than an architectural rule, and what it gave up is recorded in the ADR rather than in a requirement. |
 | `0.1.0-draft.6` | 2026-09-18 | Corrects a conflation in `draft.5`. §48A used "draft" and "unverified" interchangeably, and they are not the same: `draft` is the initial state of 8 of the 24 state machines in `ontology/state-machines.yaml`, while the rest begin at `planned`, `proposed`, `active`, `open`, `captured`, `prospective`, `in_service` or `received`. A work order that begins at `planned` was never a draft, so the previous wording's rules did not reach it — and "any initial state" is wrong in the other direction, since equipment beginning at `in_service` is not unverified. Verification is therefore orthogonal to lifecycle: a record may be `active` and unverified, or `draft` and verified. KF-SAS-RQ-228 is retitled from "a draft" to "an unverified record", RQ-232 is appended stating the orthogonality, §48A's prose and title are corrected, and §100.26 is restated — it had recorded the same error. One requirement appended, one retitled, none removed; architecture-changing under §94.3, carrying [ADR 0031](../decisions/0031-a-draft-is-a-record-that-says-so.md), corrected in place while proposed. |
@@ -4460,7 +4672,7 @@ from evidence, never recorded here (§97.3).
 |---|---|
 | KF-SAS-RQ-110 | A person can obtain the complete set of records about them they may see |
 | KF-SAS-RQ-111 | A master record's identity is its corpus; an unchanged corpus replays |
-| KF-SAS-RQ-112 | Staleness is computed from the current corpus, not asserted by the writer |
+| KF-SAS-RQ-112 | Staleness is computed by comparing the corpus, or shown absent by the database's record of input writes since the compilation's snapshot, never asserted by the writer |
 | KF-SAS-RQ-113 | Every reading is a declared projection whose members subset the corpus |
 | KF-SAS-RQ-114 | Projection sections cover the corpus with an explicit remainder |
 | KF-SAS-RQ-115 | Agent context is a projection under the same invariants as a human reading |
@@ -4571,7 +4783,7 @@ from evidence, never recorded here (§97.3).
 | KF-SAS-RQ-218 | Controlled content never leaves the host to be embedded; a non-local provider is refused, and the embedder binding is registered once |
 | KF-SAS-RQ-219 | The retrieval trace is derived and disposable; the kernel holds the record of what was disclosed as its digest |
 | KF-SAS-RQ-223 | A band bitmap or derived scope tag lives only for the life of its process and never reaches durable storage |
-| KF-SAS-RQ-224 | Lexical and semantic rankings are composed rather than merged, the lexical one stays exhaustive, and each result names the ranking that produced it |
+| KF-SAS-RQ-224 | One list fused from the lexical and semantic rankings by a named, stated method, served beside the exhaustive lexical ranking and the semantic one, each fused result naming where each ranking placed it |
 | KF-SAS-RQ-225 | Text may transit to an on-host embedder and is never persisted there; a controlled record offered to a persisting path is refused |
 | KF-SAS-RQ-226 | A derived index never decides visibility from a denormalised copy; the decision is taken against the record in the same statement |
 
