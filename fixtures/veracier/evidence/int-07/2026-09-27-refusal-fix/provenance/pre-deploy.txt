@@ -1,0 +1,8 @@
+pre-deploy 2026-09-27T02:54:50Z
+schema_migrations: 149 latest 20260926300000
+api pid 1094383 cwd /mnt/4tb/openhuman-knowledge-fabric
+attestor pid 1091647 cwd /mnt/4tb/openhuman-knowledge-fabric
+embed pid 35684 cwd /mnt/4tb/kf-wt-veracier/fixtures/veracier/stack
+retrieval pid 402643 cwd /mnt/4tb/kf-wt-veracier
+web pid 1094855 cwd /mnt/4tb/openhuman-knowledge-fabric/apps/web
+worker pid 1094628 cwd /mnt/4tb/openhuman-knowledge-fabric

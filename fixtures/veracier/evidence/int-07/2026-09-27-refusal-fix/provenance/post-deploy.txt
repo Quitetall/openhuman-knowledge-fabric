@@ -1,0 +1,12 @@
+post-deploy 2026-09-27T02:56:46Z
+schema_migrations: 150 latest 20260927000100 (applied 02:55:0xZ with dbmate from /mnt/4tb/kf-wt-refusal, owner credential)
+restart: KF_STACK_SKIP_BUILD=1 bash fixtures/veracier/stack/stack.sh restart from /mnt/4tb/kf-wt-refusal at 2026-09-27T02:55:08Z..02:55:11Z; embed and retrieval not restarted
+api pid 2435712 cwd /mnt/4tb/kf-wt-refusal
+attestor pid 2435687 cwd /mnt/4tb/kf-wt-refusal
+embed pid 35684 cwd /mnt/4tb/kf-wt-veracier/fixtures/veracier/stack
+retrieval pid 402643 cwd /mnt/4tb/kf-wt-veracier
+web pid 2435740 cwd /mnt/4tb/kf-wt-refusal/apps/web
+worker pid 2435725 cwd /mnt/4tb/kf-wt-refusal
+kf_commit: 73913f14917c10faa58fa952c005e18808da827a (fix/refusal-injection off harden/defensive-posture 889df1a9)
+lamu_source_commit: f093d515c01c23930577b32d19548e48dc662dc1, clean
+lamu_binary: /mnt/2tb/cargo-target-kf-context/release/lamu sha256=733094baee116448c41a01fb1c7203713685cccc94053686b38c3aaaf19b47b6
