@@ -95,7 +95,8 @@ object_types:
     authority_domain: commercial
     enterprise_namespace: null
     first_class: true
-    state_machine: null
+    # Was null through R01, which declared the states below and no transitions between them.
+    state_machine: engagement
     states: [draft, active, suspended, closed, terminated]
     fields:
       - {
@@ -1226,3 +1227,24 @@ object_types:
       - { name: standing, type: enum, required: true, values: [valid, disputed, annulled] }
       - { name: current_revision_no, type: integer, minimum: 1 }
       - { name: authorized_revision_no, type: integer, minimum: 1 }
+
+  # ADR 0034 (proposed): an observation is captured in one gesture, and promoted by a separate
+  # act. ADR 0024 decided that capture is cheap and governance applies at promotion, and left the
+  # type unnamed; this is it. Capture is `record_observation` (not institutional: any live
+  # assignment, no act grant); promotion is `promote_observation` (requires: act); withdrawal is
+  # `withdraw_observation`. An observation is unverified until somebody verifies it, like any
+  # record (SAS §48A). What it is about is not a field: each subject is a `concerns` relation
+  # from the observation, so the graph — not a column — says what it concerns. The ADR's four
+  # fields are body and observed_at here, subjects as relations, and tags from the envelope.
+  - id: observation
+    title: Observation
+    authority_domain: project
+    enterprise_namespace: null
+    first_class: true
+    state_machine: observation
+    states: [captured, promoted, withdrawn]
+    fields:
+      - { name: body, type: string, required: true, min_length: 1, max_length: 20000 }
+      - { name: observed_at, type: timestamp, required: true }
+      # `tags` is the envelope's own field (meta.yaml), which every type already carries; an
+      # observation's are stored on its typed row, content.observation.tags.

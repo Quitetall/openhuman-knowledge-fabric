@@ -1,6 +1,14 @@
 import type { ActionRequest } from '@kf/actions';
 import type { Pool } from '@kf/database';
-import type { AuthenticationEvent, StepUpPolicy, TokenVerifier } from '@kf/authorization';
+import type {
+  Attestor,
+  AuthenticationEvent,
+  IdentificationSurface,
+  Holdings,
+  StepUpPolicy,
+  TokenVerifier,
+} from '@kf/authorization';
+import type { EffectiveAtBounds } from './effective-at.js';
 
 /**
  * Who is calling and what they may see.
@@ -26,6 +34,17 @@ export interface Caller {
    * not applied there: every policy would fail, and the development path would be unusable.
    */
   readonly authentication: AuthenticationEvent;
+  /**
+   * kf-attestor's proof that this person presented a verified token (20260924001000). Every
+   * transaction the request opens binds with it; without it the application login binds nobody.
+   */
+  readonly attestation?: string | undefined;
+  /**
+   * The declared agent client acting for this person (ADR 0035), when the token was obtained by
+   * token exchange. For logs and answers only: `core.action.agent_participation` is written by
+   * the database from the attestation, and nothing the API passes can set it.
+   */
+  readonly agent?: string | undefined;
 }
 
 export interface ActionRoutesOptions {
@@ -36,6 +55,12 @@ export interface ActionRoutesOptions {
    * activates exactly when the provider is unreachable.
    */
   readonly verifier?: TokenVerifier;
+  /**
+   * Where a bearer token becomes an attested caller: kf-attestor over its socket in production,
+   * or in-process in development. Takes precedence over `verifier`, which is the in-process form
+   * over `pool` (a login that may attest — tests and the development profile only).
+   */
+  readonly attestor?: Attestor;
   readonly execute: (request: ActionRequest) => Promise<{
     actionId: string;
     replayed: boolean;
@@ -53,9 +78,32 @@ export interface ActionRoutesOptions {
    * development path unusable, so step-up is not applied when there is no verifier at all.
    */
   readonly stepUp?: Readonly<Record<string, StepUpPolicy>>;
+  /** Bounds on a caller-supplied effectiveAt. Defaults to DEFAULT_EFFECTIVE_AT_BOUNDS. */
+  readonly effectiveAtBounds?: EffectiveAtBounds;
 }
 
-export type IdentifyCaller = (request: { headers: Record<string, unknown> }) => Promise<Caller>;
+export type IdentifyCaller = (request: {
+  headers: Record<string, unknown>;
+  /**
+   * With no `x-kf-acting-role`, act under the caller's ONLY live assignment in the organization
+   * rather than refusing (ADR 0034 §2). Several, or none, is still refused — as
+   * `assignment_ambiguous` listing them, or `no_live_assignment`. The capture route alone asks.
+   */
+  deriveAssignment?: boolean;
+  /**
+   * The surface asked, for a route whose refusals before binding are recorded
+   * (`search.identification_refusal`): the context-source routes and search.
+   */
+  surface?: IdentificationSurface;
+}) => Promise<Caller>;
+
+/**
+ * Every live assignment the caller's own person holds, across organizations (20260926120000):
+ * the bearer token alone decides whose, and nothing in the request can name anybody else. Refuses
+ * as identifying does — `unknown_subject`, `revoked_identity`, `invalid_token`, and
+ * `no_live_assignment` for a person holding nothing anywhere.
+ */
+export type ListHoldings = (request: { headers: Record<string, unknown> }) => Promise<Holdings>;
 
 export interface ActionRequestBody {
   readonly targetIds?: string[];

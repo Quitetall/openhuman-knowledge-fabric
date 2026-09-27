@@ -57,8 +57,14 @@ const KNOWN_DRIFT = new Map<string, string>([
       'ontology on 2026-09-10, because `core.action.action_type` is a foreign key and an act ' +
       'of an undeclared type cannot be recorded — which is how an organization and its first ' +
       'person had been created with no act and no audit entry while KF-SAS-RQ-062 claimed ' +
-      'otherwise. The approval remains a historical snapshot of draft.4 as cut; a re-cut and a ' +
-      'fresh signature are owed.',
+      'otherwise. On 2026-09-24 `revoke_external_identity` joined the same tier, so withdrawing ' +
+      'an identity link is a recorded act rather than an owner UPDATE. SAS draft.8 moved it ' +
+      'further: `requires: act` on change_document_source_holder (RQ-019), the `observation` ' +
+      'type, its three acts and the `concerns` relation (ADR 0034), six create acts for the R01 ' +
+      'product and quality types (RQ-143), three for the work-control types engagement, ' +
+      'milestone and deliverable (RQ-142), `budgets.max_runtime_ms` on every projection ' +
+      'definition (RQ-116), and endpoint typing on every relation (§100.2). The approval ' +
+      'remains a historical snapshot of draft.4 as cut; a re-cut and a fresh signature are owed.',
   ],
   [
     'knowledge-fabric-1.0.0-draft.3',

@@ -8,8 +8,8 @@
  * explanation can never disagree with what the corpus contains.
  */
 
-import { createHash } from 'node:crypto';
-import { ActionRejected, type ActionEffect } from '@kf/actions';
+import { ActionRejected, DEFAULT_SEPARATION_OF_DUTY, type ActionEffect } from '@kf/actions';
+import { digest } from '@kf/canonicalization';
 import type { Tx } from '@kf/database';
 
 export type AccessCapability = 'read' | 'act';
@@ -294,28 +294,62 @@ export type AccessStepOutcome = 'pass' | 'fail' | 'skipped';
 export interface AccessStep {
   readonly step:
     | 'organization_membership'
+    | 'principal_kind'
     | 'object_in_organization'
     | 'clearance'
     | 'classification_within_clearance'
     | 'grant_coverage'
+    | 'separation_of_duty'
     | 'entitlement_exclusion'
     | 'retention_hold';
   readonly outcome: AccessStepOutcome;
   readonly detail: Readonly<Record<string, unknown>>;
 }
 
+/**
+ * The fact that decided a denial. A step names the question; this names the answer, and they
+ * differ in one place: a failed `principal_kind` step decided because the person is a service
+ * actor (ADR 0020), so the explanation says `service_actor`.
+ */
+export type AccessDenial = Exclude<AccessStep['step'], 'principal_kind'> | 'service_actor';
+
+function denialOf(step: AccessStep['step']): AccessDenial {
+  return step === 'principal_kind' ? 'service_actor' : step;
+}
+
 export interface AccessExplanation {
-  readonly format: 'kf-access-explanation-v1';
+  readonly format: typeof ACCESS_EXPLANATION_FORMAT;
   readonly capability: AccessCapability;
   readonly personId: string;
   readonly organizationId: string;
   readonly objectId: string;
+  /** The action the explanation was asked about, when one was; it decides separation of duty. */
+  readonly actionType?: string;
   readonly decision: 'visible' | 'denied';
-  /** The first failing step — the fact that decided. Absent when visible. */
-  readonly deniedBy?: AccessStep['step'];
+  /** The first failing step, as the fact that decided (`AccessDenial`). Absent when visible. */
+  readonly deniedBy?: AccessDenial;
   readonly steps: readonly AccessStep[];
   readonly explainedAt: string;
   readonly explanationDigest: string;
+}
+
+/**
+ * The explanation's format tag, inside its digest preimage (KF-SAS-RQ-016).
+ *
+ * v2 is `digest()` — RFC 8785 canonical form — of the explanation without `explainedAt` and the
+ * digest itself. v1 hashed `JSON.stringify` of the same body, whose bytes depend on property
+ * insertion order and so on how the object happened to be built: two equal explanations could
+ * hash differently, and no other implementation could reproduce the digest from the JSON it was
+ * served. v1 was computed on request and returned, never stored or verified by anything here,
+ * so it is replaced rather than kept verifiable.
+ */
+export const ACCESS_EXPLANATION_FORMAT = 'kf-access-explanation-v2' as const;
+
+/** The digest an explanation carries: canonical, over everything but `explainedAt`. */
+export function accessExplanationDigest(
+  explanation: Omit<AccessExplanation, 'explainedAt' | 'explanationDigest'>,
+): string {
+  return digest(explanation);
 }
 
 /**
@@ -333,14 +367,18 @@ export async function explainAccess(
     readonly objectId: string;
     /** `read` (the corpus) or `act` (ADR 0016 dispatch authority); default read. */
     readonly capability?: AccessCapability;
+    /**
+     * The action being asked about. When the dispatcher's separation-of-duty rule covers it and
+     * the object's type, the path includes that bar; without one there is no action to judge.
+     */
+    readonly actionType?: string;
   },
 ): Promise<AccessExplanation> {
   const capability = input.capability ?? 'read';
   const steps: AccessStep[] = [];
-  const person = await tx.maybeOne<{ organization: string | null } & Record<string, unknown>>(
-    `select p.organization from org.person p where p.id = $1`,
-    [input.personId],
-  );
+  const person = await tx.maybeOne<
+    { organization: string | null; person_kind: string } & Record<string, unknown>
+  >(`select p.organization, p.person_kind from org.person p where p.id = $1`, [input.personId]);
   const isMember = person !== undefined && person.organization === input.organizationId;
   steps.push({
     step: 'organization_membership',
@@ -348,14 +386,37 @@ export async function explainAccess(
     detail: { personFound: person !== undefined, memberOf: person?.organization ?? null },
   });
 
+  // ADR 0020: a service actor never performs an institutional act, whatever grants reach it —
+  // the dispatcher and the database both refuse it by kind before asking about grants. It
+  // reads like anyone, so for `read` this step passes.
+  const personKind = person?.person_kind ?? null;
+  if (person === undefined) {
+    steps.push({ step: 'principal_kind', outcome: 'skipped', detail: {} });
+  } else {
+    const barred = capability === 'act' && personKind === 'service';
+    steps.push({
+      step: 'principal_kind',
+      outcome: barred ? 'fail' : 'pass',
+      detail: {
+        personKind,
+        ...(barred
+          ? { rule: 'a service actor cannot perform an institutional act (ADR 0020)' }
+          : {}),
+      },
+    });
+  }
+
   const object = await tx.maybeOne<
-    { organization_id: string; classification: string; object_type: string } & Record<
-      string,
-      unknown
-    >
-  >(`select organization_id, classification, object_type from core.object where id = $1`, [
-    input.objectId,
-  ]);
+    {
+      organization_id: string;
+      classification: string;
+      object_type: string;
+      created_by: string;
+    } & Record<string, unknown>
+  >(
+    `select organization_id, classification, object_type, created_by from core.object where id = $1`,
+    [input.objectId],
+  );
   const inOrganization = object !== undefined && object.organization_id === input.organizationId;
   steps.push({
     step: 'object_in_organization',
@@ -424,6 +485,29 @@ export async function explainAccess(
     },
   });
 
+  // Separation of duty is the dispatcher's rule (`DEFAULT_SEPARATION_OF_DUTY`): for the actions
+  // it names, over the object types it names (none named = every type), the person who created
+  // the record may not perform it. The step appears only where that rule covers this action and
+  // this object, so an explanation never lists a bar that does not apply.
+  const sodTypes =
+    input.actionType === undefined ? undefined : DEFAULT_SEPARATION_OF_DUTY[input.actionType];
+  if (
+    sodTypes !== undefined &&
+    object !== undefined &&
+    (sodTypes.length === 0 || sodTypes.includes(object.object_type))
+  ) {
+    const createdIt = object.created_by === input.personId;
+    steps.push({
+      step: 'separation_of_duty',
+      outcome: createdIt ? 'fail' : 'pass',
+      detail: {
+        actionType: input.actionType,
+        createdBy: object.created_by,
+        rule: `${input.actionType} may not be performed by the actor who created the record`,
+      },
+    });
+  }
+
   const exclusions = await tx.query<
     { id: string; reason_class: string; reason: string } & Record<string, unknown>
   >(
@@ -455,16 +539,18 @@ export async function explainAccess(
     detail: { holds: holds.map((row) => ({ id: row.id, reason: row.reason })) },
   });
 
-  const deniedBy = steps.find((step) => step.outcome === 'fail')?.step;
+  const failed = steps.find((step) => step.outcome === 'fail')?.step;
+  const deniedBy = failed === undefined ? undefined : denialOf(failed);
   // The digest covers the facts and the decision, not `explainedAt`: the same facts must give
   // the same digest, so a reader can tell "unchanged" from "re-evaluated".
   const explainedAt = new Date().toISOString();
   const body = {
-    format: 'kf-access-explanation-v1' as const,
+    format: ACCESS_EXPLANATION_FORMAT,
     capability,
     personId: input.personId,
     organizationId: input.organizationId,
     objectId: input.objectId,
+    ...(input.actionType === undefined ? {} : { actionType: input.actionType }),
     decision: deniedBy === undefined ? ('visible' as const) : ('denied' as const),
     ...(deniedBy === undefined ? {} : { deniedBy }),
     steps,
@@ -472,6 +558,6 @@ export async function explainAccess(
   return {
     ...body,
     explainedAt,
-    explanationDigest: createHash('sha256').update(JSON.stringify(body)).digest('hex'),
+    explanationDigest: accessExplanationDigest(body),
   };
 }

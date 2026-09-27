@@ -4,7 +4,8 @@ import { canonicalBytes } from '@kf/canonicalization';
 import { createDispatcher } from '@kf/actions';
 import {
   createPool,
-  setAccessContext,
+  bindPrincipal,
+  registerAttestationIssuer,
   setTransactionContext,
   withTransaction,
   type Tx,
@@ -78,8 +79,8 @@ async function assignOrganizationRole(
   await withTransaction(h.adminPool, async (tx) => {
     await bindContext(tx, fixtures, actorId);
     await tx.query(
-      `insert into org.role_assignment (id, subject_id, role_id, scope_id)
-       values ($1, $2, $3, $4)`,
+      `insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to)
+       values ($1, $2, $3, $4, now() + interval '1 year')`,
       [assignmentId, actorId, roleId, fixtures.organizationId],
     );
   });
@@ -114,18 +115,33 @@ async function withAction<T>(
     readonly isolationLevel?: 'read committed' | 'repeatable read';
   } = {},
 ): Promise<T> {
+  const actorId = options.actorId ?? fixtures.reviewerId;
+  const actingRoleId = options.actingRoleId ?? fixtures.reviewerRoleId;
+  const maxClassification = options.maxClassification ?? 'restricted';
+  // Attested BEFORE the transaction opens, as the API is before any of a request's transactions
+  // (20260924001000). Issued mid-transaction instead, the attestation row would be committed
+  // after a REPEATABLE READ snapshot was taken, and the bind would not see it.
+  const attestation = await h.attest({
+    actorId,
+    actingRoleId,
+    organizationId: fixtures.organizationId,
+    maxClassification,
+  });
   return withTransaction(h.pool, async (tx) => {
     if (options.isolationLevel !== undefined) {
       await tx.query(`set transaction isolation level ${options.isolationLevel}`);
     }
-    const actorId = options.actorId ?? fixtures.reviewerId;
-    const actingRoleId = options.actingRoleId ?? fixtures.reviewerRoleId;
     const actionId = (await tx.one<{ id: string }>('select uuidv7() as id')).id;
     const effectiveAt = options.effectiveAt ?? new Date();
 
-    await setAccessContext(tx, {
+    // The actor is bound as a principal (20260923000100), so the action row below is the one
+    // the sealed context names — its actor, role and organization — or the ledger refuses it.
+    await bindPrincipal(tx, {
+      actorId,
+      actingRoleId,
       organizationId: fixtures.organizationId,
-      maxClassification: options.maxClassification ?? 'restricted',
+      maxClassification,
+      attestation,
     });
     await setTransactionContext(tx, {
       actorId,
@@ -163,7 +179,9 @@ async function withAccess<T>(
   operation: (tx: Tx) => Promise<T>,
 ): Promise<T> {
   return withTransaction(h.pool, async (tx) => {
-    await setAccessContext(tx, {
+    await bindPrincipal(tx, {
+      actorId: fixtures.reviewerId,
+      actingRoleId: fixtures.reviewerRoleId,
       organizationId: fixtures.organizationId,
       maxClassification,
     });
@@ -443,7 +461,9 @@ describe('typed secure-object authority', () => {
 
     await expect(
       withTransaction(h.pool, async (tx) => {
-        await setAccessContext(tx, {
+        await bindPrincipal(tx, {
+          actorId: f.reviewerId,
+          actingRoleId: f.reviewerRoleId,
           organizationId: f.organizationId,
           maxClassification: 'restricted',
         });
@@ -847,7 +867,9 @@ describe('SOA signing-key authority', () => {
   });
 
   it('rejects future action effectivity for key revocations and erasure tombstones', async () => {
-    const future = new Date('2098-08-15T12:30:00.000Z');
+    // In the future, and inside the fixture role's window (ADR 0036: a year at most), so the
+    // refusal is the one about effectivity rather than a lapsed role.
+    const future = new Date(Math.floor(Date.now() / 1000) * 1000 + 30 * 86_400_000);
     const revocationPair = generateKeyPairSync('ed25519');
     const revocationKey = await registerKey('soa-key-future-revocation', revocationPair.publicKey);
     await expect(
@@ -897,6 +919,8 @@ describe('SOA signing-key authority', () => {
       connectionString: appUri.toString(),
       maxConnections: 1,
     });
+    // A pool of its own, so the harness's attestation issuer is registered for it explicitly.
+    registerAttestationIssuer(singleConnectionPool, h.attest);
     let aborted = false;
     const stalledSigner = vi.fn(
       ({ signal }: { readonly signal: AbortSignal }) =>

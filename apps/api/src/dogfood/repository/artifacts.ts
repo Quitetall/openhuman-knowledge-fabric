@@ -1,6 +1,7 @@
 import { verifyRecordedVersion, type ObjectStore } from '@kf/artifacts';
 import type { Tx } from '@kf/database';
 import type { DogfoodArtifactClaim, LegacyArtifactMaterialization } from './contracts.js';
+import { legacyEvidenceKey } from './evidence-keys.js';
 import { isTrustedPreSemanticAction } from './legacy-actions.js';
 
 export async function artifactVersionCreatedByAction(
@@ -44,7 +45,7 @@ export async function legacyArtifactMaterialization(
             to_char(event.effective_at at time zone 'UTC',
                     'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "effectiveAt",
             event.before_digest as "beforeDigest", event.after_digest as "afterDigest",
-            event.prev_digest as "prevDigest",
+            event.prev_digest as "prevDigest", event.link_format as "linkFormat",
             event.digest as "auditDigest",
             artifact.id as "artifactId", version.id as "versionId",
             version.storage_uri as "storageUri", version.storage_version as "storageVersion"
@@ -76,7 +77,7 @@ export async function legacyArtifactMaterialization(
         and object.organization_id = $1 and object.title = $4
         and artifact.artifact_kind = $5 and artifact.source_system = 'object_store'
         and version.sha256 = $6 and version.size_bytes = $7
-        and version.media_type = $8 and version.storage_uri = $9
+        and version.media_type = $8 and version.storage_uri = any($9::text[])
         and version.revision_label is not distinct from $10
         and version.created_by = $2
         and (
@@ -96,7 +97,9 @@ export async function legacyArtifactMaterialization(
       claim.sha256,
       claim.sizeBytes,
       claim.mediaType,
-      claim.storageUri,
+      // Today's organization-scoped key, or the unscoped one a database loaded before
+      // 2026-09-23 recorded; either names these exact bytes, which are verified below.
+      [claim.storageUri, legacyEvidenceKey(claim.sha256)],
       claim.revisionLabel ?? null,
       claim.requiresDocumentParse,
     ],

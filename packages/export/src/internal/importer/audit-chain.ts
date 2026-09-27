@@ -1,4 +1,11 @@
-import { auditChainDigest, compareCanonicalText, GENESIS_DIGEST } from '@kf/canonicalization';
+import {
+  auditChainDigest,
+  auditLinkFormatMayFollow,
+  type AuditLinkFormat,
+  compareCanonicalText,
+  GENESIS_DIGEST,
+  isAuditLinkFormat,
+} from '@kf/canonicalization';
 import type { Tx } from '@kf/database';
 
 interface RestoredAuditEvent extends Record<string, unknown> {
@@ -21,6 +28,7 @@ interface RestoredAuditEvent extends Record<string, unknown> {
   readonly prevDigest: string;
   readonly expectedPrevDigest: string;
   readonly auditDigest: string;
+  readonly linkFormat: string;
   readonly actionActorId: string;
   readonly actionActingRoleId: string;
   readonly actionTypeFromAction: string;
@@ -63,7 +71,8 @@ export async function assertRestoredAuditChain(tx: Tx): Promise<void> {
             coalesce(
               lag(event.digest) over (order by event.seq), repeat('0', 64)
             ) as "expectedPrevDigest",
-            event.digest as "auditDigest", action.actor_id::text as "actionActorId",
+            event.digest as "auditDigest", event.link_format as "linkFormat",
+            action.actor_id::text as "actionActorId",
             action.acting_role_id::text as "actionActingRoleId",
             action.action_type as "actionTypeFromAction",
             count(*) over (partition by event.action_id)::integer as "actionEventCount"
@@ -72,6 +81,7 @@ export async function assertRestoredAuditChain(tx: Tx): Promise<void> {
       order by event.seq`,
   );
 
+  let previousFormat: AuditLinkFormat | undefined;
   for (const event of events) {
     const expectedObjectId = event.targetIds.length === 1 ? event.targetIds[0]! : null;
     if (event.prevDigest !== event.expectedPrevDigest) {
@@ -89,18 +99,31 @@ export async function assertRestoredAuditChain(tx: Tx): Promise<void> {
     ) {
       throw new Error(`refusing to import: audit/action binding mismatch at seq ${event.seq}`);
     }
+    if (!isAuditLinkFormat(event.linkFormat)) {
+      throw new Error(`refusing to import: unknown audit link format at seq ${event.seq}`);
+    }
+    if (!auditLinkFormatMayFollow(previousFormat, event.linkFormat)) {
+      throw new Error(
+        `refusing to import: audit link format ${event.linkFormat} follows ${String(previousFormat)} at seq ${event.seq}`,
+      );
+    }
+    previousFormat = event.linkFormat;
     let rebuilt: string;
     try {
-      rebuilt = auditChainDigest(event.expectedPrevDigest, {
-        action_id: event.actionId,
-        action_type: event.actionType,
-        actor_id: event.actorId,
-        acting_role_id: event.actingRoleId,
-        object_ids: [...event.targetIds].sort(compareCanonicalText),
-        effective_at: event.effectiveAt,
-        before_digest: event.beforeDigest,
-        after_digest: event.afterDigest,
-      });
+      rebuilt = auditChainDigest(
+        event.expectedPrevDigest,
+        {
+          action_id: event.actionId,
+          action_type: event.actionType,
+          actor_id: event.actorId,
+          acting_role_id: event.actingRoleId,
+          object_ids: [...event.targetIds].sort(compareCanonicalText),
+          effective_at: event.effectiveAt,
+          before_digest: event.beforeDigest,
+          after_digest: event.afterDigest,
+        },
+        event.linkFormat,
+      );
     } catch {
       throw new Error(`refusing to import: malformed audit event at seq ${event.seq}`);
     }

@@ -1,13 +1,22 @@
 import { createHash, generateKeyPairSync } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { auditChainDigest, digest, GENESIS_DIGEST } from '@kf/canonicalization';
+import {
+  auditChainDigest,
+  canonicalize,
+  CURRENT_AUDIT_LINK_FORMAT,
+  digest,
+  digestBytes,
+  GENESIS_DIGEST,
+} from '@kf/canonicalization';
 import { withTransaction, type Tx } from '@kf/database';
 import {
   createExport,
+  EXPORT_MANIFEST_SIGNATURE_PATH,
   exportIdentity,
   importExport,
   PRESERVATION_IMPORT_TARGETS,
   PRESERVATION_TABLE_EXCLUSIONS,
+  recomputeDatabaseSnapshotDigest,
   signExportPackage,
   type ExportPackage,
 } from './index.js';
@@ -168,6 +177,7 @@ const AUTHORITATIVE_TARGETS = {
   'secure-object-erasure-tombstones': 'secure_object.erasure_tombstone',
   'document-parses': 'content.document_parse',
   'document-atoms': 'content.document_atom',
+  'orphan-collections': 'content.orphan_collection',
 } as const;
 
 describe('extended preservation coverage', () => {
@@ -534,6 +544,9 @@ describe('extended preservation coverage', () => {
           loss_digest: createHash('sha256').update(lossPreimage).digest('hex'),
           loss_preimage: lossPreimage,
           projection_preimage: projectionPreimage,
+          // A parse recorded before 20260925114000: untagged preimages, so v1. Named, because
+          // this fixture writes with triggers off and the column default is the CURRENT format.
+          digest_format: 'kf-document-parse-v1',
         });
         await insert(tx, 'content.document_atom', {
           id: ids.documentAtom,
@@ -1274,6 +1287,13 @@ describe('extended preservation coverage', () => {
           database_name: 'kf_fixture',
           recorded_at: LATER_AT,
         });
+        await insert(tx, 'ops.physical_failure_domain_evidence', {
+          domain_ref: 'fixture-domain-1',
+          evidence_ref: 'evidence://fixture/domain-1',
+          approved_by: fixtures.reviewerId,
+          approved_at: FIXED_AT,
+          valid_until: null,
+        });
         await insert(tx, 'ops.backup_copy', {
           id: ids.backupCopy,
           backup_run_id: ids.backupRun,
@@ -1281,6 +1301,9 @@ describe('extended preservation coverage', () => {
           offsite: true,
           copied_at: LATER_AT,
           manifest_digest: sha256(40),
+          offsite_basis: 'attested-domain',
+          failure_domain_ref: 'fixture-domain-1',
+          ciphertext_sha256: sha256(44),
         });
         await insert(tx, 'ops.restore_drill', {
           id: uuid(),
@@ -1298,13 +1321,6 @@ describe('extended preservation coverage', () => {
           object_store_proof_ref: 'fixture://object-store/restore-proof',
           object_store_proof_sha256: sha256(43),
         });
-        await insert(tx, 'ops.physical_failure_domain_evidence', {
-          domain_ref: 'fixture-domain-1',
-          evidence_ref: 'evidence://fixture/domain-1',
-          approved_by: fixtures.reviewerId,
-          approved_at: FIXED_AT,
-          valid_until: null,
-        });
         await insert(tx, 'ops.encrypted_backup_evidence', {
           backup_copy_id: ids.backupCopy,
           failure_domain_ref: 'fixture-domain-1',
@@ -1314,6 +1330,17 @@ describe('extended preservation coverage', () => {
           approved_by: fixtures.reviewerId,
           approved_at: LATER_AT,
           valid_until: null,
+        });
+        await insert(tx, 'content.orphan_collection', {
+          id: uuid(),
+          organization_id: fixtures.organizationId,
+          store_id: 'working',
+          storage_key: `ingest/${fixtures.organizationId}/${sha256(45)}`,
+          sha256: sha256(45),
+          versions_removed: 2,
+          collected_at: LATER_AT,
+          collected_by: fixtures.reviewerId,
+          reason: 'fixture: unreferenced for a week',
         });
 
         await tx.query('select core.set_transaction_context($1, $2, $3, $4)', [
@@ -1530,16 +1557,20 @@ describe('extended preservation coverage', () => {
         let previousDigest = GENESIS_DIGEST;
         for (const [index, action] of actions.entries()) {
           const afterDigest = sha256(61 + index);
-          const auditDigest = auditChainDigest(previousDigest, {
-            action_id: action.id,
-            action_type: action.action_type,
-            actor_id: action.actor_id,
-            acting_role_id: action.acting_role_id,
-            object_ids: action.target_ids,
-            effective_at: action.effective_at,
-            before_digest: null,
-            after_digest: afterDigest,
-          });
+          const auditDigest = auditChainDigest(
+            previousDigest,
+            {
+              action_id: action.id,
+              action_type: action.action_type,
+              actor_id: action.actor_id,
+              acting_role_id: action.acting_role_id,
+              object_ids: action.target_ids,
+              effective_at: action.effective_at,
+              before_digest: null,
+              after_digest: afterDigest,
+            },
+            CURRENT_AUDIT_LINK_FORMAT,
+          );
           await insert(tx, 'core.audit_event', {
             seq: index + 1,
             id: index === 0 ? ids.auditEvent : uuid(),
@@ -1658,7 +1689,9 @@ describe('extended preservation coverage', () => {
         promotionEvidence: false,
         promotionRevocations: false,
         physicalDomains: false,
-        encryptedCopies: false,
+        // The backup role records encryption evidence for copies it measured itself
+        // (backup-offsite.sh, 20260923100100). Approving a failure domain stays human-only.
+        encryptedCopies: true,
       });
 
       const first = authenticateExport(
@@ -1715,6 +1748,7 @@ describe('extended preservation coverage', () => {
         'restore-drills': 1,
         'physical-failure-domain-evidence': 1,
         'encrypted-backup-evidence': 1,
+        'orphan-collections': 1,
         'secure-object-authority-signing-keys': 2,
         'secure-object-authority-signing-key-revocations': 1,
         'secure-object-capability-requests': 2,
@@ -1753,6 +1787,18 @@ describe('extended preservation coverage', () => {
       // of the deliberately tiny reconstructed/ephemeral categories. A new table cannot become
       // authoritative merely by being forgotten here.
       await withTransaction(source.adminPool, async (tx) => {
+        // The schemas come from the catalog, not from a list. A hard-coded list of thirteen
+        // omitted `retrieval` (added 2026-09-14), so its table was never asked about: an
+        // inventory that only covers the schemas somebody remembered is not closed.
+        const schemas = (
+          await tx.query<{ nspname: string }>(
+            `select nspname from pg_namespace
+              where nspname not in ('pg_catalog', 'information_schema')
+                and nspname !~ '^pg_'
+              order by nspname`,
+          )
+        ).map((row) => row.nspname);
+        expect(schemas).toEqual(expect.arrayContaining(['core', 'retrieval', 'search', 'ml']));
         const liveTables = (
           await tx.query<{ qualified_name: string }>(
             `select table_schema || '.' || table_name as qualified_name
@@ -1760,23 +1806,7 @@ describe('extended preservation coverage', () => {
               where table_type = 'BASE TABLE'
                 and table_schema = any($1::text[])
               order by table_schema, table_name`,
-            [
-              [
-                'core',
-                'org',
-                'content',
-                'work',
-                'finance',
-                'product',
-                'engineering',
-                'quality',
-                'ops',
-                'ml',
-                'secure_object',
-                'registry',
-                'search',
-              ],
-            ],
+            [schemas],
           )
         ).map((row) => row.qualified_name);
         // `Set<string>`, not the literal union `PRESERVATION_IMPORT_TARGETS` infers. Both
@@ -1862,6 +1892,7 @@ describe('extended preservation coverage', () => {
           source_digest: sourceDigest,
           loss_preimage: '[]',
           projection_preimage: expect.stringContaining('kf.pandoc-atoms.v1'),
+          digest_format: 'kf-document-parse-v1',
         }),
       ]);
       expect(rows(first, 'document-atoms')).toEqual([
@@ -1925,8 +1956,50 @@ describe('extended preservation coverage', () => {
       } finally {
         await restored.stop();
       }
+
+      // An archive written before parses recorded their digest format carries no
+      // `digest_format`, and every parse in it is the untagged kf-document-parse-v1. It must
+      // restore as v1 — the column default is the current format, and would mislabel it.
+      const withoutFormat = rows(first, 'document-parses').map((row) => {
+        const { digest_format: _recorded, ...rest } = row;
+        return rest;
+      });
+      const files = first.files
+        .filter(
+          (entry) =>
+            entry.path !== 'manifest.json' && entry.path !== EXPORT_MANIFEST_SIGNATURE_PATH,
+        )
+        .map((entry) =>
+          entry.path === 'document-parses.json'
+            ? { path: entry.path, content: `${canonicalize(withoutFormat)}\n` }
+            : entry,
+        );
+      const manifest = {
+        ...first.manifest,
+        database_snapshot_sha256: recomputeDatabaseSnapshotDigest(files),
+        files: files.map((entry) => {
+          const bytes = Buffer.from(entry.content, 'utf8');
+          return { path: entry.path, size_bytes: bytes.length, sha256: digestBytes(bytes) };
+        }),
+      };
+      const legacy = authenticateExport({
+        files: [...files, { path: 'manifest.json', content: `${canonicalize(manifest)}\n` }],
+        manifest,
+      });
+      const legacyRestore = await startHarness();
+      try {
+        const formats = await withTransaction(legacyRestore.adminPool, async (tx) => {
+          await importExport(tx, legacy, PRESERVATION_VERIFICATION);
+          return tx.query<{ digest_format: string }>(
+            'select distinct digest_format from content.document_parse',
+          );
+        });
+        expect(formats).toEqual([{ digest_format: 'kf-document-parse-v1' }]);
+      } finally {
+        await legacyRestore.stop();
+      }
     } finally {
       await source.stop();
     }
-  }, 300_000);
+  }, 420_000);
 });

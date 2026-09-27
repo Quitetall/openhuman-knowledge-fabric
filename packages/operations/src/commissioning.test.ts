@@ -8,22 +8,41 @@
  */
 
 import { generateKeyPairSync, X509Certificate } from 'node:crypto';
-import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createServer, type Server } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   assessCommissioning,
   COMMISSIONING_CHECKS,
+  COMMISSIONING_DEFAULTS,
   formatCommissioning,
   parseUnit,
   type CommissioningInputs,
   type CommissioningReport,
 } from './index.js';
 
+const SHIPPED_REALM = join(
+  import.meta.dirname,
+  '..',
+  '..',
+  '..',
+  'deploy',
+  'keycloak',
+  'knowledge-fabric-realm.json',
+);
+
 const roots: string[] = [];
 
+const sockets: Server[] = [];
+
 afterEach(async () => {
+  await Promise.all(
+    sockets
+      .splice(0)
+      .map((server) => new Promise<void>((resolve) => server.close(() => resolve()))),
+  );
   await Promise.all(
     roots.splice(0).map(async (root) => rm(root, { force: true, recursive: true })),
   );
@@ -55,6 +74,25 @@ Environment=CHECKPOINT_SIGNING_KEY_PATH=SECRET_DIR/checkpoint-key
 ExecStart=/usr/bin/node main.js --run
 `;
 
+const ATTESTOR_UNIT = `[Unit]
+Description=Knowledge Fabric identity attestor
+OnFailure=kf-alert@%n.service
+
+[Service]
+User=kf-attestor
+Group=kf-attest
+ExecStartPre=/usr/bin/test -s SECRET_DIR/attestor-database-url
+ExecStart=/usr/bin/env DATABASE_URL_FILE=SECRET_DIR/attestor-database-url /usr/bin/node main.js
+`;
+
+/** A listening Unix socket, as kf-attestor leaves one. */
+async function listeningSocket(path: string): Promise<void> {
+  const server = createServer();
+  sockets.push(server);
+  await new Promise<void>((resolve) => server.listen(path, resolve));
+  await chmod(path, 0o660);
+}
+
 /** A host where everything was done properly, so a failure below is the planted one. */
 async function commissionedHost(): Promise<{
   inputs: Partial<CommissioningInputs>;
@@ -74,18 +112,22 @@ async function commissionedHost(): Promise<{
     join(secrets, 'api.env'),
   );
   const checkpoint = CHECKPOINT_UNIT.replaceAll('SECRET_DIR', secrets);
+  const attestor = ATTESTOR_UNIT.replaceAll('SECRET_DIR', secrets);
   for (const directory of [shipped, systemd]) {
     await writeFile(join(directory, 'kf-api.service'), api);
     await writeFile(join(directory, 'kf-checkpoint.service'), checkpoint);
+    await writeFile(join(directory, 'kf-attestor.service'), attestor);
   }
-  for (const secret of ['api.env', 'database-url', 'checkpoint-key']) {
+  for (const secret of ['api.env', 'database-url', 'checkpoint-key', 'attestor-database-url']) {
     await writeFile(join(secrets, secret), 'not-a-real-secret\n');
     await chmod(join(secrets, secret), 0o600);
   }
 
   const { certificatePath, keyPath } = await selfSigned(root, 'fabric.example.org');
+  // The realm this repository ships, byte for byte: commissioning must accept it, and each
+  // planted weakness below is one reverted setting away from it.
   const policy = join(root, 'realm-policy.json');
-  await writeFile(policy, '{"requiredAcr":"mfa","implicitFlow":false}\n');
+  await writeFile(policy, await readFile(SHIPPED_REALM));
 
   // A correctly configured reverse proxy: cleartext redirects rather than proxies, the
   // upstream is loopback, TLS 1.0/1.1 are refused and the original scheme is forwarded.
@@ -108,6 +150,21 @@ server {
 }
 `,
   );
+
+  // The accounts, described rather than created: this process's uid plays kf-attestor, which
+  // owns every file written here, and its gid plays kf-attest, which kf-api is a member of.
+  const uid = process.getuid?.() ?? 0;
+  const gid = process.getgid?.() ?? 0;
+  const passwd = join(root, 'passwd');
+  const group = join(root, 'group');
+  await writeFile(
+    passwd,
+    `kf-attestor:x:${uid}:${gid}::/nonexistent:/usr/sbin/nologin\n` +
+      `kf-api:x:${uid + 1}:${gid + 1}::/nonexistent:/usr/sbin/nologin\n`,
+  );
+  await writeFile(group, `kf-attest:x:${gid}:kf-api\nkf-api:x:${gid + 1}:\n`);
+  const attestorSocket = join(root, 'attestor.sock');
+  await listeningSocket(attestorSocket);
 
   const releaseId = 'kf-1.0.0';
   await writeFile(
@@ -138,6 +195,9 @@ server {
       identityPolicyPath: policy,
       identityPolicyDigest: await digestOf(policy),
       reverseProxyConfigPath: reverseProxy,
+      attestorSocketPath: attestorSocket,
+      passwdPath: passwd,
+      groupPath: group,
       evidenceDirectory: evidence,
       releaseId,
       expectedNodeVersion: process.versions.node,
@@ -297,6 +357,56 @@ describe('planted violations — commissioning must refuse', () => {
     expect(String(entry.observed?.['withoutOnFailure'])).toBe('none');
   });
 
+  it('an attestor socket open to every account on the host', async () => {
+    const { inputs } = await commissionedHost();
+    await chmod(inputs.attestorSocketPath!, 0o666);
+    const entry = check(await assessCommissioning(inputs), 'attestor_separation');
+    expect(entry.status).toBe('unsatisfied');
+    expect(entry.detail).toMatch(/open to every account/);
+  });
+
+  it('an attestor credential the API user can read', async () => {
+    const { inputs, secrets } = await commissionedHost();
+    await chmod(join(secrets, 'attestor-database-url'), 0o644);
+    const entry = check(await assessCommissioning(inputs), 'attestor_separation');
+    expect(entry.status).toBe('unsatisfied');
+    expect(entry.detail).toMatch(/kf-api can read the attestor's .*attestor-database-url/);
+  });
+
+  it('the attestor running as the API user', async () => {
+    const { inputs, systemd } = await commissionedHost();
+    for (const directory of [inputs.shippedUnitDirectory!, systemd]) {
+      const unit = join(directory, 'kf-attestor.service');
+      await writeFile(
+        unit,
+        (await readFile(unit, 'utf8')).replace('User=kf-attestor', 'User=kf-api'),
+      );
+    }
+    const entry = check(await assessCommissioning(inputs), 'attestor_separation');
+    expect(entry.status).toBe('unsatisfied');
+    expect(entry.detail).toMatch(/same user/);
+  });
+
+  it('an attestor socket in a group the API is not in', async () => {
+    const { inputs } = await commissionedHost();
+    await writeFile(inputs.groupPath!, `kf-attest:x:${process.getgid?.() ?? 0}:\n`);
+    const entry = check(await assessCommissioning(inputs), 'attestor_separation');
+    expect(entry.status).toBe('unsatisfied');
+    expect(entry.detail).toMatch(/API cannot reach it/);
+  });
+
+  it('no attestor socket at all, as unverifiable rather than satisfied', async () => {
+    const { inputs } = await commissionedHost();
+    const entry = check(
+      await assessCommissioning({
+        ...inputs,
+        attestorSocketPath: `${inputs.attestorSocketPath!}.absent`,
+      }),
+      'attestor_separation',
+    );
+    expect(entry.status).toBe('unverifiable');
+  });
+
   it('a secret file the rest of the host can read', async () => {
     const { inputs, secrets } = await commissionedHost();
     await chmod(join(secrets, 'checkpoint-key'), 0o644);
@@ -339,6 +449,159 @@ describe('planted violations — commissioning must refuse', () => {
     const entry = check(await assessCommissioning(inputs), 'identity_provider_policy');
     expect(entry.status).toBe('unsatisfied');
     expect(entry.detail).toMatch(/not the one that was reviewed/);
+  });
+
+  it.each([
+    ['brute-force protection off', { bruteForceProtected: false }, /bruteForceProtected/],
+    ['a generous lockout threshold', { failureFactor: 30 }, /failureFactor/],
+    ['no password policy', { passwordPolicy: undefined }, /passwordPolicy/],
+    ['a short password policy', { passwordPolicy: 'length(8) and notUsername' }, /length\(12\)/],
+    ['offline sessions with no maximum', { offlineSessionMaxLifespanEnabled: false }, /offline/],
+    ['a month-long offline idle', { offlineSessionIdleTimeout: 2592000 }, /offlineSessionIdle/],
+    ['refresh tokens that survive use', { revokeRefreshToken: false }, /revokeRefreshToken/],
+    // The attestation replay window IS the access-token lifetime (20260924001000).
+    ['an hour-long access token', { accessTokenLifespan: 3600 }, /accessTokenLifespan is 3600s/],
+    ['no stated access-token lifespan', { accessTokenLifespan: undefined }, /accessTokenLifespan/],
+  ])('a reviewed realm with %s', async (_label, change, reason) => {
+    // Reviewed and sound are different claims. Each of these digests exactly as reviewed, so
+    // only the policy reading can refuse it.
+    const { inputs } = await commissionedHost();
+    const realm = JSON.parse(await readFile(inputs.identityPolicyPath!, 'utf8')) as Record<
+      string,
+      unknown
+    >;
+    await writeFile(inputs.identityPolicyPath!, JSON.stringify({ ...realm, ...change }));
+    const entry = check(
+      await assessCommissioning({
+        ...inputs,
+        identityPolicyDigest: await digestOf(inputs.identityPolicyPath!),
+      }),
+      'identity_provider_policy',
+    );
+    expect(entry.status).toBe('unsatisfied');
+    expect(entry.detail).toMatch(reason);
+  });
+
+  it('a reviewed realm where MFA is optional or admin-cli takes passwords', async () => {
+    const { inputs } = await commissionedHost();
+    const realm = JSON.parse(await readFile(inputs.identityPolicyPath!, 'utf8')) as {
+      requiredActions: { alias: string; defaultAction: boolean }[];
+      clients: { clientId: string; directAccessGrantsEnabled: boolean }[];
+    };
+    for (const action of realm.requiredActions) action.defaultAction = false;
+    for (const client of realm.clients) {
+      if (client.clientId === 'admin-cli') client.directAccessGrantsEnabled = true;
+    }
+    await writeFile(inputs.identityPolicyPath!, JSON.stringify(realm));
+    const entry = check(
+      await assessCommissioning({
+        ...inputs,
+        identityPolicyDigest: await digestOf(inputs.identityPolicyPath!),
+      }),
+      'identity_provider_policy',
+    );
+    expect(entry.status).toBe('unsatisfied');
+    expect(entry.detail).toMatch(/MFA is optional/);
+    expect(entry.detail).toMatch(/"admin-cli" allows direct access grants/);
+  });
+
+  it('a reviewed realm whose client overrides the access-token lifespan', async () => {
+    // A sound realm-wide 300 s says nothing about a client that sets its own: Keycloak applies
+    // the client attribute to that client's tokens, and the replay window widens with it.
+    const { inputs } = await commissionedHost();
+    const realm = JSON.parse(await readFile(inputs.identityPolicyPath!, 'utf8')) as {
+      clients: { clientId: string; attributes?: Record<string, string> }[];
+    };
+    for (const client of realm.clients) {
+      if (client.clientId === 'knowledge-fabric-web') {
+        client.attributes = { ...client.attributes, 'access.token.lifespan': '86400' };
+      }
+    }
+    await writeFile(inputs.identityPolicyPath!, JSON.stringify(realm));
+    const entry = check(
+      await assessCommissioning({
+        ...inputs,
+        identityPolicyDigest: await digestOf(inputs.identityPolicyPath!),
+      }),
+      'identity_provider_policy',
+    );
+    expect(entry.status).toBe('unsatisfied');
+    expect(entry.detail).toMatch(
+      /"knowledge-fabric-web" overrides access.token.lifespan to "86400"/,
+    );
+  });
+
+  // Token exchange is limited to clients that name themselves in the token (ADR 0035). Keycloak
+  // 26.4 emits no `act` claim of its own, so an exchange-capable client without the realm's
+  // `act.client_id` mapper issues tokens that pass as the person acting directly.
+  type RealmClient = {
+    clientId: string;
+    publicClient?: boolean;
+    attributes?: Record<string, string>;
+    protocolMappers?: { name: string; protocolMapper: string; config: Record<string, string> }[];
+  };
+  it.each([
+    [
+      'token exchange on a public client',
+      (clients: RealmClient[]) => {
+        for (const client of clients) {
+          if (client.clientId === 'knowledge-fabric-agent') client.publicClient = true;
+        }
+      },
+      /"knowledge-fabric-agent" is public and has standard token exchange enabled/,
+    ],
+    [
+      'token exchange on a client that does not stamp its own act',
+      (clients: RealmClient[]) => {
+        for (const client of clients) {
+          if (client.clientId === 'knowledge-fabric-web') {
+            client.attributes = {
+              ...client.attributes,
+              'standard.token.exchange.enabled': 'true',
+            };
+          }
+        }
+      },
+      /"knowledge-fabric-web" has standard token exchange enabled and does not stamp act.client_id/,
+    ],
+    [
+      'a mapper stamping act for another client',
+      (clients: RealmClient[]) => {
+        for (const client of clients) {
+          if (client.clientId === 'knowledge-fabric-web') {
+            client.protocolMappers = [
+              ...(client.protocolMappers ?? []),
+              {
+                name: 'borrowed-act',
+                protocolMapper: 'oidc-hardcoded-claim-mapper',
+                config: {
+                  'claim.name': 'act.client_id',
+                  'claim.value': 'knowledge-fabric-agent',
+                  'access.token.claim': 'true',
+                },
+              },
+            ];
+          }
+        }
+      },
+      /"knowledge-fabric-web" mapper "borrowed-act" writes act.client_id/,
+    ],
+  ])('a reviewed realm with %s', async (_label, plant, reason) => {
+    const { inputs } = await commissionedHost();
+    const realm = JSON.parse(await readFile(inputs.identityPolicyPath!, 'utf8')) as {
+      clients: RealmClient[];
+    };
+    plant(realm.clients);
+    await writeFile(inputs.identityPolicyPath!, JSON.stringify(realm));
+    const entry = check(
+      await assessCommissioning({
+        ...inputs,
+        identityPolicyDigest: await digestOf(inputs.identityPolicyPath!),
+      }),
+      'identity_provider_policy',
+    );
+    expect(entry.status).toBe('unsatisfied');
+    expect(entry.detail).toMatch(reason);
   });
 
   it('a runtime other than the one the release was tested on', async () => {
@@ -470,10 +733,9 @@ describe('unit parsing', () => {
     const assess = async (root: string) => {
       const { secretPosture } = await import('./internal/commissioning/units.js');
       return secretPosture({
+        ...COMMISSIONING_DEFAULTS,
         systemdDirectory: root,
         shippedUnitDirectory: root,
-        certificateRenewalDays: 21,
-        rollbackRehearsalDays: 180,
       });
     };
 
@@ -601,10 +863,8 @@ describe('reverse proxy posture', () => {
   const assess = async (path: string | undefined) => {
     const { reverseProxyPosture } = await import('./internal/commissioning/host.js');
     return reverseProxyPosture({
+      ...COMMISSIONING_DEFAULTS,
       systemdDirectory: '/etc/systemd/system',
-      shippedUnitDirectory: 'deploy/systemd',
-      certificateRenewalDays: 21,
-      rollbackRehearsalDays: 180,
       ...(path === undefined ? {} : { reverseProxyConfigPath: path }),
     });
   };
@@ -712,10 +972,8 @@ describe('liminal runtime inventory', () => {
   const assess = async (releaseDirectory?: string) => {
     const { liminalRuntimeInventory } = await import('./internal/commissioning/host.js');
     return liminalRuntimeInventory({
+      ...COMMISSIONING_DEFAULTS,
       systemdDirectory: '/etc/systemd/system',
-      shippedUnitDirectory: 'deploy/systemd',
-      certificateRenewalDays: 21,
-      rollbackRehearsalDays: 180,
       ...(releaseDirectory === undefined ? {} : { releaseDirectory }),
     });
   };

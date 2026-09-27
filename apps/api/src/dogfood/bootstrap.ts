@@ -6,20 +6,21 @@ import {
   type Pool,
   type Tx,
 } from '@kf/database';
-import { APP_LOGIN, APP_PASSWORD } from './config.js';
+import { APP_LOGIN, scramVerifier } from './config.js';
 import type { DogfoodIdentity } from './contracts.js';
 
 const BOOTSTRAP_IDENTITY = '01930000-0000-7000-8000-00000000b007';
 const BOOTSTRAP_ACTION = '01930000-0000-7000-8000-00000000ac10';
 
-export async function createAppLogin(owner: Pool): Promise<string> {
+/** Create or re-key the development login with this run's password. */
+export async function createAppLogin(owner: Pool, password: string): Promise<string> {
   return withTransaction(owner, async (tx) => {
     const role = await tx.one<{ sql: string }>(
       `select case when exists (select from pg_roles where rolname = $1)
               then format('alter role %I login password %L inherit', $1::text, $2::text)
               else format('create role %I login password %L inherit', $1::text, $2::text)
               end as sql`,
-      [APP_LOGIN, APP_PASSWORD],
+      [APP_LOGIN, scramVerifier(password)],
     );
     await tx.query(role.sql);
     const membership = await tx.one<{ sql: string }>(
@@ -27,6 +28,14 @@ export async function createAppLogin(owner: Pool): Promise<string> {
       [APP_LOGIN],
     );
     await tx.query(membership.sql);
+    // The development API attests in-process (header identity has no token to hand to
+    // kf-attestor), so its login may issue attestations. Only here: a dogfood API refuses to
+    // start through a login holding kf_attestor, and this loader refuses to run on a host.
+    const attests = await tx.one<{ sql: string }>(
+      `select format('grant kf_attestor to %I', $1::text) as sql`,
+      [APP_LOGIN],
+    );
+    await tx.query(attests.sql);
     const grant = await tx.one<{ sql: string }>(
       `select format('grant connect on database %I to %I', current_database(), $1::text) as sql`,
       [APP_LOGIN],
@@ -72,7 +81,13 @@ async function createRole(tx: Tx, organizationId: string, actorId: string): Prom
   return id;
 }
 
-export async function bootstrapIdentity(owner: Pool): Promise<DogfoodIdentity> {
+/**
+ * Find or create the configured organization and its local operator.
+ *
+ * `legalName` is `KF_ORGANIZATION_LEGAL_NAME` (`requiredOrganizationLegalName`): the deploying
+ * organization is configuration, never a literal here (KF-SAS-RQ-192, SAS §100.16).
+ */
+export async function bootstrapIdentity(owner: Pool, legalName: string): Promise<DogfoodIdentity> {
   return withTransaction(owner, async (tx) => {
     await setAccessContext(tx, {
       organizationId: BOOTSTRAP_IDENTITY,
@@ -90,8 +105,9 @@ export async function bootstrapIdentity(owner: Pool): Promise<DogfoodIdentity> {
         `select o.id
            from core.object o
            join org.organization g on g.id = o.id
-          where g.legal_name = 'OpenHuman Technologies LLC'
+          where g.legal_name = $1
           order by o.created_at limit 1`,
+        [legalName],
       )
     )?.id;
     if (organizationId === undefined) {
@@ -100,7 +116,7 @@ export async function bootstrapIdentity(owner: Pool): Promise<DogfoodIdentity> {
         classification: 'public',
         authorityDomain: 'organization',
         lifecycleState: 'active',
-        title: 'OpenHuman Technologies LLC',
+        title: legalName,
         organizationId: BOOTSTRAP_IDENTITY,
         createdBy: BOOTSTRAP_IDENTITY,
       });
@@ -112,8 +128,8 @@ export async function bootstrapIdentity(owner: Pool): Promise<DogfoodIdentity> {
       );
       await tx.query(
         `insert into org.organization (id, legal_name, organization_kind)
-         values ($1, 'OpenHuman Technologies LLC', 'company')`,
-        [organizationId],
+         values ($1, $2, 'company')`,
+        [organizationId, legalName],
       );
     }
     await setAccessContext(tx, { organizationId, maxClassification: 'restricted' });

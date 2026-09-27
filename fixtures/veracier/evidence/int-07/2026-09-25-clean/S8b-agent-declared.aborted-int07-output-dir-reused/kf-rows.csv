@@ -1,0 +1,5 @@
+# window: 2026-09-25 22:48:16.712098+00 .. 2026-09-25 22:48:16.81471+00
+## search.context_disclosure
+id,recorded_at,operation,refusal,object_id,object_classification,revision,text_digest,references_digest,reference_count,omitted_count,agent_participation,asker_rank,asker_key,corpus_digest,expires_at
+## search.recorded_query (ids only; query_text deliberately not selected)
+id,recorded_at,asker_ceiling,asker_rank,asker_key,expires_at

@@ -13,7 +13,29 @@ export interface NewObject {
   readonly retentionClass?: string;
 }
 
+/**
+ * The longest title a record may carry: `core.object` checks `length(btrim(title)) between 1 and
+ * 240`, counting characters (code points) after trimming spaces.
+ */
+export const OBJECT_TITLE_MAX_CHARACTERS = 240;
+
+/**
+ * Why `title` cannot be a record's title, or undefined when it can. The database's own rule, said
+ * before the insert so a caller gets a refusal naming the field rather than a check violation
+ * surfacing as a 500. NUL is refused too: PostgreSQL text cannot hold it at all.
+ */
+export function objectTitleProblem(title: string): string | undefined {
+  if (title.includes('\u0000')) return 'title must not contain NUL characters';
+  const characters = [...title.replace(/^ +| +$/gu, '')].length;
+  if (characters < 1 || characters > OBJECT_TITLE_MAX_CHARACTERS) {
+    return `title must be 1 to ${String(OBJECT_TITLE_MAX_CHARACTERS)} characters; it is ${String(characters)}`;
+  }
+  return undefined;
+}
+
 export async function createControlledObject(tx: Tx, spec: NewObject): Promise<string> {
+  const titleProblem = objectTitleProblem(spec.title);
+  if (titleProblem !== undefined) throw new PayloadInvalid('title', titleProblem);
   const { version } = await tx.one<{ version: string }>(
     'select version from registry.schema_release where is_current',
   );
@@ -38,13 +60,27 @@ export async function createControlledObject(tx: Tx, spec: NewObject): Promise<s
   return row.id;
 }
 
+/**
+ * A payload field the act needs is missing or malformed. The caller's input is the cause, so
+ * the dispatcher turns this into a `precondition_failed` refusal naming the field; before it
+ * existed these were plain Errors and reached an HTTP caller as a 500 they would retry forever.
+ */
+export class PayloadInvalid extends Error {
+  readonly field: string;
+  constructor(field: string, message: string) {
+    super(message);
+    this.name = 'PayloadInvalid';
+    this.field = field;
+  }
+}
+
 export function requireString(
   payload: Readonly<Record<string, unknown>> | undefined,
   key: string,
 ): string {
   const value = payload?.[key];
   if (typeof value !== 'string' || value.trim() === '') {
-    throw new Error(`${key} is required and must be a non-empty string`);
+    throw new PayloadInvalid(key, `${key} is required and must be a non-empty string`);
   }
   return value;
 }
@@ -64,7 +100,8 @@ export function requireInteger(
 ): number {
   const value = payload?.[key];
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < minimum) {
-    throw new Error(
+    throw new PayloadInvalid(
+      key,
       `${key} is required and must be an integer greater than or equal to ${minimum}`,
     );
   }
@@ -77,7 +114,10 @@ export function requireMinor(
 ): number {
   const value = payload?.[key];
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
-    throw new Error(`${key} is required and must be a non-negative integer in minor units`);
+    throw new PayloadInvalid(
+      key,
+      `${key} is required and must be a non-negative integer in minor units`,
+    );
   }
   return value;
 }
@@ -88,7 +128,7 @@ export function requireCurrency(
 ): string {
   const value = requireString(payload, key);
   if (!/^[A-Z]{3}$/.test(value)) {
-    throw new Error(`${key} must be a three-letter ISO 4217 code`);
+    throw new PayloadInvalid(key, `${key} must be a three-letter ISO 4217 code`);
   }
   return value;
 }

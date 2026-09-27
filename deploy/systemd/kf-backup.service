@@ -16,6 +16,10 @@ WorkingDirectory=/opt/kf
 Environment=DATABASE_URL_FILE=/etc/kf/backup/database-url
 EnvironmentFile=/etc/kf/backup.env
 Environment=CHECKPOINT_PUBLIC_KEY_DIR=/etc/kf/checkpoint-public-keys
+# Declares this a deployed host, which makes backup.sh REQUIRE the checkpoint public keys above
+# and the recipient key named in backup.env. Not NODE_ENV: that would also make the export CLI
+# refuse the connection string backup.sh resolves for it.
+Environment=KF_DEPLOYMENT_PROFILE=dogfood
 ExecStartPre=/usr/bin/test -s /etc/kf/backup/preservation-manifest-key
 ExecStartPre=/usr/bin/test -d /etc/kf/preservation-trust.d
 ExecStartPre=/usr/bin/test -d /etc/kf/checkpoint-public-keys

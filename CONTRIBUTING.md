@@ -20,9 +20,11 @@ previously said `pnpm gate` runs _every_ check CI runs. That stopped being true 
 job landed, which is precisely the drift the test was written to catch — and it caught it in the
 commit that introduced it.)
 
-> **CI runs on a sandboxed self-hosted runner, on the maintainer's machine, since 2026-08-20.**
-> `runs-on` reads the `RUNNER_LABEL` repository variable, so it is a settings change and not a
-> commit — see `deploy/self-hosted-runner/`.
+> **Pull requests run on GitHub-hosted `ubuntu-latest`; every other event runs on
+> `vars.RUNNER_LABEL`, falling back to `ubuntu-latest` when it is unset.** The self-hosted runner
+> in use since 2026-08-20 is a sandboxed one on the maintainer's machine; `runs-on` reads the
+> `RUNNER_LABEL` repository variable, so moving between them is a settings change and not a
+> commit — see `deploy/self-hosted-runner/` and `.github/workflows/ci.yml`.
 >
 > This block has now been wrong twice, in opposite directions. It first said "CI is not running
 > at all", which was true — 38 runs died at job-start on Actions billing. Then it said CI passed
@@ -96,16 +98,63 @@ they were written for and were blind to the case that mattered.
 file. `docs-references.test.ts` verifies a citation resolves and says it cannot verify the
 cited file supports the claim. That sentence is the useful part.
 
+**Gaps are recorded, never marked.** There is no inline `TODO`-style marker anywhere in this
+repository, and a gate keeps it that way (KF-SAS-RQ-018): ESLint's `no-warning-comments` for
+everything ESLint reads, and `tests/conformance/no-inline-markers.test.ts` for the files it does
+not (SQL, shell, systemd, config, YAML, TOML). A known gap goes in SAS §100, an ADR, a pack
+`known_gaps` entry or a named checker warning — somewhere a reader will find it and a gate can
+count it.
+
 **Corrections belong in the record.** When something in this repository turns out to be wrong,
 the fix says so and says what was wrong. Several documents carry a paragraph beginning "this
 previously read…". Do not quietly improve a false claim into a true one.
 
 ## Decisions
 
-Architectural decisions live in `docs/decisions/` and follow the shape of the existing four:
+Architectural decisions live in `docs/decisions/` and follow the shape of the existing records:
 status, date, owner, scope, decision — then what was measured, the options, and what the record
 explicitly does **not** settle. Raise one when a choice would otherwise be discoverable only by
 reading a diff.
+
+From ADR 0034 on, two sections are required by name, because they are the two a later reader
+cannot reconstruct: `## Options rejected` (what else was on the table and what killed it) and
+`## How we will know` (the measurement that would show the decision was wrong). Records before
+0034 are grandfathered — they state the same things under other headings or not at all, and a
+decision record is never rewritten to satisfy a later rule. A superseded record is kept in full.
+`tests/conformance/decision-records.test.ts` enforces both (KF-SAS-RQ-182).
+
+## The specification
+
+`docs/sas/KF_Software_Architecture_Specification.md` is governed by digest. Editing it is
+proposing a new revision (`war sas propose`); accepting one is the owner's act and no automation
+performs it. `tests/conformance/sas-governance.test.ts` holds the parts a test can
+(KF-SAS-RQ-180, RQ-183): the file's sha256 equals the newest revision's recorded digest; revisions
+form one predecessor chain and only the newest may be proposed; accepted digests match a frozen
+table and, where git history is present, a committed version of the document; each acceptance
+names a human; requirement identifiers only ever grow from one revision to the next; and the
+newest revision, the §106 index and the inline statements name the same set.
+
+An accepted revision needs a signed `oh.war/sas-acceptance-response/v1` under
+`docs/authority/responses/` — or an entry in `docs/sas/owner-pending.json`, which names the
+subject, the rule, the one file, who it waits on, why, and a `recorded` and `review_by` date. The
+test requires that list to equal the unsigned acceptances exactly, so an entry cannot outlive what
+it excuses. Adding an entry records that the owner owes an act; it never performs the act.
+
+CI's `sas` job runs `war check --generated` (KF-SAS-RQ-017, RQ-181) with `war` built from a
+pinned OpenWarrant commit, because the released `war` 1.0.0-alpha.2 leaks `**` into the
+projection and would report drift for its own defect. `scripts/war-check-gate.mjs` turns the
+report into the verdict: drift is never excusable, and an ERROR passes only while
+`docs/sas/owner-pending.json` names its exact rule and file and the entry's `review_by` date has
+not passed. `tests/deployment/normative-projection.test.ts` separately requires the committed
+projection's header to name the document's current digest and a revision record that recorded it.
+
+A requirement cited from another repository is an unverified claim until a tool resolves it
+(KF-SAS-RQ-184). `node scripts/resolve-sas-citations.mjs <file-or-dir>...` is that tool: it
+resolves every `KF-SAS-RQ-nnn` (bare or `sas://`) against `docs/sas/generated/NORMATIVE.json`,
+names the revision and digest it resolved against, reports retired and unresolved citations by
+file and line, and exits 1 on any unresolved one — and 3, not 0, when it found no citation at
+all. `tests/conformance/resolve-sas-citations.test.ts` runs it on fixtures and on this
+repository's own ADRs and Warrants.
 
 ## What is not yours to do
 

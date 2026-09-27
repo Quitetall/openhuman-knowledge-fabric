@@ -1,4 +1,6 @@
-import type { ActionEffect, ActionMaterializer } from '@kf/actions';
+import { ActionRejected, type ActionEffect, type ActionMaterializer } from '@kf/actions';
+import { readGranted } from '@kf/authorization';
+import type { Tx } from '@kf/database';
 import { recordVersion, verifyUpload, type ObjectStore, type VerifiedUpload } from '@kf/artifacts';
 import { canonicalize, digestBytes } from '@kf/canonicalization';
 import {
@@ -9,11 +11,68 @@ import {
   classificationFrom,
 } from '@kf/record-atoms';
 import {
+  documentAtomPreimage,
+  documentConversionLossPreimage,
+  documentProjectionPreimage,
   DocumentParseIntegrityError,
   validateParsedDocument,
   type DocumentParser,
 } from './parse-contract.js';
 import { requireSha256 } from './action-types.js';
+import { requireDerivedEvidenceKey } from './evidence-storage-key.js';
+import { boundPreparse } from './preparse.js';
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * `derived_from`: the artifact this one was made from — a text extraction of a scanned PDF, a
+ * rendition, a transcription. Optional. When present it is recorded as a `derived_from` edge
+ * from the new artifact to that one, drawn by this act.
+ *
+ * The named artifact must be one the actor can READ — visible to the session and reached by a
+ * grant, the same question every read surface asks (`readGranted`) — so the edge cannot be used
+ * to probe for, or to hang a copy off, a record the actor has no business with. Every failure is
+ * the same refusal, which names no reason the actor could not already see.
+ */
+async function recordDerivation(
+  tx: Tx,
+  artifactId: string,
+  request: Parameters<ActionEffect>[1],
+  actionId: string,
+): Promise<void> {
+  const raw = request.payload?.['derived_from'];
+  if (raw === undefined || raw === null) return;
+  const refuse = (): never => {
+    throw new ActionRejected(
+      'precondition_failed',
+      'derived_from must name an artifact you can read, other than the one being attached',
+      { field: 'derived_from' },
+    );
+  };
+  if (typeof raw !== 'string' || !UUID.test(raw) || raw === artifactId) refuse();
+  const source = raw as string;
+  const found = await tx.maybeOne<{ object_type: string; organization_id: string }>(
+    'select object_type, organization_id from core.object where id = $1',
+    [source],
+  );
+  if (
+    found === undefined ||
+    found.object_type !== 'artifact' ||
+    found.organization_id !== request.organizationId ||
+    !(await readGranted(
+      tx,
+      { actorId: request.actorId, organizationId: request.organizationId },
+      source,
+    ))
+  ) {
+    refuse();
+  }
+  await tx.query(
+    `insert into core.relation (relation_type, source_id, target_id, created_by, authorizing_action)
+     values ('derived_from', $1, $2, $3, $4)`,
+    [artifactId, source, request.actorId, actionId],
+  );
+}
 
 interface EvidenceActions {
   readonly attachEvidence: ActionMaterializer;
@@ -24,8 +83,17 @@ export function createEvidenceActions(options: {
   readonly store: ObjectStore;
   readonly parser: DocumentParser;
 }): EvidenceActions {
+  /** Refused before any object is created, and again before any byte is read. */
+  const derivedKey = (request: Parameters<ActionMaterializer>[1]): string =>
+    requireDerivedEvidenceKey(
+      requireString(request.payload, 'storage_uri'),
+      request.organizationId,
+      requireSha256(request.payload),
+    );
+
   const attachEvidence: ActionMaterializer = async (tx, request) => {
     if (request.targetIds.length > 0) return [];
+    derivedKey(request);
     const classification = optionalString(request.payload, 'classification') ?? undefined;
     const id = await createControlledObject(tx, {
       ...classificationFrom(request.payload),
@@ -52,7 +120,7 @@ export function createEvidenceActions(options: {
   const recordEvidence: ActionEffect = async (tx, request, objects, ctx) => {
     const artifact = objects.find((object) => object.object_type === 'artifact');
     if (artifact === undefined) throw new Error('attach_evidence created no artifact target');
-    const key = requireString(request.payload, 'storage_uri');
+    const key = derivedKey(request);
     const mediaType = requireString(request.payload, 'media_type');
     const verified: VerifiedUpload = await verifyUpload(options.store, {
       key,
@@ -92,6 +160,8 @@ export function createEvidenceActions(options: {
       );
     }
 
+    await recordDerivation(tx, artifact.id, request, ctx.actionId);
+
     const sourceBytes = await options.store.read(
       verified.key,
       verified.storageVersion,
@@ -102,16 +172,22 @@ export function createEvidenceActions(options: {
         'source bytes changed between artifact verification and parser persistence',
       );
     }
-    const parserResult = await options.parser.parse(sourceBytes, mediaType);
+    // Parsed before the transaction opened, when the caller could (preparse.ts): then this only
+    // checks the parse is bound to the exact bytes just verified. Otherwise, parsed here.
+    const preparsed = boundPreparse(sourceBytes, mediaType);
+    const parserResult =
+      preparsed === undefined
+        ? await options.parser.parse(sourceBytes, mediaType)
+        : preparsed.parsed;
     if (parserResult === undefined) return;
     const parsed = validateParsedDocument(parserResult, sourceBytes);
     const atomClaims = parsed.atoms.map(({ digest: _digest, ...claim }) => claim);
-    const lossPreimage = canonicalize(parsed.conversionLoss);
-    const projectionPreimage = canonicalize({
-      projectionContract: parsed.projectionContract,
-      atoms: atomClaims,
-      conversionLoss: parsed.conversionLoss,
-    });
+    // kf-document-parse-v2 preimages, each carrying its tag. The row's digest_format is left to
+    // the database, which sets it and checks these shapes under it (20260925114000).
+    const lossPreimage = canonicalize(documentConversionLossPreimage(parsed.conversionLoss));
+    const projectionPreimage = canonicalize(
+      documentProjectionPreimage(parsed.projectionContract, atomClaims, parsed.conversionLoss),
+    );
     const parse = await tx.one<{ id: string }>(
       `insert into content.document_parse
          (artifact_version_id, parser, parser_version, projection_contract, conversion_loss,
@@ -148,13 +224,7 @@ export function createEvidenceActions(options: {
           atom.text,
           JSON.stringify(atom.attributes),
           atom.digest,
-          canonicalize({
-            ordinal: atom.ordinal,
-            kind: atom.kind,
-            level: atom.level,
-            text: atom.text,
-            attributes: atom.attributes,
-          }),
+          canonicalize(documentAtomPreimage(atom)),
         ],
       );
     }

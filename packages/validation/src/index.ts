@@ -1,8 +1,8 @@
 /**
- * Schema, SHACL and graph-constraint validation
+ * Schema, SHACL and graph-constraint validation — a manifest, not an implementation.
  *
- * Findings carry rule id, severity, object path and remediation. Errors block; warnings may
- * permit draft operation.
+ * Nothing here runs or blocks. Shapes are emitted by the ontology compiler for other tools;
+ * integrity is enforced by the database. See AUTHORITY.md.
  */
 
 import type { PackageManifest } from '@kf/domain';

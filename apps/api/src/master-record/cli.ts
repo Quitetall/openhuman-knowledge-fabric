@@ -13,8 +13,9 @@
  */
 
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
+import { readSecretFile } from '@kf/operations';
 
 export interface MasterRecordCliArgs {
   readonly apiOrigin?: string;
@@ -77,6 +78,11 @@ export function parseMasterRecordArgs(argv: readonly string[]): MasterRecordCliA
     'reason',
   ]);
   for (const key of Object.keys(values)) {
+    // A bearer token on the command line is in shell history and `/proc/<pid>/cmdline`. The
+    // refusal names the one supported alternative, as `kf ingest` does (SAS §76).
+    if (key === 'token') {
+      throw new MasterRecordCliError('unknown option --token; use --token-file');
+    }
     if (!known.has(key)) throw new MasterRecordCliError(`unknown option --${key}`);
   }
   const format = values['format'] ?? 'html';
@@ -138,7 +144,14 @@ export async function fetchMasterRecord(
   }
   if (args.actingRoleId === undefined) throw new MasterRecordCliError('--acting-role is required');
 
-  const token = (await readFile(args.tokenFile, 'utf8')).trim();
+  // A bearer token is a credential: the same owner-only rule as every other secret file. A
+  // token another user on the host can read is one they can already use.
+  let token: string;
+  try {
+    token = readSecretFile(args.tokenFile, '--token-file').trim();
+  } catch (error: unknown) {
+    throw new MasterRecordCliError(error instanceof Error ? error.message : String(error));
+  }
   if (token === '') throw new MasterRecordCliError(`${args.tokenFile} is empty`);
 
   const headers: Record<string, string> = {
@@ -211,10 +224,11 @@ export async function runMasterRecordCommand(
   env: NodeJS.ProcessEnv = process.env,
   output: NodeJS.WritableStream = process.stdout,
   errorOutput: NodeJS.WritableStream = process.stderr,
+  fetchImpl: Fetch = fetch,
 ): Promise<number> {
   try {
     const args = parseMasterRecordArgs(argv);
-    const result = await fetchMasterRecord(args, env);
+    const result = await fetchMasterRecord(args, env, fetchImpl);
     if (result.compiled !== undefined) {
       const reused = result.compiled.reused === true ? ' (corpus unchanged, claim reused)' : '';
       errorOutput.write(`compile: ${result.compiled.status}${reused}\n`);
@@ -226,7 +240,11 @@ export async function runMasterRecordCommand(
     } else {
       const path = resolve(args.out);
       await mkdir(dirname(path), { recursive: true });
-      await writeFile(path, result.rendering.bytes);
+      // The rendering is the person's whole master record. Owner-only, and chmod as well as
+      // `mode`: `mode` applies only when the file is created, so overwriting an existing 0644
+      // file would otherwise keep it world-readable.
+      await writeFile(path, result.rendering.bytes, { mode: 0o600 });
+      await chmod(path, 0o600);
       errorOutput.write(`wrote ${path} (${result.rendering.bytes.length} bytes)\n`);
     }
     return 0;

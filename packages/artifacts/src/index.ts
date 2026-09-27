@@ -11,11 +11,13 @@ export { recordVersion, verifyRecordedVersion } from './internal/recording.js';
 export {
   REPLICABLE_ROLES,
   STORAGE_ACTION_IDS,
+  StoreAddressMismatch,
   StoreRegistry,
   createStorageActionAtoms,
   declareStore,
   hashLocation,
   locationsOf,
+  normalizeStoreEndpoint,
   publishVersionCopy,
   readVersionBytes,
   replicateVersion,
@@ -25,6 +27,8 @@ export {
   type LocationVerification,
   type ReplicableRole,
   type StorageActionAtoms,
+  type StoreAddress,
+  type StoreRegistryOptions,
 } from './locations.js';
 export {
   InMemoryObjectStore,
@@ -35,6 +39,13 @@ export {
   type S3Config,
   type StoredObject,
 } from './store.js';
+export {
+  isAccessDenied,
+  S3SweepableObjectStore,
+  type CollectionPermissions,
+  type ListedObject,
+  type SweepableObjectStore,
+} from './sweep-store.js';
 
 export const PACKAGE = {
   name: '@kf/artifacts',

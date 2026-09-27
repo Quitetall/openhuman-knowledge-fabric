@@ -1,7 +1,7 @@
 /**
  * Which declared invariant does a refusal code implement?
  *
- * `ontology/rules.yaml` declares fifteen invariants and gives each an `implementation:` list.
+ * `ontology/rules.yaml` declares sixteen invariants and gives each an `implementation:` list.
  * The code refuses with a much larger vocabulary — `KF-DOC-AUTH-003`, `KF-DOC-PUBLISH-002`,
  * `KF-VER-002` — and nothing connects the two. That gap is not cosmetic: it made the question
  * "is this declared invariant actually enforced?" unanswerable mechanically.
@@ -64,6 +64,7 @@ const FAMILY_IMPLEMENTS: ReadonlyArray<readonly [string, string]> = [
   ['KF-CHG-001', 'KF-CHG-001'],
   ['KF-DEC-001', 'KF-DEC-001'],
   ['KF-PROJ-002', 'KF-PROJ-002'],
+  ['KF-ENG-001', 'KF-ENG-001'],
   ['KF-WORK-001', 'KF-WORK-001'],
 ];
 
@@ -71,7 +72,7 @@ const FAMILY_IMPLEMENTS: ReadonlyArray<readonly [string, string]> = [
  * Families that are local conditions, not implementations of a declared invariant.
  *
  * A missing target, an unparseable payload, a malformed digest: real refusals a caller must
- * act on, and none of them is one of the fifteen. Listing them explicitly is the point — an
+ * act on, and none of them is one of the sixteen. Listing them explicitly is the point — an
  * unclassified code fails the suite, so "local" has to be asserted rather than assumed.
  */
 const LOCAL_FAMILIES: readonly string[] = [
@@ -83,7 +84,14 @@ const LOCAL_FAMILIES: readonly string[] = [
   'KF-VER', // test execution and result shape
   'KF-QMS', // nonconformity and CAPA closure preconditions
   'KF-COMPILER', // the compiler process itself failed
+  'KF-DOC-DETERMINISM', // a requalified compiler did not reproduce the run before it (RQ-102)
   'KF-MISSING', // a required record was not found
+  'KF-ART', // an evidence storage key the server did not derive for the bound organization
+  // The context source's refusals (apps/api/src/routes/context-source/record.ts): current
+  // authority over a read for an agent — not found, grant withdrawn, revision moved, master
+  // record stale or absent, no semantic ranking, no servable text. Read authorization is enforced
+  // by row security and grants, which rules.yaml does not declare as one of its invariants.
+  'KF-CTX',
 ];
 
 function declaredRules(): ReadonlyMap<string, string> {

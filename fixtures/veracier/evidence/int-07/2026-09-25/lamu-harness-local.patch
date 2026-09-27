@@ -1,0 +1,50 @@
+diff --git a/lamu-rs/scripts/context-proof/kf_source.py b/lamu-rs/scripts/context-proof/kf_source.py
+index 51c364b..b9c40d2 100644
+--- a/lamu-rs/scripts/context-proof/kf_source.py
++++ b/lamu-rs/scripts/context-proof/kf_source.py
+@@ -84,6 +84,9 @@ def main():
+     parser.add_argument("--pause-after-compile", action="store_true")
+     parser.add_argument("--pause-seconds", type=int, default=600)
+     parser.add_argument("--audit-needle-file", type=Path)
++    parser.add_argument("--limit", type=int, default=10, help="retrieval limit (local INT-07 patch)")
++    parser.add_argument("--ctx-size", type=int, default=4096, help="backend context (local INT-07 patch)")
++    parser.add_argument("--max-input-tokens", type=int, default=3000, help="compile budget (local INT-07 patch)")
+     parser.add_argument("--forbid-ref", action="append", default=[], metavar="RECORD",
+                         help="a record id that must not appear among the retrieved refs (repeatable)")
+     args = parser.parse_args()
+@@ -124,7 +127,7 @@ def main():
+         backend_port = port()
+         backend = processes.start("backend", [
+             str(llama_server), "-m", str(args.model.resolve()), "--host", "127.0.0.1",
+-            "--port", str(backend_port), "-ngl", "0", "--ctx-size", "4096", "--threads", "2",
++            "--port", str(backend_port), "-ngl", "0", "--ctx-size", str(args.ctx_size), "--threads", "2",
+             "--parallel", "1", "--no-warmup", "--log-disable"], env)
+         wait_health(f"http://127.0.0.1:{backend_port}", backend)
+ 
+@@ -156,7 +159,7 @@ def main():
+         api, base = start_api("api")
+         status, info, _, _ = call(base, "info")
+         assert status == 200, info
+-        deadline = int(time.time() * 1000) + 900_000
++        deadline = int(time.time() * 1000) + 280_000
+         status, control, _, _ = call(base, "controls", {"deadline_unix_ms": deadline})
+         assert status == 200, control
+ 
+@@ -166,7 +169,7 @@ def main():
+             receipt["observations"]["before_sources_exit"] = prepared.returncode
+             assert prepared.returncode == 0, "the --before-sources command failed"
+ 
+-        status, sources, _, _ = call(base, "sources", {"query": args.query, "limit": 10, "control": control})
++        status, sources, _, _ = call(base, "sources", {"query": args.query, "limit": args.limit, "control": control})
+         receipt["observations"]["sources"] = {"status": status, "count": len(sources) if status == 200 else None,
+                                               "refusal": None if status == 200 else refusal(sources)}
+         if args.expect.startswith("sources:"):
+@@ -183,7 +186,7 @@ def main():
+         request_body = {"schema": "lamu.context-request/v1", "request_id": "kf-compile-1",
+                         "task": "Answer from the provided context only.", "scope": info["scope"],
+                         "sources": [{"source": s, "required": True} for s in sources], "constraints": [],
+-                        "model": info["model"], "max_input_tokens": 3000, "control": control}
++                        "model": info["model"], "max_input_tokens": args.max_input_tokens, "control": control}
+         status, package, raw_package, headers = call(base, "compile", request_body)
+         receipt["observations"]["compile"] = {"status": status, "refusal": None if status == 200 else refusal(package)}
+         assert status == 200, receipt["observations"]["compile"]

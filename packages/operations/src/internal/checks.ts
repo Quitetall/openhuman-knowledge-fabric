@@ -1,4 +1,5 @@
 import type { CheckDefinition } from './contracts.js';
+import { assignmentReviewDates } from './authority-checks.js';
 import { backupFreshness } from './backup-check.js';
 import { federationFreshness, outboxHealth, searchComplete } from './freshness-checks.js';
 import {
@@ -9,12 +10,15 @@ import {
   writeGuardsPresent,
 } from './integrity-checks.js';
 import { pitrReadiness } from './pitr-check.js';
+import { plannerSettings, rowSecurityReconciled } from './posture-checks.js';
 import { secureObjectStorageEvidence } from './storage-checks.js';
 
 export const SERVICE_CHECKS: readonly CheckDefinition[] = [
   { id: 'schema_release', scope: 'service', run: schemaRelease },
   { id: 'write_guards', scope: 'service', run: writeGuardsPresent },
   { id: 'schema_owner_bypasses_rls', scope: 'service', run: schemaOwnerBypassesRls },
+  { id: 'row_security_reconciled', scope: 'service', run: rowSecurityReconciled },
+  { id: 'planner_settings', scope: 'service', run: plannerSettings },
   { id: 'audit_chain', scope: 'service', run: chainIntact },
   { id: 'outbox_delivery', scope: 'service', run: outboxHealth },
   { id: 'search_index', scope: 'service', run: searchComplete },
@@ -30,6 +34,7 @@ export const INSTITUTIONAL_CHECKS: readonly CheckDefinition[] = [
   },
   { id: 'backup_freshness', scope: 'institutional', run: backupFreshness },
   { id: 'pitr_readiness', scope: 'institutional', run: pitrReadiness },
+  { id: 'assignment_review_dates', scope: 'institutional', run: assignmentReviewDates },
 ];
 
 export const CHECKS: readonly CheckDefinition[] = [...SERVICE_CHECKS, ...INSTITUTIONAL_CHECKS];

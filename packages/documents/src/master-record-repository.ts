@@ -13,9 +13,13 @@ import type {
 import {
   buildWithheldLedger,
   compileMasterRecord,
+  CURRENT_MASTER_RECORD_MEMBER_FORMAT,
+  masterRecordMemberDigest,
+  masterRecordPayloadFormat,
   relevanceClosureWithMetrics,
   sectionMasterRecord,
   type MasterRecordManifest,
+  type MasterRecordMemberFormat,
   type MasterRecordSections,
 } from './master-record.js';
 
@@ -28,6 +32,10 @@ interface ObjectRow extends Record<string, unknown> {
   readonly lifecycle_state: string;
   readonly row_version: string;
   readonly content_payload: Record<string, unknown>;
+  /** Null when nothing has verified this record. Absence is the unverified state. */
+  readonly verified_at: string | null;
+  readonly verified_by: string | null;
+  readonly verified_basis: string | null;
 }
 
 interface RelationRow extends Record<string, unknown> {
@@ -104,15 +112,38 @@ function contentDigests(value: unknown, result = new Set<string>()): Set<string>
 export async function enumeratePermissionSet(
   tx: Tx,
   organizationId: string,
+  // A stored claim is re-checked under the member format it RECORDED
+  // (`masterRecordMemberFormat(manifest)`); a new compilation uses the current one.
+  memberFormat: MasterRecordMemberFormat = CURRENT_MASTER_RECORD_MEMBER_FORMAT,
+  // The same set restricted to these ids — one definition of "visible member", read for a few
+  // records rather than the organization (the context source's per-record re-check).
+  only?: readonly string[],
 ): Promise<readonly PermissionMember[]> {
+  // The payloads are read in ONE call over every visible id, never once per row: the one-object
+  // form walks the catalog and plans ~235 statements per object, which made every Object View
+  // cost ~65 ms per object in the organization (KF-SAS-RQ-201; 20260925121500). The reading is
+  // the one the member format names (20260925121600): v1 for claims that recorded it, v2 anew.
   const rows = await tx.query<ObjectRow>(
-    `select /* master-record.permission-set */
-            id, object_type, organization_id, classification, title, lifecycle_state,
-            row_version::text, content.master_record_payload(id) as content_payload
-       from core.object
-      where organization_id = $1
-      order by id`,
-    [organizationId],
+    `with visible as materialized (
+       select /* master-record.permission-set */
+              o.id, o.object_type, o.organization_id, o.classification, o.title,
+              o.lifecycle_state, o.row_version::text as row_version,
+              -- Left join, because absence IS the unverified state (KF-SAS-RQ-228). An inner join
+              -- would drop every unchecked record from the corpus, which is the silent omission
+              -- RQ-229 forbids, arriving as a query shape rather than as a decision.
+              v.verified_at, v.verified_by, v.basis as verified_basis
+         from core.object o
+         left join core.object_verification v on v.object_id = o.id
+        where o.organization_id = $1${only === undefined ? '' : ' and o.id = any($3::uuid[])'}
+     )
+     select visible.*, payloads.payload as content_payload
+       from visible
+       join content.master_record_payloads(array(select visible.id from visible), $2) payloads
+         on payloads.object_id = visible.id
+      order by visible.id`,
+    only === undefined
+      ? [organizationId, masterRecordPayloadFormat(memberFormat)]
+      : [organizationId, masterRecordPayloadFormat(memberFormat), [...only]],
   );
   return rows.map((row) => ({
     objectId: row.id,
@@ -124,16 +155,31 @@ export async function enumeratePermissionSet(
     // an update changes the permission-set identity rather than serving an old completeness
     // claim as if it were current.
     content: row.content_payload,
-    contentDigest: digest({
-      id: row.id,
-      objectType: row.object_type,
-      organizationId: row.organization_id,
-      classification: row.classification,
-      title: row.title,
-      lifecycleState: row.lifecycle_state,
-      rowVersion: row.row_version,
-      content: row.content_payload,
-    }),
+    ...(row.verified_at === null || row.verified_at === undefined
+      ? {}
+      : {
+          verified: {
+            at: new Date(row.verified_at).toISOString(),
+            by: row.verified_by as string,
+            basis: row.verified_basis as 'reviewed_individually' | 'promoted_in_bulk',
+          },
+        }),
+    // Verification is NOT in this digest. It is a fact about the member, not about which records
+    // the person may see, so a verification does not move the corpus identity — the same place
+    // `withdrawnAt` sits relative to the digest line.
+    contentDigest: masterRecordMemberDigest(
+      {
+        id: row.id,
+        objectType: row.object_type,
+        organizationId: row.organization_id,
+        classification: row.classification,
+        title: row.title,
+        lifecycleState: row.lifecycle_state,
+        rowVersion: row.row_version,
+        content: row.content_payload,
+      },
+      memberFormat,
+    ),
   }));
 }
 
@@ -142,8 +188,11 @@ export async function enumeratePermittedSet(
   tx: Tx,
   personId: string,
   organizationId: string,
+  memberFormat: MasterRecordMemberFormat = CURRENT_MASTER_RECORD_MEMBER_FORMAT,
+  /** Restrict to these ids; the same rules, applied to fewer records. */
+  only?: readonly string[],
 ): Promise<readonly PermissionMember[]> {
-  const visible = await enumeratePermissionSet(tx, organizationId);
+  const visible = await enumeratePermissionSet(tx, organizationId, memberFormat, only);
   const coverage = await enumerateAccessCoverage(tx, personId, organizationId);
   const excluded = await tx.query<{ object_id: string } & Record<string, unknown>>(
     `select object_id from content.person_entitlement_exclusion
@@ -176,25 +225,30 @@ export async function enumerateRelevanceGraph(tx: Tx): Promise<{
         and (valid_to is null or valid_to > now())
       order by id`,
   );
-  const policies = await tx.query<RelationPolicyRow>(
-    `select /* master-record.relevance-policy */
-            id, person_anchor, propagation_class, anchor_depth
-       from registry.relation_type
-      order by id`,
-  );
   return {
     edges: edges.map((edge) => ({
       sourceId: edge.source_id,
       targetId: edge.target_id,
       relationType: edge.relation_type,
     })),
-    policies: policies.map((policy) => ({
-      relationType: policy.id,
-      personAnchor: policy.person_anchor,
-      propagationClass: policy.propagation_class,
-      anchorDepth: policy.anchor_depth,
-    })),
+    policies: await enumerateRelationPolicies(tx),
   };
+}
+
+/** The compiler-owned propagation policy of every relation type. */
+export async function enumerateRelationPolicies(tx: Tx): Promise<readonly RelationPolicy[]> {
+  const policies = await tx.query<RelationPolicyRow>(
+    `select /* master-record.relevance-policy */
+            id, person_anchor, propagation_class, anchor_depth
+       from registry.relation_type
+      order by id`,
+  );
+  return policies.map((policy) => ({
+    relationType: policy.id,
+    personAnchor: policy.person_anchor,
+    propagationClass: policy.propagation_class,
+    anchorDepth: policy.anchor_depth,
+  }));
 }
 
 /** Read one immutable claim; latest is selected by compilation time, never by mutable status. */
@@ -280,6 +334,12 @@ export async function compileAndRecordMasterRecord(
 ): Promise<
   MasterRecordCompilation & { readonly masterRecordId: string; readonly reused: boolean }
 > {
+  // Before anything of the corpus is read: the snapshot a currency row records is the earliest
+  // one any read below could have seen, so a write it did not see may have been missed by the
+  // reading and is never mistaken for one it saw (20260926110100).
+  const { snapshot } = await tx.one<{ snapshot: string }>(
+    'select /* master-record.reading-snapshot */ pg_current_snapshot()::text as snapshot',
+  );
   const person = await tx.maybeOne<{ id: string }>(
     `select person.id
        from org.person person
@@ -458,6 +518,7 @@ export async function compileAndRecordMasterRecord(
           'belongs to a different request (ADR 0013)',
       );
     }
+    await recordCurrency(tx, options, existing.id, snapshot);
     return { ...compilation, masterRecordId: existing.id, reused: true };
   }
 
@@ -483,41 +544,31 @@ export async function compileAndRecordMasterRecord(
     ],
   );
 
-  for (const member of compilation.manifest.included) {
-    await tx.query(
-      `insert into content.master_record_item
-         (master_record_id, object_id, object_type, title, classification, content_digest,
-          item_state, content_payload)
-       values ($1,$2,$3,$4,$5,$6,'included',$7::jsonb)`,
-      [
-        master.id,
-        member.objectId,
-        member.objectType,
-        member.title ?? member.objectType,
-        member.classification,
-        member.contentDigest,
-        JSON.stringify(member.content ?? {}),
-      ],
-    );
-  }
-  for (const member of compilation.manifest.withdrawn) {
-    await tx.query(
-      `insert into content.master_record_item
-         (master_record_id, object_id, object_type, title, classification, content_digest,
-          item_state, withdrawn_at, withdrawal_reason, content_payload)
-       values ($1,$2,$3,$4,$5,$6,'withdrawn',now(),$7,$8::jsonb)`,
-      [
-        master.id,
-        member.objectId,
-        member.objectType,
-        member.title ?? member.objectType,
-        member.classification,
-        member.contentDigest,
-        member.withdrawalReason ?? 'permission set no longer admits this object',
-        JSON.stringify(member.content ?? {}),
-      ],
-    );
-  }
+  // Every member in ONE statement, read back out of the manifest just stored rather than sent a
+  // second time: the item table is the manifest's members and nothing else, which the statement
+  // trigger `master_record_item_matches_manifest` holds once per statement (20260926110000). One
+  // INSERT per member made a 50 000-member compilation send its corpus twice and, under the old
+  // per-row policy, expand the manifest once per member.
+  await tx.query(
+    `insert /* master-record.items */ into content.master_record_item
+       (master_record_id, object_id, object_type, title, classification, content_digest,
+        item_state, withdrawn_at, withdrawal_reason, content_payload)
+     select master.id, (member ->> 'objectId')::uuid, member ->> 'objectType',
+            coalesce(member ->> 'title', member ->> 'objectType'), member ->> 'classification',
+            member ->> 'contentDigest', state.name,
+            case state.name when 'withdrawn' then now() end,
+            case state.name
+              when 'withdrawn'
+                then coalesce(member ->> 'withdrawalReason',
+                              'permission set no longer admits this object')
+            end,
+            coalesce(member -> 'content', '{}'::jsonb)
+       from content.master_record master
+      cross join (values ('included'), ('withdrawn')) as state(name)
+      cross join lateral jsonb_array_elements(master.manifest -> state.name) as member
+      where master.id = $1`,
+    [master.id],
+  );
   for (const item of compilation.manifest.withheld.items) {
     await tx.query(
       `insert into content.master_record_withholding
@@ -534,5 +585,26 @@ export async function compileAndRecordMasterRecord(
       [master.id, options.recordedBy, count],
     );
   }
+  await recordCurrency(tx, options, master.id, snapshot);
   return { ...compilation, masterRecordId: master.id, reused: false };
+}
+
+/**
+ * Record that this compilation found the claim current as of `snapshot`, so a reading can know it
+ * is still current without enumerating the corpus again (20260926110100). Only for a person's own
+ * record: the reading was made under the compiler's context, and it is the person's own context a
+ * view of their record is read under. The database takes everything but the claim and the snapshot
+ * from the sealed context.
+ */
+async function recordCurrency(
+  tx: Tx,
+  options: { readonly personId: string; readonly recordedBy: string },
+  masterRecordId: string,
+  snapshot: string,
+): Promise<void> {
+  if (options.personId !== options.recordedBy) return;
+  await tx.query(
+    'select /* master-record.currency */ content.record_master_record_currency($1, $2::pg_snapshot)',
+    [masterRecordId, snapshot],
+  );
 }

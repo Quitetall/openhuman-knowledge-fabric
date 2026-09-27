@@ -30,6 +30,11 @@ import {
 let h: Harness;
 let f: Fixtures;
 let app: FastifyInstance;
+/**
+ * The application login. Every app built here connects as it: the API refuses to become ready
+ * through the harness's superuser, which row-level security does not bind.
+ */
+let appDatabaseUrl: string;
 const objectStore = new InMemoryObjectStore();
 
 /** The development headers. In production these are ignored and the routes refuse. */
@@ -49,13 +54,16 @@ beforeAll(async () => {
   const appUri = new URL(h.connectionString);
   appUri.username = 'kf_app_login';
   appUri.password = 'test-only-not-a-secret';
+  appDatabaseUrl = appUri.toString();
 
   app = await buildApp(
     {
       host: '127.0.0.1',
       port: 0,
       logLevel: process.env['LOG_LEVEL'] ?? 'silent',
-      databaseUrl: appUri.toString(),
+      // The DEVELOPMENT login (kf_app + kf_attestor, as `pnpm dogfood:load` provisions it): a
+      // development app attests its header callers in-process (20260924001000).
+      databaseUrl: h.developmentDatabaseUrl,
       environment: 'test',
       // The profile decides whether a fixed non-authoritative identity is permitted at all.
       // It became a required field and these call sites were never updated, so the harness
@@ -441,11 +449,12 @@ describe('identity', () => {
       host: '127.0.0.1',
       port: 0,
       logLevel: process.env['LOG_LEVEL'] ?? 'silent',
-      databaseUrl: new URL(h.connectionString).toString(),
+      databaseUrl: appDatabaseUrl,
       environment: 'test',
       deploymentProfile: 'dogfood',
       tlsTerminatedUpstream: false,
       identity: undefined,
+      attestorSocket: '/nonexistent/kf-attestor.sock',
     });
     await dogfood.ready();
     try {
@@ -473,11 +482,12 @@ describe('identity', () => {
       host: '127.0.0.1',
       port: 0,
       logLevel: process.env['LOG_LEVEL'] ?? 'silent',
-      databaseUrl: new URL(h.connectionString).toString(),
+      databaseUrl: appDatabaseUrl,
       environment: 'production',
       deploymentProfile: 'dogfood',
       tlsTerminatedUpstream: true,
       identity: undefined,
+      attestorSocket: '/nonexistent/kf-attestor.sock',
     });
     await prod.ready();
     try {
@@ -613,6 +623,49 @@ describe('actions over HTTP', () => {
     expect(r.json().actionId).toBeTruthy();
   });
 
+  it('dates an action by the database clock when the caller states no effective time', async () => {
+    // recorded_at is the database's now(). An effective time from this process's clock could
+    // land before the recording or after it; from the same clock, in the same transaction, it
+    // is the recording instant at the millisecond precision effective_at travels at.
+    const r = await app.inject({
+      method: 'POST',
+      url: '/actions/create_initiative',
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+      payload: {
+        idempotencyKey: 'api-effective-at-db-clock-01',
+        payload: {
+          title: 'Dated by the database',
+          objective: 'effective_at defaults to the database clock.',
+          sponsor_id: f.reviewerId,
+        },
+      },
+    });
+    expect(r.statusCode, r.body).toBe(201);
+    const row = await withTransaction(h.adminPool, (tx) =>
+      tx.one<{ same: boolean }>(
+        `select effective_at = date_trunc('milliseconds', recorded_at + interval '999 microseconds') as same
+           from core.action where id = $1`,
+        [r.json().actionId],
+      ),
+    );
+    expect(row.same).toBe(true);
+  });
+
+  it('refuses an effective time a year ahead, before dispatch', async () => {
+    const r = await app.inject({
+      method: 'POST',
+      url: '/actions/create_initiative',
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+      payload: {
+        idempotencyKey: 'api-effective-at-future-01',
+        effectiveAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+        payload: { title: 'must not dispatch' },
+      },
+    });
+    expect(r.statusCode).toBe(400);
+    expect(r.json()).toMatchObject({ error: 'effective_at_out_of_bounds' });
+  });
+
   it('refuses reuse of an idempotency key for different mutation semantics', async () => {
     const r = await app.inject({
       method: 'POST',
@@ -691,6 +744,33 @@ describe('actions over HTTP', () => {
     const events = r.json().events as { action_type: string; digest: string }[];
     expect(events.map((e) => e.action_type)).toContain('create_initiative');
     expect(events[0]!.digest).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('refuses a malformed payload as 422 naming the field, not 500 (RQ-012)', async () => {
+    // The caller's payload is the cause, so retrying the same bytes will be refused the same
+    // way. Until PayloadInvalid existed, the materializer's plain Error reached here as a 500.
+    const idempotencyKey = 'api-payload-invalid-01';
+    const r = await app.inject({
+      method: 'POST',
+      url: '/actions/create_initiative',
+      headers: asCaller(f.reviewerId, f.reviewerRoleId),
+      payload: {
+        idempotencyKey,
+        payload: { title: 'No objective', sponsor_id: f.reviewerId },
+      },
+    });
+    expect(r.statusCode, r.body).toBe(422);
+    expect(r.json()).toMatchObject({
+      error: 'precondition_failed',
+      detail: { field: 'objective' },
+    });
+    const acted = await withTransaction(h.adminPool, (tx) =>
+      tx.one<{ count: string }>(
+        'select count(*)::text as count from core.action where idempotency_key = $1',
+        [idempotencyKey],
+      ),
+    );
+    expect(acted.count).toBe('0');
   });
 
   it('surfaces a DATABASE-tier invariant refusal as 422, not 500', async () => {

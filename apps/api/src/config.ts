@@ -5,7 +5,7 @@
  * at boot with a precise message rather than at the first request that happens to need it.
  */
 
-import { resolve } from 'node:path';
+import { isAbsolute, resolve } from 'node:path';
 import { loadSecret } from '@kf/operations';
 import type { S3Config } from '@kf/artifacts';
 
@@ -34,12 +34,37 @@ export interface ApiConfig {
   /** Present only when an identity provider is configured. Absent means header identity. */
   readonly identity:
     { readonly issuer: string; readonly audience: string; readonly jwksUri: string } | undefined;
+  /**
+   * The kf-attestor socket (KF_ATTESTOR_SOCKET). The database binds a person for this process's
+   * login only on an attestation that they are present, which only kf-attestor may issue
+   * (20260924001000). Required under dogfood; absent in development, where the API attests
+   * in-process through a development login that holds `kf_attestor`.
+   */
+  readonly attestorSocket?: string;
+  /**
+   * The retrieval engine's socket (KF_RETRIEVAL_SOCKET, §64A). Absent means search is lexical
+   * only, and every answer says so in its withholding ledger (KF-SAS-RQ-216).
+   */
+  readonly retrievalSocket?: string;
   /** Evidence vault. Absent only in tests or intentionally metadata-only development. */
   readonly artifactStore?: S3Config;
   /** A second, durable store (ADR 0017): GCS via S3 interop, or any S3-wire bucket. */
   readonly durableStore?: S3Config;
   /** HMAC key used for short-lived master-record capability links. */
   readonly masterRecordLinkSecret?: string;
+  /**
+   * Bearer for the detailed GET /readiness report from a non-loopback caller. Absent means only
+   * a direct loopback connection sees the detail; everyone else gets the bare verdict.
+   */
+  readonly readinessToken?: string;
+  /**
+   * How far back a caller may date an action (KF_EFFECTIVE_AT_BACKDATE_DAYS, default 30), and
+   * which action types may go further (KF_EFFECTIVE_AT_BACKDATABLE_ACTIONS, comma-separated).
+   */
+  readonly effectiveAtBackdate?: {
+    readonly maxDays: number;
+    readonly backdatableActions: readonly string[];
+  };
   /**
    * The compiled corpus-projection definitions (ADR 0013). A release tree carries generated/,
    * so the default resolves inside the checkout or release root the process runs from.
@@ -73,7 +98,15 @@ function readPort(raw: string | undefined, fallback: number): number {
 }
 
 function readEnvironment(raw: string | undefined): ApiConfig['environment'] {
-  const value = raw ?? 'development';
+  // Required, not defaulted. Defaulting an unset NODE_ENV to `development` meant a unit file
+  // or container that forgot it came up in the one posture that trusts x-kf-* headers as the
+  // caller. The mistake has to fail loudly at boot, not quietly grant the most permissive mode.
+  if (raw === undefined || raw === '') {
+    throw new ConfigError(
+      'NODE_ENV is required; set it explicitly to development, test, ' + 'staging or production',
+    );
+  }
+  const value = raw;
   if (
     value === 'development' ||
     value === 'test' ||
@@ -99,10 +132,35 @@ function readDeploymentProfile(raw: string | undefined): ApiConfig['deploymentPr
   );
 }
 
+function requireHttpsUnlessLoopback(name: string, raw: string): void {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new ConfigError(`${name} must be an absolute URL, got ${JSON.stringify(raw)}`);
+  }
+  if (url.username !== '' || url.password !== '') {
+    throw new ConfigError(`${name} must not contain credentials`);
+  }
+  const loopback =
+    url.protocol === 'http:' &&
+    (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]');
+  if (url.protocol !== 'https:' && !loopback) {
+    throw new ConfigError(`${name} must use https unless it is loopback, got ${url.protocol}//`);
+  }
+}
+
+/** A listener address that only this machine can connect to. */
+function isLoopbackHost(host: string): boolean {
+  return host === '127.0.0.1' || host === '::1' || host === 'localhost';
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   const environment = readEnvironment(env['NODE_ENV']);
   const deploymentProfile = readDeploymentProfile(env['KF_DEPLOYMENT_PROFILE']);
-  const host = env['HOST'] ?? (deploymentProfile === 'dogfood' ? '127.0.0.1' : '0.0.0.0');
+  // Loopback by default under every profile. A wildcard listener is something a deployment
+  // asks for by name, never something it gets for forgetting a variable.
+  const host = env['HOST'] !== undefined && env['HOST'] !== '' ? env['HOST'] : '127.0.0.1';
 
   // The development profile is the only place header-supplied identity can exist. Naming it
   // in a deployed Node environment would make a non-authoritative mode look deployable, so
@@ -118,6 +176,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     );
   }
 
+  // The development profile believes whatever x-kf-* headers say, classification included, so
+  // anyone who can reach its socket is whoever they claim to be. Only this machine may reach it.
+  if (deploymentProfile === 'development' && !isLoopbackHost(host)) {
+    throw new ConfigError(
+      `The development profile trusts caller-supplied identity headers and may listen only on ` +
+        `loopback; HOST=${JSON.stringify(host)} is not. Use HOST=127.0.0.1, or ` +
+        'KF_DEPLOYMENT_PROFILE=dogfood with verified bearer identity for anything reachable.',
+    );
+  }
+
   // Serving plain HTTP with nothing terminating TLS means bearer tokens cross the network in
   // clear. Refused rather than warned: the warning would be read once.
   const tlsTerminatedUpstream = env['KF_TLS_TERMINATED_UPSTREAM'] === '1';
@@ -129,13 +197,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
         'clear.',
     );
   }
-  if (
-    deploymentProfile === 'dogfood' &&
-    !tlsTerminatedUpstream &&
-    host !== '127.0.0.1' &&
-    host !== '::1' &&
-    host !== 'localhost'
-  ) {
+  if (deploymentProfile === 'dogfood' && !tlsTerminatedUpstream && !isLoopbackHost(host)) {
     throw new ConfigError(
       'cleartext dogfood is permitted only on a loopback listener; set HOST=127.0.0.1 or ' +
         'terminate TLS upstream and set KF_TLS_TERMINATED_UPSTREAM=1',
@@ -176,6 +238,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
         'A partially configured identity provider falls back to trusting headers.',
     );
   }
+  // The issuer names who is trusted and the JWKS URI is where the trusted keys come from. Over
+  // plain HTTP anyone on the path substitutes their own keys and mints any identity. Loopback
+  // is the one exception, as in the web client (apps/web/src/lib/oidc.ts): a workstation
+  // Keycloak on localhost never crosses a network.
+  if (identityParts.length === 3) {
+    requireHttpsUnlessLoopback('OIDC_ISSUER', issuer!);
+    requireHttpsUnlessLoopback('OIDC_JWKS_URI', jwksUri!);
+  }
   const identity =
     identityParts.length === 3
       ? { issuer: issuer!, audience: audience!, jwksUri: jwksUri! }
@@ -188,6 +258,35 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     throw new ConfigError(
       'An identity provider is required when KF_DEPLOYMENT_PROFILE=dogfood. Set ' +
         'OIDC_ISSUER, OIDC_AUDIENCE and OIDC_JWKS_URI.',
+    );
+  }
+
+  const attestorSocket =
+    env['KF_ATTESTOR_SOCKET'] !== undefined && env['KF_ATTESTOR_SOCKET'] !== ''
+      ? env['KF_ATTESTOR_SOCKET']
+      : undefined;
+  if (attestorSocket !== undefined && !isAbsolute(attestorSocket)) {
+    throw new ConfigError(
+      `KF_ATTESTOR_SOCKET must be an absolute path, got ${JSON.stringify(attestorSocket)}`,
+    );
+  }
+  // Without the attestor the dogfood API could only attest to people itself, which its login
+  // may not — every request would be refused at the first bind. Refused here, at boot, with the
+  // reason, rather than as a wall of 401s.
+  if (deploymentProfile === 'dogfood' && attestorSocket === undefined) {
+    throw new ConfigError(
+      'KF_ATTESTOR_SOCKET is required when KF_DEPLOYMENT_PROFILE=dogfood: the database binds a ' +
+        'person for the API only on an attestation from kf-attestor (see kf-attestor.service).',
+    );
+  }
+
+  const retrievalSocket =
+    env['KF_RETRIEVAL_SOCKET'] !== undefined && env['KF_RETRIEVAL_SOCKET'] !== ''
+      ? env['KF_RETRIEVAL_SOCKET']
+      : undefined;
+  if (retrievalSocket !== undefined && !isAbsolute(retrievalSocket)) {
+    throw new ConfigError(
+      `KF_RETRIEVAL_SOCKET must be an absolute path, got ${JSON.stringify(retrievalSocket)}`,
     );
   }
 
@@ -286,6 +385,39 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     }
   }
 
+  let readinessToken: string | undefined;
+  if (
+    (env['KF_READINESS_TOKEN'] !== undefined && env['KF_READINESS_TOKEN'] !== '') ||
+    (env['KF_READINESS_TOKEN_FILE'] !== undefined && env['KF_READINESS_TOKEN_FILE'] !== '')
+  ) {
+    try {
+      readinessToken = loadSecret('KF_READINESS_TOKEN', env, { allowInline: inlineAllowed });
+    } catch (error: unknown) {
+      throw new ConfigError(error instanceof Error ? error.message : String(error), {
+        cause: error,
+      });
+    }
+    // Compared in constant time, so its length is the whole of its strength.
+    if (readinessToken.length < 32) {
+      throw new ConfigError('KF_READINESS_TOKEN must be at least 32 bytes');
+    }
+  }
+
+  const backdateRaw = env['KF_EFFECTIVE_AT_BACKDATE_DAYS'];
+  let backdateDays = 30;
+  if (backdateRaw !== undefined && backdateRaw !== '') {
+    backdateDays = Number(backdateRaw);
+    if (!Number.isInteger(backdateDays) || backdateDays < 0 || backdateDays > 3650) {
+      throw new ConfigError(
+        `KF_EFFECTIVE_AT_BACKDATE_DAYS must be an integer in 0..3650, got ${JSON.stringify(backdateRaw)}`,
+      );
+    }
+  }
+  const backdatableActions = (env['KF_EFFECTIVE_AT_BACKDATABLE_ACTIONS'] ?? '')
+    .split(',')
+    .map((action) => action.trim())
+    .filter((action) => action !== '');
+
   const origin = (name: string): string | undefined => {
     const value = env[name];
     if (value === undefined || value.trim() === '') return undefined;
@@ -331,9 +463,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     ...(publicOrigins === undefined ? {} : { publicOrigins }),
     tlsTerminatedUpstream,
     identity,
+    ...(attestorSocket === undefined ? {} : { attestorSocket }),
+    ...(retrievalSocket === undefined ? {} : { retrievalSocket }),
     ...(artifactStore === undefined ? {} : { artifactStore }),
     ...(durableStore === undefined ? {} : { durableStore }),
     ...(masterRecordLinkSecret === undefined ? {} : { masterRecordLinkSecret }),
+    ...(readinessToken === undefined ? {} : { readinessToken }),
+    effectiveAtBackdate: { maxDays: backdateDays, backdatableActions },
   };
 }
 

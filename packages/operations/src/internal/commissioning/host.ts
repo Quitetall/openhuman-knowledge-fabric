@@ -3,6 +3,7 @@ import { createHash, X509Certificate } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CommissioningCheckFn, CommissioningInputs } from './contracts.js';
+import { realmPolicyWeaknesses } from './realm-policy.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -160,10 +161,11 @@ export const identityProviderPolicy: CommissioningCheckFn = async (inputs: Commi
   }
 
   let digest: string;
+  let policyText: string;
   try {
-    digest = createHash('sha256')
-      .update(await readFile(identityPolicyPath))
-      .digest('hex');
+    const bytes = await readFile(identityPolicyPath);
+    digest = createHash('sha256').update(bytes).digest('hex');
+    policyText = bytes.toString('utf8');
   } catch (error: unknown) {
     return {
       status: 'unverifiable',
@@ -186,6 +188,16 @@ export const identityProviderPolicy: CommissioningCheckFn = async (inputs: Commi
         'The identity-provider policy on disk is not the one that was reviewed. A policy that ' +
         'changed after review is an unreviewed policy, whatever the change was.',
       observed,
+    };
+  }
+  // Reviewed is not the same as sound. The digest says this is the realm somebody approved;
+  // this says whether it should have been approved.
+  const weaknesses = realmPolicyWeaknesses(policyText);
+  if (weaknesses.length > 0) {
+    return {
+      status: 'unsatisfied',
+      detail: `The reviewed identity-provider policy is too weak to trust: ${weaknesses.join('; ')}.`,
+      observed: { ...observed, weaknesses: weaknesses.length },
     };
   }
   return {

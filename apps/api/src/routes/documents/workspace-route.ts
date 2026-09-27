@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
-import { setAccessContext, withTransaction } from '@kf/database';
-import { readGranted } from './read-grant.js';
-import { unidentified } from '../actions.js';
+import { withTransaction, bindPrincipal } from '@kf/database';
+import { readGranted } from '@kf/authorization';
+import { refuseUnidentified } from '../actions.js';
 import type { DocumentRoutesOptions } from './contracts.js';
 import { documentWorkspace, resolveWorkspaceTarget } from './workspace-repository.js';
 
@@ -14,14 +14,11 @@ export function registerDocumentWorkspaceRoute(
     try {
       identity = await options.identify({ headers: request.headers as Record<string, unknown> });
     } catch (error: unknown) {
-      return reply.code(401).send(unidentified(error));
+      return refuseUnidentified(reply, error);
     }
     try {
       const workspace = await withTransaction(options.pool, async (tx) => {
-        await setAccessContext(tx, {
-          organizationId: identity.organizationId,
-          maxClassification: identity.maxClassification,
-        });
+        await bindPrincipal(tx, identity);
         // Not granted reads as not there: the workbench of a record you may not read is not yours.
         if (!(await readGranted(tx, identity, request.params.id)))
           return { status: 'unavailable' as const };

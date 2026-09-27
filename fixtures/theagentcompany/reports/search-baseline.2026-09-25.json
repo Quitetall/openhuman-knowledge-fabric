@@ -1,0 +1,67 @@
+{
+  "date": "2026-09-25",
+  "commit": "3b7a2258",
+  "summary": {
+    "k": 10,
+    "lists": [
+      "lexical"
+    ],
+    "overall": {
+      "questions": 44,
+      "ceiling": 1,
+      "verbatim_lexical": 0,
+      "keywords_lexical": 0.0227
+    },
+    "byType": [
+      {
+        "type": "admin",
+        "questions": 8,
+        "verbatim_lexical": 0,
+        "keywords_lexical": 0
+      },
+      {
+        "type": "bm",
+        "questions": 1,
+        "verbatim_lexical": 0,
+        "keywords_lexical": 0
+      },
+      {
+        "type": "ds",
+        "questions": 9,
+        "verbatim_lexical": 0,
+        "keywords_lexical": 0
+      },
+      {
+        "type": "finance",
+        "questions": 7,
+        "verbatim_lexical": 0,
+        "keywords_lexical": 0
+      },
+      {
+        "type": "hr",
+        "questions": 10,
+        "verbatim_lexical": 0,
+        "keywords_lexical": 0
+      },
+      {
+        "type": "pm",
+        "questions": 2,
+        "verbatim_lexical": 0,
+        "keywords_lexical": 0
+      },
+      {
+        "type": "research",
+        "questions": 2,
+        "verbatim_lexical": 0,
+        "keywords_lexical": 0
+      },
+      {
+        "type": "sde",
+        "questions": 5,
+        "verbatim_lexical": 0,
+        "keywords_lexical": 0.2
+      }
+    ],
+    "semantic": "not configured"
+  }
+}

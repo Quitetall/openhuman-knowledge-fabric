@@ -10,6 +10,18 @@ const FORWARDED_HEADERS = [
   'x-content-type-options',
 ] as const;
 
+/**
+ * The one query the source route forwards: `disposition=inline`, which asks the API to let the
+ * browser display a PDF or plain text rather than save it. Any other value, or any other
+ * parameter, is dropped, so a link cannot smuggle options to the API through this proxy. The API
+ * still decides the disposition by media type; this only relays the request for it.
+ */
+export function sourceDisposition(params: URLSearchParams): string {
+  return params.getAll('disposition').length === 1 && params.get('disposition') === 'inline'
+    ? '?disposition=inline'
+    : '';
+}
+
 export function safeDownloadResponse(upstream: Response): Response {
   const headers = new Headers();
   for (const name of FORWARDED_HEADERS) {

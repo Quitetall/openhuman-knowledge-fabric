@@ -36,7 +36,15 @@ psql_scoped() { psql_owner "select core.set_access_context($(q "$org"), 'restric
 person_id() { psql_scoped "select p.id from org.person p where p.organization = $(q "$org") and p.display_name = $(q "$1") order by p.id limit 1"; }
 assignment_of() { psql_scoped "select id from org.role_assignment where subject_id = $(q "$1") and scope_id = $(q "$org") and valid_from <= now() and (valid_to is null or valid_to > now()) order by valid_from desc limit 1"; }
 artifact_id() { psql_scoped "select id from core.object where organization_id = $(q "$org") and object_type = 'artifact' and title = $(q "$1") order by id limit 1"; }
-token_for() { local var="PW_${1//./_}"; KF_LOGIN_PASSWORD="$(grep "^$var=" "$secrets/passwords.env" | cut -d= -f2-)" "$login" "$1" "$tokens/$1" >/dev/null; cat "$tokens/$1"; }
+# login-token.sh reads a password only from a prompt or an owner-only file, never the environment.
+token_for() {
+  local var="PW_${1//./_}" pwfile
+  pwfile="$(umask 077; mktemp "$secrets/.pw.XXXXXX")"
+  grep "^$var=" "$secrets/passwords.env" | cut -d= -f2- > "$pwfile"
+  KF_LOGIN_PASSWORD_FILE="$pwfile" "$login" "$1" "$tokens/$1" >/dev/null || { rm -f "$pwfile"; return 1; }
+  rm -f "$pwfile"
+  cat "$tokens/$1"
+}
 
 pass=0; fail=0
 check() { # check <label> <expected-status> <actual-status> [body]
@@ -120,7 +128,7 @@ check "  …his clearance is retired with a reason" retired "$( [ "$(psql_scoped
 as 'Jim Miller' jim.miller restricted
 act reactivate_person "$ryan" "re-engaged for Q4"; check "Jim reactivates Ryan (restores NOTHING by itself)" 201 "$STATUS" "$BODY"
 kf grant-authority --person "$ryan" --organization "$org" --role performer --clearance internal --granted-by "$jim" --reason "re-engaged for Q4: fresh authority, fresh reason" >/dev/null 2> "$secrets/regrant.err"
-check "  …and re-grants him; a fresh assignment and clearance" 1 "$(psql_scoped "select count(*) from org.role_assignment where subject_id = $(q "$ryan") and valid_to is null")" "$(head -c 200 "$secrets/regrant.err")"
+check "  …and re-grants him; a fresh assignment and clearance" 1 "$(psql_scoped "select count(*) from org.role_assignment where subject_id = $(q "$ryan") and valid_from <= now() and valid_to > now() and valid_to <= now() + interval '366 days'")" "$(head -c 200 "$secrets/regrant.err")"
 as 'Ryan Temp' ryan.temp internal
 req GET "/master-record";               check "Ryan's new session is a session again (his old claim is stale or absent)" session "$( [ "$STATUS" = 404 ] || [ "$STATUS" = 409 ] && echo session || echo "$STATUS")" "$BODY"
 

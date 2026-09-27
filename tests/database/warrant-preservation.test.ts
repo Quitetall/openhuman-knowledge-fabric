@@ -275,7 +275,7 @@ async function preservesArchive(fixture: string) {
     const bytes = archiveBytes;
     const artifactId = await createObject(source.adminPool, fixtures, {
       type: 'artifact',
-      domain: 'content',
+      domain: 'artifact',
       state: 'draft',
       title: 'OW111 binary evidence',
       createdBy: fixtures.reviewerId,

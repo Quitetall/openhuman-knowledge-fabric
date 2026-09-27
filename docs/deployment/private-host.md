@@ -10,7 +10,8 @@ host.
 - The only permitted profile is `KF_DEPLOYMENT_PROFILE=dogfood`.
 - Application processes run with `NODE_ENV=production`.
 - A reverse proxy terminates TLS before either the API or web process; the API receives
-  `KF_TLS_TERMINATED_UPSTREAM=1` and listens on a private interface.
+  `KF_TLS_TERMINATED_UPSTREAM=1` and listens on loopback only (`HOST=127.0.0.1`, pinned on the
+  unit's command line).
 - Keycloak authenticates the person. PostgreSQL remains the authority for identity links,
   current role assignments, classification and action permission.
 - The workstation build is promoted byte-for-byte. The private host does not run `pnpm build`,
@@ -37,6 +38,7 @@ reverse proxy ----> Keycloak (issuer, login, MFA/session policy)
         |
         +----------> Web :3000 ----> API :4000 (server-side bearer forwarding)
 
+API :4000 --(Unix socket)--> kf-attestor ----> PostgreSQL 18 (own login, kf_attestor)
 worker ---------------------> PostgreSQL 18
 checkpoint signer ----------> PostgreSQL 18 + isolated signing key
 ```
@@ -55,15 +57,39 @@ userland behavior such as `readlink -f`, `realpath -ms`, `stat -Lc`, `find -prin
 `sha256sum`, `install` and FHS locations under `/opt`, `/etc`, `/var/lib`, `/run` and
 `/usr/bin`.
 
-Install **pandoc**, on `PATH`, for the process that serves document import.
+Install **pandoc** in `/usr/local/bin`, `/usr/bin` or `/bin`, or set `KF_PANDOC_PATH` to its
+absolute path, for the process that serves document import. The inherited `PATH` is not searched:
+a writable directory early on a service account's `PATH` would otherwise choose the program that
+parses evidence.
 Install a **LaTeX engine** beside it — `pdflatex`, from `texlive-latex-base
 texlive-latex-recommended texlive-fonts-recommended lmodern` on Debian/Ubuntu — for the process
 that renders master records to PDF: pandoc produces a PDF only through an engine, and it is a
 separate package. Prove both exactly as CI does:
 `printf '# probe\n\nOne paragraph.\n' | pandoc --from=gfm --to=pdf --standalone -o /tmp/probe.pdf`.
-`packages/documents/src/internal/pandoc-parser.ts` runs `pandoc --from=<format> --to=json` as a
-child process, so a host without it answers every document import with HTTP 500 and logs
-`spawn pandoc ENOENT` — the API deliberately does not tell the caller more than a request id.
+`packages/documents/src/internal/pandoc-parser.ts` runs
+`pandoc --sandbox --from=<format> --to=json +RTS -M512m -RTS` as a child process, so a host
+without it answers every document import with HTTP 500 and logs `pandoc not found in
+/usr/local/bin:/usr/bin:/bin` — the API deliberately does not tell the caller more than a request
+id.
+
+The child runs under limits a hostile source cannot choose, because pandoc's Markdown reader is
+super-linear on some inputs: 10 KB of nested blockquotes drove it to 8.5 GB RSS, and 30 000
+nested link brackets ran past two minutes, both — until 2026-09-23 — while holding the
+`attach_evidence` transaction open. `POST /ingest`, `POST /documents` and `kf ingest` now parse
+before their transaction opens and before a byte is stored
+(`packages/documents/src/internal/preparse.ts`); the act inside the transaction only checks that
+the parse was computed over the exact bytes it verified (SHA-256 and media type) and refuses it
+otherwise. The pre-parse travels in-process, never in the payload, and only `preparseDocument`
+can make one. An act dispatched with no pre-parse (the generic `/actions` route, the dogfood
+loaders) still parses inside its transaction, bounded as below. `--sandbox` denies the reader file and network access; `+RTS -M` caps the GHC heap
+(`KF_PANDOC_MAX_HEAP_MIB`, default 512); a wall-clock deadline SIGKILLs the child
+(`KF_PANDOC_TIMEOUT_MS`, default 30 000); stderr kept for diagnostics is capped
+(`KF_PANDOC_MAX_STDERR_BYTES`, default 64 KiB). A source that trips one is answered
+`422 document_refused` with `detail.reason` of `timeout`, `memory`, `output_limit` or
+`parser_failed`, never with pandoc's stderr, which can quote the source. The RTS flag is the one
+pandoc's own manual recommends in its security notes; a build linked without `-rtsopts` would
+fail every parse with "Most RTS options are disabled" — loudly, rather than parsing unbounded.
+Measured accepted on 3.10.2; the CI host's 3.1.3 runs the same flag in the parser tests.
 
 **This requirement was undocumented until 2026-08-18**, when CI ran the suite on a machine that
 was not the workstation and three import tests failed opaquely. It had always been satisfied here
@@ -115,6 +141,36 @@ path; an `nvm`, `asdf`, shell alias or PATH-only Node installation does not sati
 contract. Install bubblewrap as `/usr/bin/bwrap`, and qualify the kernel and systemd unit with
 the user, mount, PID, IPC, network, UTS and cgroup namespaces plus mount syscalls permitted by
 `kf-worker.service`.
+
+Namespaces bound what the compiler can see, not what it can use, so the sandbox also carries
+resource ceilings (`packages/documents/src/liminal-adapter/limits.ts`). bubblewrap mounts a 64 MiB
+root tmpfs instead of an unbounded one (`--size`, which predates the `--disable-userns` the sandbox
+already requires), and util-linux `prlimit` at `/usr/bin/prlimit` starts bubblewrap with RLIMIT_DATA
+2 GiB, RLIMIT_FSIZE 256 MiB (it must exceed the compiler executable, which bubblewrap writes under
+it), RLIMIT_NOFILE 256 and no core dumps; `kf-worker.service` refuses to start without it. The
+process count is bounded by the unit's `TasksMax=` rather than RLIMIT_NPROC, which counts every
+process of the uid.
+
+The compiler runs under two syscall filters. **Its own**: bubblewrap loads
+`packages/documents/src/liminal-adapter/seccomp.ts` through `--seccomp FD` just before it execs
+the compiler — a classic-BPF deny list assembled in TypeScript (no libseccomp or C toolchain at
+build time) that refuses mount, ptrace and `process_vm_*`, module, reboot, swap, raw I/O, clock,
+keyring, `unshare`/`setns`/`clone` with any `CLONE_NEW*` flag, `bpf`, `userfaultfd` and the rest
+of the kernel-admin surface with EPERM, and `clone3`/io_uring with ENOSYS so libc and libuv fall
+back. It is defined for x86_64 and aarch64; on any other architecture the worker refuses to run
+the compiler rather than run it unfiltered, and the startup preflight loads the same filter, so
+a host that cannot load it fails at start. **The unit's**, by inheritance — seccomp filters pass
+across fork and exec and can only be added to, so everything `kf-worker.service` denies,
+bubblewrap and the compiler are denied too. That unit filter is `@system-service @mount` minus
+`@privileged @debug @module @raw-io @reboot @swap @clock @cpu-emulation @obsolete @keyring`
+(and `userfaultfd kcmp process_vm_readv process_vm_writev`), re-admitting only `capset` and
+`pivot_root`, which bubblewrap was measured to need (systemd 261: without `capset` it dies of
+SIGSYS, without `pivot_root` it cannot enter its root), with `SystemCallErrorNumber=EPERM`.
+`tests/deployment/worker-syscall-filter.test.ts` runs a real sandbox under exactly those lines
+with `systemd-run --user` where that works, and `packages/documents/src/seccomp.test.ts` runs a
+probe under bubblewrap with and without the compiler filter. If a host's systemd names a call
+bubblewrap needs differently, the preflight fails at start with bubblewrap's error; add the call
+to the re-admit line with a measurement, never widen the groups.
 
 The packaged Liminal compiler must be a native ELF executable for the target architecture and
 must load with its nonempty, reviewed interpreter/shared-library closure on that host. Linux
@@ -235,6 +291,8 @@ pnpm --filter @kf/api deploy --prod "$release_root/apps/api"
 pnpm --filter @kf/web deploy --prod "$release_root/apps/web"
 pnpm --filter @kf/worker deploy --prod "$release_root/apps/worker"
 pnpm --filter @kf/checkpoint deploy --prod "$release_root/apps/checkpoint"
+pnpm --filter @kf/storage deploy --prod "$release_root/apps/kf-storage"
+pnpm --filter @kf/attestor deploy --prod "$release_root/apps/attestor"
 pnpm --filter @kf/operations deploy --prod "$release_root/packages/operations"
 pnpm --filter @kf/export deploy --prod "$release_root/packages/export"
 
@@ -353,6 +411,13 @@ Command rejects changed bytes, extra files/directories/symlinks, changed or esca
 special filesystem entries, wrong ownership, group/other-writable paths, unpinned dbmate and
 malformed migration pairs.
 
+`assemble-liminal-runtime.sh` refuses a compiler or `Cargo.lock` whose SHA-256 is not the one
+pinned in [`../../deploy/liminal/reviewed-digests.env`](../../deploy/liminal/reviewed-digests.env).
+Until 2026-09-23 the sealed digest was computed from whatever binary the build machine was
+given, so it faithfully described bytes nobody had reviewed. The pin is empty today (ADR 0010
+defers the compiler), so a sealed Liminal release first needs a reviewed commit that pins the
+digests, with the provenance of those bytes in its message.
+
 Copy the six `LIMINAL_*` pin values from `vendor/liminal/RUNTIME.env` into reviewed worker
 configuration. Do not source that file as shell code. Before worker starts,
 `verify-liminal-runtime.sh` requires configured compiler and lock paths to resolve to packaged
@@ -370,11 +435,57 @@ or promote the compiler. Those remain separate human-authority records.
 
 Extract as root with `tar --no-same-owner --no-same-permissions`; otherwise archive may retain
 workstation uid and release verifier correctly refuses `KF_EXPECTED_RELEASE_OWNER_UID=0`.
-Extract into new release directory, never over previous release or `/opt/kf` symlink target.
+Extract into a new directory **beside** the live link — `/opt/knowledge-fabric-<release-id>` —
+never over the previous release or the `/opt/kf` link target. Do not rebuild or edit under a
+release directory.
 
-Keep previous release intact. After file check and rollback rehearsal pass and services are
-stopped, switch `/opt/kf` atomically to new release, run privileged migration, then run service
-preflight. Do not rebuild or edit under release directory.
+### Install and roll back: `install-release.sh`
+
+The switch is a script, not a sentence. Until 2026-09-25 this section said "switch `/opt/kf`
+atomically" and "keep the previous release intact" and nothing implemented either: an operator
+typing `ln -sfn` gets an unlink-then-create with a window in which `/opt/kf` does not exist, and
+"keep the previous release" was a matter of remembering its name.
+[`../../scripts/deploy/install-release.sh`](../../scripts/deploy/install-release.sh) does both:
+
+```sh
+# After the file check and the rollback rehearsal pass, with kf-api, kf-web and kf-worker stopped:
+cd /
+sudo env \
+  KF_EXPECTED_DBMATE_VERSION=2.35.0 \
+  KF_EXPECTED_RELEASE_MANIFEST_SHA256=<reviewed-manifest-digest> \
+  KF_EXPECTED_RELEASE_OWNER_UID=0 \
+  /opt/knowledge-fabric-<release-id>/scripts/deploy/install-release.sh install \
+  /opt/knowledge-fabric-<release-id>
+
+sudo /opt/kf/scripts/deploy/install-release.sh status     # live and previous, verified digests
+sudo /opt/kf/scripts/deploy/install-release.sh rollback   # previous becomes live again
+```
+
+What `install` does, in order, and what it refuses:
+
+1. **Verifies the candidate** with `migrate-release.sh check` — the same verifier as above, with
+   the release-packaged dbmate — so a release whose `SHA256SUMS` does not hash to the reviewed
+   digest, or whose files differ from it, is refused before anything moves.
+2. Refuses a release that is not a real directory directly under the install root (the parent of
+   `/opt/kf`), one that is already live, and an `/opt/kf` that exists but is not a symlink.
+3. Records what it verified — manifest digest, dbmate version, owner uid — under
+   `/opt/.kf-install/`, so a later rollback can verify the release it returns to without the
+   operator retyping its digest.
+4. Points `/opt/kf.previous` at the release that was live, then swaps `/opt/kf` by creating a
+   new link under a temporary name and renaming it over the old one with `mv -T` — one
+   `rename(2)`, so every reader sees either the old release or the new one, never neither.
+
+`rollback` re-verifies the previous release against its recorded digest and swaps the two links
+the same way; the release rolled back from becomes `/opt/kf.previous`, so a second `rollback`
+rolls forward again. It refuses when there is no previous release, when the previous release was
+never installed by this script (no record), or when it no longer verifies. It changes files only:
+it does not stop or start a service and never touches the database — see
+[application-only rollback](#migration-and-rollback-rehearsal) for when that is allowed. Both
+commands take a lock under `/opt/.kf-install/`, so two installs cannot interleave.
+`KF_INSTALL_ROOT` and `KF_INSTALL_LINK` (defaults `/opt` and `kf`) exist so
+`tests/deployment/install-release.test.ts` can run it against a temporary prefix.
+
+Then run the privileged migration, then service preflight.
 
 Database migrations are separate privileged operation. They run once with `kf-migrator`
 credential from exact migration set reviewed for release; API and worker never receive that
@@ -403,6 +514,7 @@ sudo -u kf-migrator env \
   KF_REHEARSAL_DATABASE_URL_FILE=/etc/kf/migrator/rehearsal-database-url \
   KF_REHEARSAL_DISPOSABLE_CLUSTER_CONFIRMATION=dedicated-disposable-cluster \
   KF_REHEARSAL_TARGET_LABEL=<non-secret-target-label> \
+  KF_REHEARSAL_RECEIPT_KEY_FILE=/etc/kf/migrator/rehearsal-receipt-key \
   /path/to/extracted-release/scripts/deploy/migrate-release.sh rehearse-rollback \
   /path/to/extracted-release \
   /var/lib/kf-migrator/rollback-rehearsal-<release-id>.receipt
@@ -417,6 +529,15 @@ release-tree fault. It does not widen any search — every `find` in the script 
 release or migration directory explicitly — it only gives the process a cwd it can return to.
 Measured on this host, 2026-08-26.
 
+Both `rehearse-rollback` and `apply` run `dbmate up --strict`: dbmate refuses to apply a
+migration whose version is older than one already applied, instead of quietly inserting it into
+history out of order. Before 2026-09-25 neither passed `--strict`, so a migration added with a
+back-dated version applied on hosts that already had its successors, and the schema then depended
+on which order a host happened to receive them in. After seeding, both read
+`registry.schema_release` (current) and refuse unless its `ontology_digest` equals the
+`-- source_digest:` the release's generated seed declares — the fresh-install digest check
+KF-SAS-RQ-081 requires.
+
 Rehearsal refuses reserved/nonempty databases, applies every migration, seeds exact generated
 ontology, then rolls back **to the forward-only floor** and verifies it stopped exactly there —
 both the number of migrations still applied and the version sitting on top. Migrations
@@ -424,11 +545,11 @@ deliberately retain cluster-global roles; destroy disposable cluster afterward. 
 digests/version/label/floor, no URL or credential. Receipt is execution evidence, not approval
 or commissioning record.
 
-**The floor, and why full rollback is not claimed.** Twenty migrations are one-way security
+**The floor, and why full rollback is not claimed.** Some migrations are one-way security
 hardening or records-model corrections and cannot be reverted — `20260816000300_typed_table_row_security` would return 29
 tables to unrestricted reads, `20260816000500` another 28. Each declares itself with
-`-- kf:forward-only <reason>` in its down section, and rollback stops at the highest such
-migration (currently `20260901000100_master_record_corpus_identity`). The earlier contract —
+`-- kf:forward-only <reason>` in its down section (how many, `generated/measurements.md` says), and rollback stops at the highest such
+migration (currently `20260926110000_a_master_record_item_is_checked_once_per_statement`). The earlier contract —
 roll back everything, expect an empty database — could never pass once staged RLS landed, and
 the first rehearsal ever run failed on `cannot drop column organization_id of table core.action
 because other objects depend on it`. The promise was narrowed rather than loosened: it is still
@@ -442,9 +563,23 @@ thing a reviewer reads to judge whether the irreversibility was intended. Declar
 while also carrying down statements is likewise refused: one of the two is wrong and there is no
 safe way to guess which.
 
-Receipts are `format=kf-migration-rollback-rehearsal-v2`. The version moved rather than the
-fields being added quietly, because reading a v2 as a v1 would read "reversible to a floor" as
-"reversible" — the overclaim this exists to remove.
+Receipts are `format=kf-migration-rollback-rehearsal-v3`. v2 moved from v1 because reading a
+v2 as a v1 would read "reversible to a floor" as "reversible" — the overclaim this exists to
+remove. v3 moved from v2 because a v2 receipt was plain text whose every field could be derived
+from the release alone, so it could be written without running the rehearsal. A v3 receipt also
+records `post_migration_schema_sha256` — a digest of the columns, constraints, indexes and
+function bodies the rehearsal database held after migrating and seeding — and ends with
+`hmac_sha256`, an HMAC over every preceding byte under `/etc/kf/migrator/rehearsal-receipt-key`.
+That key is host-local, 0600 `kf-migrator`, 32 random bytes, and never leaves the host;
+`scripts/deploy/provision-host.sh` creates it (see [Provision the host](#provision-the-host)).
+
+`apply` (and `kf-migrate.service`) recompute the MAC with the same key and refuse a receipt that
+does not verify, a v2 receipt, and a v1 receipt, each by name — and each refusal prints the exact
+`rehearse-rollback` command, with this release's path, manifest digest and dbmate version filled
+in, that produces a receipt `apply` will accept. An upgrade from a release whose receipt predates
+v3 therefore stops with the next command on screen rather than a pointer to this section. A receipt therefore authorises a
+migration only on the host whose rehearsal produced it. The schema digest is evidence of what
+the rehearsal saw; it is not compared against production, whose history can legitimately differ.
 
 **First passing rehearsal**, release `3054582c84a1` on this host, 2026-08-26 — a historical
 record for the pre-master-record tree, not a claim about the current tree. The next release
@@ -467,16 +602,27 @@ Runner never attempts automatic production rollback: forward migration plus seed
 transaction boundaries, so automatic `down` could turn one known failure into partial rollback.
 
 Application-only rollback is allowed only when reviewed compatibility evidence says previous
-release accepts new schema: stop services, verify previous release, switch `/opt/kf` back, then
-re-run preflight. For incompatible schema or partial migration, restore pre-migration backup
+release accepts new schema: stop services, run `install-release.sh rollback` (it re-verifies the
+previous release before switching `/opt/kf` back), then re-run preflight. Readiness and the API
+both compare the installed ontology digest with the live release's, so a rollback across an
+ontology change is refused at API startup rather than served. For incompatible schema or partial migration, restore pre-migration backup
 into new database instance, verify audit/export/readiness there, then change credential file
 under approved recovery procedure. Never run `dbmate down` against production database.
 
-## PostgreSQL JIT: do not tune it host-wide
+## PostgreSQL JIT: off, and readiness checks it
 
-**Recommendation: leave the defaults alone.** An earlier revision of this section suggested
-`jit_above_cost = 500000`. That was wrong twice over and is corrected here rather than
-quietly dropped.
+**`jit = off` is required.** Install
+[`../../deploy/postgres/planner.conf`](../../deploy/postgres/planner.conf) into the cluster's
+`conf.d` and reload. It is the same setting `docker-compose.yml` and the test harness use,
+`tests/deployment/postgres-settings-parity.test.ts` holds the three in agreement, and since
+2026-09-25 readiness reads `current_setting('jit')` on the live server and fails
+`planner_settings` when it is not `off` (KF-SAS-RQ-076).
+
+This section's earlier recommendation — "leave the defaults alone", and set JIT per role only if
+a scan-heavy path needed it — predates `planner.conf` and is superseded by it: the measurements
+below showed JIT never helping and sometimes costing 9x, and `planner.conf` records why off beats
+a threshold. They are kept because they are the evidence. An earlier revision still suggested
+`jit_above_cost = 500000`, which was wrong twice over:
 
 The fabric's row-level security nests: a typed table's policy tests `exists (select 1 from
 core.object …)`, and `core.object`'s own policies run inside that. On an unbounded scan the
@@ -514,23 +660,49 @@ The previously suggested value buys 7%. Raising `jit_inline_above_cost` and
 `jit_optimize_above_cost` instead recovers most of the win while keeping basic JIT, because
 those two phases were 90 ms of the 137 ms.
 
-**If it ever does matter**, it will be for the paths that scan without a bound — readiness
-counts, search index rebuilds, exports, an auditor session on `kf_readonly` — none of which is
-latency-critical. Set it on those roles rather than on the host:
-
-```sh
-alter role kf_readonly set jit_above_cost = 5000000;   -- only if a scan-heavy path needs it
-```
+The per-role override this section once suggested (`alter role kf_readonly set jit_above_cost
+= …`) is withdrawn: a role- or database-level `jit` setting is exactly what `planner_settings`
+now reports, because it makes one login's plans differ from every environment the measurements
+describe. `select setting, source from pg_settings where name = 'jit'` says where a non-`off`
+value came from.
 
 One caveat that cuts the other way, worth knowing before treating 9x as a standing figure: the
 JIT cost is roughly FIXED (~130 ms of compilation) while the scan cost grows with the data. At
 ten times this row count the scan itself dominates and the relative penalty shrinks; far enough
 out, JIT starts paying for itself. The 9x is a property of this data size, not a constant.
-Re-measure with the harness above before acting on it.
+Re-measure with `tests/database/rls-read-cost.test.ts` (`KF_MEASURE_RLS=1`) before changing
+`planner.conf`, and change it there, in `docker-compose.yml` and in the harness together.
 
-And the general caution that still applies whatever is decided: a host that also runs large
-analytical queries may want JIT for those, so the right threshold depends on everything else
-the database does, not only on the fabric. Re-measure after any change.
+## Provision the host
+
+Every identity, directory, environment file and machine-generatable secret the units need is
+created by one command, which is safe to re-run and never overwrites what exists:
+
+```sh
+sudo /opt/kf/scripts/deploy/provision-host.sh --check   # what is missing; changes nothing
+sudo /opt/kf/scripts/deploy/provision-host.sh           # create everything a machine can
+```
+
+It generates the rollback-receipt HMAC key, the web session key, the readiness token
+(`KF_READINESS_TOKEN_FILE`), the master-record link key (`KF_MASTER_RECORD_LINK_SECRET_FILE`) and
+the checkpoint signing key — whose id is its own fingerprint, published in
+`/etc/kf/checkpoint-public-keys/` before `CHECKPOINT_SIGNING_KEY_ID` is written — each `0600`,
+owned by the one identity that reads it, never printed and never on a command line. It creates
+the thirteen service identities (including `kf-audit-verify`, `kf-drill` and `kf-attestor`) and
+the `kf-archive` and `kf-attest` groups, installs the units
+and the environment templates, applies the storage key's orphan-collection policy when `mc` has
+an admin alias (`KF_MC_ALIAS`), and asks the object store whether that key really may list and
+delete versions. It ends by listing only what a person must supply, each with the exact file it
+goes in: database logins, object-store secrets and routing, the off-site destination, the alert
+webhook, the OIDC issuer, the preservation key (external custody by design), and the backup
+recovery key — for which `--generate-recovery-key <file>` or `--seal-drill-key <file>` does the
+sealing. [`deploy/systemd/README.md`](../../deploy/systemd/README.md) says what each piece is for.
+
+Re-run it after installing every new release: a release that adds an identity or a secret (the
+2026-09-23 one added `kf-drill`, `/etc/kf/drill/` and `/etc/kf/drill.env`; the 2026-09-24 one added
+`kf-attestor`, the `kf-attest` group, `/etc/kf/attestor/` and `/etc/kf/attestor.env`) gets it created there,
+not discovered by a unit failing at 04:00. `--check` exits 0 only when nothing is missing, and
+`kf-commissioning` points at it when a unit or a secret file is absent.
 
 ## Runtime configuration
 
@@ -564,7 +736,10 @@ Credentials arrive through owner-only files:
 - `KF_MASTER_RECORD_LINK_SECRET_FILE`, an owner-only random HMAC key (minimum 32 bytes) for
   signed, expiring master-record links;
 - a migrator credential readable only by `kf-migrator`, never API/web/worker;
-- a 32-byte base64 web session key readable only by `kf-web`;
+- an attestor database credential (`/etc/kf/attestor/database-url`) readable only by
+  `kf-attestor`, never by the API — see "The identity attestor" below;
+- a 32-byte base64 web session key readable only by `kf-web` (generated by provisioning, as are
+  the link key above and the readiness token);
 - `CHECKPOINT_SIGNING_KEY_PATH`, readable only by the signer identity and never by the API.
 
 Do not set `DATABASE_URL`, `S3_SECRET_ACCESS_KEY`, `KF_ALLOW_FIXED_IDENTITY` or any `KF_DEV_*`
@@ -595,18 +770,113 @@ HTTP, terminates TLS, rejects unknown virtual hosts and proxies only to loopback
 hostnames with reviewed names and certificate paths; run `nginx -t`; do not generate or enroll
 certificates from this repository.
 
+The template also rate-limits per client address and answers the excess with `429`: `/ingest`
+at 10 requests a minute (burst 5), `/documents` and `/search` at 10 a second (burst 40), the
+web's `/auth/` login paths at 10 a minute (burst 5), `/readiness` at 1 a second and to loopback
+only, and at most 50 concurrent connections per address on each site. Its zone declarations
+(`limit_req_zone`, `limit_conn_zone`) sit at the top of the file and therefore require it to be
+included at `http{}` level, as `sites-enabled`/`conf.d` are. The web site sends a
+`Content-Security-Policy` floor of `frame-ancestors 'none'` plus `X-Frame-Options: DENY`; the
+application itself sends the full nonce-based policy on every page (`apps/web/src/proxy.ts`).
+
+## The identity attestor
+
+Since migration `20260924001000` the database binds a person for the API's login only on an
+**attestation** that the person presented a valid bearer token, and only the group role
+`kf_attestor` may issue one. `kf-attestor` is the process that holds it: it verifies each token
+exactly as the API used to (issuer, audience, RS256 pinned, expiry, keys over TLS), resolves the
+subject to a person, asks the database to attest, and hands the attestation back to the API over
+a Unix socket that only the two of them can open. A compromised API can still act for people who
+are sending it requests — it sees their tokens — but no longer for anybody it merely names.
+
+An attestation lives until the earlier of the token's expiry and one minute, and is reusable by
+every transaction of the request within that time. That replay window is stated rather than
+engineered away: an attacker in control of the API sees every bearer token and can have a fresh
+attestation issued for any of them until the token itself expires (Keycloak access tokens: 300 s),
+so single use would have cost a round trip per transaction and bought nothing.
+
+Provision it before starting the API of a release that carries the migration. The Unix side is
+part of [Provision the host](#provision-the-host): re-running `provision-host.sh` on that release
+creates `kf-attestor`, the `kf-attest` socket group (`kf-attestor` and `kf-api` only),
+`/etc/kf/attestor` (`0700 kf-attestor`), an empty `0600` `/etc/kf/attestor/database-url`, and
+`/etc/kf/attestor.env` from its template, with the `OIDC_*` values copied from `api.env` once that
+is filled. Do not create them by hand; `--check` lists whatever is still missing.
+
+```sql
+-- As the owner. kf_attestor (the group) comes from the migration; the LOGIN is the host's.
+create role kf_attestor_host login password '<from the secret manager>' inherit;
+grant kf_attestor to kf_attestor_host;
+grant connect on database kf to kf_attestor_host;
+-- The storage sweep acts as a declared service actor, which has no token to attest. Its login
+-- keeps working only as a member of kf_service_actor (binds service actors, nobody else).
+grant kf_service_actor to <the kf-storage login>;
+```
+
+Write the attestor login's URL into `/etc/kf/attestor/database-url`, confirm `/etc/kf/attestor.env`
+carries the same `OIDC_*` values as `api.env`, then `systemctl enable --now kf-attestor.service` before
+restarting `kf-api.service`. The API unit names `KF_ATTESTOR_SOCKET=/run/kf-attestor/attestor.sock`
+on its command line and waits up to ten seconds for the socket; the API refuses to start under the
+dogfood profile without it, or through a login that holds `kf_attestor` or `kf_service_actor`.
+`kf-attestor` in turn refuses a login that is not in `kf_attestor`, or that is also in `kf_app` or
+`kf_worker`.
+
+Prove the separation by hand once, and let `attestor_separation` keep proving it:
+
+```sh
+test -S /run/kf-attestor/attestor.sock && stat -c '%a %U:%G' /run/kf-attestor/attestor.sock  # 660 kf-attestor:kf-attest
+sudo -u kf-api curl -s --unix-socket /run/kf-attestor/attestor.sock http://attestor/health  # {"status":"ok"}
+sudo -u kf-api cat /etc/kf/attestor/database-url   # must fail: Permission denied
+sudo -u kf-web curl -s --unix-socket /run/kf-attestor/attestor.sock http://attestor/health  # must fail
+```
+
+**Rolling back past this release** needs the migration's down section as well as the previous
+release: the previous API binds without an attestation, which the new `core.bind_principal`
+refuses. The down section is real (not forward-only) for exactly that reason, and it re-opens
+precisely the gap described above, nothing wider.
+
+### Agents acting for a person (ADR 0035, migration `20260925100000`)
+
+An agent forms and dispatches an act for a person on a token it obtained by **standard token
+exchange**, and the attestor verifies which client holds it. Keycloak 26.4 records the exchanging
+client only as `azp`, so each agent client carries a hardcoded-claim mapper stamping
+`act.client_id` with its own id (the committed realm's `knowledge-fabric-agent` is the shape; see
+[`identity-and-login.md`](identity-and-login.md#an-agent-acting-for-a-person--token-shape-verified-end-to-end-derived)
+for what was measured). On a host:
+
+1. In the host realm, give each agent client: confidential access, **Standard token exchange** on
+   (`standard.token.exchange.enabled`), an `act-client-id` mapper (`oidc-hardcoded-claim-mapper`,
+   claim `act.client_id`, value = the client id, access token only), and an audience mapper for the
+   API's audience. Add the agent as an audience of the person-facing client, which is what lets
+   the agent exchange that client's tokens. Re-export and review as for any realm change.
+   `identity_provider_policy` refuses exchange on a public client or on one without its own
+   `act.client_id` mapper, and any mapper stamping `act` for another client.
+2. Declare it in the database, over the owner credential:
+   `pnpm kf:declare-agent --client <id> --declared-by <person uuid> --reason <text>`. Until then
+   every token that names it is refused `401 undeclared_agent`.
+3. Hand the agent its client secret out of band. Nothing about the agent is configured in
+   `kf-api` or `kf-attestor`; the attestor reads the declaration from the database per request.
+
+`core.action.agent_participation` then names the agent on every act dispatched through its token,
+and is null for a person acting directly. The database writes it from the attestation; the API
+cannot set it. **Rolling back past this migration** drops the column, the declarations and the
+attestor's recorded agent: take an export first if the participation history must survive (the export carries `agent_participation` in `actions.json`; declarations are not exported — a restored host's owner declares its own agents).
+
 ## Host preflight and evidence
 
 Before any shared user is admitted:
 
+0. Run `sudo /opt/kf/scripts/deploy/provision-host.sh --check` and supply what it lists until it
+   exits 0.
 1. Verify the release archive and internal checksum manifest.
 2. Verify `systemd-analyze verify` and `nginx -t` on installed artifacts. Verify proxy redirects
    HTTP to HTTPS and application ports reject non-loopback connections.
 3. Verify a valid bearer token succeeds, a wrong issuer fails, a wrong audience fails, an
    unknown `sub` fails, a revoked identity fails and fixed identity headers are ignored.
-4. Verify `/health` reports process liveness, `/ready` performs a database round trip and
-   `/readiness` reports separate service and institutional verdicts. Service `degraded`, `failed`
-   or `unknown` is a failed service preflight. Any institutional blocker still fails the governed
+4. Verify `/health` reports process liveness, `/ready` performs a database round trip (and
+   reports `checks.login`) and `/readiness` reports separate service and institutional
+   verdicts (from the host: `curl http://127.0.0.1:4000/readiness`; through nginx the endpoint
+   is refused, and a forwarded caller without `X-KF-Readiness-Token` gets only
+   `{"ready": …}`). Service `degraded`, `failed` or `unknown` is a failed service preflight. Any institutional blocker still fails the governed
    operation or commissioning claim it protects even when HTTP status is `200`; never treat service
    availability as institutional approval.
 5. Run and record a backup, off-host copy and restore drill using the declared recovery
@@ -618,8 +888,17 @@ Before any shared user is admitted:
 8. Verify `verify-liminal-runtime.sh /opt/kf` succeeds under `kf-worker`, then prove a changed
    compiler, lock or runtime-library copy fails before worker start. Preserve failure output;
    never convert it into a qualification receipt.
-9. Reboot host and re-run checks. Service that works only in install shell is not
-   deployed.
+9. Verify the API refuses to start when `/etc/kf/api/database-url` names a superuser, a
+   `BYPASSRLS` login or a member of the schema owner (the migrator URL is the usual mistake): it
+   logs `refusing to serve: database login …` and exits. Row-level security does not bind such
+   a login, so serving through it would silently disable every tenant and classification policy.
+10. Verify the attestor: a valid token succeeds through the API, `/ready` reports
+    `checks.attestor: ok`, stopping `kf-attestor.service` turns bearer requests into
+    `503 attestor_unavailable` (never 401, never 500), logs `kf-attestor is unreachable` once with
+    the socket path, and turns `/ready` into 503, and the API refuses to start when `/etc/kf/api/database-url` names a
+    login that holds `kf_attestor` or `kf_service_actor`.
+11. Reboot host and re-run checks. Service that works only in install shell is not
+    deployed.
 
 ## Commissioning: run it, do not read it
 
@@ -662,9 +941,9 @@ KF_EXPECTED_NODE_VERSION="$(kf_release_node_version)" \
 
 **`KF_REVERSE_PROXY_CONFIG` and `KF_RELEASE_DIR` were missing from this block until
 2026-08-24, and that was not cosmetic.** `reverse_proxy_posture` and
-`liminal_runtime_inventory` are two of the eight checks, both read one of those paths, and a
-check with no input reports `unverifiable` — which fails. So an operator following this
-document exactly could not reach 8/8 satisfied, and the two failures would name variables
+`liminal_runtime_inventory` are two of the checks (eight then; nine since `attestor_separation`),
+both read one of those paths, and a check with no input reports `unverifiable` — which fails. So
+an operator following this document exactly could not reach 8/8 satisfied, and the two failures would name variables
 this document had never mentioned. It was found by running `kf-commissioning` on a
 workstation, which had also never been done.
 
@@ -694,18 +973,34 @@ looked and it was wrong" is never confused with "we could not look". A verifier 
 missing certificate as compliant would be worse than no verifier, because somebody would cite
 it.
 
+`identity_provider_policy` reads the realm export as well as digesting it, and refuses one that
+has brute-force protection off or `failureFactor` above 10; a `passwordPolicy` without
+`length(12)` or more and `notUsername`; no second factor enrolled by default (`CONFIGURE_TOTP`
+or `webauthn-register` with `defaultAction: true`); an offline idle timeout above 7 days or no
+enabled offline maximum lifespan of at most 30 days; `revokeRefreshToken` off; an
+`accessTokenLifespan` that is absent or above 300 seconds; or any client with
+`directAccessGrantsEnabled` or `implicitFlowEnabled`, or whose `access.token.lifespan` attribute
+overrides the realm's with more than 300 seconds. The 300 s ceiling
+(`MAX_ACCESS_TOKEN_LIFESPAN_SECONDS`) is the attestation replay bound: a compromised API can have
+kf-attestor vouch for any token passing through it until that token expires, so the access-token
+lifetime, not the attestation's one minute, is how long it can act for somebody who has stopped
+using it. The shipped
+`deploy/keycloak/knowledge-fabric-realm.json` passes; record its digest at review as
+`KF_IDENTITY_POLICY_SHA256`.
+
 What each check reads, and the blocker it closes:
 
-| check                       | reads                                                                                                                                                                 | blocker                                                             |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `unit_provenance`           | installed units against the ones this release ships, byte for byte; `User=` on the API and checkpoint units; `OnFailure=` on each                                     | units installed, identities separated, alerting wired               |
-| `secret_posture`            | every path a shipped unit names as `EnvironmentFile=` or `*_FILE=`/`*_KEY_PATH=`: exists, regular file, no group or other bits                                        | checkpoint key isolation from the API                               |
-| `tls_termination`           | the certificate for the public hostname — SAN coverage, validity window, renewal margin — and the private key's mode                                                  | site hostname, certificate, TLS termination                         |
-| `identity_provider_policy`  | issuer is https, client is named, and the reviewed realm policy on disk still digests to what was reviewed                                                            | reviewed reproducible Keycloak realm/client policy                  |
-| `runtime_version`           | the Node version this process runs, against the tested one                                                                                                            | host uses the exact tested runtime                                  |
-| `reverse_proxy_posture`     | the installed nginx configuration: refuses a cleartext server that proxies, a non-loopback upstream, TLS 1.0/1.1, and a proxying block that drops the original scheme | installed nginx validation                                          |
-| `liminal_runtime_inventory` | the compiler and its runtime closure on this host, via the release's own `verify-liminal-runtime.sh`                                                                  | reviewed compiler artifact and runtime-closure inventory            |
-| `evidence_receipts`         | release verification, rollback rehearsal and compiler qualification receipts: present, naming this release, ratified, recent enough                                   | rollback receipt, migration result, ratified compiler qualification |
+| check                       | reads                                                                                                                                                                                        | blocker                                                             |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `unit_provenance`           | installed units against the ones this release ships, byte for byte; `User=` on the API and checkpoint units; `OnFailure=` on each                                                            | units installed, identities separated, alerting wired               |
+| `secret_posture`            | every path a shipped unit names as `EnvironmentFile=` or `*_FILE=`/`*_KEY_PATH=`: exists, regular file, no group or other bits                                                               | checkpoint key isolation from the API                               |
+| `attestor_separation`       | `kf-attestor.service` runs as a user other than the API's; its socket (`KF_ATTESTOR_SOCKET`) is a socket it owns, closed to other, open to kf-api alone; kf-api can read none of its secrets | the API cannot vouch for a person itself                            |
+| `tls_termination`           | the certificate for the public hostname — SAN coverage, validity window, renewal margin — and the private key's mode                                                                         | site hostname, certificate, TLS termination                         |
+| `identity_provider_policy`  | issuer is https, client is named, the reviewed realm policy on disk still digests to what was reviewed, and that realm is not weak (see below)                                               | reviewed reproducible Keycloak realm/client policy                  |
+| `runtime_version`           | the Node version this process runs, against the tested one                                                                                                                                   | host uses the exact tested runtime                                  |
+| `reverse_proxy_posture`     | the installed nginx configuration: refuses a cleartext server that proxies, a non-loopback upstream, TLS 1.0/1.1, and a proxying block that drops the original scheme                        | installed nginx validation                                          |
+| `liminal_runtime_inventory` | the compiler and its runtime closure on this host, via the release's own `verify-liminal-runtime.sh`                                                                                         | reviewed compiler artifact and runtime-closure inventory            |
+| `evidence_receipts`         | release verification, rollback rehearsal and compiler qualification receipts: present, naming this release, ratified, recent enough                                                          | rollback receipt, migration result, ratified compiler qualification |
 
 `unit_provenance` and `secret_posture` consider only the unit names this release ships.
 Everything else installed on the host is somebody else's contract, and an earlier version that
@@ -753,6 +1048,12 @@ cannot quietly acquire the appearance of coverage.
 - no installed user/file ownership evidence, service start/restart/reboot evidence —
   `unit_provenance`; and no proof host uses exact tested Node/PostgreSQL versions —
   `runtime_version`.
+- no host evidence that the API cannot attest to people itself — `attestor_separation`, which
+  checks that `kf-attestor.service` runs as its own user, that its socket is owned by that user,
+  closed to other and open only to a group kf-api is in, and that kf-api can read none of the
+  secrets the attestor unit names (owner, group or world). The database half — only the
+  kf_attestor role may issue an attestation, and the API's login may not hold it — is enforced by
+  migration `20260924001000` and by the API refusing to start through such a login.
 - no successful disposable-cluster rollback receipt or host migration result for a release —
   `evidence_receipts`, which requires a receipt matched to the running release id.
 - no person has yet received an alert — **no check**, and none is possible from here.

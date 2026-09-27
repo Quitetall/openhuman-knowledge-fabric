@@ -22,6 +22,10 @@
 #                 is discarded with it, and readiness keeps reporting that no backup has ever
 #                 been restored. Omitting it is allowed and says so at the end, loudly, because
 #                 the consequence is visible in readiness rather than only in this output.
+#
+# KF_RESTORE_LEDGER_LOCATION  the ledger location of the run being restored, when the
+#                 directory given is a copy unpacked elsewhere (restore-drill.sh sets it).
+# KF_RESTORE_DRILL_NOTES      recorded in ops.restore_drill.notes — which copy was restored.
 
 set -euo pipefail
 
@@ -31,8 +35,6 @@ BACKUP="${1:?usage: restore-verify.sh <backup-directory> <target-url-file> [ledg
 TARGET_URL_FILE="${2:?usage: restore-verify.sh <backup-directory> <target-url-file> [ledger-url-file]}"
 LEDGER_URL_FILE="${3:-}"
 
-: "${PRESERVATION_SIGNING_KEY_PATH:?set PRESERVATION_SIGNING_KEY_PATH for the verification re-export}"
-: "${PRESERVATION_SIGNING_KEY_ID:?set PRESERVATION_SIGNING_KEY_ID for the verification re-export}"
 : "${PRESERVATION_TRUST_STORE_DIR:?set PRESERVATION_TRUST_STORE_DIR to the historical public-key directory}"
 
 # shellcheck source=lib/secret.sh
@@ -104,10 +106,31 @@ echo "==> restoring"
   "$VERIFIED_BACKUP/dump.pgcustom"
 
 echo "==> re-exporting from the restored database"
+# Signed with a key made for this run and discarded with it, never the preservation key.
+#
+# The re-export exists to be COMPARED, file for file, with the export the backup carried — and
+# that comparison excludes the signature sidecar, the only file a key id reaches. So its
+# signature proves nothing to anyone, and until 2026-09-23 producing it made every restore
+# need the host's long-lived preservation PRIVATE key: the drill had to run as the backup
+# identity, and a drill on a separate recovery identity (or host) could not run at all. The
+# backup's own signature is still checked against the historical trust store, above, before
+# anything is restored.
+REEXPORT_KEY_DIR="$WORK/reexport-key"
+REEXPORT_TRUST_DIR="$WORK/reexport-trust"
+install -d -m 0700 -- "$REEXPORT_KEY_DIR" "$REEXPORT_TRUST_DIR"
+REEXPORT_KEY_ID=restore-verify-reexport
+node -e '
+  const { generateKeyPairSync } = require("node:crypto");
+  const { writeFileSync } = require("node:fs");
+  const [privatePath, publicPath] = process.argv.slice(1);
+  const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+  writeFileSync(privatePath, privateKey.export({ format: "pem", type: "pkcs8" }), { mode: 0o600 });
+  writeFileSync(publicPath, publicKey.export({ format: "pem", type: "spki" }), { mode: 0o644 });
+' "$REEXPORT_KEY_DIR/key.pem" "$REEXPORT_TRUST_DIR/$REEXPORT_KEY_ID.pub"
 REEXPORT_ARGS=(
   write "$WORK/export"
-  --signing-key "$PRESERVATION_SIGNING_KEY_PATH"
-  --key-id "$PRESERVATION_SIGNING_KEY_ID"
+  --signing-key "$REEXPORT_KEY_DIR/key.pem"
+  --key-id "$REEXPORT_KEY_ID"
 )
 ARCHIVED_CHECKPOINT_KEYS="$VERIFIED_BACKUP/export/trust/checkpoint"
 if [ -d "$ARCHIVED_CHECKPOINT_KEYS" ]; then
@@ -116,7 +139,7 @@ if [ -d "$ARCHIVED_CHECKPOINT_KEYS" ]; then
 fi
 DATABASE_URL="$TARGET" node "$ROOT/packages/export/dist/cli.js" "${REEXPORT_ARGS[@]}"
 node "$ROOT/packages/export/dist/cli.js" verify "$WORK/export" \
-  --trust-store "$PRESERVATION_TRUST_STORE_DIR"
+  --trust-store "$REEXPORT_TRUST_DIR"
 
 echo "==> comparing"
 # Every file, byte for byte. Comparing only the manifest would pass a restore in which every
@@ -175,7 +198,14 @@ echo "==> verifying external object-store recovery"
 OBJECT_STORE_VERIFIED=false
 OBJECT_STORE_PROOF_REF=""
 OBJECT_STORE_PROOF_SHA256=""
-OBJECT_STORE_PROOF="$WORK/object-store-proof"
+OBJECT_STORE_REQUEST="$WORK/object-store-request.jsonl"
+OBJECT_STORE_PROOF="$WORK/object-store-proof.jsonl"
+# Which program re-reads the object store: an operator-supplied override, or the verifier this
+# release ships. Until 2026-09-23 there was no default, so every host had to write, install
+# and digest-pin its own before a drill could come out `verified` — and one that had not
+# recorded every drill `partial`, forever, with nothing to say what was missing.
+VERIFY_COMMAND=()
+BUILTIN_VERIFIER="$ROOT/apps/kf-storage/dist/verify-object-store.js"
 if [ -n "${KF_OBJECT_STORE_VERIFY_PROGRAM:-}" ]; then
   if [[ "$KF_OBJECT_STORE_VERIFY_PROGRAM" != /* ]] ||
      [ ! -f "$KF_OBJECT_STORE_VERIFY_PROGRAM" ] ||
@@ -194,24 +224,71 @@ if [ -n "${KF_OBJECT_STORE_VERIFY_PROGRAM:-}" ]; then
     echo "refusing group/world-writable object-store verifier" >&2
     exit 1
   fi
-  if [[ ! "${KF_OBJECT_STORE_PROOF_REF:-}" =~ ^[A-Za-z0-9][A-Za-z0-9._:/+-]{0,511}$ ]]; then
+  # An override is not in this repository, so the only thing that ties it to a review is its
+  # digest. Pinned in root-owned configuration; an unpinned or changed program is refused
+  # outright rather than recorded partial, because running unreviewed code with object-store
+  # credentials is the failure, not a missing proof.
+  if [[ ! "${KF_OBJECT_STORE_VERIFY_PROGRAM_SHA256:-}" =~ ^[0-9a-f]{64}$ ]]; then
+    echo "refusing object-store verifier: KF_OBJECT_STORE_VERIFY_PROGRAM_SHA256 must pin its reviewed digest" >&2
+    exit 1
+  fi
+  if [ "$(sha256sum -- "$KF_OBJECT_STORE_VERIFY_PROGRAM" | cut -d' ' -f1)" != "$KF_OBJECT_STORE_VERIFY_PROGRAM_SHA256" ]; then
+    echo "refusing object-store verifier: its digest is not the pinned reviewed digest" >&2
+    exit 1
+  fi
+  VERIFY_COMMAND=("$KF_OBJECT_STORE_VERIFY_PROGRAM")
+  PROOF_REF="${KF_OBJECT_STORE_PROOF_REF:-}"
+elif [ -n "${S3_ENDPOINT:-}" ]; then
+  # The default: the release's own verifier, reading the store with the S3_* routing and the
+  # owner-only S3_SECRET_ACCESS_KEY_FILE this process was given. It is covered by the release
+  # manifest like every other file here, so it needs no separate digest pin.
+  if [ ! -f "$BUILTIN_VERIFIER" ]; then
+    echo "refusing: the in-release object-store verifier is missing: $BUILTIN_VERIFIER" >&2
+    exit 1
+  fi
+  VERIFY_COMMAND=(node "$BUILTIN_VERIFIER")
+  PROOF_REF="${KF_OBJECT_STORE_PROOF_REF:-kf-builtin-verifier:${S3_BUCKET_ARTIFACTS:-}}"
+fi
+
+if [ "${#VERIFY_COMMAND[@]}" -gt 0 ]; then
+  if [[ ! "$PROOF_REF" =~ ^[A-Za-z0-9][A-Za-z0-9._:/+-]{0,511}$ ]]; then
     echo "KF_OBJECT_STORE_PROOF_REF must be a credential-free stable evidence reference" >&2
     exit 1
   fi
-  "$KF_OBJECT_STORE_VERIFY_PROGRAM" "$VERIFIED_BACKUP/export" "$OBJECT_STORE_PROOF"
-  if [ ! -f "$OBJECT_STORE_PROOF" ] || [ -L "$OBJECT_STORE_PROOF" ] || [ ! -s "$OBJECT_STORE_PROOF" ]; then
-    echo "object-store verifier did not write a non-empty regular proof file" >&2
+  # The program is told WHICH objects to read — storage URI and version — and never what they
+  # should contain. It must answer with the SHA-256 and size it measured; the answer is then
+  # checked here, in this repository's code, against the authenticated export. Until
+  # 2026-09-23 it was handed the export itself and trusted on its exit code, so a program that
+  # echoed the export's own digests, or read nothing, produced a `verified` drill.
+  REQUESTED="$(node "$ROOT/scripts/lib/object-store-proof.mjs" request \
+    "$VERIFIED_BACKUP/export" "$OBJECT_STORE_REQUEST")"
+  : > "$OBJECT_STORE_PROOF"
+  # A nonzero exit never counts as verified, whatever the proof says; the proof is still
+  # checked so the output names which objects could not be measured.
+  VERIFIER_EXITED_CLEANLY=true
+  if ! "${VERIFY_COMMAND[@]}" "$OBJECT_STORE_REQUEST" "$OBJECT_STORE_PROOF"; then
+    VERIFIER_EXITED_CLEANLY=false
+    echo "object-store verifier exited nonzero; object bytes are NOT verified" >&2
+  fi
+  if [ ! -f "$OBJECT_STORE_PROOF" ] || [ -L "$OBJECT_STORE_PROOF" ]; then
+    echo "object-store verifier did not leave a regular proof file" >&2
     exit 1
   fi
-  if [ "$(stat -c '%s' "$OBJECT_STORE_PROOF")" -gt 16777216 ]; then
-    echo "object-store proof exceeds 16 MiB safety bound" >&2
-    exit 1
+  if MEASURED="$(node "$ROOT/scripts/lib/object-store-proof.mjs" check \
+       "$VERIFIED_BACKUP/export" "$OBJECT_STORE_PROOF")" &&
+     [ "$VERIFIER_EXITED_CLEANLY" = true ]; then
+    echo "object store: $MEASURED of $REQUESTED stored object(s) measured and matched"
+    OBJECT_STORE_VERIFIED=true
+    OBJECT_STORE_PROOF_REF="$PROOF_REF"
+    OBJECT_STORE_PROOF_SHA256="$(sha256sum "$OBJECT_STORE_PROOF" | cut -d' ' -f1)"
+  else
+    echo "OBJECT STORE NOT VERIFIED: the verifier's measurements do not match the export" >&2
   fi
-  OBJECT_STORE_VERIFIED=true
-  OBJECT_STORE_PROOF_REF="$KF_OBJECT_STORE_PROOF_REF"
-  OBJECT_STORE_PROOF_SHA256="$(sha256sum "$OBJECT_STORE_PROOF" | cut -d' ' -f1)"
 else
-  echo "SKIPPED: KF_OBJECT_STORE_VERIFY_PROGRAM absent — object bytes were NOT verified" >&2
+  echo "SKIPPED: no object store to verify against — object bytes were NOT verified" >&2
+  echo "set S3_ENDPOINT/S3_REGION/S3_ACCESS_KEY_ID/S3_BUCKET_ARTIFACTS and S3_SECRET_ACCESS_KEY_FILE" >&2
+  echo "(for the drill: /etc/kf/drill.env and /etc/kf/drill/s3-secret-access-key), or name an" >&2
+  echo "override in KF_OBJECT_STORE_VERIFY_PROGRAM" >&2
 fi
 
 OUTCOME=partial
@@ -229,7 +306,9 @@ echo "==> recording the drill"
 # having proved it. A failure exits earlier under `set -e` and leaves no row — which readiness
 # reads as "not restored recently", the correct reading of a drill that did not complete.
 if [ -n "$LEDGER" ]; then
-  LOCATION="$(cd "$BACKUP" && pwd)"
+  # The ledger names a backup by where backup.sh recorded it. A drill that restored a copy
+  # pulled back from off-site unpacked it somewhere else, and says which run it was here.
+  LOCATION="${KF_RESTORE_LEDGER_LOCATION:-$(cd "$BACKUP" && pwd)}"
   # On stdin: psql does not interpolate :'var' in a -c string.
   RUN_ID="$("$KF_PSQL" "$LEDGER" -v ON_ERROR_STOP=1 -tA -v location="$LOCATION" <<'SQL'
 select id from ops.backup_run where location = :'location';
@@ -253,14 +332,15 @@ SQL
       -v checkpoint_digest="$CHECKPOINT_PROOF_SHA256" \
       -v object_verified="$OBJECT_STORE_VERIFIED" \
       -v object_ref="$OBJECT_STORE_PROOF_REF" \
-      -v object_digest="$OBJECT_STORE_PROOF_SHA256" <<'SQL'
+      -v object_digest="$OBJECT_STORE_PROOF_SHA256" \
+      -v notes="${KF_RESTORE_DRILL_NOTES:-}" <<'SQL'
 insert into ops.restore_drill
-  (backup_run_id, target_label, outcome, recovery_seconds,
+  (backup_run_id, target_label, outcome, notes, recovery_seconds,
    database_verified, database_snapshot_sha256,
    checkpoint_verified, checkpoint_proof_sha256,
    object_store_verified, object_store_proof_ref, object_store_proof_sha256)
 values
-  (:'run'::uuid, :'label', :'outcome', :'recovery'::integer,
+  (:'run'::uuid, :'label', :'outcome', nullif(:'notes', ''), :'recovery'::integer,
    :'database_verified'::boolean, nullif(:'database_digest', ''),
    :'checkpoint_verified'::boolean, nullif(:'checkpoint_digest', ''),
    :'object_verified'::boolean, nullif(:'object_ref', ''), nullif(:'object_digest', ''));

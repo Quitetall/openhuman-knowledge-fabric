@@ -15,13 +15,15 @@ classification: internal
 1. **A second artifact store on an independent device**, declared in `content.artifact_store`,
    with the storage sweep replicating to it and re-verifying on a timer. Closes §100.4, which
    records that replication is scheduled nowhere.
-2. **The remaining service units and timers installed and running**: worker, checkpoint, backup,
-   backup-offsite, restore-drill, readiness, alert heartbeat. Each under its own unprivileged
-   account, per the shipped units.
+2. **The remaining service units and timers installed and running**: attestor, worker,
+   checkpoint, backup, backup-offsite, audit-verify, storage, restore-drill, readiness, alert
+   heartbeat. Each under its own unprivileged account, per the shipped units.
 3. **A signed Merkle checkpoint produced on the host**, by a process the API cannot reach the key
    of, with that isolation evidenced on the host rather than asserted.
-4. **A backup taken, copied off the working device, and verified at its destination**, then a
-   restore drill run with the shipped scripts into a scratch database.
+4. **A backup taken, its encrypted archive copied off the working device, and verified at its
+   destination**, then a restore drill run with the shipped scripts as `kf-drill`: it pulls the
+   off-site ciphertext back, checks it against the digest recorded when it was sent, decrypts it,
+   and restores it into a throwaway PostgreSQL cluster it deletes afterwards.
 5. **`kf-commissioning` exiting zero**, with no check reading `unverifiable`, captured as JSON
    into the evidence directory.
 6. **A reboot, and preflight re-run afterwards.** A service that works only in the install shell

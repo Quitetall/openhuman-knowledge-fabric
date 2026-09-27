@@ -1,9 +1,12 @@
 import { withTransaction, type Pool } from '@kf/database';
 import { INSTITUTIONAL_CHECKS, SERVICE_CHECKS } from './checks.js';
+import { resolveReleaseOntology } from './release-ontology.js';
 import {
   DEFAULTS,
   type Check,
+  type CheckContext,
   type CheckDefinition,
+  type ReadinessOptions,
   type ReadinessPartition,
   type ReadinessReport,
   type ReadinessThresholds,
@@ -19,11 +22,18 @@ import {
 export async function assessReadiness(
   pool: Pool,
   thresholds: ReadinessThresholds = {},
+  options: ReadinessOptions = {},
 ): Promise<ReadinessReport> {
   const limits = { ...DEFAULTS, ...thresholds };
+  const context: CheckContext = {
+    release:
+      options.expectedOntologyDigest === undefined
+        ? resolveReleaseOntology()
+        : { digest: options.expectedOntologyDigest, source: 'the caller' },
+  };
 
-  const service = await assessPartition(pool, SERVICE_CHECKS, limits);
-  const institutional = await assessPartition(pool, INSTITUTIONAL_CHECKS, limits);
+  const service = await assessPartition(pool, SERVICE_CHECKS, limits, context);
+  const institutional = await assessPartition(pool, INSTITUTIONAL_CHECKS, limits, context);
 
   return {
     // These aliases have one unambiguous meaning: readiness to serve. Institutional blockers
@@ -39,11 +49,12 @@ async function assessPartition(
   pool: Pool,
   definitions: readonly CheckDefinition[],
   limits: Required<ReadinessThresholds>,
+  context: CheckContext,
 ): Promise<ReadinessPartition> {
   const checks: Check[] = [];
   for (const definition of definitions) {
     try {
-      const result = await withTransaction(pool, (tx) => definition.run(tx, limits));
+      const result = await withTransaction(pool, (tx) => definition.run(tx, limits, context));
       if (result.id !== definition.id) {
         throw new Error(`check returned id ${result.id}; expected ${definition.id}`);
       }

@@ -1,4 +1,9 @@
-import type { ActionEffect, PreconditionCheck } from '@kf/actions';
+import {
+  ActionRejected,
+  assertMeaningfulReason,
+  type ActionEffect,
+  type PreconditionCheck,
+} from '@kf/actions';
 import { requireString } from '@kf/record-atoms';
 import { createAuthoredFragmentRevision } from '../compiler.js';
 import { TECHNICAL_AUTHORITY_ROLE } from './action-types.js';
@@ -44,6 +49,24 @@ export function createProposalApplyActions(): ProposalApplyActions {
     }
     const proposalId = requireString(request.payload, 'proposal_id');
     const proposal = await proposalRow(tx, proposalId);
+    // Whoever proposed a change — or asked a model to — does not also accept it. Request-then-
+    // apply by one person is a direct edit with an extra click, and the click is what a tired
+    // reviewer rubber-stamps.
+    // A model's proposal names no human author, so the person is whoever recorded it.
+    const recordedBy = await tx.maybeOne<{ actor_id: string }>(
+      `select a.actor_id from content.proposal_overlay p
+         join core.action a on a.id = p.created_by_action
+        where p.id = $1`,
+      [proposalId],
+    );
+    if (proposal.actor_id === request.actorId || recordedBy?.actor_id === request.actorId) {
+      throw new ActionRejected(
+        'separation_of_duty',
+        'apply_document_proposal may not be performed by the person who made or requested the proposal',
+        { proposalId, actorId: request.actorId },
+      );
+    }
+    assertMeaningfulReason(request);
     if (
       proposal.object_id !== object.id ||
       proposal.proposal_digest !== requireDigest(request.payload, 'proposal_digest')

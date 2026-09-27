@@ -25,6 +25,16 @@ export default tseslint.config(
     },
   },
   {
+    // Recorded evidence: the scripts that ran for a dated report, kept byte-for-byte so the
+    // report can be re-read against them. They cannot take the `/* global fetch */` comment the
+    // maintained fixtures use without ceasing to be what ran, so the Node 24 globals they call
+    // are declared here, for these paths only (the int-07 runs call fetch and setTimeout).
+    files: ['fixtures/**/evidence/**/*.mjs'],
+    languageOptions: {
+      globals: { fetch: 'readonly', setTimeout: 'readonly', clearTimeout: 'readonly' },
+    },
+  },
+  {
     rules: {
       '@typescript-eslint/no-unused-vars': [
         'error',
@@ -35,6 +45,15 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'error',
       eqeqeq: ['error', 'always'],
       'no-console': ['warn', { allow: ['warn', 'error'] }],
+      // KF-SAS-RQ-018: a known gap lives somewhere enumerable (SAS §100, an ADR, a pack
+      // known_gaps entry, a named checker warning), never only in a comment. 'anywhere', not the
+      // default 'start', because a marker after a prefix is still a marker. Files
+      // ESLint does not read (sql, sh, conf, yaml) are scanned by
+      // tests/conformance/no-inline-markers.test.ts.
+      'no-warning-comments': [
+        'error',
+        { terms: ['todo', 'fixme', 'xxx', 'hack'], location: 'anywhere' },
+      ],
     },
   },
   prettier,

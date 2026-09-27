@@ -1,0 +1,12 @@
+HTTP/1.1 200 OK
+content-type: application/json; charset=utf-8
+x-request-id: aff07590-68a9-4692-a029-2a70c13612c9
+x-content-type-options: nosniff
+x-frame-options: DENY
+referrer-policy: no-referrer
+cache-control: no-store
+content-length: 155
+Date: Sun, 27 Sep 2026 02:26:22 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+

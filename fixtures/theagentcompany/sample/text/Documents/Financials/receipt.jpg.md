@@ -1,0 +1,29 @@
+Swanky Hotel Bar
+
+819 Ritz Ave
+
+Sun Valley, ID 80@-520-9191
+
+Date: Q@2/15/2019 89:00 AM
+Card Type: MASTERCARD
+
+Acct # MASTERCARD
+
+Card Entry SWIPED
+
+Trans Type: PURCHASE
+
+Trans Key: 779629465C0182C
+AUTH CODE: 779629
+
+Check: 7796
+
+Check ID: 77
+
+Server: STEVEN TAB 7
+SUBTOTAL : $179.19
+
+— 44.80
+TOTAL: 223.99
+
+**CUSTOMER COPY

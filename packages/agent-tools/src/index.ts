@@ -3,6 +3,11 @@
  *
  * Eight read. The ninth rehearses a real dispatcher action inside a rollback-only
  * transaction. There is still no general-purpose act() tool.
+ *
+ * Every read that returns a record says whether anybody has verified it — `read_record`'s
+ * `verification`, `trace_relations`' `toVerification`, `find_records`' hits — in the words a
+ * person's page uses, so an agent's context never presents an unverified record as checked
+ * (KF-SAS-RQ-229). `verification_of` is a different question: test verification of a subject.
  */
 
 export * from './ai.js';

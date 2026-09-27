@@ -3,6 +3,8 @@
  *
  *   kf-storage --replicate         copy every version lacking a durable copy into S3_DURABLE_*
  *   kf-storage --verify [--older-than-days N]   re-verify locations not verified within N days
+ *   kf-storage --collect-orphans [--grace-hours N]   remove evidence bytes no record references
+ *   kf-storage --check-permissions   may the working-store key collect orphans? (changes nothing)
  *
  * A separate one-shot behind a timer, in the shape of the checkpoint signer: its own unit,
  * its own uid, secrets from files. It acts as the declared SERVICE ACTOR named by
@@ -14,13 +16,20 @@
 
 import { createFabricDispatcher } from '@kf/orchestrator';
 import {
-  S3ObjectStore,
+  S3SweepableObjectStore,
   StoreRegistry,
   createStorageActionAtoms,
   type S3Config,
 } from '@kf/artifacts';
-import { createPool } from '@kf/database';
+import { createPool, withTransaction } from '@kf/database';
 import { loadSecret } from '@kf/operations';
+import { EVIDENCE_NAMESPACES, sweepOrphanedEvidence } from './orphans.js';
+import {
+  ORPHAN_POLICY_FILE,
+  ORPHAN_POLICY_NAME,
+  missingActions,
+  orphanPermissionRefusal,
+} from './permissions.js';
 import { runStorageSweep } from './sweep.js';
 
 function required(name: string): string {
@@ -53,17 +62,55 @@ function integerFlag(name: string, fallback: number): number {
   return value;
 }
 
+/**
+ * Probe, without removing anything, whether the working-store key may do what
+ * `--collect-orphans` needs. `provision-host.sh --check` runs this, so a missing policy is
+ * found at provisioning rather than by the first failed nightly run.
+ */
+async function checkPermissions(): Promise<number> {
+  const working = s3('S3', 'S3_BUCKET_ARTIFACTS');
+  if (working === undefined) throw new Error('S3_ENDPOINT (the working store) is required');
+  const organization = required('KF_STORAGE_ORGANIZATION');
+  const store = new S3SweepableObjectStore(working);
+  const missing = new Set<string>();
+  for (const namespace of EVIDENCE_NAMESPACES) {
+    for (const action of missingActions(
+      await store.probeCollectionPermissions(`${namespace}/${organization}/`),
+    )) {
+      missing.add(action);
+    }
+  }
+  const ok = missing.size === 0;
+  console.warn(
+    JSON.stringify({
+      action: 'check-permissions',
+      bucket: working.bucket,
+      access_key_id: working.accessKeyId,
+      policy: ORPHAN_POLICY_NAME,
+      policy_file: ORPHAN_POLICY_FILE,
+      missing: [...missing],
+      ok,
+    }),
+  );
+  if (!ok) console.error(orphanPermissionRefusal(working, [...missing]));
+  return ok ? 0 : 1;
+}
+
 async function main(): Promise<number> {
+  if (process.argv.includes('--check-permissions')) return checkPermissions();
   const wantsReplicate = process.argv.includes('--replicate');
   const wantsVerify = process.argv.includes('--verify');
-  if (!wantsReplicate && !wantsVerify) {
+  const wantsOrphans = process.argv.includes('--collect-orphans');
+  if (!wantsReplicate && !wantsVerify && !wantsOrphans) {
     console.warn(
       JSON.stringify({
         service: 'openhuman-knowledge-fabric-storage',
         actor: process.env['KF_STORAGE_ACTOR'] ? 'configured' : 'absent',
         working_store: process.env['S3_ENDPOINT'] ? 'configured' : 'absent',
         durable_store: process.env['S3_DURABLE_ENDPOINT'] ? 'configured' : 'absent',
-        usage: 'kf-storage --replicate | kf-storage --verify [--older-than-days N]',
+        usage:
+          'kf-storage --replicate | kf-storage --verify [--older-than-days N] | ' +
+          'kf-storage --collect-orphans [--grace-hours N] | kf-storage --check-permissions',
       }),
     );
     return 0;
@@ -74,10 +121,6 @@ async function main(): Promise<number> {
   if (wantsReplicate && durable === undefined) {
     throw new Error('--replicate needs S3_DURABLE_* (the store to copy into)');
   }
-  const registry = new StoreRegistry({
-    working: new S3ObjectStore(working),
-    ...(durable === undefined ? {} : { durable: new S3ObjectStore(durable) }),
-  });
   const actor = {
     personId: required('KF_STORAGE_ACTOR'),
     roleAssignmentId: required('KF_STORAGE_ROLE'),
@@ -91,6 +134,15 @@ async function main(): Promise<number> {
     maxConnections: 2,
   });
   try {
+    // Both stores are resolved against their registered rows before a client exists
+    // (KF-SAS-RQ-095). The orphan sweep below lists the working bucket directly, so this is also
+    // what stops it deleting from a bucket the ledger does not call `working`.
+    const registry = await withTransaction(pool, (tx) =>
+      StoreRegistry.fromDatabase(tx, {
+        working,
+        ...(durable === undefined ? {} : { durable }),
+      }),
+    );
     const execute = createFabricDispatcher(
       pool,
       undefined,
@@ -98,23 +150,40 @@ async function main(): Promise<number> {
       undefined,
       createStorageActionAtoms(registry),
     );
-    const report = await runStorageSweep(pool, execute, actor, {
-      ...(wantsReplicate ? { replicateTo: 'durable' } : {}),
-      ...(wantsVerify ? { verifyOlderThanDays: integerFlag('--older-than-days', 30) } : {}),
-      limit: integerFlag('--limit', 500),
-    });
+    const report =
+      wantsReplicate || wantsVerify
+        ? await runStorageSweep(pool, execute, actor, {
+            ...(wantsReplicate ? { replicateTo: 'durable' } : {}),
+            ...(wantsVerify ? { verifyOlderThanDays: integerFlag('--older-than-days', 30) } : {}),
+            limit: integerFlag('--limit', 500),
+          })
+        : { replicated: [], verified: [], refused: [] };
+    // Last, after replication: a key is only collected when nothing references it, and a
+    // durable copy made in this same run is a reference.
+    const orphans = wantsOrphans
+      ? await sweepOrphanedEvidence(pool, new S3SweepableObjectStore(working), actor, {
+          graceHours: integerFlag('--grace-hours', 168),
+          limit: integerFlag('--limit', 500),
+          accessDenied: orphanPermissionRefusal(working),
+        })
+      : { collected: [], kept: 0, refused: [] };
+    const refused = [...report.refused, ...orphans.refused];
     console.warn(
       JSON.stringify({
         action: 'storage-sweep',
         replicated: report.replicated.length,
         verified: report.verified.length,
         verification_failures: report.verified.filter((v) => !v.ok).length,
-        refused: report.refused,
+        // Named, not only counted. Collecting bytes is not an act on any record (there is no
+        // record — that is what makes them orphans); each one is recorded in
+        // content.orphan_collection, and this line says which, for whoever reads the journal.
+        orphans_collected: orphans.collected,
+        refused,
       }),
     );
     // A verification that found a bad copy, or a refusal, is a finding: non-zero, so the
     // timer's failure hook fires rather than recording a clean run.
-    return report.refused.length === 0 && report.verified.every((v) => v.ok) ? 0 : 1;
+    return refused.length === 0 && report.verified.every((v) => v.ok) ? 0 : 1;
   } finally {
     await pool.end();
   }

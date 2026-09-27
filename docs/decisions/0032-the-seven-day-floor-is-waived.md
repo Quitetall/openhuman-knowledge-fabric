@@ -1,0 +1,1 @@
+atoms/KF-ADR-0032-the-seven-day-floor-is-waived.md

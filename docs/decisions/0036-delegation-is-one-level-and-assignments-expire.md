@@ -1,0 +1,1 @@
+atoms/KF-ADR-0036-delegation-is-one-level-and-assignments-expire.md

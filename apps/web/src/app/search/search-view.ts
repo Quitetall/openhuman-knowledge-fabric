@@ -37,6 +37,13 @@ function resultLimit(value: string | readonly string[] | undefined): number {
   return limit;
 }
 
+/** The near-miss checkbox: `true` when ticked, absent otherwise; anything else is refused. */
+function nearMissFlag(value: string | readonly string[] | undefined): boolean {
+  if (value === undefined) return false;
+  if (value === 'true') return true;
+  throw new Error('invalid nearMisses');
+}
+
 export function parseSearchPageParams(params: SearchPageParams): ParsedSearchPage {
   const query = params['q'];
   if (query === undefined) return { status: 'idle' };
@@ -44,11 +51,13 @@ export function parseSearchPageParams(params: SearchPageParams): ParsedSearchPag
   try {
     const objectTypes = filterList(params['objectType']);
     const lifecycleStates = filterList(params['lifecycleState']);
+    const nearMisses = nearMissFlag(params['nearMisses']);
     return {
       status: 'submitted',
       request: {
         text: query,
         limit: resultLimit(params['limit']),
+        ...(nearMisses ? { nearMisses } : {}),
         ...(objectTypes === undefined ? {} : { objectTypes }),
         ...(lifecycleStates === undefined ? {} : { lifecycleStates }),
       },
@@ -58,9 +67,32 @@ export function parseSearchPageParams(params: SearchPageParams): ParsedSearchPag
   }
 }
 
-export function recordHref(objectType: string, objectId: string): string | undefined {
+/**
+ * Where a hit leads. Types with a dedicated page go there; every other type has the Object View,
+ * which renders any object in the ontology, so no hit is ever a dead end.
+ */
+export function recordHref(objectType: string, objectId: string): string {
   const encoded = encodeURIComponent(objectId);
   if (objectType === 'controlled_document') return `/documents/${encoded}`;
   if (objectType === 'initiative_project') return `/projects/${encoded}`;
-  return undefined;
+  return `/objects/${encoded}`;
+}
+
+const SEARCH_PARAMS = ['q', 'objectType', 'lifecycleState', 'limit', 'nearMisses'] as const;
+
+/**
+ * The search page's own address, to come back to after signing in. A session lasts minutes, so
+ * renewal is routine; returning to a bare `/search` would drop the query the person was reading.
+ * Only the page's own parameters are kept, and the login route sanitizes the result again.
+ */
+export function searchReturnPath(params: SearchPageParams): string {
+  const query = new URLSearchParams();
+  for (const name of SEARCH_PARAMS) {
+    const value = params[name];
+    for (const entry of typeof value === 'string' ? [value] : (value ?? [])) {
+      query.append(name, entry);
+    }
+  }
+  const encoded = query.toString();
+  return encoded === '' ? '/search' : `/search?${encoded}`;
 }

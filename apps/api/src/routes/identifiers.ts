@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { setResolvedAccessContext, withTransaction, type Pool } from '@kf/database';
 import { allocationOf } from '@kf/identifiers';
-import { unidentified } from './actions.js';
+import { refuseUnidentified } from './actions.js';
 import type { IdentifyCaller } from './actions/contracts.js';
 
 const ENTERPRISE_ID = /^[A-Z]{2,5}-[A-Z]{2,5}-[0-9]{4,9}(-[0-9]{6})?-[0-9]$/;
@@ -30,7 +30,7 @@ export async function registerIdentifierRoutes(
           headers: request.headers as Record<string, unknown>,
         });
       } catch (error: unknown) {
-        return reply.code(401).send(unidentified(error));
+        return refuseUnidentified(reply, error);
       }
       return withTransaction(options.pool, async (tx) => {
         await setResolvedAccessContext(tx, {
@@ -38,6 +38,7 @@ export async function registerIdentifierRoutes(
           assignmentId: identity.actingRoleId,
           organizationId: identity.organizationId,
           requestedClassification: identity.maxClassification,
+          attestation: identity.attestation,
         });
         const allocation = await allocationOf(tx, request.params.enterpriseId);
         if (allocation === undefined) return reply.code(404).send({ error: 'not_found' });

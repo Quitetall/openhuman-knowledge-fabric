@@ -278,6 +278,21 @@ export function emitSqlRegistry(o: Ontology): string {
     '',
   );
 
+  // Which object types may sit at each end of each relation (SAS §100.2). One row per
+  // (relation, end, type); core.relation's endpoint trigger refuses a pair with no row, so a
+  // relation with no rows for an end is a relation nothing may be written under — fail-closed.
+  const endpoints = o.relationTypes.flatMap((r) => [
+    ...(r.sourceTypes ?? []).map((t) => `  (${q(r.id)}, 'source', ${q(t)})`),
+    ...(r.targetTypes ?? []).map((t) => `  (${q(r.id)}, 'target', ${q(t)})`),
+  ]);
+  if (endpoints.length > 0) {
+    out.push(
+      'insert into registry.relation_type_endpoint (relation_type, endpoint, object_type) values',
+      endpoints.join(',\n') + '\non conflict do nothing;',
+      '',
+    );
+  }
+
   out.push(
     'insert into registry.action_type (id, audited, transactional, requires_capability) values',
     o.actionTypes
@@ -344,6 +359,12 @@ export function emitSqlRegistry(o: Ontology): string {
     '-- Retire what the ontology no longer declares. These deletes are SUPPOSED to fail when',
     '-- records still reference the row: a type still in use must not vanish from the registry.',
     `delete from registry.rule_definition where id <> all (${ids(o.rules)});`,
+    endpoints.length === 0
+      ? 'delete from registry.relation_type_endpoint;'
+      : 'delete from registry.relation_type_endpoint\n' +
+          ' where (relation_type, endpoint, object_type) not in (values\n' +
+          endpoints.join(',\n') +
+          ');',
     'delete from registry.state_transition st where not exists (select 1 from (' +
       o.stateMachines
         .flatMap((m) =>

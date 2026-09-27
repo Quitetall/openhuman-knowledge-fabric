@@ -13,15 +13,15 @@ Source: every Warrant under the configured warrants path, its sidecar records, a
 
 ## Release
 
-- **SAS revision:** 0.1.0-draft.5
-- **digest:** `sha256:84d23d16f0a9cd1e880502a67812982d75053b7d7abd890d5908c65d7e282f0d`
-- Revision 0.1.0-draft.5 is ACCEPTED (§101.2) and normative. A Warrant compiles against the revision its authorization recorded (§14), so a later revision does not move an authorized contract: 1 against 0.1.0-draft.5.
+- **SAS revision:** 0.1.0-draft.8
+- **digest:** `sha256:b7cfdf1f0eea15625b61ba00c43beb9466171280d08e77bd3d8911415b2c23ea`
+- Revision 0.1.0-draft.8 is ACCEPTED (§101.2) and normative. A Warrant compiles against the revision its authorization recorded (§14), so a later revision does not move an authorized contract: 1 against 0.1.0-draft.8.
 
-**Requirements (162 in §106)** — strictest rung first:
+**Requirements (192 in §106)** — strictest rung first:
 
 | satisfied | in_progress | claimed | unaddressed | superseded |
 |---|---|---|---|---|
-| **0** | 0 | 12 | 150 | 0 |
+| **0** | 0 | 12 | 180 | 0 |
 
 ## Objectives (SAS §98 phases)
 
@@ -79,7 +79,7 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 
 ## Requirements (SAS §106, §34.3)
 
-**Unaddressed (150)** — no Warrant names these. Several may be built; the gap is bookkeeping, and it is listed rather than hidden:
+**Unaddressed (180)** — no Warrant names these. Several may be built; the gap is bookkeeping, and it is listed rather than hidden:
 
 - `KF-SAS-RQ-001` — One coherent typed graph over records whose authorities remain distinct
 - `KF-SAS-RQ-002` — Visibility, immutability and integrity enforced in the database
@@ -106,13 +106,13 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 - `KF-SAS-RQ-035` — Only a human person carries an external authentication identity
 - `KF-SAS-RQ-036` — Classification is a closed, totally ordered set compared by rank
 - `KF-SAS-RQ-037` — A requested ceiling is resolved against recorded clearance before it is bound
-- `KF-SAS-RQ-038` — Clearance is organization-scoped and effective-dated; the ceiling is the minimum
+- `KF-SAS-RQ-038` — Clearance is organization-scoped and effective-dated; the session ceiling is at most the clearance, and an assignment ceiling caps only its role's grant
 - `KF-SAS-RQ-039` — Read authorization is row visibility intersected with live grant coverage
 - `KF-SAS-RQ-040` — Live grants for one principal, scope and capability do not overlap in time
 - `KF-SAS-RQ-041` — The read path and the write path consult the same grant view
-- `KF-SAS-RQ-042` — Any access decision is explainable as a path to the deciding grant or exclusion
+- `KF-SAS-RQ-042` — Any access decision is explainable as a path to the deciding grant, exclusion, principal-kind bar or separation-of-duty rule
 - `KF-SAS-RQ-043` — An institutional act requires an act grant reaching every locked target
-- `KF-SAS-RQ-044` — Which actions are institutional is declared in the ontology, not in control flow
+- `KF-SAS-RQ-044` — Which actions are institutional is declared in the ontology and consulted by the database, not encoded in control flow
 - `KF-SAS-RQ-045` — Automated work acts as a declared service actor through the same write path
 - `KF-SAS-RQ-046` — A service actor is refused every institutional act, whatever grants reach it
 - `KF-SAS-RQ-047` — An act that judges another act is refused to the actor who performed it
@@ -158,7 +158,7 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 - `KF-SAS-RQ-105` — Restore is exercised on a schedule using the shipped scripts
 - `KF-SAS-RQ-110` — A person can obtain the complete set of records about them they may see
 - `KF-SAS-RQ-111` — A master record's identity is its corpus; an unchanged corpus replays
-- `KF-SAS-RQ-112` — Staleness is computed from the current corpus, not asserted by the writer
+- `KF-SAS-RQ-112` — Staleness is computed by comparing the corpus, or shown absent by the database's record of input writes since the compilation's snapshot, never asserted by the writer
 - `KF-SAS-RQ-113` — Every reading is a declared projection whose members subset the corpus
 - `KF-SAS-RQ-114` — Projection sections cover the corpus with an explicit remainder
 - `KF-SAS-RQ-115` — Agent context is a projection under the same invariants as a human reading
@@ -182,7 +182,7 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 - `KF-SAS-RQ-141` — Secure-object access is by issued, recorded capability with a declared purpose
 - `KF-SAS-RQ-142` — The work-control path is reachable through declared actions alone
 - `KF-SAS-RQ-143` — Product, quality and engineering records use the same model, with no privileged path
-- `KF-SAS-RQ-150` — The HTTP layer holds no authority and makes no refusal the write path does not
+- `KF-SAS-RQ-150` — The HTTP layer holds no authority and permits nothing the write path refuses; its own refusals are admission checks that grant nothing
 - `KF-SAS-RQ-151` — Operator commands take secrets by file only, refusing an inline secret by name
 - `KF-SAS-RQ-152` — A release package carries its gaps, and an approval commits to them
 - `KF-SAS-RQ-153` — A manifest does not contain its own digest; verifying it is a distinct act
@@ -195,7 +195,7 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 - `KF-SAS-RQ-166` — An archiving command fails on a write it did not perform
 - `KF-SAS-RQ-170` — Every documented control cites an artifact, and a gate verifies the path resolves
 - `KF-SAS-RQ-180` — This specification is governed by digest; accepted revisions are immutable
-- `KF-SAS-RQ-181` — Every copy states the accepted revision and digest it reproduces
+- `KF-SAS-RQ-181` — Every copy states the revision and digest it reproduces, and presents no revision as accepted that its record does not
 - `KF-SAS-RQ-182` — Decisions record measurement and rejected options; superseded records are retained
 - `KF-SAS-RQ-183` — Requirement identifiers are append-only; status is derived from evidence
 - `KF-SAS-RQ-184` — A cross-repository requirement citation is unverified until a tool resolves it
@@ -221,16 +221,46 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 - `KF-SAS-RQ-219` — The retrieval trace is derived and disposable; the kernel holds the record of what was disclosed as its digest
 - `KF-SAS-RQ-220` — A stored thing that is neither authoritative nor rebuildable is a transient observation with a stated expiry, excluded from the export, the boundary, checkpoints and long backups
 - `KF-SAS-RQ-221` — Recorded queries are transient observations; the durable demand aggregate names records and counts of distinct persons, never which persons
-- `KF-SAS-RQ-222` — What a query withheld is computed on demand at the asking person's ceiling and never persisted
+- `KF-SAS-RQ-222` — What a query withheld is computed on demand at the asking person's ceiling, never persisted, and disclosed to them only as one count within their ceiling
 - `KF-SAS-RQ-223` — A band bitmap or derived scope tag lives only for the life of its process and never reaches durable storage
-- `KF-SAS-RQ-224` — Lexical and semantic rankings are composed rather than merged, the lexical one stays exhaustive, and each result names the ranking that produced it
+- `KF-SAS-RQ-224` — One list fused from the lexical and semantic rankings by a named, stated method, served beside the exhaustive lexical ranking and the semantic one, each fused result naming where each ranking placed it
 - `KF-SAS-RQ-225` — Text may transit to an on-host embedder and is never persisted there; a controlled record offered to a persisting path is refused
 - `KF-SAS-RQ-226` — A derived index never decides visibility from a denormalised copy; the decision is taken against the record in the same statement
 - `KF-SAS-RQ-227` — One gesture may dispatch many acts; at least one per item, never one covering several
-- `KF-SAS-RQ-228` — A draft is a record under Law 6, attributed from the first moment, exported marked unverified
+- `KF-SAS-RQ-228` — An unverified record is a record under Law 6, attributed from the first moment, exported marked unverified
 - `KF-SAS-RQ-229` — A projection labels an unverified member and never omits it silently
 - `KF-SAS-RQ-230` — An unverified record is not citable as evidence
 - `KF-SAS-RQ-231` — A promotion act records whether the item was reviewed individually or in bulk
+- `KF-SAS-RQ-232` — Verification is recorded independently of lifecycle state, never inferred from it
+- `KF-SAS-RQ-233` — The transaction context is written only by the database's binding functions, sealed, and readable only as sealed
+- `KF-SAS-RQ-234` — The application binds only a principal derived from a live assignment and recorded clearance, and may then only narrow
+- `KF-SAS-RQ-235` — An application bind requires a current attestation from a separate process that verified the person's token
+- `KF-SAS-RQ-236` — People, role assignments and identity links are created only through the owner credential; an identity link is revoked only there, as a recorded act with its reason
+- `KF-SAS-RQ-237` — The database recomputes each audit event's digest and refuses a mismatch
+- `KF-SAS-RQ-238` — The database refuses a ledger row for an institutional act no live act grant covers, or by a service actor
+- `KF-SAS-RQ-239` — Every table that enables row-level security forces it, and a gate fails on one that does not
+- `KF-SAS-RQ-240` — An unreachable attestor refuses a bearer request as unavailable, binds nobody, and has no in-process fallback outside development
+- `KF-SAS-RQ-241` — Commissioning refuses an access-token lifetime, realm-wide or per client, above the attestation replay bound
+- `KF-SAS-RQ-242` — The database refuses an application or service write that belongs to no act recorded by the sealed actor; exemptions are declared with reasons
+- `KF-SAS-RQ-243` — A closed record's identity-bearing fields are immutable for every session, the owner's included
+- `KF-SAS-RQ-244` — Every relation declares its endpoint types, and the database refuses an edge of an undeclared shape
+- `KF-SAS-RQ-245` — A backup is taken by a backup-only login, holds every row it claims, and its restore is proven from that login's backup
+- `KF-SAS-RQ-246` — Delegation goes one level deep, and every new role assignment and project membership ends within 366 days
+- `KF-SAS-RQ-247` — A recorded query is disclosed only to its asker; another person's replay returns only the aggregate
+- `KF-SAS-RQ-248` — An export from an earlier exporter of the same format imports, converted as its migrations converted
+- `KF-SAS-RQ-249` — A process addresses a store only at its declared, bound address, which never changes and carries no credential
+- `KF-SAS-RQ-250` — A context read is recorded as a disclosure bound to the corpus of the master record that included it at the revision served, or it is not made
+- `KF-SAS-RQ-251` — Every refusal of a context read is recorded, and one for a record the reader was never shown names no record
+- `KF-SAS-RQ-252` — "No longer permitted" only for a record the reader's own master record included; every other refusal is one identical not-found
+- `KF-SAS-RQ-253` — A context source re-checks current authority on every call, refuses a moved record, and serves only a direct loopback caller
+- `KF-SAS-RQ-254` — One qualification protocol for every person; roles differ only in their pack, and nothing branches on a role or title
+- `KF-SAS-RQ-255` — A requirement states an outcome and the evidence that counts; opening a document establishes nothing unless acknowledgement is the outcome
+- `KF-SAS-RQ-256` — Evidence is acknowledged, located or demonstrated, and a mode is never upgraded
+- `KF-SAS-RQ-257` — The reviewer who accepts the work credits its evidence in the same act; no duplicate approval
+- `KF-SAS-RQ-258` — Qualification grants nothing and a permission implies none; the database enforces one only where an action declares it
+- `KF-SAS-RQ-259` — Only a behavioural revision of a requirement creates a gap, and only for the scope it touches
+- `KF-SAS-RQ-260` — A mandatory requirement names what becomes unsafe, unauthorized or unreliable without it
+- `KF-SAS-RQ-261` — An unavailable resource or reviewer is the organization's blocker, never the person's failure
 
 | requirement | status | would_satisfy | implementers |
 |---|---|---|---|
@@ -396,6 +426,36 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 | `KF-SAS-RQ-229` | unaddressed | 0 | — |
 | `KF-SAS-RQ-230` | unaddressed | 0 | — |
 | `KF-SAS-RQ-231` | unaddressed | 0 | — |
+| `KF-SAS-RQ-232` | unaddressed | 0 | — |
+| `KF-SAS-RQ-233` | unaddressed | 0 | — |
+| `KF-SAS-RQ-234` | unaddressed | 0 | — |
+| `KF-SAS-RQ-235` | unaddressed | 0 | — |
+| `KF-SAS-RQ-236` | unaddressed | 0 | — |
+| `KF-SAS-RQ-237` | unaddressed | 0 | — |
+| `KF-SAS-RQ-238` | unaddressed | 0 | — |
+| `KF-SAS-RQ-239` | unaddressed | 0 | — |
+| `KF-SAS-RQ-240` | unaddressed | 0 | — |
+| `KF-SAS-RQ-241` | unaddressed | 0 | — |
+| `KF-SAS-RQ-242` | unaddressed | 0 | — |
+| `KF-SAS-RQ-243` | unaddressed | 0 | — |
+| `KF-SAS-RQ-244` | unaddressed | 0 | — |
+| `KF-SAS-RQ-245` | unaddressed | 0 | — |
+| `KF-SAS-RQ-246` | unaddressed | 0 | — |
+| `KF-SAS-RQ-247` | unaddressed | 0 | — |
+| `KF-SAS-RQ-248` | unaddressed | 0 | — |
+| `KF-SAS-RQ-249` | unaddressed | 0 | — |
+| `KF-SAS-RQ-250` | unaddressed | 0 | — |
+| `KF-SAS-RQ-251` | unaddressed | 0 | — |
+| `KF-SAS-RQ-252` | unaddressed | 0 | — |
+| `KF-SAS-RQ-253` | unaddressed | 0 | — |
+| `KF-SAS-RQ-254` | unaddressed | 0 | — |
+| `KF-SAS-RQ-255` | unaddressed | 0 | — |
+| `KF-SAS-RQ-256` | unaddressed | 0 | — |
+| `KF-SAS-RQ-257` | unaddressed | 0 | — |
+| `KF-SAS-RQ-258` | unaddressed | 0 | — |
+| `KF-SAS-RQ-259` | unaddressed | 0 | — |
+| `KF-SAS-RQ-260` | unaddressed | 0 | — |
+| `KF-SAS-RQ-261` | unaddressed | 0 | — |
 
 ## Warrants (1) — invalid 0 · draft 1 · ready_to_resolve 0 · would_satisfy 0 · resolved **0**
 

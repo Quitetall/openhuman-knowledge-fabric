@@ -1,0 +1,11 @@
+{
+  "documents": 1004,
+  "people": 56,
+  "grants": 2323,
+  "by_classification": {
+    "public": 32,
+    "internal": 325,
+    "confidential": 459,
+    "restricted": 188
+  }
+}

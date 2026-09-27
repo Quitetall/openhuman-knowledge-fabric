@@ -1,0 +1,1 @@
+atoms/KF-ADR-0034-an-observation-is-captured-then-promoted.md

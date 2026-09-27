@@ -1,0 +1,22 @@
+{
+  "name": "@kf/attestor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Identity attestor — verifies bearer tokens and vouches to the database that a person is present",
+  "main": "./dist/main.js",
+  "scripts": {
+    "dev": "NODE_ENV=development sh -c 'tsc --build && exec node dist/dev.js'",
+    "start": "node dist/main.js",
+    "build": "tsc --build",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@kf/authorization": "workspace:*",
+    "@kf/database": "workspace:*",
+    "@kf/operations": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3"
+  }
+}

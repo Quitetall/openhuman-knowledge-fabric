@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
-import { setAccessContext, withTransaction } from '@kf/database';
-import { readGranted } from './read-grant.js';
-import { unidentified } from '../actions.js';
+import { withTransaction, bindPrincipal } from '@kf/database';
+import { readGranted } from '@kf/authorization';
+import { refuseUnidentified } from '../actions.js';
 import {
   DEFAULT_DOCUMENT_SOURCE_DOWNLOAD_MAX_BYTES,
   type DocumentRoutesOptions,
@@ -18,6 +18,13 @@ const MEDIA_TYPE = /^[A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]+$/;
 function downloadMediaType(mediaType: string): string {
   return MEDIA_TYPE.test(mediaType) ? mediaType : 'application/octet-stream';
 }
+
+/**
+ * The media types a browser may be asked to show in place (`?disposition=inline`) rather than
+ * save: a PDF opens in the browser's own viewer, plain text as text. Everything else is always an
+ * attachment, and `nosniff` stops a browser second-guessing either.
+ */
+const INLINE_MEDIA_TYPES: ReadonlySet<string> = new Set(['application/pdf', 'text/plain']);
 
 function extensionFor(mediaType: string): string {
   return (
@@ -37,80 +44,84 @@ export function registerDocumentSourceRoute(
   app: FastifyInstance,
   options: DocumentRoutesOptions,
 ): void {
-  app.get<{ Params: { id: string } }>('/documents/:id/source', async (request, reply) => {
-    let identity;
-    try {
-      identity = await options.identify({ headers: request.headers as Record<string, unknown> });
-    } catch (error: unknown) {
-      return reply.code(401).send(unidentified(error));
-    }
-    if (options.store === undefined) {
-      return reply.code(503).send({ error: 'artifact_store_unconfigured' });
-    }
-    const maxBytes = options.maxSourceDownloadBytes ?? DEFAULT_DOCUMENT_SOURCE_DOWNLOAD_MAX_BYTES;
-    if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) {
-      request.log.error('invalid document source download ceiling');
-      return reply.code(503).send({ error: 'immutable_source_unavailable' });
-    }
-    let source;
-    try {
-      source = await withTransaction(options.pool, async (tx) => {
-        await setAccessContext(tx, {
-          organizationId: identity.organizationId,
-          maxClassification: identity.maxClassification,
-        });
-        if (!(await readGranted(tx, identity, request.params.id))) return undefined;
-        return documentSourceBytes(tx, request.params.id, maxBytes);
-      });
-    } catch (error: unknown) {
-      if (error instanceof DocumentBytesUnavailable && error.failure === 'too_large') {
-        return reply.code(413).send({ error: 'source_download_limit_exceeded' });
+  app.get<{ Params: { id: string }; Querystring: { disposition?: string } }>(
+    '/documents/:id/source',
+    async (request, reply) => {
+      let identity;
+      try {
+        identity = await options.identify({ headers: request.headers as Record<string, unknown> });
+      } catch (error: unknown) {
+        return refuseUnidentified(reply, error);
       }
-      request.log.error({ err: error }, 'document source metadata failed verification');
-      return reply.code(409).send({ error: 'immutable_source_unavailable' });
-    }
-    if (source === undefined) return reply.code(404).send({ error: 'not_found' });
-    let bytes: Buffer;
-    try {
-      const stores = options.stores;
-      const served = await readVerifiedDocumentBytes(
-        options.store,
-        source,
-        stores === undefined
-          ? undefined
-          : degradedReadFrom(options.pool, identity, stores, source.versionId),
-      );
-      if (served.servedFrom !== 'working') {
-        request.log.warn(
-          { documentId: request.params.id, servedFrom: served.servedFrom },
-          'document source served from a copy: the working object is missing or corrupt',
+      if (options.store === undefined) {
+        return reply.code(503).send({ error: 'artifact_store_unconfigured' });
+      }
+      const maxBytes = options.maxSourceDownloadBytes ?? DEFAULT_DOCUMENT_SOURCE_DOWNLOAD_MAX_BYTES;
+      if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) {
+        request.log.error('invalid document source download ceiling');
+        return reply.code(503).send({ error: 'immutable_source_unavailable' });
+      }
+      let source;
+      try {
+        source = await withTransaction(options.pool, async (tx) => {
+          await bindPrincipal(tx, identity);
+          if (!(await readGranted(tx, identity, request.params.id))) return undefined;
+          return documentSourceBytes(tx, request.params.id, maxBytes);
+        });
+      } catch (error: unknown) {
+        if (error instanceof DocumentBytesUnavailable && error.failure === 'too_large') {
+          return reply.code(413).send({ error: 'source_download_limit_exceeded' });
+        }
+        request.log.error({ err: error }, 'document source metadata failed verification');
+        return reply.code(409).send({ error: 'immutable_source_unavailable' });
+      }
+      if (source === undefined) return reply.code(404).send({ error: 'not_found' });
+      let bytes: Buffer;
+      try {
+        const stores = options.stores;
+        const served = await readVerifiedDocumentBytes(
+          options.store,
+          source,
+          stores === undefined
+            ? undefined
+            : degradedReadFrom(options.pool, identity, stores, source.versionId),
         );
+        if (served.servedFrom !== 'working') {
+          request.log.warn(
+            { documentId: request.params.id, servedFrom: served.servedFrom },
+            'document source served from a copy: the working object is missing or corrupt',
+          );
+        }
+        bytes = served.bytes;
+      } catch (error: unknown) {
+        if (error instanceof DocumentBytesUnavailable) {
+          return reply.code(409).send({
+            error:
+              error.failure === 'digest_mismatch'
+                ? 'source_digest_mismatch'
+                : 'immutable_source_unavailable',
+          });
+        }
+        request.log.error({ err: error }, 'immutable document source read failed');
+        return reply.code(503).send({ error: 'immutable_source_unavailable' });
       }
-      bytes = served.bytes;
-    } catch (error: unknown) {
-      if (error instanceof DocumentBytesUnavailable) {
-        return reply.code(409).send({
-          error:
-            error.failure === 'digest_mismatch'
-              ? 'source_digest_mismatch'
-              : 'immutable_source_unavailable',
-        });
-      }
-      request.log.error({ err: error }, 'immutable document source read failed');
-      return reply.code(503).send({ error: 'immutable_source_unavailable' });
-    }
-    const mediaType = downloadMediaType(source.mediaType);
-    const fileName = `${source.documentNumber}-${source.revision}`.replace(/[^A-Za-z0-9._-]/g, '_');
-    const fileNameWithExtension = `${fileName}${extensionFor(mediaType)}`;
-    return reply
-      .header('cache-control', 'private, no-store')
-      .header(
-        'content-disposition',
-        `attachment; filename="${fileNameWithExtension}"; filename*=UTF-8''${encodeURIComponent(fileNameWithExtension)}`,
-      )
-      .header('etag', `"sha256:${source.sha256}"`)
-      .header('x-content-type-options', 'nosniff')
-      .type(mediaType)
-      .send(bytes);
-  });
+      const mediaType = downloadMediaType(source.mediaType);
+      const fileName = `${source.documentNumber}-${source.revision}`.replace(
+        /[^A-Za-z0-9._-]/g,
+        '_',
+      );
+      const fileNameWithExtension = `${fileName}${extensionFor(mediaType)}`;
+      const inline = request.query.disposition === 'inline' && INLINE_MEDIA_TYPES.has(mediaType);
+      return reply
+        .header('cache-control', 'private, no-store')
+        .header(
+          'content-disposition',
+          `${inline ? 'inline' : 'attachment'}; filename="${fileNameWithExtension}"; filename*=UTF-8''${encodeURIComponent(fileNameWithExtension)}`,
+        )
+        .header('etag', `"sha256:${source.sha256}"`)
+        .header('x-content-type-options', 'nosniff')
+        .type(mediaType === 'text/plain' ? 'text/plain; charset=utf-8' : mediaType)
+        .send(bytes);
+    },
+  );
 }

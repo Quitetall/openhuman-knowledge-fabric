@@ -34,10 +34,16 @@ import {
 } from '@kf/integration';
 import { createFabricDispatcher } from '@kf/orchestrator';
 import { drainOutbox } from '../../apps/worker/src/outbox.js';
-import { setAccessContext, setTransactionContext, withTransaction } from '@kf/database';
+import {
+  bindPrincipal,
+  setAccessContext,
+  setTransactionContext,
+  withTransaction,
+} from '@kf/database';
 import {
   createObject,
   bindContext,
+  recordAct,
   seedFixtures,
   startHarness,
   type Fixtures,
@@ -145,7 +151,9 @@ describe('master-record runtime', () => {
 
     const membersFor = async (personId: string): Promise<readonly string[]> =>
       withTransaction(harness.pool, async (tx) => {
-        await setAccessContext(tx, {
+        await bindPrincipal(tx, {
+          actorId: fixtures.reviewerId,
+          actingRoleId: fixtures.reviewerRoleId,
           organizationId: fixtures.organizationId,
           maxClassification: 'restricted',
         });
@@ -221,14 +229,14 @@ describe('master-record runtime', () => {
   it('includes immutable artifact versions referenced by a typed document row', async () => {
     const artifactId = await createObject(harness.adminPool, fixtures, {
       type: 'artifact',
-      domain: 'content',
+      domain: 'artifact',
       state: 'draft',
       title: 'Master-record payload artifact',
       createdBy: fixtures.reviewerId,
     });
     const documentId = await createObject(harness.adminPool, fixtures, {
       type: 'controlled_document',
-      domain: 'quality',
+      domain: 'qms',
       state: 'draft',
       title: 'Document with immutable bytes',
       createdBy: fixtures.reviewerId,
@@ -269,7 +277,9 @@ describe('master-record runtime', () => {
     });
 
     const members = await withTransaction(harness.pool, async (tx) => {
-      await setAccessContext(tx, {
+      await bindPrincipal(tx, {
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
         organizationId: fixtures.organizationId,
         maxClassification: 'restricted',
       });
@@ -305,7 +315,7 @@ describe('master-record runtime', () => {
         recordedByAction: actionId,
       });
     });
-    expect(first.manifest.format).toBe('kf-master-record-v2');
+    expect(first.manifest.format).toBe('kf-master-record-v3');
     expect(first.manifest.included.length).toBeGreaterThan(0);
     const subjectMember = first.manifest.included.find(
       (member) => member.objectId === fixtures.reviewerId,
@@ -596,7 +606,9 @@ describe('master-record runtime', () => {
   it('releases an entitlement exclusion only through the typed action seam', async () => {
     const actionId = await unrecordedAction();
     const objectId = await withTransaction(harness.pool, async (tx) => {
-      await setAccessContext(tx, {
+      await bindPrincipal(tx, {
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
         organizationId: fixtures.organizationId,
         maxClassification: 'restricted',
       });
@@ -734,24 +746,27 @@ describe('master-record runtime', () => {
     });
 
     const withdrawn = await withTransaction(harness.pool, async (tx) => {
-      await setAccessContext(tx, {
+      await bindPrincipal(tx, {
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
         organizationId: fixtures.organizationId,
         maxClassification: 'restricted',
       });
-      await setTransactionContext(tx, {
-        actorId: fixtures.reviewerId,
-        actingRoleId: fixtures.reviewerRoleId,
-        actionId,
-        requestId: 'master-record-withdrawal-compile',
+      // The application's compile writes rows, so it records its act in this transaction
+      // (20260925011000); the admin-recorded `actionId` above belongs to an earlier one.
+      const compile = await recordAct(tx, fixtures, fixtures.reviewerId, undefined, {
+        deferAudit: true,
       });
-      return compileAndRecordMasterRecord(tx, {
+      const compiled = await compileAndRecordMasterRecord(tx, {
         personId: fixtures.reviewerId,
         organizationId: fixtures.organizationId,
         effectiveClassification: 'restricted',
         recordedBy: fixtures.reviewerId,
-        recordedByAction: actionId,
+        recordedByAction: compile.actionId,
         compiledAt: '2026-08-26T01:00:00.000Z',
       });
+      await compile.audit();
+      return compiled;
     });
     const removed = withdrawn.manifest.withdrawn.find(
       (member) => member.objectId === candidate!.objectId,
@@ -791,14 +806,14 @@ describe('master-record runtime', () => {
 
     const artifactId = await createObject(harness.adminPool, fixtures, {
       type: 'artifact',
-      domain: 'content',
+      domain: 'artifact',
       state: 'draft',
       title: 'Tombstone artifact',
       createdBy: fixtures.reviewerId,
     });
     const documentId = await createObject(harness.adminPool, fixtures, {
       type: 'controlled_document',
-      domain: 'quality',
+      domain: 'qms',
       state: 'draft',
       title: 'Tombstone document',
       createdBy: fixtures.reviewerId,
@@ -875,9 +890,9 @@ describe('master-record runtime', () => {
     await withTransaction(harness.adminPool, async (tx) => {
       await bindContext(tx, fixtures);
       await tx.query(
-        `insert into org.role_assignment (id, subject_id, role_id, scope_id)
-         values ($1, $3, 'quality_authority', $2),
-                ($4, $3, 'system_administrator', $2)`,
+        `insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to)
+         values ($1, $3, 'quality_authority', $2, now() + interval '1 year'),
+                ($4, $3, 'system_administrator', $2, now() + interval '1 year')`,
         [qualityRoleId, fixtures.organizationId, fixtures.reviewerId, systemRoleId],
       );
     });

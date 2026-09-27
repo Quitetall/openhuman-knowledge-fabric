@@ -7,7 +7,8 @@ import type { VerifiedRuntimeFile } from './contracts.js';
 import { boundedMessage } from './limits.js';
 import type { LiminalProcessConfig } from './options.js';
 import { killProcessTree } from './process-control.js';
-import { sandboxArguments } from './sandbox.js';
+import { sandboxCommand, seccompDescriptor } from './sandbox.js';
+import { compilerSeccompProgram, currentSeccompArchitecture } from './seccomp.js';
 
 export async function runLiminalCompiler(
   config: LiminalProcessConfig,
@@ -43,29 +44,29 @@ async function spawnCompiler(
   let stdoutBytes = 0;
   let stderrBytes = 0;
   let limitFailure: Error | undefined;
+  // Built before anything spawns: an architecture with no filter refuses here, unfiltered never.
+  const seccomp = compilerSeccompProgram(currentSeccompArchitecture());
   return await new Promise((resolve, reject) => {
-    const child = spawn(
-      config.bubblewrapPath,
-      sandboxArguments(config.runtimeFilePaths, config.pathEnvironment, [
-        '--protocol',
-        config.identity.protocol,
-      ]),
-      {
-        cwd: '/',
-        detached: true,
-        env: {},
-        stdio: ['pipe', 'pipe', 'pipe', 'pipe', ...runtimeFiles.map(({ file }) => file.fd)],
-      },
-    );
+    const sandbox = sandboxCommand(config, ['--protocol', config.identity.protocol]);
+    const child = spawn(sandbox.command, sandbox.argv, {
+      cwd: '/',
+      detached: true,
+      env: {},
+      stdio: ['pipe', 'pipe', 'pipe', 'pipe', ...runtimeFiles.map(({ file }) => file.fd), 'pipe'],
+    });
     const childStdin = child.stdin;
     const childStdout = child.stdout;
     const childStderr = child.stderr;
     const compilerInput = child.stdio[3] as Writable | null;
+    const filterInput = child.stdio[seccompDescriptor(config.runtimeFilePaths)] as
+      Writable | null | undefined;
     if (
       childStdin === null ||
       childStdout === null ||
       childStderr === null ||
-      compilerInput === null
+      compilerInput === null ||
+      filterInput === null ||
+      filterInput === undefined
     ) {
       child.kill('SIGKILL');
       reject(new Error('Liminal compiler did not expose required piped streams'));
@@ -144,6 +145,14 @@ async function spawnCompiler(
       clearTimers();
       resolve({ code, signal });
     });
+    filterInput.once('error', (error) => {
+      if ((error as NodeJS.ErrnoException).code !== 'EPIPE') {
+        stopFor(
+          new Error(`Liminal syscall-filter transfer failed: ${error.message}`, { cause: error }),
+        );
+      }
+    });
+    filterInput.end(seccomp);
     compilerInput.end(executableBytes);
     childStdin.end(input);
   });

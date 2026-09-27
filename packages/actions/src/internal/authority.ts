@@ -1,6 +1,8 @@
-import { setResolvedAccessContext, type Tx } from '@kf/database';
+import { PrincipalRefused, setResolvedAccessContext, type Tx } from '@kf/database';
+import { asActionRefusal } from './refusals.js';
 import {
   ActionRejected,
+  MINIMUM_REASON_LENGTH,
   resolveDispatcherOptions,
   type ActionDefinition,
   type ActionRequest,
@@ -129,10 +131,22 @@ export async function assertActCovered(
 }
 
 export function assertReasonPresent(request: ActionRequest, reasonRequired: ReadonlySet<string>) {
-  if (reasonRequired.has(request.actionType) && !request.reason?.trim()) {
-    throw new ActionRejected('reason_required', `${request.actionType} requires a reason`, {
-      actionType: request.actionType,
-    });
+  if (reasonRequired.has(request.actionType)) assertMeaningfulReason(request);
+}
+
+/**
+ * A required reason must say something: at least MINIMUM_REASON_LENGTH characters once trimmed,
+ * and not one character repeated. Filler passes a presence check and defeats its purpose.
+ */
+export function assertMeaningfulReason(request: ActionRequest): void {
+  const reason = request.reason?.trim() ?? '';
+  const distinct = new Set(reason.replace(/\s+/g, '').toLowerCase()).size;
+  if (reason.length < MINIMUM_REASON_LENGTH || distinct < 3) {
+    throw new ActionRejected(
+      'reason_required',
+      `${request.actionType} requires a reason of at least ${MINIMUM_REASON_LENGTH} characters that says why`,
+      { actionType: request.actionType },
+    );
   }
 }
 
@@ -143,8 +157,21 @@ export async function bindResolvedAccessContext(tx: Tx, request: ActionRequest):
       assignmentId: request.actingRoleId,
       organizationId: request.organizationId,
       requestedClassification: request.maxClassification,
+      attestation: request.attestation,
     });
   } catch (error: unknown) {
+    if (error instanceof PrincipalRefused && error.reason === 'not_attested') {
+      throw new ActionRejected(
+        'not_attested',
+        'nobody attested that the actor is present; identify again',
+      );
+    }
+    if (error instanceof PrincipalRefused && error.reason === 'role_not_held') {
+      throw new ActionRejected(
+        'role_not_held',
+        'the acting role is not held live in this organization',
+      );
+    }
     const message = error instanceof Error ? error.message : String(error);
     const code =
       typeof error === 'object' && error !== null && 'code' in error
@@ -172,6 +199,18 @@ export function createTransactionalPreflight(
     tx: Tx,
     request: ActionRequest,
     prospectiveObjects: readonly ObjectRow[] = [],
+  ): Promise<void> {
+    try {
+      await preflight(tx, request, prospectiveObjects);
+    } catch (error: unknown) {
+      throw asActionRefusal(error);
+    }
+  };
+
+  async function preflight(
+    tx: Tx,
+    request: ActionRequest,
+    prospectiveObjects: readonly ObjectRow[],
   ): Promise<void> {
     assertActionAvailable(request.actionType, resolved.allowedActions);
     assertCanonicalEffectiveAt(request);
@@ -227,5 +266,5 @@ export function createTransactionalPreflight(
 
     const check = resolved.preconditions[request.actionType];
     if (check !== undefined) await check(tx, request, objects);
-  };
+  }
 }

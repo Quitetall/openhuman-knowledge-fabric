@@ -1,6 +1,7 @@
 import type { ActionEffect, PreconditionCheck } from '@kf/actions';
 import { optionalString, requireString } from '@kf/record-atoms';
 import { createProposalOverlay } from '../compiler.js';
+import { DOCUMENT_PROPOSAL_CONTEXT_FORMAT } from '../proposal.js';
 import { refuseDocument } from './action-payload.js';
 import { touchDocumentObject } from './composition-store.js';
 import { assertDocumentAuthor } from './document-authority.js';
@@ -69,6 +70,16 @@ export function createProposalRecordActions(): ProposalRecordActions {
         refuseDocument(
           'KF-DOC-PROPOSAL-014',
           'model proposal identity does not match exact provenance',
+        );
+      }
+      // KF-SAS-RQ-115 and RQ-016: a new model proposal names the agent_context projection its
+      // context came from, under the tagged v2 digest. v1 claims verify on read and are never
+      // recorded again.
+      if (modelProvenance.context.format !== DOCUMENT_PROPOSAL_CONTEXT_FORMAT) {
+        refuseDocument(
+          'KF-DOC-PROPOSAL-017',
+          `model proposal context must be ${DOCUMENT_PROPOSAL_CONTEXT_FORMAT}, naming its ` +
+            'agent_context projection',
         );
       }
     } else {

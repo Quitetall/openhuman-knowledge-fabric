@@ -124,3 +124,22 @@ was REPORTED before this allowlist was committed.
 """
 regexes = ["""'(0123456789abcdef){2}'"""]
 regexTarget = "match"
+
+[[allowlists]]
+description = """
+Document keys in the benchmark-corpus fixture manifests (fixtures/{enterprise-rag-bench,drbench,
+theagentcompany}/sample/manifest.json*, commit 18b5877a). Each is an identifier the fixture's own
+extractor derives from public data, in one of three exact shapes, and the generic-api-key rule
+reaches for them on the word "key" plus entropy — 95 findings, the first scan after they landed:
+
+  dsid_<32 hex>         enterprise-rag-bench's own document id; the same record's doc_id
+  DR<4 digits>-qa_<10>  drbench's `${task}-${dir}` (fixtures/drbench/extract.mjs)
+  f<16 hex>             sha256(path) truncated (fixtures/theagentcompany/extract.mjs)
+
+Pinned to the JSON assignment AND the whole value, quotes included, so a credential assigned to
+a `key` field in any other shape is still reported. Not scoped by path (see the head of this
+file). Falsified before commit: an AWS-shaped key planted as a `key` value in one of these
+manifests was REPORTED, and removed.
+"""
+regexes = ['''key":\s?"(?:dsid_[0-9a-f]{32}|DR[0-9]{4}-qa_[0-9]{10}|f[0-9a-f]{16})"''']
+regexTarget = "match"

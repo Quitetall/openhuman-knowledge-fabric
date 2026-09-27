@@ -1,21 +1,50 @@
 import type { CheckFn } from './contracts.js';
+import { compareInstalledOntology, describeOntologyMismatch } from './release-ontology.js';
 
-export const schemaRelease: CheckFn = async (tx) => {
-  const row = await tx.maybeOne<{ version: string; ontology_digest: string }>(
-    'select version, ontology_digest from registry.schema_release where is_current',
-  );
-  if (row === undefined) {
+/**
+ * The seed ran, and it seeded the ontology this release was compiled from (KF-SAS-RQ-081).
+ *
+ * Until 2026-09-25 this checked only that a current row existed, so a database seeded from one
+ * checkout and served by another release reported `ok` while the two disagreed about every
+ * state, transition and action the registry mirrors.
+ */
+export const schemaRelease: CheckFn = async (tx, _limits, { release }) => {
+  if (release.digest === undefined) {
+    return {
+      id: 'schema_release',
+      status: 'failed',
+      detail: describeOntologyMismatch(release, undefined) ?? 'unverifiable ontology digest',
+      measured: { source: release.source },
+    };
+  }
+  const installed = await compareInstalledOntology(tx, release.digest);
+  if (installed.status === 'absent') {
     return {
       id: 'schema_release',
       status: 'failed',
       detail: 'No current schema release. The ontology seed has not been applied.',
     };
   }
+  const measured = {
+    version: installed.version,
+    ontologyDigest: installed.installed.slice(0, 12),
+    releaseOntologyDigest: release.digest.slice(0, 12),
+  };
+  if (installed.status === 'mismatch') {
+    return {
+      id: 'schema_release',
+      status: 'failed',
+      detail: `The installed ontology digest differs from this release's: ${
+        describeOntologyMismatch(release, installed) ?? ''
+      }`,
+      measured,
+    };
+  }
   return {
     id: 'schema_release',
     status: 'ok',
-    detail: `Schema release ${row.version} is current.`,
-    measured: { version: row.version, ontologyDigest: row.ontology_digest.slice(0, 12) },
+    detail: `Schema release ${installed.version} is current and matches this release's ontology.`,
+    measured,
   };
 };
 

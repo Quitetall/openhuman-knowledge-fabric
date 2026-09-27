@@ -1,7 +1,12 @@
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdtemp, writeFile } from 'node:fs/promises';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { ActionRejected } from '@kf/actions';
+import { InMemoryObjectStore } from '@kf/artifacts';
+import { digestBytes } from '@kf/canonicalization';
+import type { Pool } from '@kf/database';
+import { activePreparsedDocuments, type DocumentParser } from '@kf/documents';
 import {
   parseIngestArgs,
   parseReferenceManifest,
@@ -215,5 +220,196 @@ describe('kf ingest --via=api', () => {
         '/tmp',
       ),
     ).rejects.toThrow(/reference mode|--reference-manifest|copies only/);
+  });
+});
+
+const DEV_ORG = '44444444-4444-7444-8444-444444444444';
+const DEV_ENV = {
+  NODE_ENV: 'development',
+  KF_ALLOW_FIXED_IDENTITY: '1',
+  KF_DEV_ACTOR: '55555555-5555-7555-8555-555555555555',
+  KF_DEV_ACTING_ROLE: '66666666-6666-7666-8666-666666666666',
+  KF_DEV_ORGANIZATION: DEV_ORG,
+};
+
+/** Every query answers as the clearance resolver would for `internal`; nothing else is read. */
+function fakePool(): Pool {
+  const client = {
+    // Answers the principal bind (`ceiling`) and the older resolver shape alike: the CLI binds
+    // its dev identity through core.bind_principal before it reads anything.
+    query: vi.fn(async () => ({
+      rows: [{ ceiling: 'internal', requested_classification: 'internal' }],
+      rowCount: 1,
+    })),
+    release: vi.fn(),
+  };
+  return {
+    connect: vi.fn(async () => client),
+    query: client.query,
+    end: vi.fn(async () => undefined),
+  } as unknown as Pool;
+}
+
+async function batchDirectory(files: Readonly<Record<string, string>>): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'kf-ingest-db-'));
+  for (const [name, body] of Object.entries(files)) await writeFile(join(dir, name), body);
+  return dir;
+}
+
+describe('kf ingest over the database path', () => {
+  it('stores no byte when any act in the batch would be refused', async () => {
+    // Bytes were written per item inside the act loop, so a refusal at item two left item
+    // one's bytes stored under a key no record references.
+    const dir = await batchDirectory({ 'one.md': '# one\n', 'two.md': '# two\n' });
+    const store = new InMemoryObjectStore();
+    const execute = vi.fn();
+    let rehearsed = 0;
+    const preflight = vi.fn(async () => {
+      rehearsed += 1;
+      if (rehearsed === 2) throw new ActionRejected('act_not_granted', 'not this one');
+    });
+    await expect(
+      runIngest(
+        {
+          mode: 'copy',
+          classification: 'internal',
+          identity: 'dev',
+          json: false,
+          paths: [join(dir, 'one.md'), join(dir, 'two.md')],
+        },
+        DEV_ENV,
+        dir,
+        {
+          ownerPool: fakePool(),
+          appPool: fakePool(),
+          store,
+          executeInTransaction: execute,
+          preflightInTransaction: preflight,
+        },
+      ),
+    ).rejects.toMatchObject({ failure: 'act_not_granted' });
+    expect(execute).not.toHaveBeenCalled();
+    for (const body of ['# one\n', '# two\n']) {
+      expect(await store.head(`ingest/${DEV_ORG}/${digestBytes(Buffer.from(body))}`)).toBe(
+        undefined,
+      );
+    }
+  });
+
+  it('parses every copy with no transaction open, and hands each act its own parse', async () => {
+    const dir = await batchDirectory({ 'one.md': '# one\n', 'two.md': '# two\n' });
+    let open = 0;
+    const client = {
+      query: vi.fn(async (sql: string) => {
+        const statement = sql.trim().toLowerCase();
+        if (statement === 'begin') open += 1;
+        if (statement === 'commit' || statement === 'rollback') open -= 1;
+        return { rows: [{ ceiling: 'internal', requested_classification: 'internal' }] };
+      }),
+      release: vi.fn(),
+    };
+    const appPool = {
+      connect: vi.fn(async () => client),
+      query: client.query,
+      end: vi.fn(async () => undefined),
+    } as unknown as Pool;
+    const openAtParse: number[] = [];
+    const parser: DocumentParser = {
+      async parse() {
+        openAtParse.push(open);
+        return undefined;
+      },
+    };
+    const seen: string[][] = [];
+    const execute = vi.fn(async () => {
+      seen.push((activePreparsedDocuments() ?? []).map((document) => document.sourceDigest));
+      throw new ActionRejected('act_not_granted', 'fixture stops at the act');
+    });
+    await expect(
+      runIngest(
+        {
+          mode: 'copy',
+          classification: 'internal',
+          identity: 'dev',
+          json: false,
+          paths: [join(dir, 'one.md'), join(dir, 'two.md')],
+        },
+        DEV_ENV,
+        dir,
+        {
+          ownerPool: fakePool(),
+          appPool,
+          store: new InMemoryObjectStore(),
+          parser,
+          executeInTransaction: execute,
+          preflightInTransaction: vi.fn(async () => undefined),
+        },
+      ),
+    ).rejects.toMatchObject({ failure: 'act_not_granted' });
+    expect(openAtParse).toEqual([0, 0]);
+    expect(seen).toEqual([
+      [digestBytes(Buffer.from('# one\n')), digestBytes(Buffer.from('# two\n'))],
+    ]);
+  });
+
+  it('refuses the whole batch on a secret in any file, before any preflight or put', async () => {
+    const header = ['-----BEGIN', 'RSA', 'PRIVATE', 'KEY-----'].join(' ');
+    const dir = await batchDirectory({ 'fine.md': '# fine\n', 'notes.md': `# notes\n${header}\n` });
+    const store = new InMemoryObjectStore();
+    const preflight = vi.fn();
+    const error = await runIngest(
+      {
+        mode: 'copy',
+        classification: 'internal',
+        identity: 'dev',
+        json: false,
+        paths: [join(dir, 'fine.md'), join(dir, 'notes.md')],
+      },
+      DEV_ENV,
+      dir,
+      {
+        ownerPool: fakePool(),
+        appPool: fakePool(),
+        store,
+        executeInTransaction: vi.fn(),
+        preflightInTransaction: preflight,
+      },
+    ).catch((caught: unknown) => caught);
+    expect((error as { refusals?: readonly string[] }).refusals).toEqual([
+      `refusing ${join(dir, 'notes.md')} (line 2): rule private-key — contains a private key`,
+    ]);
+    expect(String((error as Error).message)).not.toContain('RSA');
+    expect(preflight).not.toHaveBeenCalled();
+    expect(await store.head(`ingest/${DEV_ORG}/${digestBytes(Buffer.from('# fine\n'))}`)).toBe(
+      undefined,
+    );
+  });
+});
+
+describe('kf ingest --via=api refuses content before uploading anything', () => {
+  it('sends no request when any file carries what validates as an IBAN', async () => {
+    const iban = ['GB82', 'WEST', '1234', '5698', '7654', '32'].join(' ');
+    const dir = await batchDirectory({ 'a.md': '# a\n', 'b.csv': `payee,iban\nACME,${iban}\n` });
+    await writeFile(join(dir, 'token'), 'tok.en\n', { mode: 0o600 });
+    const fetchImpl = vi.fn();
+    const error = await runIngestViaApi(
+      {
+        mode: 'copy',
+        classification: 'internal',
+        identity: 'oidc',
+        organizationId: DEV_ORG,
+        actingRoleId: '66666666-6666-7666-8666-666666666666',
+        tokenFile: join(dir, 'token'),
+        json: false,
+        paths: [join(dir, 'a.md'), join(dir, 'b.csv')],
+        via: 'api',
+      },
+      { KF_API_ORIGIN: 'https://api.kf.internal' },
+      dir,
+      fetchImpl as unknown as typeof fetch,
+    ).catch((caught: unknown) => caught);
+    expect((error as { refusals?: readonly string[] }).refusals?.[0]).toMatch(/rule iban/);
+    expect(String((error as Error).message)).not.toContain('WEST');
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });

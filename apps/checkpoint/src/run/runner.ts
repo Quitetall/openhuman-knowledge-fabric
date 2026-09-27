@@ -50,25 +50,17 @@ export async function runCheckpoint(
 
     const signed = buildCheckpoint(entries, key, expectedFirstPrev);
 
-    let storageUri: string | null = null;
-    if (options.store !== undefined) {
-      const objectKey = `audit/checkpoints/${String(signed.fromSeq).padStart(12, '0')}-${String(
-        signed.toSeq,
-      ).padStart(12, '0')}.json`;
-      // Refuse to overwrite. A checkpoint object that can be replaced is not evidence.
-      if ((await options.store.head(objectKey)) !== undefined) {
-        throw new Error(
-          `a checkpoint object already exists at ${objectKey} — refusing to replace it`,
-        );
-      }
-      await options.store.put(
-        objectKey,
-        Buffer.from(`${JSON.stringify(signed, null, 2)}\n`, 'utf8'),
-        'application/json',
-      );
-      storageUri = objectKey;
-    }
+    const objectKey =
+      options.store === undefined
+        ? null
+        : `audit/checkpoints/${String(signed.fromSeq).padStart(12, '0')}-${String(
+            signed.toSeq,
+          ).padStart(12, '0')}.json`;
 
+    // The row FIRST, then the object. The other order wedged the signer: an object written
+    // before an insert that then failed stayed in the store, the next run computed the same
+    // range, found the key occupied, and refused — every hour, forever, with the audit log
+    // unsigned from that point on. Inserted first, a failed put rolls the row back with it.
     const row = await tx.one<{ id: string }>(
       `insert into core.audit_checkpoint
          (format_version, from_seq, to_seq, leaf_count, merkle_root, signature,
@@ -82,9 +74,27 @@ export async function runCheckpoint(
         signed.merkleRoot,
         signed.signature,
         signed.signingKeyId,
-        storageUri,
+        objectKey,
       ],
     );
+
+    if (options.store !== undefined && objectKey !== null) {
+      const body = Buffer.from(`${JSON.stringify(signed, null, 2)}\n`, 'utf8');
+      // Create-only, and idempotent for exactly these bytes. The commit can still fail after
+      // the put, leaving the object without its row; the retry signs the same range with the
+      // same key (Ed25519 is deterministic) and produces byte-identical JSON, which is the
+      // same attestation, not a replacement. Different bytes at the key are refused: a
+      // checkpoint object that can be replaced is not evidence.
+      const stored = await options.store.putIfAbsent(objectKey, body, 'application/json');
+      const existing = await options.store.read(objectKey, stored.versionId, body.length + 1);
+      if (!existing.equals(body)) {
+        throw new Error(
+          `a checkpoint object already exists at ${objectKey} with different content — ` +
+            'refusing to replace it',
+        );
+      }
+    }
+    const storageUri = objectKey;
 
     return {
       status: 'signed',

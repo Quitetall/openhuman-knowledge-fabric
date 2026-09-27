@@ -88,6 +88,17 @@ export interface CommissioningInputs {
    * the compiler, its `Cargo.lock` and the external runtime closure are digested.
    */
   readonly releaseDirectory?: string;
+  /**
+   * kf-attestor's socket (20260924001000). The only way a bearer caller becomes bindable, so it
+   * must exist, answer to the attestor's identity, and be open to kf-api and nobody else.
+   */
+  readonly attestorSocketPath: string;
+  /**
+   * The account databases the identity checks read. Real hosts use the defaults; they are inputs
+   * so a test can describe users it cannot create.
+   */
+  readonly passwdPath: string;
+  readonly groupPath: string;
   /** Days before certificate expiry at which renewal is already overdue. */
   readonly certificateRenewalDays: number;
   /** Days after which a rollback rehearsal no longer counts as evidence. */
@@ -97,6 +108,9 @@ export interface CommissioningInputs {
 export const COMMISSIONING_DEFAULTS = {
   systemdDirectory: '/etc/systemd/system',
   shippedUnitDirectory: 'deploy/systemd',
+  attestorSocketPath: '/run/kf-attestor/attestor.sock',
+  passwdPath: '/etc/passwd',
+  groupPath: '/etc/group',
   certificateRenewalDays: 21,
   rollbackRehearsalDays: 180,
 } as const satisfies Partial<CommissioningInputs>;

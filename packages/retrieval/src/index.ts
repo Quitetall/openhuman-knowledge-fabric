@@ -17,6 +17,8 @@
  * whole design exists to eliminate.
  */
 
+import { randomUUID } from 'node:crypto';
+
 import { coveringGrants, type AccessCoverage } from '@kf/authorization';
 import type { Tx } from '@kf/database';
 
@@ -39,7 +41,8 @@ export interface SlotMap {
 /** Band membership over one slot ordering, valid for exactly one (bandVersion, generation) pair. */
 export interface BandBitmaps {
   readonly organizationId: string;
-  readonly bandVersion: bigint;
+  /** The version token (`currentBandVersion`): opaque, compared whole, never ordered. */
+  readonly bandVersion: string;
   readonly generation: string;
   readonly slotCount: number;
   /** `bands[band][slot]` is 1 when that slot's record sits in that band. */
@@ -55,8 +58,8 @@ export interface BandBitmaps {
 
 export class BandVersionMoved extends Error {
   constructor(
-    readonly expected: bigint,
-    readonly actual: bigint,
+    readonly expected: string,
+    readonly actual: string,
   ) {
     super(
       `band version moved from ${expected} to ${actual}; the bitmaps were built against records ` +
@@ -80,15 +83,56 @@ export class GenerationMismatch extends Error {
   }
 }
 
-/** The organization's current band version. Cheap: one row, primary-key lookup. */
-export async function currentBandVersion(tx: Tx, organizationId: string): Promise<bigint> {
-  const rows = await tx.query<{ version: string }>(
-    'select /* retrieval.band-version */ version::text as version from retrieval.band_version where organization_id = $1',
+/**
+ * The version as stored: the row's epoch and its counter, or no row at all.
+ *
+ * The epoch is a fresh uuidv7 each time the row is created (20260925064100). The counter alone
+ * restarts at 1 when a lost row is recreated, so it can climb back to a value a cache already
+ * holds; the pair cannot repeat, because a recreated row never has an epoch seen before.
+ */
+interface StoredBandVersion {
+  readonly epoch: string | null;
+  readonly counter: bigint;
+}
+
+async function readBandVersion(tx: Tx, organizationId: string): Promise<StoredBandVersion> {
+  const rows = await tx.query<{ epoch: string; version: string }>(
+    'select /* retrieval.band-version */ epoch::text as epoch, version::text as version from retrieval.band_version where organization_id = $1',
     [organizationId],
   );
-  // No row means no record has ever been written for this organization, so every band is empty
-  // and version 0 is the honest answer rather than an error.
-  return BigInt(rows[0]?.version ?? '0');
+  const row = rows[0];
+  return row === undefined
+    ? { epoch: null, counter: 0n }
+    : { epoch: row.epoch, counter: BigInt(row.version) };
+}
+
+function sameStoredVersion(a: StoredBandVersion, b: StoredBandVersion): boolean {
+  return a.epoch === b.epoch && a.counter === b.counter;
+}
+
+/**
+ * The token for a stored version: `<epoch>.<counter>`.
+ *
+ * With no row — nothing written yet, or the derived row lost to a restore that excluded it — the
+ * token is `unversioned.<random>`, different on every call. There is no version to key a cache
+ * on, so nothing built in that window may ever be matched again: the random part guarantees it.
+ */
+function tokenFor(stored: StoredBandVersion): string {
+  return stored.epoch === null
+    ? `unversioned.${randomUUID()}`
+    : `${stored.epoch}.${stored.counter.toString()}`;
+}
+
+/**
+ * The organization's current band version token. Cheap: one row, primary-key lookup.
+ *
+ * Opaque. Compare it whole with `===` and never order it: the counter restarts under a new epoch,
+ * so "greater" means nothing across a lost row. While no row exists every call returns a
+ * different token, which makes every cached bitmap and every pushed one stale — the safe
+ * direction for a window that ends with the next band-moving write.
+ */
+export async function currentBandVersion(tx: Tx, organizationId: string): Promise<string> {
+  return tokenFor(await readBandVersion(tx, organizationId));
 }
 
 /**
@@ -104,7 +148,7 @@ export async function buildBandBitmaps(
   organizationId: string,
   slots: SlotMap,
 ): Promise<BandBitmaps> {
-  const before = await currentBandVersion(tx, organizationId);
+  const before = await readBandVersion(tx, organizationId);
 
   const bands = Object.fromEntries(
     BANDS.map((band) => [band, new Uint8Array(slots.objectIds.length)]),
@@ -129,12 +173,14 @@ export async function buildBandBitmaps(
     }
   }
 
-  const after = await currentBandVersion(tx, organizationId);
-  if (after !== before) throw new BandVersionMoved(before, after);
+  const after = await readBandVersion(tx, organizationId);
+  if (!sameStoredVersion(before, after)) {
+    throw new BandVersionMoved(tokenFor(before), tokenFor(after));
+  }
 
   return {
     organizationId,
-    bandVersion: before,
+    bandVersion: tokenFor(before),
     generation: slots.generation,
     slotCount: slots.objectIds.length,
     bands,
@@ -181,6 +227,35 @@ export function maskFor(
   return mask;
 }
 
+/**
+ * The process-local bitmap cache (KF-SAS-RQ-223: memory only, never written anywhere).
+ *
+ * One entry per organization and index generation, reused only while the current version token
+ * equals the one it was built under — the whole token, epoch and counter, so a counter that
+ * restarted under a new epoch after a lost row can never revalidate an old entry. While no row
+ * exists the token is fresh on every read and nothing is reused.
+ */
+export class BandBitmapCache {
+  readonly #entries = new Map<string, BandBitmaps>();
+
+  async get(tx: Tx, organizationId: string, slots: SlotMap): Promise<BandBitmaps> {
+    const key = `${organizationId}\u0000${slots.generation}`;
+    const cached = this.#entries.get(key);
+    if (cached !== undefined && cached.slotCount === slots.objectIds.length) {
+      const current = await currentBandVersion(tx, organizationId);
+      if (current === cached.bandVersion) return cached;
+    }
+    const built = await buildBandBitmaps(tx, organizationId, slots);
+    this.#entries.set(key, built);
+    return built;
+  }
+
+  /** Entries held, for tests and for the operator's memory accounting. */
+  get size(): number {
+    return this.#entries.size;
+  }
+}
+
 /** How many slots a mask admits. For the withholding ledger, and for telling an empty mask from a full one. */
 export function admitted(mask: Uint8Array): number {
   let total = 0;
@@ -190,3 +265,4 @@ export function admitted(mask: Uint8Array): number {
 
 export * from './protocol.js';
 export * from './client.js';
+export * from './engine.js';

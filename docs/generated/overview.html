@@ -270,17 +270,17 @@
 <div class="sheet">
 
   <header class="masthead">
-    <div class="eyebrow">Software Architecture Specification &middot; 0.1.0-draft.5 &middot; accepted</div>
+    <div class="eyebrow">Software Architecture Specification &middot; 0.1.0-draft.8 &middot; accepted</div>
     <h1>Knowledge Fabric Control Record</h1>
     <p class="standfirst">One coherent institutional record, where the database is the authority and every write is an attributable act. This sheet is generated from the specification and the Warrant corpus; nothing on it was typed by hand.</p>
 
     <dl class="control">
-      <div><dt>Accepted revision</dt><dd>0.1.0-draft.5</dd></div>
-      <div><dt>Contract digest</dt><dd>84d23d16f0a9</dd></div>
-      <div><dt>Accepted</dt><dd>2026-09-15</dd></div>
+      <div><dt>Accepted revision</dt><dd>0.1.0-draft.8</dd></div>
+      <div><dt>Contract digest</dt><dd>b7cfdf1f0eea</dd></div>
+      <div><dt>Accepted</dt><dd>2026-09-27</dd></div>
       <div><dt>Authority</dt><dd>Brian Lam</dd></div>
-      <div><dt>Requirements</dt><dd>162 &middot; append&#8209;only</dd></div>
-      <div><dt>Source digest</dt><dd>61d65f1d592a</dd></div>
+      <div><dt>Requirements</dt><dd>192 &middot; append&#8209;only</dd></div>
+      <div><dt>Source digest</dt><dd>6fa628e40fbc</dd></div>
     </dl>
   </header>
 
@@ -299,13 +299,13 @@
       </div>
       <div class="axis">
         <span class="eyebrow">Requirements claimed</span>
-        <div class="ratio"><span class="n">12</span><span class="d">&thinsp;/&thinsp;162</span></div>
-        <div class="meter"><i class="fill-open" style="width:7%"></i></div>
+        <div class="ratio"><span class="n">12</span><span class="d">&thinsp;/&thinsp;192</span></div>
+        <div class="meter"><i class="fill-open" style="width:6%"></i></div>
         <p>Declared by a Warrant. Claimed is not satisfied &mdash; status is derived from evidence, and a claim is where evidence starts.</p>
       </div>
       <div class="axis">
         <span class="eyebrow">Requirements satisfied</span>
-        <div class="ratio"><span class="n">0</span><span class="d">&thinsp;/&thinsp;162</span></div>
+        <div class="ratio"><span class="n">0</span><span class="d">&thinsp;/&thinsp;192</span></div>
         <div class="meter"></div>
         <p>Shown. No Warrant has resolved, so nothing reads above claimed, and this column stays at zero until one does.</p>
       </div>
@@ -340,7 +340,7 @@
   <section>
     <div class="head">
       <h2>Requirements, by group</h2>
-      <span class="eyebrow">162 &middot; 12 claimed &middot; 150 unaddressed</span>
+      <span class="eyebrow">192 &middot; 12 claimed &middot; 180 unaddressed</span>
     </div>
 
     <div class="groups">
@@ -353,10 +353,14 @@
       <div class="grp"><span>Corpus and disclosure</span><span class="ct">12</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
       <div class="grp"><span>Operations</span><span class="ct">12</span><span class="bar"><i class="fill-open" style="width:75%"></i></span></div>
       <div class="grp"><span>Retrieval, 2026-09-14 (ADR 0028)</span><span class="ct">11</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
+      <div class="grp"><span>What the principal binding left open, 2026-09-24 (ADR 0033)</span><span class="ct">10</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
       <div class="grp"><span>Interfaces</span><span class="ct">9</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
+      <div class="grp"><span>Qualification, 2026-09-26 (ADR 0038, specified and not built)</span><span class="ct">8</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
       <div class="grp"><span>Governance</span><span class="ct">7</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
+      <div class="grp"><span>The database binds the principal, 2026-09-24 (ADR 0033)</span><span class="ct">7</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
+      <div class="grp"><span>Capture and verification, 2026-09-14 (ADR 0031)</span><span class="ct">6</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
       <div class="grp"><span>Friction and use, 2026-09-04 (ADR 0024)</span><span class="ct">5</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
-      <div class="grp"><span>Capture and verification, 2026-09-14 (ADR 0031)</span><span class="ct">5</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
+      <div class="grp"><span>The context source, 2026-09-26</span><span class="ct">4</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
       <div class="grp"><span>Purpose and thesis</span><span class="ct">3</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
       <div class="grp"><span>Scope decisions of 2026-09-04</span><span class="ct">3</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
       <div class="grp"><span>The three layers, 2026-09-14 (ADR 0030)</span><span class="ct">3</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
@@ -379,42 +383,61 @@
   <section>
     <div class="head">
       <h2>Recorded gaps</h2>
-      <span class="eyebrow">&sect;100 &middot; 25</span>
+      <span class="eyebrow">&sect;100 &middot; 44</span>
     </div>
 
     <ul class="gaps">
-      <li><b>100.1</b><span>Six invariants exist only in prose</span></li>
-      <li><b>100.2</b><span>Relation types declare no source or target types</span></li>
-      <li><b>100.3</b><span>The product/instance seam holds in the compiler and not below it</span></li>
+      <li><b>100.1</b><span>The distributed validator checks three declared rules</span></li>
+      <li><b>100.2</b><span>Relation types declare no source or target types — closed</span></li>
+      <li><b>100.3</b><span>The product/instance seam holds everywhere but one approved pin</span></li>
       <li><b>100.4</b><span>Replication and verification are not scheduled anywhere</span></li>
-      <li><b>100.5</b><span>The checkpoint runner and the ingestion path address the working store directly</span></li>
+      <li><b>100.5</b><span>Store addresses are bound by whoever presents them first</span></li>
       <li><b>100.6</b><span>Two schema packs are signed snapshots that no longer describe their source</span></li>
-      <li><b>100.7</b><span>Three ML policy predicates are unmeasured</span></li>
-      <li><b>100.8</b><span>Delegation depth is unbounded</span></li>
-      <li><b>100.9</b><span>Role assignments and project memberships do not expire</span></li>
+      <li><b>100.7</b><span>Three ML policy predicates are unmeasured — closed</span></li>
+      <li><b>100.8</b><span>Delegation depth is unbounded — closed</span></li>
+      <li><b>100.9</b><span>Role assignments and project memberships do not expire — closed</span></li>
       <li><b>100.10</b><span>No host has ever been commissioned</span></li>
       <li><b>100.11</b><span>Continuous integration has never been green on a tagged commit</span></li>
-      <li><b>100.12</b><span>Cross-repository requirement resolution does not exist</span></li>
+      <li><b>100.12</b><span>Cross-repository requirement resolution does not exist — closed</span></li>
       <li><b>100.13</b><span>The release pack asserts its own manifest is unsigned</span></li>
       <li><b>100.14</b><span>This program's verification independence is nil</span></li>
-      <li><b>100.15</b><span>Seventy-three tables enable row-level security without forcing it</span></li>
-      <li><b>100.16</b><span>The organization's legal name is compiled in, not configured</span></li>
+      <li><b>100.15</b><span>Forcing row-level security was decided, and is done</span></li>
+      <li><b>100.16</b><span>The organization's legal name is compiled in, not configured — closed</span></li>
       <li><b>100.17</b><span>The phase ladder is full against a hard cap</span></li>
-      <li><b>100.18</b><span>None of ADR 0024's latency bars is measured, and two of its capture surfaces do not exist</span></li>
-      <li><b>100.19</b><span>How an agent authenticates when acting for a named human is undecided</span></li>
-      <li><b>100.21</b><span>The retrieval architecture is specified and largely unbuilt, on both sides</span></li>
+      <li><b>100.18</b><span>Two of ADR 0024's latency bars are unmeasured, no bar has a commissioned host's figure, and there is no chat integration</span></li>
+      <li><b>100.19</b><span>How an agent authenticates when acting for a named human is undecided — closed</span></li>
+      <li><b>100.21</b><span>The retrieval engine is built, and nobody independent has verified it</span></li>
       <li><b>100.22</b><span>Vectors are readable in the serving process</span></li>
-      <li><b>100.23</b><span>The demand aggregate has no implementation and a known bias</span></li>
+      <li><b>100.23</b><span>The demand aggregate is fed only by people replaying their own queries, and has a known bias</span></li>
       <li><b>100.24</b><span>No objective after v1.0 can be scheduled</span></li>
-      <li><b>100.26</b><span>The draft lifecycle is a label with no rules behind it</span></li>
-      <li><b>100.25</b><span>The composed ranking is unmeasured</span></li>
+      <li><b>100.26</b><span>Verification is recorded, and labelled everywhere a record is shown; its basis is paced, not proven</span></li>
+      <li><b>100.25</b><span>The fused ranking is measured on four fixture corpora, and nowhere else — narrowed</span></li>
+      <li><b>100.27</b><span>Some digests are still not domain-separated as KF-SAS-RQ-016 requires</span></li>
+      <li><b>100.28</b><span>The owner has not confirmed KF-SAS-RQ-038's reading</span></li>
+      <li><b>100.29</b><span>A restore can bring back an earlier band version</span></li>
+      <li><b>100.30</b><span>A key rotation splits one asker into two</span></li>
+      <li><b>100.31</b><span>Nobody can replay another person's query — closed</span></li>
+      <li><b>100.32</b><span>An archive exported before `20260925130100` is not shown to restore — narrowed</span></li>
+      <li><b>100.33</b><span>Agent declarations do not travel in the export</span></li>
+      <li><b>100.34</b><span>Closing an engagement does not check its work — closed</span></li>
+      <li><b>100.35</b><span>Compilation is checked for reproduction, not proven deterministic</span></li>
+      <li><b>100.36</b><span>A history read still pays the audit policy per event</span></li>
+      <li><b>100.37</b><span>A token linked to nobody can add identification refusals under any organization — closed</span></li>
+      <li><b>100.38</b><span>A record moved to another organization is answered &quot;no longer permitted&quot;</span></li>
+      <li><b>100.39</b><span>The retrieval engine's key is not released by the Fabric</span></li>
+      <li><b>100.40</b><span>A clean machine cannot start the object store</span></li>
+      <li><b>100.41</b><span>Qualification is specified and not built</span></li>
+      <li><b>100.42</b><span>After any write in an organization, an Object View falls back to recounting</span></li>
+      <li><b>100.43</b><span>The master-record reads other than the Object View still read the whole manifest</span></li>
+      <li><b>100.44</b><span>The embedding pump sends one request at a time</span></li>
+      <li><b>100.45</b><span>Weak word matches pull the fused list below the semantic list alone</span></li>
     </ul>
 
     <p class="note" style="margin-top:1.2rem">A gap is recorded in an enumerable place or it is not recorded. There is not one <code>TODO</code>, <code>FIXME</code> or <code>HACK</code> in the repository &mdash; gaps live here, in decision records, in pack manifests, or as named checker warnings, where a reader will find them and a gate can count them.</p>
   </section>
 
   <footer>
-    Generated by <code>kf overview</code> from source digest <code>61d65f1d592a</code> &mdash; a hash over the specification and the Warrant manifests this page projects, not over the commit containing it, which could not exist before the page was written. No wall&#8209;clock timestamp appears above, deliberately: a generated artifact that differs on every build turns a drift check into noise. Counts are the most perishable claims here; re&#8209;derive rather than trust them. Where this sheet and the specification disagree, the specification governs; where the specification and the code disagree, the code is right and the specification has drifted.
+    Generated by <code>kf overview</code> from source digest <code>6fa628e40fbc</code> &mdash; a hash over the specification and the Warrant manifests this page projects, not over the commit containing it, which could not exist before the page was written. No wall&#8209;clock timestamp appears above, deliberately: a generated artifact that differs on every build turns a drift check into noise. Counts are the most perishable claims here; re&#8209;derive rather than trust them. Where this sheet and the specification disagree, the specification governs; where the specification and the code disagree, the code is right and the specification has drifted.
   </footer>
 
 </div>

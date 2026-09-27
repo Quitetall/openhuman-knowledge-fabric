@@ -1,0 +1,105 @@
+#!/usr/bin/env node
+// Search-quality baseline over the EnterpriseRAG-Bench fixture: the benchmark's 500 questions
+// through KF's own `GET /search`, recall@10 over the documents each question expects.
+//
+//   node fixtures/enterprise-rag-bench/search-baseline.mjs [--sample] [--as <person key>]
+//        [--out fixtures/enterprise-rag-bench/reports]
+//
+// Needs the selection loaded (`pnpm fixture enterprise-rag-bench`); `--sample` scores the
+// committed sample's questions against the sample load instead (and writes nothing unless
+// --out is given). The questions have no asker, so they are asked as the CTO, who reads every
+// classification: recall then measures search, not access control. `--as` asks as somebody else,
+// and the report says how many of each question's documents that person may read.
+//
+// Per question type, and a section on the 20 "Info Not Found" questions, whose answer is not in
+// the corpus: what search returns for them (ideally nothing, as written) is listed, top titles
+// included, for a reader to judge — there is no ground truth to score it against.
+//
+// Semantic ranking: the Véracier seam (fixtures/lib/baseline.mjs); with KF_RETRIEVAL_SOCKET on
+// the API the `semantic` list is scored beside `lexical`.
+
+import path from 'node:path';
+import { readPrevious, scoreQuestions, summarize, writeReport } from '../lib/baseline.mjs';
+import { readJsonLines } from '../lib/loader.mjs';
+import { corpusSessions } from '../lib/sessions.mjs';
+import { DEFAULT_DATA, HERE, SAMPLE_DIR, documentsIn, loadPeople } from './fixture.mjs';
+import { BASELINE_ASKER, CORPUS, rank } from './overlay-source.mjs';
+
+const args = process.argv.slice(2);
+const flag = (name, fallback) => {
+  const i = args.indexOf(name);
+  return i >= 0 ? args[i + 1] : fallback;
+};
+const sample = args.includes('--sample');
+const asker = flag('--as', BASELINE_ASKER);
+const out = flag('--out', sample ? undefined : path.join(HERE, 'reports'));
+const dir = sample ? SAMPLE_DIR : DEFAULT_DATA;
+
+const people = await loadPeople();
+const person = people.find((p) => p.key === asker);
+if (person === undefined) throw new Error(`no person ${asker}`);
+const documents = await documentsIn(dir, people);
+const byDocId = new Map();
+for (const d of documents) byDocId.set(d.doc_id, [...(byDocId.get(d.doc_id) ?? []), d]);
+const mayRead = (d) =>
+  rank(d.classification) <= rank(person.clearance) &&
+  (rank(d.classification) <= rank(person.ceiling) || d.readers.includes(person.key));
+
+const questions = (await readJsonLines(path.join(dir, 'questions.jsonl'))).map((q) => ({
+  id: q.question_id,
+  type: q.question_type,
+  asker,
+  question: q.question,
+  truth: q.expected_doc_ids,
+  readable: q.expected_doc_ids.filter((id) => (byDocId.get(id) ?? []).some(mayRead)).length,
+}));
+const { sessionOf, docOfArtifact } = await corpusSessions(CORPUS, people);
+// The loader keys a repeated doc_id's second row `<doc_id>~2`; both answer to the doc_id.
+const docOf = (objectId) => docOfArtifact.get(objectId)?.replace(/~\d+$/, '');
+const results = await scoreQuestions(questions, { sessionOf, docOf });
+const summary = summarize(results);
+summary.documents = documents.length;
+
+const notFound = results.filter((r) => r.type === 'info_not_found');
+const previous = await readPrevious(path.join(HERE, 'reports', 'search-baseline.2026-09-25.json'));
+const before = new Map((previous.info_not_found ?? []).map((r) => [r.id, r]));
+const sum = (rows, key) => rows.reduce((a, r) => a + (r[key] ?? 0), 0);
+const extra = [
+  '## Info Not Found',
+  '',
+  'Questions whose answer is not in the corpus. No ground truth: what search returns is listed for',
+  'a reader to judge; the ideal is few matches, or none. A record matches when it holds at least',
+  'half of the query’s information (IDF-weighted), so a question whose subject is absent matches',
+  `little. Before (${previous.date}) every word was required as written, and \`or\`'d words matched`,
+  'any record holding any of them.',
+  '',
+  `- as written: ${notFound.filter((r) => r.verbatim_lexical_total === 0).length} of ${notFound.length} return no word match; ${sum(notFound, 'verbatim_lexical_total')} matches in all (before: ${sum([...before.values()], 'verbatim_lexical_total')})`,
+  `- keywords (\`or\`): ${notFound.filter((r) => r.keywords_lexical_total === 0).length} of ${notFound.length} return no word match; ${sum(notFound, 'keywords_lexical_total')} matches in all (before: ${sum([...before.values()], 'keywords_lexical_total')})`,
+  '- the fused and semantic lists are capped at the page (the engine ranks the first k it finds, and',
+  '  has no floor), so they are never a flood; what they return is in the JSON (`*_top3`).',
+  '',
+  '| question | matches as written | before | matches (keywords) | before | top 3 titles (keywords, word matches) |',
+  '| --- | --- | --- | --- | --- | --- |',
+  ...notFound.map(
+    (r) =>
+      `| ${r.id} | ${r.verbatim_lexical_total} | ${before.get(r.id)?.verbatim_lexical_total ?? '—'} | ${r.keywords_lexical_total} | ${before.get(r.id)?.keywords_lexical_total ?? '—'} | ${(r.keywords_lexical_top3 ?? []).join('; ').replace(/\|/g, '\\|')} |`,
+  ),
+  '',
+];
+if (out !== undefined) {
+  await writeReport(out, {
+    title: 'EnterpriseRAG-Bench search baseline — recall@10',
+    intro: [
+      `Generated by \`node fixtures/enterprise-rag-bench/search-baseline.mjs\` against the ${sample ? 'sample' : 'selection'}`,
+      `(${documents.length} documents), every question asked through \`GET /search\` as ${person.name}`,
+      `(${person.title}; clearance ${person.clearance}, reads organization-wide up to ${person.ceiling}).`,
+      'Do not edit by hand; re-run it. Truth: each question’s `expected_doc_ids`; a document is found',
+      'when any of its artifacts is in the first ten distinct documents returned.',
+    ],
+    results,
+    summary,
+    previous,
+    extra,
+  });
+}
+process.stdout.write(`${JSON.stringify(summary.overall)}\n`);

@@ -18,8 +18,13 @@
  * "somebody decides that this account is that person, and that decision is recorded with who
  * made it." This command is where a human records that decision; it is not a self-service path.
  *
- * Nothing here is defaulted. Every value that widens someone's authority is stated by the
- * operator or the run is refused.
+ * Nothing that widens someone's authority is defaulted: every such value is stated by the
+ * operator or the run is refused. The one default narrows it: the role assignment ends one year
+ * from the run unless `--valid-to` names an earlier (or up to 366-day) end (ADR 0036).
+ *
+ * RENEWAL is a new assignment. `--renew` ends the live assignment of that role now and records a
+ * new one, attributed to the grantor under this command's recorded act; without it, a live
+ * assignment is "already held" and nothing is written.
  */
 
 import { createHash, randomUUID } from 'node:crypto';
@@ -33,6 +38,7 @@ import {
   type Tx,
 } from '@kf/database';
 import { createControlledObject } from '@kf/record-atoms';
+import { resolveAssignmentEnd } from './assignment-end.js';
 
 export interface GrantAuthorityRequest {
   readonly personId?: string;
@@ -51,6 +57,10 @@ export interface GrantAuthorityRequest {
   /** Both or neither: an issuer without a subject names no account. */
   readonly issuer?: string;
   readonly subject?: string;
+  /** When the role assignment ends: its review date. Omitted, one year from the run. */
+  readonly validTo?: string;
+  /** End the live assignment of this role now and record a new one (ADR 0036). */
+  readonly renew?: boolean;
 }
 
 export interface GrantAuthorityGrant {
@@ -62,6 +72,12 @@ export interface GrantAuthorityGrant {
   readonly grantedBy: string;
   readonly reason: string;
   readonly identity?: { readonly issuer: string; readonly subject: string };
+  /** The end of any role assignment this grant writes (ADR 0036). */
+  readonly validTo: Date;
+  /** True when `--valid-to` was not given and the one-year default applies. */
+  readonly validToDefaulted?: boolean;
+  /** End the live assignment of this role now and record a new one. */
+  readonly renew?: boolean;
 }
 
 export type GrantAuthorityPlan =
@@ -74,7 +90,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * Validate an authority grant without touching a database, so every refusal is testable and the
  * operator learns all of their mistakes in one run rather than one per attempt.
  */
-export function planGrantAuthority(request: GrantAuthorityRequest): GrantAuthorityPlan {
+export function planGrantAuthority(
+  request: GrantAuthorityRequest,
+  now: Date = new Date(),
+): GrantAuthorityPlan {
   const refusals: string[] = [];
 
   const uuidField = (value: string | undefined, flag: string, what: string): void => {
@@ -131,7 +150,10 @@ export function planGrantAuthority(request: GrantAuthorityRequest): GrantAuthori
     );
   }
 
-  if (refusals.length > 0) return { ok: false, refusals };
+  const end = resolveAssignmentEnd(request.validTo, now);
+  if (!end.ok) refusals.push(end.refusal);
+
+  if (refusals.length > 0 || !end.ok) return { ok: false, refusals };
 
   return {
     ok: true,
@@ -151,13 +173,19 @@ export function planGrantAuthority(request: GrantAuthorityRequest): GrantAuthori
             },
           }
         : {}),
+      validTo: end.validTo,
+      validToDefaulted: end.defaulted,
+      renew: request.renew === true,
     },
   };
 }
 
-/** `--flag value` and `--flag=value`, both accepted; unknown flags are refused, not ignored. */
+/**
+ * `--flag value` and `--flag=value`, both accepted; unknown flags are refused, not ignored.
+ * `--renew` is the one switch: it takes no value.
+ */
 export function parseGrantAuthorityArgs(argv: readonly string[]): GrantAuthorityRequest {
-  const known = new Map<string, keyof GrantAuthorityRequest>([
+  const known = new Map<string, Exclude<keyof GrantAuthorityRequest, 'renew'>>([
     ['--person', 'personId'],
     ['--organization', 'organizationId'],
     ['--role', 'roleId'],
@@ -167,15 +195,23 @@ export function parseGrantAuthorityArgs(argv: readonly string[]): GrantAuthority
     ['--reason', 'reason'],
     ['--issuer', 'issuer'],
     ['--subject', 'subject'],
+    ['--valid-to', 'validTo'],
   ]);
-  const out: Record<string, string> = {};
+  const out: Record<string, string | boolean> = {};
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index] as string;
     const eq = token.indexOf('=');
     const flag = eq === -1 ? token : token.slice(0, eq);
+    if (flag === '--renew') {
+      if (eq !== -1) throw new Error('--renew takes no value');
+      out['renew'] = true;
+      continue;
+    }
     const key = known.get(flag);
     if (key === undefined)
-      throw new Error(`unknown flag ${flag}; expected one of ${[...known.keys()].join(', ')}`);
+      throw new Error(
+        `unknown flag ${flag}; expected one of ${[...known.keys(), '--renew'].join(', ')}`,
+      );
     if (eq !== -1) {
       out[key] = token.slice(eq + 1);
       continue;
@@ -199,6 +235,10 @@ export interface GrantAuthorityResult {
   readonly clearanceReused: boolean;
   readonly identityReused: boolean;
   readonly changed: boolean;
+  /** When the role assignment in `roleAssignmentId` ends; null only for a grandfathered one. */
+  readonly roleAssignmentValidTo: Date | null;
+  /** The assignment `--renew` ended, when it ended one. */
+  readonly renewedAssignmentId?: string;
 }
 
 /**
@@ -246,14 +286,18 @@ export async function runGrantAuthority(
     // second identical clearance row and record a decision nobody made. If everything asked for
     // already holds, no action is minted and the audit chain does not move: there was no act.
     const existing = await currentAuthority(tx, grant);
-    if (!existing.needsChange) {
+    // Renewal: the live assignment is ended below and a new one recorded, so the role counts as
+    // missing. With nothing live, --renew is an ordinary grant.
+    const renewing = grant.renew ? existing.roleAssignment : undefined;
+    if (!existing.needsChange && renewing === undefined) {
       return {
         clearanceId: existing.clearanceId as string,
-        roleAssignmentId: existing.roleAssignmentId as string,
+        roleAssignmentId: existing.roleAssignment?.id as string,
         roleAssignmentReused: true,
         clearanceReused: true,
         identityReused: existing.identityId !== undefined,
         changed: false,
+        roleAssignmentValidTo: existing.roleAssignment?.validTo ?? null,
         ...(existing.identityId === undefined ? {} : { identityId: existing.identityId }),
       };
     }
@@ -312,7 +356,12 @@ export async function runGrantAuthority(
       // Minted here so the transaction context can name it BEFORE the row exists: the object
       // guard requires a context on every core.object write, and the context names the role
       // being exercised, which is this one.
-      foundingAssignmentId = randomUUID();
+      //
+      // A UUIDv7, like every other object id (`core.object.id` defaults to uuidv7()). It was a
+      // random v4 until 2026-09-24, and the web application's context picker — which validates
+      // an assignment id as a UUIDv7 before it asks the API — could then never be given the
+      // founder's own assignment: the first fixture company's CEO could not sign in to act.
+      foundingAssignmentId = (await tx.one<{ id: string }>('select uuidv7()::text as id')).id;
       grantorRole = { id: foundingAssignmentId };
     }
 
@@ -355,14 +404,15 @@ export async function runGrantAuthority(
       );
       await tx.query(
         `insert into org.role_assignment
-           (id, subject_id, role_id, scope_id, classification_ceiling)
-         values ($1,$2,$3,$4,$5)`,
+           (id, subject_id, role_id, scope_id, classification_ceiling, valid_to)
+         values ($1,$2,$3,$4,$5,$6)`,
         [
           foundingAssignmentId,
           grant.personId,
           grant.roleId,
           grant.organizationId,
           grant.roleCeiling ?? null,
+          grant.validTo.toISOString(),
         ],
       );
     }
@@ -378,6 +428,8 @@ export async function runGrantAuthority(
           grant.grantedBy,
           grant.identity?.issuer ?? null,
           grant.identity?.subject ?? null,
+          grant.validTo.toISOString(),
+          renewing?.id ?? null,
         ]),
       )
       .digest('hex');
@@ -398,9 +450,13 @@ export async function runGrantAuthority(
         JSON.stringify({
           role_id: grant.roleId,
           max_classification: grant.classification,
+          valid_to: grant.validTo.toISOString(),
+          ...(renewing === undefined ? {} : { renews: renewing.id }),
           ...(grant.identity === undefined ? {} : { issuer: grant.identity.issuer }),
         }),
-        idempotencyKey(grant, generation),
+        // A renewal grants no clearance, so the clearance generation does not move; the renewed
+        // assignment keys it instead. Each assignment is renewed at most once: renewing ends it.
+        renewing === undefined ? idempotencyKey(grant, generation) : `grant-renewal:${renewing.id}`,
         effectiveAt.toISOString(),
         grant.reason,
         // The role EXERCISED. The first version wrote the grantor's person id here — the very
@@ -425,8 +481,21 @@ export async function runGrantAuthority(
       afterDigest: null,
     });
 
-    let roleAssignmentId = existing.roleAssignmentId ?? foundingAssignmentId;
-    const roleAssignmentReused = existing.roleAssignmentId !== undefined;
+    if (renewing !== undefined) {
+      // Ended at the transaction's instant, and the new one starts at the same instant, so the
+      // two never overlap (`role_assignment_no_overlap`) and there is no gap between them.
+      await tx.query('update org.role_assignment set valid_to = now() where id = $1', [
+        renewing.id,
+      ]);
+    }
+
+    let roleAssignmentId =
+      (renewing === undefined ? existing.roleAssignment?.id : undefined) ?? foundingAssignmentId;
+    const roleAssignmentReused =
+      roleAssignmentId !== undefined && roleAssignmentId !== foundingAssignmentId;
+    let roleAssignmentValidTo: Date | null = roleAssignmentReused
+      ? (existing.roleAssignment?.validTo ?? null)
+      : grant.validTo;
     if (roleAssignmentId === undefined) {
       roleAssignmentId = await createControlledObject(tx, {
         objectType: 'role_assignment',
@@ -438,16 +507,18 @@ export async function runGrantAuthority(
       });
       await tx.query(
         `insert into org.role_assignment
-           (id, subject_id, role_id, scope_id, classification_ceiling)
-         values ($1,$2,$3,$4,$5)`,
+           (id, subject_id, role_id, scope_id, classification_ceiling, valid_to)
+         values ($1,$2,$3,$4,$5,$6)`,
         [
           roleAssignmentId,
           grant.personId,
           grant.roleId,
           grant.organizationId,
           grant.roleCeiling ?? null,
+          grant.validTo.toISOString(),
         ],
       );
+      roleAssignmentValidTo = grant.validTo;
     }
 
     let clearanceId = existing.clearanceId;
@@ -481,6 +552,8 @@ export async function runGrantAuthority(
       clearanceReused,
       identityReused,
       changed: true,
+      roleAssignmentValidTo,
+      ...(renewing === undefined ? {} : { renewedAssignmentId: renewing.id }),
       ...(identityId === undefined ? {} : { identityId }),
     };
   });
@@ -488,7 +561,7 @@ export async function runGrantAuthority(
 
 interface CurrentAuthority {
   readonly clearanceId?: string;
-  readonly roleAssignmentId?: string;
+  readonly roleAssignment?: { readonly id: string; readonly validTo: Date | null };
   readonly identityId?: string;
   readonly needsChange: boolean;
 }
@@ -512,8 +585,8 @@ async function currentAuthority(tx: Tx, grant: GrantAuthorityGrant): Promise<Cur
     [grant.personId, grant.organizationId, grant.classification],
   );
   // The same role at a DIFFERENT ceiling is a different grant, not "already held".
-  const role = await tx.maybeOne<{ id: string }>(
-    `select id from org.role_assignment
+  const role = await tx.maybeOne<{ id: string; valid_to: Date | null }>(
+    `select id, valid_to from org.role_assignment
       where subject_id = $1 and role_id = $2 and scope_id = $3
         and classification_ceiling is not distinct from $4
         and valid_from <= now() and (valid_to is null or valid_to > now())
@@ -568,7 +641,14 @@ async function currentAuthority(tx: Tx, grant: GrantAuthorityGrant): Promise<Cur
   return {
     needsChange: clearance === undefined || role === undefined || identityNeeded,
     ...(clearance === undefined ? {} : { clearanceId: clearance.id }),
-    ...(role === undefined ? {} : { roleAssignmentId: role.id }),
+    ...(role === undefined
+      ? {}
+      : {
+          roleAssignment: {
+            id: role.id,
+            validTo: role.valid_to === null ? null : new Date(role.valid_to),
+          },
+        }),
     ...(identity === undefined ? {} : { identityId: identity.id }),
   };
 }

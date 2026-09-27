@@ -21,6 +21,9 @@ function caller(): IdentifyCaller {
 function pool(row: Record<string, unknown> | undefined, asArtifact = false): Pool {
   const client = {
     query: vi.fn(async (sql: string, params?: readonly unknown[]) => {
+      // The caller is bound as a principal (core.bind_principal, 20260923000100); the database
+      // answers with the ceiling it bound, which the fake takes as the one requested.
+      if (sql.includes('core.bind_principal')) return { rows: [{ ceiling: params?.[3] }] };
       // Access is a grant on every read surface (ADR 0016). The fakes answer the two queries the
       // gate asks: the object's classification, and an organization-wide read grant.
       if (sql.includes('/* read-grant.classifications */')) {
@@ -110,6 +113,44 @@ describe('GET /documents/:id/source', () => {
     expect(response.statusCode).toBe(200);
     expect(response.rawPayload).toEqual(SOURCE);
     expect(response.headers['content-disposition']).toContain('marketing-brochure-2026.md-v1');
+  });
+
+  it('shows a PDF or plain text in place when asked, and everything else only as an attachment', async () => {
+    const store = new InMemoryObjectStore();
+    const serve = async (mediaType: string, query: string) => {
+      const stored = await store.put(`artifacts/${mediaType}`, SOURCE, mediaType);
+      const app = Fastify({ logger: false });
+      await registerDocumentRoutes(app, {
+        pool: pool(
+          {
+            document_number: 'extracted.txt',
+            revision: 'v1',
+            media_type: mediaType,
+            size_bytes: String(SOURCE.byteLength),
+            sha256: digestOf(SOURCE),
+            storage_uri: `artifacts/${mediaType}`,
+            storage_version: stored.versionId,
+          },
+          true,
+        ),
+        identify: caller(),
+        store,
+        preflightInTransaction: vi.fn(async () => undefined),
+        executeInTransaction: vi.fn(),
+      });
+      return app.inject({ method: 'GET', url: `/documents/${DOCUMENT_ID}/source${query}` });
+    };
+    const pdf = await serve('application/pdf', '?disposition=inline');
+    expect(pdf.headers['content-disposition']).toMatch(/^inline; /);
+    const text = await serve('text/plain', '?disposition=inline');
+    expect(text.headers['content-disposition']).toMatch(/^inline; /);
+    expect(text.headers['content-type']).toBe('text/plain; charset=utf-8');
+    // Markdown, HTML or anything a browser might render with behaviour stays an attachment.
+    const markdown = await serve('text/html', '?disposition=inline');
+    expect(markdown.headers['content-disposition']).toMatch(/^attachment; /);
+    const unasked = await serve('application/pdf', '');
+    expect(unasked.headers['content-disposition']).toMatch(/^attachment; /);
+    expect(unasked.headers['x-content-type-options']).toBe('nosniff');
   });
 
   it('fails closed when stored bytes no longer match the authoritative digest', async () => {

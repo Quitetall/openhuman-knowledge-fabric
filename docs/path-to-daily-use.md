@@ -16,11 +16,12 @@ anything is, the specification is right and this page is a snapshot of 2026-08-2
 
 ## Read this first, because it is not obvious
 
-**The engine is far ahead of the product.** 79 migrations, 106 registered action types, 1350
-passing tests, and a master-record runtime that compiles, sections, seals and delivers. What is
+**The engine is far ahead of the product.** As of 2026-08-27: 79 migrations, 106 registered
+action types, 1350 passing tests (today's counts are in
+[`generated/measurements.md`](../generated/measurements.md)), and a master-record runtime that compiles, sections, seals and delivers. What is
 missing is almost entirely deployment and operations, not features.
 
-**There is a working Knowledge Fabric on this workstation.** Database `kf`, 79 migrations, all
+**There is a working Knowledge Fabric on this workstation.** Database `kf`, 79 migrations (as of 2026-08-27), all
 schemas present. It is where the master record was first compiled. It is **not** a commissioned
 host and does not satisfy ADR 0004 criterion 3 — but it is a real substrate and most of steps 1
 and 4 can be done against it.
@@ -120,11 +121,21 @@ Every reading of the record — sections, pages, exports, an agent's context —
 **declared projection** over the corpus (ADR 0014): `ontology/projections.yaml`, one engine in
 `@kf/projections`, one canonical Result per reading, served by
 `GET /master-record/projections/:definitionId` in JSON, Markdown or HTML with one projection
-digest across all three.
+digest across all three. Every member of every Result says whether anybody has verified it, and
+an unverified one is labelled `UNVERIFIED` in all three forms, on the Object View, in agent
+reads and in search hits (ADR 0031, KF-SAS-RQ-229).
 
 Every first-class object now has a page with no per-type code: `GET /objects/:id` and
 `apps/web/src/app/objects/[id]` render the `object_view` projection — the record, everything
-that links to or from it, actions from its state, and its audit history (ADR 0015).
+that links to or from it, actions from its state, and its audit history (ADR 0015). The GET
+never writes: when the reader's master record is stale it answers `409 master_record_stale`, and
+the refresh is a POST to `/objects/:id/refresh`, which compiles the record (a recorded act, as the
+reader) and returns the view. A GET that compiled could be triggered by any site linking a
+signed-in person to an object. The web page performs that POST itself only when the browser says
+the page request was the reader's own navigation (`Sec-Fetch-Site: same-origin` or `none` — a link
+inside the fabric, a typed address, a bookmark) and not a prefetch; from another site, a sibling
+subdomain or a browser that sends no such header it shows the refresh button
+(`apps/web/src/app/objects/[id]/object-view-load.ts`).
 
 **Written down:** ADR 0011, "Runtime surfaces"; ADR 0013 for identity; ADR 0014 for projections;
 ADR 0015 for Object Views.
@@ -158,7 +169,12 @@ under-specified in a way only fresh machines expose.
 Company-wide also means onboarding and offboarding, key custody, and backup and restore actually
 exercised. Much of that is built. **None of it has run on a live host.**
 
-**Written down:** nothing.
+**Written down:** nothing, as of 2026-08-27. Since 2026-09-23 the machine-doable part of host
+installation is one script, [`scripts/deploy/provision-host.sh`](../scripts/deploy/provision-host.sh):
+it creates the identities, directories, environment files and generatable secrets, and
+`--check` changes nothing and lists what is still missing, each with the file it goes in (see
+[`deploy/systemd/README.md`](../deploy/systemd/README.md#install)). What remains hand-run is what
+only a person can supply.
 **Blocked on:** doing 1–5 first, so the install is done correctly once by somebody who records
 what actually hurt.
 
@@ -215,7 +231,7 @@ digests (the ingest grew the permitted set), which is why the first succeeded. T
 only relevance, reused the digest, and collided.
 
 No test covered this: every existing test compiled for a different person, or once per person.
-That is how it survived 1396 passing tests. The experiment edge was removed afterwards — a false
+That is how it survived the 1396 tests passing on that date. The experiment edge was removed afterwards — a false
 `performed_by` claim must not stay in a records system.
 
 **Resolved 2026-09-01 by ADR 0013.** The key is now `(person, organization, corpus_digest)`; an

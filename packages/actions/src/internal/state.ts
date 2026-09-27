@@ -1,4 +1,4 @@
-import { compareCanonicalText, digest } from '@kf/canonicalization';
+import { compareCanonicalText, taggedDigest } from '@kf/canonicalization';
 import type { Tx } from '@kf/database';
 import {
   ActionRejected,
@@ -17,6 +17,22 @@ export interface PreparedActionState {
   readonly before: readonly { id: string; state: string }[];
   readonly beforeDigest: string;
   readonly afterDigest: string;
+}
+
+/**
+ * The format an act's `before_digest` / `after_digest` is taken under (KF-SAS-RQ-016).
+ *
+ * The digest goes into the audit link as an opaque string and nothing ever recomputes it from
+ * object state, so links recorded before this tag existed — which carry the untagged digest of
+ * the bare `[{ id, state }]` list — still verify: a link is checked over the strings it recorded.
+ */
+export const ACTION_STATE_FORMAT = 'kf-action-state-v1';
+
+/** Lifecycle state of an act's targets, in target order, under `ACTION_STATE_FORMAT`. */
+export function actionStateDigest(objects: readonly { id: string; state: string }[]): string {
+  return taggedDigest(ACTION_STATE_FORMAT, {
+    objects: objects.map(({ id, state }) => ({ id, state })),
+  });
 }
 
 /** Materialize, lock, validate, and digest action targets without applying state changes. */
@@ -38,10 +54,14 @@ export async function prepareActionState(
     );
   }
 
+  // The ORDER BY is what makes the lock order canonical (RQ-052). `for update` locks rows as
+  // the plan emits them, so without it the order is whatever the planner picked — index or heap
+  // order — and two acts on overlapping targets could each hold one row the other waits for.
+  // Sorting in JavaScript afterwards orders the digest, not the locks.
   const objects = (
     await tx.query<ObjectRow>(
       `select id, object_type, lifecycle_state, row_version, organization_id, created_by
-         from core.object where id = any($1::uuid[]) for update`,
+         from core.object where id = any($1::uuid[]) order by id for update`,
       [targetIds],
     )
   ).sort((left, right) => compareCanonicalText(left.id, right.id));
@@ -74,8 +94,8 @@ export async function prepareActionState(
     objects,
     transitions,
     before,
-    beforeDigest: digest(before),
-    afterDigest: digest(after),
+    beforeDigest: actionStateDigest(before),
+    afterDigest: actionStateDigest(after),
   };
 }
 

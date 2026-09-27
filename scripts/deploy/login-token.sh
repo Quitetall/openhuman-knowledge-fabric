@@ -9,7 +9,12 @@
 # API audience the mapper adds. What the API then lets them see is decided by the record, not by
 # how the token was obtained.
 #
-# usage: KF_LOGIN_PASSWORD=... scripts/deploy/login-token.sh <username> <token-file>
+# usage: scripts/deploy/login-token.sh <username> <token-file>
+#
+#   The password is read from the terminal without echo, or from KF_LOGIN_PASSWORD_FILE — a
+#   file only its owner can read (mode 0600 or tighter). Never from the command line or an
+#   environment variable: `KF_LOGIN_PASSWORD=... login-token.sh` puts the password in shell
+#   history, and an exported variable is inherited by every child this shell starts.
 #
 #   KF_OIDC_ISSUER   the realm, e.g. https://identity.kf.internal:8443/realms/knowledge-fabric
 #                    (default: the OIDC_ISSUER of the environment, if set)
@@ -22,9 +27,27 @@
 
 set -euo pipefail
 
+# shellcheck source=../lib/secret.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/secret.sh"
+
 username="${1:?usage: login-token.sh <username> <token-file>}"
 token_file="${2:?usage: login-token.sh <username> <token-file>}"
-: "${KF_LOGIN_PASSWORD:?set KF_LOGIN_PASSWORD — this script will not prompt or default a credential}"
+if [ -n "${KF_LOGIN_PASSWORD:-}" ]; then
+  echo "KF_LOGIN_PASSWORD is no longer read: a password on a command line lands in shell history." >&2
+  echo "Run interactively to be prompted, or set KF_LOGIN_PASSWORD_FILE to an owner-only file." >&2
+  exit 2
+fi
+if [ -n "${KF_LOGIN_PASSWORD_FILE:-}" ]; then
+  # Owner-only, by the same rule as every other secret file (scripts/lib/secret.sh).
+  login_password="$(kf_read_secret_file "$KF_LOGIN_PASSWORD_FILE" KF_LOGIN_PASSWORD_FILE)" || exit 2
+elif { : </dev/tty; } 2>/dev/null; then
+  IFS= read -rs -p "password for $username: " login_password < /dev/tty
+  echo >&2
+else
+  echo "no terminal to prompt on; set KF_LOGIN_PASSWORD_FILE to an owner-only file" >&2
+  exit 2
+fi
+[ -n "${login_password:-}" ] || { echo "empty password" >&2; exit 2; }
 
 issuer="${KF_OIDC_ISSUER:-${OIDC_ISSUER:-}}"
 [ -n "$issuer" ] || { echo "KF_OIDC_ISSUER (or OIDC_ISSUER) is required" >&2; exit 2; }
@@ -36,7 +59,9 @@ case "$username" in
 esac
 
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+# Through kf_at_exit, not `trap`: secret.sh already registered an exit hook, and a plain trap
+# would replace it.
+kf_at_exit 'rm -rf "$work"'
 jar="$work/cookies"
 
 # PKCE: a random verifier, and its S256 challenge. Both from Python so the encoding is exact.
@@ -77,7 +102,7 @@ PY
 )"
 
 # 2. The credential, as a request body on stdin — never in argv, where /proc would show it.
-location="$(KF_USER="$username" KF_PASS="$KF_LOGIN_PASSWORD" python3 -c '
+location="$(KF_USER="$username" KF_PASS="$login_password" python3 -c '
 import os, urllib.parse
 print(urllib.parse.urlencode({"username": os.environ["KF_USER"], "password": os.environ["KF_PASS"], "credentialId": ""}), end="")
 ' | curl -sS --max-time 20 -c "$jar" -b "$jar" -o "$work/post.html" -w '%{redirect_url}' -d @- "$form_action")"

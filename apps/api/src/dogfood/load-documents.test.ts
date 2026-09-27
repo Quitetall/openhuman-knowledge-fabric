@@ -36,16 +36,20 @@ function auditedAction(actionId: string, actionType: string, targetId: string) {
   const effectiveAt = '2026-08-12T03:30:08.279Z';
   const beforeDigest = null;
   const afterDigest = 'e'.repeat(64);
-  const auditDigest = auditChainDigest(prevDigest, {
-    action_id: actionId,
-    action_type: actionType,
-    actor_id: ACTOR_ID,
-    acting_role_id: ROLE_ID,
-    object_ids: [targetId],
-    effective_at: effectiveAt,
-    before_digest: beforeDigest,
-    after_digest: afterDigest,
-  });
+  const auditDigest = auditChainDigest(
+    prevDigest,
+    {
+      action_id: actionId,
+      action_type: actionType,
+      actor_id: ACTOR_ID,
+      acting_role_id: ROLE_ID,
+      object_ids: [targetId],
+      effective_at: effectiveAt,
+      before_digest: beforeDigest,
+      after_digest: afterDigest,
+    },
+    'kf-audit-link-v1',
+  );
   return {
     actionId,
     requestDigest: legacyDigest(actionId),
@@ -59,6 +63,7 @@ function auditedAction(actionId: string, actionType: string, targetId: string) {
     beforeDigest,
     afterDigest,
     prevDigest,
+    linkFormat: 'kf-audit-link-v1',
     auditDigest,
   };
 }

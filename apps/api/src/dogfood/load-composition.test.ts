@@ -36,16 +36,20 @@ function auditedArtifactAction(actionId: string) {
   const effectiveAt = '2026-08-12T03:30:08.279Z';
   const beforeDigest = null;
   const afterDigest = 'b'.repeat(64);
-  const auditDigest = auditChainDigest(prevDigest, {
-    action_id: actionId,
-    action_type: 'attach_evidence',
-    actor_id: ACTOR_ID,
-    acting_role_id: LEGACY_ROLE_ID,
-    object_ids: [MANIFEST_ARTIFACT_ID],
-    effective_at: effectiveAt,
-    before_digest: beforeDigest,
-    after_digest: afterDigest,
-  });
+  const auditDigest = auditChainDigest(
+    prevDigest,
+    {
+      action_id: actionId,
+      action_type: 'attach_evidence',
+      actor_id: ACTOR_ID,
+      acting_role_id: LEGACY_ROLE_ID,
+      object_ids: [MANIFEST_ARTIFACT_ID],
+      effective_at: effectiveAt,
+      before_digest: beforeDigest,
+      after_digest: afterDigest,
+    },
+    'kf-audit-link-v1',
+  );
   return {
     actionId,
     requestDigest: legacyDigest(actionId),
@@ -59,6 +63,7 @@ function auditedArtifactAction(actionId: string) {
     beforeDigest,
     afterDigest,
     prevDigest,
+    linkFormat: 'kf-audit-link-v1',
     auditDigest,
   };
 }
@@ -84,6 +89,7 @@ describe('dogfood composition Holder alignment', () => {
       },
       async maybeOne(sql: string) {
         if (sql.includes('/* dogfood.legacy-artifact-materialization */')) return undefined;
+        if (sql.includes('/* dogfood.prior-attach-evidence */')) return undefined;
         expect(sql).toContain('/* dogfood.current-composition-source */');
         expect(sql).toContain('revision_holder.id as "revisionHolderId"');
         expect(sql).toContain('revision_holder.recorded_by_action = r.created_by_action');

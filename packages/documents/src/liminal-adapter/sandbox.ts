@@ -1,10 +1,51 @@
 import { dirname } from 'node:path';
 import { compareCanonicalText } from '@kf/canonicalization';
+import type { LiminalProcessConfig } from './options.js';
+
+/**
+ * The full command for one sandboxed compiler run: `prlimit` applying the rlimits, exec'ing
+ * bubblewrap, exec'ing the compiler. Limits set on the outermost process are inherited through
+ * both execs and every fork inside, so nothing in the sandbox can raise them past the hard
+ * value — prlimit sets soft and hard together, and an unprivileged process cannot raise a hard
+ * limit. See `limits.ts` for why each limit is the one it is.
+ */
+export function sandboxCommand(
+  config: LiminalProcessConfig,
+  arguments_: readonly string[],
+): { readonly command: string; readonly argv: string[] } {
+  return {
+    command: config.prlimitPath,
+    argv: [
+      `--data=${String(config.maxDataBytes)}`,
+      `--fsize=${String(config.maxFileBytes)}`,
+      `--nofile=${String(config.maxOpenFiles)}`,
+      '--core=0',
+      '--',
+      config.bubblewrapPath,
+      ...sandboxArguments(
+        config.runtimeFilePaths,
+        config.pathEnvironment,
+        arguments_,
+        config.sandboxTmpfsBytes,
+      ),
+    ],
+  };
+}
+
+/**
+ * The descriptor bubblewrap reads the syscall filter from: after stdin/stdout/stderr, the
+ * compiler bytes on 3, and one descriptor per runtime file from 4. The spawner writes
+ * {@link compilerSeccompProgram} to it (`seccomp.ts`).
+ */
+export function seccompDescriptor(runtimeFilePaths: readonly string[]): number {
+  return 4 + runtimeFilePaths.length;
+}
 
 export function sandboxArguments(
   runtimeFilePaths: readonly string[],
   pathEnvironment: string,
   arguments_: readonly string[],
+  tmpfsBytes: number,
 ): string[] {
   const directories = new Set(['/tmp', '/run', '/work']);
   for (const runtimePath of runtimeFilePaths) {
@@ -26,11 +67,18 @@ export function sandboxArguments(
     path,
   ]);
   return [
+    // Loaded by bubblewrap after it has built the sandbox and just before it execs the
+    // compiler, so it binds the compiler and never bubblewrap itself.
+    '--seccomp',
+    String(seccompDescriptor(runtimeFilePaths)),
     '--unshare-all',
     '--unshare-user',
     '--disable-userns',
     '--die-with-parent',
     '--new-session',
+    // Bounded: an unsized tmpfs root is backed by the worker's memory with no ceiling.
+    '--size',
+    String(tmpfsBytes),
     '--tmpfs',
     '/',
     '--proc',

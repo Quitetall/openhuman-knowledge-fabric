@@ -1,0 +1,42 @@
+[Unit]
+Description=Verify the audit log against every signed checkpoint
+Documentation=file:///opt/kf/docs/backup-and-restore/README.md
+After=network-online.target
+OnFailure=kf-alert@%n.service
+
+# Until 2026-09-23 checkpoint signatures were verified only by the monthly restore drill, so a
+# rewritten audit log — or a signer quietly producing checkpoints nobody could verify — stayed
+# unnoticed for up to a month. This runs the same verifier daily against the live database.
+
+[Service]
+Type=oneshot
+# Its own identity. Verification needs the public keys and read access, never the signing key:
+# a verifier that could sign would be checking its own work.
+User=kf-audit-verify
+Group=kf-audit-verify
+WorkingDirectory=/opt/kf
+Environment=NODE_ENV=production
+Environment=DATABASE_URL_FILE=/etc/kf/audit-verify/database-url
+Environment=CHECKPOINT_PUBLIC_KEY_DIR=/etc/kf/checkpoint-public-keys
+ExecStartPre=/usr/bin/test -s /etc/kf/audit-verify/database-url
+ExecStartPre=/usr/bin/test -d /etc/kf/checkpoint-public-keys
+# Nonzero on any finding (chain_broken, root_mismatch, missing_events, bad_signature,
+# unknown_key, gap), which fails the unit and reaches a person through OnFailure=.
+ExecStart=/usr/bin/node /opt/kf/apps/checkpoint/dist/main.js --verify
+TimeoutStartSec=2h
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+UMask=0077

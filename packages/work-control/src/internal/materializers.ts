@@ -7,6 +7,7 @@ import {
   issueWorkOrder,
   submitWorkExecution,
 } from './project-materializers.js';
+import { defineDeliverable, planMilestone, recordEngagement } from './work-record-materializers.js';
 
 export const WORK_CONTROL_MATERIALIZERS: Readonly<Record<string, ActionMaterializer>> = {
   create_initiative: createInitiative,
@@ -17,4 +18,7 @@ export const WORK_CONTROL_MATERIALIZERS: Readonly<Record<string, ActionMateriali
   authorize_payment: authorizePayment,
   propose_decision: proposeDecision,
   open_change: openChange,
+  record_engagement: recordEngagement,
+  plan_milestone: planMilestone,
+  define_deliverable: defineDeliverable,
 };

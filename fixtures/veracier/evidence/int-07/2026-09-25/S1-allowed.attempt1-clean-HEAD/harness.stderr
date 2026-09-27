@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/mnt/4tb/lamu-wt-int07/lamu-rs/scripts/context-proof/kf_source.py", line 257, in <module>
+    main()
+    ~~~~^^
+  File "/mnt/4tb/lamu-wt-int07/lamu-rs/scripts/context-proof/kf_source.py", line 161, in main
+    assert status == 200, control
+           ^^^^^^^^^^^^^
+AssertionError: {'code': 'invalid_request', 'lamu_error': {'action': 'fix_request', 'code': 'invalid_request', 'message': '', 'retryable': False, 'schema': 'lamu.error/v1'}, 'operation_id': '', 'status': 'refused'}

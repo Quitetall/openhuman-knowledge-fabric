@@ -222,6 +222,12 @@ function fixtureRows(sql: string): Record<string, unknown>[] {
   return [];
 }
 
+const BIND_PRINCIPAL = 'select core.bind_principal($1, $2, $3, $4, $5) as ceiling';
+const CALLER_ACTOR = '44444444-4444-7444-8444-444444444444';
+const CALLER_ROLE = '55555555-5555-7555-8555-555555555555';
+/** kf-attestor's attestation for the caller; every bind must carry it (20260924001000). */
+const CALLER_ATTESTATION = 'a7'.repeat(32);
+
 function databaseBoundary(
   rowsFor: (sql: string, params: readonly unknown[]) => Record<string, unknown>[] = fixtureRows,
   schemaAvailable = true,
@@ -230,6 +236,9 @@ function databaseBoundary(
   const client = {
     query: vi.fn(async (sql: string, params: readonly unknown[] = []) => {
       calls.push({ sql, params });
+      // The caller is bound as a principal (core.bind_principal, 20260923000100); the database
+      // answers with the ceiling it bound, which the fake takes as the one requested.
+      if (sql === BIND_PRINCIPAL) return { rows: [{ ceiling: params[3] }] };
       return {
         rows: sql.includes('/* ml.schema-contract */')
           ? [{ available: schemaAvailable }]
@@ -251,6 +260,7 @@ function caller(): IdentifyCaller {
     organizationId: ORGANIZATION_ID,
     maxClassification: 'internal',
     authentication: { authenticatedAt: undefined, assuranceLevel: undefined, methods: [] },
+    attestation: CALLER_ATTESTATION,
   }));
 }
 
@@ -595,9 +605,13 @@ describe('GET /ml/governed-aliases/:aliasId', () => {
       organizationId: otherOrganization,
       aliasId: ALIAS_ID,
     });
-    expect(
-      db.calls.find(({ sql }) => sql === 'select core.set_access_context($1, $2)')?.params,
-    ).toEqual([otherOrganization, 'internal']);
+    expect(db.calls.find(({ sql }) => sql === BIND_PRINCIPAL)?.params).toEqual([
+      CALLER_ACTOR,
+      CALLER_ROLE,
+      otherOrganization,
+      'internal',
+      CALLER_ATTESTATION,
+    ]);
     await app.close();
   });
 });
@@ -807,8 +821,8 @@ describe('GET /ml/runs/:authorityId/revisions/:revisionId', () => {
       params: [],
     });
     expect(statements[1]).toEqual({
-      sql: 'select core.set_access_context($1, $2)',
-      params: [ORGANIZATION_ID, 'internal'],
+      sql: BIND_PRINCIPAL,
+      params: [CALLER_ACTOR, CALLER_ROLE, ORGANIZATION_ID, 'internal', CALLER_ATTESTATION],
     });
     const lineageQuery = statements.find(({ sql }) => sql.includes('/* ml.run-lineage */'));
     expect(lineageQuery?.params).toEqual([RUN_AUTHORITY_ID, RUN_REVISION_ID]);
@@ -944,7 +958,7 @@ describe('GET /ml/runs/:authorityId/revisions/:revisionId', () => {
     );
     expect(statements.map(({ sql }) => sql)).toHaveLength(4);
     expect(statements[0]?.sql).toBe('set transaction isolation level repeatable read, read only');
-    expect(statements[1]?.sql).toBe('select core.set_access_context($1, $2)');
+    expect(statements[1]?.sql).toBe(BIND_PRINCIPAL);
     expect(statements[2]?.sql).toContain('/* ml.schema-contract */');
     expect(statements[3]?.sql).toContain('/* ml.run-lineage */');
     await app.close();
@@ -1261,6 +1275,7 @@ describe('POST /ml/runs/:authorityId/revisions/:revisionId/metrics/:metricAuthor
       idempotencyKey: `ml-event:${eventDigest as string}`,
       organizationId: ORGANIZATION_ID,
       maxClassification: 'internal',
+      attestation: CALLER_ATTESTATION,
       requestId: expect.any(String),
     });
 
@@ -1268,8 +1283,8 @@ describe('POST /ml/runs/:authorityId/revisions/:revisionId/metrics/:metricAuthor
       ({ sql }) => sql !== 'begin' && sql !== 'commit' && sql !== 'rollback',
     );
     expect(statements[0]).toEqual({
-      sql: 'select core.set_access_context($1, $2)',
-      params: [ORGANIZATION_ID, 'internal'],
+      sql: BIND_PRINCIPAL,
+      params: [CALLER_ACTOR, CALLER_ROLE, ORGANIZATION_ID, 'internal', CALLER_ATTESTATION],
     });
     expect(statements.some(({ sql }) => sql.includes('set_transaction_context'))).toBe(false);
     expect(statements.find(({ sql }) => sql.includes('/* ml.ingest-run */'))?.params).toEqual([

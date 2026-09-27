@@ -13,6 +13,8 @@
     { "path": "../database" },
     { "path": "../documents" },
     { "path": "../actions" },
+    { "path": "../authorization" },
+    { "path": "../projections" },
     { "path": "../search" }
   ]
 }

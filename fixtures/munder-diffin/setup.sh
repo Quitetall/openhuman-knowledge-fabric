@@ -204,8 +204,13 @@ done
 tokens="$secrets_dir/tokens"
 install -d -m 0700 "$tokens"
 token_for() {
-  local username="$1" var="PW_${1//./_}"
-  KF_LOGIN_PASSWORD="$(grep "^$var=" "$passwords" | cut -d= -f2-)" "$login" "$username" "$tokens/$username" >/dev/null
+  # login-token.sh reads a password only from a prompt or an owner-only file, never the
+  # environment. The file lives beside passwords.env, in the same owner-only directory.
+  local username="$1" var="PW_${1//./_}" pwfile
+  pwfile="$(umask 077; mktemp "$secrets_dir/.pw.XXXXXX")"
+  grep "^$var=" "$passwords" | cut -d= -f2- > "$pwfile"
+  KF_LOGIN_PASSWORD_FILE="$pwfile" "$login" "$username" "$tokens/$username" >/dev/null || { rm -f "$pwfile"; return 1; }
+  rm -f "$pwfile"
   echo "$tokens/$username"
 }
 

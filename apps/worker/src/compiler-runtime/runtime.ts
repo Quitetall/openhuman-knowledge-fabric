@@ -49,6 +49,11 @@ function failedRunFor(
   });
 }
 
+/** The database's KF-SAS-RQ-102 refusal (migration 20260925160100). */
+function isUnreproducedCompilation(error: unknown): boolean {
+  return error instanceof Error && error.message.includes('KF-DOC-DETERMINISM-001');
+}
+
 export function createCompilationRuntime(options: RuntimeOptions): CompilationRuntime {
   const idFactory = options.idFactory ?? randomUUID;
   const maxSourceBytes = options.maxSourceBytes ?? DEFAULT_MAX_SOURCE_BYTES;
@@ -106,7 +111,23 @@ export function createCompilationRuntime(options: RuntimeOptions): CompilationRu
         }
       }
 
-      const persistedId = await options.repository.persist(request, run, views);
+      let persistedId: string;
+      try {
+        persistedId = await options.repository.persist(request, run, views);
+      } catch (error: unknown) {
+        // KF-SAS-RQ-102: the database refuses a success that does not reproduce an earlier
+        // compilation of the same sources by the same pinned compiler. That refusal is the
+        // finding, so it is recorded as this request's failed run — naming the run it failed to
+        // reproduce — rather than thrown back to the outbox to be retried into silence.
+        if (run.status !== 'succeeded' || !isUnreproducedCompilation(error)) throw error;
+        run = failedRunFor(
+          request,
+          runId,
+          'nondeterministic_output',
+          (error as Error).message.slice(0, 1000),
+        );
+        persistedId = await options.repository.persist(request, run, []);
+      }
       return { runId: persistedId, status: run.status, replayed: false };
     },
   };

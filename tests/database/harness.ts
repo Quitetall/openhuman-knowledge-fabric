@@ -14,8 +14,18 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { auditChainDigest, GENESIS_DIGEST } from '@kf/canonicalization';
-import { createPool, withTransaction, type Pool, type Tx } from '@kf/database';
+import { appendAuditEvent } from '@kf/actions';
+import { auditChainDigest, CURRENT_AUDIT_LINK_FORMAT, GENESIS_DIGEST } from '@kf/canonicalization';
+import {
+  attestationFor,
+  createPool,
+  issueAttestation,
+  registerAttestationIssuer,
+  withTransaction,
+  type Pool,
+  type Principal,
+  type Tx,
+} from '@kf/database';
 
 const ROOT = join(import.meta.dirname, '..', '..');
 const MIGRATIONS = join(ROOT, 'database', 'migrations');
@@ -43,6 +53,28 @@ export interface Harness {
   readonly pool: Pool;
   /** Owner connection, for migrations and fixture setup only. */
   readonly adminPool: Pool;
+  /**
+   * The attestor's login (`kf_attestor` and nothing else): what kf-attestor connects as. It may
+   * vouch that a person is present and cannot bind or read anything.
+   */
+  readonly attestorPool: Pool;
+  /**
+   * Issue an attestation that `principal` is present, through the attestor's login — what
+   * kf-attestor does after verifying a token. `pool`'s transactions get one automatically when
+   * they bind without one (`registerAttestationIssuer`), so most tests never call this.
+   */
+  attest(principal: Principal): Promise<string>;
+  /**
+   * A DEVELOPMENT API login: `kf_app` plus `kf_attestor`, as `pnpm dogfood:load` provisions
+   * `kf_api_dev`. A development-profile app built on it attests in-process. A dogfood app
+   * refuses it at startup, which is the point of having it here.
+   */
+  readonly developmentDatabaseUrl: string;
+  /**
+   * The storage sweep's login: `kf_app` plus `kf_service_actor`, as kf-storage connects. It binds
+   * declared service actors without an attestation, and nobody else (20260924001000).
+   */
+  readonly storagePool: Pool;
   readonly connectionString: string;
   stop(): Promise<void>;
 }
@@ -226,17 +258,79 @@ export async function startHarness(options: HarnessOptions = {}): Promise<Harnes
     await tx.query('grant connect on database kf_test to kf_app_login');
   });
 
+  // The attestor's login: `kf_attestor` and nothing else, as on a host (20260924001000).
+  await withTransaction(adminPool, async (tx) => {
+    await tx.query(
+      `do $$ begin
+         if not exists (select from pg_roles where rolname = 'kf_attestor_login') then
+           create role kf_attestor_login login password 'test-only-not-a-secret' inherit;
+         end if;
+       end $$`,
+    );
+    await tx.query('grant kf_attestor to kf_attestor_login');
+    await tx.query('grant connect on database kf_test to kf_attestor_login');
+    await tx.query(
+      `do $$ begin
+         if not exists (select from pg_roles where rolname = 'kf_dev_api_login') then
+           create role kf_dev_api_login login password 'test-only-not-a-secret' inherit;
+         end if;
+       end $$`,
+    );
+    await tx.query('grant kf_app, kf_attestor to kf_dev_api_login');
+    await tx.query('grant connect on database kf_test to kf_dev_api_login');
+    await tx.query(
+      `do $$ begin
+         if not exists (select from pg_roles where rolname = 'kf_storage_login') then
+           create role kf_storage_login login password 'test-only-not-a-secret' inherit;
+         end if;
+       end $$`,
+    );
+    await tx.query('grant kf_app, kf_service_actor to kf_storage_login');
+    await tx.query('grant connect on database kf_test to kf_storage_login');
+  });
+  const developmentUri = new URL(connectionString);
+  developmentUri.username = 'kf_dev_api_login';
+  developmentUri.password = 'test-only-not-a-secret';
+
   const appUri = new URL(connectionString);
   appUri.username = 'kf_app_login';
   appUri.password = 'test-only-not-a-secret';
   const pool = createPool({ connectionString: appUri.toString(), maxConnections: 5 });
+  const attestorUri = new URL(connectionString);
+  attestorUri.username = 'kf_attestor_login';
+  attestorUri.password = 'test-only-not-a-secret';
+  const attestorPool = createPool({ connectionString: attestorUri.toString(), maxConnections: 3 });
+  const storageUri = new URL(connectionString);
+  storageUri.username = 'kf_storage_login';
+  storageUri.password = 'test-only-not-a-secret';
+  const storagePool = createPool({ connectionString: storageUri.toString(), maxConnections: 3 });
+  const attest = (principal: Principal): Promise<string> =>
+    withTransaction(attestorPool, (tx) => issueAttestation(tx, principal));
+  // The application login binds a person only on an attestation. Tests bind as fixture people
+  // constantly, and asking each one to fetch an attestation first would bury what it tests; so
+  // this pool — and only this pool — gets one from the attestor's login whenever it binds
+  // without one. A test proving the refusal uses a pool of its own, or calls bind_principal
+  // with an explicit NULL. The production API registers nothing.
+  //
+  // One trap: the issuer commits its attestation from ANOTHER connection, at the moment of the
+  // bind. A REPEATABLE READ transaction whose snapshot was already taken cannot see it. Such a
+  // test attests first (`h.attest`) and passes the attestation in, as the API does — it attests
+  // before any of a request's transactions open.
+  registerAttestationIssuer(pool, attest);
 
   return {
     pool,
     adminPool,
+    attestorPool,
+    attest,
+    developmentDatabaseUrl: developmentUri.toString(),
+    storagePool,
     connectionString,
     async stop() {
+      registerAttestationIssuer(pool, undefined);
       await pool.end();
+      await attestorPool.end();
+      await storagePool.end();
       await adminPool.end();
       await container.stop();
     },
@@ -350,6 +444,14 @@ export interface SeedFixtureOptions {
   readonly auditClearance?: boolean;
 }
 
+/**
+ * A role assignment's end one year out: the default the admin commands apply (ADR 0036), for
+ * tests that call them with a declaration rather than through a plan.
+ */
+export function aYearFromNow(): Date {
+  return new Date(Date.now() + 365 * 86_400_000);
+}
+
 export async function seedFixtures(
   pool: Pool,
   options: SeedFixtureOptions = {},
@@ -455,7 +557,7 @@ export async function seedFixtures(
         schemaVersion: version,
       });
       await tx.query(
-        'insert into org.role_assignment (id, subject_id, role_id, scope_id) values ($1,$2,$3,$4)',
+        "insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to) values ($1,$2,$3,$4,now() + interval '1 year')",
         [id, subject, role, orgObj],
       );
       return id;
@@ -492,16 +594,20 @@ export async function seedFixtures(
         'select digest from core.audit_event order by seq desc limit 1',
       );
       const previousDigest = previousAudit?.digest ?? GENESIS_DIGEST;
-      const clearanceAuditDigest = auditChainDigest(previousDigest, {
-        action_id: clearanceAction,
-        action_type: 'create_initiative',
-        actor_id: reviewerId,
-        acting_role_id: reviewerRoleId,
-        object_ids: [orgObj],
-        effective_at: clearanceEffectiveAt,
-        before_digest: null,
-        after_digest: null,
-      });
+      const clearanceAuditDigest = auditChainDigest(
+        previousDigest,
+        {
+          action_id: clearanceAction,
+          action_type: 'create_initiative',
+          actor_id: reviewerId,
+          acting_role_id: reviewerRoleId,
+          object_ids: [orgObj],
+          effective_at: clearanceEffectiveAt,
+          before_digest: null,
+          after_digest: null,
+        },
+        CURRENT_AUDIT_LINK_FORMAT,
+      );
       await tx.query(
         `insert into core.audit_event
            (action_id, actor_id, acting_role_id, action_type, object_id, effective_at, reason,
@@ -570,11 +676,133 @@ export async function bindContext(
   tx: Tx,
   f: Fixtures,
   actorId: string = f.performerId,
+  actingRoleId: string = roleOf(f, actorId),
 ): Promise<void> {
-  await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
-  await tx.query('select core.set_transaction_context($1, $1, $2, $3)', [
+  // The application binds a PRINCIPAL, not an organization (20260923000100): the organization
+  // and ceiling are derived from the person's live assignment and clearance, and the actor must
+  // be that person acting under that assignment. A direct write in a test is held to the same.
+  //
+  // On the application login the bind also needs an attestation that the person is present
+  // (20260924001000); the harness pool obtains one from the attestor's login.
+  await tx.query('select core.bind_principal($1, $2, $3, $4, $5)', [
     actorId,
-    BOOTSTRAP_ACTION,
+    actingRoleId,
+    f.organizationId,
+    'restricted',
+    (await attestationFor(tx, {
+      actorId,
+      actingRoleId,
+      organizationId: f.organizationId,
+      maxClassification: 'restricted',
+    })) ?? null,
+  ]);
+  // An administrator session is exempt from the act requirement (20260925011000) and binds the
+  // bootstrap action as it always did: owner-credential fixtures build ledgers and chains of
+  // their own, and an extra act would move them. Every other session records a real act.
+  const { administrator } = await tx.one<{ administrator: boolean }>(
+    'select core.session_is_administrator() as administrator',
+  );
+  if (administrator) {
+    await tx.query('select core.set_transaction_context($1, $2, $3, $4)', [
+      actorId,
+      actingRoleId,
+      BOOTSTRAP_ACTION,
+      'harness-direct-write',
+    ]);
+    return;
+  }
+  await recordAct(tx, f, actorId, actingRoleId);
+}
+
+/**
+ * Record an act in the ledger and bind it as this transaction's action.
+ *
+ * Every row the application writes belongs to an act the ledger records in the same transaction
+ * (20260925011000), so a direct write records one: a `correct_record` by the bound person, on the
+ * organization, with its audit-chain link. It is a real act, and a test counting actions or
+ * events sees it. The principal must
+ * already be bound (`bindPrincipal`/`bindReader`), as the dispatcher binds before it records.
+ */
+export async function recordAct(
+  tx: Tx,
+  f: Fixtures,
+  actorId: string = f.performerId,
+  actingRoleId: string = roleOf(f, actorId),
+  options: {
+    /**
+     * Leave the chain link to the caller, via the returned `audit()`. For writes that must come
+     * before the act's audit event, as the dispatcher orders them (a master record's insert
+     * policy refuses one whose act is already audited).
+     */
+    readonly deferAudit?: boolean;
+  } = {},
+): Promise<{ readonly actionId: string; audit(): Promise<void> }> {
+  const actionId = randomUUID();
+  await tx.query('select core.set_transaction_context($1, $2, $3, $4)', [
+    actorId,
+    actingRoleId,
+    actionId,
     'harness-direct-write',
   ]);
+  // The database's clock, rounded up to the wire's millisecond, as the dispatcher does.
+  const { effective_at: effectiveAt } = await tx.one<{ effective_at: Date }>(
+    "select date_trunc('milliseconds', now() + interval '999 microseconds') as effective_at",
+  );
+  await tx.query(
+    `insert into core.action
+       (id, organization_id, request_digest, action_type, actor_id, acting_role_id, target_ids,
+        idempotency_key, effective_at, reason, result_status)
+     values ($1::uuid, $2::uuid,
+             encode(sha256(convert_to('harness-direct-write:' || $1::text, 'UTF8')), 'hex'),
+             'correct_record', $3::uuid, $4::uuid, array[$2::uuid], 'harness-direct-write-' || $1::text,
+             $5, 'harness direct write', 'applied')`,
+    [actionId, f.organizationId, actorId, actingRoleId, effectiveAt],
+  );
+  // And its chain link, through the one implementation of the chain arithmetic: an act with no
+  // audit receipt is refused by the preservation importer, rightly.
+  const audit = async (): Promise<void> => {
+    await appendAuditEvent(tx, {
+      actionId,
+      actionType: 'correct_record',
+      actorId,
+      actingRoleId,
+      objectIds: [f.organizationId],
+      effectiveAt,
+      reason: 'harness direct write',
+      beforeDigest: null,
+      afterDigest: null,
+    });
+  };
+  if (options.deferAudit !== true) await audit();
+  return { actionId, audit };
+}
+
+/** Bind a reader as one of the fixture people, at their full ceiling unless narrowed. */
+export async function bindReader(
+  tx: Tx,
+  f: Fixtures,
+  actorId: string = f.performerId,
+  ceiling = 'restricted',
+): Promise<void> {
+  const actingRoleId = roleOf(f, actorId);
+  await tx.query('select core.bind_principal($1, $2, $3, $4, $5)', [
+    actorId,
+    actingRoleId,
+    f.organizationId,
+    ceiling,
+    (await attestationFor(tx, {
+      actorId,
+      actingRoleId,
+      organizationId: f.organizationId,
+      maxClassification: ceiling,
+    })) ?? null,
+  ]);
+}
+
+function roleOf(f: Fixtures, actorId: string): string {
+  if (actorId === f.reviewerId) return f.reviewerRoleId;
+  if (actorId === f.performerId) return f.performerRoleId;
+  throw new Error(
+    `bindContext: ${actorId} is not a fixture person; pass the acting role assignment explicitly`,
+  );
 }

@@ -1,0 +1,61 @@
+{
+  "needles_file_sha256": "0615ca6ffb408fcbae407160f7cffb393b09276c01cdc90ada8d883389bd657c",
+  "needle_count": 5,
+  "files": {
+    "/home/brianklam/.local/state/kf-veracier/logs/api.log": {
+      "bytes": 127051,
+      "needles_found": 0
+    },
+    "/home/brianklam/.local/state/kf-veracier/logs/attestor.log": {
+      "bytes": 59757,
+      "needles_found": 0
+    },
+    "/home/brianklam/.local/state/kf-veracier/logs/build.log": {
+      "bytes": 3766,
+      "needles_found": 0
+    },
+    "/home/brianklam/.local/state/kf-veracier/logs/embed.log": {
+      "bytes": 51779,
+      "needles_found": 0
+    },
+    "/home/brianklam/.local/state/kf-veracier/logs/migrate.log": {
+      "bytes": 0,
+      "needles_found": 0
+    },
+    "/home/brianklam/.local/state/kf-veracier/logs/retrieval.log": {
+      "bytes": 176,
+      "needles_found": 0
+    },
+    "/home/brianklam/.local/state/kf-veracier/logs/seed.log": {
+      "bytes": 0,
+      "needles_found": 0
+    },
+    "/home/brianklam/.local/state/kf-veracier/logs/web.log": {
+      "bytes": 153,
+      "needles_found": 0
+    },
+    "/home/brianklam/.local/state/kf-veracier/logs/worker.log": {
+      "bytes": 398,
+      "needles_found": 0
+    },
+    "/mnt/4tb/data/veracier/text/veracier_aero/export/classification/fiche_classification_aerovalve_av3000.pdf.txt": {
+      "bytes": 6544,
+      "needles_found": 5
+    }
+  },
+  "db": {
+    "search.context_disclosure (every row, every column as text)": {
+      "needles_found": 0
+    },
+    "search.recorded_query.query_text (every row)": {
+      "needles_found": 0
+    },
+    "search.recorded_query (every row, every column as text)": {
+      "needles_found": 0
+    },
+    "CONTROL search.document.body (KF's lexical index, holds text by design)": {
+      "needles_found": 5
+    }
+  },
+  "db_rows_scanned": "216|362"
+}

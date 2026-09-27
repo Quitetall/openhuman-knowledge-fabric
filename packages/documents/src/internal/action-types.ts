@@ -31,6 +31,7 @@ export const DOCUMENT_ACTION_IDS = [
   'record_document_proposal',
   'apply_document_proposal',
   'release_person_entitlement_exclusion',
+  'verify_record',
   'register_external_artifact',
 ] as const;
 

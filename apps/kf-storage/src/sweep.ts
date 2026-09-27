@@ -11,13 +11,23 @@
  */
 
 import type { ActionDispatcher, ActionRequest } from '@kf/actions';
-import { setAccessContext, withTransaction, type Pool } from '@kf/database';
+import { withTransaction, type Pool, type Principal, bindPrincipal } from '@kf/database';
 
 export interface StorageActor {
   readonly personId: string;
   readonly roleAssignmentId: string;
   readonly organizationId: string;
   readonly maxClassification: string;
+}
+
+/** The service actor as the principal the database binds: its person and live assignment. */
+function principalOf(actor: StorageActor): Principal {
+  return {
+    actorId: actor.personId,
+    actingRoleId: actor.roleAssignmentId,
+    organizationId: actor.organizationId,
+    maxClassification: actor.maxClassification,
+  };
 }
 
 export interface SweepOptions {
@@ -70,21 +80,14 @@ function request(
   };
 }
 
-export async function runStorageSweep(
-  pool: Pool,
-  execute: ActionDispatcher,
-  actor: StorageActor,
-  options: SweepOptions,
-): Promise<SweepReport> {
-  const limit = options.limit ?? 500;
-  // The sweep acts only as a declared service actor (ADR 0020). A human person id here
-  // would make every copy an act by a human at 03:30, which is the thing this exists to
-  // prevent — refused before anything is dispatched.
+/**
+ * The sweep acts only as a declared service actor (ADR 0020). A human person id here would
+ * make every copy an act by a human at 03:30, which is the thing this exists to prevent —
+ * refused before anything is dispatched.
+ */
+export async function assertServiceActor(pool: Pool, actor: StorageActor): Promise<void> {
   const kind = await withTransaction(pool, async (tx) => {
-    await setAccessContext(tx, {
-      organizationId: actor.organizationId,
-      maxClassification: actor.maxClassification,
-    });
+    await bindPrincipal(tx, principalOf(actor));
     return tx.maybeOne<{ person_kind: string }>(
       'select person_kind from org.person where id = $1 and organization = $2',
       [actor.personId, actor.organizationId],
@@ -96,6 +99,16 @@ export async function runStorageSweep(
         'declare one with kf:declare-service-actor',
     );
   }
+}
+
+export async function runStorageSweep(
+  pool: Pool,
+  execute: ActionDispatcher,
+  actor: StorageActor,
+  options: SweepOptions,
+): Promise<SweepReport> {
+  const limit = options.limit ?? 500;
+  await assertServiceActor(pool, actor);
   const replicated: { versionId: string; artifactId: string; actionId: string }[] = [];
   const verified: { locationId: string; role: string; actionId: string; ok: boolean }[] = [];
   const refused: { subject: string; reason: string }[] = [];
@@ -104,10 +117,7 @@ export async function runStorageSweep(
   if (options.replicateTo !== undefined) {
     const store = options.replicateTo;
     const candidates = await withTransaction(pool, async (tx) => {
-      await setAccessContext(tx, {
-        organizationId: actor.organizationId,
-        maxClassification: actor.maxClassification,
-      });
+      await bindPrincipal(tx, principalOf(actor));
       return tx.query<Candidate>(
         `select v.id as version_id, v.artifact_id
            from content.artifact_version v
@@ -150,10 +160,7 @@ export async function runStorageSweep(
   if (options.verifyOlderThanDays !== undefined) {
     const days = options.verifyOlderThanDays;
     const stale = await withTransaction(pool, async (tx) => {
-      await setAccessContext(tx, {
-        organizationId: actor.organizationId,
-        maxClassification: actor.maxClassification,
-      });
+      await bindPrincipal(tx, principalOf(actor));
       return tx.query<StaleLocation>(
         `select l.id as location_id, v.artifact_id, l.role
            from content.artifact_location l
@@ -180,10 +187,7 @@ export async function runStorageSweep(
         // verify_artifact_location writes verified_sha256 inside the action's own transaction,
         // so this read sees the outcome of exactly that act.
         const outcome = await withTransaction(pool, async (tx) => {
-          await setAccessContext(tx, {
-            organizationId: actor.organizationId,
-            maxClassification: actor.maxClassification,
-          });
+          await bindPrincipal(tx, principalOf(actor));
           return tx.one<{ ok: boolean }>(
             'select verified_sha256 is not null as ok from content.artifact_location where id = $1',
             [location.location_id],

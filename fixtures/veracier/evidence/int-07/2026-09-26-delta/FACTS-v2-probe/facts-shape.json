@@ -1,0 +1,56 @@
+{
+  "ref": {
+    "adapter": "knowledge-fabric",
+    "record": "01a0d688-4fc9-743f-8290-60c284671c5d",
+    "revision": "65093ea7481221ab777b31705b5b0af971e82859a6da99b89fb6652d7fae06be",
+    "digest": "d6b3d8d2cbe6ac4a710e0deeffdf1aa603a11e2bead3f73e8441837eab05cb33"
+  },
+  "record_schema": "kf.context-source-record/v1",
+  "classification": "restricted",
+  "trust": "untrusted",
+  "localOnly": true,
+  "retention": "ephemeral",
+  "text_sha256": "d6b3d8d2cbe6ac4a710e0deeffdf1aa603a11e2bead3f73e8441837eab05cb33",
+  "text_bytes": 737,
+  "digest_matches_ref": true,
+  "facts_schema": "kf.context-facts/v2",
+  "facts_key_shape (values replaced by their types; no content kept)": {
+    "classification": "str",
+    "created_at": "str",
+    "enterprise_id": "NoneType",
+    "lifecycle_state": "str",
+    "objectId": "str",
+    "objectType": "str",
+    "records": {
+      "content.artifact": {
+        "artifact_kind": "str",
+        "object_type": "str",
+        "source_system": "str"
+      }
+    },
+    "schema": "str",
+    "title": "str",
+    "updated_at": "str",
+    "versions": [
+      {
+        "created_at": "str",
+        "media_type": "str",
+        "revision_label": "NoneType",
+        "sha256": "str",
+        "size_bytes": "int",
+        "version_no": "int"
+      }
+    ]
+  },
+  "mentions": {
+    "access_grant": false,
+    "grant": false,
+    "reason": false,
+    "need-to-know": false,
+    "created_by": false,
+    "updated_by": false,
+    "row_version": false,
+    "storage_uri": false,
+    "external_identity": false
+  }
+}

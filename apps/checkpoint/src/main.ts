@@ -15,6 +15,13 @@ import { S3ObjectStore, type ObjectStore } from '@kf/artifacts';
 import type { KeyObject } from 'node:crypto';
 import { loadSigningKey, type SigningKey } from './sign.js';
 import { runCheckpoint, verifyLedger } from './run.js';
+import {
+  anchorConfig,
+  assertSigningKeyTrusted,
+  missingAnchor,
+  signingKeyId,
+  type AnchorConfig,
+} from './config.js';
 import { loadSingleVerificationKey, loadVerificationKeyDirectory } from './keys.js';
 
 function required(name: string): string {
@@ -25,7 +32,7 @@ function required(name: string): string {
 
 function signingKey(): SigningKey {
   return loadSigningKey(
-    process.env['CHECKPOINT_SIGNING_KEY_ID'] ?? 'checkpoint-1',
+    signingKeyId(process.env),
     // Permission-checked, not merely read. A signing key readable by another account on this
     // host is one that account can sign with, and a forged checkpoint is worse than none.
     readSecretFile(required('CHECKPOINT_SIGNING_KEY_PATH'), 'CHECKPOINT_SIGNING_KEY_PATH'),
@@ -33,16 +40,8 @@ function signingKey(): SigningKey {
 }
 
 /** The object store, if one is configured. Absent means the signature lives only in the database. */
-function objectStore(): ObjectStore | undefined {
-  const endpoint = process.env['CHECKPOINT_S3_ENDPOINT'];
-  if (endpoint === undefined || endpoint === '') return undefined;
-  return new S3ObjectStore({
-    endpoint,
-    region: process.env['CHECKPOINT_S3_REGION'] ?? 'us-east-1',
-    accessKeyId: required('CHECKPOINT_S3_ACCESS_KEY_ID'),
-    secretAccessKey: required('CHECKPOINT_S3_SECRET_ACCESS_KEY'),
-    bucket: process.env['CHECKPOINT_S3_BUCKET'] ?? 'kf-audit',
-  });
+function objectStore(anchor: AnchorConfig | undefined): ObjectStore | undefined {
+  return anchor === undefined ? undefined : new S3ObjectStore(anchor);
 }
 
 /**
@@ -52,7 +51,6 @@ function objectStore(): ObjectStore | undefined {
  * be able to run this without being handed the ability to sign.
  */
 function verificationKeys(): Map<string, KeyObject> {
-  const id = process.env['CHECKPOINT_SIGNING_KEY_ID'] ?? 'checkpoint-1';
   const directoryPath = process.env['CHECKPOINT_PUBLIC_KEY_DIR'];
   const publicPath = process.env['CHECKPOINT_PUBLIC_KEY_PATH'];
   if (
@@ -71,9 +69,10 @@ function verificationKeys(): Map<string, KeyObject> {
   if (publicPath !== undefined && publicPath !== '') {
     // Read plainly, not as a secret: a public key is meant to be readable, and refusing a
     // world-readable one would stop an auditor verifying with the key they were given.
-    return loadSingleVerificationKey(id, publicPath);
+    return loadSingleVerificationKey(signingKeyId(process.env), publicPath);
   }
-  return new Map([[id, signingKey().publicKey]]);
+  const key = signingKey();
+  return new Map([[key.id, key.publicKey]]);
 }
 
 async function main(): Promise<number> {
@@ -108,8 +107,12 @@ async function main(): Promise<number> {
       return findings.length === 0 ? 0 : 1;
     }
 
-    const store = objectStore();
-    const result = await runCheckpoint(pool, signingKey(), store ? { store } : {});
+    // Every refusal that does not need the database happens before it is touched.
+    const key = signingKey();
+    assertSigningKeyTrusted(key, process.env);
+    const anchor = anchorConfig(process.env);
+    const store = objectStore(anchor);
+    const result = await runCheckpoint(pool, key, store ? { store } : {});
     console.warn(
       JSON.stringify({
         action: 'checkpoint',
@@ -121,6 +124,11 @@ async function main(): Promise<number> {
         storage_uri: result.checkpoint?.storageUri ?? null,
       }),
     );
+    const unanchored = missingAnchor(process.env, anchor);
+    if (unanchored !== undefined) {
+      console.error(`checkpoint: ${unanchored}`);
+      return 1;
+    }
     return 0;
   } finally {
     await pool.end();

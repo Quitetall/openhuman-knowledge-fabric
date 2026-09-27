@@ -6,6 +6,10 @@ import {
   comparePermissionSet,
   compileMasterRecord,
   corpusDigest,
+  CURRENT_MASTER_RECORD_MEMBER_FORMAT,
+  masterRecordMemberDigest,
+  masterRecordMemberFormat,
+  masterRecordPayloadFormat,
   permissionDigest,
   relevanceClosure,
   relevanceClosureWithMetrics,
@@ -455,6 +459,59 @@ describe('master-record renderings', () => {
     compiledAt: '2026-08-26T00:00:00.000Z',
   });
 
+  /**
+   * KF-SAS-RQ-229: a projection labels an unverified member and never omits it silently.
+   *
+   * The omission half is already impossible here — sections must cover every included member, and
+   * the renderer throws otherwise. What was missing is the label. An unverified record rendered
+   * identically to a checked one borrows the credibility of the records around it, and
+   * "everything you may see" then mixes what somebody reviewed with what nobody has, invisibly.
+   */
+  describe('verification is stated for every member', () => {
+    const verified = (basis: 'reviewed_individually' | 'promoted_in_bulk') =>
+      compileMasterRecord({
+        personId: 'person-a',
+        organizationId: 'org-a',
+        effectiveClassification: 'restricted',
+        permitted: [
+          { ...member('a'), title: 'Checked' },
+          {
+            ...member('b'),
+            title: 'Also checked',
+            verified: { at: '2026-09-20T00:00:00.000Z', by: 'person-b', basis },
+          },
+        ],
+        relevantIds: new Set(['person-a', 'a', 'b']),
+        withdrawn: [],
+        compiledAt: '2026-08-26T00:00:00.000Z',
+      });
+
+    it('marks a member nobody has checked, in markdown and in html', () => {
+      const compilation = verified('reviewed_individually');
+      expect(renderMasterRecordMarkdown(compilation)).toContain(
+        'UNVERIFIED — nobody has checked this record',
+      );
+      expect(renderMasterRecordHtml(compilation)).toContain('class="unverified"');
+    });
+
+    it('names who verified a member and on which basis, because the two bases differ', () => {
+      expect(renderMasterRecordMarkdown(verified('reviewed_individually'))).toContain(
+        'verified reviewed individually by person-b',
+      );
+      expect(renderMasterRecordMarkdown(verified('promoted_in_bulk'))).toContain(
+        'verified promoted in bulk by person-b',
+      );
+    });
+
+    it('does not let verification move the corpus identity', () => {
+      // Verifying a member changes nothing about which records the person may see, so the claim
+      // is the same claim. The same reasoning keeps `withdrawnAt` out of the digest line.
+      expect(verified('reviewed_individually').manifest.corpusDigest).toBe(
+        verified('promoted_in_bulk').manifest.corpusDigest,
+      );
+    });
+  });
+
   it('renders all membership sections deterministically', () => {
     const markdown = renderMasterRecordMarkdown(compilation);
     expect(markdown).toContain('## Your record');
@@ -511,5 +568,79 @@ describe('master-record renderings', () => {
     expect(docx.bytes.subarray(0, 2).toString('ascii')).toBe('PK');
     expect(pdf.contentDigest).toMatch(/^[0-9a-f]{64}$/);
     expect(docx.contentDigest).toMatch(/^[0-9a-f]{64}$/);
+  });
+});
+
+describe('master-record member digest formats (KF-SAS-RQ-016)', () => {
+  // Goldens recomputed independently in Python (json.dumps sort_keys, compact separators,
+  // ensure_ascii=False, sha256) over these exact fields.
+  const fields = {
+    id: '00000000-0000-4000-8000-0000000000aa',
+    objectType: 'document',
+    organizationId: '00000000-0000-4000-8000-0000000000bb',
+    classification: 'internal',
+    title: 'Plan',
+    lifecycleState: 'draft',
+    rowVersion: '3',
+    content: { body: 'é' },
+  };
+
+  it('v1 is the untagged preimage claims recorded before the tag', () => {
+    expect(masterRecordMemberDigest(fields, 'kf-master-record-member-v1')).toBe(
+      '9c475073c0abef7ac7cc7bedd96fe0a8f15bd44de116d9d5100b72c9d1f6f63c',
+    );
+  });
+
+  it('v2 carries its tag inside the preimage, and is what new claims use', () => {
+    expect(CURRENT_MASTER_RECORD_MEMBER_FORMAT).toBe('kf-master-record-member-v2');
+    expect(masterRecordMemberDigest(fields, 'kf-master-record-member-v2')).toBe(
+      '9c81ae8bf582335ad01ff7cf472ccd7a532fe5f6841d7aa94f7df36e4241f454',
+    );
+  });
+
+  it('reads the payload the member format was digested over', () => {
+    expect(masterRecordPayloadFormat('kf-master-record-member-v1')).toBe(
+      'kf-master-record-payload-v1',
+    );
+    expect(masterRecordPayloadFormat('kf-master-record-member-v2')).toBe(
+      'kf-master-record-payload-v2',
+    );
+    expect(() => masterRecordPayloadFormat('kf-master-record-member-v9' as never)).toThrow(
+      /unknown/,
+    );
+  });
+
+  it('refuses a member format it does not know', () => {
+    expect(() => masterRecordMemberDigest(fields, 'kf-master-record-member-v9' as never)).toThrow(
+      /unknown/,
+    );
+  });
+
+  it('reads the member format from the manifest that recorded it', () => {
+    expect(masterRecordMemberFormat({ format: 'kf-master-record-v1' })).toBe(
+      'kf-master-record-member-v1',
+    );
+    expect(masterRecordMemberFormat({ format: 'kf-master-record-v2' })).toBe(
+      'kf-master-record-member-v1',
+    );
+    expect(masterRecordMemberFormat({ format: 'kf-master-record-v3' })).toBe(
+      'kf-master-record-member-v2',
+    );
+    for (const manifest of [{ format: 'kf-master-record-v4' }, {}, null, 'kf-master-record-v3']) {
+      expect(() => masterRecordMemberFormat(manifest)).toThrow(/unknown format/);
+    }
+  });
+
+  it('a newly compiled claim is kf-master-record-v3', () => {
+    const compiled = compileMasterRecord({
+      personId: 'person',
+      organizationId: 'org-a',
+      effectiveClassification: 'internal',
+      permitted: [member('a')],
+      relevantIds: new Set(),
+      compiledAt: '2026-09-24T00:00:00.000Z',
+    });
+    expect(compiled.manifest.format).toBe('kf-master-record-v3');
+    expect(masterRecordMemberFormat(compiled.manifest)).toBe(CURRENT_MASTER_RECORD_MEMBER_FORMAT);
   });
 });

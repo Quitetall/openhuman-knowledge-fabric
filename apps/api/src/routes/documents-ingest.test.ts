@@ -1,10 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
+import { ActionRejected } from '@kf/actions';
 import { InMemoryObjectStore } from '@kf/artifacts';
 import { digestBytes } from '@kf/canonicalization';
 import type { Pool } from '@kf/database';
+import { DocumentParseRefused } from '@kf/documents';
 import { registerIngestRoute } from './documents/ingest-route.js';
-import type { DocumentRoutesOptions } from './documents/contracts.js';
+import {
+  DEFAULT_DOCUMENT_SOURCE_DOWNLOAD_MAX_BYTES,
+  INGEST_BODY_LIMIT_BYTES,
+  INGEST_MAX_SOURCE_BYTES,
+  type DocumentRoutesOptions,
+} from './documents/contracts.js';
 
 /**
  * `POST /ingest` is the CLI's copy path as a request a session can make: the bytes land
@@ -32,6 +39,7 @@ function pool(): Pool {
 function options(
   store: InMemoryObjectStore | undefined,
   execute: DocumentRoutesOptions['executeInTransaction'],
+  preflight: DocumentRoutesOptions['preflightInTransaction'] = vi.fn(async () => undefined),
 ): DocumentRoutesOptions {
   return {
     pool: pool(),
@@ -43,7 +51,7 @@ function options(
       maxClassification: 'internal',
       authentication: { authenticatedAt: undefined, assuranceLevel: undefined, methods: [] },
     }),
-    preflightInTransaction: vi.fn(async () => undefined),
+    preflightInTransaction: preflight,
     executeInTransaction: execute,
   };
 }
@@ -144,6 +152,46 @@ describe('POST /ingest', () => {
     expect(execute).not.toHaveBeenCalled();
   });
 
+  it('refuses a title past the record’s 240 characters as 400, before touching the store', async () => {
+    const store = new InMemoryObjectStore();
+    const execute = vi.fn(async () => ({
+      actionId: 'a1',
+      status: 'applied' as const,
+      replayed: false,
+      objectIds: ['artifact-1'],
+      auditDigest: 'd1',
+    }));
+    const app = Fastify({ logger: false });
+    registerIngestRoute(
+      app,
+      options(store, execute as DocumentRoutesOptions['executeInTransaction']),
+    );
+    const ingest = (title: string) =>
+      app.inject({
+        method: 'POST',
+        url: '/ingest',
+        payload: {
+          title,
+          artifactKind: 'document',
+          classification: 'internal',
+          mediaType: 'text/plain',
+          contentBase64: FILE.toString('base64'),
+        },
+      });
+    // core.object counts characters: 240 of them is a title, astral or not, and 241 is not.
+    for (const title of ['t'.repeat(240), '\u{1F600}'.repeat(240), `  ${'t'.repeat(240)}  `]) {
+      expect((await ingest(title)).statusCode).toBe(201);
+    }
+    expect(execute).toHaveBeenCalledTimes(3);
+    execute.mockClear();
+    for (const title of ['t'.repeat(241), '\u{1F600}'.repeat(241), 't'.repeat(512), 'a\u0000b']) {
+      const response = await ingest(title);
+      expect(response.statusCode, title.slice(0, 8)).toBe(400);
+      expect(response.json()).toMatchObject({ error: 'invalid_ingest' });
+    }
+    expect(execute).not.toHaveBeenCalled();
+  });
+
   it('answers 503 rather than pretending when no store is configured', async () => {
     const app = Fastify({ logger: false });
     registerIngestRoute(
@@ -162,5 +210,178 @@ describe('POST /ingest', () => {
       },
     });
     expect(response.statusCode).toBe(503);
+  });
+
+  const VALID = {
+    title: 'truck-7-maintenance-log.md',
+    artifactKind: 'document',
+    classification: 'internal',
+    mediaType: 'text/markdown',
+    contentBase64: FILE.toString('base64'),
+  };
+
+  it('stores nothing when the act would be refused: authority is rehearsed before the put', async () => {
+    // The bytes used to be written first and the act checked after, so every refused ingest
+    // left an object behind that nothing referenced and nothing would ever remove.
+    const store = new InMemoryObjectStore();
+    const execute = vi.fn();
+    const preflight = vi.fn(async () => {
+      throw new ActionRejected('act_not_granted', 'this role may not attach evidence');
+    });
+    const app = Fastify({ logger: false });
+    registerIngestRoute(
+      app,
+      options(store, execute as DocumentRoutesOptions['executeInTransaction'], preflight),
+    );
+    const response = await app.inject({ method: 'POST', url: '/ingest', payload: VALID });
+    expect(response.statusCode, response.body).toBe(422);
+    expect(preflight).toHaveBeenCalledOnce();
+    expect(execute).not.toHaveBeenCalled();
+    expect(await store.head(`ingest/${ORG}/${digestBytes(FILE)}`)).toBeUndefined();
+  });
+
+  it('stores nothing for a classification above the session ceiling', async () => {
+    const store = new InMemoryObjectStore();
+    const execute = vi.fn();
+    const app = Fastify({ logger: false });
+    registerIngestRoute(
+      app,
+      options(store, execute as DocumentRoutesOptions['executeInTransaction']),
+    );
+    const response = await app.inject({
+      method: 'POST',
+      url: '/ingest',
+      payload: { ...VALID, classification: 'restricted' },
+    });
+    expect(response.statusCode, response.body).toBe(403);
+    expect(execute).not.toHaveBeenCalled();
+    expect(await store.head(`ingest/${ORG}/${digestBytes(FILE)}`)).toBeUndefined();
+  });
+
+  it('answers a parser refusal as 422 document_refused, not a 500', async () => {
+    const store = new InMemoryObjectStore();
+    const execute = vi.fn(async () => {
+      throw new DocumentParseRefused('timeout', 'pandoc exceeded the 30000 ms parse deadline');
+    });
+    const app = Fastify({ logger: false });
+    registerIngestRoute(
+      app,
+      options(store, execute as DocumentRoutesOptions['executeInTransaction']),
+    );
+    const response = await app.inject({ method: 'POST', url: '/ingest', payload: VALID });
+    expect(response.statusCode, response.body).toBe(422);
+    expect(response.json()).toMatchObject({
+      error: 'document_refused',
+      detail: { reason: 'timeout' },
+    });
+  });
+
+  it('refuses a secret-bearing file as content_refused without storing or echoing it', async () => {
+    const store = new InMemoryObjectStore();
+    const execute = vi.fn();
+    const preflight = vi.fn(async () => undefined);
+    const app = Fastify({ logger: false });
+    registerIngestRoute(
+      app,
+      options(store, execute as DocumentRoutesOptions['executeInTransaction'], preflight),
+    );
+    const card = ['4111', '1111', '1111', '1111'].join('');
+    const body = Buffer.from(`# Expenses\n\nCard ${card} was charged.\n`);
+    const response = await app.inject({
+      method: 'POST',
+      url: '/ingest',
+      payload: { ...VALID, contentBase64: body.toString('base64') },
+    });
+    expect(response.statusCode, response.body).toBe(422);
+    expect(response.json()).toMatchObject({
+      error: 'content_refused',
+      detail: { rule: 'payment-card', line: 3 },
+    });
+    expect(response.body).not.toContain(card);
+    expect(preflight).not.toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
+    expect(await store.head(`ingest/${ORG}/${digestBytes(body)}`)).toBeUndefined();
+
+    const dotenv = await app.inject({
+      method: 'POST',
+      url: '/ingest',
+      payload: { ...VALID, title: '.env' },
+    });
+    expect(dotenv.statusCode).toBe(422);
+    expect(dotenv.json()).toMatchObject({ error: 'content_refused', detail: { rule: 'dotfile' } });
+  });
+
+  it('carries derivedFrom into the act as derived_from, and refuses one that is not a uuid', async () => {
+    const store = new InMemoryObjectStore();
+    const execute = vi.fn(async () => ({
+      actionId: 'a2',
+      status: 'applied' as const,
+      replayed: false,
+      objectIds: ['artifact-2'],
+      auditDigest: 'd2',
+    }));
+    const app = Fastify({ logger: false });
+    registerIngestRoute(
+      app,
+      options(store, execute as DocumentRoutesOptions['executeInTransaction']),
+    );
+    const source = '01a0d662-55a3-7e90-be92-da9ffd827a4f';
+    const response = await app.inject({
+      method: 'POST',
+      url: '/ingest',
+      payload: { ...VALID, derivedFrom: source.toUpperCase() },
+    });
+    expect(response.statusCode, response.body).toBe(201);
+    const request = (execute.mock.calls[0] as unknown[])[1] as Record<string, unknown>;
+    expect((request['payload'] as Record<string, unknown>)['derived_from']).toBe(source);
+
+    const refused = await app.inject({
+      method: 'POST',
+      url: '/ingest',
+      payload: { ...VALID, derivedFrom: 'the pdf' },
+    });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json()).toMatchObject({ error: 'invalid_ingest' });
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  it('takes a file up to the size it can be downloaded back at, and refuses one past it', async () => {
+    // A scanned 15 MB PDF is ordinary; the 16 MiB JSON body limit this route used to share with
+    // the import refused every file over ~12 MB before it reached the route at all.
+    expect(INGEST_MAX_SOURCE_BYTES).toBe(DEFAULT_DOCUMENT_SOURCE_DOWNLOAD_MAX_BYTES);
+    expect(INGEST_BODY_LIMIT_BYTES).toBeGreaterThan(Math.ceil(INGEST_MAX_SOURCE_BYTES / 3) * 4);
+    const store = new InMemoryObjectStore();
+    const execute = vi.fn(async () => ({
+      actionId: 'a3',
+      status: 'applied' as const,
+      replayed: false,
+      objectIds: ['artifact-3'],
+      auditDigest: 'd3',
+    }));
+    const app = Fastify({ logger: false });
+    registerIngestRoute(
+      app,
+      options(store, execute as DocumentRoutesOptions['executeInTransaction']),
+    );
+    const large = Buffer.alloc(15 * 1024 * 1024, 0x20);
+    const accepted = await app.inject({
+      method: 'POST',
+      url: '/ingest',
+      payload: { ...VALID, mediaType: 'application/pdf', contentBase64: large.toString('base64') },
+    });
+    expect(accepted.statusCode, accepted.body.slice(0, 200)).toBe(201);
+    const tooLarge = Buffer.alloc(INGEST_MAX_SOURCE_BYTES + 1, 0x20);
+    const refused = await app.inject({
+      method: 'POST',
+      url: '/ingest',
+      payload: {
+        ...VALID,
+        mediaType: 'application/pdf',
+        contentBase64: tooLarge.toString('base64'),
+      },
+    });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json()).toMatchObject({ error: 'invalid_ingest' });
+    expect(execute).toHaveBeenCalledTimes(1);
   });
 });

@@ -3,10 +3,15 @@ import type { LiminalCompilerIdentity } from '../compiler.js';
 import type { PinnedLiminalProcessOptions } from './contracts.js';
 import {
   DEFAULT_CLEANUP_TIMEOUT_MS,
+  DEFAULT_MAX_DATA_BYTES,
   DEFAULT_MAX_DIAGNOSTIC_BYTES,
+  DEFAULT_MAX_FILE_BYTES,
+  DEFAULT_MAX_OPEN_FILES,
   DEFAULT_MAX_INPUT_BYTES,
   DEFAULT_MAX_OUTPUT_BYTES,
   DEFAULT_PREFLIGHT_TIMEOUT_MS,
+  DEFAULT_PRLIMIT_PATH,
+  DEFAULT_SANDBOX_TMPFS_BYTES,
   DEFAULT_TIMEOUT_MS,
   positiveLimit,
 } from './limits.js';
@@ -23,6 +28,11 @@ export interface LiminalProcessConfig {
   readonly preflightTimeoutMs: number;
   readonly pathEnvironment: string;
   readonly bubblewrapPath: string;
+  readonly prlimitPath: string;
+  readonly sandboxTmpfsBytes: number;
+  readonly maxDataBytes: number;
+  readonly maxFileBytes: number;
+  readonly maxOpenFiles: number;
   readonly runtimeFilePaths: readonly string[];
   readonly allowScriptExecutableForTests: boolean;
   readonly afterPinVerification: (() => void | Promise<void>) | undefined;
@@ -39,6 +49,10 @@ export function resolveLiminalProcessConfig(
   }
   if (typeof options.bubblewrapPath !== 'string' || !isAbsolute(options.bubblewrapPath)) {
     throw new Error('bubblewrapPath must be absolute');
+  }
+  const prlimitPath = options.prlimitPath ?? DEFAULT_PRLIMIT_PATH;
+  if (typeof prlimitPath !== 'string' || !isAbsolute(prlimitPath)) {
+    throw new Error('prlimitPath must be absolute');
   }
   if (!Array.isArray(options.runtimeFilePaths) || options.runtimeFilePaths.length === 0) {
     throw new Error('runtimeFilePaths must name the exact non-empty native runtime closure');
@@ -76,6 +90,15 @@ export function resolveLiminalProcessConfig(
     ),
     pathEnvironment: options.pathEnvironment ?? '/usr/local/bin:/usr/bin:/bin',
     bubblewrapPath: options.bubblewrapPath,
+    prlimitPath,
+    sandboxTmpfsBytes: positiveLimit(
+      options.sandboxTmpfsBytes,
+      DEFAULT_SANDBOX_TMPFS_BYTES,
+      'sandboxTmpfsBytes',
+    ),
+    maxDataBytes: positiveLimit(options.maxDataBytes, DEFAULT_MAX_DATA_BYTES, 'maxDataBytes'),
+    maxFileBytes: positiveLimit(options.maxFileBytes, DEFAULT_MAX_FILE_BYTES, 'maxFileBytes'),
+    maxOpenFiles: positiveLimit(options.maxOpenFiles, DEFAULT_MAX_OPEN_FILES, 'maxOpenFiles'),
     runtimeFilePaths: Object.freeze(runtimeFilePaths),
     allowScriptExecutableForTests: options.allowScriptExecutableForTests ?? false,
     afterPinVerification: options.afterPinVerification,

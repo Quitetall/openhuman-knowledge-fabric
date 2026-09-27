@@ -23,7 +23,7 @@ export async function legacyControlledDocumentMaterialization(
             to_char(event.effective_at at time zone 'UTC',
                     'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "effectiveAt",
             event.before_digest as "beforeDigest", event.after_digest as "afterDigest",
-            event.prev_digest as "prevDigest",
+            event.prev_digest as "prevDigest", event.link_format as "linkFormat",
             event.digest as "auditDigest",
             document.id as "documentId"
        from core.action action

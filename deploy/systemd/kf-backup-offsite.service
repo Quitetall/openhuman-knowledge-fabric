@@ -11,15 +11,27 @@ User=kf-offsite
 Group=kf-offsite
 WorkingDirectory=/opt/kf
 Environment=DATABASE_URL_FILE=/etc/kf/offsite/database-url
+# Destination, label, optional failure-domain attestation, trust store and PostgreSQL client.
+# Until 2026-09-23 the destination was an empty `Environment=` placeholder meant to be set in
+# a drop-in, and nothing supplied PRESERVATION_TRUST_STORE_DIR at all: as shipped, this unit
+# failed every night, and each failure read as a transfer problem rather than as "never
+# configured".
+EnvironmentFile=/etc/kf/offsite.env
 ExecStartPre=/usr/bin/test -s /etc/kf/offsite/database-url
+# Said in words, before any copying starts. `$$` is systemd's escape for a literal `$`, so the
+# shell — not systemd — reads the variables, and an unset one is caught rather than expanded
+# to an empty argument.
+ExecStartPre=/bin/sh -c 'if [ -z "$${KF_OFFSITE_DESTINATION:-}" ] || [ -z "$${KF_OFFSITE_LABEL:-}" ]; then echo "kf-backup-offsite: KF_OFFSITE_DESTINATION and KF_OFFSITE_LABEL must be set in /etc/kf/offsite.env (see deploy/systemd/offsite.env.example). Nothing was copied." >&2; exit 1; fi'
+# A local destination must be writable INSIDE this sandbox. ProtectSystem=strict makes every
+# path read-only except ReadWritePaths=, so a local vault needs a drop-in adding it.
+ExecStartPre=/bin/sh -c 'case "$$KF_OFFSITE_DESTINATION" in *:*) exit 0 ;; esac; if [ ! -d "$$KF_OFFSITE_DESTINATION" ] || [ ! -w "$$KF_OFFSITE_DESTINATION" ]; then echo "kf-backup-offsite: $$KF_OFFSITE_DESTINATION is not a writable directory inside this unit. Add ReadWritePaths=$$KF_OFFSITE_DESTINATION with: systemctl edit kf-backup-offsite.service" >&2; exit 1; fi'
 # The newest directory, because it is the one the backup that just ran produced. Resolved at
-# run time rather than passed in, so a manual `systemctl start` copies the right thing.
+# run time rather than passed in, so a manual `systemctl start` copies the right thing. The
+# script ships that backup's encrypted archive, never the directory itself.
 ExecStart=/bin/sh -c 'exec /opt/kf/scripts/backup-offsite.sh \
   "$(ls -1d /srv/kf-backups/*/ | sort | tail -1)" \
-  "$KF_OFFSITE_DESTINATION" "$KF_OFFSITE_LABEL"'
-# Set these in a drop-in: systemctl edit kf-backup-offsite.service
-Environment=KF_OFFSITE_DESTINATION=
-Environment=KF_OFFSITE_LABEL=
+  "$$KF_OFFSITE_DESTINATION" "$$KF_OFFSITE_LABEL" \
+  $${KF_OFFSITE_FAILURE_DOMAIN:+--separate-domain "$$KF_OFFSITE_FAILURE_DOMAIN"}'
 TimeoutStartSec=2h
 
 NoNewPrivileges=true

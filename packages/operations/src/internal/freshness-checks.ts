@@ -73,30 +73,22 @@ export const searchComplete: CheckFn = async (tx) => {
   let objects = 0;
   let indexed = 0;
   const behind: string[] = [];
-  for (const organization of organizations) {
-    // Transaction-local, so each iteration replaces the last and none of it outlives this
-    // check. The ceiling is the top of the ladder because a check that could not see
-    // restricted records would report a clean index over the half of them it can see.
-    await tx.query('select core.set_access_context($1, $2)', [organization.id, ceiling.id]);
-    // Bound AND filtered, for the same reason `searchIn` keeps its predicate after
-    // `search.document` gained row-level security. Binding alone is enough for a scoped role
-    // and does nothing for a superuser — and a readiness process that happens to connect as
-    // one would then count every organization's records once per organization and report
-    // totals that are wrong by a factor of however many organizations exist. The verdict
-    // would survive; the numbers underneath it would not, and those are what somebody reads.
-    const row = await tx.one<{ objects: string; indexed: string }>(
-      `select (select count(*) from core.object
-                where organization_id = $1)::text as objects,
-              (select count(*) from search.document
-                where organization_id = $1)::text as indexed`,
-      [organization.id],
-    );
+  // Counted by the database, per organization (20260923000200). This used to bind each
+  // organization in turn at the top of the ladder and count under that scope — an unbounded
+  // bind the application role no longer holds, and more access than a count needs. The
+  // definer function counts every record whatever its classification, which is what a check
+  // that must not report a clean index over half the records needs.
+  const counts = await tx.query<{ organization_id: string; objects: string; indexed: string }>(
+    `select organization_id, objects::text, indexed::text
+       from core.readiness_search_index_counts()`,
+  );
+  for (const row of counts) {
     const scopedObjects = Number(row.objects);
     const scopedIndexed = Number(row.indexed);
     objects += scopedObjects;
     indexed += scopedIndexed;
     if (scopedIndexed < scopedObjects) {
-      behind.push(`${organization.id} (${scopedObjects - scopedIndexed})`);
+      behind.push(`${row.organization_id} (${scopedObjects - scopedIndexed})`);
     }
   }
 

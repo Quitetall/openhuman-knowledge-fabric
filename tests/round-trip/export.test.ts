@@ -11,6 +11,8 @@ import { createHash, generateKeyPairSync } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDispatcher } from '@kf/actions';
 import { withTransaction } from '@kf/database';
+import { createDocumentActionAtoms } from '@kf/documents';
+import { createFabricDispatcher } from '@kf/orchestrator';
 import {
   ArtifactRejected,
   InMemoryObjectStore,
@@ -23,9 +25,12 @@ import {
 } from '@kf/artifacts';
 import {
   auditChainDigest,
+  type AuditLinkFormat,
+  CURRENT_AUDIT_LINK_FORMAT,
   canonicalize,
   compareCanonicalText,
   digestBytes,
+  GENESIS_DIGEST,
 } from '@kf/canonicalization';
 import {
   createExport,
@@ -51,6 +56,9 @@ import {
 let h: Harness;
 let f: Fixtures;
 let store: InMemoryObjectStore;
+/** KF-SAS-RQ-228: one record somebody verified and one nobody has, both in the export. */
+let verifiedId: string;
+let unverifiedId: string;
 
 const PRESERVATION_KEY_ID = 'round-trip-preservation-key';
 const PRESERVATION_KEY = generateKeyPairSync('ed25519');
@@ -61,6 +69,7 @@ const PRECISE_ACTION_ID = '019f0000-0000-7000-8000-00000000f001';
 const PRECISE_JSON_INTEGER = '900719925474099312345678901234567890';
 const PRECISE_RECORDED_AT = '2026-08-15T12:34:56.123456Z';
 const PRECISE_EFFECTIVE_AT = '2026-08-15T12:34:56.123Z';
+const PRECISE_AGENT = 'knowledge-fabric-agent';
 
 function authenticate(pkg: ExportPackage): ExportPackage {
   return signExportPackage(pkg, {
@@ -105,9 +114,9 @@ beforeAll(async () => {
       `insert into core.action
          (id, organization_id, request_digest, action_type, actor_id, acting_role_id,
           target_ids, parameters, preconditions, idempotency_key, recorded_at, effective_at,
-          result_status, result)
+          result_status, result, agent_participation)
        values ($1, $2, $3, $4, $5, $6, $7::uuid[], $8::jsonb, '{}'::jsonb, $9, $10, $11,
-               'applied', '{}'::jsonb)`,
+               'applied', '{}'::jsonb, $12)`,
       [
         PRECISE_ACTION_ID,
         f.organizationId,
@@ -120,21 +129,28 @@ beforeAll(async () => {
         'precision-export-fixture-aaaaaaaa',
         PRECISE_RECORDED_AT,
         PRECISE_EFFECTIVE_AT,
+        // An act through an agent (ADR 0035), so the round trip carries a participation that is
+        // not null. Written by the owner session here, which keeps a stated value.
+        PRECISE_AGENT,
       ],
     );
     const head = await tx.one<{ digest: string }>(
       'select digest from core.audit_event order by seq desc limit 1',
     );
-    const auditDigest = auditChainDigest(head.digest, {
-      action_id: PRECISE_ACTION_ID,
-      action_type: actionType.id,
-      actor_id: f.performerId,
-      acting_role_id: f.performerRoleId,
-      object_ids: [preciseTargetId],
-      effective_at: PRECISE_EFFECTIVE_AT,
-      before_digest: null,
-      after_digest: null,
-    });
+    const auditDigest = auditChainDigest(
+      head.digest,
+      {
+        action_id: PRECISE_ACTION_ID,
+        action_type: actionType.id,
+        actor_id: f.performerId,
+        acting_role_id: f.performerRoleId,
+        object_ids: [preciseTargetId],
+        effective_at: PRECISE_EFFECTIVE_AT,
+        before_digest: null,
+        after_digest: null,
+      },
+      CURRENT_AUDIT_LINK_FORMAT,
+    );
     await tx.query(
       `insert into core.audit_event
          (action_id, actor_id, acting_role_id, action_type, object_id, recorded_at,
@@ -153,6 +169,41 @@ beforeAll(async () => {
       ],
     );
   });
+  // One verified record and one unverified, so the round trip has something to say about
+  // RQ-228. Before this the export carried an `object-verifications` section the round trip
+  // proved identical, over zero rows — a set that is always identical to itself.
+  const record = (title: string) =>
+    createObject(h.adminPool, f, {
+      type: 'decision_record',
+      domain: 'engineering',
+      state: 'draft',
+      title,
+      createdBy: f.performerId,
+    });
+  verifiedId = await record('Checked against its source');
+  unverifiedId = await record('Captured, nobody has looked');
+  const verified = await createFabricDispatcher(
+    h.pool,
+    createDocumentActionAtoms({
+      store: new InMemoryObjectStore(),
+      parser: {
+        async parse() {
+          return undefined;
+        },
+      },
+    }),
+  )({
+    actionType: 'verify_record',
+    actorId: f.reviewerId,
+    actingRoleId: f.reviewerRoleId,
+    targetIds: [verifiedId],
+    organizationId: f.organizationId,
+    maxClassification: 'restricted',
+    idempotencyKey: 'export-verify-record-0001',
+    reason: 'read it against the source',
+    payload: { basis: 'promoted_in_bulk' },
+  });
+  expect(verified.status).toBe('applied');
 }, 180_000);
 
 afterAll(async () => {
@@ -506,6 +557,13 @@ describe('preservation export', () => {
       $kf_type: 'postgres.jsonb',
       text: `{"precise": ${PRECISE_JSON_INTEGER}}`,
     });
+    // ADR 0035: the participation travels with the act, and a direct act says null.
+    expect(precise['agent_participation']).toBe(PRECISE_AGENT);
+    expect(
+      actions
+        .filter((row) => row['id'] !== PRECISE_ACTION_ID)
+        .map((row) => row['agent_participation']),
+    ).toEqual(actions.filter((row) => row['id'] !== PRECISE_ACTION_ID).map(() => null));
 
     const auditRows = JSON.parse(
       pkg.files.find((entry) => entry.path === 'audit-events.json')!.content,
@@ -622,10 +680,11 @@ describe('preservation export', () => {
       });
 
       const precise = await withTransaction(fresh.adminPool, (tx) =>
-        tx.one<{ parameters: string; recorded_at: string }>(
+        tx.one<{ parameters: string; recorded_at: string; agent_participation: string | null }>(
           `select parameters::text as parameters,
                   to_char(recorded_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
-                    as recorded_at
+                    as recorded_at,
+                  agent_participation
              from core.action where id = $1`,
           [PRECISE_ACTION_ID],
         ),
@@ -633,7 +692,30 @@ describe('preservation export', () => {
       expect(precise).toEqual({
         parameters: `{"precise": ${PRECISE_JSON_INTEGER}}`,
         recorded_at: PRECISE_RECORDED_AT,
+        agent_participation: PRECISE_AGENT,
       });
+
+      // RQ-228: both records survive, and the one nobody verified is still marked so — by
+      // the absence of a verification, the same shape the database uses.
+      const exported = JSON.parse(
+        pkg.files.find((file) => file.path === 'object-verifications.json')!.content,
+      ) as { object_id: string }[];
+      expect(exported.map((row) => row.object_id)).toContain(verifiedId);
+      expect(exported.map((row) => row.object_id)).not.toContain(unverifiedId);
+      const survived = await withTransaction(fresh.adminPool, (tx) =>
+        tx.query<{ id: string; verified: boolean }>(
+          `select o.id, exists (select 1 from core.object_verification v where v.object_id = o.id)
+                    as verified
+             from core.object o where o.id = any($1::uuid[]) order by o.id`,
+          [[verifiedId, unverifiedId]],
+        ),
+      );
+      expect(new Map(survived.map((row) => [row.id, row.verified]))).toEqual(
+        new Map([
+          [verifiedId, true],
+          [unverifiedId, false],
+        ]),
+      );
 
       const again = authenticate(
         await withTransaction(fresh.adminPool, async (tx) => createExport(tx)),
@@ -675,6 +757,121 @@ describe('preservation export', () => {
     } finally {
       await emptyTarget.stop();
       await emptySource.stop();
+    }
+  }, 180_000);
+
+  it('restores an archive written before links recorded their format, and refuses a regression', async () => {
+    // Every backup taken before 20260924001100 has no `link_format` and holds untagged v1
+    // links. Rebuild exactly that from the current export: drop the column and re-chain every
+    // link under v1, as the dispatcher of the day computed it.
+    const sectionRows = (path: string): Record<string, unknown>[] =>
+      JSON.parse(pkg.files.find((x) => x.path === path)!.content) as Record<string, unknown>[];
+    const targets = new Map(
+      sectionRows('actions.json').map((action) => [action['id'], action['target_ids']]),
+    );
+    const rechain = (
+      formatAt: (index: number) => AuditLinkFormat,
+      recordFormat: boolean,
+    ): Record<string, unknown>[] => {
+      let prevDigest = GENESIS_DIGEST;
+      return sectionRows('audit-events.json').map((row, index) => {
+        const { link_format: _recorded, ...rest } = row;
+        const timestamp = row['effective_at'] as { text: string };
+        const format = formatAt(index);
+        const digest = auditChainDigest(
+          prevDigest,
+          {
+            action_id: row['action_id'] as string,
+            action_type: row['action_type'] as string,
+            actor_id: row['actor_id'] as string,
+            acting_role_id: row['acting_role_id'] as string,
+            object_ids: targets.get(row['action_id']) as string[],
+            effective_at: timestamp.text.replace(/(\.\d{3})\d{3}Z$/, '$1Z'),
+            before_digest: row['before_digest'] as string | null,
+            after_digest: row['after_digest'] as string | null,
+          },
+          format,
+        );
+        const rechained = { ...rest, prev_digest: prevDigest, digest };
+        prevDigest = digest;
+        return recordFormat ? { ...rechained, link_format: format } : rechained;
+      });
+    };
+    const events = sectionRows('audit-events.json');
+    expect(events.length).toBeGreaterThan(2);
+    expect(events.every((row) => row['link_format'] === CURRENT_AUDIT_LINK_FORMAT)).toBe(true);
+
+    const fresh = await startHarness();
+    try {
+      const beforeFormats = await repack(
+        pkg,
+        'audit-events.json',
+        rechain(() => 'kf-audit-link-v1', false),
+      );
+      const restored = await withTransaction(fresh.adminPool, async (tx) => {
+        await importExport(tx, beforeFormats, PRESERVATION_VERIFICATION);
+        return tx.query<{ link_format: string }>(
+          'select distinct link_format from core.audit_event',
+        );
+      });
+      expect(restored).toEqual([{ link_format: 'kf-audit-link-v1' }]);
+      const readiness = await withTransaction(fresh.adminPool, (tx) =>
+        tx.one<{ breaks: string }>('select breaks::text from core.readiness_audit_chain()'),
+      );
+      expect(readiness.breaks).toBe('0');
+    } finally {
+      await fresh.stop();
+    }
+
+    const regressed = await startHarness();
+    try {
+      // v2, then one correctly computed v1 link, then v2 again: every digest recomputes under
+      // its own recorded format, so only the order rule can refuse it.
+      const regression = rechain(
+        (index) => (index === 1 ? 'kf-audit-link-v1' : 'kf-audit-link-v2'),
+        true,
+      );
+      await expect(
+        withTransaction(regressed.adminPool, async (tx) =>
+          importExport(
+            tx,
+            await repack(pkg, 'audit-events.json', regression),
+            PRESERVATION_VERIFICATION,
+          ),
+        ),
+      ).rejects.toThrow(/audit link format kf-audit-link-v1 follows kf-audit-link-v2/);
+    } finally {
+      await regressed.stop();
+    }
+  }, 180_000);
+
+  it('restores an archive written before agent participation existed, every act null', async () => {
+    // Every backup taken before 20260925100000 has no `agent_participation` key in actions.json.
+    // Rebuild exactly that from the current export, restore it, and read the column back.
+    const actions = (
+      JSON.parse(pkg.files.find((x) => x.path === 'actions.json')!.content) as Record<
+        string,
+        unknown
+      >[]
+    ).map(({ agent_participation: _participation, ...row }) => row);
+    expect(actions.length).toBeGreaterThan(0);
+    const fresh = await startHarness();
+    try {
+      const restored = await withTransaction(fresh.adminPool, async (tx) => {
+        await importExport(
+          tx,
+          await repack(pkg, 'actions.json', actions),
+          PRESERVATION_VERIFICATION,
+        );
+        return tx.one<{ total: string; attributed: string }>(
+          `select count(*)::text as total,
+                  count(*) filter (where agent_participation is not null)::text as attributed
+             from core.action`,
+        );
+      });
+      expect(restored).toEqual({ total: String(actions.length), attributed: '0' });
+    } finally {
+      await fresh.stop();
     }
   }, 180_000);
 
@@ -865,16 +1062,20 @@ describe('preservation export', () => {
         return {
           ...row,
           prev_digest: prevDigest,
-          digest: auditChainDigest(prevDigest, {
-            action_id: row['action_id'] as string,
-            action_type: row['action_type'] as string,
-            actor_id: row['actor_id'] as string,
-            acting_role_id: row['acting_role_id'] as string,
-            object_ids: action['target_ids'] as string[],
-            effective_at: timestamp.text.replace(/(\.\d{3})\d{3}Z$/, '$1Z'),
-            before_digest: row['before_digest'] as string | null,
-            after_digest: row['after_digest'] as string | null,
-          }),
+          digest: auditChainDigest(
+            prevDigest,
+            {
+              action_id: row['action_id'] as string,
+              action_type: row['action_type'] as string,
+              actor_id: row['actor_id'] as string,
+              acting_role_id: row['acting_role_id'] as string,
+              object_ids: action['target_ids'] as string[],
+              effective_at: timestamp.text.replace(/(\.\d{3})\d{3}Z$/, '$1Z'),
+              before_digest: row['before_digest'] as string | null,
+              after_digest: row['after_digest'] as string | null,
+            },
+            CURRENT_AUDIT_LINK_FORMAT,
+          ),
         };
       });
       await expect(

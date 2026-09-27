@@ -45,6 +45,25 @@ export interface DatabaseConfig {
   readonly onIdleClientError?: (error: Error) => void;
 }
 
+export type PrincipalRefusal = 'role_not_held' | 'classification_not_granted' | 'not_attested';
+
+/**
+ * The database refused to bind a principal: the assignment is not held live in that
+ * organization, the requested ceiling exceeds the person's clearance, or — for the application
+ * login — nobody attested that the person is present (20260924001000). `reason` says which,
+ * because a dead assignment, a clearance refusal and a missing attestation are different problems
+ * for whoever reads the refusal. Callers serving reads answer it as not-found — out of scope and
+ * nonexistent are the same answer (threat model T3).
+ */
+export class PrincipalRefused extends Error {
+  readonly reason: PrincipalRefusal;
+  constructor(reason: PrincipalRefusal, message: string) {
+    super(message);
+    this.name = 'PrincipalRefused';
+    this.reason = reason;
+  }
+}
+
 export class DatabaseError extends Error {
   // Uses the standard `cause` option rather than a field of its own, so the underlying
   // failure survives into stack traces and structured logs the way runtimes expect.
@@ -242,7 +261,9 @@ export async function withTransaction<T>(pool: Pool, fn: (tx: Tx) => Promise<T>)
   const client = await pool.connect();
   try {
     await client.query('begin');
-    const result = await fn(wrap(client));
+    const tx = wrap(client);
+    transactionPools.set(tx, pool);
+    const result = await fn(tx);
     await client.query('commit');
     return result;
   } catch (err: unknown) {
@@ -299,8 +320,23 @@ export async function setAccessContext(
 }
 
 /**
- * Resolve effective clearance at point of use, then bind the requested (possibly narrower)
- * ceiling. The caller never gets to bind an unverified classification directly.
+ * Bind the transaction to a PRINCIPAL: a person acting under a live role assignment in an
+ * organization. The database derives the organization's visibility and the ceiling from that
+ * person's assignment and clearance; the request may only narrow the ceiling. Returns the
+ * ceiling bound.
+ *
+ * Since 20260923000100 this is the only way the application binds a reader. It used to bind
+ * `restricted` provisionally and then the resolved ceiling through `set_access_context` —
+ * which meant the application role could bind any organization at any ceiling, and a
+ * compromised API could read every tenant. The database now does the resolution itself,
+ * inside `core.bind_principal`, and refuses the unbounded bind outright.
+ *
+ * Since 20260924001000 the application login must also hand over an ATTESTATION: proof, issued
+ * by the separate kf-attestor process after it verified the person's bearer token, that the
+ * person is present. `attestation` is required as a key so that every call site states where
+ * its attestation comes from; `undefined` is for administrator and service logins, which the
+ * database binds on the strength of their credential, and for development pools that registered
+ * an issuer (`registerAttestationIssuer`).
  */
 export async function setResolvedAccessContext(
   tx: Tx,
@@ -309,34 +345,226 @@ export async function setResolvedAccessContext(
     readonly assignmentId: string;
     readonly organizationId: string;
     readonly requestedClassification: string;
+    readonly attestation: string | undefined;
   },
 ): Promise<string> {
-  // RESOLUTION RUNS UNDER A BOUND ORGANIZATION, OR IT RESOLVES NOTHING.
-  //
-  // `org.resolve_effective_classification` is SECURITY DEFINER and reads `org.person_clearance`
-  // and `core.object`, both of which FORCE row-level security — which binds the definer too
-  // unless its owner is a superuser. In the test harness it was; on a host it is the migrator
-  // login, and every dispatched action there failed with `classification clearance is not
-  // granted` before anything ran. The context bound here is provisional — this organization at
-  // the widest ceiling, for the resolver's own reads — and is replaced by the resolved ceiling
-  // before the caller's transaction touches a record.
-  await setAccessContext(tx, {
-    organizationId: ctx.organizationId,
-    maxClassification: 'restricted',
-  });
-  const resolved = await tx.maybeOne<{ requested_classification: string }>(
-    `select requested_classification
-       from org.resolve_effective_classification($1, $2, $3, $4)`,
-    [ctx.subjectId, ctx.organizationId, ctx.assignmentId, ctx.requestedClassification],
-  );
-  if (resolved === undefined || resolved.requested_classification.trim() === '') {
-    throw new DatabaseError('classification clearance resolver returned no decision');
+  let bound: { ceiling: string | null } | undefined;
+  try {
+    // A registered issuer (development, tests) refuses exactly what the bind would — a dead
+    // assignment, a ceiling above clearance — so its refusal is read the same way.
+    const attestation =
+      ctx.attestation ??
+      (await attestationFor(tx, {
+        actorId: ctx.subjectId,
+        actingRoleId: ctx.assignmentId,
+        organizationId: ctx.organizationId,
+        maxClassification: ctx.requestedClassification,
+      }));
+    bound = await tx.maybeOne<{ ceiling: string | null }>(
+      'select core.bind_principal($1, $2, $3, $4, $5) as ceiling',
+      [
+        ctx.subjectId,
+        ctx.assignmentId,
+        ctx.organizationId,
+        ctx.requestedClassification,
+        attestation ?? null,
+      ],
+    );
+  } catch (error: unknown) {
+    const code =
+      typeof error === 'object' && error !== null && 'code' in error
+        ? String((error as { code?: unknown }).code ?? '')
+        : '';
+    const message = error instanceof Error ? error.message : String(error);
+    if (code === '42501') {
+      throw new PrincipalRefused(
+        /not held live/.test(message)
+          ? 'role_not_held'
+          : /attestation/.test(message)
+            ? 'not_attested'
+            : 'classification_not_granted',
+        message,
+      );
+    }
+    throw error;
   }
-  await setAccessContext(tx, {
-    organizationId: ctx.organizationId,
-    maxClassification: resolved.requested_classification,
+  if (bound?.ceiling === undefined || bound.ceiling === null || bound.ceiling.trim() === '') {
+    throw new DatabaseError('principal binding returned no ceiling');
+  }
+  return bound.ceiling;
+}
+
+/** Who is reading or acting: a person, under a live assignment, in an organization. */
+export interface Principal {
+  readonly actorId: string;
+  readonly actingRoleId: string;
+  readonly organizationId: string;
+  /** The ceiling requested; the database clamps it to the person's clearance. */
+  readonly maxClassification: string;
+  /**
+   * kf-attestor's proof that this person presented a verified bearer token, for this
+   * organization and assignment, at or above this ceiling (20260924001000). Carried on the
+   * caller for the whole request so every transaction binds with it; absent for administrator
+   * and service logins, which do not need one.
+   */
+  readonly attestation?: string | undefined;
+}
+
+/** `setResolvedAccessContext` for the shape every identified caller already has. */
+export async function bindPrincipal(tx: Tx, principal: Principal): Promise<string> {
+  return setResolvedAccessContext(tx, {
+    subjectId: principal.actorId,
+    assignmentId: principal.actingRoleId,
+    organizationId: principal.organizationId,
+    requestedClassification: principal.maxClassification,
+    attestation: principal.attestation,
   });
-  return resolved.requested_classification;
+}
+
+/**
+ * Ask the database to vouch that a person is present, and return the attestation.
+ *
+ * Executable only by `kf_attestor` (and administrators). The attestor calls it after verifying a
+ * bearer token; development and test pools call it through a registered issuer. The database
+ * re-checks the assignment and clamps the ceiling itself; the expiry is the earlier of
+ * `tokenExpiry` and one minute from now.
+ */
+export async function issueAttestation(
+  tx: Tx,
+  principal: Principal,
+  tokenExpiry?: Date,
+  delegation: {
+    /** The token's `act.client_id`: the agent acting for the person (ADR 0035). */
+    readonly agentClientId?: string | undefined;
+    /** The token's `azp`, so the database can refuse a declared agent's token without `act`. */
+    readonly authorizedParty?: string | undefined;
+  } = {},
+): Promise<string> {
+  const row = await tx.one<{ attestation: string }>(
+    'select core.issue_attestation($1, $2, $3, $4, $5, $6, $7) as attestation',
+    [
+      principal.actorId,
+      principal.actingRoleId,
+      principal.organizationId,
+      principal.maxClassification,
+      tokenExpiry ?? null,
+      delegation.agentClientId ?? null,
+      delegation.authorizedParty ?? null,
+    ],
+  );
+  return row.attestation;
+}
+
+/**
+ * Where a pool's transactions get an attestation they were not handed.
+ *
+ * DEVELOPMENT AND TEST ONLY — and security does not depend on that. An issuer can issue only
+ * what its own database login may, and `core.issue_attestation` is executable by `kf_attestor`
+ * alone; the dogfood API refuses to start through a login holding it. So a registered issuer on
+ * a production pool would fail at the database, not bind anybody. It exists so the development
+ * profile (header identity, in-process attestor) and the test harness bind naturally.
+ */
+export type AttestationIssuer = (principal: Principal) => Promise<string>;
+
+const attestationIssuers = new WeakMap<Pool, AttestationIssuer>();
+const transactionPools = new WeakMap<Tx, Pool>();
+
+export function registerAttestationIssuer(pool: Pool, issuer: AttestationIssuer | undefined): void {
+  if (issuer === undefined) attestationIssuers.delete(pool);
+  else attestationIssuers.set(pool, issuer);
+}
+
+/** The principal's own attestation, else one from its transaction's registered issuer. */
+export async function attestationFor(tx: Tx, principal: Principal): Promise<string | undefined> {
+  if (principal.attestation !== undefined) return principal.attestation;
+  const pool = transactionPools.get(tx);
+  const issuer = pool === undefined ? undefined : attestationIssuers.get(pool);
+  return issuer === undefined ? undefined : issuer(principal);
+}
+
+/**
+ * What the connected login can do that row-level security cannot stop.
+ *
+ * A superuser ignores every policy, FORCE included; so does a role with BYPASSRLS; and a table
+ * owner is exempt from its own table's policies unless FORCE is set on each one, and can switch
+ * FORCE off. Membership counts as well as the attribute, because a login that may SET ROLE to
+ * any of these is one statement away from being it.
+ */
+export interface LoginPrivilege {
+  readonly login: string;
+  readonly superuser: boolean;
+  readonly bypassesRls: boolean;
+  /** A member of (or is) the role that owns a table in the fabric's schemas. */
+  readonly ownsSchema: boolean;
+  /**
+   * A member of `kf_attestor`: may vouch that a person is present. The API's login must not
+   * be, or it could attest to itself and the attestor would be decoration.
+   */
+  readonly attests: boolean;
+  /** A member of `kf_service_actor`: binds service persons with no attestation at all. */
+  readonly actsAsServiceActor: boolean;
+}
+
+export async function readLoginPrivilege(tx: Tx): Promise<LoginPrivilege> {
+  const row = await tx.one<{
+    login: string;
+    superuser: boolean;
+    bypasses: boolean;
+    owns: boolean;
+    attests: boolean;
+    service_actor: boolean;
+  }>(
+    `select current_user::text as login,
+            exists (select from pg_roles r
+                     where r.rolsuper and pg_has_role(current_user, r.oid, 'MEMBER')) as superuser,
+            exists (select from pg_roles r
+                     where r.rolbypassrls and pg_has_role(current_user, r.oid, 'MEMBER')) as bypasses,
+            exists (select from pg_class c
+                      join pg_namespace n on n.oid = c.relnamespace
+                     where n.nspname not in ('pg_catalog', 'information_schema')
+                       and n.nspname !~ '^pg_'
+                       and c.relkind in ('r', 'p')
+                       and pg_has_role(current_user, c.relowner, 'MEMBER')) as owns,
+            exists (select from pg_roles r
+                     where r.rolname = 'kf_attestor'
+                       and pg_has_role(current_user, r.oid, 'MEMBER')) as attests,
+            exists (select from pg_roles r
+                     where r.rolname = 'kf_service_actor'
+                       and pg_has_role(current_user, r.oid, 'MEMBER')) as service_actor`,
+  );
+  return {
+    login: row.login,
+    superuser: row.superuser,
+    bypassesRls: row.bypasses,
+    ownsSchema: row.owns,
+    attests: row.attests,
+    actsAsServiceActor: row.service_actor,
+  };
+}
+
+/** Why a login must not serve application traffic; empty when it may. */
+export interface LoginPrivilegeAllowance {
+  /** Only a development API (its in-process attestor) and kf-attestor itself may attest. */
+  readonly mayAttest?: boolean;
+  /** Only the storage sweep's login binds as a service actor. */
+  readonly mayActAsServiceActor?: boolean;
+}
+
+export function loginPrivilegeProblems(
+  privilege: LoginPrivilege,
+  allowance: LoginPrivilegeAllowance = {},
+): string[] {
+  const problems: string[] = [];
+  if (privilege.superuser) problems.push('is (or can become) a superuser');
+  if (privilege.bypassesRls) problems.push('is (or can become) a role with BYPASSRLS');
+  if (privilege.ownsSchema) problems.push('is (or is a member of) a table owner');
+  if (privilege.attests && allowance.mayAttest !== true) {
+    problems.push('is a member of kf_attestor, so it could attest to a person itself');
+  }
+  if (privilege.actsAsServiceActor && allowance.mayActAsServiceActor !== true) {
+    problems.push('is a member of kf_service_actor, so it binds service actors unattested');
+  }
+  return problems;
 }
 
 export const PACKAGE = {

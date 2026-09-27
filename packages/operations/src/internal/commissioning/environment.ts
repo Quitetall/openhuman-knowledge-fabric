@@ -158,6 +158,13 @@ export const COMMISSIONING_ENVIRONMENT: readonly CommissioningVariable[] = [
     summary: 'the Node version this release was tested against — runtime_version',
   },
   {
+    env: 'KF_ATTESTOR_SOCKET',
+    key: 'attestorSocketPath',
+    kind: 'tunable',
+    defaultKey: 'attestorSocketPath',
+    summary: "kf-attestor's socket, as kf-api.service names it — attestor_separation",
+  },
+  {
     env: 'KF_CERTIFICATE_RENEWAL_DAYS',
     kind: 'tunable',
     defaultKey: 'certificateRenewalDays',

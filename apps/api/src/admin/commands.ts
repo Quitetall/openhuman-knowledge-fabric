@@ -1,12 +1,19 @@
 /**
  * The bootstrap-tier commands as `kf` subcommands.
  *
- * Each needs DATABASE_OWNER_URL and is refused without it. Each prints refusals as refusals —
+ * Each needs the owner connection string and is refused without it. It is read through the
+ * shared secret loader from `DATABASE_OWNER_URL_FILE` (an owner-only file); the inline
+ * `DATABASE_OWNER_URL` is accepted only when `NODE_ENV` is `development` or `test` (RQ-151).
+ * The owner URL carries the one password that can rewrite authority, and an environment
+ * variable is readable from `/proc`, inherited by every child and printed by crash reporters.
+ *
+ * Each prints refusals as refusals —
  * one line per reason, no stack trace — because a refusal is a feature and a stack trace says
  * where the throw was written, not what to do.
  */
 
 import { createPool } from '@kf/database';
+import { loadSecret } from '@kf/operations';
 
 import {
   bootstrapUsage,
@@ -15,10 +22,27 @@ import {
   runBootstrap,
 } from './bootstrap-organization.js';
 import {
+  declareAgentUsage,
+  parseDeclareAgentArgs,
+  planDeclareAgent,
+  runDeclareAgent,
+} from './declare-agent.js';
+import {
+  parseDeclareServiceActorArgs,
+  planDeclareServiceActor,
+  runDeclareServiceActor,
+} from './declare-service-actor.js';
+import {
   parseGrantAuthorityArgs,
   planGrantAuthority,
   runGrantAuthority,
 } from './grant-authority.js';
+import {
+  parseRevokeIdentityArgs,
+  planRevokeIdentity,
+  revokeIdentityUsage,
+  runRevokeIdentity,
+} from './revoke-identity.js';
 import {
   parseRetireOrganizationArgs,
   planRetireOrganization,
@@ -28,13 +52,25 @@ import {
 
 type Out = NodeJS.WritableStream;
 
-function ownerUrl(env: NodeJS.ProcessEnv, err: Out): string | undefined {
-  const url = env['DATABASE_OWNER_URL'];
-  if (url === undefined || url.trim() === '') {
-    err.write('DATABASE_OWNER_URL is required: this writes authority and needs the owner role\n');
+/**
+ * The owner connection string, or `undefined` after printing why not.
+ *
+ * `DATABASE_OWNER_URL_FILE` always; the inline variable only in development and test, the same
+ * rule every other secret in the system follows (`@kf/operations` `loadSecret`). The refusal
+ * names the variable and the path, never the value.
+ */
+export function ownerUrl(env: NodeJS.ProcessEnv, err: Out): string | undefined {
+  try {
+    return loadSecret('DATABASE_OWNER_URL', env, {
+      allowInline: env['NODE_ENV'] === 'development' || env['NODE_ENV'] === 'test',
+    });
+  } catch (error: unknown) {
+    err.write(
+      `${message(error)}\nthe owner connection is required: this writes authority and needs ` +
+        'the owner role (DATABASE_OWNER_URL_FILE, owner-only)\n',
+    );
     return undefined;
   }
-  return url;
 }
 
 function message(error: unknown): string {
@@ -120,6 +156,19 @@ export async function runGrantAuthorityCommand(
     out.write(
       `  role          ${result.roleAssignmentId}  ${plan.grant.roleId} ${held(result.roleAssignmentReused)}\n`,
     );
+    // The review date, always: an operator who took the default must see what they agreed to.
+    out.write(
+      result.roleAssignmentValidTo === null
+        ? '  ends          never recorded (made before ADR 0036): renew it with --renew\n'
+        : `  ends          ${result.roleAssignmentValidTo.toISOString()}${
+            !result.roleAssignmentReused && plan.grant.validToDefaulted
+              ? '  (one year: the default; --valid-to sets another)'
+              : ''
+          }\n`,
+    );
+    if (result.renewedAssignmentId !== undefined) {
+      out.write(`  renews        ${result.renewedAssignmentId}  (ended now)\n`);
+    }
     if (result.identityId !== undefined) {
       out.write(`  identity      ${result.identityId} ${held(result.identityReused)}\n`);
     }
@@ -173,6 +222,159 @@ export async function runRetireOrganizationCommand(
     return 0;
   } catch (error: unknown) {
     // ActionRejected carries a code and detail; the message is what the operator reads.
+    err.write(`${message(error)}\n`);
+    return 1;
+  } finally {
+    await owner.end();
+  }
+}
+
+export async function runRevokeIdentityCommand(
+  argv: readonly string[],
+  env: NodeJS.ProcessEnv = process.env,
+  out: Out = process.stdout,
+  err: Out = process.stderr,
+): Promise<number> {
+  const url = ownerUrl(env, err);
+  if (url === undefined) return 1;
+  let request;
+  try {
+    request = parseRevokeIdentityArgs(argv);
+  } catch (error: unknown) {
+    err.write(`${message(error)}\n\n${revokeIdentityUsage()}\n`);
+    return 2;
+  }
+  const plan = planRevokeIdentity(request);
+  if (!plan.ok) {
+    err.write('refusing to revoke:\n');
+    for (const refusal of plan.refusals) err.write(`  - ${refusal}\n`);
+    err.write(`\n${revokeIdentityUsage()}\n`);
+    return 2;
+  }
+  const owner = createPool({ connectionString: url, maxConnections: 2 });
+  try {
+    const result = await runRevokeIdentity(owner, plan.decision);
+    out.write('identity revoked, and recorded:\n');
+    out.write(`  action        ${result.actionId}  (revoke_external_identity)\n`);
+    out.write(`  audit digest  ${result.auditDigest}\n`);
+    out.write(`  identity      ${result.identityId}  ${result.issuer} / ${result.subject}\n`);
+    out.write(`  person        ${result.personId}\n`);
+    out.write(`  revoked at    ${result.revokedAt.toISOString()}\n`);
+    out.write(
+      result.actingRoleId === undefined
+        ? '  acting role   none held in that organization; recorded under the bootstrap role\n'
+        : `  acting role   ${result.actingRoleId}\n`,
+    );
+    out.write(`  attestations  ${result.attestationsWithdrawn} withdrawn\n`);
+    return 0;
+  } catch (error: unknown) {
+    err.write(`${message(error)}\n`);
+    return 1;
+  } finally {
+    await owner.end();
+  }
+}
+
+export async function runDeclareAgentCommand(
+  argv: readonly string[],
+  env: NodeJS.ProcessEnv = process.env,
+  out: Out = process.stdout,
+  err: Out = process.stderr,
+): Promise<number> {
+  const url = ownerUrl(env, err);
+  if (url === undefined) return 1;
+  let request;
+  try {
+    request = parseDeclareAgentArgs(argv);
+  } catch (error: unknown) {
+    err.write(`${message(error)}\n\n${declareAgentUsage()}\n`);
+    return 2;
+  }
+  const plan = planDeclareAgent(request);
+  if (!plan.ok) {
+    err.write(`refusing to ${request.withdraw === true ? 'withdraw' : 'declare'} an agent:\n`);
+    for (const refusal of plan.refusals) err.write(`  - ${refusal}\n`);
+    err.write(`\n${declareAgentUsage()}\n`);
+    return 2;
+  }
+  const owner = createPool({ connectionString: url, maxConnections: 2 });
+  try {
+    const result = await runDeclareAgent(owner, plan.decision);
+    if (result.withdrawnAt !== undefined) {
+      out.write(`agent ${result.clientId} withdrawn at ${result.withdrawnAt.toISOString()}\n`);
+      out.write(
+        '  its next token is refused undeclared_agent; one attested already lives out its minute\n',
+      );
+    } else if (result.unchanged) {
+      out.write(
+        `agent ${result.clientId} was already declared at ${result.declaredAt.toISOString()}; ` +
+          'nothing was written\n',
+      );
+    } else {
+      out.write(`agent ${result.clientId} declared at ${result.declaredAt.toISOString()}\n`);
+      out.write(
+        '  the realm must stamp act.client_id on its tokens (identity_provider_policy checks it)\n',
+      );
+    }
+    return 0;
+  } catch (error: unknown) {
+    err.write(`${message(error)}\n`);
+    return 1;
+  } finally {
+    await owner.end();
+  }
+}
+
+/**
+ * `kf:declare-service-actor` (ADR 0020): the result as JSON on `out`, refusals one per line on
+ * `err`, and an exit code — 2 for a usage or plan refusal, 1 for a failure — like the other
+ * owner-tier commands.
+ */
+export async function runDeclareServiceActorCommand(
+  argv: readonly string[],
+  env: NodeJS.ProcessEnv = process.env,
+  out: Out = process.stdout,
+  err: Out = process.stderr,
+): Promise<number> {
+  const url = ownerUrl(env, err);
+  if (url === undefined) return 1;
+  let request;
+  try {
+    request = parseDeclareServiceActorArgs(argv);
+  } catch (error: unknown) {
+    err.write(`${message(error)}\n`);
+    return 2;
+  }
+  const plan = planDeclareServiceActor(request);
+  if (!plan.ok || plan.declaration === undefined) {
+    err.write('refusing to declare a service actor:\n');
+    for (const refusal of plan.refusals) err.write(`  - ${refusal}\n`);
+    return 2;
+  }
+  const declaration = plan.declaration;
+  const owner = createPool({ connectionString: url, maxConnections: 1 });
+  try {
+    const result = await runDeclareServiceActor(owner, declaration);
+    out.write(
+      `${JSON.stringify(
+        {
+          service_actor: declaration.name,
+          person_id: result.personId,
+          role_assignment_id: result.roleAssignmentId,
+          role_assignment_valid_to: result.roleAssignmentValidTo?.toISOString() ?? null,
+          clearance_id: result.clearanceId,
+          action_id: result.actionId,
+          reused: result.reused,
+          next:
+            'set KF_STORAGE_ACTOR=<person_id> KF_STORAGE_ROLE=<role_assignment_id> for kf-storage; ' +
+            'renew before role_assignment_valid_to with kf:grant-authority --renew (ADR 0036)',
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    return 0;
+  } catch (error: unknown) {
     err.write(`${message(error)}\n`);
     return 1;
   } finally {

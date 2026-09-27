@@ -22,7 +22,7 @@
  * and its provenance, and the caller applies the ceiling before anything is published.
  */
 
-import { createHash } from 'node:crypto';
+import { taggedDigest } from '@kf/canonicalization';
 import type { DocumentAtom } from '../internal/parse-contract.js';
 import { parseCitation, type Citation } from './parse.js';
 import { resolveCitation, type ResolvedExcerpt } from './resolve.js';
@@ -59,16 +59,16 @@ export function assembleBriefing(sources: readonly BriefingSource[]): Briefing {
     return { citation, title: source.title ?? citation.document, excerpt };
   });
 
-  const hash = createHash('sha256');
-  for (const entry of entries) hash.update(`${entry.excerpt.digest}\n`);
-
   const unresolved = entries.flatMap((e) =>
     e.excerpt.unresolved.map((s) => `${e.citation.document} §${s}`),
   );
 
   return {
     entries,
-    digest: hash.digest('hex'),
+    // On request, never stored: tagged (KF-SAS-RQ-016) with nothing recorded to keep verifiable.
+    digest: taggedDigest('kf-citation-briefing-v1', {
+      excerpts: entries.map((entry) => entry.excerpt.digest),
+    }),
     unresolved,
     isComplete: unresolved.length === 0,
   };

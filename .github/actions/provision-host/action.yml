@@ -20,13 +20,20 @@ inputs:
 runs:
   using: composite
   steps:
+    # `seccomp` is libseccomp's command-line tools, for /usr/bin/scmp_sys_resolver: the check
+    # in packages/documents/src/seccomp.test.ts that numbers every syscall the compiler filter
+    # denies as libseccomp does, on x86_64 and aarch64. It is `runIf` the resolver exists, and
+    # the hosted image does not ship it, so that check SKIPPED on every CI run while the
+    # sandbox's real-bubblewrap tests ran beside it. Checked before adding: all 110 of the
+    # filter's numbers match Ubuntu 24.04's libseccomp 2.5.5 (2026-09-26).
     - name: Provision compiler sandbox integration dependency
       shell: bash
       run: |
         sudo apt-get update
-        sudo apt-get install --yes bubblewrap
+        sudo apt-get install --yes bubblewrap seccomp
         test -x /usr/bin/bwrap
         /usr/bin/bwrap --version
+        test -x /usr/bin/scmp_sys_resolver
 
     # PANDOC IS A RUNTIME DEPENDENCY OF DOCUMENT IMPORT, and was documented nowhere until this
     # run found it. `packages/documents/src/internal/pandoc-parser.ts` does `spawn('pandoc',
@@ -80,6 +87,18 @@ runs:
       run: |
         sudo apt-get install --yes python3
         python3 --version
+
+    # The backup path encrypts with gpg and ships with rsync, and its tests run the real
+    # programs rather than fakes, because encryption and transfer integrity are what they
+    # test. GitHub's image has both; the self-hosted image installs nothing, so they are
+    # named here rather than discovered by a red run.
+    - name: Provision backup encryption and transfer tools
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo apt-get install --yes gnupg rsync
+        gpg --version | head -1
+        rsync --version | head -1
 
     # Relaxing the sysctl weakens the RUNNER, which is an ephemeral VM, not the product: the
     # sandbox still passes `--disable-userns`, so nothing nested inside it gains the ability.
@@ -138,6 +157,13 @@ runs:
         # backup and restore drills — see the same value without repeating it.
         client_dir=/usr/lib/postgresql/18/bin
         echo "KF_POSTGRES_CLIENT_DIR=${client_dir}" >> "${GITHUB_ENV}"
+        # And FIRST ON PATH, so nothing that names a client tool bare gets the image's
+        # PostgreSQL 16. `postgresql-client-18` installs into the versioned directory only; the
+        # /usr/bin names are postgresql-common's pg_wrapper, which picks the version of the
+        # image's existing 16 cluster, and a test that ran bare
+        # `pg_restore --list` on the drill's 18 archive failed with "unsupported version (1.16)
+        # in file header". One toolchain means one toolchain, on every lookup path.
+        echo "${client_dir}" >> "${GITHUB_PATH}"
         for tool in psql pg_dump pg_dumpall pg_restore; do
           path="${client_dir}/${tool}"
           test -x "${path}" || { echo "::error::missing ${path}"; exit 1; }
@@ -148,6 +174,40 @@ runs:
             *) echo "::error::${path} is not PostgreSQL 18: ${version}"; exit 1 ;;
           esac
         done
+
+    # THE OBJECT STORE THE PRESERVATION DRILL RESTORES INTO, which no registry serves any more.
+    # tests/database/warrant-preservation.test.ts stops a real MinIO, copies its /data, and
+    # reconnects the restored records to a new one. It pinned MinIO's upstream images by digest,
+    # and MinIO has archived its community edition: Docker Hub answers 404, Quay has no such
+    # manifest and dl.min.io answers 410. A workstation that had pulled them kept passing; a
+    # clean runner failed both tests with "unauthorized: access to the requested resource is
+    # not authorized" (run 36081852155). tests/fixtures/minio-image/build.sh builds the same
+    # releases from their pinned source commits; the saved images are cached by the hash of
+    # that directory, so the ~2 minute build is paid once per change to it.
+    - name: Restore the fixture object-store images
+      id: fixture-images
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+      with:
+        path: ~/.cache/kf-fixture-images
+        key: kf-fixture-images-${{ runner.os }}-${{ hashFiles('tests/fixtures/minio-image/**') }}
+
+    - name: Build the fixture object-store images from source
+      shell: bash
+      env:
+        CACHED: ${{ steps.fixture-images.outputs.cache-hit }}
+      run: |
+        set -euo pipefail
+        archive="${HOME}/.cache/kf-fixture-images/minio-images.tar"
+        if [ "${CACHED}" = 'true' ]; then
+          docker load --input "${archive}"
+        fi
+        # Builds only what is missing, so a cache hit builds nothing and a miss builds both,
+        # then saves them for the cache to keep. The script owns the image tags.
+        if [ "${CACHED}" = 'true' ]; then
+          tests/fixtures/minio-image/build.sh
+        else
+          tests/fixtures/minio-image/build.sh --save "${archive}"
+        fi
 
     # THE FOURTH THING THE HOST CONTRACT ASKS FOR, and the last one this runner was missing.
     # `docs/deployment/private-host.md`: "Install a Node.js version allowed by package.json

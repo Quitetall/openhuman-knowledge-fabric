@@ -7,6 +7,7 @@ export type ActionFailure =
   | 'actor_not_authorized'
   | 'classification_not_granted'
   | 'role_not_held'
+  | 'not_attested'
   | 'act_not_granted'
   | 'object_not_visible'
   | 'version_conflict'
@@ -47,6 +48,13 @@ export interface ActionRequest {
    */
   readonly organizationId: string;
   readonly maxClassification: string;
+  /**
+   * kf-attestor's proof that the actor is present (20260924001000), carried from the caller.
+   * The application login's bind is refused without one; service and administrator logins do
+   * not need it. Not part of the action's semantics: a retry carries a fresh one and must still
+   * replay, so the idempotency digest leaves it out.
+   */
+  readonly attestation?: string | undefined;
   /** When event occurred, which can differ from receipt time. */
   readonly effectiveAt?: Date;
   /** Row version caller read. Omit only for actions that create. */
@@ -176,6 +184,9 @@ export const DEFAULT_SEPARATION_OF_DUTY: Readonly<Record<string, readonly string
   issue_acceptance: ['work_execution'],
   accept_work_package: ['work_package'],
   approve_invoice: ['invoice'],
+  // Whoever admitted a record is the one person whose "I checked it" means least (RQ-230). The
+  // database refuses it too (20260923000200); this gives the refusal its proper name first.
+  verify_record: [],
 };
 
 /** Exported so callers can solicit required reason before dispatch. */
@@ -183,7 +194,16 @@ export const DEFAULT_REASON_REQUIRED: readonly string[] = [
   'correct_record',
   'reject_decision',
   'amend_work_order',
+  'verify_record',
+  'apply_document_proposal',
 ];
+
+/**
+ * The shortest reason that can carry a "why". Eight characters is "dup of 4" or "per CAPA";
+ * below it the field held ".", "x" and "ok" in practice, which record that somebody typed
+ * something, not why they acted.
+ */
+export const MINIMUM_REASON_LENGTH = 8;
 
 export interface ResolvedDispatcherOptions {
   readonly allowedActions: ReadonlySet<string> | undefined;

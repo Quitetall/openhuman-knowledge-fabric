@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Tx } from '@kf/database';
-import { auditChainDigest, GENESIS_DIGEST } from '@kf/canonicalization';
+import { auditChainDigest, CURRENT_AUDIT_LINK_FORMAT, GENESIS_DIGEST } from '@kf/canonicalization';
 import {
   createTransactionalDispatcher,
   createTransactionalPreflight,
@@ -43,8 +43,7 @@ function preflightTx(roleHeld: boolean) {
       statements.push(sql);
       if (sql.includes('registry.action_type'))
         return { id: REQUEST.actionType, transactional: true };
-      if (sql.includes('org.resolve_effective_classification'))
-        return { requested_classification: REQUEST.maxClassification };
+      if (sql.includes('core.bind_principal')) return { ceiling: REQUEST.maxClassification };
       if (sql.includes('org.holds_role')) return { ok: roleHeld };
       return undefined;
     },
@@ -57,6 +56,8 @@ const PURE_TRANSITION_REQUEST: ActionRequest = {
   actionType: 'triage_initiative',
   targetIds: ['55555555-5555-7555-8555-555555555555'],
   idempotencyKey: 'test-pure-transition-0001',
+  // The caller's attestation (20260924001000): the dispatcher must hand it to the bind.
+  attestation: 'a7'.repeat(32),
 };
 
 function replayReceipt(request: ActionRequest = PURE_TRANSITION_REQUEST) {
@@ -64,16 +65,20 @@ function replayReceipt(request: ActionRequest = PURE_TRANSITION_REQUEST) {
   const effectiveAt = '2026-08-14T12:00:00.000Z';
   const beforeDigest = null;
   const afterDigest = 'b'.repeat(64);
-  const auditDigest = auditChainDigest(GENESIS_DIGEST, {
-    action_id: id,
-    action_type: request.actionType,
-    actor_id: request.actorId,
-    acting_role_id: request.actingRoleId,
-    object_ids: [...request.targetIds].sort(),
-    effective_at: effectiveAt,
-    before_digest: beforeDigest,
-    after_digest: afterDigest,
-  });
+  const auditDigest = auditChainDigest(
+    GENESIS_DIGEST,
+    {
+      action_id: id,
+      action_type: request.actionType,
+      actor_id: request.actorId,
+      acting_role_id: request.actingRoleId,
+      object_ids: [...request.targetIds].sort(),
+      effective_at: effectiveAt,
+      before_digest: beforeDigest,
+      after_digest: afterDigest,
+    },
+    CURRENT_AUDIT_LINK_FORMAT,
+  );
   return {
     id,
     actor_id: request.actorId,
@@ -98,6 +103,7 @@ function replayReceipt(request: ActionRequest = PURE_TRANSITION_REQUEST) {
     event_before_digest: beforeDigest,
     event_after_digest: afterDigest,
     event_prev_digest: GENESIS_DIGEST,
+    event_link_format: CURRENT_AUDIT_LINK_FORMAT,
     audit_digest: auditDigest,
   };
 }
@@ -105,6 +111,7 @@ function replayReceipt(request: ActionRequest = PURE_TRANSITION_REQUEST) {
 function dispatcherTx() {
   const statements: string[] = [];
   const accessContexts: unknown[][] = [];
+  const principalBinds: unknown[][] = [];
   const object: ObjectRow = {
     id: PURE_TRANSITION_REQUEST.targetIds[0]!,
     object_type: 'initiative_project',
@@ -132,24 +139,30 @@ function dispatcherTx() {
     async one(sql: string) {
       statements.push(sql);
       if (sql.includes('core.audit_chain_head')) return { digest: GENESIS_DIGEST };
-      if (sql.includes('uuidv7()')) return { id: '77777777-7777-7777-8777-777777777777' };
+      if (sql.includes('uuidv7()')) {
+        return {
+          id: '77777777-7777-7777-8777-777777777777',
+          now: new Date('2026-08-14T12:00:00.000Z'),
+        };
+      }
       throw new Error(`unexpected one(): ${sql}`);
     },
-    async maybeOne(sql: string) {
+    async maybeOne(sql: string, params?: readonly unknown[]) {
       statements.push(sql);
+      if (sql.includes('core.bind_principal')) {
+        principalBinds.push([...(params ?? [])]);
+        return { ceiling: PURE_TRANSITION_REQUEST.maxClassification };
+      }
       if (sql.includes('from core.action')) return undefined;
       if (sql.includes('registry.action_type')) {
         return { id: PURE_TRANSITION_REQUEST.actionType, transactional: true };
-      }
-      if (sql.includes('org.resolve_effective_classification')) {
-        return { requested_classification: PURE_TRANSITION_REQUEST.maxClassification };
       }
       if (sql.includes('org.holds_role')) return { ok: true };
       if (sql.includes('from core.audit_event')) return undefined;
       throw new Error(`unexpected maybeOne(): ${sql}`);
     },
   } as unknown as Tx;
-  return { statements, accessContexts, tx };
+  return { statements, accessContexts, principalBinds, tx };
 }
 
 describe('transactional action preflight', () => {
@@ -251,13 +264,19 @@ describe('transactional action ownership', () => {
       true,
     );
     expect(boundary.statements.some((sql) => /insert into core\.outbox/i.test(sql))).toBe(true);
-    // Two binds, in this order: the provisional one the classification resolver needs in
-    // order to see the caller's own clearance under forced row-level security (ADR 0026), then
-    // the resolved ceiling that every read after it is bound to.
-    expect(boundary.accessContexts).toEqual([
-      [PURE_TRANSITION_REQUEST.organizationId, 'restricted'],
-      [PURE_TRANSITION_REQUEST.organizationId, PURE_TRANSITION_REQUEST.maxClassification],
+    // One bind, of a PRINCIPAL (20260923000100): the database resolves the organization and
+    // ceiling from the person's live assignment and clearance. The provisional `restricted`
+    // organization bind the resolver used to need is gone — it was the unbounded bind.
+    expect(boundary.principalBinds).toEqual([
+      [
+        PURE_TRANSITION_REQUEST.actorId,
+        PURE_TRANSITION_REQUEST.actingRoleId,
+        PURE_TRANSITION_REQUEST.organizationId,
+        PURE_TRANSITION_REQUEST.maxClassification,
+        PURE_TRANSITION_REQUEST.attestation,
+      ],
     ]);
+    expect(boundary.accessContexts).toEqual([]);
   });
 
   it('acquires the global audit lock only after typed effects finish', async () => {
@@ -295,8 +314,8 @@ describe('transactional action ownership', () => {
           return { id: PURE_TRANSITION_REQUEST.actionType, transactional: true };
         }
         if (sql.includes('org.holds_role')) return { ok: true };
-        if (sql.includes('org.resolve_effective_classification'))
-          return { requested_classification: PURE_TRANSITION_REQUEST.maxClassification };
+        if (sql.includes('core.bind_principal'))
+          return { ceiling: PURE_TRANSITION_REQUEST.maxClassification };
         if (sql.includes('from core.action')) {
           return {
             ...replayReceipt(),
@@ -326,8 +345,8 @@ describe('transactional action ownership', () => {
           ? { id: PURE_TRANSITION_REQUEST.actionType, transactional: true }
           : sql.includes('org.holds_role')
             ? { ok: true }
-            : sql.includes('org.resolve_effective_classification')
-              ? { requested_classification: PURE_TRANSITION_REQUEST.maxClassification }
+            : sql.includes('core.bind_principal')
+              ? { ceiling: PURE_TRANSITION_REQUEST.maxClassification }
               : sql.includes('from core.action')
                 ? prior
                 : undefined,
@@ -362,8 +381,8 @@ describe('transactional action ownership', () => {
           ? { id: PURE_TRANSITION_REQUEST.actionType, transactional: true }
           : sql.includes('org.holds_role')
             ? { ok: true }
-            : sql.includes('org.resolve_effective_classification')
-              ? { requested_classification: PURE_TRANSITION_REQUEST.maxClassification }
+            : sql.includes('core.bind_principal')
+              ? { ceiling: PURE_TRANSITION_REQUEST.maxClassification }
               : sql.includes('from core.action')
                 ? replayReceipt()
                 : undefined,
@@ -392,8 +411,8 @@ describe('transactional action ownership', () => {
             ? { id: PURE_TRANSITION_REQUEST.actionType, transactional: true }
             : sql.includes('org.holds_role')
               ? { ok: true }
-              : sql.includes('org.resolve_effective_classification')
-                ? { requested_classification: PURE_TRANSITION_REQUEST.maxClassification }
+              : sql.includes('core.bind_principal')
+                ? { ceiling: PURE_TRANSITION_REQUEST.maxClassification }
                 : sql.includes('from core.action')
                   ? prior
                   : undefined,
@@ -424,8 +443,8 @@ describe('transactional action ownership', () => {
           ? { id: PURE_TRANSITION_REQUEST.actionType, transactional: true }
           : sql.includes('org.holds_role')
             ? { ok: true }
-            : sql.includes('org.resolve_effective_classification')
-              ? { requested_classification: PURE_TRANSITION_REQUEST.maxClassification }
+            : sql.includes('core.bind_principal')
+              ? { ceiling: PURE_TRANSITION_REQUEST.maxClassification }
               : sql.includes('from core.action')
                 ? prior
                 : undefined,

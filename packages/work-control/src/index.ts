@@ -17,6 +17,14 @@ export { WORK_CONTROL_MATERIALIZERS } from './internal/materializers.js';
 export { WORK_CONTROL_EFFECTS } from './internal/effects.js';
 export { WORK_CONTROL_PRECONDITIONS } from './internal/preconditions.js';
 export { projectProgress, type ProjectProgress } from './internal/progress.js';
+export {
+  OBSERVATION_ACTION_IDS,
+  OBSERVATION_EFFECTS,
+  OBSERVATION_MATERIALIZERS,
+  formObservationRequest,
+  observationTitle,
+  type ObservationGesture,
+} from './internal/observations.js';
 
 export const PACKAGE = {
   name: '@kf/work-control',

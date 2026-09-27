@@ -243,10 +243,14 @@ action_types:
     audited: true
     transactional: true
     drives: []
+  # Transferring a Source Holder is a human-only act (SAS §22 item 3, KF-SAS-RQ-019), so it is
+  # institutional: it needs a live act grant and is refused to a service actor by name. It was
+  # role-only until draft.8, which left a declared human-only act performable by automation.
   - id: change_document_source_holder
     audited: true
     transactional: true
     drives: []
+    requires: act
   - id: request_document_compilation
     audited: true
     transactional: true
@@ -274,6 +278,16 @@ action_types:
     transactional: true
     drives: []
   - id: release_person_entitlement_exclusion
+    audited: true
+    transactional: true
+    drives: []
+  # Records that somebody has checked one record (KF-SAS-RQ-228 to RQ-232).
+  #
+  # Exactly one target, deliberately. A gesture may dispatch many of these — verifying five
+  # hundred records produces five hundred acts — but one act may not cover several, because that
+  # is the container decision KF-SAS-RQ-021 and RQ-227 forbid, and the ledger would carry one
+  # entry where five hundred judgements were made.
+  - id: verify_record
     audited: true
     transactional: true
     drives: []
@@ -357,6 +371,17 @@ action_types:
     drives: []
 
   - id: grant_person_clearance
+    audited: true
+    transactional: true
+    drives: []
+    requires: act
+
+  # Withdraw a provider account's link to a person (`org.external_identity.revoked_at`). Bootstrap
+  # tier, like the link it undoes: only `kf revoke-identity`, over the owner credential, records it,
+  # because since 20260923000200 the application login cannot touch the identity table at all.
+  # Targets the person; the link id, issuer and subject are in the parameters, the reason in the
+  # act. Declared so the revocation is an act with an audit entry, not an UPDATE nobody made.
+  - id: revoke_external_identity
     audited: true
     transactional: true
     drives: []
@@ -623,6 +648,105 @@ action_types:
     transactional: true
     drives: [test_execution]
     requires: act
+
+  # ── Observations (ADR 0034, proposed; KF-SAS-RQ-200, RQ-202, RQ-203) ────────────────────
+  # Capture is cheap; governance is on promotion (ADR 0024). record_observation needs a live
+  # assignment and nothing else — no act grant — and the server forms the acting assignment and
+  # the idempotency key (@kf/work-control formObservationRequest). promote_observation is
+  # institutional. One gesture, one act (RQ-227): a gesture that captures five things records
+  # five observations.
+  - id: record_observation
+    audited: true
+    transactional: true
+    drives: []
+  - id: promote_observation
+    audited: true
+    transactional: true
+    drives: [observation]
+    requires: act
+  - id: withdraw_observation
+    audited: true
+    transactional: true
+    drives: [observation]
+
+  # ── Creating the R01 product and quality records (KF-SAS-RQ-143) ──────────────────────
+  # product_system, requirement, risk, test, baseline and release had no create act, so the
+  # only way one came to exist was an owner-credential insert — the privileged path RQ-143
+  # forbids, and the one the quality end-to-end scenario used for its product and its hazard.
+  # Each act creates one record and its typed row (@kf/product-quality). R01 gives these types
+  # states but no lifecycle, so each is born in its FIRST declared state and drives nothing;
+  # none is institutional, because recording that a requirement or a hazard exists is not an
+  # approval of it.
+  - id: register_product_system
+    audited: true
+    transactional: true
+    drives: []
+  - id: define_requirement
+    audited: true
+    transactional: true
+    drives: []
+  - id: identify_risk
+    audited: true
+    transactional: true
+    drives: []
+  - id: register_test
+    audited: true
+    transactional: true
+    drives: []
+  - id: define_baseline
+    audited: true
+    transactional: true
+    drives: []
+  - id: define_release
+    audited: true
+    transactional: true
+    drives: []
+
+  # ── Creating the work-control records that had no act (KF-SAS-RQ-142) ─────────────────
+  # engagement, milestone and deliverable existed as typed tables and object types with no
+  # act to create one, so the reference scenario seeded its engagement with an owner insert.
+  # Each act creates one record and its typed row (@kf/work-control), born in its type's FIRST
+  # declared state, and drives nothing, as the R01 product and quality creates are. (engagement
+  # has since gained a machine whose initial state is that same `draft`.) None is institutional: recording that an engagement
+  # was signed, that a milestone is planned or that a deliverable is due approves nothing.
+  - id: record_engagement
+    audited: true
+    transactional: true
+    drives: []
+  - id: plan_milestone
+    audited: true
+    transactional: true
+    drives: []
+  - id: define_deliverable
+    audited: true
+    transactional: true
+    drives: []
+
+  # ── The engagement lifecycle (state-machines.yaml `engagement`, added 2026-09-24) ─────────
+  # R01 declared engagement's five states and no transitions, so a recorded engagement stayed in
+  # draft forever. Handler-free: each moves the state its machine names and nothing else.
+  # close_engagement and terminate_engagement carry a precondition (KF-ENG-001, rules.yaml):
+  # refused while a work order under the engagement is in a non-terminal state.
+  - id: activate_engagement
+    audited: true
+    transactional: true
+    drives: [engagement]
+  - id: suspend_engagement
+    audited: true
+    transactional: true
+    drives: [engagement]
+  - id: resume_engagement
+    audited: true
+    transactional: true
+    drives: [engagement]
+  - id: close_engagement
+    audited: true
+    transactional: true
+    drives: [engagement]
+  - id: terminate_engagement
+    audited: true
+    transactional: true
+    drives: [engagement]
 
   # ── OpenWarrant SAS §67 controlled actions (ADR 0019) ─────────────────────────────────
   # Thirty-two names, in §67's four groups, exactly as OpenWarrant's seam spells them. Phase

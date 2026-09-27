@@ -2,11 +2,12 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { InMemoryObjectStore, digestOf } from '@kf/artifacts';
-import { digest } from '@kf/canonicalization';
-import { setAccessContext, withTransaction } from '@kf/database';
+import { bindPrincipal, withTransaction } from '@kf/database';
 import {
   atomsFromPandoc,
   createDocumentActionAtoms,
+  documentConversionLossDigest,
+  documentProjectionDigest,
   getDocument,
   listDocuments,
   type DocumentParser,
@@ -53,7 +54,7 @@ describe('document constitution dogfood', { timeout: 120_000 }, () => {
     const bytes = Buffer.from('# Constitution\n\nOne fact, one owner.\n');
     const sha256 = digestOf(bytes);
     const store = new InMemoryObjectStore();
-    const key = `document-imports/${sha256}`;
+    const key = `document-imports/${fixtures.organizationId}/${sha256}`;
     await store.put(key, bytes, 'text/markdown');
 
     const parser: DocumentParser = {
@@ -84,12 +85,8 @@ describe('document constitution dogfood', { timeout: 120_000 }, () => {
           sourceDigest: digestOf(sourceBytes),
           atoms,
           conversionLoss: [],
-          lossDigest: digest([]),
-          contentDigest: digest({
-            projectionContract: 'test.atoms.v1',
-            atoms: atomClaims,
-            conversionLoss: [],
-          }),
+          lossDigest: documentConversionLossDigest([]),
+          contentDigest: documentProjectionDigest('test.atoms.v1', atomClaims, []),
         };
       },
     };
@@ -125,7 +122,9 @@ describe('document constitution dogfood', { timeout: 120_000 }, () => {
     expect(replay.objectIds).toEqual(artifact.objectIds);
 
     const versionId = await withTransaction(harness.pool, async (tx) => {
-      await setAccessContext(tx, {
+      await bindPrincipal(tx, {
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
         organizationId: fixtures.organizationId,
         maxClassification: 'restricted',
       });
@@ -162,7 +161,7 @@ describe('document constitution dogfood', { timeout: 120_000 }, () => {
       JSON.stringify([{ documentNumber: 'OH-DOC-TEST-001', revision: 'R01' }]),
     );
     const manifestSha256 = digestOf(manifestBytes);
-    const manifestKey = `document-imports/${manifestSha256}`;
+    const manifestKey = `document-imports/${fixtures.organizationId}/${manifestSha256}`;
     await store.put(manifestKey, manifestBytes, 'application/json');
     const manifestArtifact = await execute({
       ...caller,
@@ -178,7 +177,9 @@ describe('document constitution dogfood', { timeout: 120_000 }, () => {
       },
     });
     const manifestVersionId = await withTransaction(harness.pool, async (tx) => {
-      await setAccessContext(tx, {
+      await bindPrincipal(tx, {
+        actorId: fixtures.reviewerId,
+        actingRoleId: fixtures.reviewerRoleId,
         organizationId: fixtures.organizationId,
         maxClassification: 'restricted',
       });
@@ -225,7 +226,9 @@ describe('document constitution dogfood', { timeout: 120_000 }, () => {
     const { detail, summaries, source, approvals, authorityActions } = await withTransaction(
       harness.pool,
       async (tx) => {
-        await setAccessContext(tx, {
+        await bindPrincipal(tx, {
+          actorId: fixtures.reviewerId,
+          actingRoleId: fixtures.reviewerRoleId,
           organizationId: fixtures.organizationId,
           maxClassification: 'restricted',
         });

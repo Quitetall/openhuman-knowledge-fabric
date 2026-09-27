@@ -71,6 +71,13 @@ The loader is idempotent by construction: staging is content-addressed with cond
 so an unchanged rerun creates neither database duplicates nor new object-store versions. An
 occupied key holding _different_ bytes fails closed rather than overwriting.
 
+That includes a database loaded before 2026-09-23, when evidence storage keys became
+organization-scoped (`document-imports/<organization>/<sha256>`). A rerun there asks the ledger
+what it recorded and, when the only difference is the old unscoped key, replays that act instead
+of failing with `idempotency_conflict`. If the ledger holds an act that differs in anything else,
+the loader stops and prints the one command that starts the development database over:
+`DATABASE_URL="$DATABASE_OWNER_URL" pnpm db:reset && pnpm dogfood:load -- --source-dir <dir>`.
+
 It finishes by printing a paste-ready block:
 
 ```
@@ -78,9 +85,13 @@ It finishes by printing a paste-ready block:
 KF_DEV_ORGANIZATION=019ff405-2ec7-736e-898a-1f5687a80a48
 KF_DEV_ACTOR=019ff405-2eca-7e77-96cb-00990ac6f24b
 KF_DEV_ACTING_ROLE=019ff405-2ecb-7e77-96cb-00990ac6f24b
+DATABASE_URL_FILE=<path>
 ```
 
-Paste those three into `.env`. The web app calls `required()` on each and throws if any is blank.
+Paste the whole block into `.env`. The web app calls `required()` on each of the three `KF_DEV_*`
+values and throws if any is blank. `DATABASE_URL_FILE` is the owner-only (0600) file holding the
+`kf_api_dev` connection string — by default `~/.local/state/knowledge-fabric/dev-database-url` —
+because the login gets a new password on every loader run and the password is never printed.
 
 > **All three are UUIDs.** `KF_DEV_ACTING_ROLE` is the id of an `org.role_assignment` row — the
 > assignment granting the role, not the role's name. An earlier version of this document claimed
@@ -118,6 +129,12 @@ pnpm dev                      # api :4000, web :3000, worker
 
 Then open <http://localhost:3000/documents>.
 
+Each app's `dev` script sets `NODE_ENV=development` itself. Since 2026-09-23 the API refuses to
+start with `NODE_ENV` unset rather than assuming `development`, so a unit file that forgets it
+fails at boot instead of trusting identity headers; the dev scripts say what they are so that the
+refusal stays on hosts. `KF_DEPLOYMENT_PROFILE`, the database and the `KF_DEV_*` values still come
+from `.env`.
+
 **This step was not observed working.** On the authoring machine all three apps died at startup
 with `ENOSPC: System limit for number of file watchers reached`. That was _not_ a Knowledge
 Fabric requirement and not a low limit — `fs.inotify.max_user_watches` was already 524288, the
@@ -132,7 +149,7 @@ The **built** API does run. On 2026-08-27 `node apps/api/dist/server.js` was sta
 verified a genuine Keycloak access token — see
 [`docs/deployment/identity-and-login.md`](deployment/identity-and-login.md). So `pnpm dev` is
 blocked by the watcher budget, not by anything in the application. `pnpm --filter @kf/api build`
-then `node apps/api/dist/server.js` sidesteps it entirely.
+then `NODE_ENV=development node apps/api/dist/server.js` sidesteps it entirely.
 
 If you hit `ENOSPC`, do not raise the limit reflexively — find the consumer first:
 
@@ -152,6 +169,40 @@ worker-only problem presents as "nothing starts". Run a single app to isolate it
 ```sh
 pnpm --filter @kf/api dev
 ```
+
+## 3A. Note something down — one gesture, no role, key or version
+
+Recording that something happened is an observation (ADR 0024, ADR 0034, SAS §8A). It costs one
+gesture on any of three surfaces, and all three reach the same route, `POST /capture/observation`,
+which forms the one act `record_observation` through the dispatcher (KF-SAS-RQ-203):
+
+```sh
+# the command line — over the API, as you, with your own bearer token
+pnpm kf note "Channel 3 noise floor 2.1 µV RMS at 250 Hz on board B" \
+  --token-file ~/.config/kf/token --organization <uuid> [--tag bench] [--subject <object uuid>]
+```
+
+or the web form at <http://localhost:3000/capture>, or `curl` against the route. The request
+carries the note and nothing about authority: **no acting role, no idempotency key, no row
+version** (KF-SAS-RQ-200). The server forms each of them:
+
+- **the acting assignment** is your only live assignment in the organization. If you hold several
+  and did not name one (`--acting-role`, or the `x-kf-acting-role` header the web session sends),
+  the answer is `422 acting_assignment_ambiguous` listing your assignments, and nothing is
+  recorded. It does not guess, because a guess attributes the note to a role you did not act in;
+- **the idempotency key** is the gesture id plus the note's SHA-256. A gesture id is generated
+  when you send none and is returned, so a retry of the same gesture (`--gesture <id>`) replays
+  the first capture instead of recording twice;
+- **the target** is the observation the act creates.
+
+What comes back is a `captured` observation, **attributed to you and audited from the first
+moment**, and labelled `UNVERIFIED — nobody has checked this record` until somebody else verifies
+it (SAS §48A). Capturing needs no act grant. Turning an observation into a controlled record —
+`promote_observation` — does, and is a separate act by somebody who holds one (KF-SAS-RQ-202).
+
+How fast each of these must be is ADR 0024's table; `node scripts/latency-bars.mjs` measures the
+bars against a running stack and writes `generated/latency-bars.md`. A workstation's numbers are
+labelled as such and are not the official ones — those come from a commissioned host.
 
 ## 4. Check your work
 
@@ -177,6 +228,8 @@ Stated here so you do not go looking:
   namespace the registry has; a deployment seeds `registry.identifier_namespace` from that
   registry, so an instance that has not re-seeded since is refused by name for the two new
   codes.
+- **No chat integration.** ADR 0024 names chat as a first-class capture surface; there is none
+  yet. The command line, the web form and agents through the API route are what exist.
 - **No approval workflow.** Documents load as drafts. Approval, effective-state transition and
   publication are human acts performed outside the software.
 - **No commissioned host.** `docs/deployment/private-host.md` describes one. One was built on

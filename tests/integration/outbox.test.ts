@@ -32,7 +32,12 @@ let h: Harness;
 let f: Fixtures;
 let execute: ReturnType<typeof createDispatcher>;
 
-const scope = () => ({ organizationId: f.organizationId, maxClassification: 'restricted' });
+const scope = () => ({
+  actorId: f.performerId,
+  actingRoleId: f.performerRoleId,
+  organizationId: f.organizationId,
+  maxClassification: 'restricted',
+});
 
 async function acceptSomething(title: string, key: string): Promise<string> {
   const id = await createObject(h.adminPool, f, {

@@ -12,6 +12,16 @@ export interface PinnedLiminalProcessOptions {
   readonly pathEnvironment?: string;
   /** Absolute path to the host-qualified bubblewrap executable. */
   readonly bubblewrapPath: string;
+  /** Absolute path to util-linux `prlimit`, which applies the rlimits below to bubblewrap. */
+  readonly prlimitPath?: string;
+  /** Size of the sandbox root tmpfs. */
+  readonly sandboxTmpfsBytes?: number;
+  /** RLIMIT_DATA for the sandboxed compiler. */
+  readonly maxDataBytes?: number;
+  /** RLIMIT_FSIZE; must exceed the compiler executable, which bubblewrap writes under it. */
+  readonly maxFileBytes?: number;
+  /** RLIMIT_NOFILE. */
+  readonly maxOpenFiles?: number;
   /**
    * Exact native loader/shared-library files exposed to the compiler sandbox.
    * Production entries are restricted to system library roots; directories are never accepted.
@@ -39,6 +49,11 @@ export type LiminalHostPreflightOptions = Pick<
   | 'executablePath'
   | 'cargoLockPath'
   | 'bubblewrapPath'
+  | 'prlimitPath'
+  | 'sandboxTmpfsBytes'
+  | 'maxDataBytes'
+  | 'maxFileBytes'
+  | 'maxOpenFiles'
   | 'runtimeFilePaths'
   | 'pathEnvironment'
   | 'cleanupTimeoutMs'

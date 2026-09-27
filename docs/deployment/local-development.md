@@ -8,21 +8,31 @@ fixed credentials on loopback; it is not a private-host topology. See
 
 `KF_DEPLOYMENT_PROFILE` is mandatory. It describes whether records can carry authenticated
 human provenance; `NODE_ENV` still controls framework behavior, TLS posture and secret loading.
-Neither variable substitutes for the other.
+Neither variable substitutes for the other, and neither has a default: the API refuses to start
+when `NODE_ENV` is unset rather than assuming `development`.
+
+The `development` profile believes whatever `x-kf-*` headers say, so the API refuses it on any
+listener other than loopback. `HOST` defaults to `127.0.0.1` under every profile; `0.0.0.0` must
+be asked for, and is refused under `development`.
 
 | Profile       | Identity path                                            | Where it is allowed                          | Authority claim |
 | ------------- | -------------------------------------------------------- | -------------------------------------------- | --------------- |
 | `development` | Explicit fixed headers from `KF_DEV_*`                   | `NODE_ENV=development` or `test`, one owner  | None            |
 | `dogfood`     | Verified bearer token plus live database role assignment | Local rehearsal or a controlled private host | Dogfood only    |
 
-The API refuses `dogfood` without all of `OIDC_ISSUER`, `OIDC_AUDIENCE` and `OIDC_JWKS_URI`.
+The API refuses `dogfood` without all of `OIDC_ISSUER`, `OIDC_AUDIENCE` and `OIDC_JWKS_URI`, and
+without `KF_ATTESTOR_SOCKET` naming a running `kf-attestor` (see the dogfood section below).
 The web application refuses its fixed caller in `dogfood` even if `NODE_ENV=development` and
 `KF_ALLOW_FIXED_IDENTITY=1` are still present. A forgotten environment cleanup therefore does
 not turn fixed headers into shared identity.
 
 The web application implements OIDC authorization code with required PKCE, validates the
 signed ID token and nonce, stores the access token in an encrypted host-only session cookie,
-and forwards bearer identity to the API. It does not trust identity-provider role claims:
+and forwards bearer identity to the API. The verified ID token is kept in a second encrypted cookie
+(`__Host-kf_id_token_hint`) for one purpose: sign-out sends it as `id_token_hint`, so the
+provider ends its SSO session without asking for confirmation. Sign-out clears every local
+cookie on every path, including when configuration fails to load or the request is refused as
+cross-origin. It does not trust identity-provider role claims:
 selected KF authority context is validated by the API before it is retained in the session.
 
 ## Prerequisites
@@ -48,14 +58,31 @@ DATABASE_URL="$DATABASE_OWNER_URL" pnpm db:migrate
 pnpm dogfood:load -- --source-dir /path/to/OpenHuman_Technologies
 ```
 
-The loader's JSON output includes `identity.actorId`, `identity.actingRoleId` and
-`identity.organizationId`. Copy those UUIDs into `KF_DEV_ACTOR`, `KF_DEV_ACTING_ROLE` and
-`KF_DEV_ORGANIZATION` in `.env`, then reload it and start the applications:
+The loader needs `KF_ORGANIZATION_LEGAL_NAME`, the legal name of the organization it seeds, and
+refuses to run without it: the deploying organization's identity is configuration, not source
+(KF-SAS-RQ-192), and no file under `apps/`, `packages/`, `scripts/` or `deploy/` may name it
+(`apps/api/src/dogfood/legal-name.test.ts` fails the build if one does). The loader finds the
+organization by exactly this name and creates it when absent, so keep the value identical across
+runs against one database; a different name seeds a second organization whose operator holds no
+clearance, and the run stops at the clearance check. A database loaded before 2026-09-24 was
+seeded under the name the bootstrap used to hard-code; set the variable to that name to keep
+using it.
+
+The loader ends with a paste-ready block: `KF_DEV_ORGANIZATION`, `KF_DEV_ACTOR`,
+`KF_DEV_ACTING_ROLE` and `DATABASE_URL_FILE`. Copy it into `.env`, then reload it and start the
+applications:
 
 ```sh
 set -a; . ./.env; set +a
 pnpm dev
 ```
+
+`pnpm dev` sets `NODE_ENV=development` for the API, web and worker itself — the API no longer
+defaults it (2026-09-23) — so nothing beyond `.env` is needed. Re-running `pnpm dogfood:load`
+against a database it already loaded is a no-op, including one loaded before evidence storage keys
+became organization-scoped that day: the loader replays what it recorded under the old key. Only
+when the database holds acts a different loader made does it stop, printing
+`DATABASE_URL="$DATABASE_OWNER_URL" pnpm db:reset && pnpm dogfood:load -- --source-dir <dir>`.
 
 - API — <http://localhost:4000/health> and `/ready`
 - Web — <http://localhost:3000>
@@ -63,7 +90,13 @@ pnpm dev
 - MinIO console — <http://localhost:9001>
 - Keycloak — <http://localhost:8080>
 
-The loader creates the constrained `kf_api_dev` login and a visibly synthetic local operator,
+The loader refuses to run on a provisioned host (one where `/etc/kf` exists). It creates the
+`kf_api_dev` login — a member of `kf_app` and, because the development API attests in-process,
+of `kf_attestor`, which is why no `dogfood` API accepts it — with a fresh random password on every run (sent to PostgreSQL as a SCRAM verifier, so it never
+appears in the server's DDL log), writes that login's
+connection string owner-only (0600) to `$XDG_STATE_HOME/knowledge-fabric/dev-database-url`
+(default `~/.local/state/…`; override with `KF_DEV_DATABASE_URL_FILE`), and never prints the
+password. It also creates a visibly synthetic local operator,
 then imports the manifest sources as drafts. It never approves them, makes them effective or
 allocates an enterprise identifier. Reruns are idempotent. Current actions use strict semantic
 receipt replay. Pre-contract materializations require migration-owned provenance, exact action
@@ -80,19 +113,22 @@ claiming readiness it does not have.
 
 ## Dogfood profile: local identity rehearsal
 
-Compose starts Keycloak but deliberately does not invent a realm, client, users, MFA policy or
-token lifetime. Before selecting `dogfood`, an operator has to configure and verify all of the
-following:
+Compose starts Keycloak with `--import-realm` over `deploy/keycloak/`, so the
+`knowledge-fabric` realm from
+[`knowledge-fabric-realm.json`](../../deploy/keycloak/knowledge-fabric-realm.json) exists on
+first start: the public `knowledge-fabric-web` client (authorization code, PKCE S256, redirect
+URI `http://localhost:3000/auth/callback`), the bearer-only `knowledge-fabric-api` audience, and the
+realm's token lifetime and login policy. What it deliberately does not ship is a user — an export
+carrying users would commit credentials. Before selecting `dogfood`:
 
-1. A `knowledge-fabric` realm, public web client and API audience such as
-   `knowledge-fabric-api`.
-2. Exact callback and post-logout URLs for the web client, with authorization code and PKCE
-   S256 required.
-3. Access tokens whose exact `iss` matches `OIDC_ISSUER` and whose `aud` contains
-   `OIDC_AUDIENCE`.
-4. A reachable JWKS endpoint at `OIDC_JWKS_URI`.
-5. A recorded `org.external_identity` link from the token `sub` to a person, plus the live role
-   assignment the request will name. Nothing is auto-provisioned.
+1. Create a user with `scripts/deploy/create-dev-user.sh`, which prints the token `sub`.
+2. Confirm access tokens carry an `iss` that exactly matches `OIDC_ISSUER` and an `aud` that
+   contains `OIDC_AUDIENCE`, and that the JWKS endpoint at `OIDC_JWKS_URI` is reachable
+   ([`identity-and-login.md`](identity-and-login.md) records that walk).
+3. Record the `org.external_identity` link from that `sub` to a person, plus the live role
+   assignment the request will name, with `pnpm kf:grant-authority` (owner connection). Nothing is
+   auto-provisioned. The assignment ends within a year (`--valid-to`, one year by default; ADR
+   0036), and `--renew` renews it.
 
 The local values, after that provider configuration exists, are:
 
@@ -107,12 +143,69 @@ KF_WEB_OIDC_REDIRECT_URI=http://localhost:3000/auth/callback
 KF_WEB_SESSION_SECRET=<canonical-base64-encoding-of-32-random-bytes>
 ```
 
-Start the application processes after provider records and KF authority links exist:
+Since migration `20260924001000` a `dogfood` API binds a person only on an attestation from a
+separate `kf-attestor` process, reached over a Unix socket. The API refuses to start without
+`KF_ATTESTOR_SOCKET` or through a login that holds `kf_attestor`; the attestor refuses a login that
+holds `kf_app` or `kf_worker`. So the dogfood profile needs logins the development one does not:
+
+| Login               | Holds                            | Used by                             | Written (0600) to                                   |
+| ------------------- | -------------------------------- | ----------------------------------- | --------------------------------------------------- |
+| `kf_api_dev`        | `kf_app` and `kf_attestor`       | the **development** API (unchanged) | `$XDG_STATE_HOME/knowledge-fabric/dev-database-url` |
+| `kf_api_dogfood`    | `kf_app` only                    | the **dogfood** API                 | `…/knowledge-fabric/dogfood-api-database-url`       |
+| `kf_attestor_dev`   | `kf_attestor` only               | `kf-attestor`                       | `…/knowledge-fabric/attestor-database-url`          |
+| `kf_worker_dogfood` | `kf_worker`, CREATE/TEMP on `kf` | the worker beside a dogfood API     | `…/knowledge-fabric/worker-database-url`            |
+
+The worker login is the newest (2026-09-24). Without a worker no outbox row is delivered, so
+nothing a dogfood API records is indexed for search; its two database grants are the ones
+[`dogfood-vm.md`](dogfood-vm.md) records for the host, because the job queue creates and migrates
+its own `graphile_worker` schema on every start. Readiness declares that schema
+(`20260926000200`), so a running worker no longer reads as five undeclared tables.
+
+`kf_api_dev` stays: the development profile has no token to hand an attestor, so its API attests
+in-process through that login, and `pnpm dev` is unchanged. Neither dogfood process accepts it.
+
+Create the dogfood logins once (owner connection, like the loader; refused on a provisioned
+host, without `NODE_ENV=development` set by the script, or for a non-loopback database):
+
+```sh
+pnpm dogfood:logins
+```
+
+Each run re-keys every login with fresh random passwords — never printed, and sent to PostgreSQL
+as SCRAM verifiers so the plaintext never appears in its `log_statement = ddl` log — revokes any
+other role one has picked up, and writes each connection string owner-only (override the paths
+with `KF_DOGFOOD_API_DATABASE_URL_FILE`, `KF_ATTESTOR_DATABASE_URL_FILE` and
+`KF_WORKER_DATABASE_URL_FILE`). With the dogfood
+`OIDC_*` and `KF_WEB_*` values above set in `.env`, start the profile:
 
 ```sh
 set -a; . ./.env; set +a
-pnpm dev
+pnpm dev:dogfood
 ```
+
+`pnpm dev:dogfood` builds the API and the attestor, starts `kf-attestor` first (its `dev` script
+sets `NODE_ENV=development` and reads `attestor-database-url` and the socket path itself), waits
+until it answers `GET /health` on the socket — `KF_ATTESTOR_SOCKET` if set, else
+`$XDG_RUNTIME_DIR/kf-attestor.sock` — and only then starts the API and the web app with
+`KF_DEPLOYMENT_PROFILE=dogfood`, the same socket, and the API reading `dogfood-api-database-url`.
+No process is handed `DATABASE_OWNER_URL`, `DATABASE_OWNER_URL_FILE` or the development login, whatever `.env` holds. It
+refuses to start, naming what is missing, when the logins were never created or an `OIDC_*` /
+`KF_WEB_*` value is unset, and stops everything when any part exits or on Ctrl-C. The worker is not
+started by it — this rehearsal is about identity — although `pnpm dogfood:logins` now writes its
+login; `node apps/worker/dist/main.js` with `DATABASE_URL_FILE` naming `worker-database-url` runs
+it, and the Véracier fixture stack below does. The attestor alone is
+`pnpm --filter @kf/attestor dev`.
+
+If the attestor stops while the API runs, bearer requests answer `503 attestor_unavailable` —
+never a local fallback — and the API logs the outage once with the socket path.
+
+This procedure is covered by `tests/deployment/dogfood-logins.test.ts` (the logins, the real
+attestor started through its `dev` entry, a dogfood API passing its startup login check) and
+`tests/deployment/dev-dogfood-runner.test.ts` (the order). This page said it had not been walked
+end to end against a workstation Keycloak; on 2026-09-24 the Véracier fixture stack walked the same
+processes and logins (not `pnpm dev:dogfood` itself) against one: 56 people signing in through the
+realm's form, the attestor vouching for every request, and the web application's sign-in and
+context selection driven in a browser.
 
 The browser selects a role assignment, organization and classification ceiling after login.
 The web server sends `Authorization: Bearer ...` plus that context to the API. The token
@@ -124,6 +217,45 @@ Do not share this Compose stack. Its Keycloak `start-dev` mode and database/obje
 credentials are intentionally unsuitable for a network service. A shared dogfood instance
 follows the private-host contract, uses `NODE_ENV=production`, terminates TLS and supplies
 secrets from owner-only files.
+
+## A corpus-sized fixture: Véracier Industries
+
+[`fixtures/veracier/`](../../fixtures/veracier/README.md) is a fictional industrial group — 1 004
+documents from the EDiTh benchmark (Apache-2.0) in six languages, 56 people with roles, clearances
+and need-to-know grants, and about seventy governed records — loaded through the real paths:
+`kf bootstrap-organization` and `kf grant-authority` for the bootstrap tier, then every act as a
+request to the API by the person who performs it. It brings its own stack in the dogfood profile
+(PostgreSQL, MinIO and Keycloak under the compose project `kf-veracier`, plus kf-attestor, the
+API, the worker and the web application on ports 4100 and 3100), so it runs beside the default
+stack without touching it:
+
+```sh
+fixtures/veracier/stack/stack.sh up     # dependencies, migrations, logins, build, applications
+fixtures/veracier/stack/stack.sh load   # the fixture (`load --sample` for 80 documents)
+fixtures/veracier/stack/stack.sh down   # stop; `reset` deletes the fixture's volumes and state
+```
+
+Sign in at <http://localhost:3100>; the personas' passwords are in one owner-only file,
+`~/.config/kf/veracier-personas.txt`. Loading twice is a no-op. The corpus itself is not in the
+repository; the fixture's README says where it is expected and what is committed.
+
+## Several companies, one stack: the multi-organization fixture
+
+[`fixtures/multi/`](../../fixtures/multi/README.md) loads every fixture corpus into one stack, each
+fictional company as its own KF organization: Véracier, Redwood Inference
+([EnterpriseRAG-Bench](../../fixtures/enterprise-rag-bench/README.md), MIT), The Agent Company
+([TheAgentCompany](../../fixtures/theagentcompany/README.md), MIT) and three
+[DRBench](../../fixtures/drbench/README.md) companies (Apache-2.0). It is the Véracier stack script
+under the compose project `kf-multi` (web 3200, API 4200, Keycloak 18180):
+
+```sh
+fixtures/multi/stack.sh up
+fixtures/multi/stack.sh load --sample   # every corpus's committed sample; `load` for all of it
+```
+
+`pnpm fixture <corpus> [--sample]` loads one corpus. `tests/deployment/multi-org-isolation.test.ts`
+(`KF_MULTI_LIVE=1`) proves that no organization's people can search, read, count or act on
+another's records.
 
 ## Verification
 
@@ -139,7 +271,7 @@ container so it still behaves like a machine that is not this one. See
 ```sh
 pnpm format:check   # prettier
 pnpm lint           # eslint + typescript-eslint
-pnpm typecheck      # tsc --build across 16 projects, then Next's own tsc
+pnpm typecheck      # tsc --build across every project, then Next's own tsc
 pnpm test           # vitest
 pnpm ontology:check # ontology internally consistent, compared in memory
 pnpm ontology:build && git diff --exit-code -- generated/   # committed output is current
@@ -162,8 +294,8 @@ project lists what it needs. TypeScript 6.0 stopped auto-including every `@types
 being explicit is both the fix and the more deterministic configuration — an unrelated types
 package can no longer leak globals into a project that never asked for it.
 
-**`@types/node` is a per-package dependency.** Only the four packages that touch Node APIs
-declare it. That is `.npmrc`'s isolated layout working as intended: a package may import
+**`@types/node` is a per-package dependency.** Each package that touches Node APIs declares
+it. That is `.npmrc`'s isolated layout working as intended: a package may import
 only what it declares.
 
 ## PostgreSQL notes

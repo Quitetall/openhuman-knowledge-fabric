@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { chmod, mkdtemp, readFile, rm, truncate, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -423,6 +423,76 @@ describe.skipIf(process.platform !== 'linux' || !existsSync(TEST_BWRAP))(
       });
 
       await expect(adapter.compile(request)).resolves.toEqual(response);
+    });
+
+    it('runs the compiler under a sized root tmpfs and hard rlimits', async () => {
+      // Read back from inside the sandbox rather than asserted on the argv: a limit is only
+      // real if the process it is meant to bound can see it. Exit codes name the first check
+      // that failed. Filling the tmpfs proves the size is enforced, not merely reported.
+      const files = await fixture(`
+      const fs = require('node:fs');
+      const limits = fs.readFileSync('/proc/self/limits', 'utf8').split('\\n');
+      const soft = (name) => limits.find((line) => line.startsWith(name)).slice(26).trim().split(/\\s+/)[0];
+      if (soft('Max data size') !== '${String(1024 * 1024 * 1024)}') process.exit(51);
+      if (soft('Max file size') !== '${String(64 * 1024 * 1024)}') process.exit(52);
+      if (soft('Max open files') !== '128') process.exit(53);
+      if (soft('Max core file size') !== '0') process.exit(54);
+      const root = fs.statfsSync('/');
+      if (root.blocks * root.bsize !== ${String(8 * 1024 * 1024)}) process.exit(55);
+      try {
+        fs.writeFileSync('/tmp/fill', Buffer.alloc(${String(9 * 1024 * 1024)}));
+        process.exit(56);
+      } catch (error) {
+        if (error.code !== 'ENOSPC') process.exit(57);
+      }
+      process.stdin.resume();
+      process.stdin.on('end', () => process.stdout.write(${JSON.stringify(canonicalize(response))}));
+    `);
+      const adapter = new PinnedLiminalProcessAdapter({
+        ...files,
+        timeoutMs: 60_000,
+        sandboxTmpfsBytes: 8 * 1024 * 1024,
+        maxDataBytes: 1024 * 1024 * 1024,
+        maxFileBytes: 64 * 1024 * 1024,
+        maxOpenFiles: 128,
+        allowScriptExecutableForTests: true,
+      });
+      await expect(adapter.compile(request)).resolves.toEqual(response);
+    });
+
+    it('runs the compiler under its own syscall filter, on top of any the worker has', async () => {
+      // Read back from inside, like the limits above. The kernel counts the filters a process is
+      // under; the compiler must be under at least one more than the worker that spawned it,
+      // whether or not the worker itself runs under systemd's SystemCallFilter=.
+      const status = (text: string, field: string) =>
+        Number(new RegExp(`^${field}:\\s*(\\d+)`, 'm').exec(text)?.[1] ?? '0');
+      const own = status(readFileSync('/proc/self/status', 'utf8'), 'Seccomp_filters');
+      const files = await fixture(`
+      const text = require('node:fs').readFileSync('/proc/self/status', 'utf8');
+      const field = (name) => Number(new RegExp('^' + name + ':\\\\s*(\\\\d+)', 'm').exec(text)?.[1] ?? '0');
+      if (field('Seccomp') !== 2) process.exit(61);
+      if (field('Seccomp_filters') <= ${String(own)}) process.exit(62);
+      process.stdin.resume();
+      process.stdin.on('end', () => process.stdout.write(${JSON.stringify(canonicalize(response))}));
+    `);
+      const adapter = new PinnedLiminalProcessAdapter({
+        ...files,
+        timeoutMs: 60_000,
+        allowScriptExecutableForTests: true,
+      });
+      await expect(adapter.compile(request)).resolves.toEqual(response);
+    });
+
+    it('refuses an executable larger than the file-size limit before spawning it', async () => {
+      const files = await fixture(`process.exit(0)`);
+      const adapter = new PinnedLiminalProcessAdapter({
+        ...files,
+        maxFileBytes: 16,
+        allowScriptExecutableForTests: true,
+      });
+      await expect(adapter.compile(request)).rejects.toThrow(
+        /larger than the sandbox maxFileBytes/,
+      );
     });
 
     it('kills a timed-out compiler', async () => {

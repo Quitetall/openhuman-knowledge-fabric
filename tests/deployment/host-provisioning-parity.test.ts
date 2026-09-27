@@ -45,12 +45,14 @@ describe('every workflow that runs the gate provisions the same host contract', 
     }
   });
 
-  it('the shared action still provisions all seven requirements', () => {
+  it('the shared action still provisions every requirement', () => {
     // Named individually rather than counted. A count passes when one is swapped for another,
     // and each of these cost a failed run to discover.
     const action = readFileSync(join(ROOT, ACTION, 'action.yml'), 'utf8');
     for (const required of [
       'bubblewrap',
+      // libseccomp's resolver, which the compiler filter's syscall numbers are checked against.
+      'scmp_sys_resolver',
       'pandoc',
       // The PDF engine pandoc renders through; a separate package the hosted image lacks.
       'pdflatex',
@@ -58,6 +60,13 @@ describe('every workflow that runs the gate provisions the same host contract', 
       'postgresql-client-18',
       '/usr/bin/node',
       'apparmor_restrict_unprivileged_userns',
+      // The backup tests run real gpg and rsync (tests/backup-restore/*-hardening, offsite,
+      // restore-drill-source).
+      'gnupg',
+      'rsync',
+      // The MinIO images the preservation drill runs, built from source because no registry
+      // serves them (tests/fixtures/minio-image/build.sh).
+      'tests/fixtures/minio-image/build.sh',
     ]) {
       expect(action, `${ACTION} no longer provisions ${required}`).toContain(required);
     }

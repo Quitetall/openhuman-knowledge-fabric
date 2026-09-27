@@ -1,0 +1,123 @@
+---
+schema: oh.war/atom/v1
+adr_uuid: a9a14f35-5334-5a29-af57-ba1ba49671a7
+local_alias: KF-ADR-0031
+role: adr
+jurisdiction: bound
+order: 30
+classification: public
+status: accepted
+decided: 2026-09-20
+---
+
+# ADR KF-0031: An unverified record is a record that says so, and one gesture may produce many acts
+
+- **Status:** accepted 2026-09-20; proposed 2026-09-14, corrected in place 2026-09-18 while still proposed
+- **Extends:** ADR 0012 (ingestion: copy or reference), ADR 0024 (friction is architectural),
+  ADR 0029 (transient observations).
+- **Bears on:** KF-SAS-RQ-021, RQ-202, §48 ingestion, §62 the master-record boundary, §63 the
+  withholding ledger.
+
+> **UPDATED 2026-09-24.** The bulk ceiling named as undecided under Consequences is now decided
+> (`2d77c1a0`): `kf ingest` refuses a batch above 250 files, which a caller may lower but never
+> raise (`DEFAULT_INGEST_CEILING`, `apps/api/src/ingest/plan.ts`), and a confirmed sync is capped
+> at 2 000 (`MAX_BULK_CEILING`, `apps/api/src/sync/plan.ts`).
+>
+> **UPDATED 2026-09-24.** "The projection says it is unverified" now holds beyond the master
+> record's own rendering. Every `@kf/projections` Result labels each member verified or
+> unverified (format `kf-projection-result-v2`), and so do the Object View API and page,
+> `GET /master-record`'s items, the agent reads `read_record`, `find_records` and
+> `trace_relations`, and every search hit. Each reads `core.object_verification` under the
+> reader's row security, so the verification of a record the reader cannot see is never looked up.
+
+## Context
+
+The corpus is meant to be browsable, downloadable, and worked on offline, with a single gesture
+to put changes back. Stated that way it collides head-on with KF-SAS-RQ-021, accepted since
+`0.1.0-draft.1`: _ingestion SHALL admit external content one named item at a time, and SHALL NOT
+provide recursive synchronisation of an external container._ "Sync my folder into the store" is
+the named non-goal, almost word for word.
+
+The collision turned out to be in the mechanism and not the intent, and resolving it took two
+exchanges of reasoning that neither the specification nor this repository records anywhere. That
+is the argument for this record: the next person will re-derive it, and may derive it differently.
+
+**What RQ-021 actually forbids** is a container becoming a record set with no decision in it. It
+says nothing about how many acts one gesture may produce. ADR 0024 already made low friction
+architectural rather than product polish, and KF-SAS-RQ-202 already permits cheap capture as a
+draft, attributed from the first moment, with promotion as a separate act. The three are
+consistent once the distinction is drawn explicitly.
+
+**What the investigation found, and what changed the sequencing.** Nothing records whether a
+record has been verified, and nothing filters on such a thing anywhere — not master-record
+membership, not the preservation export, not projections. An unverified record is a full corpus
+member today, indistinguishable from a checked one. (First written as "`draft` is the initial state
+of every state machine and nothing filters on it". The second half was true; the first was not —
+`draft` is the initial state of 8 of 24 — and correcting it produced the orthogonality below.)
+So the "special set of rules" that unverified material was assumed to have does not exist. It is a
+label. Building the fast capture path first would put unverified material inside master records and
+inside the permanent preservation export, indistinguishable from records somebody checked — which
+is worse than the folder of files this program exists to replace, because the folder never claimed
+to be the record.
+
+## Decision
+
+**One gesture may produce many acts. It may not produce zero, and it may not produce one act
+covering many items.**
+
+Zero acts is folder synchronisation: unattributable, and what RQ-021 forbids. One act covering
+many items is "I admitted this folder", which is the same container decision reached by a
+different route. Many acts from one gesture is cheap capture with full attribution, which is what
+RQ-202 already blesses. The person clicks once; the ledger receives one entry per item, each
+naming them.
+
+**Verification is orthogonal to lifecycle state.** The first form of this record used "draft" and
+"unverified" as synonyms. They are not. `draft` is the initial state of 8 of the 24 state machines
+in `ontology/state-machines.yaml`; the rest begin at `planned`, `proposed`, `active`, `open`,
+`captured`, `prospective`, `in_service` or `received`. A work order beginning at `planned` was never
+a draft, so these rules would not have reached it — and "any initial state" fails the other way,
+because equipment beginning at `in_service` is not unverified, that is simply where the machine
+starts. A record carries whether anyone verified it, and who, independently of where its lifecycle
+sits: `active` and unverified is ordinary, and so is `draft` and verified.
+
+**An unverified record is a record.** Law 6 applies to it, it is attributed and audited from the moment it is
+written, and it appears in the preservation export marked as a draft. Excluding it would create a
+class of stored thing that can vanish, and ADR 0029 defined that category deliberately narrowly.
+
+**It is a member of a master record, and the projection says it is unverified.** A master
+record that silently omits is the failure §63's withholding ledger was written against, so
+omission is not available. What is available — and required — is that the reader can tell which
+members nobody has checked. An unlabelled unverified record inside "everything you may see" is worse than an
+absent one, because it borrows the credibility of the records around it.
+
+**It SHALL NOT be citable as evidence.** A Warrant tracing to an unverified record is a
+claim resting on something nobody has checked, which is the ticked box §97.3 exists to prevent.
+This is the one place where a draft is not a record like any other, and it is the place where the
+distinction earns its keep.
+
+**A promotion act records its basis: reviewed individually, or promoted in bulk.** Reviewing five
+hundred documents one at a time and promoting five hundred in one click are different facts. A
+ledger that writes "verified" for both has made the word carry no information, and an auditor
+asking "did a person look at this document" then has no answer available. Recording the basis costs
+the fast path nothing; it stops the fast path from misrepresenting itself.
+
+## Consequences
+
+- Sync is a fast path **through** the existing machinery rather than around it. Each file becomes
+  one draft and one act; verification becomes one act per item from one gesture.
+- The sequencing inverts from what it feels like. The lifecycle rules and the projection labelling
+  must exist before the capture path that fills them, because the visible part is the last part.
+- A mistaken sync is cheap and is recorded as a mistake: drafts withdraw, and the withdrawal is
+  evidence rather than an absence.
+- Two operational controls are needed and are not decided here: a ceiling above which a bulk
+  capture is refused without an explicit override, so pointing sync at the wrong directory does not
+  produce ten thousand drafts; and a classification for captured files, which can only default to
+  the capturing person's own ceiling, because anything lower is a widening nobody decided.
+
+## Provenance
+
+Drafted by an agent under direction, per §103.5. The low-friction sync model and the
+unverified-store framing are the owner's; the gesture-to-acts formulation, the finding that `draft`
+is filtered nowhere, and the individually-versus-bulk requirement came from this side. The owner
+decided that drafts appear in master records with a label rather than being omitted. Acceptance is
+a human act under §94.2.

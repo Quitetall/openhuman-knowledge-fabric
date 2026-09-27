@@ -32,7 +32,10 @@ Run `pnpm kf ingest ...` from repository root (or build and invoke the API packa
 Development identity requires `NODE_ENV=development`, `KF_ALLOW_FIXED_IDENTITY=1`, and the
 three explicit `KF_DEV_*` UUIDs. OIDC requires the existing `TokenVerifier` configuration,
 `--organization`, `--acting-role`, and a permission-checked `--token-file`; bearer values are
-never accepted inline or printed.
+never accepted inline or printed. Either way the application connection binds the person only on
+an attestation (migration `20260924001000`): the CLI already holds the owner connection
+(`DATABASE_OWNER_URL`), so it issues one from there for each bind rather than asking
+`kf-attestor`.
 
 Reference metadata is a JSON object with exactly one entry per CLI path:
 
@@ -75,14 +78,14 @@ available test of whether relevance works at all. Do this before building anythi
 
 ## What already exists — do not rewrite these
 
-| thing                        | where                                                          | state                                      |
-| ---------------------------- | -------------------------------------------------------------- | ------------------------------------------ |
-| The planner                  | `apps/api/src/ingest/plan.ts`                                  | done, pure, 15 tests, all guards falsified |
-| The CLI                      | `apps/api/src/ingest/cli.ts`, `apps/api/src/cli.ts`            | done, copy/reference paths and identities  |
-| The policy and its reasoning | `docs/decisions/0012-file-ingestion.md`                        | accepted                                   |
-| The reference-mode action    | `packages/documents/src/internal/external-artifact-actions.ts` | done, wired                                |
-| The copy-mode action         | `attach_evidence`, same package                                | pre-existing                               |
-| Ontology registration        | `ontology/action-types.yaml`, `DECLARED_ADDITIONS`             | done                                       |
+| thing                        | where                                                          | state                                     |
+| ---------------------------- | -------------------------------------------------------------- | ----------------------------------------- |
+| The planner                  | `apps/api/src/ingest/plan.ts`                                  | done, pure, all guards falsified          |
+| The CLI                      | `apps/api/src/ingest/cli.ts`, `apps/api/src/cli.ts`            | done, copy/reference paths and identities |
+| The policy and its reasoning | `docs/decisions/0012-file-ingestion.md`                        | accepted                                  |
+| The reference-mode action    | `packages/documents/src/internal/external-artifact-actions.ts` | done, wired                               |
+| The copy-mode action         | `attach_evidence`, same package                                | pre-existing                              |
+| Ontology registration        | `ontology/action-types.yaml`, `DECLARED_ADDITIONS`             | done                                      |
 
 `planIngest(request: IngestRequest): IngestPlan` returns either
 `{ok: true, mode, classification, items}` where each item is `{path, artifactKind, mediaType}`, or
@@ -114,7 +117,10 @@ never write the bytes into the object store.
 **`--mode=copy`** — we hold the bytes. Use `attach_evidence`
 (`packages/documents/src/internal/evidence-actions.ts`), unchanged. Note it hardcodes
 `source_system='object_store'` and requires a `storage_uri`; that is correct for this path and is
-the reason the other action had to exist.
+the reason the other action had to exist. Since 2026-09-23 that `storage_uri` must be exactly
+`ingest/<organization>/<sha256>` or `document-imports/<organization>/<sha256>` for the act's own
+organization (`evidenceStorageKey`, refused `KF-ART-KEY` otherwise): a caller-named key let
+anyone who knew another organization's digest and size attach, then download, its bytes.
 
 ## The spine to copy, not invent
 
@@ -122,8 +128,10 @@ the reason the other action had to exist.
 Take its shape:
 
 1. `createPool` on owner and constrained application URLs, `withTransaction`.
-2. `setResolvedAccessContext(tx, {subjectId, assignmentId, organizationId, requestedClassification})`
-   and **check the returned decision** before staging any bytes.
+2. `setResolvedAccessContext(tx, {subjectId, assignmentId, organizationId, requestedClassification, attestation})`
+   and **check the returned decision** before staging any bytes. Without an attestation (passed,
+   or from an issuer registered on the pool, as `runtime.ts` does with `registerAttestationIssuer`)
+   the bind throws `PrincipalRefused('not_attested')`.
 3. Dispatch through `createFabricTransactionalDispatcher` with
    `createDocumentActionAtoms` — that is where `register_external_artifact` is already bound
    (`packages/documents/src/internal/action-atoms.ts`, materializer and effect).
@@ -140,6 +148,29 @@ swallow the second.
 - A `--mode=copy` run over a path containing `vendor`, `vendors`, `supplier`, `suppliers`,
   `third-party`, `thirdparty`, `datasheets`, or a filename containing `datasheet`, refuses **the
   whole batch** and names the file and the rule.
+- Since 2026-09-23 (`apps/api/src/ingest/content-policy.ts`), in either mode a path that is a
+  dotfile or passes through a dot-directory, or is `*.pem`, `*.key`, `id_rsa*` and its
+  siblings, `*.kdbx`, `*.p12` or `*.pfx`, refuses the whole batch; in copy mode so do bytes
+  carrying a private-key header or text that validates as an IBAN, a US SSN or a payment card
+  (Luhn). The byte scan reads inside compressed documents: every part of a ZIP package (DOCX,
+  ODT, XLSX, PPTX, ODS, a plain `.zip`, nested to three levels) and every FlateDecode stream of a
+  PDF, with the strings a PDF draws decoded (`apps/api/src/ingest/content-extract.ts`). All of
+  it is bounded — 64 MiB expanded per file, 10 000 parts, 250:1 past 1 MiB — and enforced by
+  the inflater, not by the sizes the file declares; a file past a bound, or a ZIP the scan
+  cannot read (encrypted, ZIP64, another compression method, malformed), is refused under
+  `archive-<bound>`. PDF syntax itself (width tables, offsets) is held to the private-key rule
+  only, because its space-separated numbers read as Luhn-valid cards one time in ten. The
+  refusal names the file, the rule and the line — or, inside a container, the part (ZIP entry
+  or `stream@<offset>`) — never the matched text. The CLI
+  scans before any preflight or upload; `POST /ingest`, `POST /documents` and the sync planner
+  apply the same policy, because the CLI check is skippable and the server's is not. A batch
+  above 250 files is refused (sync's ceiling; `acceptBulk` there now lifts it to 2 000 and no
+  further).
+- Since 2026-09-23, a copy-mode batch is parsed (pandoc) one file at a time after the rehearsal
+  and before the act transaction opens, so a slow or hostile source holds no database
+  connection; a source the parser refuses refuses the batch before a byte is stored. Each
+  `attach_evidence` effect uses the pre-parse only if it was computed over the exact bytes it
+  verified, and refuses the act otherwise (`packages/documents/src/internal/preparse.ts`).
 - A reference-mode ingest produces an `artifact_version` with `storage_uri IS NULL` and a
   non-null `revision_label`, plus one `content.external_locator` row.
 - Re-running the same batch does not duplicate objects. `attach_evidence` staging is already
@@ -155,8 +186,8 @@ swallow the second.
 **A test can pass for the wrong reason, and this file's own history proves it.** Deleting
 `plan.ts`'s missing-mode check left all 14 tests of the day green, because an absent mode fell
 through to the unknown-mode branch and both messages contained `--mode`, which was all the
-assertion checked. The fix tightened that assertion to the specific guidance and added a 15th test
-proving the two branches are distinguishable — which is why the table above says 15.
+assertion checked. The fix tightened that assertion to the specific guidance and added a test
+proving the two branches are distinguishable.
 
 **Do not report a gate result you piped.** `pnpm gate | tail` exits with `tail`'s status. It
 reported success over a real failure in this session. Redirect to a file and echo `$?`.
@@ -167,9 +198,10 @@ character class — `pgrep -f 'pnpm ga[t]e'` — or a pidfile.
 **Commit with `-F <file>`, never `-m`.** zsh command-substitutes backticks inside double quotes,
 and commit messages here contain code spans.
 
-**Every commit goes through external review** (`review_commit`), and reviewers run ~20–30% false
-positives. Open the cited file:line and confirm the bug before changing anything; record the
-findings you skipped, and why, in the follow-up commit message.
+**External review (`review_commit`) runs on request, not on every commit**, and reviewers run
+~20–30% false positives. When a review is requested, open the cited file:line and confirm the bug
+before changing anything; record the findings you skipped, and why, in the follow-up commit
+message.
 
 ## Standing constraints that override convenience
 

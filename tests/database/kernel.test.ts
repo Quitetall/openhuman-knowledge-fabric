@@ -6,11 +6,13 @@
  * the happy path would pass just as well against a kernel with every check removed.
  */
 
+import { createHash } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDispatcher, ActionRejected } from '@kf/actions';
 import { createPool, withTransaction } from '@kf/database';
 import {
   bindContext,
+  bindReader,
   createObject,
   seedFixtures,
   startHarness,
@@ -87,6 +89,21 @@ describe('the kernel applies a legitimate action', () => {
         [result.actionId],
       );
       expect(Number(audit.n)).toBe(1);
+
+      // The state the link commits to is tagged (KF-SAS-RQ-016): kf-action-state-v1, spelled
+      // out byte for byte here rather than computed by the code under test.
+      const state = (lifecycle: string): string =>
+        createHash('sha256')
+          .update(
+            `{"format":"kf-action-state-v1","objects":[{"id":"${id}","state":"${lifecycle}"}]}`,
+          )
+          .digest('hex');
+      const link = await tx.one<{ before_digest: string; after_digest: string }>(
+        'select before_digest, after_digest from core.audit_event where action_id = $1',
+        [result.actionId],
+      );
+      expect(link.before_digest).toBe(state('proposed'));
+      expect(link.after_digest).toBe(state('accepted'));
 
       const outbox = await tx.one<{ n: string }>(
         'select count(*) as n from core.outbox where action_id = $1',
@@ -464,11 +481,11 @@ describe('the audit chain', () => {
 describe('row-level security', () => {
   it('hides objects belonging to another organization', async () => {
     const id = await proposedDecision();
+    // A reader in another organization is a real person there (20260923000100): the application
+    // can no longer bind an organization with nobody behind it, so the other tenant is seeded.
+    const other = await seedFixtures(h.adminPool, { auditClearance: false });
     await withTransaction(h.pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [
-        '01930000-0000-7000-8000-00000000ffff',
-        'restricted',
-      ]);
+      await bindReader(tx, other);
       const rows = await tx.query('select id from core.object where id = $1', [id]);
       expect(rows).toEqual([]);
     });
@@ -498,7 +515,7 @@ describe('row-level security', () => {
     });
 
     await withTransaction(h.pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'internal']);
+      await bindReader(tx, f, f.performerId, 'internal');
       expect(await tx.query('select id from core.object where id = $1', [id])).toEqual([]);
     });
     await withTransaction(h.pool, async (tx) => {
@@ -527,8 +544,10 @@ describe('the registry constrains the domain', () => {
 
   it('refuses overlapping assignments of the same role in the same scope', async () => {
     // "Was this person authorized on that date" must have one answer.
+    // Through the owner credential: since 20260923000200 only admin commands write role
+    // assignments (kf_app lost INSERT), and the constraint must hold for that writer too.
     await expect(
-      withTransaction(h.pool, async (tx) => {
+      withTransaction(h.adminPool, async (tx) => {
         await bindContext(tx, f);
         const row = await tx.one<{ id: string }>(
           `insert into core.object
@@ -540,7 +559,7 @@ describe('the registry constrains the domain', () => {
           [f.schemaVersion, f.organizationId, f.performerId],
         );
         await tx.query(
-          'insert into org.role_assignment (id, subject_id, role_id, scope_id) values ($1,$2,$3,$4)',
+          "insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to) values ($1,$2,$3,$4,now() + interval '1 year')",
           [row.id, f.reviewerId, 'technical_authority', f.organizationId],
         );
       }),
@@ -558,7 +577,7 @@ describe('the dispatcher cannot be bypassed', () => {
     const id = await proposedDecision();
     await expect(
       withTransaction(h.pool, async (tx) => {
-        await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+        await bindReader(tx, f, f.reviewerId);
         await tx.query(
           'update core.object set lifecycle_state = $2, row_version = row_version + 1 where id = $1',
           [id, 'accepted'],
@@ -571,11 +590,12 @@ describe('the dispatcher cannot be bypassed', () => {
     const id = await proposedDecision();
     await expect(
       withTransaction(h.pool, async (tx) => {
-        await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+        await bindReader(tx, f, f.reviewerId);
         // Context set, action id deliberately null: an actor is named, but nothing
         // authorized the move.
-        await tx.query('select core.set_transaction_context($1, $1, null, $2)', [
+        await tx.query('select core.set_transaction_context($1, $2, null, $3)', [
           f.reviewerId,
+          f.reviewerRoleId,
           'bypass-attempt',
         ]);
         await tx.query(
@@ -603,9 +623,10 @@ describe('the dispatcher cannot be bypassed', () => {
     const other = await proposedDecision();
     await expect(
       withTransaction(h.pool, async (tx) => {
-        await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
-        await tx.query('select core.set_transaction_context($1, $1, $2, $3)', [
+        await bindReader(tx, f, f.reviewerId);
+        await tx.query('select core.set_transaction_context($1, $2, $3, $4)', [
           f.reviewerId,
+          f.reviewerRoleId,
           applied.actionId,
           'wrong-transition',
         ]);
@@ -633,12 +654,16 @@ describe('the dispatcher cannot be bypassed', () => {
     // audit trail would be true row by row and false as a whole.
     await expect(
       withTransaction(h.pool, async (tx) => {
-        await tx.query('select core.set_transaction_context($1, $1, null, $2)', [
+        await bindReader(tx, f, f.reviewerId);
+        await tx.query('select core.set_transaction_context($1, $2, null, $3)', [
           f.reviewerId,
+          f.reviewerRoleId,
           'first',
         ]);
-        await tx.query('select core.set_transaction_context($1, $1, null, $2)', [
+        // The second person holds a real assignment too: what refuses is the second actor.
+        await tx.query('select core.set_transaction_context($1, $2, null, $3)', [
           f.performerId,
+          f.performerRoleId,
           'second',
         ]);
       }),

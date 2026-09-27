@@ -1,0 +1,1177 @@
+{
+  "source": "huggingface.co/datasets/ServiceNow/drbench data/tasks/*/config/env.json",
+  "files": [
+    {
+      "key": "DR0001-IN002_pdf",
+      "path": "tasks/DR0001/files/IN002_pdf/food-safety-compliance.pdf",
+      "task": "DR0001",
+      "company": "lees-market",
+      "app": "nextcloud",
+      "qa_type": "insight",
+      "destination": "shared/food-safety-compliance.pdf",
+      "format": "pdf",
+      "mediaType": "application/pdf",
+      "bytes": 35185,
+      "sha256": "c8cb04b14269d882560db459e8cfbbf9f836de7ff0224d76bc6d789fa044f35b",
+      "text": {
+        "file": "text/tasks/DR0001/files/IN002_pdf/food-safety-compliance.pdf.md",
+        "method": "pdftotext",
+        "sha256": "6894861a0e2938af3f4aa983df1403c97b49b32a775fe22723166a9c04eb715a",
+        "chars": 3451,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0001-DI001_pdf",
+      "path": "tasks/DR0001/files/DI001_pdf/q3-workforce-report.pdf",
+      "task": "DR0001",
+      "company": "lees-market",
+      "app": "nextcloud",
+      "qa_type": "distractor",
+      "destination": "shared/q3-workforce-report.pdf",
+      "format": "pdf",
+      "mediaType": "application/pdf",
+      "bytes": 32922,
+      "sha256": "eb4c7aad3f06def43246d61ca33099d0e45c2b645e9204813e6b41bbc45ab56c",
+      "text": {
+        "file": "text/tasks/DR0001/files/DI001_pdf/q3-workforce-report.pdf.md",
+        "method": "pdftotext",
+        "sha256": "581503a0bb6c3a3c2af2d9c0704ce029b8c8c64c39e1b35a249db69bbc4e1ea1",
+        "chars": 3067,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0001-IN001_pdf",
+      "path": "tasks/DR0001/files/IN001_pdf/food-safety-regulatory-compliance.pdf",
+      "task": "DR0001",
+      "company": "lees-market",
+      "app": "nextcloud",
+      "qa_type": "insight",
+      "destination": "shared/food-safety-regulatory-compliance.pdf",
+      "format": "pdf",
+      "mediaType": "application/pdf",
+      "bytes": 36725,
+      "sha256": "625f42c08420288e35ddc141632a50186d6a44badf01baa67f4738907a383d19",
+      "text": {
+        "file": "text/tasks/DR0001/files/IN001_pdf/food-safety-regulatory-compliance.pdf.md",
+        "method": "pdftotext",
+        "sha256": "140728049bcebb60e17271b913dab4e7b1cf15379447566ee8027ae8515f69dc",
+        "chars": 3916,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0001-DI003_pdf",
+      "path": "tasks/DR0001/files/DI003_pdf/energy-consumption-review.pdf",
+      "task": "DR0001",
+      "company": "lees-market",
+      "app": "nextcloud",
+      "qa_type": "distractor",
+      "destination": "shared/energy-consumption-review.pdf",
+      "format": "pdf",
+      "mediaType": "application/pdf",
+      "bytes": 35738,
+      "sha256": "eb3e1e25eb1584d54b90f1de295f77c6b5d946396092a7392323dd75700fecd6",
+      "text": {
+        "file": "text/tasks/DR0001/files/DI003_pdf/energy-consumption-review.pdf.md",
+        "method": "pdftotext",
+        "sha256": "4300267096883f87e978634dcd0a6773241b3cc660c15286f570b69ac8c233a1",
+        "chars": 3676,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0001-DI002_roundcube",
+      "path": "tasks/DR0001/files/DI002_roundcube/roundcube_email_20250818_113104.jsonl",
+      "task": "DR0001",
+      "company": "lees-market",
+      "app": "email",
+      "qa_type": "distractor",
+      "destination": "shared/roundcube_email_20250818_113104.jsonl",
+      "about": "Q2 Budget Review and Planning | Customer Feedback and Satisfaction Survey Results | Technology Implementation Update - New Inventory Management System | FSMA 204 Compliance Update and Recommendations | Re: FSMA 204 Compliance Update and Recommendations | Re: FSMA 204 Compliance Update and Recommendations",
+      "addresses": [
+        "david.chen@leesmarket.com",
+        "emily.patel@leesmarket.com",
+        "jason.kim@leesmarket.com",
+        "olivia.hong@leesmarket.com",
+        "peter.tran@leesmarket.com",
+        "sophia.lee@leesmarket.com"
+      ],
+      "format": "jsonl",
+      "mediaType": "application/x-ndjson",
+      "bytes": 6258,
+      "sha256": "2b87e4c46401f1839495110fa1b186f8c9079db4d13c75d2da32bdcb540ccd02",
+      "text": {
+        "file": "text/tasks/DR0001/files/DI002_roundcube/roundcube_email_20250818_113104.jsonl.md",
+        "method": "jsonl:markdown",
+        "sha256": "6c56e5ea508922fba59a4678a645a1175e8be5cdf6a8f5399d7a9d4d2a1b0e9e",
+        "chars": 4069,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0001-DI002_pdf",
+      "path": "tasks/DR0001/files/DI002_pdf/it-performance-review.pdf",
+      "task": "DR0001",
+      "company": "lees-market",
+      "app": "nextcloud",
+      "qa_type": "distractor",
+      "destination": "shared/it-performance-review.pdf",
+      "format": "pdf",
+      "mediaType": "application/pdf",
+      "bytes": 32611,
+      "sha256": "7b6a31764c4c02d53c4d5de22417134322be8b88d977b9f906e4df582e54156d",
+      "text": {
+        "file": "text/tasks/DR0001/files/DI002_pdf/it-performance-review.pdf.md",
+        "method": "pdftotext",
+        "sha256": "e4785681261b1572187286a5d78e9d9dd22f612b30b0a887a5e81a9ca50ae689",
+        "chars": 3273,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0001-DI005_pdf",
+      "path": "tasks/DR0001/files/DI005_pdf/renovation-cost-report.pdf",
+      "task": "DR0001",
+      "company": "lees-market",
+      "app": "nextcloud",
+      "qa_type": "distractor",
+      "destination": "shared/renovation-cost-report.pdf",
+      "format": "pdf",
+      "mediaType": "application/pdf",
+      "bytes": 31793,
+      "sha256": "343fca86895979e787523d6ff983da3f98dcec044d9771fa33f7127ffc8d3bda",
+      "text": {
+        "file": "text/tasks/DR0001/files/DI005_pdf/renovation-cost-report.pdf.md",
+        "method": "pdftotext",
+        "sha256": "2a27c9b2e9dbbbd07f2c9151d3cfbe853f2e7a6eef31ffdcf8052aedac401f4d",
+        "chars": 3443,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0001-DI004_pdf",
+      "path": "tasks/DR0001/files/DI004_pdf/training-insights-report.pdf",
+      "task": "DR0001",
+      "company": "lees-market",
+      "app": "nextcloud",
+      "qa_type": "distractor",
+      "destination": "shared/training-insights-report.pdf",
+      "format": "pdf",
+      "mediaType": "application/pdf",
+      "bytes": 34524,
+      "sha256": "708c728ee53a005d83a3de5ec64f9d98b76d256535338350dd593b3a272532df",
+      "text": {
+        "file": "text/tasks/DR0001/files/DI004_pdf/training-insights-report.pdf.md",
+        "method": "pdftotext",
+        "sha256": "d920f55d012cc3068156e648290def1ae2ceea0f2e1bab7f526d1c48b4185005",
+        "chars": 3528,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0001-IN011_roundcube",
+      "path": "tasks/DR0001/files/IN011_roundcube/roundcube_email_20250818_112436.jsonl",
+      "task": "DR0001",
+      "company": "lees-market",
+      "app": "email",
+      "qa_type": "insight",
+      "destination": "shared/roundcube_email_20250818_112436.jsonl",
+      "about": "Q2 Performance Review Schedule | Project Orion Update: Store Renovation Progress | Industry Event: Asian Food Expo Registration | FSMA 204 Compliance Update - Q2 2025 | Re: FSMA 204 Compliance Update - Q2 2025 | Re: FSMA 204 Compliance Update - Q2 2025",
+      "addresses": [
+        "david.lee@leesmarket.com",
+        "emily.patel@leesmarket.com",
+        "kevin.chen@leesmarket.com",
+        "peter.tran@leesmarket.com",
+        "samantha.kim@leesmarket.com"
+      ],
+      "format": "jsonl",
+      "mediaType": "application/x-ndjson",
+      "bytes": 5888,
+      "sha256": "102e9e85985f6074c0ca9f62db90a0ca07abd467168c3992db06a13921207633",
+      "text": {
+        "file": "text/tasks/DR0001/files/IN011_roundcube/roundcube_email_20250818_112436.jsonl.md",
+        "method": "jsonl:markdown",
+        "sha256": "870aaff56627498f55356d229cde2bd01c1cc0305f706c24458a9116821048e0",
+        "chars": 3831,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0001-DI001_roundcube",
+      "path": "tasks/DR0001/files/DI001_roundcube/roundcube_email_20250818_112818.jsonl",
+      "task": "DR0001",
+      "company": "lees-market",
+      "app": "email",
+      "qa_type": "distractor",
+      "destination": "shared/roundcube_email_20250818_112818.jsonl",
+      "about": "Quarterly Budget Review Meeting | Update on Employee Engagement Survey | New Store Opening in Toronto | Q1 2024 Training Update | Re: Q1 2024 Training Update | Re: Q1 2024 Training Update",
+      "addresses": [
+        "amy.chen@leesmarket.com",
+        "david.tran@leesmarket.com",
+        "emily.patel@leesmarket.com",
+        "jason.kim@leesmarket.com",
+        "kevin.wong@leesmarket.com",
+        "sarah.lee@leesmarket.com"
+      ],
+      "format": "jsonl",
+      "mediaType": "application/x-ndjson",
+      "bytes": 5699,
+      "sha256": "81cc5d626c620a2acdafe62cec4a0959fba196c279a3ddaf86558ddcda90e1cd",
+      "text": {
+        "file": "text/tasks/DR0001/files/DI001_roundcube/roundcube_email_20250818_112818.jsonl.md",
+        "method": "jsonl:markdown",
+        "sha256": "3846d2df3d8f303b19d9ef9c24b63d067b03deedb5ab8b55548fe50a6151c0df",
+        "chars": 3633,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0006-qa_1755631867",
+      "path": "tasks/DR0006/files/qa_1755631867/employee-engagement-satisfaction.pptx",
+      "task": "DR0006",
+      "company": "mediconn",
+      "app": "nextcloud",
+      "qa_type": "distractor",
+      "destination": "shared/employee-engagement-satisfaction.pptx",
+      "format": "pptx",
+      "mediaType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "bytes": 78178,
+      "sha256": "eeb1990ca5442c21f864178f9efa8ea321f1acad096bb543c0d11c8a84f296e4",
+      "text": {
+        "file": "text/tasks/DR0006/files/qa_1755631867/employee-engagement-satisfaction.pptx.md",
+        "method": "pandoc:pptx",
+        "sha256": "e63946cd4d112a40a5df33695546230a0f4135bb69ddc42007111326d1502007",
+        "chars": 2622,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0006-qa_1756142597",
+      "path": "tasks/DR0006/files/qa_1756142597/MediConn_Quarterly_Financial_Insights.xlsx",
+      "task": "DR0006",
+      "company": "mediconn",
+      "app": "file_system",
+      "qa_type": "distractor",
+      "destination": "shared/MediConn_Quarterly_Financial_Insights.xlsx",
+      "format": "xlsx",
+      "mediaType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "bytes": 5827,
+      "sha256": "7e5bface50afd294add1e574b9c4a1cfab29c11c5f88842abb8c780282c945a5",
+      "text": {
+        "file": "text/tasks/DR0006/files/qa_1756142597/MediConn_Quarterly_Financial_Insights.xlsx.md",
+        "method": "libreoffice:xlsx+pandoc",
+        "sha256": "97ad2e89a1ee949caa5642674fab8c003adedd36e6d51771402ced8e794b5ad5",
+        "chars": 1213,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0006-qa_1756142539",
+      "path": "tasks/DR0006/files/qa_1756142539/MediConn_Compliance_Violations_Report_2023.xlsx",
+      "task": "DR0006",
+      "company": "mediconn",
+      "app": "file_system",
+      "qa_type": "insight",
+      "destination": "shared/MediConn_Compliance_Violations_Report_2023.xlsx",
+      "format": "xlsx",
+      "mediaType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "bytes": 5748,
+      "sha256": "537d3368883ff3e183cac83b5273558fa672e801fba1deb21123cad971b83249",
+      "text": {
+        "file": "text/tasks/DR0006/files/qa_1756142539/MediConn_Compliance_Violations_Report_2023.xlsx.md",
+        "method": "libreoffice:xlsx+pandoc",
+        "sha256": "34ac3098ae21c8a2b9b9a07434198f0cba2a064aef3d6e5374b741ec69c96c5c",
+        "chars": 1182,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0006-IN038",
+      "path": "tasks/DR0006/files/IN038/mattermost_chat_20250819_103342.jsonl",
+      "task": "DR0006",
+      "company": "mediconn",
+      "app": "mattermost",
+      "qa_type": "insight",
+      "destination": "jsonl/mattermost_chat_20250819_103342.jsonl",
+      "about": "Compliance Team | Finance Team | HIPAA Compliance Discussions | Compliance Budget Planning",
+      "addresses": [],
+      "format": "jsonl",
+      "mediaType": "application/x-ndjson",
+      "bytes": 5284,
+      "sha256": "c581edd7a7af095b8a33a67a16bcdc0b557ecfcf3e03343096f284a41a0d932c",
+      "text": {
+        "file": "text/tasks/DR0006/files/IN038/mattermost_chat_20250819_103342.jsonl.md",
+        "method": "jsonl:markdown",
+        "sha256": "99868c2ae91092af06a2b613f0a426196baa22426b3b1bf001e6e1cd85a2394c",
+        "chars": 2514,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0006-DI001",
+      "path": "tasks/DR0006/files/DI001/mattermost_chat_20250819_103519.jsonl",
+      "task": "DR0006",
+      "company": "mediconn",
+      "app": "mattermost",
+      "qa_type": "distractor",
+      "destination": "jsonl/mattermost_chat_20250819_103519.jsonl",
+      "about": "Compliance Team | Training and Development Team | Compliance Updates | Training Expenses Discussion",
+      "addresses": [],
+      "format": "jsonl",
+      "mediaType": "application/x-ndjson",
+      "bytes": 5829,
+      "sha256": "b1dc1460fcb7b97fd3f2adc1565771762c74e83915990545d59f9d6d2a980e73",
+      "text": {
+        "file": "text/tasks/DR0006/files/DI001/mattermost_chat_20250819_103519.jsonl.md",
+        "method": "jsonl:markdown",
+        "sha256": "dcb7410bc319f51692b22d7d71c6b31c94969951fb7db48396c43afea313feb0",
+        "chars": 2827,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0006-qa_1756142630",
+      "path": "tasks/DR0006/files/qa_1756142630/MediConn_Quarterly_Training_Hours_Report.xlsx",
+      "task": "DR0006",
+      "company": "mediconn",
+      "app": "file_system",
+      "qa_type": "distractor",
+      "destination": "shared/MediConn_Quarterly_Training_Hours_Report.xlsx",
+      "format": "xlsx",
+      "mediaType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "bytes": 5687,
+      "sha256": "584a70973841db218c6e66587c0692a0693efe90278ba564f3b7fcf54c1f78b7",
+      "text": {
+        "file": "text/tasks/DR0006/files/qa_1756142630/MediConn_Quarterly_Training_Hours_Report.xlsx.md",
+        "method": "libreoffice:xlsx+pandoc",
+        "sha256": "2c6ec1ace1a35e66119ad02ff5ac710e4f717fb5e614f0b2838c1bb1255685e9",
+        "chars": 1069,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0006-qa_1756142617",
+      "path": "tasks/DR0006/files/qa_1756142617/MediConn_Quarterly_Hiring_Stats_Report.xlsx",
+      "task": "DR0006",
+      "company": "mediconn",
+      "app": "file_system",
+      "qa_type": "distractor",
+      "destination": "shared/MediConn_Quarterly_Hiring_Stats_Report.xlsx",
+      "format": "xlsx",
+      "mediaType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "bytes": 5813,
+      "sha256": "a51a05667fa19bc81a5d16bc38e99ba3d7d2a097775305b0bdaf09830f2553fc",
+      "text": {
+        "file": "text/tasks/DR0006/files/qa_1756142617/MediConn_Quarterly_Hiring_Stats_Report.xlsx.md",
+        "method": "libreoffice:xlsx+pandoc",
+        "sha256": "61bc8ab56c62313add2cd664d1ef3f799eee85152304cac3997c44d8e28859ac",
+        "chars": 1051,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0006-qa_1756142505",
+      "path": "tasks/DR0006/files/qa_1756142505/MediConn_Insurance_Acceptance_Analysis_Report.xlsx",
+      "task": "DR0006",
+      "company": "mediconn",
+      "app": "file_system",
+      "qa_type": "insight",
+      "destination": "shared/MediConn_Insurance_Acceptance_Analysis_Report.xlsx",
+      "format": "xlsx",
+      "mediaType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "bytes": 5605,
+      "sha256": "ed245c01c492077a9fd86612f9033023f1efa598262cb0a616662b7440076e6f",
+      "text": {
+        "file": "text/tasks/DR0006/files/qa_1756142505/MediConn_Insurance_Acceptance_Analysis_Report.xlsx.md",
+        "method": "libreoffice:xlsx+pandoc",
+        "sha256": "c10327c7e1216c7a00bcace0a286a7e04ccec0665abd3ee92b63c78ef4b2957d",
+        "chars": 959,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0006-qa_1755631751",
+      "path": "tasks/DR0006/files/qa_1755631751/Q1-2025-Training.pptx",
+      "task": "DR0006",
+      "company": "mediconn",
+      "app": "nextcloud",
+      "qa_type": "distractor",
+      "destination": "shared/Q1-2025-Training.pptx",
+      "format": "pptx",
+      "mediaType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "bytes": 73187,
+      "sha256": "33c862ea6011f965c4e49e117d484b911efe779b975b58392fadf86284a35239",
+      "text": {
+        "file": "text/tasks/DR0006/files/qa_1755631751/Q1-2025-Training.pptx.md",
+        "method": "pandoc:pptx",
+        "sha256": "5264a4e3ae0a0ef5426c1d3ce99d55b71712962a6f68a7b0861e48b7f3e47548",
+        "chars": 3099,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0006-qa_1755624646",
+      "path": "tasks/DR0006/files/qa_1755624646/mattermost_chat_20250819_133119.jsonl",
+      "task": "DR0006",
+      "company": "mediconn",
+      "app": "mattermost",
+      "qa_type": "distractor",
+      "destination": "jsonl/mattermost_chat_20250819_133119.jsonl",
+      "about": "Compliance Team | Human Resources Team | Compliance Updates | Employee Turnover Discussions",
+      "addresses": [],
+      "format": "jsonl",
+      "mediaType": "application/x-ndjson",
+      "bytes": 5526,
+      "sha256": "a6664dc5ca3e975253a1bf871dcefdc5e57d3f50abbf143d661f4145855e37c7",
+      "text": {
+        "file": "text/tasks/DR0006/files/qa_1755624646/mattermost_chat_20250819_133119.jsonl.md",
+        "method": "jsonl:markdown",
+        "sha256": "0da5233fe76b3bfadbd821440e392d7b95cffa80ffa139152e45b8e9f5be89c5",
+        "chars": 2656,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0006-qa_1756142712",
+      "path": "tasks/DR0006/files/qa_1756142712/MediConn_Quarterly_Financial_Overview.xlsx",
+      "task": "DR0006",
+      "company": "mediconn",
+      "app": "file_system",
+      "qa_type": "distractor",
+      "destination": "shared/MediConn_Quarterly_Financial_Overview.xlsx",
+      "format": "xlsx",
+      "mediaType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "bytes": 5881,
+      "sha256": "789786409b7c226120ddd3fe8f5b04bfbe0cac2408699b70c4f3125efd19d853",
+      "text": {
+        "file": "text/tasks/DR0006/files/qa_1756142712/MediConn_Quarterly_Financial_Overview.xlsx.md",
+        "method": "libreoffice:xlsx+pandoc",
+        "sha256": "54641d5ec28d495b4ff1e323191db64585b1a2afa93512cb27c5d77787094319",
+        "chars": 1321,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0006-qa_1755631679",
+      "path": "tasks/DR0006/files/qa_1755631679/telehealth-compliance-strategy.pptx",
+      "task": "DR0006",
+      "company": "mediconn",
+      "app": "nextcloud",
+      "qa_type": "insight",
+      "destination": "shared/telehealth-compliance-strategy.pptx",
+      "format": "pptx",
+      "mediaType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "bytes": 91345,
+      "sha256": "f6cfedd45ba28b5cb1ccab342d3a7cc9e2dd750f771a01a3bc33d5091afa1d64",
+      "text": {
+        "file": "text/tasks/DR0006/files/qa_1755631679/telehealth-compliance-strategy.pptx.md",
+        "method": "pandoc:pptx",
+        "sha256": "983b83c66342845bf9c85f4e85ffba19ed52518eccffc31b772ebbc349ce0faf",
+        "chars": 3669,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0011-qa_1755713357",
+      "path": "tasks/DR0011/files/qa_1755713357/hr-metrics-report.pdf",
+      "task": "DR0011",
+      "company": "elexion",
+      "app": "nextcloud",
+      "qa_type": "distractor",
+      "destination": "shared/hr-metrics-report.pdf",
+      "format": "pdf",
+      "mediaType": "application/pdf",
+      "bytes": 36558,
+      "sha256": "fa6b72861e5148bb9a5a98363f498dfcbc4b9353604ad5bd5a8e685339ae63a2",
+      "text": {
+        "file": "text/tasks/DR0011/files/qa_1755713357/hr-metrics-report.pdf.md",
+        "method": "pdftotext",
+        "sha256": "6636924b56355f039d014713abf3b39a5314bd273d651746480c5ae901ffbd7b",
+        "chars": 3543,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0011-qa_1755713774",
+      "path": "tasks/DR0011/files/qa_1755713774/it-helpdesk-report.pdf",
+      "task": "DR0011",
+      "company": "elexion",
+      "app": "nextcloud",
+      "qa_type": "distractor",
+      "destination": "shared/it-helpdesk-report.pdf",
+      "format": "pdf",
+      "mediaType": "application/pdf",
+      "bytes": 31292,
+      "sha256": "4ec0e0e974ac1e06cf83725b3b720a42284617a06d2f43d75833606b556c6589",
+      "text": {
+        "file": "text/tasks/DR0011/files/qa_1755713774/it-helpdesk-report.pdf.md",
+        "method": "pdftotext",
+        "sha256": "b31139e95693ab4e94cbf7cfe748b0b163d549281c1dbe871716873af3ddcb5b",
+        "chars": 2509,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0011-IN001",
+      "path": "tasks/DR0011/files/IN001/Elexion-EV-Battery-Compliance.pdf",
+      "task": "DR0011",
+      "company": "elexion",
+      "app": "nextcloud",
+      "qa_type": "insight",
+      "destination": "shared/Elexion-EV-Battery-Compliance.pdf",
+      "format": "pdf",
+      "mediaType": "application/pdf",
+      "bytes": 31704,
+      "sha256": "fa2876d1c189fd4ce68283ebb51cff5a1b27c0dcecb6c6eb14d024d626184111",
+      "text": {
+        "file": "text/tasks/DR0011/files/IN001/Elexion-EV-Battery-Compliance.pdf.md",
+        "method": "pdftotext",
+        "sha256": "57daeeeec42da7b00f51bab98378c78214a4fbcfb312e9d08cbc020d54abd5e9",
+        "chars": 2884,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0011-qa_1755633171",
+      "path": "tasks/DR0011/files/qa_1755633171/compliance-report-ev.pdf",
+      "task": "DR0011",
+      "company": "elexion",
+      "app": "nextcloud",
+      "qa_type": "insight",
+      "destination": "shared/compliance-report-ev.pdf",
+      "format": "pdf",
+      "mediaType": "application/pdf",
+      "bytes": 31604,
+      "sha256": "bc9ae6ff4f4ce7fbf1d91f3da8324592fc51ec1836fd11a21733012cd587069c",
+      "text": {
+        "file": "text/tasks/DR0011/files/qa_1755633171/compliance-report-ev.pdf.md",
+        "method": "pdftotext",
+        "sha256": "339e965cfe0131d252710569d32b024da0bfc6a60b0aadc9a3fdedfed01b21fc",
+        "chars": 2586,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0011-qa_1755633788",
+      "path": "tasks/DR0011/files/qa_1755633788/roundcube_email_20250819_160355.jsonl",
+      "task": "DR0011",
+      "company": "elexion",
+      "app": "email",
+      "qa_type": "insight",
+      "destination": "shared/roundcube_email_20250819_160355.jsonl",
+      "about": "Team Meeting Agenda for Next Week | Feedback on Customer Satisfaction Survey Results | Update on Technology Implementation Training | Budget Planning for Upcoming Quarter | Update on EV Models Compliance with ACC II Standards | Re: Update on EV Models Compliance with ACC II Standards | Re: Update on EV Models Compliance with ACC II Standards | Meeting request to discuss EV ACC II compliance | Re: Meeting request to discuss EV ACC II compliance",
+      "addresses": [
+        "linda.johnson@elexionautomotive.com",
+        "michael.brown@elexionautomotive.com",
+        "sofia.rodriguez@elexionautomotive.com"
+      ],
+      "format": "jsonl",
+      "mediaType": "application/x-ndjson",
+      "bytes": 8270,
+      "sha256": "cd25733d684c512c96e5a3a8f77bd486bb0080dbd15955bc3263c546e54f2097",
+      "text": {
+        "file": "text/tasks/DR0011/files/qa_1755633788/roundcube_email_20250819_160355.jsonl.md",
+        "method": "jsonl:markdown",
+        "sha256": "33d672081174947377f7998aea194d7ed8189f6e0f10e0de756bcd209ef6525b",
+        "chars": 5607,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0011-qa_1755713681",
+      "path": "tasks/DR0011/files/qa_1755713681/training-development-report.pdf",
+      "task": "DR0011",
+      "company": "elexion",
+      "app": "nextcloud",
+      "qa_type": "distractor",
+      "destination": "shared/training-development-report.pdf",
+      "format": "pdf",
+      "mediaType": "application/pdf",
+      "bytes": 31198,
+      "sha256": "866057b686af8ba5939b3fb00c1b8d628af8bbcffa17b58a6f07056e36164169",
+      "text": {
+        "file": "text/tasks/DR0011/files/qa_1755713681/training-development-report.pdf.md",
+        "method": "pdftotext",
+        "sha256": "177aa008a2dac07ebdaf2030d995af99d133b803a535db43ae2e49a79563a59d",
+        "chars": 2436,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0011-qa_1755633365",
+      "path": "tasks/DR0011/files/qa_1755633365/roundcube_email_20250819_155640.jsonl",
+      "task": "DR0011",
+      "company": "elexion",
+      "app": "email",
+      "qa_type": "distractor",
+      "destination": "shared/roundcube_email_20250819_155640.jsonl",
+      "about": "Upcoming Team Meeting Agenda | Budget Planning for Q4 | Feedback on Customer Satisfaction Survey | Q3 2023 Facility Cost Analysis | Re: Q3 2023 Facility Cost Analysis | Next Steps on Compliance & Cost Management | Re: Next Steps on Compliance & Cost Management | Schedule Meeting with Finance Team",
+      "addresses": [
+        "emily.wang@elexionautomotive.com",
+        "michael.johnson@elexionautomotive.com",
+        "sofia.rodriguez@elexionautomotive.com"
+      ],
+      "format": "jsonl",
+      "mediaType": "application/x-ndjson",
+      "bytes": 7236,
+      "sha256": "760de01492a86b6b90b486121e51e1bf6071a3da91a298c552623e70f788c52d",
+      "text": {
+        "file": "text/tasks/DR0011/files/qa_1755633365/roundcube_email_20250819_155640.jsonl.md",
+        "method": "jsonl:markdown",
+        "sha256": "432e80a1ae48b7eeb1fbfa8066f280f48f12f279b9cfd51511ab71f73127b3f7",
+        "chars": 4894,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0011-qa_1755713556",
+      "path": "tasks/DR0011/files/qa_1755713556/it-security-report.pdf",
+      "task": "DR0011",
+      "company": "elexion",
+      "app": "nextcloud",
+      "qa_type": "distractor",
+      "destination": "shared/it-security-report.pdf",
+      "format": "pdf",
+      "mediaType": "application/pdf",
+      "bytes": 31028,
+      "sha256": "12c38170869b2dd54defc95b86e7d0618dbd49842a54f1842365a5d6c83595cb",
+      "text": {
+        "file": "text/tasks/DR0011/files/qa_1755713556/it-security-report.pdf.md",
+        "method": "pdftotext",
+        "sha256": "e80d365d13dff2800e6468dee15ffae5da9278cbcf4f830de1082b63a020d658",
+        "chars": 2408,
+        "extractor": "kf-fixture-extract-1"
+      }
+    },
+    {
+      "key": "DR0011-qa_1755633407",
+      "path": "tasks/DR0011/files/qa_1755633407/roundcube_email_20250819_155731.jsonl",
+      "task": "DR0011",
+      "company": "elexion",
+      "app": "email",
+      "qa_type": "distractor",
+      "destination": "shared/roundcube_email_20250819_155731.jsonl",
+      "about": "Upcoming Team Meeting Agenda | Feedback on Recent Customer Survey | Budget Planning for Next Quarter | Policy Update on Remote Work | Update on Compliance and Production Timeline | Re: Update on Compliance and Production Timeline | Follow-up on Production and Compliance Strategy | Re: Follow-up on Production and Compliance Strategy | Agenda for Upcoming Meeting",
+      "addresses": [
+        "linda.wang@elexionautomotive.com",
+        "michael.johnson@elexionautomotive.com",
+        "sofia.rodriguez@elexionautomotive.com"
+      ],
+      "format": "jsonl",
+      "mediaType": "application/x-ndjson",
+      "bytes": 8381,
+      "sha256": "6687dd5688bb820b3bc695f70acef7796a380a5001f1faeef62aa55af28e4339",
+      "text": {
+        "file": "text/tasks/DR0011/files/qa_1755633407/roundcube_email_20250819_155731.jsonl.md",
+        "method": "jsonl:markdown",
+        "sha256": "211a73a23d7cb507105ad1f4e33128eb3089d34844ddf7d5c86444a6e08f402d",
+        "chars": 5712,
+        "extractor": "kf-fixture-extract-1"
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "task": "DR0001",
+      "company": "lees-market",
+      "question": "How can Lee's Market leverage FSMA 204 regulations to enhance food safety and customer trust?",
+      "asker": {
+        "name": "Emily Patel",
+        "email": "emily.patel@leesmarket.com",
+        "role": "Regulatory Affairs Manager",
+        "department": "Operations",
+        "seniority": "Executive"
+      },
+      "domain": "compliance",
+      "difficulty": "easy",
+      "files": [
+        "DR0001-IN002_pdf",
+        "DR0001-DI001_pdf",
+        "DR0001-IN001_pdf",
+        "DR0001-DI003_pdf",
+        "DR0001-DI002_roundcube",
+        "DR0001-DI002_pdf",
+        "DR0001-DI005_pdf",
+        "DR0001-DI004_pdf",
+        "DR0001-IN011_roundcube",
+        "DR0001-DI001_roundcube"
+      ]
+    },
+    {
+      "task": "DR0006",
+      "company": "mediconn",
+      "question": "What are the key factors influencing MediConn Solutions' decision to accept insurance for telehealth providers, considering HIPAA compliance and state-specific data privacy regulations?",
+      "asker": {
+        "name": "Samantha Lee",
+        "email": "samantha.lee@mediconn.com",
+        "role": "Chief Compliance Officer",
+        "department": "Executive Leadership",
+        "seniority": "Executive"
+      },
+      "domain": "compliance",
+      "difficulty": "easy",
+      "files": [
+        "DR0006-qa_1755631867",
+        "DR0006-qa_1756142597",
+        "DR0006-qa_1756142539",
+        "DR0006-IN038",
+        "DR0006-DI001",
+        "DR0006-qa_1756142630",
+        "DR0006-qa_1756142617",
+        "DR0006-qa_1756142505",
+        "DR0006-qa_1755631751",
+        "DR0006-qa_1755624646",
+        "DR0006-qa_1756142712",
+        "DR0006-qa_1755631679"
+      ]
+    },
+    {
+      "task": "DR0011",
+      "company": "elexion",
+      "question": "How can we balance the need for durability and warranty guarantees for EV batteries with evolving regulatory requirements, especially ACC regulations (ACC II), while staying on track with our production timelines through 2035?",
+      "asker": {
+        "name": "Sofia Rodriguez",
+        "email": "sofia.rodriguez@elexionautomotive.com",
+        "role": "Product Compliance Engineer",
+        "department": "Product Development",
+        "seniority": "Junior"
+      },
+      "domain": "compliance",
+      "difficulty": "easy",
+      "files": [
+        "DR0011-qa_1755713357",
+        "DR0011-qa_1755713774",
+        "DR0011-IN001",
+        "DR0011-qa_1755633171",
+        "DR0011-qa_1755633788",
+        "DR0011-qa_1755713681",
+        "DR0011-qa_1755633365",
+        "DR0011-qa_1755713556",
+        "DR0011-qa_1755633407"
+      ]
+    }
+  ],
+  "companies": {
+    "lees-market": {
+      "name": "Lee's Market",
+      "company_info": {
+        "name": "Lee's Market",
+        "industry": "Retail",
+        "size": "Enterprise",
+        "founded_year": 2003,
+        "headquarters": "Richmond, British Columbia, Canada",
+        "description": "Lee's Market is a regional Asian supermarket chain specializing in high-quality Asian groceries and household items. With a growing footprint in urban centers across the U.S. and Canada, Lee's Market blends traditional flavors with modern retail experiences, offering in-store, online, and delivery services.",
+        "key_products_services": [
+          "Fresh produce, meats, and seafood",
+          "Asian household items",
+          "Bakery and prepared foods",
+          "Online grocery shopping and delivery"
+        ],
+        "target_markets": [
+          "Asian communities in the U.S. and Canada",
+          "Urban centers with diverse populations"
+        ],
+        "annual_revenue": "$500M - $600M",
+        "employee_count": 5000,
+        "compliance_certifications": [
+          "FDA and CFIA Food Safety Compliance",
+          "HACCP Food Safety Compliance",
+          "USDA Import Inspection Regulations"
+        ],
+        "market_position": "Lee's Market is a rising regional player bridging cultural authenticity and modern retail innovation in the Asian grocery sector. It is carving a niche between mainstream retailers like Walmart and ethnic-focused giants like H-Mart."
+      },
+      "personas": [
+        {
+          "role": "Regulatory Affairs Manager",
+          "department": "Operations",
+          "name": "Emily Patel",
+          "first_name": "Emily",
+          "last_name": "Patel",
+          "email": "emily.patel@leesmarket.com",
+          "seniority": "Executive",
+          "responsibilities": "Monitor regulatory changes, develop strategies for compliance, and collaborate with cross-functional teams to implement compliance initiatives.",
+          "id": "MNG0003",
+          "domain": "compliance",
+          "justification": "As a regulatory affairs manager, Emily is responsible for staying up-to-date on changing regulatory requirements, developing compliance strategies, and ensuring Lee's Market remains compliant with relevant laws and regulations."
+        },
+        {
+          "role": "Marketing Manager",
+          "department": "Marketing",
+          "name": "David Lee",
+          "first_name": "David",
+          "last_name": "Lee",
+          "email": "david.lee@leesmarket.com",
+          "seniority": "Mid",
+          "responsibilities": "Develop and execute marketing campaigns, analyze customer data, and optimize marketing strategies to drive sales and customer engagement.",
+          "id": "MNG0002",
+          "domain": "crm",
+          "justification": "David uses CRM insights to segment customers, tailor marketing campaigns, and measure campaign effectiveness, ultimately driving revenue growth and enhancing customer loyalty."
+        },
+        {
+          "role": "Customer Service Manager",
+          "department": "Customer Service",
+          "name": "David Thompson",
+          "first_name": "David",
+          "last_name": "Thompson",
+          "email": "dthompson@leesmarket.com",
+          "seniority": "Mid",
+          "responsibilities": "Oversee customer service operations, develop service standards, and analyze customer feedback to improve overall customer experience.",
+          "id": "MNG0004",
+          "domain": "csm",
+          "justification": "As a manager, David's responsibilities include reducing churn, improving self-service, and personalizing customer interactions, making him an essential persona for researching Customer Service Management best practices."
+        },
+        {
+          "role": "Market Research Analyst",
+          "department": "Marketing",
+          "name": "Sofia Patel",
+          "first_name": "Sofia",
+          "last_name": "Patel",
+          "email": "sofia.patel@leesmarket.com",
+          "seniority": "Mid",
+          "responsibilities": "Responsible for analyzing market trends, customer behavior, and competitor activity to inform business decisions.",
+          "id": "EMP0002",
+          "domain": "market_analysis",
+          "justification": "As a Market Research Analyst at Lee's Market, Sofia conducts market analysis to identify opportunities for growth and improvement, enabling the company to tailor its services to meet customer needs and stay ahead of the competition."
+        },
+        {
+          "role": "Sales Team Lead",
+          "department": "Sales",
+          "name": "Michael Lee",
+          "first_name": "Michael",
+          "last_name": "Lee",
+          "email": "michael.lee@leesmarket.com",
+          "seniority": "Mid",
+          "responsibilities": "Lead a team of sales representatives, set sales targets, and develop strategies to achieve sales goals while collaborating with the customer service team to ensure smooth handovers.",
+          "id": "MNG0005",
+          "domain": "sales",
+          "justification": "As a sales team lead at Lee's Market, Michael's leadership and strategic planning in sales processes are crucial for revenue growth, and his collaboration with customer service teams makes him an important persona for research in reducing friction post-sale and improving CRM and service platform integration."
+        },
+        {
+          "role": "Digital Marketing Manager",
+          "department": "Marketing",
+          "name": "David Kim",
+          "first_name": "David",
+          "last_name": "Kim",
+          "email": "davidkim@leesmarket.com",
+          "seniority": "Mid",
+          "responsibilities": "Develop and implement digital marketing strategies, manage the company's online presence, and analyze website traffic and engagement metrics.",
+          "id": "MNG0001",
+          "domain": "marketing",
+          "justification": "As a digital marketing manager at Lee's Market, David plays a vital role in driving online customer acquisition and sales growth, making his insights essential for marketing research."
+        },
+        {
+          "role": "Quality Assurance Specialist",
+          "department": "Operations",
+          "name": "Emily Chen",
+          "first_name": "Emily",
+          "last_name": "Chen",
+          "email": "emily.chen@leesmarket.com",
+          "seniority": "Mid",
+          "responsibilities": "Conducts regular product inspections, identifies quality issues, and implements corrective actions to ensure compliance with company standards.",
+          "id": "EMP0001",
+          "domain": "quality_assurance",
+          "justification": "As a Quality Assurance Specialist, Emily plays a crucial role in ensuring the products sold at Lee's Market meet the highest quality standards, which is essential for building customer trust and loyalty."
+        }
+      ]
+    },
+    "mediconn": {
+      "name": "MediConn Solutions",
+      "company_info": {
+        "name": "MediConn Solutions",
+        "industry": "Virtual/Remote Healthcare",
+        "size": "Medium",
+        "founded_year": 2018,
+        "headquarters": "Vancouver, Canada",
+        "description": "MediConn Solutions is a forward-thinking company specializing in virtual healthcare services, connecting patients to licensed healthcare professionals through secure, compliant, and user-friendly digital platforms. We aim to provide accessible and cost-effective care for individuals and businesses across Canada.",
+        "key_products_services": [
+          "Virtual doctor consultations",
+          "Mental health counseling via video and chat",
+          "Prescription management and delivery",
+          "Corporate health and wellness programs"
+        ],
+        "target_markets": [
+          "Individual patients in Canada",
+          "Small-to-medium-sized enterprises (SMEs)",
+          "Large corporations seeking employee wellness solutions"
+        ],
+        "annual_revenue": "$50M - $100M",
+        "employee_count": 250,
+        "compliance_certifications": [
+          "PIPEDA Compliance Certification",
+          "ISO 27001: Information Security Management",
+          "Provincial regulatory approvals (e.g., Ontario, British Columbia)"
+        ],
+        "market_position": "MediConn Solutions is a rising leader in the Canadian virtual healthcare market, known for its innovative platform design, strong compliance framework, and tailored services for both individuals and businesses."
+      },
+      "personas": [
+        {
+          "role": "Chief Compliance Officer",
+          "department": "Executive Leadership",
+          "name": "Samantha Lee",
+          "first_name": "Samantha",
+          "last_name": "Lee",
+          "email": "samantha.lee@mediconn.com",
+          "seniority": "Executive",
+          "responsibilities": "Develop and implement comprehensive compliance strategies, oversee risk assessments, and report to the board of directors on compliance-related matters.",
+          "id": "MNG0003",
+          "domain": "compliance",
+          "justification": "As the highest authority on compliance within MediConn Solutions, Samantha's leadership is instrumental in fostering a culture of compliance and ensuring the company's continued success in the virtual healthcare industry."
+        },
+        {
+          "role": "Business Development Representative",
+          "department": "Sales",
+          "name": "Liam Patel",
+          "first_name": "Liam",
+          "last_name": "Patel",
+          "email": "liam.patel@mediconn.com",
+          "seniority": "Junior",
+          "responsibilities": "Responsible for prospecting new leads, qualifying opportunities, and passing them to the sales team to drive revenue growth for MediConn Solutions' virtual healthcare services.",
+          "id": "MNG0002",
+          "domain": "crm",
+          "justification": "As a Business Development Representative, Liam utilizes CRM data to research and target potential customers, track interactions, and analyze sales performance, allowing him to refine his outreach strategies and improve conversion rates."
+        },
+        {
+          "role": "Market Research Analyst",
+          "department": "Marketing",
+          "name": "Emily Chen",
+          "first_name": "Emily",
+          "last_name": "Chen",
+          "email": "emily.chen@mediconn.com",
+          "seniority": "Mid",
+          "responsibilities": "Conduct market research and analyze data to inform business strategies, identify trends and opportunities, and measure the effectiveness of marketing campaigns.",
+          "id": "EMP0001",
+          "domain": "market_analysis",
+          "justification": "As a Market Research Analyst, Emily is responsible for analyzing market trends, customer behavior, and competitor activity to inform business decisions and drive growth for MediConn Solutions."
+        },
+        {
+          "role": "IT Service Desk Manager",
+          "department": "IT Operations",
+          "name": "Emily Patel",
+          "first_name": "Emily",
+          "last_name": "Patel",
+          "email": "emily.patel@mediconnsolutions.com",
+          "seniority": "Senior",
+          "responsibilities": "Overseeing the IT service desk team, managing incident and request workflows, and implementing process improvements to enhance the overall IT service experience for MediConn Solutions' employees and customers.",
+          "id": "MNG0004",
+          "domain": "itsm",
+          "justification": "As a leading provider of virtual and remote healthcare solutions, MediConn Solutions relies heavily on efficient IT service management to ensure seamless operations and high-quality patient care. Research in the ITSM domain is crucial to identify areas for improvement and optimize incident resolution processes, ultimately enhancing the digital employee experience and patient outcomes."
+        },
+        {
+          "role": "Director of Customer Service",
+          "department": "Customer Support",
+          "name": "Rachel Lee",
+          "first_name": "Rachel",
+          "last_name": "Lee",
+          "email": "rlee@mediconnsolutions.com",
+          "seniority": "Executive",
+          "responsibilities": "Oversee the customer service department, develop and manage budgets, and implement strategies to improve customer satisfaction and retention.",
+          "id": "MNG0005",
+          "domain": "csm",
+          "justification": "As a director, Rachel's leadership and vision are instrumental in shaping MediConn Solutions' CSM strategy, making her an ideal candidate to study for CSM research and understand the company's approach to customer service management."
+        },
+        {
+          "role": "Sales Operations Manager",
+          "department": "Sales",
+          "name": "Julian Lee",
+          "first_name": "Julian",
+          "last_name": "Lee",
+          "email": "julian.lee@mediconn.com",
+          "seniority": "Senior",
+          "responsibilities": "Oversee sales processes, manage CRM systems, and analyze sales data to inform strategic decisions.",
+          "id": "MNG0003",
+          "domain": "sales",
+          "justification": "Julian's role requires a data-driven approach to optimizing sales processes. Research in the sales domain helps him identify areas for improvement, reduce friction post-sale, and improve collaboration between CRM and service platforms."
+        },
+        {
+          "role": "Content Marketing Manager",
+          "department": "Marketing",
+          "name": "Ryan Thompson",
+          "first_name": "Ryan",
+          "last_name": "Thompson",
+          "email": "ryan.thompson@mediconn.com",
+          "seniority": "Senior",
+          "responsibilities": "Creates and oversees the content marketing strategy, including blog posts, whitepapers, and case studies, to establish MediConn Solutions as a thought leader in the virtual/remote healthcare industry.",
+          "id": "MNG0006",
+          "domain": "marketing",
+          "justification": "Ryan's expertise in content marketing is essential for validating product-market fit and informing strategic decisions, making him an important persona for research in the marketing domain."
+        },
+        {
+          "role": "Cybersecurity Specialist",
+          "department": "IT Operations",
+          "name": "Brian Smith",
+          "first_name": "Brian",
+          "last_name": "Smith",
+          "email": "brian.smith@mediconn.com",
+          "seniority": "Mid",
+          "responsibilities": "Design and implement secure architectures for MediConn's virtual healthcare platforms, conduct vulnerability assessments and penetration testing, and collaborate with the development team to ensure secure coding practices.",
+          "id": "EMP0002",
+          "domain": "cybersecurity",
+          "justification": "As a cybersecurity specialist, Brian is responsible for protecting MediConn's sensitive patient data and ensuring the security of its virtual healthcare platforms, making him a key persona for conducting deep research in the domain of cybersecurity."
+        }
+      ]
+    },
+    "elexion": {
+      "name": "Elexion Automotive",
+      "company_info": {
+        "name": "Elexion Automotive",
+        "industry": "Automotive -- Electric Vehicles",
+        "size": "Enterprise",
+        "founded_year": 2010,
+        "headquarters": "Austin, Texas, USA",
+        "description": "Elexion Automotive designs and manufactures premium and mid-range electric vehicles tailored for the North American market. With a focus on sustainability, user-centric technology, and cross-border compliance, Elexion aims to accelerate the transition to zero-emission transportation.",
+        "key_products_services": [
+          "Electric vehicles",
+          "Plug-in hybrid electric vehicles",
+          "Home charging stations"
+        ],
+        "target_markets": [
+          "Mid-income families in North America",
+          "Provincial and municipal governments"
+        ],
+        "annual_revenue": "$350M - $500M",
+        "employee_count": 1900,
+        "compliance_certifications": [
+          "EPA Greenhouse Gas Emissions Compliance",
+          "Motor Vehicle Safety Oversight Program",
+          "CARB Zero-Emission Vehicle (ZEV) Program",
+          "ISO 26262 – Road Vehicles Functional Safety"
+        ],
+        "market_position": "Elexion is an emerging force in the North American EV market, offering affordable and high-performance electric vehicles with regulatory-first design and localized production."
+      },
+      "personas": [
+        {
+          "role": "Product Compliance Engineer",
+          "department": "Product Development",
+          "name": "Sofia Rodriguez",
+          "first_name": "Sofia",
+          "last_name": "Rodriguez",
+          "email": "sofia.rodriguez@elexionautomotive.com",
+          "seniority": "Junior",
+          "responsibilities": "Conducts compliance testing and certification for Elexion Automotive's electric vehicles, collaborates with design teams to ensure regulatory requirements are met, and assists in the development of compliance documentation.",
+          "id": "EMP0001",
+          "domain": "compliance",
+          "justification": "Elexion Automotive must ensure its products meet regulatory requirements, such as safety and emissions standards, to avoid costly recalls and reputational damage."
+        },
+        {
+          "role": "Customer Relationship Manager",
+          "department": "Sales and Marketing",
+          "name": "Emily Lee",
+          "first_name": "Emily",
+          "last_name": "Lee",
+          "email": "emilylee@elexionautomotive.com",
+          "seniority": "Mid",
+          "responsibilities": "Manages customer interactions, develops and implements customer retention strategies, and analyzes customer data to improve sales and service delivery.",
+          "id": "MNG0001",
+          "domain": "crm",
+          "justification": "As a Customer Relationship Manager, Emily needs to stay up-to-date on the latest CRM trends and best practices to effectively manage customer interactions and improve sales and service delivery for Elexion Automotive's electric vehicles."
+        },
+        {
+          "role": "Competitive Intelligence Manager",
+          "department": "Sales and Marketing",
+          "name": "Ryan Thompson",
+          "first_name": "Ryan",
+          "last_name": "Thompson",
+          "email": "ryan.thompson@elexion.com",
+          "seniority": "Senior",
+          "responsibilities": "Leads the development of competitive intelligence strategies, analyzes market data to identify competitor trends, and collaborates with cross-functional teams to inform business decisions.",
+          "id": "MNG0002",
+          "domain": "market_analysis",
+          "justification": "As a Competitive Intelligence Manager at Elexion Automotive, Ryan's expertise in market analysis and competitive intelligence enables the company to stay ahead of the competition and make informed business decisions."
+        },
+        {
+          "role": "Customer Service Team Lead",
+          "department": "Customer Experience",
+          "name": "Ryan Thompson",
+          "first_name": "Ryan",
+          "last_name": "Thompson",
+          "email": "ryan.thompson@elexionautomotive.com",
+          "seniority": "Mid",
+          "responsibilities": "Lead a team of customer service representatives, monitor performance metrics, and implement strategies to enhance customer experience and satisfaction.",
+          "id": "EMP0002",
+          "domain": "csm",
+          "justification": "Ryan's leadership role enables him to develop and implement proactive support strategies, analyze customer feedback, and optimize customer service processes to drive business growth."
+        },
+        {
+          "role": "Director of Sales Operations",
+          "department": "Sales",
+          "name": "Amanda Lee",
+          "first_name": "Amanda",
+          "last_name": "Lee",
+          "email": "amanda.lee@elexionautomotive.com",
+          "seniority": "Senior",
+          "responsibilities": "Develop and implement sales processes, manage CRM systems, and analyze sales data to inform business decisions.",
+          "id": "MNG0003",
+          "domain": "sales",
+          "justification": "As the director of sales operations, Amanda is responsible for ensuring the sales team has the necessary tools and processes to succeed. Researching sales processes helps her identify opportunities to improve collaboration between CRM and service platforms, reducing friction and driving revenue growth."
+        },
+        {
+          "role": "Advanced Technology Engineer",
+          "department": "Engineering and Technology",
+          "name": "Liam Chen",
+          "first_name": "Liam",
+          "last_name": "Chen",
+          "email": "liam.chen@elexion.com",
+          "seniority": "Junior",
+          "responsibilities": "Assist in the development and testing of new electric vehicle technologies, including advanced driver-assistance systems and vehicle-to-grid charging.",
+          "id": "EMP0003",
+          "domain": "research",
+          "justification": "As an advanced technology engineer, Liam contributes to the development of cutting-edge technologies that drive Elexion Automotive's innovation and growth in the electric vehicle space."
+        },
+        {
+          "role": "Director of Marketing",
+          "department": "Marketing",
+          "name": "Eric Cummings",
+          "first_name": "Eric",
+          "last_name": "Cummings",
+          "email": "eric.cummings@elexion.com",
+          "seniority": "Senior",
+          "responsibilities": "Oversee the marketing strategy, develop and implement marketing campaigns, and analyze marketing data to inform business decisions.",
+          "id": "MNG0004",
+          "domain": "marketing",
+          "justification": "As the director of marketing, Eric is responsible for ensuring the marketing team has the necessary tools and processes to succeed. Researching marketing strategies helps him identify opportunities to improve collaboration between CRM and service platforms, reducing friction and driving revenue growth."
+        },
+        {
+          "role": "Cybersecurity Specialist",
+          "department": "Information Technology",
+          "name": "Ethan Thompson",
+          "first_name": "Ethan",
+          "last_name": "Thompson",
+          "email": "ethan.thompson@elexionautomotive.com",
+          "seniority": "Mid",
+          "responsibilities": "Responsible for implementing and maintaining cybersecurity measures to protect the company's data and systems, conducting penetration testing and vulnerability assessments, and staying up-to-date with emerging threats and technologies.",
+          "id": "EMP0004",
+          "domain": "cybersecurity",
+          "justification": "As a leading manufacturer of electric vehicles, Elexion Automotive relies heavily on complex software and connectivity systems, making cybersecurity a critical aspect of the business to protect customer data, prevent hacking, and maintain the integrity of vehicle systems."
+        },
+        {
+          "role": "Brand Manager",
+          "department": "Sales and Marketing",
+          "name": "Liam Patel",
+          "first_name": "Liam",
+          "last_name": "Patel",
+          "email": "liam.patel@elexionautomotive.com",
+          "seniority": "Senior",
+          "responsibilities": "Oversee the development and execution of brand strategies to increase awareness and loyalty for Elexion Automotive's electric vehicles, while ensuring consistency across all marketing channels.",
+          "id": "MNG0005",
+          "domain": "public_relations",
+          "justification": "As a Brand Manager, Liam's expertise in creating and maintaining a strong brand image is vital for Elexion Automotive's public relations efforts, enabling the company to establish a positive reputation and attract customers."
+        },
+        {
+          "role": "Quality Assurance Engineer",
+          "department": "Quality and Reliability",
+          "name": "Ethan Smith",
+          "first_name": "Ethan",
+          "last_name": "Smith",
+          "email": "ethan.smith@elexionautomotive.com",
+          "seniority": "Mid",
+          "responsibilities": "Develop and implement quality control processes for electric vehicle production, conduct testing and inspection to identify defects, and collaborate with cross-functional teams to resolve quality issues.",
+          "id": "EMP0005",
+          "domain": "quality_assurance",
+          "justification": "As a Quality Assurance Engineer at Elexion Automotive, Ethan plays a crucial role in ensuring the highest quality of electric vehicles. His research focus on quality assurance helps the company maintain a positive reputation, attract customers, and stay competitive in the electric vehicle market."
+        }
+      ]
+    }
+  }
+}

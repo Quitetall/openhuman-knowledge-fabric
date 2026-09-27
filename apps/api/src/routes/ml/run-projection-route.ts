@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
-import { IdentityRejected } from '@kf/authorization';
-import { setAccessContext, withTransaction } from '@kf/database';
-import { CallerRejected, unidentified } from '../actions.js';
+import { AttestorUnavailable, IdentityRejected } from '@kf/authorization';
+import { withTransaction, bindPrincipal } from '@kf/database';
+import { CallerRejected, refuseUnidentified } from '../actions.js';
 import type { MlRoutesOptions } from '../ml.js';
 import { MlSchemaUnavailable, requireMlSchema } from '../../schema-contract.js';
 import type { MlRunQuery } from './contracts.js';
@@ -19,8 +19,12 @@ export function registerRunProjectionRoute(app: FastifyInstance, options: MlRout
         headers: request.headers as Record<string, unknown>,
       });
     } catch (error: unknown) {
-      if (error instanceof CallerRejected || error instanceof IdentityRejected) {
-        return reply.code(401).send(unidentified(error));
+      if (
+        error instanceof CallerRejected ||
+        error instanceof IdentityRejected ||
+        error instanceof AttestorUnavailable
+      ) {
+        return refuseUnidentified(reply, error);
       }
       request.log.error({ err: error }, 'ML run caller identification failed');
       return reply.code(500).send({ error: 'internal_error', requestId: request.id });
@@ -52,10 +56,7 @@ export function registerRunProjectionRoute(app: FastifyInstance, options: MlRout
         // could appear between its query and the later receipt query, producing a response
         // that never existed. This route has no reason to permit writes in its transaction.
         await tx.query('set transaction isolation level repeatable read, read only');
-        await setAccessContext(tx, {
-          organizationId: caller.organizationId,
-          maxClassification: caller.maxClassification,
-        });
+        await bindPrincipal(tx, caller);
         await requireMlSchema(tx);
         return readRunProjection(tx, request.params.authorityId, request.params.revisionId, pages);
       });

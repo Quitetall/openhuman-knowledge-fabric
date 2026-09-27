@@ -2,6 +2,10 @@
 Description=Sign a checkpoint hourly
 
 [Timer]
+# How long this may go without firing before scripts/timer-liveness.sh reports it (systemd
+# ignores X- keys). Hourly plus up to 5 minutes of spread: two hours silent means at least one
+# signing was missed.
+X-KF-MaxSilenceSec=7200
 OnCalendar=hourly
 # Spread across the hour so a fleet does not sign simultaneously, and so the interval between
 # checkpoints stays roughly constant rather than drifting toward the top of the hour.

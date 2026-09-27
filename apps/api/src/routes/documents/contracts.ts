@@ -2,12 +2,22 @@ import type { ActionRequest, ActionResult, ObjectRow } from '@kf/actions';
 import type { AiProvider, AiRoutingPolicy } from '@kf/agent-tools';
 import type { ObjectStore, StoreRegistry } from '@kf/artifacts';
 import type { Pool, Tx } from '@kf/database';
+import type { DocumentParser } from '@kf/documents';
 import type { ProjectionDefinitionSet, ProjectionLinks } from '@kf/projections';
 import type { IdentifyCaller } from '../actions.js';
+import type { ReadAgentContext } from './agent-context.js';
 
 export const DOCUMENT_IMPORT_BODY_LIMIT_BYTES = 16 * 1024 * 1024;
 export const DEFAULT_DOCUMENT_SOURCE_DOWNLOAD_MAX_BYTES = 20 * 1024 * 1024;
 export const DEFAULT_DOCUMENT_PROJECTION_DOWNLOAD_MAX_BYTES = 50 * 1024 * 1024;
+/**
+ * `POST /ingest` takes a file up to the size its bytes can be downloaded back at, base64-encoded
+ * in JSON. It shared the import's 16 MiB body limit until 2026-09-24, which refused every file
+ * over about 12 MB of bytes: 17 of the 1 004 PDFs of the first corpus-sized fixture (scanned
+ * documents, 12-15 MB each) could not be ingested at all.
+ */
+export const INGEST_MAX_SOURCE_BYTES = DEFAULT_DOCUMENT_SOURCE_DOWNLOAD_MAX_BYTES;
+export const INGEST_BODY_LIMIT_BYTES = Math.ceil(INGEST_MAX_SOURCE_BYTES / 3) * 4 + 64 * 1024;
 export const IMPORT_CLASSIFICATION = 'internal';
 
 export interface DocumentImportBody {
@@ -42,6 +52,8 @@ export interface DocumentActionContext {
   readonly actingRoleId: string;
   readonly organizationId: string;
   readonly maxClassification: string;
+  /** The caller's attestation (20260924001000), carried into every bind of the import. */
+  readonly attestation?: string | undefined;
   readonly targetIds: readonly string[];
   readonly requestId: string;
 }
@@ -76,6 +88,11 @@ export interface DocumentRoutesOptions {
   readonly pool: Pool;
   readonly identify: IdentifyCaller;
   readonly store: ObjectStore | undefined;
+  /**
+   * Parses a source before its transaction opens (`@kf/documents` preparse). Absent, the
+   * attach_evidence effect parses inside the transaction, as it always could.
+   */
+  readonly documentParser?: DocumentParser;
   /** Every store this instance can reach (ADR 0017). Absent = no degraded read from a copy. */
   readonly stores?: StoreRegistry;
   /** HMAC key for capability links. Missing key disables link serving and issuance. */
@@ -101,6 +118,12 @@ export interface DocumentRoutesOptions {
    */
   readonly aiProposalProvider?: AiProvider;
   readonly aiRoutingPolicy?: AiRoutingPolicy;
+  /**
+   * Where the planner gets the reader's `agent_context` Result (KF-SAS-RQ-115). Absent, it is
+   * evaluated from `projections` over the reader's master record (`agentContextReader`); a test
+   * without a database supplies the Result directly.
+   */
+  readonly agentContext?: ReadAgentContext;
   /**
    * Read-only early refusal seam. Passing this check is never authority: every action below
    * must still pass `executeInTransaction` after object storage, under its final transaction.

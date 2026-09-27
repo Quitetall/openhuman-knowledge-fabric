@@ -9,10 +9,13 @@ import { promisify } from 'node:util';
 import { S3ObjectStore } from '@kf/artifacts';
 
 const exec = promisify(execFile);
-const IMAGE =
-  'quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e';
-const CLIENT =
-  'quay.io/minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727';
+// BUILT LOCALLY, from the release sources, by tests/fixtures/minio-image/build.sh — which says
+// why: the upstream images these once pinned by digest can no longer be pulled from anywhere, so
+// a host that had not cached them (every CI runner) failed here with "unauthorized". The tags
+// are the build script's; change them together.
+const IMAGE = 'kf-fixture/minio:RELEASE.2025-09-07T16-13-09Z';
+const CLIENT = 'kf-fixture/mc:RELEASE.2025-08-13T08-35-41Z';
+const BUILD = 'tests/fixtures/minio-image/build.sh';
 // Public fixture credentials, isolated from user services and used only in these containers.
 const ACCESS = 'ow111-fixture';
 const SECRET = 'ow111-disposable-not-a-secret';
@@ -28,6 +31,13 @@ export class PreservationMinio {
   private backup: string | undefined;
 
   async start(): Promise<{ id: string; store: S3ObjectStore }> {
+    // Named up front, because `docker create` on a missing local tag tries a registry and reports
+    // an authorization failure that says nothing about what to run.
+    for (const image of [IMAGE, CLIENT]) {
+      await docker('image', 'inspect', '--format', '{{.Id}}', image).catch(() => {
+        throw new Error(`fixture image ${image} is not built on this host; run ${BUILD}`);
+      });
+    }
     const id = await this.create();
     const store = await this.launch(id);
     await this.client(id, 'mb', '--ignore-existing', `fixture/${BUCKET}`);

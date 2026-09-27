@@ -27,6 +27,7 @@ import {
 } from './ml/validation.js';
 import {
   bindContext,
+  bindReader,
   seedFixtures,
   startHarness,
   type Fixtures,
@@ -409,8 +410,8 @@ async function seedAuthorityFixture(
       ],
     );
     await tx.query(
-      `insert into org.role_assignment (id, subject_id, role_id, scope_id)
-       values ($1,$2,$3,$4)`,
+      `insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to)
+       values ($1,$2,$3,$4,now() + interval '1 year')`,
       [assignment.id, person.id, roleId, fixtures.organizationId],
     );
     await tx.query(
@@ -868,7 +869,9 @@ describe('ML typed-action database authority', () => {
           reason: 'An inactive authority object cannot authorize promotion.',
         }),
       ),
-    ).rejects.toThrow(/technical_authority/);
+      // Refused earlier now, and for a stronger reason: an inactive assignment cannot even be
+      // bound as a principal (core.bind_principal, 20260923000100), so the act never starts.
+    ).rejects.toMatchObject({ name: 'ActionRejected', failure: 'role_not_held' });
 
     const missingBasisIntent = actionForPromotionAuthorization({
       aliasId: 'research.missing-basis',
@@ -1054,7 +1057,7 @@ describe('ML typed-action database authority', () => {
     const fakeActionId = '77777777-7777-7777-8777-777777777777';
     await expect(
       withTransaction(h.pool, async (tx) => {
-        await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+        await bindReader(tx, f, f.performerId);
         await tx.query('select core.set_transaction_context($1, $2, $3, $4)', [
           f.performerId,
           f.performerRoleId,
@@ -1082,7 +1085,7 @@ describe('ML typed-action database authority', () => {
       withTransaction(h.pool, async (tx) => {
         const actionId = (await tx.one<{ id: string }>('select uuidv7() as id')).id;
         const requestId = `mismatched-ml-action:${actionId}`;
-        await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+        await bindReader(tx, f, f.performerId);
         await tx.query('select core.set_transaction_context($1, $2, $3, $4)', [
           f.performerId,
           f.performerRoleId,

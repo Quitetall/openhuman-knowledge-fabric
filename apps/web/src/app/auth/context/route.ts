@@ -1,15 +1,17 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { ApiError, get, parseDocumentsResponse, type Caller } from '../../../lib/api';
 import {
+  CONTEXT_HINT_COOKIE,
+  CONTEXT_HINT_LIFETIME_SECONDS,
   openWebSession,
   publicOrigin,
   publicUrl,
   sanitizeReturnTo,
+  sealContextHint,
   sealWebSession,
   SESSION_COOKIE,
   validateContextSelection,
 } from '../../../lib/auth';
-import { dogfoodConfig } from '../../../lib/session';
+import { confirmContextWithApi, dogfoodConfig } from '../../../lib/session';
 
 const MAX_CONTEXT_BODY_BYTES = 4_096;
 
@@ -98,23 +100,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.redirect(selectUrl(request, next, 'invalid'), 303);
   }
 
-  const caller: Caller = {
-    authentication: 'oidc',
-    actorId: session.subject,
-    bearerToken: session.accessToken,
-    ...context,
-  };
-  try {
-    // This is not a client-side guess. API verifies bearer subject, active role assignment,
-    // organization boundary and classification context before selection is persisted.
-    await get('/documents', caller, parseDocumentsResponse);
-  } catch (error: unknown) {
+  const check = await confirmContextWithApi(session, context);
+  if (check !== 'confirmed') {
     return NextResponse.redirect(
-      selectUrl(
-        request,
-        next,
-        error instanceof ApiError && error.isRefusal ? 'denied' : 'unavailable',
-      ),
+      selectUrl(request, next, check === 'refused' ? 'denied' : 'unavailable'),
       303,
     );
   }
@@ -129,5 +118,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     priority: 'high',
     expires: new Date(session.expiresAt * 1000),
   });
+  // Remembered so the next renewal can skip this page. Counted from the choice, not slid on each
+  // renewal, so the person confirms a context at least once in every working day.
+  const hintExpiresAt = Math.floor(Date.now() / 1000) + CONTEXT_HINT_LIFETIME_SECONDS;
+  response.cookies.set(
+    CONTEXT_HINT_COOKIE,
+    await sealContextHint(
+      { subject: session.subject, ...context },
+      hintExpiresAt,
+      config.sessionKey,
+    ),
+    {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      path: '/',
+      expires: new Date(hintExpiresAt * 1000),
+    },
+  );
   return response;
 }

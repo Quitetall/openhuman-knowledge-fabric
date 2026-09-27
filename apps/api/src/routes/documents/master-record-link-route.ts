@@ -1,9 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import { digest, digestBytes } from '@kf/canonicalization';
-import { setAccessContext, withTransaction } from '@kf/database';
+import { withTransaction } from '@kf/database';
 import {
   assertPermissionSetInvariant,
   enumeratePermittedSet,
+  masterRecordMemberFormat,
   masterRecordItems,
   type PermissionMember,
   verifyMasterRecordLinkToken,
@@ -52,10 +53,9 @@ export function registerMasterRecordLinkRoute(
         return { statusCode: 404, body: { error: 'link_not_found' } };
       }
 
-      await setAccessContext(tx, {
-        organizationId: link.organization_id,
-        maxClassification: link.effective_classification,
-      });
+      // The database binds the link's own organization and ceiling from the token digest; the
+      // route cannot choose either (20260923000100).
+      await tx.query('select content.bind_master_record_link($1)', [suppliedDigest]);
       const log = async (result: 'expired' | 'revoked' | 'invalid' | 'stale' | 'served') => {
         await tx.query(
           `insert into content.master_record_link_access
@@ -92,6 +92,7 @@ export function registerMasterRecordLinkRoute(
         tx,
         String(record['person_id']),
         link.organization_id,
+        masterRecordMemberFormat(record['manifest']),
       );
       try {
         const manifest = record['manifest'];

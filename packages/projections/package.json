@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@kf/canonicalization": "workspace:*",
+    "@kf/domain": "workspace:*",
     "@kf/ontology-compiler": "workspace:*"
   },
   "devDependencies": {

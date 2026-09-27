@@ -1,0 +1,8 @@
+# window: 2026-09-27 02:26:36.485632+00 .. 2026-09-27 02:26:37.129687+00
+## search.context_disclosure
+id,recorded_at,operation,refusal,object_id,object_classification,revision,text_digest,references_digest,reference_count,omitted_count,agent_participation,asker_rank,asker_key,corpus_digest,expires_at
+01a0e0af-8e79-76bf-90e5-a181343dab98,2026-09-27 02:26:36.608778+00,read,,01a0d688-4fc9-743f-8290-60c284671c5d,restricted,65093ea7481221ab777b31705b5b0af971e82859a6da99b89fb6652d7fae06be,d6b3d8d2cbe6ac4a710e0deeffdf1aa603a11e2bead3f73e8441837eab05cb33,,,,,3,85ecf5724435ee6e04fd8a4ba5d796a7c73c7b7d3e035ba13ffc6bf500c5c1f4,8bf2c41ec81bea88eb29194c3e088303b2d29a56fef80562c928af7bb81e788a,2026-12-26 02:26:36.608778+00
+## search.identification_refusal (asker_key not selected: only its length is shown)
+id,recorded_at,organization_id,surface,failure,agent_client_id,asker_kind,asker_rank,asker_key_bytes,expires_at
+## search.recorded_query (ids only; query_text deliberately not selected)
+id,recorded_at,asker_ceiling,asker_rank,asker_key,expires_at

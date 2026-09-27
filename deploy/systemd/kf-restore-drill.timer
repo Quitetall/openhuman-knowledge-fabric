@@ -2,6 +2,10 @@
 Description=Monthly restore drill
 
 [Timer]
+# How long this may go without firing before scripts/timer-liveness.sh reports it (systemd
+# ignores X- keys). The first Sunday of each month: gaps reach 35 days, so 36 days silent means
+# a month was missed.
+X-KF-MaxSilenceSec=3110400
 # The first Sunday, when a three-hour restore competes with nothing.
 OnCalendar=Sun *-*-01..07 04:00:00
 Persistent=true

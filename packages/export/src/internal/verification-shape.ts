@@ -10,6 +10,7 @@ import {
 } from './format.js';
 import { recomputeDatabaseSnapshotDigest } from './encoding.js';
 import { SECTIONS } from './sections.js';
+import { predatedSections, sectionEraProblems } from './section-eras.js';
 import { checkpointPublicKeyProblem } from './verification-content.js';
 
 /** Enforce the closed format-v2 data model before authenticity can bless an incomplete package. */
@@ -61,7 +62,17 @@ export function verifyV2PackageShape(pkg: ExportPackage): VerificationFinding[] 
     });
   }
 
-  const sectionNames = SECTIONS.map((section) => section.name);
+  // A section added without a format bump is absent, file, entry and count together, from an
+  // archive written before it (section-eras.ts); every other section is required.
+  const predated = predatedSections(pkg);
+  // Absent together with the sections that arrived with it, and with every section after it:
+  // any other pattern of absence is a truncated export, not an old one.
+  for (const problem of sectionEraProblems(predated)) {
+    findings.push({ path: MANIFEST_PATH, problem: 'manifest_mismatch', detail: problem });
+  }
+  const sectionNames = SECTIONS.map((section) => section.name).filter(
+    (name) => !predated.has(name),
+  );
   const expectedCountKeys = [...sectionNames].sort();
   const counts: unknown = manifest.counts;
   if (!isRecord(counts)) {
@@ -104,7 +115,7 @@ export function verifyV2PackageShape(pkg: ExportPackage): VerificationFinding[] 
   }
 
   try {
-    const recomputedSnapshot = recomputeDatabaseSnapshotDigest(pkg.files);
+    const recomputedSnapshot = recomputeDatabaseSnapshotDigest(pkg.files, predated);
     if (manifest.database_snapshot_sha256 !== recomputedSnapshot) {
       findings.push({
         path: MANIFEST_PATH,

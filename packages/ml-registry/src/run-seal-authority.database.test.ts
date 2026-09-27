@@ -14,6 +14,7 @@ import {
   type SignedRunSeal,
 } from './index.js';
 import {
+  bindReader,
   seedFixtures,
   startHarness,
   type Fixtures,
@@ -603,9 +604,11 @@ describe('database-verified BLUT run-seal authority', () => {
     });
     await appendSeal(prepared, signedSeal(prepared, keyId, privateKey));
 
-    const visible = async (organizationId: string) =>
+    // Read as a principal of each organization (20260923000100): the application binds a
+    // person under a live assignment, never an organization on its own.
+    const visible = async (reader: Fixtures) =>
       withTransaction(harness.pool, async (tx) => {
-        await tx.query('select core.set_access_context($1, $2)', [organizationId, 'restricted']);
+        await bindReader(tx, reader);
         return tx.one<{ keys: number; revocations: number; seals: number }>(
           `select
              (select count(*)::integer from ml.run_seal_signing_key
@@ -616,11 +619,12 @@ describe('database-verified BLUT run-seal authority', () => {
           [prepared.keyRegistryId, prepared.lineageId],
         );
       });
-    const sameOrganization = await visible(fixtures.organizationId);
+    const sameOrganization = await visible(fixtures);
     expect(sameOrganization.keys).toBe(1);
     expect(sameOrganization.revocations).toBeGreaterThan(0);
     expect(sameOrganization.seals).toBe(1);
-    await expect(visible(OTHER_ORGANIZATION_ID)).resolves.toEqual({
+    const otherOrganization = await seedFixtures(harness.adminPool, { auditClearance: false });
+    await expect(visible(otherOrganization)).resolves.toEqual({
       keys: 0,
       revocations: 0,
       seals: 0,

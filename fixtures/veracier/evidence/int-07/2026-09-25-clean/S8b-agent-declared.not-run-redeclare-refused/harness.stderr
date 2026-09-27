@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/mnt/4tb/lamu-wt-int07/lamu-rs/scripts/context-proof/kf_source.py", line 285, in <module>
+    main()
+    ~~~~^^
+  File "/mnt/4tb/lamu-wt-int07/lamu-rs/scripts/context-proof/kf_source.py", line 180, in main
+    assert prepared.returncode == 0, "the --before-sources command failed"
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: the --before-sources command failed

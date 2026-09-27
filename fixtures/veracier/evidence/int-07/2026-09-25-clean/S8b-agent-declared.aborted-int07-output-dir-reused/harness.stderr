@@ -1,0 +1,11 @@
+Traceback (most recent call last):
+  File "/mnt/4tb/lamu-wt-int07/lamu-rs/scripts/context-proof/kf_source.py", line 285, in <module>
+    main()
+    ~~~~^^
+  File "/mnt/4tb/lamu-wt-int07/lamu-rs/scripts/context-proof/kf_source.py", line 106, in main
+    root.mkdir(mode=0o700, parents=True, exist_ok=False)
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/pathlib/__init__.py", line 1011, in mkdir
+    os.mkdir(self, mode)
+    ~~~~~~~~^^^^^^^^^^^^
+FileExistsError: [Errno 17] File exists: '/tmp/claude-1000/-mnt-4tb-LamQuant/7cfc9563-1c01-4915-a9cf-c999f811d3f0/scratchpad/int07/runs-clean/S8b-agent-declared'

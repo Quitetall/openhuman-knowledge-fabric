@@ -148,14 +148,17 @@ function checkRelationSide(
   side: 'source_types' | 'target_types',
   types: readonly string[] | undefined,
 ): void {
+  // An error since draft.8 (SAS §100.2). It was a warning while R01's forty-one relations were
+  // untyped, counted on every run so the gap could not be forgotten; now every relation declares
+  // both ends, the database refuses an undeclared pair (core.relation_endpoint_declared), and a
+  // relation added without them would be the one edge nothing constrains.
   if (types === undefined) {
-    context.findings.push({
-      rule: 'ONT-012',
-      severity: 'warning',
-      path: `relation_types.${relationId}.${side}`,
-      message: `relation '${relationId}' does not declare ${side}`,
-      remediation: `Declare which object types may sit at this end of '${relationId}'.`,
-    });
+    context.err(
+      'ONT-012',
+      `relation_types.${relationId}.${side}`,
+      `relation '${relationId}' does not declare ${side}`,
+      `Declare which object types may sit at this end of '${relationId}'.`,
+    );
     return;
   }
   if (types.length === 0) {

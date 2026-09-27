@@ -1,9 +1,26 @@
-import { S3ObjectStore } from '@kf/artifacts';
-import { createPool, setResolvedAccessContext, withTransaction, type Pool } from '@kf/database';
+import { StoreRegistry } from '@kf/artifacts';
+import {
+  createPool,
+  issueAttestation,
+  registerAttestationIssuer,
+  setResolvedAccessContext,
+  withTransaction,
+  type Pool,
+} from '@kf/database';
 import { createDocumentActionAtoms, PandocDocumentParser } from '@kf/documents';
 import { createFabricTransactionalDispatcher } from '@kf/orchestrator';
 import { bootstrapIdentity, createAppLogin } from './bootstrap.js';
-import { APP_LOGIN, APP_PASSWORD, requiredOwnerUrl, sourceDirectory } from './config.js';
+import {
+  APP_LOGIN,
+  assertNotPrivateHost,
+  DEV_S3_SECRET,
+  devDatabaseUrlFile,
+  generateAppPassword,
+  requiredOrganizationLegalName,
+  requiredOwnerUrl,
+  sourceDirectory,
+  writeOwnerOnly,
+} from './config.js';
 import { loadDocumentConstitution } from './load.js';
 import { stageDocumentConstitution } from './manifest.js';
 
@@ -22,6 +39,8 @@ async function assertDogfoodIdentityReady(
         assignmentId: identity.actingRoleId,
         organizationId: identity.organizationId,
         requestedClassification: 'restricted',
+        // The OWNER connection: an administrator binds without an attestation.
+        attestation: undefined,
       });
       if (decision !== 'restricted') {
         throw new Error('classification resolver returned no restricted dogfood decision');
@@ -46,34 +65,54 @@ async function assertDogfoodIdentityReady(
 }
 
 export async function runDocumentConstitutionDogfood(): Promise<void> {
+  assertNotPrivateHost();
   const directory = sourceDirectory();
   const ownerUrl = requiredOwnerUrl();
+  const legalName = requiredOrganizationLegalName();
   const owner = createPool({ connectionString: ownerUrl, maxConnections: 2 });
   let app: Pool | undefined;
   try {
-    const identity = await bootstrapIdentity(owner);
+    const identity = await bootstrapIdentity(owner, legalName);
     // Validate authority before staging bytes. A missing clearance is an expected fail-closed
     // operator state, not a reason to write unreferenced object-store data first.
     await assertDogfoodIdentityReady(owner, identity);
-    const database = await createAppLogin(owner);
+    const password = generateAppPassword();
+    const database = await createAppLogin(owner, password);
     const appUrl = new URL(ownerUrl);
     appUrl.username = APP_LOGIN;
-    appUrl.password = APP_PASSWORD;
+    appUrl.password = password;
     appUrl.pathname = `/${database}`;
+    // Written before use, so a run that fails later still leaves the API a working credential
+    // for the login it just re-keyed.
+    const urlFile = devDatabaseUrlFile();
+    await writeOwnerOnly(urlFile, appUrl.toString());
     app = createPool({ connectionString: appUrl.toString(), maxConnections: 4 });
+    // The loader binds its operator through the development login, which attests in-process
+    // exactly as the development API does (createAppLogin granted it kf_attestor).
+    const attesting = app;
+    registerAttestationIssuer(attesting, (principal) =>
+      withTransaction(attesting, (tx) => issueAttestation(tx, principal)),
+    );
 
-    const store = new S3ObjectStore({
+    // Through the registry like every other store holder (KF-SAS-RQ-095): a loader pointed at a
+    // bucket other than the one this database registered as `working` is refused.
+    const working = {
       endpoint: process.env['S3_ENDPOINT'] ?? 'http://localhost:9000',
       region: process.env['S3_REGION'] ?? 'us-east-1',
       accessKeyId: process.env['S3_ACCESS_KEY_ID'] ?? 'kf-dev-access-key',
-      secretAccessKey: process.env['S3_SECRET_ACCESS_KEY'] ?? APP_PASSWORD,
+      secretAccessKey: process.env['S3_SECRET_ACCESS_KEY'] ?? DEV_S3_SECRET,
       bucket: process.env['S3_BUCKET_ARTIFACTS'] ?? 'kf-artifacts',
       forcePathStyle: process.env['S3_FORCE_PATH_STYLE'] !== 'false',
-    });
+    };
+    const registry = await withTransaction(attesting, (tx) =>
+      StoreRegistry.fromDatabase(tx, { working }),
+    );
+    const store = registry.get('working');
+    if (store === undefined) throw new Error('the working store did not resolve');
     const execute = createFabricTransactionalDispatcher(
       createDocumentActionAtoms({ store, parser: new PandocDocumentParser() }),
     );
-    const staged = await stageDocumentConstitution(directory, store);
+    const staged = await stageDocumentConstitution(directory, store, identity.organizationId);
     const result = await loadDocumentConstitution(app, store, execute, identity, staged);
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 
@@ -94,6 +133,9 @@ export async function runDocumentConstitutionDogfood(): Promise<void> {
         `KF_DEV_ORGANIZATION=${identity.organizationId}`,
         `KF_DEV_ACTOR=${identity.actorId}`,
         `KF_DEV_ACTING_ROLE=${identity.actingRoleId}`,
+        // The login's password changes on every run and is never printed; the API reads the
+        // connection string from this owner-only file.
+        `DATABASE_URL_FILE=${urlFile}`,
         '',
       ].join('\n'),
     );

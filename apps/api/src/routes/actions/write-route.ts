@@ -1,20 +1,31 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
-import { satisfiesStepUp, type StepUpPolicy, type TokenVerifier } from '@kf/authorization';
+import {
+  satisfiesStepUp,
+  type Attestor,
+  type StepUpPolicy,
+  type TokenVerifier,
+} from '@kf/authorization';
 import type {
   ActionRoutesOptions,
   ActionRequestBody,
   Caller,
   IdentifyCaller,
 } from './contracts.js';
-import { parseEffectiveAt } from './effective-at.js';
+import {
+  effectiveAtOutOfBounds,
+  parseEffectiveAt,
+  type EffectiveAtBounds,
+} from './effective-at.js';
 import { actionRejectionBody } from './errors.js';
-import { unidentified } from './auth.js';
+import { refuseUnidentified } from './auth.js';
 
 interface ActionPostRouteOptions {
   readonly execute: ActionRoutesOptions['execute'];
   readonly identify: IdentifyCaller;
   readonly stepUp: Readonly<Record<string, StepUpPolicy>>;
-  readonly verifier: TokenVerifier | undefined;
+  /** How bearer tokens are identified; absent on the development header path. */
+  readonly verifier: Attestor | TokenVerifier | undefined;
+  readonly effectiveAtBounds: EffectiveAtBounds;
 }
 
 export function registerUnavailableActionRoute(app: FastifyInstance): void {
@@ -41,7 +52,7 @@ export function registerActionPostRoute(
     try {
       caller = await options.identify({ headers: request.headers as Record<string, unknown> });
     } catch (err: unknown) {
-      return reply.code(401).send(unidentified(err));
+      return refuseUnidentified(reply, err);
     }
 
     const body = request.body ?? {};
@@ -58,6 +69,16 @@ export function registerActionPostRoute(
         message: 'effectiveAt must be a canonical four-digit-year RFC 3339 millisecond instant',
       });
     }
+    if (effectiveAt !== undefined) {
+      const outOfBounds = effectiveAtOutOfBounds(
+        effectiveAt,
+        request.params.actionType,
+        options.effectiveAtBounds,
+      );
+      if (outOfBounds !== undefined) {
+        return reply.code(400).send({ error: 'effective_at_out_of_bounds', message: outOfBounds });
+      }
+    }
 
     const stepUpReply = requireStepUp(caller, request.params.actionType, options);
     if (stepUpReply !== undefined) return stepUpReply(reply);
@@ -69,6 +90,7 @@ export function registerActionPostRoute(
         actingRoleId: caller.actingRoleId,
         organizationId: caller.organizationId,
         maxClassification: caller.maxClassification,
+        attestation: caller.attestation,
         targetIds: body.targetIds ?? [],
         idempotencyKey: body.idempotencyKey,
         requestId: String(request.id),

@@ -39,6 +39,9 @@ importers:
       '@kf/documents':
         specifier: workspace:*
         version: link:packages/documents
+      '@kf/domain':
+        specifier: workspace:*
+        version: link:packages/domain
       '@kf/export':
         specifier: workspace:*
         version: link:packages/export
@@ -174,6 +177,9 @@ importers:
       '@kf/record-atoms':
         specifier: workspace:*
         version: link:../../packages/record-atoms
+      '@kf/retrieval':
+        specifier: workspace:*
+        version: link:../../packages/retrieval
       '@kf/search':
         specifier: workspace:*
         version: link:../../packages/search
@@ -193,6 +199,22 @@ importers:
       tsx:
         specifier: ^4.23.12
         version: 4.23.12
+
+  apps/attestor:
+    dependencies:
+      '@kf/authorization':
+        specifier: workspace:*
+        version: link:../../packages/authorization
+      '@kf/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@kf/operations':
+        specifier: workspace:*
+        version: link:../../packages/operations
+    devDependencies:
+      '@types/node':
+        specifier: ^24.13.3
+        version: 24.13.3
 
   apps/checkpoint:
     dependencies:
@@ -292,6 +314,9 @@ importers:
       '@kf/operations':
         specifier: workspace:*
         version: link:../../packages/operations
+      '@kf/retrieval':
+        specifier: workspace:*
+        version: link:../../packages/retrieval
       graphile-worker:
         specifier: ^0.17.3
         version: 0.17.3(supports-color@7.2.0)(typescript@6.0.3)
@@ -314,6 +339,9 @@ importers:
       '@kf/domain':
         specifier: workspace:*
         version: link:../domain
+      '@kf/record-atoms':
+        specifier: workspace:*
+        version: link:../record-atoms
     devDependencies:
       '@types/node':
         specifier: ^24.13.3
@@ -324,6 +352,9 @@ importers:
       '@kf/actions':
         specifier: workspace:*
         version: link:../actions
+      '@kf/authorization':
+        specifier: workspace:*
+        version: link:../authorization
       '@kf/canonicalization':
         specifier: workspace:*
         version: link:../canonicalization
@@ -336,6 +367,9 @@ importers:
       '@kf/domain':
         specifier: workspace:*
         version: link:../domain
+      '@kf/projections':
+        specifier: workspace:*
+        version: link:../projections
       '@kf/search':
         specifier: workspace:*
         version: link:../search
@@ -377,6 +411,9 @@ importers:
       '@kf/actions':
         specifier: workspace:*
         version: link:../actions
+      '@kf/canonicalization':
+        specifier: workspace:*
+        version: link:../canonicalization
       '@kf/database':
         specifier: workspace:*
         version: link:../database
@@ -426,6 +463,9 @@ importers:
       '@kf/database':
         specifier: workspace:*
         version: link:../database
+      '@kf/domain':
+        specifier: workspace:*
+        version: link:../domain
       '@kf/projections':
         specifier: workspace:*
         version: link:../projections
@@ -585,6 +625,9 @@ importers:
       '@kf/canonicalization':
         specifier: workspace:*
         version: link:../canonicalization
+      '@kf/domain':
+        specifier: workspace:*
+        version: link:../domain
       '@kf/ontology-compiler':
         specifier: workspace:*
         version: link:../ontology-compiler

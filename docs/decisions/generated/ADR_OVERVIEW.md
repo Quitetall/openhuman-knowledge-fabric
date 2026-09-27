@@ -5,4 +5,5087 @@ Source: ADR atoms under the configured adrs path.
 
 # Architecture Decision Record Overview
 
-No architecture decisions are recorded yet.
+## Summary
+
+| ADR | Title | Status | Current | Governs |
+|---|---|---|---|---|
+| [KF-ADR-0001](docs/decisions/atoms/KF-ADR-0001-r01-schema-pack-defects.md) | ADR KF-0001: R01 schema pack — five defects and their corrections | `accepted` | yes | — |
+| [KF-ADR-0002](docs/decisions/atoms/KF-ADR-0002-liminal-backed-document-compiler.md) | ADR KF-0002: Liminal-backed document compiler supersedes the LamQuant documentation model | `accepted` | yes | — |
+| [KF-ADR-0003](docs/decisions/atoms/KF-ADR-0003-typed-table-row-security.md) | ADR KF-0003: Row-level security stops at `core.object`; 77 typed tables carry none | `accepted` | yes | — |
+| [KF-ADR-0004](docs/decisions/atoms/KF-ADR-0004-production-release.md) | ADR KF-0004: What v1.0 claims, and what still has to be true before it can | `accepted` | yes | — |
+| [KF-ADR-0005](docs/decisions/atoms/KF-ADR-0005-apache-2-0-licence.md) | ADR KF-0005: Apache-2.0 replaces BUSL-1.1, before first publication | `accepted` | yes | — |
+| [KF-ADR-0006](docs/decisions/atoms/KF-ADR-0006-product-instance-boundary.md) | ADR KF-0006: The product and the OpenHuman instance are different things | `accepted` | yes | — |
+| [KF-ADR-0007](docs/decisions/atoms/KF-ADR-0007-policy-predicates-in-functions.md) | ADR KF-0007: A recursive policy predicate belongs in a function, not inline | `accepted` | yes | — |
+| [KF-ADR-0008](docs/decisions/atoms/KF-ADR-0008-caller-asserted-classification.md) | ADR KF-0008: The classification ceiling is asserted by the caller, not granted to them | `superseded` | no | — |
+| [KF-ADR-0009](docs/decisions/atoms/KF-ADR-0009-google-drive-ingestion.md) | ADR KF-0009: Google Drive ingestion is deferred until after v1.0 | `superseded` | no | — |
+| [KF-ADR-0010](docs/decisions/atoms/KF-ADR-0010-liminal-compiler-deferred.md) | ADR KF-0010: v1.0 ships the native document compiler; the Liminal-backed one is deferred | `accepted` | yes | — |
+| [KF-ADR-0011](docs/decisions/atoms/KF-ADR-0011-master-record-runtime.md) | ADR KF-0011: Master-record runtime and disclosure boundary | `accepted` | yes | — |
+| [KF-ADR-0012](docs/decisions/atoms/KF-ADR-0012-file-ingestion.md) | ADR KF-0012: A file enters the Fabric by copy or by reference, and never by default | `accepted` | yes | — |
+| [KF-ADR-0013](docs/decisions/atoms/KF-ADR-0013-master-identity-is-the-corpus.md) | ADR KF-0013: A master record's identity is its corpus, and sections are a reading of it | `accepted` | yes | — |
+| [KF-ADR-0014](docs/decisions/atoms/KF-ADR-0014-corpus-projections.md) | ADR KF-0014: Every reading of a master record is a declared projection over its corpus | `accepted` | yes | — |
+| [KF-ADR-0015](docs/decisions/atoms/KF-ADR-0015-object-views.md) | ADR KF-0015: An Object View is a projection anchored at the object, over the reader's own corpus | `accepted` | yes | — |
+| [KF-ADR-0016](docs/decisions/atoms/KF-ADR-0016-access-is-a-grant.md) | ADR KF-0016: Access is a grant, and a denial is a path | `accepted` | yes | — |
+| [KF-ADR-0017](docs/decisions/atoms/KF-ADR-0017-storage-locations.md) | ADR KF-0017: Where the bytes are is a set of locations, each verifiable on its own | `accepted` | yes | — |
+| [KF-ADR-0018](docs/decisions/atoms/KF-ADR-0018-r6-allocation-is-an-act.md) | ADR KF-0018: An enterprise identifier is allocated by the registry, in the act that asks, and never proposed | `accepted` | yes | — |
+| [KF-ADR-0019](docs/decisions/atoms/KF-ADR-0019-warrants-as-institutional-record.md) | ADR KF-0019: A Warrant is an institutional record here and a source record in Git | `accepted` | yes | — |
+| [KF-ADR-0020](docs/decisions/atoms/KF-ADR-0020-service-actors.md) | ADR KF-0020: Scheduled work acts as a declared service actor, never as a human and never around the dispatcher | `accepted` | yes | — |
+| [KF-ADR-0021](docs/decisions/atoms/KF-ADR-0021-publication-writes-one-public-copy.md) | ADR KF-0021: A publication writes exactly one public copy, and unpublishing is a recorded failure, not a delete | `accepted` | yes | — |
+| [KF-ADR-0022](docs/decisions/atoms/KF-ADR-0022-drive-as-external-source-holder.md) | ADR KF-0022: Google Drive is an external Source Holder: ingestion copies, cites the revision, and names the exporter | `accepted` | yes | — |
+| [KF-ADR-0023](docs/decisions/atoms/KF-ADR-0023-business-logic-above-data-primitives-within.md) | ADR KF-0023: Business logic sits above the Fabric; dataset and lineage capability, if built, sits inside it | `accepted` | yes | — |
+| [KF-ADR-0024](docs/decisions/atoms/KF-ADR-0024-friction-is-an-architectural-property.md) | ADR KF-0024: Friction is an architectural property, and a platform engineers skip records nothing | `accepted` | yes | — |
+| [KF-ADR-0025](docs/decisions/atoms/KF-ADR-0025-people-have-a-lifecycle-and-organizations-retire-with-them.md) | ADR KF-0025: People have a lifecycle, and an organization is retired with its people | `accepted` | yes | — |
+| [KF-ADR-0026](docs/decisions/atoms/KF-ADR-0026-definer-functions-resolve-under-a-bound-context.md) | ADR KF-0026: Definer functions resolve under a bound context, and the test harness owns the schema as an ordinary role | `accepted` | yes | — |
+| [KF-ADR-0027](docs/decisions/atoms/KF-ADR-0027-access-is-a-grant-on-every-read.md) | ADR KF-0027: Access is a grant on every read; the session ceiling is the clearance; people and organizations are the lowest tier | `accepted` | yes | — |
+| [KF-ADR-0028](docs/decisions/atoms/KF-ADR-0028-the-retrieval-index-is-masked-not-copied.md) | ADR KF-0028: The retrieval index holds vectors and identifiers; authorization crosses the wire as a mask | `accepted` | yes | — |
+| [KF-ADR-0029](docs/decisions/atoms/KF-ADR-0029-transient-observations-are-a-third-category.md) | ADR KF-0029: Transient observations are a third category of stored thing, and expiry only counts if every copy expires | `accepted` | yes | — |
+| [KF-ADR-0030](docs/decisions/atoms/KF-ADR-0030-three-layers.md) | ADR KF-0030: The system is three layers, and the specification says so in one place | `accepted` | yes | — |
+| [KF-ADR-0031](docs/decisions/atoms/KF-ADR-0031-a-draft-is-a-record-that-says-so.md) | ADR KF-0031: An unverified record is a record that says so, and one gesture may produce many acts | `accepted` | yes | — |
+| [KF-ADR-0032](docs/decisions/atoms/KF-ADR-0032-the-seven-day-floor-is-waived.md) | ADR KF-0032: The seven-day floor on compiler cutover is waived, and what that gives up | `accepted` | yes | — |
+| [KF-ADR-0033](docs/decisions/atoms/KF-ADR-0033-the-database-binds-the-principal.md) | ADR KF-0033: The database binds the principal; the application only names one | `accepted` | yes | — |
+| [KF-ADR-0034](docs/decisions/atoms/KF-ADR-0034-an-observation-is-captured-then-promoted.md) | ADR KF-0034: An observation is captured in one gesture, and promoted by a separate act | `accepted` | yes | — |
+| [KF-ADR-0035](docs/decisions/atoms/KF-ADR-0035-an-agent-acts-for-a-named-human.md) | ADR KF-0035: An agent acts for a named human on a delegated token, and the ledger says so | `accepted` | yes | — |
+| [KF-ADR-0036](docs/decisions/atoms/KF-ADR-0036-delegation-is-one-level-and-assignments-expire.md) | ADR KF-0036: Delegation goes one level deep, and a new assignment carries a review date | `accepted` | yes | — |
+| [KF-ADR-0037](docs/decisions/atoms/KF-ADR-0037-what-a-query-withheld-is-a-count-within-your-ceiling.md) | ADR KF-0037: What a query withheld is disclosed as one count, within the asker's own ceiling | `accepted` | yes | — |
+| [KF-ADR-0038](docs/decisions/atoms/KF-ADR-0038-qualification-is-evidence-against-a-versioned-pack.md) | ADR KF-0038: Qualification is evidence against a versioned pack, and onboarding is its first use | `proposed` | no | — |
+
+## Proposed
+
+- **KF-ADR-0038** ADR KF-0038: Qualification is evidence against a versioned pack, and onboarding is its first use — 2026-09-26
+
+## Accepted and Current
+
+- **KF-ADR-0001** ADR KF-0001: R01 schema pack — five defects and their corrections — 2026-08-16
+- **KF-ADR-0002** ADR KF-0002: Liminal-backed document compiler supersedes the LamQuant documentation model — 2026-08-16
+- **KF-ADR-0003** ADR KF-0003: Row-level security stops at `core.object`; 77 typed tables carry none — 2026-08-16
+- **KF-ADR-0004** ADR KF-0004: What v1.0 claims, and what still has to be true before it can — 2026-08-17
+- **KF-ADR-0005** ADR KF-0005: Apache-2.0 replaces BUSL-1.1, before first publication — 2026-08-21
+- **KF-ADR-0006** ADR KF-0006: The product and the OpenHuman instance are different things — 2026-08-21
+- **KF-ADR-0007** ADR KF-0007: A recursive policy predicate belongs in a function, not inline — 2026-08-22
+- **KF-ADR-0010** ADR KF-0010: v1.0 ships the native document compiler; the Liminal-backed one is deferred — 2026-08-25
+- **KF-ADR-0011** ADR KF-0011: Master-record runtime and disclosure boundary — 2026-08-26
+- **KF-ADR-0012** ADR KF-0012: A file enters the Fabric by copy or by reference, and never by default — 2026-08-27
+- **KF-ADR-0013** ADR KF-0013: A master record's identity is its corpus, and sections are a reading of it — 2026-09-01
+- **KF-ADR-0014** ADR KF-0014: Every reading of a master record is a declared projection over its corpus — 2026-09-01
+- **KF-ADR-0015** ADR KF-0015: An Object View is a projection anchored at the object, over the reader's own corpus — 2026-09-02
+- **KF-ADR-0016** ADR KF-0016: Access is a grant, and a denial is a path — 2026-09-02
+- **KF-ADR-0017** ADR KF-0017: Where the bytes are is a set of locations, each verifiable on its own — 2026-09-02
+- **KF-ADR-0018** ADR KF-0018: An enterprise identifier is allocated by the registry, in the act that asks, and never proposed — 2026-09-02
+- **KF-ADR-0019** ADR KF-0019: A Warrant is an institutional record here and a source record in Git — 2026-09-02
+- **KF-ADR-0020** ADR KF-0020: Scheduled work acts as a declared service actor, never as a human and never around the dispatcher — 2026-09-02
+- **KF-ADR-0021** ADR KF-0021: A publication writes exactly one public copy, and unpublishing is a recorded failure, not a delete — 2026-09-02
+- **KF-ADR-0022** ADR KF-0022: Google Drive is an external Source Holder: ingestion copies, cites the revision, and names the exporter — 2026-09-01
+- **KF-ADR-0023** ADR KF-0023: Business logic sits above the Fabric; dataset and lineage capability, if built, sits inside it — 2026-09-04
+- **KF-ADR-0024** ADR KF-0024: Friction is an architectural property, and a platform engineers skip records nothing — 2026-09-04
+- **KF-ADR-0025** ADR KF-0025: People have a lifecycle, and an organization is retired with its people — 2026-09-11
+- **KF-ADR-0026** ADR KF-0026: Definer functions resolve under a bound context, and the test harness owns the schema as an ordinary role — 2026-09-11
+- **KF-ADR-0027** ADR KF-0027: Access is a grant on every read; the session ceiling is the clearance; people and organizations are the lowest tier — 2026-09-11
+- **KF-ADR-0028** ADR KF-0028: The retrieval index holds vectors and identifiers; authorization crosses the wire as a mask — 2026-09-20
+- **KF-ADR-0029** ADR KF-0029: Transient observations are a third category of stored thing, and expiry only counts if every copy expires — 2026-09-20
+- **KF-ADR-0030** ADR KF-0030: The system is three layers, and the specification says so in one place — 2026-09-20
+- **KF-ADR-0031** ADR KF-0031: An unverified record is a record that says so, and one gesture may produce many acts — 2026-09-20
+- **KF-ADR-0032** ADR KF-0032: The seven-day floor on compiler cutover is waived, and what that gives up — 2026-09-20
+- **KF-ADR-0033** ADR KF-0033: The database binds the principal; the application only names one — 2026-09-23
+- **KF-ADR-0034** ADR KF-0034: An observation is captured in one gesture, and promoted by a separate act — 2026-09-24
+- **KF-ADR-0035** ADR KF-0035: An agent acts for a named human on a delegated token, and the ledger says so — 2026-09-24
+- **KF-ADR-0036** ADR KF-0036: Delegation goes one level deep, and a new assignment carries a review date — 2026-09-24
+- **KF-ADR-0037** ADR KF-0037: What a query withheld is disclosed as one count, within the asker's own ceiling — 2026-09-24
+
+## Superseded
+
+- **KF-ADR-0008** ADR KF-0008: The classification ceiling is asserted by the caller, not granted to them — 2026-08-24
+- **KF-ADR-0009** ADR KF-0009: Google Drive ingestion is deferred until after v1.0 — 2026-08-24
+
+---
+
+# Full Decision Record
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0001-r01-schema-pack-defects.md · uuid: c78445b5-7c25-513f-847e-c0773a496f22 -->
+
+# ADR KF-0001: R01 schema pack — five defects and their corrections
+
+**Status:** resolved on the corrections; the signature is outstanding
+**Against:** `Knowledge_Fabric_OGWCS_R01_Schema_Pack.zip`, version `1.0.0-draft.1`, generated 2026-08-08
+**Raised by:** the ontology consistency checker, Gate 2
+**Corrected package:** `pnpm ontology:pack` → `release/knowledge-fabric-1.0.0-draft.2/`
+**Resolved:** 2026-08-16 — see "Resolution" at the foot of this record. Decision point 1, the
+four corrections, is **accepted**. Decision point 2, approving and signing `1.0.0-draft.2`,
+remains **outstanding**: it is the pack owner's own act with the owner's own key, nothing in
+this repository performs it, and `pnpm ontology:verify release/knowledge-fabric-1.0.0-draft.2`
+still reports `DRAFT` and exits 1.
+
+> **UPDATED 2026-09-24.** Decision point 2 is closed: the pack owner approved and signed
+> `1.0.0-draft.2` on 2026-08-19 with key `release-1`, and `pnpm ontology:verify` with
+> `--key ontology/release-keys/release-1.pub` reports `APPROVED`
+> ([ADR 0004](KF-ADR-0004-production-release.md), criterion 2). "Outstanding" and `DRAFT` below describe
+> the state before that.
+
+---
+
+## Why this exists
+
+The pack is `draft_for_approval`. Spec §1.2 makes a contradiction between prose and machine
+artifacts a **release-blocking defect**, and §5.1's consistency gate exists to surface exactly
+these before approval. Five surfaced. Four are the pack's; one was ours.
+
+**R01 should not be approved as issued.** Each defect below is either a state a record can
+enter and never leave, or a state declared terminal that has a defined way out — both of
+which make a lifecycle unimplementable as written.
+
+## Evidence
+
+Each was confirmed against the golden pack independently of the compiler, by reachability
+analysis over `knowledge-fabric.state-machines.json`:
+
+```
+initiative_project: terminal=[administratively_closed, cancelled, rejected]
+   DEAD END (reachable, not terminal, no way out): ['parked']
+decision_record:    terminal=[accepted, rejected, superseded, withdrawn]
+   LEAVES A TERMINAL STATE: [('accepted', 'superseded')]
+invoice:            terminal=[paid, void]
+   DEAD END (reachable, not terminal, no way out): ['disputed']
+payment:            terminal=[failed, reconciled, reversed]
+   LEAVES A TERMINAL STATE: [('reconciled', 'reversed')]
+```
+
+## The defects
+
+### R01-DEFECT-001 — _ours, not the pack's_
+
+`change_record.impact_domains` lost all 15 enum values during our extraction of the pack into
+`ontology/`. The pack was always correct.
+
+Caught because an enum with no values can never validate — a field that would have rejected
+every conforming record. A subsequent scan of every enum in the pack confirmed this was the
+only loss. **No action required of the pack owner**, recorded because it is the clearest
+evidence the consistency gate earns its place.
+
+### R01-DEFECT-002 — `initiative_project.parked` is a dead end
+
+`captured → parked` and `triage → parked` exist; nothing leaves `parked`, and it is not
+terminal. A parked initiative could never resume or be dispositioned.
+
+**Correction:** add `parked → triage` (`triage_initiative`).
+**Basis:** §11 describes parked as a non-active disposition that _"preserves history"_ with
+_"follow-up conditions"_. A disposition you can never leave is a cancellation, and the model
+already has one.
+
+### R01-DEFECT-003 — `decision_record.accepted` is terminal and has an exit
+
+`accepted` appears in `terminal` while `accepted → superseded` is defined. Both cannot hold.
+
+**Correction:** remove `accepted` from `terminal`, leaving `[rejected, superseded, withdrawn]`.
+**Basis:** §14.3 — _"Accepted/rejected ADRs are immutable. A new ADR supersedes the old
+record"_ — and §19's lifecycle, which lists `accepted -> superseded` explicitly. Immutable is
+not the same as terminal: the record never changes, but its status does.
+
+### R01-DEFECT-004 — `invoice.disputed` is a dead end
+
+`submitted → disputed` exists; nothing leaves `disputed`, and it is not terminal. A disputed
+invoice could never be resolved.
+
+**Correction:** add `disputed → approved` (`approve_invoice`) and `disputed → void`
+(`correct_record`).
+**Basis:** §19 gives invoice only `paid` and `void` as terminals, so a dispute must resolve
+onto one path or the other — upheld and approved for payment, or withdrawn.
+
+### R01-DEFECT-005 — `payment.reconciled` is terminal and has an exit
+
+`reconciled` appears in `terminal` while `reconciled → reversed` is defined.
+
+**Correction:** remove `reconciled` from `terminal`, leaving `[reversed, failed]`.
+**Basis:** §16.3 requires that _"a reversal, refund or fee is a new attributable record;
+settled records are not silently edited."_ That is precisely what the transition models, so
+the transition is right and the terminal designation was wrong.
+
+## What the corrected package is
+
+`release/knowledge-fabric-1.0.0-draft.2/` — nine files under a manifest, using the spec's
+filenames so it is a drop-in successor rather than a differently-shaped artifact.
+
+- Five files regenerated from `ontology/`: schema, vocabulary, state machines, JSON-LD
+  context, SHACL.
+- Three carried forward from R01 unchanged, because the corrections do not touch them: the
+  BPMN process model, the Atlas conformance example, and `validate_graph.py`.
+- A manifest recording `supersedes: 1.0.0-draft.1`, the four corrections, the ontology source
+  digest, per-file SHA-256, and the known gaps below.
+
+The JSON Schema and vocabulary are **byte-for-byte identical in meaning** to R01 — asserted
+by `tests/conformance/r01-golden.test.ts`, which regenerates them and requires zero
+differences. Only the state machines change, and only at the four paths above.
+
+## Known gaps travelling with the corrected package
+
+Recorded in the manifest so approval is an informed act, not an assumption.
+
+1. **`validate_graph.py` implements four of the ten invariants.** Six exist only in prose,
+   which §27.1 calls nonconforming. Gate 3 closes this by making all ten simultaneously a
+   database constraint, an action precondition and a conformance test.
+2. **Relations declare no `source_types`/`target_types`**, so nothing constrains which object
+   types an edge may connect. Tracked as ONT-012 on every checker run; typing lands in Gate 6.
+3. **The manifest is unsigned.** §5 requires a signed or approved release manifest before the
+   package is normative, and §1.2 means the prose document must be corrected and released
+   _together with_ it as one configuration item.
+
+## Decision required
+
+1. Accept the four corrections into the controlled document (§19's lifecycle tables), or
+   reject them with an alternative resolution for each dead end and contradiction.
+2. Approve and sign `1.0.0-draft.2`, or direct that the gaps above be closed first.
+
+Until then the pack remains non-normative under §1.2, and this repository treats
+`ontology/` as the working definition with every divergence enumerated and tested.
+
+---
+
+## Resolution — 2026-08-16
+
+**Decision point 1 is accepted.** All four corrections stand as written:
+
+| Defect         | Correction accepted                               |
+| -------------- | ------------------------------------------------- |
+| R01-DEFECT-002 | add `parked → triage` (`triage_initiative`)       |
+| R01-DEFECT-003 | remove `accepted` from `decision_record.terminal` |
+| R01-DEFECT-004 | add `disputed → approved` and `disputed → void`   |
+| R01-DEFECT-005 | remove `reconciled` from `payment.terminal`       |
+
+R01-DEFECT-001 needed no decision: it was our extraction error, the pack was always right, and
+it is recorded only as evidence that the consistency gate earns its place.
+
+Nothing in the repository changes as a result. The corrections were already in `ontology/` and
+already enumerated in `tests/conformance/r01-golden.test.ts` as `RECORDED_DIVERGENCES`, which
+asserts them EXHAUSTIVELY — a new difference in either direction fails. Accepting them converts
+that list from "differences awaiting a ruling" into "differences that were ruled on", which is
+what the list was always for. The golden pack under `tests/conformance/r01-golden/` is still
+never patched; the divergence lives entirely in the compiler's output, and the first test in
+that file proves the baseline is untouched by checking it against the SHA-256 manifest shipped
+inside the zip.
+
+**Decision point 2 is outstanding, and deliberately so.** Approving and signing
+`1.0.0-draft.2` is the pack owner's act with the pack owner's key. §29.4 forbids a backdated
+approval and §5 requires a signed or approved manifest before the package is normative, so
+until that signature exists:
+
+- `pnpm ontology:verify release/knowledge-fabric-1.0.0-draft.2` reports `DRAFT` and exits 1;
+- the pack remains non-normative under §1.2;
+- `ontology/` remains the working definition.
+
+The three known gaps travelling with the package are unchanged and still travel with it —
+they are inputs to that signing decision, not blockers this record can clear.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0002-liminal-backed-document-compiler.md · uuid: 1767b278-3a6b-55f1-90cd-7a7c16f75e8c -->
+
+# ADR KF-0002: Liminal-backed document compiler supersedes the LamQuant documentation model
+
+**Status:** accepted
+**Date proposed:** 2026-08-13
+**Date accepted:** 2026-08-16
+**Decision owner:** technical authority
+**Scope:** document source, composition, compilation, projection, ADR integration, editing,
+search, publication and AI context planning
+**Does not:** approve R01, allocate an enterprise identifier, or resolve
+`0001-r01-schema-pack-defects.md`
+
+> **Accepted 2026-08-16.** The compiler slice built against this record — Compilation Basis,
+> the pinned Liminal process adapter, HIR and CIR provenance, projection capability levels,
+> the document workbench and AI context planning — is the fabric's document model rather than
+> a proposal to be judged. The exclusions above are unaffected: acceptance approves an
+> architecture, not a release, and it allocates no identifier.
+>
+> Two consequences a reader should not have to infer. The "considered and rejected"
+> alternatives below stay as written and are now decisions: reopening one needs a new record,
+> not an argument. And the LamQuant compatibility oracle
+> (`packages/documents/src/lamquant-compat/`) is migration evidence for the measured shadow
+> cutover this record requires — not a permanent second compiler. The record is explicit that
+> two production compilers would be two definitions of current documentation.
+
+---
+
+## Context
+
+The Knowledge Fabric is intended to be the complete integrated authority and user experience
+for OpenHuman information. Its document slice currently preserves verified source bytes,
+records controlled-document lifecycle facts, parses supported files into ordered and digested
+blocks, indexes their text, and exposes them through the API and web UI. Those parsed blocks
+are disposable projections. They are not an authoring or composition model.
+
+LamQuant already has a stronger Git-native documentation compiler. It provides authored
+section atoms, ordered composition manifests, generated parents, one rooted documentation
+tree, closed topic vocabulary, truth-ledger key references, deprecation by sequestering,
+append-only ADRs with runnable gates and supersession, generated topic and ADR views,
+traceability, and deterministic book output. Replacing LamQuant with the current Fabric would
+therefore be a regression.
+
+Liminal defines a broader compiler model: exact-source CST, Human IR, resolved graph IR,
+entity/version/anchor identity, immutable Workspace Bases, incremental queries, source maps,
+projection capability levels, managed text and rich graph editing, visible overlays, semantic
+operations, and separate human, machine and AI compiler targets. That is the intended
+compiler substrate for the Fabric. Liminal's present implementation is not yet a production
+dependency: its text subsystem remains incomplete and its HAQP-1 packet is proposed,
+unratified and `NOT_RUN` at this decision's date.
+
+The systems also have different authority models. PostgreSQL is the Fabric's constitutional
+kernel; object storage holds immutable bytes; controlled changes occur through typed actions.
+Liminal's graph and Holder machinery must not become a competing operational authority.
+
+## Decision
+
+The Knowledge Fabric SHALL supersede the LamQuant documentation system by implementing a
+strict superset of its observable behavior, then extending it with Liminal compilation,
+Fabric-native control, web editing, machine projections and AI context planning.
+
+The Fabric owns the product boundary and all institutional authority. Liminal owns document
+compiler semantics behind a versioned, pure process interface. LamQuant becomes the locked
+compatibility corpus and migration oracle; it does not remain a second production compiler
+after cutover.
+
+### 1. Authority and source Holders
+
+Every authored subject SHALL have exactly one declared **Source Holder**:
+
+- `fabric_native`: immutable source revisions controlled by Fabric actions;
+- `git`: bytes at one full commit SHA and path, including submodule commit identity;
+- `external`: bytes and revision identity supplied by another named document authority.
+
+Fabric-native SHALL be the default for institutional controlled documents. Git SHALL remain
+a first-class Holder for engineering sources, compatibility, collaboration and reuse. Git is
+not the version-control system for the whole Fabric: approvals, access policy, audit events,
+finance, personnel, operational work and other database-owned facts SHALL NOT be mirrored
+into a repository as a competing authority.
+
+Changing a subject's Holder requires a typed `change_document_source_holder` action that
+records old and new identities, exact content digests, conversion loss, actor, reason and a
+reversible migration plan. No dual-write mode is permitted. Git writeback, when later
+supported, is an explicit prestate-checked repair; it is never an automatic side effect of a
+database edit.
+
+An ordinary source revision does not transfer authority. It appends an exact Holder snapshot
+under the same logical authority in the same action as the new Authored Fragment or Composition
+Revision: Fabric-native sources remain in the subject organization, Git sources keep repository
+and path, and external sources keep authority. Changing those identities is a Holder transfer
+and requires the separate migration action above.
+
+### 2. Canonical document vocabulary
+
+The following terms are normative:
+
+- **Authored Fragment** — independently versioned human-maintained source that may be
+  composed. This is the successor to a LamQuant documentation atom.
+- **Parsed Block** — ordered syntax projection rebuilt from source bytes. Current
+  `content.document_atom` rows become Parsed Blocks; they remain uneditable and
+  non-authoritative. Every parse records a versioned KF projection contract and a
+  stable-path, source-digest-addressed conversion-loss list. `kf.pandoc-atoms.v2` commits
+  projection contract, atom claims and that loss list in one content digest; pre-contract
+  parses are marked `legacy_parse_loss_unmeasured`, never silently treated as lossless.
+- **Composition Revision** — immutable ordered DAG of exact fragment, child-composition,
+  resource and binding versions that produces one document revision.
+- **Typed Binding** — reference to an authoritative Fabric fact at an exact object revision or
+  snapshot, with a declared renderer and expected value type. It supersedes free-form
+  truth-ledger substitution.
+- **Compilation Basis** — complete immutable input identity: sources, compositions, bindings,
+  resources, ontology, policy, target profiles and compiler.
+- **Compilation Run** — append-only receipt for one pure compiler invocation.
+- **Compiled View** — derived Markdown, HTML, print, ebook, index, traceability, graph, search
+  or AI output.
+- **Controlled Document Revision** — approval and effectivity unit that freezes one
+  Composition Revision and its accepted Compilation Run.
+- **Proposal Overlay** — durable derived edit or semantic-operation proposal that has not
+  become authored source.
+
+`DocumentAtom` MAY remain as a compatibility type for one release, but new interfaces and
+schema SHALL use `ParsedBlock`. Parsed Blocks and Authored Fragments SHALL never share a table
+or mutation interface.
+
+### 3. Liminal language and compiler representation
+
+Liminal SHALL be the canonical compiler language and internal document representation. Its
+ordinary human authoring profile SHALL be a Markdown-compatible Liminal subset. Explicit
+Liminal syntax SHALL represent structures that Markdown cannot express without loss.
+
+Markdown export is lossless only when every selected feature belongs to the declared
+Markdown projection profile. A richer document SHALL either emit explicit Liminal or return
+a machine-readable conversion-loss report. The system SHALL never silently flatten an
+unsupported relation, identity, directive, annotation, transclusion, structured value or
+resource.
+
+All inputs lower through the same conceptual pipeline:
+
+```text
+source bytes
+  -> exact-source CST / imported syntax tree
+  -> Liminal Human IR
+  -> schema, directive, macro and binding resolution
+  -> basis-bound resolved graph IR
+  -> validation and analysis
+  -> target-specific compiled views
+```
+
+DOCX, ODT, PDF, HTML and other formats enter through import adapters with declared projection
+capability and conversion loss. Import does not grant those formats canonical round-trip
+status. Original bytes always remain preserved as immutable evidence.
+
+### 4. Composition and organized documentation
+
+Composition SHALL be an ordered DAG, not text concatenation hidden in callers. Each edge pins
+an exact input version and carries an explicit role such as fragment, child document,
+resource, generated view or binding.
+
+The compiler SHALL enforce:
+
+- no cycles or missing inputs;
+- no implicit branch, latest-version or mutable-path references in reproducible builds;
+- stable declared order;
+- resolved internal links and references;
+- ontology-controlled topics and document kinds;
+- explicit roots and reachability for published documentation spaces;
+- classification no lower than the highest visible input;
+- no orphaned LamQuant-compatible fragments;
+- no ambiguous generated-view ownership;
+- no stale accepted output relative to its recorded Basis.
+
+Authored Fragments MAY be reused by multiple compositions when each use is explicit and
+version-pinned. The LamQuant compatibility profile SHALL retain its stricter rule that each
+atom appears in exactly one parent, because changing that behavior during import could hide a
+manifest defect.
+
+Retirement SHALL sequester rather than delete. A retired fragment remains addressable from
+its replacement and audit history, contributes nothing to active composition or topics, and
+cannot be silently restored by a later build.
+
+### 5. Typed truth bindings
+
+Native source SHALL bind values from typed authoritative Fabric records, not parse a Markdown
+table as institutional truth. A binding names object identity, field or projection, expected
+type, formatting policy and exact revision/snapshot used by the run.
+
+During draft work, a composition MAY request the current visible value, but every Compilation
+Run resolves it to an exact immutable version. A changed fact creates a new stale-input signal
+and a new draft run; it never rewrites a prior run. Approval freezes every resolved binding.
+
+LamQuant `{{ledger:ID}}` expressions SHALL remain accepted by the compatibility profile. Each
+ledger ID maps to a typed binding alias with recorded provenance. Unknown, ambiguous,
+untyped, unauthorized or stale bindings fail closed.
+
+### 6. ADR integration
+
+LamQuant ADRs combine decision rationale, implementation plan, append-only progress, a
+runnable gate, resolution and supersession in one file. The Fabric SHALL preserve that
+experience while storing its meanings as linked authoritative records:
+
+```text
+Decision Record
+  -> authored ADR document revision
+  -> implementation work or change record
+  -> append-only progress events
+  -> test definition and execution evidence
+  -> completion, rejection or falsification result
+  -> typed supersedes / amends / extends relations
+```
+
+The imported authored body remains byte-preserved and attributable. Decision lifecycle uses
+the Fabric `decision_record` state machine. Completion claims are derived from linked
+verification evidence; a textual `gate_cmd` without an execution does not prove completion.
+Accepted bodies are immutable. Reconsideration creates a new decision and explicit relation.
+
+Generated ADR overview, work board, digest, topic views and runnable-gate debt SHALL be
+Compiled Views, never manually maintained lists.
+
+### 7. Approval and preservation
+
+Approval and effectivity attach to a **Controlled Document Revision**, not independently to
+every fragment. Approval freezes:
+
+- Composition Revision and every transitive input version;
+- all Typed Binding resolutions;
+- compiler protocol, Liminal commit, executable digest, runtime-closure digest and qualification
+  receipt;
+- ontology and policy digests;
+- diagnostics and conversion-loss report;
+- semantic graph digest;
+- accepted human, machine and publication views.
+
+A later source, binding, ontology, policy or compiler change creates a new draft. An effective
+revision remains byte- and meaning-stable until explicitly superseded or withdrawn.
+
+All new authoritative tables and receipts SHALL join the preservation export/import order.
+Source and retained-view bytes SHALL remain in versioned object storage with digests in the
+export. Export into an empty database, reconnect preserved bytes, re-export and compare SHALL
+round-trip without losing composition, bindings, provenance, lifecycle or compiler identity.
+
+### 8. Compiler seam and Liminal pin
+
+KF SHALL depend on a versioned process protocol, not Liminal's unstable Rust crate layout.
+The Liminal repository SHALL provide:
+
+```text
+liminal-compiler --protocol kf-document-v1
+```
+
+It reads one RFC 8785 canonical JSON request from standard input, writes one canonical JSON
+result to standard output, and reserves standard error for bounded diagnostics. Request
+contains protocol version, Compilation Basis, supplied source/resource bytes or digests,
+composition graph, resolved typed bindings, targets, policy and optional prior-run/edit data.
+Result contains typed diagnostics, semantic and dependency digests, HIR/CIR provenance,
+compiled outputs, unresolved references, omitted subgraphs, projection capabilities and
+conversion loss.
+
+Each enabled compiler is pinned by full Liminal commit, `Cargo.lock` digest, executable SHA-256,
+ordered native runtime-closure digest, protocol version and qualification receipt. Runtime closure
+digest is RFC 8785 digest of ordered `{path, contentDigest}` records after first-occurrence path
+deduplication. KF SHALL reject an unlisted or mismatched binary or runtime closure. Production
+adapters SHALL execute a native Linux ELF artifact captured in memory from verified bytes;
+script/shebang artifacts are test-only because they introduce an unpinned interpreter. The
+captured bytes SHALL cross a one-way descriptor pipe into Bubblewrap `--ro-bind-data` and become
+read-only `/compiler` inside the new sandbox, never a same-identity writable host path. Runtime
+libraries SHALL likewise be opened, byte-hashed and bound from captured read-only file
+descriptors before execution. Deployment preflight SHALL prove Bubblewrap, procfs and exact
+verified-byte execution. Compiler runtimes SHALL implement `--protocol kf-document-v1
+--preflight`, exit zero, and emit exactly
+`{"protocol":"kf-document-v1","status":"ready"}\n` only when their pinned runtime closure is
+ready. Any other stdout, including empty stdout, fails closed. Deployment and worker startup
+SHALL execute that self-check against the descriptor-materialized artifact; `/usr/bin/true`, `/dev/null`, and
+equivalent placeholder probes are not compiler qualification or readiness evidence. Compiler
+runs without database credentials, network access, ambient source discovery or approval
+authority; KF supplies all authorized inputs. Timeout, crash, oversized output, malformed
+response or digest mismatch records one failed run and publishes no partial view.
+
+> **UPDATED 2026-09-25 — reproduction is checked, not assumed (KF-SAS-RQ-102).** Until now
+> nothing compared two compilations of the same sources by the same compiler, so a
+> nondeterministic compiler would have been indistinguishable from a deterministic one. Two
+> structural facts had made the exact case impossible — `compilation_basis.basis_digest` is
+> unique, so an identical Basis is never compiled twice, and a re-record under one request with
+> a different output is refused ("idempotent compiler replay differs") — but a Basis also carries
+> the compiler's **qualification**, which is a governance fact about the binary, not part of
+> what it computes. Revoking a registration and registering the same pinned binary with a new
+> qualification (the draft-to-qualified path this section describes) therefore produces a new
+> Basis over the same sources and the same binary, and its run was never compared with the
+> first. Migration `20260925160100_compilation_reproduces.sql` makes that comparison: a succeeded
+> run whose Basis equals an earlier succeeded run's Basis in everything but
+> `compiler.qualification` (and the digest over it) must reproduce that run's semantic digest
+> and its set of `(target, content digest)` views, or the database refuses to record it. The
+> worker records the refusal as a failed run with `failure_code = 'nondeterministic_output'`
+> naming the run it failed to reproduce, rather than retrying it into silence. What this does
+> not do: re-run the compiler to test determinism on its own schedule (it checks every
+> reproduction that happens and causes none), or refuse to _accept_ the earlier run that a later
+> one failed to reproduce — that failure is on the record, and acceptance does not yet read it.
+
+KF SHALL expose this through one deep document-compiler interface with two adapters: pinned
+Liminal process for production and deterministic in-memory adapter for tests. Pandoc and
+other importers feed source IR; they do not bypass the compiler interface.
+
+Until applicable Liminal qualification closes, Liminal-backed runs are draft-only dogfood.
+They cannot produce an approved/effective revision. Promotion requires the pinned commit's
+applicable conformance suite and HAQP evidence to be complete and ratified; planned Liminal
+features are not evidence.
+
+### 9. Web, website and machine projections
+
+One Fabric document workspace SHALL provide:
+
+- source and structured-fragment navigation;
+- composition outline and transclusion provenance;
+- source/preview editing with diagnostics;
+- revision and semantic diff;
+- topic, backlink, ADR and traceability views;
+- classification-aware full-text and identifier search;
+- HTML website, Markdown, print/PDF, ebook and source downloads;
+- machine JSON/JSON-LD graph and typed relation views;
+- approval, effectivity, supersession and training context;
+- exact source, Basis, compiler and output digests for auditors.
+
+Generated website assets are derived. Publishing records which Compiled View digest and
+Controlled Document Revision were deployed. Website edits return through typed source actions
+or Proposal Overlays; deployed HTML never becomes source authority.
+
+### 10. AI compiler and semantic-operation loop
+
+This decision includes the full AI planner, not only a reserved interface. The planner SHALL
+compile a task-scoped subgraph from caller request, current document/cursor, typed relations,
+lexical search, derived vector retrieval, recency, provenance, verification state, security
+policy and token budget.
+
+AI MIR and outputs SHALL support normalized Markdown, tagged text, canonical JSON, edge
+tables, graph streams and multimodal bundles. Every context records exact Basis, included
+subjects, omitted subgraphs, source revisions, provenance, model profile, tokenizer, budget,
+provider and policy decision.
+
+Lexical/typed search remains canonical and explainable. Embeddings, summaries and rankings
+are disposable projections. Authorization and classification filtering occur before context
+selection and again before provider dispatch.
+
+Provider routing is classification-aware:
+
+- local adapters may receive only data allowed by their deployment policy;
+- remote adapters require an explicit provider/model allowlist, classification ceiling,
+  retention and training-use policy, transport policy and per-run provenance;
+- absent or indeterminate policy refuses dispatch;
+- no model provider becomes authoritative for a Fabric fact.
+
+Models receive no generic write tool. They may return revision-preconditioned semantic
+operations or source patches. KF validates and rehearses them under the target Source Holder,
+ontology, lifecycle, classification and action rules, then records them through a typed
+`record_document_proposal` action as Proposal Overlays. A human-authorized
+`apply_document_proposal` action may convert selected output into a new authored draft while
+preserving model and source provenance. AI cannot approve, make effective, allocate an
+identifier, or silently mutate Git.
+
+AI evaluation SHALL measure retrieval accuracy, reference resolution, structural and table
+understanding, graph-operation success, hallucination rate, provenance retention,
+classification leakage and tokens per semantic fact. A model/profile cannot be promoted on
+token savings alone.
+
+## Required typed actions
+
+Implementation SHALL add narrow actions rather than generic document mutation:
+
+- `add_authored_fragment`
+- `revise_authored_fragment`
+- `retire_authored_fragment`
+- `add_document_composition`
+- `revise_document_composition`
+- `change_document_source_holder`
+- `request_document_compilation`
+- `accept_document_compilation`
+- `publish_document_view`
+- `record_document_proposal`
+- `apply_document_proposal`
+
+Existing controlled-document review, approval, effectivity, supersession and withdrawal
+actions remain the only lifecycle path. Compilation workers may materialize derived rows and
+artifacts only for a previously authorized compilation request.
+
+## Delivery and replacement gates
+
+Delivery SHALL proceed in this order:
+
+1. **Authority and preservation:** add source Holder, fragment, composition, binding,
+   compilation, projection and proposal records; append-only controls; classification
+   propagation; complete export/import coverage.
+2. **Strict LamQuant compatibility:** ingest an unmodified clean LamQuant checkout with all
+   pinned submodules; reproduce atoms, manifests, parents, topics, ledger bindings,
+   deprecation, ADRs, generated views, traceability and book ordering.
+3. **KF-native authoring:** ship fragment/composition editing, preview, diagnostics, typed
+   bindings, diff, provenance and approval handoff in the web UI and machine interface.
+4. **Liminal incremental editing:** activate exact-source CST/HIR/CIR, stable identities,
+   source maps, incremental preview, semantic diff, managed projections and visible overlays
+   after their qualification gates close.
+5. **AI compiler:** ship scoped retrieval, AI MIR, model profiles, multimodal projections,
+   semantic proposals, provider routing and evaluation.
+6. **Cutover:** shadow LamQuant and KF compilers after strict parity passes. Zero unexplained
+   semantic drift is required. **The "30 consecutive days" this step originally specified is
+   superseded by decision 0004**, which replaces the duration with a count — every constitution
+   document compiled twice with byte-identical output, every document-lifecycle action path
+   exercised, and a seven-day floor. The reasoning is in 0004: drift is evidence produced per
+   compilation, and a quiet month records "no drift observed" and "nothing was observed"
+   identically. The zero-drift requirement itself is unchanged. Then freeze LamQuant compiler tools
+   read-only and preserve their final source, fixtures and expected outputs as migration
+   evidence.
+
+Replacement is complete only when all following gates pass:
+
+- generated parent bodies match LamQuant after declared banner and line-ending normalization;
+- parent membership/order, topic membership, links, ADR views, traceability and book ordering
+  match exactly;
+- planted orphan, duplicate-owner, cycle, unknown-topic, dangling-binding, stale-parent,
+  illegal-lifecycle and frozen-record mutations fail;
+- same Basis and compiler produce byte-identical semantic and view digests;
+- source or binding changes cannot alter an approved/effective revision;
+- classification propagates to every output and refuses an unsafe publication/provider;
+- import/export round-trip retains every authoritative fact and preserved byte identity;
+- compiler crash, stale binding, rewritten Git history, missing source, unsupported syntax and
+  lossy export fail visibly without partial publication;
+- AI contexts remain inside caller/provider scope and all AI changes remain derived until a
+  human-authorized action;
+- rollback can reactivate LamQuant generation during shadow period without losing Fabric
+  records created meanwhile.
+
+## Consequences
+
+The Fabric becomes a composed monolith at the product boundary while keeping compiler,
+authority, source adapters, projections, UI and model providers independently auditable and
+replaceable.
+
+This adds a substantial schema, compiler protocol, compatibility harness and UI surface. It
+also makes the intended replacement claim testable: LamQuant behavior is a corpus gate, not a
+feature checklist, and unqualified Liminal plans cannot be mistaken for shipped capability.
+
+PostgreSQL remains the only institutional write authority. Liminal graph IR, parsed blocks,
+search indexes, embeddings, summaries and compiled views remain derived and rebuildable.
+Retained approved outputs are immutable evidence of what was reviewed, not an alternate edit
+surface.
+
+## Considered alternatives
+
+### Make every Fabric record Git-backed
+
+Rejected. Repository history cannot enforce Fabric row security or safely hold personnel,
+finance and operational records. It would also create a second approval and audit mechanism.
+
+### Make KF-native source the only Holder
+
+Rejected. It would break LamQuant compatibility, ordinary engineering workflows, external
+tool sovereignty and portable source reuse.
+
+### Keep LamQuant compiler permanently beside KF
+
+Rejected. Two production compilers become two definitions of current documentation. LamQuant
+survives as locked migration evidence after measured shadow cutover.
+
+### Depend directly on Liminal Rust crates now
+
+Rejected. Current interfaces and qualification are not stable enough for an institutional
+authority. Versioned process interchange contains that risk and preserves independent
+release cadence.
+
+### Copy Liminal concepts into a separate KF compiler
+
+Rejected. It would create two implementations of identity, Basis, IR and projection laws,
+then force both projects to rediscover the same failures independently.
+
+### Approve every fragment independently
+
+Rejected as the default. Review meaning attaches to the exact composed revision people read.
+Fragments retain attribution and immutable input history, while stricter document classes may
+add fragment review as a policy without changing the approval unit.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0003-typed-table-row-security.md · uuid: 9ea8f319-2920-5db0-9af1-1889ef204bb4 -->
+
+# ADR KF-0003: Row-level security stops at `core.object`; 77 typed tables carry none
+
+**Status:** accepted and complete — option 1. Both stages landed 2026-08-16, in
+`20260816000300_typed_table_row_security.sql` and
+`20260816000500_typed_table_row_security_stage_two.sql`. Readable tables with no policies:
+**77 → 47 → 20**, and all 20 are excluded on purpose, listed with reasons below and asserted
+as an exact set by `tests/database/typed-table-visibility.test.ts`
+**Date raised:** 2026-08-16
+**Date decided:** 2026-08-16
+**Decision owner:** technical authority
+**Scope:** read visibility of typed domain tables for roles that connect to PostgreSQL
+directly (`kf_readonly`, `kf_auditor`) and for any application query that reads a typed table
+without joining `core.object`
+**Decision:** option 1, staged by domain. Stage one is `quality`, `engineering`, `org` and
+`finance` — 29 tables, 95 policies. See "Decision and stage one" at the foot of this record.
+
+> **UPDATED 2026-09-24.** The typed tables are no longer "enabled, not forced": every table that
+> enables row-level security now forces it, and the definer seams, search indexing included, read
+> past it by the owner's `BYPASSRLS` (`20260924000200_row_security_is_forced_everywhere.sql`).
+> `org.external_identity` is no longer closed by grants alone: it has row-level security with four
+> policies, and `kf_app` lost INSERT and UPDATE on it
+> (`20260923000200_writes_match_the_context.sql`).
+
+---
+
+## What was measured
+
+`20260811000400_row_security.sql` enables and FORCES row-level security on `core.object`,
+`core.relation` and `core.audit_event`, on two axes: the reader's organization, and a
+classification ceiling that defaults to rank `-1` so an unset context sees nothing. That part
+works. Measured as `kf_readonly` with no access context bound:
+
+```
+core.object visible: 0
+```
+
+Every other table is a different story. Across the live schema, **77 tables are readable by at
+least one of `kf_app`, `kf_readonly`, `kf_auditor` and have `relrowsecurity = false`** — no
+policies at all, so no policy can deny. In the same unbound `kf_readonly` session that saw
+zero objects:
+
+```
+quality.controlled_document visible: 3
+org.person visible: 1
+
+document_number    | revision
+-------------------+---------
+OH-DOC-000002-1    | R01
+OH-DOC-LST-SYS-001 | R4
+OH-DOC-SPC-QMS-001 | R1
+```
+
+(`org.external_identity` returned zero rows because it is empty, not because anything stopped
+the read.)
+
+The list spans every domain: `work.*` (work orders, packages, acceptance records, amendments),
+`quality.*` (controlled documents, nonconformities, CAPAs, complaints, suppliers, training
+records, calibration), `engineering.*` (risk controls, test definitions and executions,
+verification links, decision alternatives), `product.*` (configuration items, interface
+contracts, physical bindings, baselines, releases), `org.*` (persons, engagements, role
+assignments, external identities), `finance.*` (invoices, lines, payments, allocations —
+these are closed to `kf_readonly` but open to `kf_auditor` and `kf_app`), `ops.*` (backup runs
+and copies, restore drills, recovery objectives) and `core.*` (`action`, `approval`,
+`snapshot`, `outbox`, `retention_hold`, `audit_checkpoint`).
+
+## Why this is a gap and not obviously a design
+
+The envelope carries identity — title, enterprise id, organization, classification — and the
+typed row carries the substance: a nonconformity's `description` and `containment`, a CAPA's
+`root_cause`, a work order's `scope_summary`, a test execution's `result_summary` and
+`invalidated_because`, a person's record. A reader who cannot see the envelope can still read
+the substance, and does not need to guess an id to do it — an unqualified `select` returns
+everything.
+
+The application path is largely protected in practice, because application queries join
+`core.object` and inherit its policies through the join. That is a property of how the queries
+happen to be written, not a property the database enforces: a future query that reads a typed
+table alone has no boundary, and nothing fails when someone writes one.
+
+The direct-connection roles have no such protection even in practice. `kf_readonly` and
+`kf_auditor` exist to connect and read; there is no query-time enforcement on that path at all.
+
+This is the identical shape of the defect closed in `20260816000100_search_visibility_boundary.sql`
+for `search.document` — a table whose visibility rule lived only in one query, reachable by
+roles that never run that query. The difference is scale: that was one derived table, this is
+77 authoritative ones.
+
+Note that `core.set_access_context` is executable by `kf_readonly` and `kf_auditor`, so those
+roles can bind any organization id they like. That is the fabric's existing model — the
+direct-connection roles are trusted to bind truthfully, and only the application derives a
+context from a verified identity — and it bounds how much any policy can achieve for them.
+It does not make the current state equivalent: today they need bind nothing at all.
+
+## Options
+
+1. **Enable RLS on every typed table**, with a policy that derives visibility from the owning
+   `core.object` row — `exists (select 1 from core.object o where o.id = <table>.id)`, the
+   pattern the `secure_object` schema already uses for its leaf tables. Deny-by-default then
+   holds fabric-wide, and the migration's own stated principle — "a table someone forgets to
+   write a policy for leaks nothing, rather than everything" — becomes true of the tables that
+   hold the records. Cost: 77 policies, a performance review of the added subquery on read
+   paths, and a decision per table on whether `kf_backup` needs a `using (true)` select policy
+   the way the `secure_object` tables do.
+
+2. **Withdraw direct `select` from `kf_readonly` and `kf_auditor`** on typed tables, leaving
+   them the API. Smaller change, but it removes the reason those roles exist, and it leaves
+   the application path still unenforced by the database.
+
+3. **Accept and document.** If the intent is that typed tables are reachable only through
+   `core.object` joins and that the direct-connection roles are fully trusted operators, then
+   that is a legitimate position — but it needs to be written down where a reviewer will find
+   it, and it needs a test that fails when an application query reads a typed table without
+   the join, or the property decays silently.
+
+## Recommendation
+
+Option 1, staged: start with the domains whose typed rows carry the most substance
+(`quality`, `engineering`, `org`, `finance`), measure the read-path cost, then complete the
+sweep. Option 3 is defensible only with the test, and the test is most of the work of option 1.
+
+Whichever is chosen, the choice belongs to the technical authority: this is the fabric's access
+architecture, not a local defect, and it predates the document-compiler and secure-object work.
+
+## Decision and stage one
+
+Option 1, staged. Stage one landed in `20260816000300_typed_table_row_security.sql`: 29 tables
+across `quality`, `engineering`, `org` and `finance`, 95 policies, taking the count of readable
+tables with no row-level security from **77 to 47**.
+
+The predicate is `exists (select 1 from core.object …)` rather than a copy of the two axes, so
+the organization and classification rules are inherited from the envelope rather than restated
+in 29 places that could drift. Child tables (invoice lines, payment allocations, training
+records, join tables) are visible when EVERY parent is — the rule `core.relation` already
+applies to its two endpoints, because otherwise a join table leaks the existence of records the
+reader may not see.
+
+Enabled, **not forced**, unlike `core.object`. The owner is a maintenance path here:
+`search.index_object` and `search.text_for` are SECURITY DEFINER and read every one of these
+tables to assemble a record's searchable text, and an indexer restricted to rows it can itself
+see would build the subset index that `text_for`'s own comment rejects. Each table also carries
+the `to kf_backup using (true)` select policy the secure-object ledger uses, because every one
+of them already grants kf_backup SELECT and a policy-less grant would return nothing — a backup
+that looks complete and is not.
+
+### Read-path cost
+
+The planner turns the envelope-keyed policy into a **hashed subplan**: one scan of `core.object`,
+hashed, then a hash probe per row — not a correlated subquery per row. Child policies keep one
+hashed side and one correlated `EXISTS` against a primary key. Full-suite wall clock moved from
+49.9s to 51.4s, which is inside the run-to-run spread.
+
+That is a plan-shape observation, not a throughput measurement: these tables hold single-digit
+row counts in every environment available here. The plan shape is the part that predicts
+whether it scales, and it is the right thing to have measured — but **the cost question still
+deserves a populated database**, and stage two proceeded without one on the grounds that
+waiting for data which does not exist would have deferred the coverage indefinitely. That was
+a deliberate trade, recorded here rather than buried.
+
+### Two things stage one deliberately did not do
+
+**`org.external_identity` is excluded.** It maps issuer+subject to a person and is read by
+`resolveIn` BEFORE the caller's organization claim has been verified — `resolveCaller` binds the
+access context FROM the claim and then proves it. Scoping the table by that context answers an
+authentication question with a scope answer: a valid token naming the wrong organization stopped
+reporting `role_not_held` and started reporting `unknown_subject`, and a person whose own record
+sits above the classification ceiling they requested could not sign in at all. Both were observed
+when it was included, and both are worse than the exposure they close. It needs a scope that does
+not come from the caller's own claim, or a narrower grant. **Resolved later the same day by the
+narrower grant — see "`org.external_identity`, closed differently" below. No longer open.**
+
+**`org.role`, `quality.federated_source` and `registry.*` are excluded on purpose.** They carry no
+organization anchor — they are vocabulary. `registry.*` additionally cannot take a policy at all:
+`core.object`'s own policies read `registry.classification` to rank a row, and a policy that
+depends on a table whose policy depends on it is not a boundary.
+
+### Stage two — landed 2026-08-16
+
+`20260816000500_typed_table_row_security_stage_two.sql`: 28 tables across `core`, `content`,
+`product` and `work`, 68 policies, taking the count from 47 to 20.
+
+`core.action` was the point of it. It carries `parameters` — the exact typed payload of every
+action ever performed — which is where a record's substance lives before, and often instead
+of, reaching a typed row. A nonconformity's description is in `quality.nonconformity` because
+an action put it there, and that action still holds it. Protecting the typed tables while
+leaving the actions that wrote them open would have been a boundary around the copy and not
+the original.
+
+It is scoped by its own `organization_id` rather than through an envelope, because it has one
+and because an action targets an ARRAY of objects: deriving a classification ceiling from
+`target_ids` would mean electing one target's ceiling to stand for all of them, which the
+schema does not support and a migration should not invent.
+
+**One judgement to overturn if you disagree.** `core.action` and `core.approval` follow the
+precedent `20260811000400` set for `core.audit_event` and give kf_auditor an unconditional
+read; nothing else does. An auditor who can read every audit event but only one
+organization's actions has a trail that stops mid-sentence. `core.snapshot` holds copied
+record content and stays scoped.
+
+The cost question this record raised before stage two was not answerable then and is not now:
+these tables still hold single-digit row counts in every environment available here. What is
+known is the plan shape — a hashed subplan, not a per-row correlated subquery — and that the
+full suite moved from 49.9s to 50.7s across both stages, inside the run-to-run spread. **A
+populated database would still be the right place to measure throughput.**
+
+### The 20 that remain, and why
+
+`registry.*` (10) is vocabulary, and `core.object`'s own policies read
+`registry.classification` to rank a row — a policy there would be a cycle. `ops.*` (6) are
+deployment facts about the whole cluster; asking which organization owns a backup of
+everything has no answer, and the `approved_by`/`declared_by` columns are attribution, not
+ownership. `core.audit_checkpoint` is the global integrity spine. `org.role` and
+`quality.federated_source` carry no organization anchor. `org.external_identity` is closed by
+withdrawing the grant instead — see below.
+
+### `org.external_identity`, closed differently — 2026-08-16
+
+Still not by a policy, for the reason stage one gave: it is read before the caller's
+organization claim has been verified, so scoping it by that claim answers an authentication
+question with a scope answer.
+
+`20260816000600_external_identity_reader_grant.sql` withdraws `select` from kf_readonly and
+kf_auditor, which touches the authentication path not at all because that path runs as
+kf_app. kf_app and kf_worker resolve identities; kf_backup keeps it, because a backup missing
+the identity links restores a fabric nobody can sign in to. This record's earlier note that
+the question was open is superseded.
+
+### The cost question, answered — 2026-08-17
+
+This record said twice that the cost "deserves a populated database" and shipped both stages
+without one. `tests/database/rls-read-cost.test.ts` is that database: 36,007 objects and
+36,000 actions across three organizations, read as **kf_readonly** with the access context
+bound — the direct-connection path this record is about, not the application path — median of
+seven runs. It is not a gate and does not run in CI; `KF_MEASURE_RLS=1` runs it.
+
+The answer was not the one expected, in two ways.
+
+**The typed-table policies are not where the cost is.** The three shapes measured very
+differently, and the ordering is the reverse of what the predicate complexity suggests:
+
+| shape                                          | policy | the join it replaces |
+| ---------------------------------------------- | ------ | -------------------- |
+| envelope-keyed (`quality.controlled_document`) | 514 ms | 445 ms               |
+| child chain (`quality.training_requirement`)   | 616 ms | 546 ms               |
+| direct column (`core.action`)                  | 12 ms  | 13 ms                |
+
+`core.action` — the one whose scoping column carries **no index**, which was the suspicion
+that prompted the measurement — is 40× faster than the envelope-keyed shape that joins to an
+indexed primary key. The missing index is real and is still not worth adding: a sequential
+scan of 36,000 rows costs 12 ms, and nothing in the plan degrades non-linearly. Revisit it
+when the ledger is large enough for that scan to matter, and add it then with a measurement
+rather than now with an intuition.
+
+**The cost is in `core.object`'s own policies, and most of it was avoidable.** Adding one
+term at a time to a hand-written copy of the predicate:
+
+```
+core.object · scan, no predicate                        0.8 ms   36007 rows
+core.object · organization term only                    0.8 ms   12005 rows
+core.object · organization + classification rank       98.2 ms   12005 rows
+core.object · full policy predicate, hand-written     461.1 ms   12005 rows
+core.object · same predicate, OR branches hoisted       93.8 ms   12005 rows
+```
+
+The organization term is free — `object_by_org` covers it. The classification rank costs
+~97 ms and is honestly per-row: it depends on the row's own classification. The remaining
+~363 ms was two predicates that depend on **nothing about the row** —
+`content.document_basis_classifier_active()` and `content.compiler_runtime_active()`, which
+ask whether a runtime is active. Both are separate PERMISSIVE policies, so PostgreSQL ORs
+them with the scoped policy and every row failing the organization test goes on to call both.
+
+Both are declared STABLE, which is easy to read as "evaluated once" and is not: STABLE
+promises only that the answer will not change within a statement. In a per-row filter the
+function is still called per row.
+
+`20260817000100_hoist_row_independent_policy_predicates.sql` wraps all 30 such policies in
+`(select …)`, which lets the planner lift them into an InitPlan evaluated once per statement.
+Same truth value, same rows — the harness asserts the row counts match before it reports
+either duration, and the full suite passes unchanged, which is what makes this a plan change
+rather than a policy change. Re-measured with it installed:
+
+| shape                         | before | after      |
+| ----------------------------- | ------ | ---------- |
+| `controlled_document` policy  | 514 ms | **190 ms** |
+| `controlled_document` join    | 445 ms | **114 ms** |
+| `training_requirement` policy | 616 ms | **272 ms** |
+| `training_requirement` join   | 546 ms | **210 ms** |
+| `core.action` policy          | 12 ms  | 12 ms      |
+
+`core.action` is unchanged, correctly: its policy has no such branch. The gain lands on every
+read of every object in the fabric, including the application's join path, because the
+predicate being fixed belongs to `core.object` rather than to anything stage one or two added.
+
+`tests/database/policy-predicate-shape.test.ts` pins the property against the INSTALLED
+policies rather than the migration text, and refuses to pass vacuously: it requires the 30 to
+be present in the hoisted form, so a renamed function or an unapplied migration fails rather
+than reporting a clean sweep of an empty set.
+
+**What is left, with its size.** The classification-rank term is now the largest remaining
+cost — roughly 99 ms of the ~190 ms envelope-keyed read — and it is a correlated subquery
+into `registry.classification` executed once per row (12,005 index searches for 12,005 rows).
+`registry.classification` is a handful of rows, so a form the planner could hash once would
+remove most of it. That is a change to the security predicate itself rather than to how often
+it runs, so it wants its own decision and its own measurement. **Made below.**
+
+### The classification ceiling, hashed — 2026-08-17
+
+`20260817000200_hashable_classification_ceiling.sql` rewrites the ceiling in `core.object`'s
+three policies from a correlated subquery naming the row
+
+```sql
+(select rank from registry.classification where id = classification)
+  <= core.current_classification_rank()
+```
+
+to an uncorrelated one the planner can hash once:
+
+```sql
+classification in (select id from registry.classification
+                    where rank <= core.current_classification_rank())
+```
+
+```
+core.object · organization term only                    1.3 ms   12005 rows
+core.object · organization + classification rank      137.3 ms   12005 rows
+core.object · organization + rank, hashable form        2.0 ms   12005 rows
+```
+
+**Why this is safe is established, not argued.** The term is in `object_write`'s WITH CHECK
+and in BOTH halves of `object_update`, so it governs what a caller may write and what they may
+reclassify a record to — not only what they may read. A form subtly weaker in some corner
+would let a writer move a record beyond their own ceiling.
+
+`tests/database/classification-predicate-equivalence.test.ts` compares the two forms
+EXHAUSTIVELY — every classification the registry defines crossed with every ceiling a caller
+can bind, including ceilings that are not classifications and classifications that are not in
+the registry. The admission decision is identical at all 42 points.
+
+They differ in exactly one respect, at inputs that cannot occur: a classification the registry
+does not define yields NULL from the correlated form and FALSE from the hashable one. RLS
+denies on both, and `core.object.classification` is `not null references
+registry.classification (id)`, so no row can carry such a value. The test asserts the
+difference is confined to exactly those inputs, and asserts the constraint that makes them
+unreachable — so relaxing that constraint later fails the suite instead of quietly widening
+the corner.
+
+### Both changes together, and the third cost neither of them touched
+
+```
+controlled_document · policy                          146 ms   12000 rows
+controlled_document · policy, jit off                  16 ms   12000 rows
+controlled_document · join (status quo)                16 ms   12000 rows
+controlled_document · no boundary (pre-ADR)             1 ms   36000 rows
+```
+
+|                              | at stage two | after both | after both, JIT off |
+| ---------------------------- | ------------ | ---------- | ------------------- |
+| `controlled_document` policy | 514 ms       | 146 ms     | **16 ms**           |
+| `controlled_document` join   | 445 ms       | 16 ms      | —                   |
+
+Buffer traffic on the same read fell from **145,657 to 1,637**. The plan now shows the two
+runtime gates as `InitPlan`s evaluated once (0.06 ms) and the ceiling as a single hashed
+`SubPlan` with `Index Searches: 1` over 4 rows.
+
+**The remaining 130 ms is JIT compilation, not query execution.** Measured directly rather
+than inferred by subtraction: the identical read with `set local jit = off` costs 16 ms, the
+same as the join. Nesting the typed-table policy inside `core.object`'s gives the planner a
+cost estimate around 2.2 million — the estimate is an artefact of nested subplans, not of the
+work — that estimate crosses the default `jit_above_cost` of 100,000, and PostgreSQL compiles
+44 functions for a query that runs in 16 ms without them.
+
+That is a **deployment setting, not a schema change**, and it is not applied here: raising
+`jit_above_cost` or disabling JIT affects every query on the host, and choosing that belongs
+to whoever operates it. It is recorded in `docs/deployment/private-host.md` with these
+numbers. Worth knowing that the effect grows with policy nesting, so it lands hardest exactly
+where this record added the most policies.
+
+### The rest of them — 2026-08-17
+
+`20260817000300_hashable_classification_ceiling_remaining.sql` finishes the sweep. **No policy
+anywhere in the fabric now evaluates the classification ceiling once per row.**
+
+**A correction first.** The paragraph this replaces said "ten other policies". That was wrong,
+and wrong in the direction that matters: it came from reading a truncated listing rather than
+counting. Enumerated properly from `pg_policies`, the remainder was **15 policies, 19 clauses,
+across 10 tables**:
+
+| table                                | policies       | clauses | ceiling column                               |
+| ------------------------------------ | -------------- | ------- | -------------------------------------------- |
+| `content.adr_decision_body`          | read, insert   | 2       | `decision.classification`, inside an EXISTS  |
+| `content.authored_fragment_revision` | scope (ALL)    | 2       | `classification`                             |
+| `content.compilation_basis`          | read, finalize | 2       | `effective_classification`, one inside an OR |
+| `content.compilation_run`            | scope (ALL)    | 2       | `effective_classification`                   |
+| `content.compiled_view`              | scope (ALL)    | 2       | `effective_classification`                   |
+| `content.document_publication`       | scope (ALL)    | 2       | `effective_classification`                   |
+| `ml.aggregate_reference`             | read, insert   | 2       | `classification_id`                          |
+| `search.document`                    | read           | 1       | `classification`                             |
+| `secure_object.capability_request`   | read, insert   | 2       | `classification_id`                          |
+| `secure_object.erasure_request`      | read, insert   | 2       | `classification_id`                          |
+
+Four distinct classification columns and four different surrounding predicates, which is why
+this was transcription rather than a textual sweep. Each policy is restated in full from its
+defining migration; every clause that is not the ceiling is copied verbatim, so the diff is
+exactly the ceiling and nothing else.
+
+**What was measured and what was not, stated separately.** The throughput effect was measured
+on `core.object` — 137.3 ms to 2.0 ms on the term. These 19 clauses carry the _identical_
+term and receive the _identical_ rewrite, and that is verified two ways: the migration asserts
+fabric-wide that zero per-row clauses remain and exactly 23 hashed clauses exist, and the
+exhaustive equivalence test covers the term itself. Per-table throughput on these ten tables
+was **not** separately benchmarked — they hold single-digit row counts in every environment
+available here, which is the same limitation stage one recorded and the same reason it is
+worth saying rather than implying a measurement that was not taken.
+
+**Fail-closed on both sides.** The up section refuses to complete unless zero correlated
+clauses remain fabric-wide AND exactly 23 hashed clauses are present; a count of "more than
+zero" would be satisfied by one rewritten clause and report a finished sweep. The down section
+refuses unless it restores exactly 19. `tests/database/policy-predicate-shape.test.ts` runs
+the round trip — 0 to 19 to 0 — and carries a standing guard that lists any policy clause
+anywhere that reintroduces the per-row form, because that form is what anyone writes first and
+it is invisible until somebody measures.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0004-production-release.md · uuid: 0f2d0044-024d-52a1-a09c-54564dd9d372 -->
+
+# ADR KF-0004: What v1.0 claims, and what still has to be true before it can
+
+**Status:** accepted — the criteria below are the v1.0 gate; licence half superseded by
+[ADR 0005](KF-ADR-0005-apache-2-0-licence.md); replacement criterion amended by
+[ADR 0032](KF-ADR-0032-the-seven-day-floor-is-waived.md) (the seven-day floor is waived)
+**Date raised:** 2026-08-17
+**Date decided:** 2026-08-17
+**Decision owner:** technical authority
+**Scope:** what the version number `1.0.0` asserts about this system, which of the remaining
+blockers gate it, and the criterion that replaces roadmap step 10's thirty-day shadow
+**Decision:** v1.0 requires a commissioned host, not only finished software. No third
+deployment profile. The shadow becomes an evidence criterion rather than a calendar one.
+
+---
+
+## Why this exists
+
+Roadmap steps 1–9 are implemented. `pnpm gate` passes on a workstation — 112 test files, 1120
+tests when this was raised. The last blocker that was missing _code_ rather than host evidence
+closed on 2026-08-17 with `kf-alert@.service`. What is left is of a different kind, and the
+version number has to say which kind it is.
+
+**This paragraph previously read "Seven CI gates pass", and that was false in a way this record
+of all records should not have contained: no CI job has ever run in this repository.** All 38
+workflow runs — every run that exists, back to the oldest retained — failed within seconds at
+job-start with "The job was not started because recent account payments have failed or your
+spending limit needs to be increased". Not one step executed. The seven gates have only ever been
+enforced by a person running them on one machine.
+
+That does not make the tests less green; `pnpm gate` really does pass, and the parity test really
+does hold the local command to `ci.yml`. It made the enforcement imaginary. Every guarantee in
+this repository that ended "and CI checks it" ended at a workstation instead, including the secret
+scan, which by construction cannot be run locally by everyone. Corrected 2026-08-17. The
+consequences are criterion 1 and the new criterion 5.
+
+**Billing was restored on 2026-08-18 and CI passed the same day** — run `32146924053` at commit
+`93e5b6c4`, four jobs green in 6.8 minutes. It took six runs, and the five failures in between are
+the real content of this amendment: the runner did not satisfy bubblewrap's namespace
+requirements, a PostgreSQL 18 client, `/usr/bin/node`, or pandoc. Four of those are named in
+`docs/deployment/private-host.md` as host requirements and had never once been checked against a
+machine. Pandoc was named nowhere at all, and a host commissioned strictly by that document would
+have answered every document import with HTTP 500.
+
+So the enforcement was imaginary in a second sense nobody had stated: not only was no gate
+running, but the environment the gates assume had never been described completely enough for
+another machine to reproduce. `pnpm gate` was green here for the life of the repository because
+this workstation happened to have five things, not because the contract asked for them.
+
+The risk this record exists to prevent is a familiar one in this repository: a true statement
+that reads as a larger one. "Knowledge Fabric v1.0" would be read by almost anyone as "this is
+running and holding records". If it were tagged today it would mean "the software is finished
+and nothing has ever been deployed", and nothing in a version number distinguishes those.
+
+## What was measured
+
+```
+pnpm gate                    exit 0 — 112 files, 1120 passed, 4 skipped
+gh run list (2026-08-17)     38 runs, 38 failed, 0 succeeded — no job ever started
+gh run 32146924053           SUCCESS, 4/4 jobs, 6.8 min — first green run, 2026-08-18
+gh run list --workflow=release.yml  7 runs on tags, 5 green — 2026-08-21
+gh run 32460755092           SUCCESS, 2/2 jobs — tag v0.9.0-rc1, since deleted
+gh run 32523164046           SUCCESS, 2/2 jobs — tag v0.9.0, sbom.cdx.json 694202 B attached
+pnpm ontology:verify (2026-08-17)  release/knowledge-fabric-1.0.0-draft.2 → DRAFT, exit 1
+pnpm ontology:verify --key         same package → APPROVED, signed 2026-08-19
+kf-commissioning             never run against a host
+deployment profiles          development | dogfood        (no `production`)
+known blockers               8, of which 3 have no automated check  (8th: attestor_separation, 2026-09-24)
+```
+
+The second and third lines are the ones that changed what this record says. The 38 failures were
+measured after the workflows were hardened on 2026-08-17 and were not what anyone expected: a
+billing state on the GitHub account, not a defect in the workflows, predating every change made
+that day. A workflow that cannot start is indistinguishable, in a repository's own documentation,
+from one that starts and passes — which is why both lines are measured here rather than assumed
+anywhere.
+
+The third line does NOT discharge criterion 5, which asks for a green run on the commit being
+TAGGED FOR RELEASE. What it establishes is narrower and was previously unknown: that these gates
+CAN pass on a machine nobody configured by hand.
+
+**It used to end "nothing is tagged", and lines four through six are why that sentence is gone.**
+`v0.9.0` was tagged on 2026-08-21 and the release path ran green on it. The blocker-count line
+moved for the same reason: the count of blockers with no check is 3, not 4, and has been since
+`reverse_proxy_posture` and `liminal_runtime_inventory` shipped on 2026-08-17.
+
+Nothing has been commissioned on any host. Every deployment artifact in this repository — units,
+templates, verifiers, the migration runner, the rollback contract — is an input to
+commissioning, not evidence of it.
+
+## What v1.0 claims
+
+1. The software is complete against roadmap steps 1–9 and every gate `ci.yml` defines passes
+   from a clean checkout — **in CI, on the commit being tagged**, not only on the workstation that
+   wrote it. See criterion 5, which exists because that distinction turned out to be load-bearing
+   rather than pedantic.
+2. **MET on 2026-08-19.** The R01 schema pack `1.0.0-draft.2` has been approved and signed by
+   Brian Lam (Technical Authority), key `release-1`, accepting all three recorded gaps.
+
+   ```sh
+   pnpm ontology:verify release/knowledge-fabric-1.0.0-draft.2 \
+     --key ontology/release-keys/release-1.pub      # 9 file(s) checked — APPROVED
+   ```
+
+   **The `--key` is not optional and this criterion used to omit it.** It read "so
+   `pnpm ontology:verify` reports `APPROVED`", which describes a command that cannot produce
+   that result: without a public key the verifier reports "signed with 'release-1', for which
+   no public key was supplied". `approval.ts` is explicit that approval "is a claim about a
+   signature that verifies, not about a file", so an approval nobody can check is not one. The
+   public key is committed at `ontology/release-keys/release-1.pub` for exactly that reason.
+
+   **The signature is in this repository; the pack it signs is not, and that asymmetry is the
+   decision rather than an accident of `.gitignore`.** Settled 2026-08-24 in `3f2c68e0`, and
+   this paragraph is a correction: it previously read "the signed package itself is NOT in this
+   repository … that file is a single point of loss", which described the risk accurately on
+   the day it was written and was still standing here for hours after the risk was closed. The
+   record that defines the release gate is the worst place for a stale warning, because a
+   reader budgets work against it.
+
+   What is recoverable was measured, not assumed:
+
+   |                 |                  |                                                                                                                            |
+   | --------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------- |
+   | pack + manifest | **reproducible** | two builds byte-identical, and a rebuild from the source at `7b56a13f` reproduced the approved manifest `3a2b133b` exactly |
+   | `approval.json` | **not**          | `approveRelease` signs a payload containing `approved_at`, so re-signing the same manifest yields a different signature    |
+
+   A grep for `new Date` / `Date.now` / `randomUUID` / `Math.random` across the whole
+   ontology-compiler package hits exactly one file — `approval.ts` — so the timestamp is the
+   sole nondeterminism, and it is enough to make the signature irreplaceable.
+
+   So `.gitignore` keeps `/release/*/approval.json` and excludes everything beside it. Tracking
+   the pack as well would commit ~280 KB of derived bytes that regenerate from `ontology/`, and
+   a second copy of a derived artifact is the drift this repository keeps removing. Tracking
+   the signature alone costs a few hundred bytes and removes the single point of loss entirely:
+   the approval now survives a lost workstation, and any clone can verify it after rebuilding
+   the pack from source.
+
+3. **One host has been commissioned**, and `kf-commissioning` reports every check `satisfied`.
+   Not `unverifiable` — a check that could not run is not a check that passed, which is why
+   that status exists and why it fails the gate.
+4. The document-compiler parity criterion below has been met and cutover accepted.
+5. **A CI run has actually executed and passed on the tagged commit.** Added 2026-08-17, when the
+   run history was checked for the first time and found to be 38 failures out of 38, none of which
+   started a job. The workflow existing is not the gate; a green run is.
+
+   **Still open, and twice over no longer for the reason it was written.** Billing was restored
+   on 2026-08-18 and CI now passes on `main` (run `32146924053`). That answers the question the
+   criterion was really asking — whether these gates can pass anywhere but the workstation — and
+   it does not satisfy the criterion, which says _the commit being tagged for release_.
+
+   **This paragraph said `release.yml` had still never run, and on 2026-08-24 that was three
+   days out of date.** It has run seven times, all on tags, and the last five were green. The
+   advice it ended with — prefer finding it on a tag that can be deleted — was not a suggestion
+   for the future; it had already been taken. `v0.9.0-rc1` was pushed, went green in both jobs
+   (`32460755092`), and was deleted; the tag is absent from the remote today. Then `v0.9.0`
+   itself went green (`32523164046`) and CI created the release and attached a 694 KB
+   `sbom.cdx.json` to it.
+
+   So the three things this record called unproven on a runner are proven on one. The SBOM step
+   produced a bill with licence data; the create-if-absent branch created a release that did not
+   exist; the tag passed the same `pnpm gate` every other commit passes. Only the `--verify-tag`
+   _refusal_ is still unexercised, and it can only fire on a ref that does not exist, which a tag
+   push cannot produce.
+
+   The two red runs before those are the ones worth keeping: a shared composite action read the
+   caller's environment, and three of six runner-image guards could not fail. Both were found by
+   the rehearsal rather than by `v0.9.0`, which is the whole argument for rehearsing.
+
+   **What remains is narrow and nearly tautological, and saying so is the point.** The criterion
+   asks for a green run on the commit tagged `v1.0.0`. The release path has not changed since
+   `v0.9.0` — `git diff v0.9.0..HEAD -- .github/workflows/release.yml .github/actions/` is empty —
+   so it is a proven mechanism awaiting a tag, not an unknown. A second rehearsal tag would
+   re-prove an unchanged file against an unchanged runner. Criterion 5 will be satisfied by the
+   act of tagging v1.0.0, or it will fail loudly at that moment, and either is a result.
+
+## What v1.0 does not claim
+
+Stated because each of these is something a reader could reasonably assume from a 1.0:
+
+- **Not FDA cleared, not a medical device, not for clinical use.** No regulatory submission
+  exists for this system.
+- **No PHI.** Protected health information never enters the Fabric in any form. This is an
+  absence, not a control — there is no PHI-handling capability to assess.
+- **Not multi-tenant in operation.** The schema is organization-scoped and row-level security
+  enforces it, but v1.0 is one organization on one host. Federation exists and is tested; it
+  has not been operated between two real deployments.
+- **Not a claim about availability.** No SLA, no redundancy, no failover. The recovery
+  objective is whatever the operator declared, proven only by the restore drill.
+- **Not independently reviewed.** See "Separation of duty" below.
+
+## Production is a state of the host, not a deployment profile
+
+The obvious move on a production release is to add a `production` profile beside `development`
+and `dogfood`. It is rejected.
+
+`dogfood` already enforces every process-level rule production needs: the fixed `KF_DEV_*`
+identity is refused and `KF_ALLOW_FIXED_IDENTITY=1` cannot re-enable it, an identity provider
+is required, the API binds loopback, and the process refuses to start unless the deployment
+asserts TLS is terminated upstream. A third profile would change none of that. **A label that
+changes no behaviour is a control that is not one**, and this repository has spent enough
+effort removing those.
+
+There is exactly one real difference, and it is handled directly rather than by a flag:
+`docs/deployment/private-host.md` permits PostgreSQL, object storage and Keycloak to begin on
+the same private host "for bounded dogfood". That is a genuine production concern. The
+commissioning record must therefore **state whether the host co-locates them**, and if it does,
+say so in the same record that claims the host is commissioned — rather than a profile string
+implying it does not.
+
+"Production" is therefore not a value of `KF_DEPLOYMENT_PROFILE`. It is the state of a host on
+which every commissioning check is satisfied and the evidence is on file.
+
+## The shadow, restated as evidence rather than calendar
+
+Decision 0002 §6 requires:
+
+> shadow LamQuant and KF compilers for 30 consecutive days after strict parity passes. Zero
+> unexplained semantic drift is required.
+
+The intent is a drift-observation window. The mechanism is a _count of compilations_, not a
+duration: drift can only be observed when something compiles. A quiet month observes nothing
+and records that identically to a clean month — "no drift observed" and "nothing was observed"
+produce the same log line, which is the failure mode this repository keeps finding in its own
+checks.
+
+Thirty days was chosen for a live changing estate. This corpus is three documents.
+
+**Replacement criterion.** Cutover is permitted when all of the following hold:
+
+- each of the three constitution documents in `dogfood/document-constitution.json` has been
+  compiled at least **twice**, with byte-identical output across the two runs;
+- each of the five document-lifecycle action paths has been exercised at least **once**:
+  `request_document_compilation`, `accept_document_compilation`, `record_document_proposal`,
+  `apply_document_proposal`, `publish_document_view`;
+- **zero unexplained semantic drift** has been observed, unchanged from 0002;
+- and at least **7 days** have elapsed.
+
+The day floor is not evidence. It exists so that a burst of activity in one afternoon cannot
+satisfy the criterion, because some drift is only visible across a restart, a certificate
+rotation or a scheduled job that runs daily.
+
+**This is weaker than thirty days, and here is what is given up.** Thirty days observes
+conditions nobody enumerated — a month-boundary job, an expiring token, a log rotation, an
+operator doing something unanticipated. The criterion above observes only what it names. It is
+accepted because the strict-parity gate precedes it and is the stronger check, because the
+corpus is small and fully enumerable, and because the alternative in practice was not thirty
+observed days but thirty elapsed ones. If the corpus grows beyond the constitution, this
+criterion is no longer adequate and must be revisited before the next cutover.
+
+## Separation of duty on release approval: not achieved
+
+One person is the technical authority, the quality authority and the accepting party for this
+release. This is recorded rather than concealed behind three role names.
+
+The consequence is concrete: **a mistaken approval has no second reader.** Everywhere else in
+this system separation of duty is enforced by the kernel — a reviewer cannot accept work they
+performed, KF-FIN-003 refuses a payment authorization that exceeds its allocations, step-up
+authentication gates the acts that matter. None of that applies to the act of approving the
+release itself, because there is one person.
+
+Accepted for v1.0 on the basis that the alternative is not a better-reviewed release but no
+release. It should not survive contact with a second engineer: the first thing to do when one
+exists is to move quality authority or cutover acceptance to them.
+
+## Blockers that gate v1.0
+
+Carried from `docs/deployment/private-host.md`, which remains the authoritative list.
+`tests/deployment/commissioning-blockers.test.ts` holds that list and the check registry in
+agreement.
+
+Two can never be automated from this repository, and v1.0 requires a person to close them:
+
+- **A person receiving an alert.** `kf-alert@.service` ships and is tested against a real
+  HTTPS endpoint, but a webhook URL that is wrong, revoked or pointed at an abandoned channel
+  passes every test and reaches nobody. `kf-commissioning --send-test-alert` exists to make
+  this one command and one confirmation rather than an open question.
+- **Real-provider browser evidence.** The OIDC path is exercised against fixtures. Whether a
+  person can complete a login against the real realm is not a question this repository can ask.
+
+## What this record does not settle
+
+- **Any public release.** Publication is a separate decision. The mechanism exists —
+  `scripts/publish-public.sh`, which publishes one squashed commit into a repository that shares
+  no history with this one — and it has been exercised against a local bare repository, but no
+  release has been published and the decision to publish one has not been taken here.
+
+  > **SUPERSEDED 2026-08-21 by [ADR 0005](KF-ADR-0005-apache-2-0-licence.md).** The licence is now
+  > Apache-2.0, not BUSL-1.1. The paragraph below is left standing as the record of what was
+  > decided at the time and is no longer a description of the repository. The BUSL choice was
+  > never published — the repository was private for its entire duration — so no version was
+  > distributed under it. Nothing else in this ADR is affected.
+
+  **The licence half of this bullet is now settled and the bullet was corrected on 2026-08-17.**
+  It read "v1.0 ships private and `UNLICENSED`", which stopped being true when the decision owner
+  chose BUSL-1.1 with Licensor "OpenHuman Technologies LLC" and a Change Date of 2030-08-17,
+  converting to Apache-2.0. `LICENSE` carries all five parameters — Licensor, Licensed Work,
+  Additional Use Grant, Change Date, Change License — and `package.json` agrees. Shipping
+  private and shipping unlicensed are different things: v1.0 still ships private, and it is no
+  longer unlicensed.
+
+  The Licensor's registered name was open for one commit — `LICENSE` said "OpenHuman
+  Technologies" and `README.md` said "OpenHuman Technologies LLC" — and was confirmed as
+  **OpenHuman Technologies LLC** on 2026-08-17. The repository had in fact already answered it
+  wherever the name appears as DATA rather than prose: the dogfood bootstrap, the database
+  harness and the R01 golden conformance fixture all seed `legal_name` "OpenHuman Technologies
+  LLC". Worth recording as a method, not just an outcome — when a name is written two ways, the
+  fixtures are usually the ones that had to be right.
+
+- **A second operator, or federation between two real deployments.**
+- **Whether the thirty-day shadow should return** if the document corpus grows. Flagged above;
+  not decided here.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0005-apache-2-0-licence.md · uuid: 238da729-fa45-5062-9404-291136a51925 -->
+
+# ADR KF-0005: Apache-2.0 replaces BUSL-1.1, before first publication
+
+- **Status:** accepted
+- **Date:** 2026-08-21
+- **Decision owner:** OpenHuman Technologies LLC
+- **Supersedes:** the licence half of [ADR 0004](KF-ADR-0004-production-release.md); the rest of 0004 stands
+
+## Context
+
+ADR 0004 chose BUSL-1.1 with a Change Date of 2030-08-17 converting to Apache-2.0. That choice
+was made while the repository was private and before the question "what do we actually want
+people to be able to do with this?" had been answered.
+
+It has now been answered, by the decision owner, plainly: _"I don't care what people do with it.
+It's just a project for myself that I maintain."_
+
+BUSL-1.1 exists to prevent exactly one thing — a third party offering the licensed work to
+others as a hosted or managed service. That is a commercial-protection mechanism. Against a
+stated position of not caring, it protects nothing and costs something real:
+
+- it is **not** an open-source licence, is not OSI-approved, and does not meet the Open Source
+  Definition, so the repository would have had to say so prominently and repeatedly;
+- publishing under it means exposing the entire source and receiving none of the reciprocal
+  benefit — no drive-by contributions, no downstream adoption, no reuse — while adding legal
+  friction that stops a casual reader from touching it.
+
+Public plus BUSL is the worst of the available squares.
+
+AGPL-3.0 was considered and rejected for the same reason at a different angle. It does not
+prevent commercial use; it forces anyone who modifies and network-serves the work to publish
+their source. That is the same anti-hosted-service instinct as BUSL, achieved by copyleft
+instead of a time bomb, and it is still more restriction than "I don't care" calls for. It also
+costs: many organizations refuse AGPL on sight, and a project with outside contributors cannot
+relicense off AGPL without collecting an agreement from every one of them.
+
+## Decision
+
+**Apache License, Version 2.0.** `LICENSE` is the canonical ASF text, byte-identical, with the
+appendix placeholders intact. The copyright statement moves to `NOTICE`.
+
+Apache-2.0 over MIT for three reasons, in ascending order of weight:
+
+1. It was already the stated destination. ADR 0004 named Apache-2.0 as the BUSL Change License,
+   so this executes the existing plan early rather than reversing it.
+2. **Section 6 grants no trademark rights.** The project is named after the company that owns
+   the mark. MIT is silent on trademarks entirely.
+3. **Section 3 states the patent grant explicitly** instead of leaving it to be argued about,
+   which is what MIT does by omission.
+
+### The patent grant was checked, not assumed
+
+Section 3 grants every user a licence to any patent the Licensor holds that this code
+necessarily infringes. That is irreversible for every version published under it, so it was
+verified rather than waved through:
+
+- `git grep -i patent` over the tracked tree returns **zero** hits;
+- this repository is a records and ontology system; the inventions tracked in `openhuman-ip`
+  concern the signal codec and the hardware, neither of which is embodied here;
+- the decision owner confirmed on 2026-08-21: _"This code shouldn't handle any of my patents."_
+
+Worth recording for whoever revisits this: **no open licence preserves patent optionality.**
+AGPL-3.0 section 11 contains its own patent grant. If patents on a codebase must be preserved,
+the only options are a non-open licence or not publishing it. That was not the situation here.
+
+## Consequences
+
+- The project is open source, and may now say so without qualification. The careful
+  "source-available, not open source until 2030" language in `README.md` is deleted rather than
+  softened, because it is no longer true.
+- **No version was ever distributed under BUSL-1.1.** The repository was private for the whole
+  time that licence was in effect, so nobody holds rights under it and nothing needs honouring.
+  This is why the change is clean, and it is the reason it was done before flipping public
+  rather than after.
+- Commercialization is not foreclosed. The copyright holder may dual-license future versions,
+  and hosting, support and bespoke work are sellable under any licence. What is given up is the
+  ability to stop someone else doing the same.
+- `scripts/publish-public.sh` gained a stronger gate than it lost. It used to parse five BUSL
+  parameter lines and check that `Licensed Work` named the tag. Apache-2.0 has no parameters and
+  is not per-version, so those checks are gone — replaced by a **sha256 identity check against
+  the canonical text**, plus a `NOTICE` presence-and-copyright check and a `package.json`
+  agreement check. Any edit to `LICENSE` at all now stops a publish.
+- GitHub reported the licence as `NOASSERTION` under BUSL. Verbatim Apache-2.0 is detected, so
+  the repository will identify correctly to tooling and to licence scanners downstream.
+
+## What this does not decide
+
+Publication itself. Flipping the repository to public remains a separate act by the decision
+owner, as ADR 0004 said, and this ADR only settles the terms it would be published under.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0006-product-instance-boundary.md · uuid: 9842758c-9843-5088-bf46-c67c8c5d813a -->
+
+# ADR KF-0006: The product and the OpenHuman instance are different things
+
+- **Status:** accepted; database half implemented 2026-08-22, prefix pinned by approved artifact
+- **Date:** 2026-08-21
+- **Decision owner:** OpenHuman Technologies LLC
+
+## Context
+
+The repository went public under Apache-2.0 on 2026-08-21 so that anyone could run a records
+system like this one. Reading it back as a stranger, they cannot: the software is entangled with
+one organisation's policy, and nothing in the repository said which parts were which.
+
+Concretely, a clone gives you a system that seeds an organisation called "OpenHuman Technologies
+LLC" and enforces an identifier scheme — the `OH-` prefix, nineteen specific namespaces, product
+families named `SOMA` and `ATLS` — that belongs to one company's controlled document.
+
+The entanglement is thinner than it looks and deeper than it looks, in different places. Measured
+rather than estimated:
+
+- 65 tracked files mention `OpenHuman` or an `OH-` identifier, but **most are comments citing the
+  specification and test fixtures**, not coupling.
+- Exactly **three lines** hardcode the legal name, all in `apps/api/src/dogfood/bootstrap.ts`.
+- All six `registries/openhuman/*.yaml` files carry `source: {document: OH-DOC-000001-3}`. That
+  directory is **a transcription of a controlled document**, not product logic.
+- The compiler was **already** parameterised — `loadRegistryPolicy(dir)` takes a path.
+
+## Decision
+
+**The Knowledge Fabric is the product. An identifier registry is one deployment's policy. They
+are separate authorities, and the registry directory is the seam.**
+
+- `ontology-registry/` becomes `registries/openhuman/` — named for whose policy it is.
+- `KF_REGISTRY_DIR` selects the registry. It defaults to `registries/openhuman` **because that
+  is the only instance that exists**, not because it is privileged.
+- The README says the product does not know your company, and points here.
+
+Rejected: splitting the instance into a separate repository. It is the cleaner story, but it
+requires the seam to hold first, and today it does not (below). Doing the split before proving
+the seam would move the problem rather than fix it. Revisit when the leaks are closed.
+
+> **UPDATED 2026-08-22.** The database half of this is FIXED — see
+> `20260822000100_instance_identifier_namespaces.sql`. `core.valid_enterprise_id` is now
+> prefix-agnostic and allocation moved to a foreign key against per-instance data, so the
+> database accepts `AC-PART-000042-7` once that namespace is seeded.
+>
+> The remaining obstacle is **not** the one this section originally named, and the correction
+> matters. I wrote that widening `ontology/meta.yaml` would collide with the
+> `ontology_pattern_no_longer_looser` check. It would not: that check is a WARNING that fires
+> when the ontology gets NARROWER, because the design already intends "the ontology is
+> deliberately the looser of the two". Widening is consistent with it. I had the direction
+> backwards.
+>
+> The real obstacle is `tests/conformance/r01-golden.test.ts`, and it is firmer. Measured by
+> widening the pattern and regenerating, rather than reasoned about:
+>
+> ```
+> × every R01 JSON Schema definition survives byte-identically
+>   $defs.OrganizationNode was redefined:
+>   + ".properties.enterprise_id.anyOf[0].pattern"
+>   + ".properties.enterprise_id.anyOf[1].pattern"
+> ```
+>
+> That suite's PRESERVATION rule is "an approved semantic cannot be redefined by an extension,
+> ever". The `OH-` prefix is part of an APPROVED, signed R01 pack. Un-pinning it is therefore a
+> spec amendment requiring the pack owner — a governance act, not a refactor — and the system
+> refusing a developer the ability to do it quietly is the control working, not a defect.
+> The change was reverted; 15/15 conformance tests pass.
+
+## Where the line leaks — the honest part
+
+**A different registry compiles and is then rejected by the database.** The seam is real in the
+compiler and absent below it. Three layers still hardcode `OH-` and OpenHuman's nineteen
+namespaces:
+
+| Layer                                                              | What is hardcoded                                                                                   |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| `ontology/meta.yaml`                                               | `enterprise_id.any_of_patterns: '^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$'` — still true                  |
+| `generated/`                                                       | compiled from the above, so it inherits it — still true                                             |
+| `database/migrations/20260819000100_enterprise_id_check_digit.sql` | ~~`core.valid_enterprise_id()` enumerates the nineteen namespaces~~ **superseded 2026-08-22** below |
+
+So `KF_REGISTRY_DIR=registries/acme` would pass `registry-check` and then fail on insert, because
+`core.object.enterprise_id`'s constraint rejects `AC-DOC-000001-3`. The Damm digit is enforced
+correctly and generically; the _prefix and namespace set_ are not.
+
+**This was stated rather than fixed because fixing it is a real decision, not a cleanup.** The
+options, with their costs — **option 2 was taken on 2026-08-22**:
+
+1. **Generalise the shape, keep allocation in the registry.** Widen the pattern to
+   `^[A-Z]{2,4}-[A-Z]{2,5}-[0-9]{6}-[0-9]$` and let the registry be the narrower authority. Cheap
+   and consistent with Appendix B.1's own "regex conformance is necessary but not sufficient" —
+   but the database stops rejecting an unallocated namespace, which is a control this
+   organisation currently has.
+2. **Seed the allowed namespaces into a table.** ✅ **TAKEN.** Not by having
+   `core.valid_enterprise_id` read it, which was my proposal here and is UNSOUND — a CHECK
+   constraint must be IMMUTABLE and a function that reads a table is STABLE at best, so it
+   survives testing and breaks on dump/restore. Implemented instead as a composite FOREIGN KEY
+   from two stored generated columns on `core.object` to `registry.identifier_namespace`, which
+   is declarative, dump-safe, and additionally refuses to let a namespace be deleted while
+   identifiers still reference it.
+3. **Leave the database as OpenHuman's** and document that adopters write their own migration.
+   Honest, and makes "anyone can run this" require real work from the adopter.
+
+## What is NOT claimed
+
+**No second registry has ever been compiled.** A seam that has held exactly one instance is not
+demonstrated to be a seam — the same standard this repository applies to a test that has never
+failed. The intended proof is a `registries/minimal/` example that is genuinely different, and a
+CI check that compiles it.
+
+**2026-08-22: the database no longer blocks that, but the prefix does, and the difference is
+worth stating precisely.** Option 2 above was taken, so a second registry can now store records.
+What a second registry still cannot do is use its own PREFIX, because the `OH-` prefix is fixed
+in an approved R01 conformance artifact (above).
+
+So the swappable surface, measured rather than assumed, is:
+
+| Part of a registry                      | Swappable today                                               |
+| --------------------------------------- | ------------------------------------------------------------- |
+| namespaces, and which grammar each uses | **yes** — data, seeded per instance, enforced by FK           |
+| codes, rules, lifecycle, Damm vectors   | **yes** — compiled from the registry directory                |
+| the enterprise prefix (`OH-`)           | **no** — pinned by an approved artifact; needs the pack owner |
+
+A `registries/minimal/` example proving the first two rows is worth shipping and is not done yet.
+It would have to keep the `OH-` prefix, which is an odd-looking example and an honest one: it
+would demonstrate exactly which single element remains pinned, instead of implying the whole
+thing is free.
+
+**2026-09-24: a second registry has been compiled.** `tests/ontology/fixtures/registry-second/`
+is a genuinely different registry — prefix `AC-`, no `LOT` namespace — and
+`tests/ontology/registry-separability.test.ts` loads and packs it through the same compiler,
+asserts its policy files carry nothing of OpenHuman's, and records every remaining `OH-` pin
+exhaustively, so a new one fails and a removed one fails until the record says so. Measured, the
+pins are four files, not the one the table above implies:
+
+| File                                                                                                    | Pin                                                                              |
+| ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `ontology/meta.yaml`                                                                                    | the approved R01 pattern — the pack owner's act, unchanged                       |
+| `generated/json-schema/knowledge-fabric.schema.json`, `generated/openapi/knowledge-fabric.openapi.json` | compiled from it                                                                 |
+| `packages/ontology-compiler/src/damm.ts` (`validateIdentifier`, `formatEnterpriseId`)                   | a **code** coupling, not governance: hard-codes `OH-` and OpenHuman's namespaces |
+
+The last one matters beyond the prefix: `registry-check`'s reject-vector gate calls
+`validateIdentifier`, so for a second registry it is vacuous — every `AC-` identifier is refused
+for its prefix before the check digit is looked at. Unlike the `meta.yaml` pin, removing it needs
+no owner act. It is a fixture rather than the `registries/minimal/` example proposed above,
+because a shipped example with a foreign prefix would read as a supported configuration, which it
+is not while `meta.yaml` pins `OH-`.
+
+## Consequences
+
+- Adopters can see which directory is theirs to replace, which was previously unguessable.
+- The instance data stays in the repository — `dogfood/document-constitution.json`, the seeded
+  organisation, `tests/conformance/r01-golden/` — and is now identifiable as instance data.
+- `registries/openhuman/rules.yaml` `enforced_by` paths were repointed; they name real files and
+  would otherwise have become stale references.
+- The `OH-` coupling in the database is now written down. It was previously true and unstated,
+  which is the condition under which someone builds on it by accident.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0007-policy-predicates-in-functions.md · uuid: 1b561644-aab1-5526-a569-bb6a258b05a4 -->
+
+# ADR KF-0007: A recursive policy predicate belongs in a function, not inline
+
+- **Status:** accepted; implemented 2026-08-22
+- **Date:** 2026-08-22
+- **Decision owner:** OpenHuman Technologies LLC
+
+## Context
+
+`content.composition_input`'s row-level security policy cost about **950 milliseconds to count
+three rows**. Measured twice, on two independent databases — the Testcontainers harness (958 ms)
+and the development database as a non-superuser (930 ms) — so it is a property of the schema and
+not of any one test.
+
+The predicate is `exists(composition_revision)` and then a `CASE input_role` over six branches,
+each an `exists` against a _different_ RLS-protected table. Every one of those tables carries four
+permissive policies of its own, and its `_scope` policy references further protected tables:
+`composition_input → composition_revision → document_composition → core.object`, and five more
+chains beside. PostgreSQL inlines all of it into the calling query.
+
+Depth alone was not the problem. The planner de-correlates each `exists` and rewrites it as a
+**hashed** subplan — `ANY (id = (hashed SubPlan 22).col1)` — which materialises the _entire visible
+set_ of each referenced table, recursively, before a single row can be filtered. That is why the
+price was fixed rather than per-row, and why more rows would never have amortised it.
+
+Two consequences were already being paid. Any query touching the table paid the fixed second. And
+because the expansion is planned in one tree, combining several such reads into a single statement
+was **superlinear** — four `count(*)` that cost about a second apart cost 11.8 s together, which is
+what made a CI test fail against a 30 s server-side statement budget (task #156).
+
+## Decision
+
+**Move the predicate, unchanged, into a PL/pgSQL function and have the policy call it.**
+
+A PL/pgSQL body is opaque to the caller's planner. Each statement inside is planned separately and
+plan-cached, and the referent lookups become single-row index probes against a passed parameter
+instead of whole-table visible-set materialisations.
+
+Three properties of the function are load-bearing, and each is stated in the migration because
+each is a way this could have gone wrong:
+
+- **`SECURITY INVOKER`** (the default). The body's queries run with the _caller's_ rights, so every
+  referenced table enforces its own RLS exactly as before. This is what makes the change one of
+  plan shape rather than of who can see what. `SECURITY DEFINER` would bypass RLS inside the body
+  and force the visibility rules to be re-implemented by hand — the version of this change that can
+  silently leak.
+- **Not `STRICT`.** A row sets exactly one of the five referent columns and leaves four NULL, so
+  `returns null on null input` would return NULL for every row in the table, which RLS reads as
+  false. It would deny everything, on every path, while looking like a tidy annotation.
+- **Parallel-unsafe**, by omission. Read-only bodies are normally parallel safe, but this table is
+  far too small for any test to produce a parallel plan, so marking it safe would be an assertion
+  nothing in the suite could falsify.
+
+## The part that was nearly missed
+
+The obvious way to prove "same rows" is to compare what each access context can see before and
+after. That test was written, it passed, and **it could not fail**.
+
+A defect planted in the function — `return true` immediately after the parent check, discarding the
+entire `CASE` — passed it, along with both of its controls. The reason is a domain invariant:
+`add_document_composition` enforces `KF-DOC-CLASS-002`, _"composition classification must be at
+least its highest visible input"_, and `content.authored_fragment_revision` is append-only. A
+referent can therefore neither be created above its composition nor reclassified above it
+afterwards. Every referent is at least as visible as its parent, so the leading
+`exists(composition_revision)` decides the outcome by itself and the six branches never change a
+visible row. There is no fixture, reachable or contrived, that makes them observable through the
+policy.
+
+So the branches are checked against a different oracle: the original predicate, **lifted verbatim
+out of the bytes of the migration that created it** (`20260814000100_document_compiler.sql`) rather
+than retyped, and evaluated side by side with the function over argument tuples that include
+referents which do not exist. Both run as the application role with an access context set, so RLS
+applies inside both. `tests/database/composition-input-visibility-equivalence.test.ts` holds both
+checks; the extraction guards itself, because an extractor that grabbed the wrong span would
+compare the function against nonsense and pass.
+
+Both checks were confirmed able to fail, by planting two defects and requiring detection: the
+`return true` above, and a dropped `composition` branch.
+
+## Consequences
+
+- Same query, same three rows, same database, minutes apart: planning 27.3 ms → 0.15 ms, execution
+  799 ms → 3.5 ms.
+- `tests/end-to-end/document-dogfood.test.ts` went from 5.0–7.7 s to 0.47 s, which shows the tax
+  was never only on the counts — every query the test made against the table was paying it.
+- The equivalence test is now the thing to keep. If the predicate changes again, it must change in
+  the migration the test lifts its reference from, or the test will say so.
+- A census of all 367 policies found only four with three or more `EXISTS` clauses. The other three
+  are `ml.promotion_receipt`, `ml.run_lineage` and `ml.registry_registration`.
+
+### Measured 2026-08-23, and both things this section previously said were wrong
+
+They were called "predicted cheap; not measured", and a measurement against an empty table was
+called worthless. Neither survived contact.
+
+`select count(*)` per table, empty, as the application role with an access context bound:
+
+| table                      | jit on    | jit off | ratio |
+| -------------------------- | --------- | ------- | ----- |
+| `ml.registry_registration` | 4591.6 ms | 2.84 ms | 1617x |
+| `ml.run_lineage`           | 82.8 ms   | 0.35 ms | 235x  |
+| `ml.promotion_receipt`     | 2.2 ms    | 1.4 ms  | —     |
+
+**"An empty table reports it healthy" was exactly backwards.** `ml.registry_registration` with ZERO
+rows took four and a half seconds. The mechanism half of that claim was right — every subplan in the
+plan reads `never executed`, and the sequential scan finishes in 0.03 ms — but the conclusion drawn
+from it was not, because it accounted for only one of the two costs:
+
+- the **hashed subplans** cost scales with ROWS, and does build lazily, so an empty table hides it;
+- the **JIT compilation** cost scales with PLAN SIZE, which is data-independent, so an empty table
+  shows it in full. `registry_registration` expands to 33 distinct subplans, and compiling that is
+  where the 4.5 s went.
+
+Conflating the two produced a rule that would have told the next person to skip the measurement
+that mattered most.
+
+**The policies themselves are fine.** At 0.35–2.84 ms with JIT off, none of the three needs the
+treatment `composition_input` got — that one is 950 ms of genuine per-query execution, a different
+defect. What these three needed was `jit = off`, which `deploy/postgres/planner.conf`,
+`docker-compose.yml` and the test harness now all set. Their contribution beyond that is planning
+time: 8–16 ms for `registry_registration` against 0.4 ms for a plain table, paid per query and worth
+knowing about, but not worth a rewrite.
+
+The wider lesson for the JIT decision: 1617x on a real table is far outside the 8–14x measured on
+the `controlled_document` and `training_requirement` shapes, so that commit understated its own
+result.
+
+### Measured 2026-09-25, with rows
+
+The measurement above was of empty tables, which shows the JIT half of the cost and hides the
+hashed-subplan half. `tests/database/rls-read-cost.test.ts` now seeds 2 000 lineages per
+organization across three organizations — each with a seal, a promotion receipt and two
+registrations, every reference a policy asks about present — and counts each table as a
+`kf_readonly` login with the context bound, JIT off as deployed (`KF_MEASURE_RLS=1`, harness
+container, one run on a shared workstation; medians of seven):
+
+| table                      | policy  | no policy | rows seen / stored |
+| -------------------------- | ------- | --------- | ------------------ |
+| `ml.run_lineage`           | 5.3 ms  | 0.6 ms    | 2 000 / 6 000      |
+| `ml.promotion_receipt`     | 23.1 ms | 0.9 ms    | 2 000 / 6 000      |
+| `ml.registry_registration` | 40.5 ms | 0.7 ms    | 4 000 / 12 000     |
+
+Planning time in the same run: 0.6, 4.1 and 7.9 ms. Each policy returned exactly its own
+organization's rows. None of the three is near the 950 ms `composition_input` cost, so the
+conclusion above stands with the missing half measured; `registry_registration` is the one to
+watch as the registry grows, being the most expensive per row and the only one whose CASE reaches
+three tables.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0008-caller-asserted-classification.md · uuid: 804679ba-6426-5c44-a768-88c16203e616 -->
+
+# ADR KF-0008: The classification ceiling is asserted by the caller, not granted to them
+
+**Status:** superseded by ADR 0011
+**Date raised:** 2026-08-24
+**Decision owner:** technical authority
+**Scope:** how `maxClassification` reaches `core.set_access_context` on the application path,
+and whether it is a privilege the system grants or a limit the caller chooses
+**Decision:** The historical decision was left open in this record. ADR 0011 now accepts
+organization-scoped, effective-dated clearance and clamps every requested ceiling to the
+resolved effective ceiling at point of use. This record remains as the measured problem and
+options history; its recommendation to defer clamping no longer applies.
+
+## Correction
+
+The earlier recommendation said to wait until a host exists. That was a commissioning-risk
+judgment, not a permanent authority model. Production now seeds explicit clearance facts and
+refuses missing or excessive requests. Development-only header identity remains
+non-authoritative and is not a substitute for a clearance grant.
+
+---
+
+## What was measured
+
+Reading a KF record is bounded on two axes: the caller's organization, and a classification
+ceiling. `core.object`'s policies enforce both, and `core.current_classification_rank()`
+defaults to `-1` so an unbound context sees nothing. That part is fail-closed and correct.
+
+The question is where the ceiling comes from. On the application path it comes from a header.
+
+`packages/authorization/src/identity.ts` proves a great deal before admitting anyone:
+
+- the external identity is linked to a person, and the link is not revoked;
+- the acting role **is held by that person**, is `active`, belongs to **the organization the
+  caller claims**, and is valid _now_ rather than at sign-in.
+
+That organization clause is carefully built, and its comment explains why it is written in the
+query rather than left to row-level security: RLS hid another organization's role assignment on
+the application role and failed open on a superuser connection, so the boundary held only for
+callers connecting as exactly the right database role.
+
+**`maxClassification` receives none of that.** It is read from `x-kf-classification`, defaulted
+when absent, and passed through `resolveIn` to the returned `Caller` unmodified
+(`identity.ts:250`), then bound as the ceiling. `core.set_access_context` checks only that the
+value **names a classification that exists** — it raises `unknown classification %` for a typo
+and accepts any real one.
+
+A search for a per-person or per-role clearance found none. The only `max_classification`
+column in the schema belongs to the document compiler's runtime, which is a different thing.
+
+**So a caller whose token verifies, whose identity is linked, and who holds a valid role in the
+organization may name any ceiling up to `restricted`, and the database will honour it.**
+
+Two smaller findings from the same reading, both already corrected:
+
+- `apps/api/src/routes/actions/auth.ts` claimed the default was "the LOWEST tier … gets the
+  least". `public` is rank 0 and the default is `internal`, rank 1 — the second-lowest.
+- the fixed-identity path (`callerFrom`, used only when no token verifier is configured) is
+  explicit that "a header is an assertion, not a login", and sets an empty authentication
+  event so every step-up policy fails closed. That path is honest about what it is.
+
+## Why this may be the design rather than a defect
+
+ADR 0003 records the fabric's existing model: the direct-connection roles `kf_readonly` and
+`kf_auditor` can execute `core.set_access_context` and "are trusted to bind truthfully", and it
+bounds how much any policy can achieve for them. Under that model, a classification ceiling is
+a **self-limit** — a caller narrowing their own view — not a privilege the system withholds.
+
+If that is the intent, the current behaviour is consistent and nothing is broken. What is
+broken is only that nobody wrote it down, and ADR 0003 says something narrower: it describes
+the application path as the protected one, where "only the application derives a context from a
+verified identity". The application derives organization and role from a verified identity. It
+derives classification from an unverified header. That sentence is therefore true of two thirds
+of the context.
+
+## Why it may not be
+
+`restricted` exists as a tier, and the system is built for a quality-managed organization where
+who may see what is a real constraint rather than a display preference. If classification is
+meant to segregate people **within** an organization, then a caller choosing their own ceiling
+defeats it for every caller who thinks to try — including a compromised token that would
+otherwise have been confined.
+
+The blast radius is bounded and worth stating precisely: organization and role are still
+proven, so this is not cross-tenant. It is a ceiling choice _inside_ the caller's own
+organization and role.
+
+## Options
+
+1. **Record it as a self-limit.** Amend ADR 0003's sentence about the application path, state
+   in the threat model that classification is not an access control against the caller, and
+   leave the code alone. Cheapest, and honest. Costs: `restricted` stops meaning what a reader
+   would assume, and every future feature that reaches for classification as a boundary has to
+   be told.
+
+2. **Clamp to a granted clearance** _(recommended)_. Add a clearance to the person or the role,
+   and take `min(requested, granted)` in `resolveIn` — narrowing stays free, widening stops at
+   what was granted. Fits the existing shape: `org.role_assignment` is already the thing proven
+   at the moment of use, so a `max_classification` on the role assignment would be proven by
+   the same query that already runs. Costs: a migration, a seeding decision for existing
+   assignments, and a real risk of locking people out on the day it ships.
+
+3. **Default to `public` and require an explicit ceiling.** Orthogonal to 1 and 2 and cheap:
+   an omitted header currently yields `internal`, which is a choice nobody made deliberately.
+   Worth doing under either of the above.
+
+## Recommendation
+
+Option 2 with option 3, once a host exists — not before. The clamp is the option that makes
+`restricted` mean what a reader assumes, and doing it now would change the access behaviour of
+a system in the week it is first commissioned, where a lockout is indistinguishable from a
+commissioning failure. Ship v1.0 with the behaviour recorded honestly (option 1's write-up),
+then clamp.
+
+## What this record does not settle
+
+- Whether clearance attaches to the **person** or to the **role assignment**. The role is what
+  is proven at the moment of use, which argues for the role; a person's clearance is what an
+  auditor would expect to see, which argues for the person. Both are defensible and the choice
+  affects the migration.
+- Whether `kf_readonly` and `kf_auditor` should keep `execute` on `core.set_access_context`.
+  ADR 0003 accepted that they bind truthfully. If option 2 is taken for the application path,
+  leaving the direct path unclamped is a deliberate asymmetry that should be stated rather
+  than inherited.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0009-google-drive-ingestion.md · uuid: 53b825d6-cab3-5fad-81f5-48c61b57441d -->
+
+# ADR KF-0009: Google Drive ingestion is deferred until after v1.0
+
+**Status:** superseded by [ADR 0022](KF-ADR-0022-drive-as-external-source-holder.md) on 2026-09-02 — ingestion was built as a per-file copy with the revision and exporter recorded, NOT as a federated source; the measurement below is why that seam was not built
+**Date raised:** 2026-08-24
+**Date decided:** 2026-08-24
+**Decision owner:** technical authority
+**Scope:** whether the Fabric should read documents out of Google Drive, when, and what
+shape that takes when it does
+**Decision:** not before a host is commissioned and v1.0 is tagged. The design below is
+recorded because the expensive part of it is already known, and because one of its
+conclusions is uncomfortable enough to be worth writing down before anyone starts.
+
+---
+
+## Why this is deferred rather than scheduled
+
+It is a feature on a system nobody is running. Every criterion in
+[ADR 0004](KF-ADR-0004-production-release.md) that is still open queues behind one fact — no host
+has ever been commissioned — and criterion 4 carries a 7-day floor that cannot start
+counting until one is. Drive ingestion adds no day to that clock and removes none.
+
+There is also an upstream question it would inherit. `docs/deployment/private-host.md`
+records that the pandoc version is unpinned and that two hosts running different pandocs can
+produce different atoms for the same source. Drive's exporter is a second unpinned converter
+in the same path. Settling one while the other is open answers half a question.
+
+## What was measured
+
+The claim this ADR was expected to make — "a Drive file needs no schema change" — is
+**half true**, and the half that is false is the expensive half. Both halves were read
+rather than assumed.
+
+**The document-holder chain is ready.** `content.document_source_holder` already admits a
+non-git, non-fabric source:
+
+```sql
+holder_kind text not null check (holder_kind in ('fabric_native', 'git', 'external'))
+```
+
+and its `document_source_holder_one_authority` constraint requires, for `external`, exactly
+`external_authority` and `external_revision` non-empty and everything git-shaped null.
+Both are free text. `content_digest` is a required `^[0-9a-f]{64}$`. So a Drive file maps
+directly — `external_authority = 'google-drive:<fileId>'`,
+`external_revision = '<revisionId>'`, `content_digest` over the exported bytes — with no
+migration. The linear-chain constraints mean each re-export is a new Holder row pointing at
+the previous one, which is the correct shape for a source that changes.
+
+**The federation seam is not ready, and it is git-shaped in the database, not just in the
+types.** `quality.federated_reference` declares:
+
+```sql
+commit_sha text not null check (commit_sha ~ '^[0-9a-f]{40}$')
+```
+
+`SourceReader.read(commitSha, path)` takes the same thing, and `recordReference` rejects
+anything that is not 40 hex characters with `FederationRejected('not_pinned', …)` — "a
+branch is not a citation". A Drive `revisionId` is an opaque token, not a sha. It cannot be
+stored there today, and the fix is a migration that relaxes a CHECK which exists on purpose.
+
+So the work is not "implement a `SourceReader`". It is "decide what a citation means when
+the cited system has no commits", and then implement a `SourceReader`.
+
+## The uncomfortable part
+
+`checkDrift` treats a digest that no longer matches at a pinned commit as a hard alarm, and
+the code says why in as many words: content cannot change at a pinned commit, so "the
+history was rewritten, or this is not the source it claims to be". `recordReference` refuses
+the same event outright rather than upserting past it. That severity is correct for git and
+is the reason the module exists.
+
+**On Drive, that exact signal fires for a benign reason.** A Google Doc has no canonical
+bytes. What is hashed is whatever the exporter produced at the moment of reading, and Google
+can change the exporter with nobody editing the document. Digest changed, revision unchanged
+is therefore two different events wearing one face:
+
+| revision  | digest    | means                                               |
+| --------- | --------- | --------------------------------------------------- |
+| changed   | changed   | somebody edited the document — a real revision      |
+| unchanged | changed   | the exporter moved — nothing was edited             |
+| changed   | unchanged | an edit that survived export identically — possible |
+
+Only the second is new, and it is the one the current design cannot express. Both fields
+must therefore be recorded and compared **independently**, and exporter drift must be
+reported as its own finding rather than as `digest_mismatch`.
+
+The tempting shortcut is to soften `digest_mismatch` so Drive stops crying wolf. That must
+not happen: the alarm is shared with git, where it means a rewritten history, and softening
+it there to accommodate a different source's semantics would trade a real detection for a
+quieter log. If Drive needs a weaker signal, Drive gets a different signal — not the same one
+turned down.
+
+## Shape, when it is built
+
+- **Admission is an allowlist of specific files, never a folder sync.** PHI must never enter
+  the Fabric in any form, and bank details, tax identifiers and payroll secrets are never
+  stored in it. A recursive sync makes the boundary depend on what somebody dropped in a
+  folder, which is not a control. An allowlist makes each admitted document a decision.
+- **Read-only is structural, not conventional.** `quality.federated_source` carries a
+  `writable` column defaulting to false, and a `federated_source_read_only` CHECK that
+  requires it to be false. A Drive source is therefore read-only by the same constraint that
+  already binds every other source, and making it writable would be a reviewed migration.
+- **One seed row** in `quality.federated_source`, `id = 'google-drive'`.
+- **A `SourceReader` implementation** beside `GitSourceReader` in
+  `packages/integration/src/git.ts`. Note that `SourceReader.read` will need widening or a
+  sibling interface, since its first parameter is a commit sha by name and by contract.
+- **The export format is part of the citation.** Two hosts asking Drive for different export
+  MIME types get different bytes for one document, so the format belongs in the recorded
+  reference rather than in a caller's default — the same argument that puts `parserVersion`
+  in the atoms today.
+- **Credentials are host state.** A service-account key follows the per-role
+  `/etc/kf/<role>/` 0600 pattern in `deploy/systemd/README.md`; it is never in the
+  repository, and `~/.config/lamu/api-keys.env` is not a deployment mechanism.
+
+## What this record does not settle
+
+- **What replaces `commit_sha` for a non-git source.** Widening the column, adding a
+  discriminated `revision_kind`, or giving external sources their own table are all
+  defensible. The choice determines whether `checkDrift` stays one function or becomes two.
+- **Whether Drive documents may become controlled documents at all**, or only citable
+  references. A controlled document whose bytes are regenerated by a third party on a
+  schedule nobody controls is in tension with decision 0002's parity criterion, which
+  requires byte-identical compilation. This is the question to answer first, because a "no"
+  makes most of the above unnecessary.
+- **Whether the same seam should serve other external systems.** If it should, building it
+  Drive-first risks a Drive-shaped abstraction; if it should not, generality is wasted work.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0010-liminal-compiler-deferred.md · uuid: 0101c9df-5cbb-5d67-8845-6eca50c26626 -->
+
+# ADR KF-0010: v1.0 ships the native document compiler; the Liminal-backed one is deferred
+
+**Status:** accepted
+**Date raised:** 2026-08-25
+**Date decided:** 2026-08-25
+**Decision owner:** technical authority
+**Scope:** which document compiler v1.0 runs, what a release must carry, and what
+`liminal_runtime_inventory` checks when a release carries no Liminal compiler
+**Decision:** a release may carry a Liminal compiler or carry none, and must declare which.
+v1.0 declares none. The `PinnedLiminalProcessAdapter` stays in the tree, built and tested,
+wired to nothing. [ADR 0002](KF-ADR-0002-liminal-backed-document-compiler.md) is not reversed.
+
+> **UPDATED 2026-09-24.** There are nine commissioning checks, not eight: `attestor_separation`
+> was added in `3b047fff`. And the adapter was never "wired to nothing": `apps/worker/src/main.ts`
+> has constructed it since `bffc6739` (2026-08-15, before this record) whenever the `LIMINAL_*`
+> variables are set; a v1.0 host sets none, so no Liminal compiler runs, as this decision requires.
+
+---
+
+## What was measured
+
+This was found while trying to build a release tree so a host could be commissioned. The build
+could not start. `docs/deployment/private-host.md` refused, by design:
+
+```sh
+test -n "${LIMINAL_COMPILER_ARTIFACT:-}" ... || {
+  echo 'Liminal compiler, Cargo.lock and runtime closure must be supplied' >&2
+  exit 1
+}
+```
+
+Nothing can supply it. The counts below are counts, not impressions:
+
+| question                                                | measured                                                           |
+| ------------------------------------------------------- | ------------------------------------------------------------------ |
+| `vendor/liminal` in this repository                     | absent                                                             |
+| a Liminal compiler binary anywhere on the build machine | none                                                               |
+| Liminal source (`~/Desktop/liminal`)                    | 24 crates, 161 `.rs` files, `version = "0.0.0"`, `publish = false` |
+| Liminal files mentioning `kf-document`                  | **0**                                                              |
+| Liminal files implementing `--protocol`                 | **0**                                                              |
+| what has ever answered `--protocol kf-document-v1`      | a test fake, `liminal-adapter.test.ts:47`                          |
+
+So the protocol KF's adapter speaks is not implemented by the system it speaks to, and the only
+counterpart it has ever had is a stub inside its own test.
+
+**That does not make the adapter wrong.** Building an integration against a controlled fake is
+the correct way to build one whose counterpart is not ready, and the adapter is careful work:
+it verifies the executable's digest before spawning, passes runtime files as pinned descriptors,
+sandboxes with bubblewrap, and never executes an unqualified binary. The defect is not in the
+code. It is that a **deployment contract** made a component mandatory that no release could
+contain.
+
+## What bounds it
+
+The adapter is not on the running path, and this is the fact that makes deferring cheap rather
+than a concession:
+
+| symbol                    | callers outside the adapter |
+| ------------------------- | --------------------------- |
+| `runLiminalCompiler`      | 0                           |
+| `compileWithLiminal`      | 0                           |
+| `performLiminalPreflight` | 0                           |
+| `verifyLiminalExecutable` | 0                           |
+
+Documents compile through `packages/documents/src/compiler/run.ts` — `runCompilation`, exported
+via `compiler.ts`. That is the compiler the workbench, the lifecycle actions and the parity
+criterion all use today, and it is inside the release tree, covered by `SHA256SUMS` like every
+other file.
+
+So **decision 0002's parity criterion is unaffected**. "Each constitution document compiled
+twice, byte-identically" is a claim about the compiler that runs, and the compiler that runs is
+in the release.
+
+## Why deferring rather than building it
+
+The alternative is to implement `kf-document-v1` in Liminal, cut a release binary, and seal it.
+That is the honest end state and it stays the intent. It is not v1.0's business:
+
+- Liminal is `version = "0.0.0"` with `publish = false` and "nothing publishes before Phase 0
+  ratifies the constitution", and its own recent history is re-quarantining Phase 1 exit gates.
+  Putting KF v1.0 behind it means putting a records system behind another system's roadmap.
+- Every open criterion in [ADR 0004](KF-ADR-0004-production-release.md) queues behind one commissioned
+  host, and criterion 4 carries a 7-day floor that cannot start counting until there is one.
+  Days spent here are days added to v1.0 for a component nothing invokes.
+- ADR 0002 accepted an **architecture**, not a release. Its own acceptance note says
+  "acceptance approves an architecture, not a release". Deferring the artifact is consistent
+  with that sentence rather than a retreat from it.
+
+## The check could not simply be relaxed
+
+`liminal_runtime_inventory` is one of the eight commissioning checks. Before this decision the
+only reachable states were "sealed and verified" and `unverifiable`, because a release without a
+compiler could not be assembled. Making the artifact optional creates a third state, and the
+obvious handling of it is the dangerous one: nothing to check, so pass.
+
+**A check that reports success for the absence of its own subject is the precise shape
+`unverifiable` was invented to prevent.** This repository has spent more effort deleting checks
+that passed for the wrong reason than writing new ones.
+
+So the subject changes rather than weakens. The check now asks whether the release's
+**declaration matches what is installed**, which fails in both directions:
+
+| release declares | ships a runtime | verdict                                                      |
+| ---------------- | --------------- | ------------------------------------------------------------ |
+| `sealed`         | yes             | as before — six pins required, release's own verifier runs   |
+| `sealed`         | no              | fails, as before                                             |
+| `none`           | no              | satisfied — and it checked something                         |
+| `none`           | yes             | **unsatisfied** — an unreviewed compiler is inside a release |
+| nothing          | either          | `unverifiable`                                               |
+
+The last row is deliberate. Defaulting an absent declaration to `none` would make every release
+built before today silently claim to carry no compiler — including one that carries a real one.
+That is the fail-open version, and it is the version an operator would never notice.
+
+The declaration lives in `BUILD-METADATA`, which `SHA256SUMS` already covers, so it is sealed by
+the same digest as the rest of the release and cannot be edited on the host without failing
+`migrate-release.sh check`. The build refuses a **partial** Liminal environment — all three of
+`LIMINAL_COMPILER_ARTIFACT`, `LIMINAL_CARGO_LOCK_ARTIFACT` and `LIMINAL_RUNTIME_FILE_PATHS`, or
+none — rather than resolving it, because guessing which half was meant is how a release ends up
+sealing something nobody reviewed.
+
+## What v1.0 therefore does not claim
+
+Stated because ADR 0004 exists to stop a true statement reading as a larger one:
+
+- **Not that the Liminal-backed compiler works.** It has never been run. It has been exercised
+  against a fake that answers its protocol, which establishes that the adapter behaves as
+  designed and nothing about Liminal.
+- **Not that the adapter is dead code to be deleted.** It is the built half of an integration
+  whose other half is unwritten, and deleting it would throw away the reviewed work.
+- **Not that ADR 0002 is reversed.** The architecture stands; the artifact is deferred.
+
+## What this record does not settle
+
+- **When Liminal gets `kf-document-v1`.** It needs a protocol specification first — the
+  adapter's expectations are currently expressed only as a test fake, which is a poor
+  specification and would be an unfair one to hand to whoever implements the other side.
+- **Whether the adapter should be exercised in CI against that fake as a contract test.** It is
+  tested today; whether that test is a _contract_ the Liminal side must satisfy is a different
+  question, and the answer determines who owns the fake.
+- **What happens to `liminal=sealed` releases that predate the declaration.** None exist, so
+  nothing is stranded; if one is ever built from an old checkout it reports `unverifiable`,
+  which is the right answer.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0011-master-record-runtime.md · uuid: e9d81443-6caa-50ff-81d1-c91556549df9 -->
+
+# ADR KF-0011: Master-record runtime and disclosure boundary
+
+**Status:** accepted for OW-WAR-0054 implementation; identity key amended by ADR 0013 (corpus, not permission digest; sections derived, not stored); session ceiling amended by ADR 0027 (the session ceiling is the person's clearance; the assignment ceiling caps only the organization-wide grant)
+**Date:** 2026-08-26
+**Decision owner:** Knowledge Fabric technical authority
+**Scope:** permission enumeration, master-record compilation, withholding, withdrawal, and KF-only delivery
+
+## Decision
+
+KF stores one immutable master-record claim per `(person, organization, permission_digest)`. A
+claim contains the full permission enumeration after subtractive entitlement exclusions. Relation
+metadata in `registry.relation_type` controls relevance traversal and only sections the claim:
+`your_record` and `org_view` are presentation partitions, never membership filters.
+
+Every claim carries a canonical manifest, compilation time, permission-set digest, record digest,
+included members, withdrawn members, and withholding ledger. Legal holds and person exclusions
+identify each withheld object. Third-party material is represented only by reasoned counts; its
+object identity is not placed in the person-facing manifest.
+
+One master record never stitches organizations. Compilation rejects foreign members, and the API
+self-view resolves only the authenticated actor in the authenticated organization. Federated
+content enters this invariant only after materialization into KF-governed rows; live external
+records remain outside the claim.
+
+## Permission boundary classification
+
+The permission set is intentionally closed over KF-governed materialized records:
+
+| Surface                                                                           | Classification         | Entry rule                                                                                                                                     |
+| --------------------------------------------------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `core.object` envelopes and `core.relation` graph                                 | materialized           | Enumerated under current organization/classification RLS; relation policy controls sectioning only.                                            |
+| Typed rows keyed by a `core.object` (documents, work, quality, ML and operations) | materialized           | `content.master_record_payload` captures every RLS-visible typed row attached to the object; the manifest binds its canonical payload digest.  |
+| Object-store bytes and compiled artifacts                                         | materialized reference | Bytes stay in governed object store; manifest payload carries immutable URI/version, size and digest, and readers verify bytes before serving. |
+| Live Google Drive, PHI or other external records                                  | live external          | Not members of this invariant. They require explicit ingestion/materialization decision before entering KF.                                    |
+
+This is a closed boundary, not an assumption that an unlisted source is safe to include. The
+compiler refuses to treat live external records as permission members, and no release claims
+completeness for them until a source-specific materialization contract exists.
+
+## Authority and clearance
+
+Identity provider proves subject only. KF resolves organization-scoped role assignment and
+effective classification from an organization-scoped, effective-dated person clearance and an
+optional assignment ceiling. Effective rank is the minimum of those two facts. Missing clearance,
+unknown classification, and requested ceilings above effective clearance refuse; requests may
+narrow but never widen. Resolver output includes both source facts and the effective/requested
+values for provenance.
+
+## Runtime surfaces
+
+- `compile_master_record` is a typed action. It enumerates through current RLS, records one
+  append-only claim, and emits normal action/audit/outbox evidence.
+- `release_person_entitlement_exclusion` is the only path that can release a subtractive
+  exclusion. The database binds its one-time transition to the action target, exclusion id,
+  actor, organization and server-assigned effective time; direct rewrites remain refused.
+- `GET /master-record` exposes the authenticated person's latest claim, current permission digest,
+  stale status, items, and withholding ledger.
+- `renderMasterRecord` projects one compilation deterministically to Markdown or escaped HTML;
+  bounded Pandoc conversion derives PDF and DOCX from that same Markdown. An inline ceiling may
+  reference payloads, but never drops members; rendering is not a browser or management surface.
+- Signed HMAC capability links store only token digest and immutable scope. Expiry, revocation,
+  stale claims, invalid claims, and successful serving all append access evidence.
+- Outbox delivery records are append-only and at-least-once. The worker has no direct receipt
+  insert grant; it calls a narrowly validated security-definer function because delivery runs
+  without a person/organization RLS context. Delivery is transport, never authority.
+
+## Deferred boundary
+
+M4B has two deliberately separate readiness surfaces. KF machine readiness is the authenticated
+`GET /master-record` API: it must expose both `your_record` and `org_view` members, with full
+content for permitted org-view members and no second authorization. Browser navigation,
+management controls, and browser proof are not M4B evidence here; OW-WAR-0056 owns those surfaces.
+This ADR adds no web viewer and does not perform a real disclosure. M7/M8 disclosure decisions
+remain human authority actions.
+
+## What was measured
+
+- Permission membership is enumerated from the current RLS-visible envelope set and compared
+  in both directions; planted over/under-disclosure cases refuse by direction, and a changed
+  digest refuses serving.
+- `content.master_record_payload` captures the RLS-visible typed extensions and immutable
+  artifact URI/version metadata for each member. The manifest records permission/relevance
+  cardinalities plus per-anchor and propagation-class fan-out measurements.
+- The payloads are read for the whole permitted set in one statement,
+  `content.master_record_payloads(uuid[])` (20260925121500), not once per member. The
+  one-object form planned ~235 statements per member, which put every Object View at ~65 ms
+  per object in the organization (KF-SAS-RQ-201). The bytes are unchanged and held equal to
+  the 20260826000700 implementation by `tests/database/master-record-payloads.test.ts`.
+- Relation traversal uses a visited set and current validity window; policy disagreement is a
+  refusal rather than an implicit omission. Measurements record both relevance fan-out per
+  person-anchoring relation type and aggregate fan-out per propagation class. A node reached by
+  multiple classes is counted in each class while global membership remains deduplicated.
+- Runtime tests cover action dispatch, third-party count-only withholding, stale claims,
+  deterministic renderings with bounded inline payloads, token tamper rejection, worker delivery
+  under a non-superuser login, boundary coverage, and fresh-install migration application.
+- The boundary registry is checked as an exact partition of observed RLS tables; duplicate,
+  stale, or unclassified declarations refuse, with a planted unclassified-table conformance case.
+
+These measurements cover governed typed-row payloads and immutable object-store references. Raw
+external bytes remain outside the JSON manifest and require digest/version verification at read
+time; no live external source is claimed complete.
+
+## Options considered
+
+1. Keep master records as a read-time view. Rejected: no immutable completeness claim or
+   reproducible withdrawal/withholding evidence.
+2. Persist one append-only claim per person and organization. Accepted: permits deterministic
+   re-checks, exports, and later human review without rewriting history.
+3. Stitch all organizations into one person record. Rejected: organization boundaries and
+   disclosure authority become ambiguous.
+
+## What this record does not settle
+
+- OW-WAR-0056 browser viewer, management UI, and browser proof.
+- Human M7/M8 disclosure, approval, signing, identifier allocation, or cutover authority.
+- Source-specific ingestion contracts for PHI, Google Drive, or other live external stores.
+- Raw object-store bytes remain referenced rather than duplicated in JSON manifests; readers must
+  verify the immutable URI/version and digest before serving them.
+
+## Consequences
+
+The completeness assertion is reproducible and fails in both directions: over-disclosure and
+under-disclosure compare separately, while a changed permission digest marks a claim stale. The
+cost is full RLS enumeration per compilation and larger records; measurement and renderer design
+must address that cost without dropping members.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0012-file-ingestion.md · uuid: 8c0a9722-b6f0-592e-b547-b6d30808bdd8 -->
+
+# ADR KF-0012: A file enters the Fabric by copy or by reference, and never by default
+
+**Status:** accepted
+**Date raised:** 2026-08-27
+**Date decided:** 2026-08-27
+**Decision owner:** technical authority
+**Scope:** how an arbitrary file becomes a registry item — which action records it, whether the
+Fabric holds its bytes or points at them, and what an ingest run refuses
+
+## The problem, measured
+
+The Knowledge Fabric is meant to be the sole source of all information. At decision time it had
+no way to admit an arbitrary file. The only `ingest` in the tree was ML metric events; everything
+else came in through a dogfood loader wired to the constitution corpus.
+
+Worse than absent — the one available path was the wrong one for a whole class of material.
+`packages/documents/src/internal/evidence-actions.ts` hardcodes:
+
+```sql
+insert into content.artifact (id, artifact_kind, source_system) values ($1,$2,'object_store')
+```
+
+and requires a `storage_uri`. So `attach_evidence` **always copies bytes**, and nothing outside
+export/import had ever written `content.external_locator`. A vendor datasheet is third-party
+copyright and the standing rule is that it is referenced by document number, revision and hash,
+never held. The lawful path did not exist and the unlawful one was the only one available.
+
+## What the schema already said
+
+The model was already correct; only the write path was missing. No new tables were added.
+
+- `content.artifact.source_system` already separates `object_store` — we hold the bytes — from
+  `git`, `cad_pdm`, `document_system`, `accounting` and `external`, with the comment that
+  anything else "means we hold a reference and the digest, and the other system can change
+  underneath us — which is precisely why the digest is recorded".
+- `content.external_locator.authority` already distinguishes `authoritative`, `evidence`,
+  `mirror` and `lookup`, because "a mirror must never be mistaken for the authoritative copy".
+- And the constraint that settles it:
+
+```sql
+artifact_version_locatable  CHECK (storage_uri IS NOT NULL OR revision_label IS NOT NULL)
+```
+
+A version must be **locatable**: either we can produce the bytes, or we can name the revision we
+saw. So "document number + revision + digest" for anything we do not hold is enforced by
+PostgreSQL, not by discipline. A reference that cannot say _which_ external thing its digest
+describes is refused by the database.
+
+## Decision
+
+**A new action, not a widened one.** `register_external_artifact` records that bytes exist
+somewhere we do not hold. `attach_evidence` is unchanged.
+
+The name of an action is what an auditor reads. "We attached this evidence" and "we recorded
+that this exists elsewhere" are different claims about what the organization possesses. One verb
+for both leaves the audit log unable to answer whether we actually have something — which is the
+first question asked when a rights holder or a regulator writes in. The action refuses
+`source_system='object_store'` explicitly, naming `attach_evidence` as the correct verb.
+
+**Mode and classification are stated per batch; neither is defaulted.**
+
+```
+kf ingest --mode=copy|reference --classification=<id> --identity=dev|oidc \
+  [--revision=<label>] [--kind=<artifact-kind>] [--reference-manifest=<file>] <paths...>
+```
+
+A run that omits either is refused. A default mode is how third-party material enters because
+somebody forgot a flag; a default classification either over-discloses the batch or hides it
+from the person who needed it. The judgement belongs at batch level, which is where a human is
+already deciding what this pile of files is.
+
+Reference mode additionally requires `--revision`, mirroring the CHECK constraint so the refusal
+names the reason rather than surfacing a constraint violation the operator has to decode.
+
+**Reference-only paths refuse a copy run, and refuse the whole batch.** Material under `vendor`,
+`vendors`, `supplier`, `suppliers`, `third-party`, `thirdparty`, `datasheets`, or any filename
+containing `datasheet`, cannot be copied. The refusal names the file and the rule, and tells the
+operator to re-run in reference mode.
+
+Whole-batch on purpose: a partial ingest that copied nine files and rejected the tenth leaves
+somebody deciding whether to re-run, and that decision is where the tenth file quietly gets
+copied.
+
+**`artifact_kind` is inferred from the extension and overridable.** Unlike mode, guessing here is
+safe — being wrong about whether something is a `drawing` or a `specification` misfiles it, it
+does not reproduce anybody's copyright.
+
+The executable implementation is `apps/api/src/ingest/cli.ts`, exposed from the repository root
+as `pnpm kf ingest`. It adds explicit `--identity=dev|oidc` selection, permission-checked OIDC
+token files, exact reference manifests, content-derived idempotency keys, and one constrained
+application transaction per batch. Development fixed identity is limited to the development
+profile; both identity paths perform owner-side clearance preflight before source bytes are
+staged. The command is a delivery of this decision, not a new authority boundary.
+
+## What this does not decide
+
+- **A watched folder.** Drop-a-file-in ingestion is wanted and is a thin layer over this, but it
+  is deferred with the rest of the filesystem surface to `OW-WAR-0056`.
+- **Whether the reference-only rule list belongs in the ontology.** It is currently a short,
+  explicit list in code, deliberately readable by somebody deciding whether each entry is true.
+  If it grows, it should move somewhere it can be reviewed as policy rather than as source.
+
+## How this is held
+
+`apps/api/src/ingest/plan.test.ts` asserts each planner refusal, and every planner guard was
+falsified — the check removed, the test watched go red, the check restored. The CLI parser and
+manifest seam tests live in `apps/api/src/ingest/cli.test.ts`; live local dogfood has exercised
+copy/replay and reference-without-storage paths. Runtime integration still depends on the
+database and object-store harness rather than a fake database.
+
+That process found a test passing for the wrong reason: deleting the missing-mode check left all
+tests green, because an absent mode fell through to the unknown-mode branch and both messages
+contained `--mode`, which was all the assertion checked. Forgetting a flag and mistyping one need
+different help, so the test now asserts the specific guidance and a second test proves the two
+branches are distinguishable.
+
+`tests/conformance/r01-golden.test.ts` requires the new action to be named in
+`DECLARED_ADDITIONS` with its reason, so this growth is recorded rather than absorbed.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0013-master-identity-is-the-corpus.md · uuid: 1def6817-6864-5f44-a25f-ee7fc69ee7a4 -->
+
+# ADR KF-0013: A master record's identity is its corpus, and sections are a reading of it
+
+**Status:** accepted — implemented 2026-09-01; amends ADR 0011's identity key
+**Date raised:** 2026-08-28
+**Date decided:** 2026-09-01
+**Decision owner:** technical authority
+**Scope:** what makes two master-record compilations the same claim; where `your_record` /
+`org_view` live; what "stale" means on the read surface
+
+## The problem, measured
+
+ADR 0011 keyed a master record uniquely by `(person, organization, permission_digest)` and said
+in the same breath that `your_record` and `org_view` "are presentation partitions, never
+membership filters." The runtime disagreed with the second sentence: it wrote those sections
+into the manifest and into `master_record_item.section`, and the row-level-security insert policy
+bound the two together.
+
+On 2026-08-28 the first master record compiled through a real authenticated session returned 18
+items — 17 `org_view`, 1 `your_record`. `core.relation` was empty, so that was arithmetically
+correct. Adding one `performed_by` edge and recompiling then returned:
+
+```
+500 internal_error
+duplicate key value violates unique constraint
+  "master_record_person_id_organization_id_permission_digest_key"
+```
+
+The permission digest already hashed each member's `objectId`, `objectType` and
+`contentDigest` (`packages/documents/src/master-record.ts`, `memberKey`) — so it was a corpus
+digest under the wrong name, and it did not move when only sectioning moved. The second
+compilation therefore collided on a key that was never meant to include what had changed. Worse,
+`GET /master-record` computed staleness from that same digest and went on answering
+`stale: false` over sectioning the graph no longer supported.
+
+Every existing test compiled for a different person, or once per person. Nothing recompiled the
+same person after a change that left permissions untouched, which is how this survived 1396
+passing tests. `tests/database/master-record-recompilation.test.ts` was written first to pin the
+defect, then rewritten to assert the behaviour below.
+
+## Decision
+
+**Identity is the corpus.** `corpus_digest` is a line-canonical SHA-256 over the sorted set of
+`(object_id, object_type, content_digest, classification, item_state)` across the included and
+withdrawn members. It excludes sections, relevance, and `compiled_at`. The table is
+`unique (person_id, organization_id, corpus_digest)`, and compiling an unchanged corpus **returns
+the existing record** rather than inserting — never a second row, never the 500. A changed
+corpus — content drift, a member gained or lost, a classification moved, a withdrawal — is a new
+claim with a new digest.
+
+**Access is a separate fact.** `permission_digest` is redefined as a hash over the object ids
+and the effective ceiling. It is not identity; it exists so a corpus change can be read as "your
+access changed" versus "the content drifted" — the first of the pundit's three invalidation
+dimensions, kept distinct from the second.
+
+**Sections are derived, never stored.** The manifest carries no `sections`; the item table has
+no `section` column. `sectionMasterRecord(manifest, closure)` produces `your_record` /
+`org_view` from whatever relation graph the reader enumerates _now_, and `GET /master-record`
+derives them on every read. So a new edge is visible immediately, against the same claim,
+without recompiling — which is what "presentation partition" always meant.
+
+**The database checks the identity it stores.** `content.master_record_corpus_digest(manifest)`
+and `content.master_record_permission_digest(manifest, ceiling)` recompute both digests in SQL,
+and CHECK constraints require the stored columns to equal them. The digests are line-canonical
+(unit separator between fields, newline between lines, `"C"` collation) rather than RFC 8785
+precisely so PostgreSQL can do this; the TypeScript side sorts in code-unit order, which is the
+same order for the ASCII identifiers these carry. A row whose digest disagrees with its own
+manifest cannot exist.
+
+**Stale means the corpus moved.** The read surface compares the stored `corpus_digest` against a
+fresh enumeration and refuses with `409 master_record_stale` when they differ. A sectioning
+change is not staleness.
+
+## Two edges named, not hidden
+
+- **One corpus, two ceilings.** The ceiling is excluded from identity on purpose, so an identical
+  corpus can be compiled under two ceilings when every member sits at or below the lower one.
+  Reusing the row would return a claim whose recorded `permission_digest` belongs to the other
+  request. The repository refuses that case by name rather than reusing silently. If it ever
+  occurs in practice, the decision to revisit is whether the ceiling belongs in identity after
+  all.
+- **The CHECK recomputes a digest on every write.** `master_record_corpus_digest(manifest)` runs
+  once per insert over `jsonb_array_elements` of the manifest. Dogfood manifests hold tens of
+  members; a manifest of thousands is milliseconds, not seconds. If a corpus ever grows to the
+  point that this shows up in a profile, the constraint should move to a trigger that verifies
+  once and stores, not be dropped.
+
+## What this does not decide
+
+- **The projection engine.** Sections are the first projection; the general grammar, its
+  definitions and its own digest are the next step, not this one.
+- **Whether `compiled_at` should ever be identity.** It is not. A records model that wants every
+  compilation as a dated claim regardless of content would drop the unique key entirely; this
+  decision keeps one claim per corpus and records each compilation as an action.
+
+## How this is held
+
+`tests/database/master-record-recompilation.test.ts` proves, against a real database: an unchanged
+corpus compiles to the same row; a relevance-only edge changes the derived sections and not the
+record; a content change produces a new record with the same permission digest; and a stored
+digest that disagrees with its manifest is refused by the CHECK. `packages/documents/src/
+master-record.test.ts` proves the digests are order-independent, sensitive to every identity
+field, and indifferent to relevance.
+
+The migration is forward-only. Reverting would restore a key under which a relevance-only change
+cannot be recompiled, and re-add a column ADR 0011 already said was not membership.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0014-corpus-projections.md · uuid: f2b88365-ab7c-57bf-80c3-99a63aaf1327 -->
+
+# ADR KF-0014: Every reading of a master record is a declared projection over its corpus
+
+**Status:** accepted — implemented 2026-09-02; builds on ADR 0013
+**Date raised:** 2026-09-01
+**Date decided:** 2026-09-01
+**Decision owner:** technical authority
+**Scope:** how sections, pages, exports and agent context are derived from a master record;
+where those derivations are defined and versioned; what they may and may not express
+
+> **UPDATED 2026-09-24.** Every member of a Result now carries `verification` — whether anybody
+> has verified the record (`core.object_verification`, KF-SAS-RQ-228 to RQ-232), and when it is
+> verified, the `basis`, `verifiedAt` and `verifiedBy` — plus the label a reader is shown:
+> `UNVERIFIED — nobody has checked this record`, or `verified reviewed individually by … at …`,
+> the master record renderer's own wording (one function, `recordVerification` in `@kf/domain`).
+> The engine refuses a member without it, or whose label is not the one its facts produce
+> (`unlabelled_member`), so a projection cannot show an unverified record unlabelled (RQ-229).
+> Markdown and HTML state it under every member (`class="unverified"` in HTML, as the master
+> record does); `measurements.unverifiedCount` counts them. Verification is read live under the
+> reader's row security when the Result is made, not from the stored claim — it is not part of
+> the corpus identity (ADR 0013) — and a withdrawn member, which the reader can no longer see,
+> is labelled `UNVERIFIED — no verification is visible to this reader` rather than having its
+> verification looked up. Because what the reader is shown changed, the format is now
+> **`kf-projection-result-v2`**: the projection digest covers each member's verification facts,
+> and the format tag is part of the digest preimage, which v1's was not.
+
+## The problem, measured
+
+After ADR 0013 the master record was an exact corpus and its `your_record` / `org_view`
+sectioning was derived at read time — by one function in `@kf/documents`, hand-coded. The web
+app's `projects`, `documents`, `ml` and `search` pages were four more hand-coded readings, each
+fetching and filtering on its own. `renderMasterRecord` fanned one manifest into Markdown,
+HTML, PDF and DOCX; nothing else could be rendered that way. And there was no answer to "what
+did the agent see" beyond whatever retrieval happened to return.
+
+Every one of those is a reading of the same corpus. Each was a separate implementation of
+"which members, in what order, under what headings", with its own chance to disagree about
+authorization. The pundit's diagnosis held: `/master#projects` and `/projects` would drift,
+and a new object type could disappear from every page simply because no page knew it.
+
+## Decision
+
+**A projection is a declared, versioned reading over a corpus.** It can partition and order
+what the corpus already contains; it cannot add to it. `ontology/projections.yaml` is a section
+of the ontology: loaded, checked and emitted like object and relation types, versioned with
+the schema pack, and rejected by the loader if it is absent — a definition nobody compiles is
+not in force.
+
+**The grammar is a closed algebra over declared things.** An anchor (the person the corpus was
+compiled for); a traversal over named relation types — or every relation declaring
+`person_anchor` — with a depth ceiling, following each type's `propagation_class`; ordered
+sections whose `select` is `reached`, `unreached`, `withdrawn` or `all`, optionally narrowed by
+a filter on object types, lifecycle states, a classification ceiling, or item state; a
+**mandatory remainder** that takes whatever no section claimed; sort keys drawn from envelope
+fields; typed parameters bound at read time; and a member budget the engine refuses to exceed
+rather than silently truncate. No expressions. No SQL. Anything the grammar cannot say is a
+reason to add a primitive here, reviewed, rather than a query somewhere unreviewed.
+
+The compiler checks each definition against the ontology (ONT-013 through ONT-016): an
+unknown relation type would silently reach nothing; a filter on a misspelled state would
+silently be empty.
+
+**One engine, one Result.** `project(definition, parameters, corpus, graph)` in
+`@kf/projections` is pure and deterministic. Its Result is canonical JSON: definition and
+version, bound parameters, the source corpus digest, ordered sections of members, measurements,
+and a `projectionDigest` over exactly which member sits in which section. Two invariants hold by
+construction and are asserted anyway — every emitted member came from the corpus, and every
+member the definition admits landed in exactly one section. A definition-level `filter` is the
+one declared narrowing; what it excludes is counted in `measurements.excludedByFilter`, so a
+Result can never look complete while quietly omitting members. `render(result, target)` produces Markdown, HTML
+or the JSON itself from that one Result, same digest on every target.
+
+**The API serves Results.** `GET /master-record/projections/:definitionId` evaluates a
+pack-shipped definition under the same corpus-staleness rule as `GET /master-record`, and
+`GET /master-record` itself now takes its section labels from the `master_sections`
+evaluation. Relevance traversal moved into `@kf/projections`; `@kf/documents` re-exports it.
+
+**Agent context is a definition family, not a format.** `agent_context` takes a
+`token_budget` parameter and produces a Result with exact source ids and digests. A model may
+summarize it; nothing lets it enlarge it, and the digest records what it was given.
+
+> **UPDATED 2026-09-25.** The AI proposal planner now consumes that Result (KF-SAS-RQ-115).
+> `planAiProposalContext` (`@kf/agent-tools`) takes the reader's `agent_context` Result as input
+> and refuses one that is not an `agent_context` Result for the planning principal, or whose
+> `projectionDigest` does not recompute from its own sections (`projectionResultDigest` in
+> `@kf/projections`); a seed outside it is refused; every retrieval candidate whose subject is not
+> an included member is omitted as `outside_projection`; and the plan records the projection's
+> definition, version, corpus digest and projection digest. The model's context is therefore a
+> subset of a projection, not a parallel reading that merely happened to be authorized. The
+> recorded proposal provenance (`model_provenance` on `record_document_proposal`) does not yet
+> carry the projection digest; adding it is a payload change left to that action's owner.
+
+**Custom projections are controlled records over the same grammar** — decided, not yet built.
+Pack-shipped definitions are policy and change with a pack release; an organization's own
+readings will be database records referencing the grammar the pack declares, so they are
+auditable objects rather than code.
+
+## What this does not decide
+
+- **Object Views.** A per-object reading (anchor = object, depth 1, backlinks in both
+  directions) is the next step; the grammar's `anchor` admits only `person` today, on purpose.
+- **PDF and DOCX for arbitrary projections.** Those still run through the master-record
+  renderer's pinned pandoc path; generalizing that is small and waits for a second consumer.
+- **The projection digest's treatment of the relation graph.** It commits to the _outcome_
+  (which member landed where), not to the edges traversed. Two graphs that section identically
+  yield one digest, which is the right identity for a reading; an audit that wants the edges
+  should record the graph separately.
+- **Budgets beyond member count.** Depth is bounded per definition and per relation policy;
+  wall-clock and row budgets on the enumeration itself belong with query governance.
+
+## How this is held
+
+`packages/projections/src/engine.test.ts` proves determinism (same input, same digest, any
+member order), coverage (unclaimed members reach the remainder), ⊆-master (a foreign member is
+refused), the budget refusal, and that an explicit relation list is a whitelist.
+`tests/database/master-record-projections.test.ts` drives the real routes against a real
+database: the Result is ⊆ the stored master, markdown and html carry the same projection
+digest as the JSON, parameters are refused by name, and `GET /master-record`'s labels match the
+engine's evaluation. `tests/ontology/planted-violations.test.ts` plants each new ONT rule. Every
+guard was falsified before it was trusted.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0015-object-views.md · uuid: fbaf6df7-22b0-5bef-92ee-51ac04c7d5f1 -->
+
+# ADR KF-0015: An Object View is a projection anchored at the object, over the reader's own corpus
+
+**Status:** accepted — implemented 2026-09-02; builds on ADR 0014; amended by
+[ADR 0033](KF-ADR-0033-the-database-binds-the-principal.md) (`GET /objects/:id` answers `409` when the
+master record is stale; `POST /objects/:id/refresh` compiles)
+**Date raised:** 2026-09-01
+**Date decided:** 2026-09-02
+**Decision owner:** technical authority
+**Scope:** what a per-object page is, where its members come from, what it may show a reader,
+and why every object type gets one without per-type code
+
+> **UPDATED 2026-09-24.** The page says whether each record on it has been verified. The subject
+> and every related record carry the Result's `verification` (ADR 0014's 2026-09-24 note), and
+> `apps/web/src/app/objects/[id]` shows `UNVERIFIED — nobody has checked this record` with
+> `class="unverified"` for any that nobody has checked, and who verified the rest and how. A
+> member the API sent without a verification is shown as unverified, never as checked.
+
+## The problem, measured
+
+Before this, one object type had a page: `apps/web/src/app/projects/[id]` — a hand-built
+cockpit reading a hand-built `GET /projects/:id`. Thirty-seven other first-class object types
+had no page at all. `GET /objects/:id/history` and `GET /objects/:id/available-actions` existed
+for any object, but nothing composed them with the object itself or with what touches it.
+Backlinks — "which ADRs affected this product" — were derivable from `core.relation`, indexed in
+both directions, and shown nowhere.
+
+## Decision
+
+**An Object View is the `object_view` projection.** The grammar of ADR 0014 gains an object
+anchor: `anchor: object` names the member the reader asks for through a required `object_id`
+parameter, and `traverse: { relations: all, max_depth: 1 }` walks the **structural
+neighbourhood** — every active relation, both directions, one hop. That is a different walk
+from a person reading: relevance follows propagation classes; a neighbourhood asks only "what is
+connected", and a backlink is exactly as much of an answer as a forward link. The definition's
+`filter: { reachability: reached }` is its declared scope — the anchor and what touches it —
+and what that scope excludes is counted in `excludedByFilter`, never silent.
+
+**It is evaluated over the reader's own master record.** The corpus is the reader's authorized
+set; an anchor outside it is refused, and the route reports that as _not found_ — a reader
+learns nothing about whether a record exists for somebody else. So the page carries the same
+⊆-corpus guarantee as every other reading, from the same engine, with the same digest
+discipline. The crossed edges are part of the Result and of its digest: for a neighbourhood,
+the edges are the outcome, so a new backlink is a new reading.
+
+**History and available actions are facets, not members.** The audit chain and the state
+machines are not corpus members and are not projected; `GET /objects/:id` attaches them beside
+the Result using the same queries `/objects/:id/history` and `/objects/:id/available-actions`
+already run. One engine for membership; existing reads for what is not membership.
+
+_Amended 2026-09-24:_ the history is one query, `OBJECT_HISTORY_SQL` in `@kf/actions`, shared by
+both routes and the agent tools' `readHistory`, and it is read by index. It had filtered every
+audit event through a per-event subquery on `core.action.target_ids`, so each object view cost
+O(ledger); it is now a union of `audit_by_object` and the acts that targeted the object, found by
+the GIN index `action_by_target` through `core.actions_targeting` (row security would not let the
+application's non-leakproof `@>` use the index) with fast update off (a pending list is scanned
+by every lookup). `tests/database/history-plan.test.ts` holds the buffers flat while unrelated
+acts grow tenfold; the old query went from 3,076 to 33,633 buffers on the same data.
+
+_Amended 2026-09-26:_ the view reads one neighbourhood, not the whole claim. For a reader of
+~50 000 records (the kf-fixa fixture) every view took 12-16 s, 94 % of it re-enumerating the
+permitted set to decide staleness, and the refresh never finished: the item insert policy expanded
+the manifest once per member. Now (20260926110000, 20260926110100) the claim's currency is asked
+first of the database's record of input writes — a compilation of the reader's own record stores
+the snapshot it read under, and the claim is current if no transaction it did not see has written
+an input since, under the same context and catalog, before any grant boundary; otherwise the corpus
+is enumerated and compared exactly as before. The Result is then evaluated over the anchor's
+neighbourhood alone (`projectNeighbourhood`): the edges touching the anchor, the claim's members
+among what they reach, read by key, each re-checked live, and the claim's size to count the rest.
+`tests/database/object-view-scoped.test.ts` compares it, byte for byte, with the whole-claim
+reading for every record of a neighbourhood with a backlink, a second hop, a withdrawn and a
+verified member, on both paths. One difference is deliberate: the member budget bounds the members
+the reading evaluates, not the size of a corpus it never loads, so a reader of more than 5 000
+records is served rather than refused with 413.
+
+**Every object type gets the page with no per-type code.** `apps/web/src/app/objects/[id]`
+renders the Result generically — envelope, typed payload as rows, relationships with direction
+and relation type, actions from this state, history. A type added to the ontology is browsable
+the moment it has a member in someone's corpus. Per-type custom views are the DB-authored
+projections ADR 0014 defers.
+
+Two compiler checks hold the new grammar: ONT-017 requires an object-anchored definition to
+declare the `object_id` uuid parameter and a traverse, and refuses `select: anchor` on a
+person-anchored definition; ONT-013 refuses a reachability filter with nothing to reach.
+
+## What this does not decide
+
+- **Replacing the project cockpit.** `/projects/[id]` computes progress from accepted work
+  packages (KF-PROJ-001), which is a derived property, not a projection; it stays until the
+  derived-property layer exists. `/objects/<project id>` already works alongside it.
+- **Prominent fields per type.** The page shows every typed field as a row. Choosing which
+  fields lead belongs with object-type metadata, and waits for a real reader to want it.
+- **Depth beyond one hop and impact analysis.** `max_depth` is a definition value; a
+  two-hop or transitive reading is a different definition, not a parameter, so that its budget
+  is reviewed.
+
+## How this is held
+
+`packages/projections/src/engine.test.ts` proves the neighbourhood keeps the anchor and both
+directions and nothing further, counts the scoped-out remainder, refuses an anchor outside the
+corpus, and changes digest on a new backlink. `tests/database/master-record-projections.test.ts`
+drives `GET /objects/:id` against a real database: the anchor and its backlink appear, the
+facets are present, the digest header matches, and an object outside the corpus is 404.
+`tests/ontology/planted-violations.test.ts` plants ONT-017 both ways.
+`tests/database/object-view-every-type.test.ts` is the acceptance test the design names
+(KF-SAS-RQ-117, added 2026-09-25): one record of every type in `registry.object_type` — read from
+the database, so a new type that nobody makes fails it — and `GET /objects/:id` answers each with
+an `object_view` Result anchored at that record. Records are made by their create acts where one
+act makes one; the bootstrap types come from the harness fixtures, and the types whose acts need
+a lifecycle walk or the document or ML pipelines are admin fixtures, each naming the test that
+proves its act.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0016-access-is-a-grant.md · uuid: b879123b-a0a1-5378-9911-705d5aa2eb7d -->
+
+# ADR KF-0016: Access is a grant, and a denial is a path
+
+**Status:** accepted — implemented 2026-09-02; builds on ADR 0008, ADR 0011, ADR 0013
+**Date raised:** 2026-09-01
+**Date decided:** 2026-09-02
+**Decision owner:** technical authority
+**Scope:** the positive primitive that admits an object into a person's corpus, how the three
+existing sources of access are read through it, and how "why can't this person see this" is
+answered
+
+> **UPDATED 2026-09-24.** The `requires: act` rule below is now also enforced by the database: a
+> trigger on `core.action` asks `org.act_grant_reaches` the dispatcher's question and refuses a
+> service actor outright (`20260924000100_the_database_checks_act_authority.sql`).
+>
+> **UPDATED 2026-09-25.** The explanation now walks every bar the dispatcher applies, not only the
+> grant path (KF-SAS-RQ-042). A `principal_kind` step follows organization membership: for `act`
+> it fails for a service actor (ADR 0020), whatever grants reach it, and the explanation then
+> ends `deniedBy: 'service_actor'` — the fact that decided, not the name of the question. Given
+> an action type (`explainAccess({ actionType })`, `GET /objects/:id/access?capability=act&action=`),
+> a `separation_of_duty` step follows grant coverage wherever the dispatcher's separation-of-duty
+> rule covers that action and the object's type, and fails when the person created the record
+> (`deniedBy: 'separation_of_duty'`). For `read` the principal-kind step passes: a service actor
+> reads like anyone.
+
+## The problem, measured
+
+Before this, a person's permitted set was every object in the organization at or below their
+effective classification (`enumeratePermissionSet` selected `core.object where organization_id`
+under row-level security), minus subtraction: `content.person_entitlement_exclusion` and
+retention holds. Need-to-know existed only as a list of what to take away. Three tables already
+said "this person may reach this thing" — `org.role_assignment` (scope, role, ceiling),
+`org.project_membership` (project) and `secure_object.capability_issue` (an external opaque
+object) — in three shapes that nothing read as one, and none of which the permitted set
+consulted. A project-scoped role saw the whole organization; a project membership granted
+nothing. And a denial could not be explained without reading five tables by hand.
+
+## Decision
+
+**`org.access_grant` is the positive primitive.** A grant names a principal (a person, or a role
+assignment so authority can attach to a role), a capability (`read` — the scope object enters the
+principal's permitted set; `act` — the principal may be named as acting authority on it), a
+scope object, an optional classification ceiling that never raises the person's clearance, an
+effective window, who decided, the recorded act that decided (`granted_by_action` is NOT NULL
+and is the reason the two action types exist), an optional delegation parent, and a reason.
+Revocation is a state on the row — `revoked_at/by/by_action/reason`, complete or absent — never
+a delete: what was permitted, and until when, remains evidence. A GiST exclusion refuses two
+live grants of the same capability to the same principal at the same scope over overlapping
+windows; a revoked grant no longer blocks a fresh one. A trigger refuses a principal of the
+wrong kind, or one from another organization (ADR 0006).
+
+**Scope means the object, or the organization.** The organization itself as scope covers every
+object in it — which is what an organization-scoped role has always meant, so every existing
+fixture and deployment keeps its corpus unchanged. Any other object covers that object and
+nothing transitive: reach through relations is a projection concern (ADR 0014), not an access
+one.
+
+**The existing sources are read through one view, not replaced.** `org.effective_access_grant`
+presents direct grants, active role assignments (as `read` and `act` at their scope, with their
+ceiling), project memberships (as `read` on the project) and secure-object capabilities (as
+`read` on an external reference, through a definer function so the application role never
+reads the ledger) in one shape. The plan had these tables _becoming_ compatibility views; that
+was measured infeasible — `org.role_assignment` is a first-class `core.object` type and the
+foreign-key target of `ml.promotion_decision.approver_role_id` and
+`ml.metric_stream.acting_role_id` — so the compatibility direction is reversed: the tables stay
+authoritative for what they are and the unified surface is the view over them. It is
+`security_invoker`, so the caller's row-level security applies underneath.
+
+**The permitted set reads the view.** In both places it is computed (`enumeratePermittedSet`
+and master-record compilation) an object must be visible under RLS _and_ covered by a live
+`read` grant that reaches the person — directly, or through a role assignment they hold —
+whose ceiling, if any, admits the object's classification. Nothing ungranted enters the corpus,
+so nothing ungranted is "withheld": it was never permitted. A cleared person with no grant has
+an empty corpus.
+
+**A denial is a path.** `explainAccess(person, organization, object)` evaluates the same facts
+in the order the permitted set applies them — organization membership, object in organization,
+clearance, classification within clearance, grant coverage (naming each covering grant and its
+source), entitlement exclusions, retention holds — and names the first failing step as
+`deniedBy`. Later steps are still evaluated, because an auditor wants to know a person was both
+excluded _and_ ungranted. `GET /objects/:id/access[?person=]` serves it; the asker must be able
+to see the object themselves, so asking about a colleague can never reveal a record the asker
+has no access to.
+
+**Two action types.** `grant_access` targets the object being made reachable and carries the
+principal, capability and optional ceiling and `valid_to` in its payload; an overlapping live
+grant surfaces as `precondition_failed`, not a 500, because "already granted" is a fact about
+the record. `revoke_access` targets the same scope object and names the grant. Both are owned by
+the `authority` group beside `grant_person_clearance`, and both are declared additions to R01.
+
+## What this does not decide
+
+- **Bootstrap.** The first grant in an organization is an organization-scoped role assignment,
+  made by the owner-credential path of ADR 0011. There is no `kf:grant-access` command yet; one
+  is not needed until an instance has a person who should hold access without holding a role.
+- ~~`act` in the dispatcher.~~ Decided 2026-09-02: an action type may declare `requires: act`
+  in the ontology (carried to `registry.action_type.requires_capability`). For those — the
+  institutional acts: authorize, approve, grant, revoke, allocate, issue, publish, supersede,
+  deprecate, annul, make-effective, resolve — the dispatcher requires a live `act` grant
+  reaching every target or the organization (`org.act_grant_reaches`, over the same view the
+  read side uses), refused as `act_not_granted` (403). An organization-scoped role assignment
+  is organization-wide `act`, so every existing flow keeps working; a project-scoped role acts
+  only on its project. `explainAccess` takes `capability: 'act'`;
+  `GET /objects/:id/access?capability=act` explains it. Other actions stay role-only.
+- **Expiry of role assignments and memberships** stays where it was; the view reads their
+  windows as they are.
+- **Delegation depth and re-delegation policy.** `delegated_from` is recorded; no rule yet
+  says how far a delegated grant may go.
+
+## How this is held
+
+`tests/database/access-grants.test.ts` proves, against a real database, that an
+organization-scoped role reads as organization-wide `read` and `act` through the view; that a
+cleared, ungranted person has an empty permitted set; that one dispatched `grant_access` admits
+exactly the granted object, an overlapping grant is refused, and `revoke_access` removes it
+leaving the row as evidence; that a principal of the wrong kind is refused before anything is
+recorded; that an explanation for an excluded person passes grant coverage and is denied by the
+exclusion; and that the route serves the explanation and answers _not found_ for an object the
+asker cannot see. The closed preservation inventory (`extended-roundtrip.test.ts`) requires the
+new table to be exported, and it is (`access-grants`).
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0017-storage-locations.md · uuid: 0d213bbe-7839-544b-a983-4d88beb72418 -->
+
+# ADR KF-0017: Where the bytes are is a set of locations, each verifiable on its own
+
+**Status:** accepted — implemented 2026-09-02; builds on ADR 0004, ADR 0006
+**Date raised:** 2026-09-01
+**Date decided:** 2026-09-02
+**Decision owner:** technical authority
+**Scope:** how an artifact version's bytes are located, copied, verified and served; what a
+second store is; what is deliberately not written
+
+> **UPDATED 2026-09-24.** "A sweep for objects with no row is not built" is out of date in part:
+> `kf-storage --collect-orphans` (`ed5193f7`) deletes working-store evidence keys that no artifact
+> version or location references, and records each deletion in `content.orphan_collection`
+> (`20260924000400_orphan_collection_is_recorded.sql`). Bytes are therefore removed by a recorded
+> sweep that is not an action; durable-store replication orphans and retention deletion remain as
+> described below.
+>
+> **UPDATED 2026-09-25 (KF-SAS-RQ-095, SAS §100.5).** Two statements below were out of date.
+> "The app registers it as `durable`" was not true: nothing outside the tests ever declared a
+> `durable` row, so replication into a configured durable store would have died on the
+> `artifact_location.store_id` foreign key. And "the checkpoint runner and the ingest path still
+> address the working store directly" named the wrong programs: the checkpoint runner never
+> touches the working store (it writes signed checkpoints to its own anchor bucket,
+> `CHECKPOINT_S3_*`), while the API, the worker, the ingest CLI and `kf-storage` each built their
+> S3 clients straight from the environment. A store row carried a label and no address, so
+> nothing could say that the bucket a process wrote into was the one the ledger called
+> `working`.
+>
+> Now a store row carries its **address** — `endpoint` and `bucket`, never credentials — and
+> every program that holds a store resolves it through `StoreRegistry.fromDatabase`
+> (`packages/artifacts/src/locations.ts`): each configured store must be declared under its id
+> (`durable` is declared by the first process configured with one), the first process to present
+> an address for an unaddressed row binds it (`content.bind_artifact_store`, recording
+> `bound_at`), and a process configured with a different endpoint or bucket than the row it
+> claims is refused with `StoreAddressMismatch` — by the registry, and again by the database.
+> Credentials stay instance configuration, read from the same variables and secret files as
+> before. What this does not do: bind the first address to anything a person approved (the
+> first process to start wins, exactly as `declareStore` already did), or cover the checkpoint
+> anchor, which is not an artifact store and whose login has no grant on `content` by design.
+
+## The problem, measured
+
+`content.artifact_version` carried one address: `storage_uri` + `storage_version`, the working
+object store. There was no row in which a second copy could exist, so none could be recorded,
+verified, or served when the first was gone. ADR 0004's commissioning criteria want a restore
+that has been drilled; the operations ledger records database backups (`ops.backup_copy`) but
+nothing about the artifact bytes those backups point at. A lost bucket would have been a lost
+evidence vault with a complete-looking ledger.
+
+## Decision
+
+**Two tables.** `content.artifact_store` declares the places bytes may live — an id, a kind
+(`object_store` for anything on the S3 wire, including Google Cloud Storage through its S3
+interoperability endpoint; `memory` for tests), a label that is a name and never a URI with
+credentials, and whether it is writable. Credentials stay instance configuration.
+`content.artifact_location` is one row per (version, store, role): the address, the store's
+immutable object version where it has one, who recorded it and by which act, and the last
+verification — `verified_at`, `verified_sha256` or `verification_failure`, and the verifying
+act. Roles are `working` (exactly one per version), `hot_cache`, `durable_copy`,
+`evidence_copy`, and `public_copy`.
+
+**The old columns are the working row, read through the old names.** `artifact_version` is
+append-only, so `storage_uri`/`storage_version` are written once; a trigger records the same
+address as the version's `working` location in the same statement, and a second trigger
+refuses a working location that disagrees with the columns. Fourteen readers of the columns
+keep working unchanged, and the ledger is complete for every version that ever had an
+address. Locations are append-only: only the verification of a location may change. A lost
+copy is recorded as a failed verification, never by deleting the row.
+
+**Replication verifies on arrival.** `replicateVersion` reads the working bytes, refuses to
+copy anything that does not hash to the version's sha256, writes into the target store with
+create-only semantics (an object already at the key is kept and re-hashed, never
+overwritten), records the location, and verifies what landed. The typed action
+`replicate_artifact_version` targets the artifact and names the version, store and role;
+`verify_artifact_location` re-hashes one location and records the outcome either way,
+because a failed verification is the finding the ledger exists to hold.
+
+**Reads degrade, they do not fail silently.** `readVersionBytes` tries the working copy, then
+every location whose last verification matched the version's digest, and hashes what it gets
+before serving it. Losing the working store is a degraded read from the durable copy; a
+tampered durable copy is never served.
+
+**`public_copy` is written only by the publication act.** Replication refuses the role; the
+database refuses a public copy recorded by any act but `publish_document_view` or into any
+store not declared public (ADR 0021, 2026-09-02). Publishing remains a boundary crossing
+(ADR 0006) with its own act — the one that already existed.
+
+**The second store is configuration.** `S3_DURABLE_*` declares it; the app registers it as
+`durable` beside `working`. GCS via S3 interop is the same client with a different endpoint.
+
+## What this does not decide
+
+- **Scheduling.** Replication and re-verification are acts; nothing yet runs them on a
+  cadence. The checkpoint runner is the obvious host and is not wired.
+- **Routing every read through locations.** The two byte routes (`/documents/:id/source` and
+  the projection download) now fall back to `readVersionBytes` when the working copy is
+  missing or corrupt, and log that they served from a copy (2026-09-02). This previously
+  read "the checkpoint runner and the ingest path still address the working store directly";
+  see the 2026-09-25 note at the top for what was true and what changed.
+- **Evidence and public copies' receipts.** `evidence_copy` records the digest an auditor was
+  handed; what the auditor signs is outside the fabric.
+- **Orphaned objects.** A store cannot join the database transaction, so a replication whose
+  row fails after the put leaves bytes with no location. Create-only writes make the next
+  replication find, re-hash and record them; a sweep for objects with no row is not built.
+- **Deleting bytes.** No action removes an object from a store. Retention (ADR 0004) will
+  need one, with its own act.
+
+## How this is held
+
+`tests/database/artifact-locations.test.ts`, against a real database with two in-memory
+stores: recording a version creates its working location by trigger, equal to the columns;
+a disagreeing working location, a delete, and a non-verification update are refused;
+dispatched replication and verification leave one version with two locations both verified
+to the same digest, and refuse the wrong target artifact; with the working store gone the
+durable copy serves the bytes; a tampered durable copy is a recorded verification failure and
+is then not served; and `public_copy` cannot be produced by replication. The closed
+preservation inventory requires both tables to be exported, and they are.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0018-r6-allocation-is-an-act.md · uuid: daf93779-6273-5b00-b1c6-496550696340 -->
+
+# ADR KF-0018: An enterprise identifier is allocated by the registry, in the act that asks, and never proposed
+
+**Status:** accepted — implemented 2026-09-02; builds on ADR 0006, ADR 0016
+**Date raised:** 2026-09-02
+**Date decided:** 2026-09-02
+**Decision owner:** technical authority
+**Scope:** R01 rule R6 (atomic allocation), the action that performs it, what it refuses, how
+the identifier reaches the caller, and what remains a pack-owner decision
+
+## The problem, measured
+
+`registries/openhuman/rules.yaml` said it in its own words: "ATOMIC ALLOCATION IS NOT YET
+IMPLEMENTED — there is no sequence table or allocator." Every identifier this instance holds
+arrived from a reviewed seed file; 68 sit `reserved` in the quality repository. An identifier a
+process could not allocate is one a process could only fabricate, which is exactly what §12.4 of
+the OpenWarrant SAS forbids ("SHALL NOT be fabricated from a filename or local sequence") and
+why OW-WAR-0044's second milestone — "a real enterprise identifier is allocated by KF" — has been
+blocked since 2026-08-23. The manifest validator on that side refuses a non-empty identifier as
+fabricated; the refusal has never been contrasted with a real allocation, because there was
+none.
+
+## Decision
+
+**Allocation is one typed action.** `allocate_enterprise_identifier` targets exactly one object.
+The database function `core.allocate_enterprise_id` reads the namespace the object's TYPE
+declares (`registry.object_type.enterprise_namespace`), resolves it to the qualified head this
+instance allocated (`registry.identifier_namespace`, `OH-DOC` for `DOC`), locks that
+namespace's row in `registry.identifier_sequence`, takes the next free value, writes the Damm
+digit, attaches the identifier to the object (R9: never a new object), and records the receipt
+in `registry.identifier_allocation`. All of it in the action's transaction, so two concurrent
+allocations serialise on the namespace and the second sees the first's advance.
+
+**The caller never proposes.** The request has no field for an identifier. A payload that
+names one is refused by name before anything is allocated — the refusal §12.4 needs, made
+structural. The identifier returns in the action **receipt**, a new channel on the dispatcher:
+an action may declare a receipt reader that reads back from durable state by action id, and the
+dispatcher attaches the result both on first application and on replay. A retried request
+therefore returns the same receipt as the first, and a receipt can never say something the
+ledger does not.
+
+**What it refuses, by name.** Already allocated (R8: permanent, so a second allocation is a
+contradiction, not a retry). A type that declares no namespace. A namespace this instance has
+not allocated (R01 §8: an identifier absent from the registry does not exist) — which today
+includes `BND`, `IFC`, `CFG`, `CPA` and `NCR`, declared by object types the registry never
+allocated. A namespace that is not `active` (§13.3: no new allocation into a retired one; what
+was issued stays valid). A namespace exhausted at 999999.
+
+**Seeds keep their numbers.** An occupied sequence value — a reviewed identifier that arrived
+before there was an allocator — is skipped, never reissued. The cursor is a floor, not a
+promise.
+
+**The receipt is also a read.** `GET /identifiers/:enterpriseId` serves the ledger row under
+the caller's row-level security; an identifier of the right shape that was never allocated, or
+whose object the caller cannot see, is _not found_.
+
+## What this does not decide
+
+- ~~A namespace for Warrants; reconciling the five object-type namespaces.~~ Decided
+  2026-09-02 by the pack owner: registry 1.0.0-draft.2 allocates `WAR` and `CONF` (`CFG` is
+  one edit from `CHG`, which R13 refuses), and the five types now declare the registry's own
+  codes (`INTF`, `BIND`, `QEV` for nonconformity and CAPA, `CONF`). An instance that has not
+  re-seeded `registry.identifier_namespace` from that revision is still refused by name for
+  the two new codes.
+- **The §67 vocabulary.** This is the allocator OW-WAR-0044's milestone M2 needs; the warrant
+  object types and the thirty-two actions of §67 are the next step, not this one.
+
+## How this is held
+
+`tests/database/identifier-allocation.test.ts`, against a real database: one dispatched
+allocation attaches a valid identifier under `OH-DOC`, returns it in the receipt, and a replay
+returns the same receipt with one ledger row; a payload naming an identifier is refused before
+anything is allocated; a second allocation on the same object is refused; a seed occupying the
+next value is skipped; two concurrent allocations yield two distinct identifiers; a type whose
+namespace is unallocated is refused by name; the route serves the receipt and hides what was
+never allocated. `rules.yaml` R6 now names the allocator as enforcement.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0019-warrants-as-institutional-record.md · uuid: 345a5e2d-2cba-54ac-b5a3-d1c199c0ece9 -->
+
+# ADR KF-0019: A Warrant is an institutional record here and a source record in Git
+
+**Status:** accepted — implemented 2026-09-02; builds on ADR 0018; answers OpenWarrant SAS §67, §12, §24, §28, §83.5, §84
+**Date raised:** 2026-09-02
+**Date decided:** 2026-09-02
+**Decision owner:** technical authority
+**Scope:** what Knowledge Fabric holds for an OpenWarrant Warrant, which of §67's thirty-two
+actions write what, how the five state dimensions are kept, and what is deliberately not yet
+projected
+
+## The problem, measured
+
+OpenWarrant's SAS says "registered WARs use KF as institutional authority while Git may remain
+Source Holder" (§98 Phase 4 exit), and OW-WAR-0044 has been blocked on it since 2026-08-23:
+KF had no warrant object type, none of §67's actions, and no allocator. The allocator landed
+with ADR 0018. This record lands the vocabulary and the record, so that a Warrant can be
+registered through real typed actions against a running KF, with the two authorities kept
+apart.
+
+## Decision
+
+**One first-class object type, `warrant`, in the `work` schema.** The OpenWarrant UUIDv7
+minted at draft creation IS the object id (§12.2: created once, never changes; §12.7: stable
+references). `create_warrant_draft` therefore takes `warrant_uuid` and refuses a non-v7 value
+and an identity that already exists. The typed row (`work.warrant`) carries the §12.5
+federation facts — repository, local alias, profile, assurance level — and four of §24's five
+state dimensions as columns: `execution_condition`, `outcome`, `currency`, `standing`. The
+fifth, **phase**, is the object's lifecycle state, driven by the registry's `warrant` state
+machine exactly along §24.7 (draft → proposed → authorized → ready → executing → verifying →
+resolved), with withdrawal back to draft and §24.8's amendment return to authorized. Blocking
+and pausing overlay the phase and move only `execution_condition`; a resolution's outcome stays
+when standing later becomes `disputed` or `annulled` (§24.6).
+
+**Contract revisions are immutable snapshots (§28).** `work.warrant_contract_revision` holds,
+per revision, the contract digest and Compilation Basis as OpenWarrant computed them, the
+canonical IR (§83.5's immutable canonical snapshot), the predecessor and structured difference
+(§28.6), and — on an authorized revision — authorizer, acting role, meaning, policy basis and
+effective time (§28.4). An append-only trigger makes §28.7 structural. KF records; it does not
+recompute, because Git is the Source Holder and the authored atoms never enter this database.
+Authorization must name the digest it authorizes and is refused when that is not the one
+proposed; blocking and pausing are refused outside the phases §24.7 overlays them on; a
+superseding successor must itself be current.
+
+**All thirty-two names are owned, and every one writes something typed (§84, landed the same
+day).** The `warrants` group owns every §67 action, spelled as OpenWarrant's seam spells them.
+The contract group writes the warrant and its revisions; blocking and pausing move the
+condition and open/resolve `work.warrant_blocker` rows (the condition clears with the last
+open blocker); the terminal group moves outcome, standing and currency. The execution and
+evidence groups project into thirteen tables shaped from OpenWarrant's own structs and the
+SAS clause each serves: `warrant_preflight` (§32), `warrant_dispatch`, `warrant_runtime_receipt`
+(§85, bound to a recorded dispatch), `warrant_submission` (§37.4), `warrant_blocker` (§53.1),
+`warrant_deviation` (§53.2, dispositioned once), `warrant_discovered_gap` (§53.4, refused when
+"repaired in place"), `warrant_artifact` (§37.2, every provenance field), `warrant_evidence`
+(§40.2/§41, occurred_at is the actor's and recorded_at ours), `warrant_gate_run` (§44.6),
+`warrant_inference` (§40.4), `warrant_judgment` (§40.5, the judge is the act's actor and role),
+`warrant_resolution_request`. All are append-only except the two dispositions. Phase
+transitions are registry transitions and need no handler.
+
+**§67.1–67.4 are the dispatcher's.** The envelope, server-assigned `recorded_at`, optimistic
+concurrency on `expected_version`, and payload-equivalent idempotency were already the
+kernel's behaviour for every action; the tests here prove them for a Warrant.
+
+## What this does not decide
+
+- ~~Numbering.~~ Decided 2026-09-02: registry 1.0.0-draft.2 allocates `WAR`, so a Warrant is
+  numbered `OH-WAR-NNNNNN-C` by `allocate_enterprise_identifier` on any instance seeded from
+  that revision. The recorded refusal before it is the contrast §12.4 asked for.
+- **Relations.** Superseding names its successor in a column; `supersedes` as a
+  `core.relation` and Warrant-to-project links wait for a reader who needs them.
+- **§68 round trip.** The preservation export carries both tables; the OpenWarrant-side
+  export/import/re-export is OW-WAR-0044's own deliverable.
+
+## How this is held
+
+`tests/database/warrants.test.ts`, against a real database: draft → proposal snapshot →
+authorized revision with authorizer, role and server time; the OpenWarrant UUID as identity,
+refused twice over; §67.3 drift fails rather than overwrites; §67.4 replay and conflicting
+reuse; authorizing a foreign digest is refused and a revision cannot be altered; the allocator
+refuses a Warrant naming `WAR`; and a full walk through withdrawal, amendment, blocking,
+dispatch, submission, resolution, dispute and annulment moves each dimension and nothing else.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0020-service-actors.md · uuid: a5e233f8-36cc-593a-8ccd-ae8939e03a4f -->
+
+# ADR KF-0020: Scheduled work acts as a declared service actor, never as a human and never around the dispatcher
+
+**Status:** accepted — implemented 2026-09-02; builds on ADR 0016, ADR 0017
+**Date raised:** 2026-09-02
+**Date decided:** 2026-09-02
+**Decision owner:** technical authority
+**Scope:** under whose identity a timer replicates and re-verifies artifact copies, what that
+identity can and cannot do, and how it is declared
+
+> **UPDATED 2026-09-24.** "Every write is a typed action" no longer holds for `kf-storage`: a third
+> pass, `--collect-orphans`, deletes working-store evidence keys that no record references without
+> dispatching an action, since an orphan has no record for an act to be on. Each deletion is
+> recorded instead in the append-only `content.orphan_collection`, attributed to the bound service
+> actor (`20260924000400_orphan_collection_is_recorded.sql`, which names this the exception).
+
+## The problem, measured
+
+ADR 0017 made replication and re-verification typed actions and left scheduling undecided.
+A typed action needs an actor who holds a role; the only actors were humans with logins. So a
+timer had two bad choices: dispatch as a human's person id from a config file, so the audit
+trail says a person acted at 03:30 every night; or write to `artifact_location` directly with
+a database role, so copies and verifications would name no act. The checkpoint signer shows
+the shape the host already has — a one-shot behind a systemd timer with its own uid and
+secrets from files — but it signs; it does not act.
+
+## Decision
+
+**A service actor is a person of kind `service`.** `org.person.person_kind` is `human` or
+`service` — a column on the typed row, deliberately not a field of the `person` type in the
+ontology: `person` is an approved R01 definition and the golden gate holds it byte-identical;
+an approved semantic is extended around, never redefined. A service actor holds an organization-scoped role assignment and a clearance like
+any principal, so the dispatcher, row-level security and the access-grant view treat it
+exactly as they treat a person. Two things distinguish it, both refused rather than
+documented: it can never be linked to a login (a trigger on `org.external_identity`), and it
+can never perform a `requires: act` action (the dispatcher refuses it by name, whatever
+grants reach it). A service actor does routine work under authority somebody granted; it
+never authorizes, approves, grants, allocates or resolves.
+
+**Declared by an operator, on the owner connection, as a recorded act.**
+`pnpm kf:declare-service-actor --organization … --name storage-steward --role performer
+--classification … --declared-by <person> --reason …` creates the person, the role assignment
+(delegated by the decider), the clearance, and a `grant_person_clearance` action and audit
+event by the human who decided — the same three writes `kf:grant-authority` makes, by the
+same code. It is idempotent on the name. Nothing is defaulted.
+
+**The sweep is a sibling of the checkpoint signer.** `apps/kf-storage` is a one-shot:
+`--replicate` dispatches `replicate_artifact_version` for every version lacking a location in
+the durable store; `--verify --older-than-days N` dispatches `verify_artifact_location` for
+every location not verified within N days. Every write is a typed action under
+`KF_STORAGE_ACTOR` / `KF_STORAGE_ROLE`, so each copy and each verification is an audited act
+by a named principal with a receipt. A second run does nothing. A verification that finds a
+bad copy, or any refusal, exits non-zero so the timer's failure hook fires.
+`deploy/systemd/kf-storage.service` and `deploy/systemd/kf-storage.timer` run it daily at 03:30 as its own uid with the
+working and durable store credentials from files.
+
+## What this does not decide
+
+- **Which role.** The runbook uses `performer`; a narrower role for automation is a role
+  vocabulary question for the pack owner.
+- **Other service actors.** The mechanism is general; only the storage steward exists.
+- **Rotation.** A service actor's role assignment has a `valid_to` like any other; nothing
+  yet rotates or re-declares one on a cadence.
+
+## How this is held
+
+`tests/database/service-actor.test.ts`: declaring records the human's act and creates the
+service person with role and clearance, and is idempotent; linking it to a login is refused by
+the database; an institutional act (`allocate_enterprise_identifier`) is refused for it by name
+even under an organization-scoped role; the sweep run as it replicates a version to the
+durable store and re-verifies, every action's actor is the service person, and a second run
+does nothing.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0021-publication-writes-one-public-copy.md · uuid: 398e5460-d359-5ac6-9711-8e8423b269e8 -->
+
+# ADR KF-0021: A publication writes exactly one public copy, and unpublishing is a recorded failure, not a delete
+
+**Status:** accepted — implemented 2026-09-02; builds on ADR 0006, ADR 0016, ADR 0017
+**Date raised:** 2026-09-02
+**Date decided:** 2026-09-02
+**Decision owner:** technical authority
+**Scope:** what a publication is on the storage side, where public bytes live, what act writes
+them, and what "unpublish" means
+
+## The problem, measured
+
+The institutional half of publication already existed and was strict: `publish_document_view`
+requires an accepted, qualified compilation run, an effective controlled document at or above
+the view's classification, and a registered publication target, and the public route serves
+only an Ed25519-signed `kf-publication-v1` manifest over that act. What it never did was put
+bytes anywhere. ADR 0017 allowed a `public_copy` location role and wrote none, deferring "the
+publication boundary" — which turned out to be one column and one write, once it was clear the
+act already existed.
+
+## Decision
+
+**A store may be declared public; a target may name one.** `content.artifact_store.public`
+says bytes written there are outside the product-instance boundary (ADR 0006).
+`content.document_publication_target.public_store_id` names the public store a target
+publishes bytes into; a trigger refuses a target naming a store that is not public. A target
+without one publishes through the signed public route only, exactly as before.
+
+**The publication act writes exactly one public copy.** When the target names a public store,
+`publish_document_view` — after recording the publication — copies the compiled view's bytes
+from the working store into the public store with create-only semantics, records a
+`public_copy` location under that act, and verifies what landed; a copy that does not verify
+refuses the publication. The database enforces the "only" in two directions: a `public_copy`
+row recorded by any act other than `publish_document_view`, or into any store not declared
+public, is refused. A target that names a store this instance cannot reach refuses the
+publication by name (`KF-DOC-PUBLISH-007`) rather than publishing the manifest without the
+bytes. `publish_document_view` is a `requires: act` action (ADR 0016).
+
+**Unpublish is the document leaving `effective`.** The public route already refuses a
+publication whose controlled document is not effective. When a document is superseded or
+withdrawn — both `requires: act` — a trigger marks every public copy of its publications with a
+recorded verification failure that names the state it moved to, under the act that moved it.
+Nothing is deleted: the bytes stay as evidence of what was public and until when, and
+`readVersionBytes` will not serve a copy whose last verification failed.
+
+## What this does not decide
+
+- **Serving from the public store.** The signed public route still serves from the working
+  store; whether a CDN or bucket listing in front of the public store is a second delivery path
+  is a deployment question with the host.
+- **Re-publication after supersession.** A superseding revision is a new publication act with
+  its own copy; the old copy's failure record stands.
+- **Retention of public copies.** Nothing removes them; retention (ADR 0004) will need its own
+  act.
+
+## How this is held
+
+`packages/documents/src/index.test.ts`, the document action chain against a real database: a
+target naming a non-public store is refused; publishing to a target naming the public store
+writes one verified `public_copy` under the publication act and the bytes are in the public
+store; a `public_copy` inserted under any other act is refused; superseding the document marks
+the copy `unpublished: …` with no digest, and the bytes remain.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0022-drive-as-external-source-holder.md · uuid: 79f2ce3c-fd60-5b75-b9bb-43bcb31e907c -->
+
+# ADR KF-0022: Google Drive is an external Source Holder: ingestion copies, cites the revision, and names the exporter
+
+**Status:** accepted — implemented 2026-09-02; decides the deferred design in ADR 0009 in its
+narrowest form
+**Date raised:** 2026-09-01
+**Date decided:** 2026-09-01
+**Date implemented:** 2026-09-02
+**Decision owner:** technical authority
+**Scope:** how a document that lives in Google Drive enters the Fabric, what is recorded about
+where it came from, and what is deliberately not built
+
+## The problem
+
+ADR 0009 deferred Drive ingestion and left three questions open: what replaces a git commit
+sha for a non-git source, whether a Drive document may become a controlled document at all,
+and whether the seam should be generic. Two of those were bigger than the need. The need is
+that a person can point `kf ingest` at a Drive file and get an artifact version whose origin
+is recorded well enough that a later reader can tell what was read, at which revision, and how
+it was converted.
+
+## Decision
+
+**Drive is an external Source Holder, and ingestion is a copy.** A Drive file enters by the
+SAME path a local file does — the bytes are fetched, hashed, written to the working store with
+create-only semantics, and attached by `attach_evidence` — so nothing downstream (parsing,
+atoms, master records, projections, publication) learns that Drive exists. `--mode=reference`
+refuses a Drive source: we hold the copy or nothing; a bytes-free reference to something a
+third party regenerates is not a citation.
+
+**Three facts a local file does not have are recorded on the act and beside the version.**
+
+- The file id and the exact revision the bytes were read at, as a `content.external_locator`
+  row with `system = 'google-drive'`, `external_id = '<fileId>@<revisionId>'`, and
+  `authority = 'authoritative'` — Drive holds the source, we hold a copy. `attach_evidence`
+  now accepts an optional `source_locator` object and writes that row; the authority value is
+  validated against the same four the schema allows.
+- The exporter identity, as `exporter` on the action payload: `google-drive-api-v3 files.get
+alt=media` for a file that has bytes of its own, or `google-drive-api-v3 files.export
+mimeType=<target>` for a Google-native document. Two exporters can differ the way two
+  pandocs do, so the exporter is part of the record, not a default.
+- The source's own media type and modification time, as `source_media_type` and
+  `source_modified_at` on the action payload; `revision_label` is the revision id.
+
+**Google-native documents are exported at their head revision only.** Docs, Sheets and
+Slides have no bytes of their own; `files.export` is the converter and does not take a
+revision. A request for an older revision of a native document is refused rather than
+exporting the head under an older label. Default targets are pinned in code (Docs → Markdown,
+Sheets → CSV, Slides → PDF) and can be overridden per run with `--export-mime`.
+
+**Admission is per file, never a folder sync.** `--drive=<fileId>[@<revisionId>]` is
+repeatable; there is no folder argument and no listing call in the adapter.
+
+**Read-only is structural.** The adapter authenticates as a service account with the
+`drive.readonly` scope through a signed JWT; the only non-GET request it makes is the token
+exchange, and the test asserts that. The key file is read through the same permission-checked
+secret reader as every other secret, from `KF_DRIVE_SERVICE_ACCOUNT_FILE`.
+
+## What this deliberately does not do
+
+- **No `federated_source` row, no `SourceReader`.** ADR 0009 sketched Drive as a federated
+  source beside git. That is the drift-checking seam for a source of record that the Fabric
+  mirrors and re-reads. A Drive file is admitted once, as a copy; if it changes, someone
+  ingests it again and gets a new version. The "what replaces `commit_sha`" question is
+  therefore not answered because it is not asked.
+- **No relaxation of `federated_reference`.** Nothing about a controlled document changes.
+  Whether a Drive-origin artifact may become a controlled document is answered by the existing
+  rule: it may, because by then it is a copy with a digest, and the parity criterion in ADR
+  0002 is over the bytes we hold.
+- **No folder sync, no listing, no writes, no user OAuth flow.**
+
+## Verification
+
+- `apps/api/src/ingest/drive.test.ts`: reference parsing; native export at head with the
+  exporter named; non-head export refused before any request; bytes-bearing file read at the
+  requested revision through the revisions endpoint; missing head revision refused; the
+  request log contains no non-GET request other than the token exchange.
+- `apps/api/src/ingest/plan.test.ts`: Drive items carry id and revision; a malformed reference
+  is refused by name; reference mode with a Drive source is refused.
+- `packages/documents/src/index.test.ts`: `attach_evidence` with `source_locator` writes
+  exactly one `external_locator` row; an authority outside the four is refused.
+
+## Consequences
+
+- ADR 0009's status becomes "superseded by ADR 0022" for the design; its measurement of the
+  federated-source cost stands and is the reason that seam was not built.
+- The exporter is now recorded per version. The pandoc-pinning question ADR 0009 raised is
+  narrowed to pandoc: the Drive converter's identity travels with the bytes it produced.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0023-business-logic-above-data-primitives-within.md · uuid: b773a864-8535-5ac5-8b6c-7c595a06a351 -->
+
+# ADR KF-0023: Business logic sits above the Fabric; dataset and lineage capability, if built, sits inside it
+
+- **Status:** accepted — 2026-09-04; recorded for KF SAS `0.1.0-draft.2` (§8.10, §8.11)
+- **Date raised:** 2026-09-04
+- **Date decided:** 2026-09-04
+- **Decision owner:** technical authority
+- **Scope:** where business logic lives relative to the authority boundary, and where dataset,
+  transform and lineage capability would live if it is ever built
+
+## The problem
+
+The Knowledge Fabric was compared against Odoo and Palantir Foundry to find out what it does not
+have. The lists were long and mostly unsurprising: no accounting engine, no inventory, no CRM, no
+forms UI, no bulk import; no pipelines, no transforms, no notebooks, no BI, no distributed
+compute.
+
+What the comparison exposed was not the absence of those features. It was that **the two lists
+have different answers**, and nothing in the repository said so. A reader of §8's non-goals would
+have concluded both were equally out of scope, and would have been half wrong.
+
+## Decision
+
+**Business logic is an application above the Fabric.** Invoicing arithmetic, stock movement,
+scheduling, order-to-cash, payroll — computed by callers, reaching the Fabric through the
+dispatcher as attributed acts like every other writer. The Fabric holds what happened and who
+authorised it. It does not decide what a total should be.
+
+**Dataset, transform and lineage capability, if built, is a core primitive.** Under the same act,
+audit, access and provenance model as every other record. Not an application above the boundary,
+and not a side path that reaches storage directly.
+
+## Why they differ
+
+Law 1 is the reason, and it cuts both ways.
+
+An accounting engine computes a value from inputs. It is arithmetic with a result, and its result
+is checked by re-running it. Putting it inside the authority boundary makes the boundary
+answerable for the arithmetic, and the first defect in that arithmetic becomes a defect in the
+record rather than in something over it. The boundary should hold facts that were asserted, not
+values it derived.
+
+A derivation is different in kind. "This dataset was produced from those datasets by that
+transform, at that version, by that actor" is **a fact with an authority**, and it is exactly the
+shape of fact this system exists to hold. A derived dataset whose provenance lived outside the
+act model would be a second authority for its own history, which Law 1 forbids. Lineage is not
+analytics; it is provenance, and provenance is the core's job.
+
+So the test is not "is it big" or "is it a feature". It is: **does it assert what happened, or
+does it compute what should be?** The first belongs inside. The second belongs above.
+
+## Consequences
+
+- §8.10 and §8.11 state both, positively rather than as absences, because a non-goal invites the
+  reading that a capability is merely missing.
+- KF-SAS-RQ-190 and KF-SAS-RQ-191 make them requirements rather than prose.
+- Nothing is built. `ml.run_lineage`, with its input, output and parent-model tables, is the
+  closest existing thing and is the natural seed.
+- §100.17 records a constraint this exposed: the eleven §98 phases are fully used against a hard
+  cap of ten, so a data-primitives phase cannot be added without restructuring the ladder.
+- KF-SAS-RQ-192 was added in the same revision for an unrelated reason: the deploying
+  organization's legal name is compiled into three lines of the dogfood bootstrap, and it should
+  be configuration. It closes the application-side half of ADR 0006's seam.
+
+## What this does not decide
+
+- **Whether dataset capability is ever built.** Only where it would live.
+- **What a transform is**, how it is expressed, or whether it executes anywhere but a caller.
+- **How the phase ladder is restructured** if a twelfth objective is ever needed.
+
+## Provenance of the revision
+
+This ADR exists because the tooling refused a claim made about it. The draft amendment history
+asserted the revision was not architecture-changing under §94.3; `war sas propose` derived
+`architecture-changing: true` from the §106 diff and required a decision record. The tool was
+right and the prose was wrong. Recorded here because a specification whose own governance
+catches its author is the governance working.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0024-friction-is-an-architectural-property.md · uuid: e5411948-7526-5c00-bf3d-b52b843a6cb7 -->
+
+# ADR KF-0024: Friction is an architectural property, and a platform engineers skip records nothing
+
+- **Status:** accepted — 2026-09-04; recorded for KF SAS `0.1.0-draft.3`
+- **Date raised:** 2026-09-04
+- **Date decided:** 2026-09-04
+- **Decision owner:** technical authority
+- **Scope:** whether speed of capture and retrieval are architectural requirements of the
+  Knowledge Fabric, and what may be written without prior approval
+
+## The problem, stated plainly
+
+Every write in this system is an attributed act: an actor, an acting role, a resolved clearance,
+a grant where the act is institutional, an idempotency key, and often a stated reason. That is
+friction, and it is deliberate — it is the whole reason the record can be trusted.
+
+It is also, given a web form and nothing else, a guaranteed loss to Slack.
+
+This is a research, biotech and hardware company. Engineers run tests, break boards, prepare
+samples and take decisions all day. If recording one of those costs a form and a think, they
+will narrate it in a chat window instead, and the Fabric will hold a beautifully governed record
+of the small fraction of work somebody had the patience to enter. **A record that is expensive
+to write is a record that is not written, and an authority nobody writes to is not an
+authority.**
+
+Neither ADR nor specification said any of this. §5 through §8 argue at length for correctness
+and say nothing about whether using the system is bearable. That silence is the defect this
+record fixes: an unwritten requirement loses to the next architectural argument, every time.
+
+## Decision
+
+**Speed of capture and speed of retrieval are architectural requirements, not product polish.**
+They rank with correctness, and a change that makes either materially worse is a change to this
+specification rather than a trade somebody makes quietly.
+
+**The friction lives in the API contract, not in the experience.** Nothing in the act model
+requires a person to see an idempotency key. One gesture may dispatch a fully formed act. The
+machinery is a seam, not a user interface, and it has been treated as both by accident.
+
+**Capture is cheap; governance is on promotion.** Recording that something happened is not an
+institutional act and must not cost like one. An observation enters as an ordinary object in a
+draft lifecycle state — attributed and audited from the first moment, because attribution is
+what makes it worth having — and becomes a controlled record only when somebody makes it so.
+Approval, effective state, enterprise identifiers and act grants apply at promotion, which is
+rare, not at capture, which is constant.
+
+**Four capture surfaces, one act model behind all of them.** An agent in natural language and
+Slack are first class. The command line and a web form are conventionally useful and included.
+Every one of them dispatches the same typed acts through the same seam; none gets a private path
+to storage, and none gets its own record shape. A corpus with four shapes for one kind of fact
+is the drift this system exists to prevent.
+
+**Retrieval is half the requirement.** A record nobody reads back does not repay the cost of
+writing it. Finding prior work — what was tried, what the numbers were, who decided what and why
+— is the same hot path as capture and gets the same standing.
+
+## The bars
+
+Stated as numbers because "fast" is not a requirement and cannot fail. These are initial and
+will be re-measured; §103.3's rule applies, and a bar nobody measures is prose.
+
+| Interaction                                      | Bar                                         |
+| ------------------------------------------------ | ------------------------------------------- |
+| Recording an observation, from intent to durable | under 5 seconds, including the human part   |
+| The act itself, dispatched and committed         | under 500 ms at the API                     |
+| Finding prior work by text                       | first useful result under 2 seconds         |
+| Reading an object view                           | under 1 second                              |
+| Attaching evidence to an existing record         | under 10 seconds for a file already on disk |
+
+## What this does not license
+
+- **It does not weaken the act model.** Every capture is still an attributed act in the audit
+  chain. Cheap means fewer decisions asked of the person, not fewer facts recorded.
+- **It does not create an ungoverned path.** No surface writes to storage outside the
+  dispatcher. §8.7's refusal of a general-purpose write path stands.
+- **It does not make a draft a lesser record.** A draft is an ordinary object with a lifecycle
+  state, subject to the same row-level security, the same corpus membership and the same audit
+  as everything else. It is early, not second class.
+- **It does not lower the bar for institutional acts.** Approving, allocating, publishing and
+  resolving stay exactly as expensive as they are. They should be.
+
+## Consequences
+
+- KF-SAS-RQ-200 through RQ-204 make these requirements rather than intentions.
+- The product gap this exposes is real and now has an owner: there is no Slack integration, no
+  cheap capture path, and no measurement of any of the bars above. All three are recorded in
+  §100 rather than assumed.
+- Agents stop being a downstream consumer and become part of the answer: an engineer describes
+  what happened, an agent forms and dispatches the act, and the record is complete without the
+  person composing one. This is why ADR 0014's projection engine and the existing agent tools
+  matter more than their size suggests.
+
+## What this does not decide
+
+- **Which chat platform**, beyond Slack being the one being lost to today.
+- **How an agent authenticates** when acting for a person, which is a real question and is not
+  answered by the service-actor model in ADR 0020: a service actor acts for itself, and this is
+  acting on behalf of a named human.
+- **What a draft observation's object type is**, or whether existing types suffice.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0025-people-have-a-lifecycle-and-organizations-retire-with-them.md · uuid: 4f470661-6bdf-54cb-a651-cbe2783e8966 -->
+
+# ADR KF-0025: People have a lifecycle, and an organization is retired with its people
+
+- **Status:** accepted, 2026-09-11
+- **Supersedes:** nothing. Extends ADR 0011 (organization-scoped authority) and the
+  `organization` lifecycle added 2026-09-10.
+- **Requirements touched:** KF-SAS-RQ-062 (bootstrap acts extend the chain), §100 gaps on
+  organization identity.
+
+## Context
+
+The first retirement of organizations in this repository was done with raw SQL inside the
+migration that created the legal-name uniqueness index. It set `org.organization.retired_at`
+on nine duplicates and left three things wrong that were found only when the fixture company
+was asked to work:
+
+1. `core.object.lifecycle_state` for those nine organizations was still `active`. The update
+   that was meant to move it could never have run: the transition guard on `core.object`
+   requires an action in context, and a migration has none. So the denormalised column said
+   _retired_ and the authoritative column said _active_.
+2. Nine people were still `active` inside organizations that no longer existed, because a
+   person had no lifecycle at all — R01 approved `person` with states `active, inactive` and
+   `state_machine: null`.
+3. The `retire_organization` act had never been dispatched. When it was, its effect failed on
+   the first statement: it named a column `core.relation` does not have, and the relation it
+   tried to record — _successor supersedes retired_ — cannot exist anyway, because a
+   `core.relation` needs both ends visible in one organization's row-level scope and a
+   successor is by definition another organization.
+
+Separately, the first grant of authority in any organization was impossible: `grant-authority`
+required the grantor to already hold a role assignment in the organization, and nobody in a new
+organization holds one, including its founder.
+
+## Decision
+
+**A person has a lifecycle between R01's two states.** `deactivate_person` moves
+`active → inactive`; `reactivate_person` moves back. No state is invented. Deactivation ends
+the person's authority under the same act: live role assignments are end-dated and live
+clearances are retired through `org.person_clearance_retirement` (the row the resolver and
+`explainAccess` already read) with their interval closed, so the no-overlap constraint does not
+refuse the person a later grant. Reactivation restores nothing; authority is re-granted on
+purpose, with a fresh reason. A person does not deactivate themself.
+
+**An organization is retired with its people.** A person's object is bound to its organization
+by row-level security and cannot move. `retire_organization` therefore refuses while active
+people remain unless the act states `with_people: true`, and with it drives each of them to
+`inactive` — the ontology declares that transition for this action, so the guard allows it —
+and ends their authority as above. "Move them to the successor" was a promise the database
+could never keep; it is no longer made.
+
+**The successor is a fact about the retired organization, not a relation.** It is recorded on
+`org.organization.succeeded_by` by the act that named it, and in that act's payload. A named
+successor must exist and must not itself be retired; the check reads through a definer function
+(`org.organization_retirement`) because the successor's rows are invisible from the retiring
+organization's scope.
+
+**The founding grant.** `grant-authority` admits one exception to "the grantor exercises a role
+in this organization": when the organization holds no live role assignment at all and the
+person being granted is the grantor. The founder assigns themself the role first and exercises
+that assignment for the clearance that follows, so the act is still recorded under a real
+assignment held by the actor in this organization. The action row now records the assignment
+as `acting_role_id`; it had recorded the person, contradicting its own comment.
+
+**A bootstrap-tier way to retire an organization nobody can act in.** `kf retire-organization`
+runs the act's own precondition and effect on the owner connection, around the two things the
+dispatcher would otherwise do — record the act, move the object — and refuses any organization
+in which somebody holds a live role assignment, with the instruction to dispatch the act as that
+person. It is for the duplicate created by a defect and the organization created in error; it
+is not a second way to do what the API does.
+
+**Two roles for external parties.** `customer_contact` and `partner_contact`, because a
+customer's contact reading this organization's public documents is a person in this
+organization's tenancy, and the ten institutional roles all say something untrue about them.
+`grant-authority --role-ceiling` caps the organization-wide grant a role assignment is, so a
+contact cleared to `confidential` for their own agreement does not read every confidential
+record; object-scoped `grant_access` names the one they may.
+
+## Consequences
+
+- The nine mis-retired organizations on the dogfood host are retired again, this time through
+  `kf retire-organization --with-people`, each as a recorded act with a reason and a decider,
+  each person made inactive under it. The migration that did it wrong is left as it is: its
+  index and column are correct, and the data repair it attempted is superseded by acts.
+- Data repairs in migrations are not a pattern. A migration has no action in context and the
+  guard is right to refuse it. Repairs go through acts, and where no authority exists to act,
+  through a bootstrap-tier command that reuses the act's own atoms.
+- The lifecycle test (`tests/database/organization-lifecycle.test.ts`) dispatches every path
+  against a real database. It found all three defects above on its first run.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0026-definer-functions-resolve-under-a-bound-context.md · uuid: 986a0e52-fd9f-5de2-85fc-5649a763c735 -->
+
+# ADR KF-0026: Definer functions resolve under a bound context, and the test harness owns the schema as an ordinary role
+
+- **Status:** accepted, 2026-09-11
+- **Extends:** ADR 0003 (the database is the authority), ADR 0011 (organization-scoped
+  authority), ADR 0025.
+
+> **UPDATED 2026-09-24.** Three statements below are no longer current. The resolvers now bind
+> their own provisional context and restore it before returning, and the application binds only
+> `public` with no principal or narrows a principal it bound through `core.bind_principal`
+> (`20260923000100_the_context_is_sealed.sql`;
+> [ADR 0033](KF-ADR-0033-the-database-binds-the-principal.md)). `org.person` and `org.organization` now
+> force row-level security, so the owner reads across organizations by `BYPASSRLS`, not by
+> ownership (`20260924000200_row_security_is_forced_everywhere.sql`). And the "three suites"
+> consequence was already stale when accepted: since `050c2f32` the harness has owned the schema
+> as `kf_harness_owner` (non-superuser, `BYPASSRLS`) for every suite by default.
+
+## Context
+
+The first real login on the dogfood host was refused: `401 role_not_held`. Every
+database test that exercised identity had passed, and the identity walk recorded in
+`docs/deployment/identity-and-login.md` had reached a domain answer on a workstation database.
+
+The cause is a property of PostgreSQL that the tests had been arranged never to meet. Two
+resolver functions, `org.resolve_identity_role` and `org.resolve_effective_classification`, are
+`SECURITY DEFINER` and read `core.object` and `org.person_clearance` — tables that **force**
+row-level security. Forced policies bind the table owner and therefore bind a definer function
+owned by that role. They do not bind a superuser. The test harness applied migrations as the
+container's bootstrap superuser, so every definer function was owned by a superuser and read
+past every policy; on the host the owner is the migrator login, an ordinary role, so the same
+function saw nothing until an organization was bound — and both resolvers were called
+_before_ any context was bound, because binding the context was what they existed to decide.
+
+So: on the host, no person could be identified, and had identity passed, no action could
+have been dispatched. In the tests, neither failure was reachable.
+
+## Decision
+
+**Resolution binds a provisional context.** `resolveIn` (identity) and
+`setResolvedAccessContext` (classification) bind the requested organization at the widest
+ceiling before calling their resolver, and the derived ceiling replaces it before the caller's
+transaction touches a record. The resolvers return who the caller is and what ceiling they
+hold; neither returns record content, so the provisional ceiling exposes nothing. The
+requested ceiling cannot serve as the provisional one: a caller asking to work at `public`
+must still have their `internal` assignment envelope seen.
+
+**Amended the same day: the schema owner must bypass row-level security.** Running the whole
+suite under an ordinary owner failed 49 tests in 12 files, and every one was a definer seam
+built to read past forced policies — outbox delivery, search indexing, readiness, ML signing
+keys, compiler pins, the action-target trigger. On the dogfood host the same seams were all
+broken: zero rows in the search index, every outbox row undelivered. The seams are the design;
+what was wrong was the host. The migrator login is granted `BYPASSRLS` (it is still not a
+superuser), `readiness` carries `schema_owner_bypasses_rls` and refuses a host without it, and
+the harness owns the schema exactly that way by default. The provisional binds above stay as
+defence in depth. The paragraph below describes the intermediate state and is kept as a record.
+
+**The harness can own the schema as an ordinary role.** With `realisticOwner: true`,
+`tests/database/harness.ts` moves every schema, table, view, function and type in the fabric's
+own schemas to `kf_harness_owner` — `nologin nosuperuser nobypassrls` — after migrating, so a
+definer function in a test is bound by exactly the policies that bind it on a host.
+`adminPool` remains the superuser for fixture writes. The identity, access-grant and lifecycle
+suites run this way. With the fix removed, 14 identity tests and 8 access-grant and lifecycle
+tests fail; with it, all pass. Before this change, the same removal changed nothing.
+
+It is opt-in, and that is a recorded gap, not a preference. Turning it on for every suite
+failed 50 tests across 13 files: `core.action` target checks, ML-registry signing, compiler
+pins, export round-trips. Each is either a host-shaped defect of this same class or a fixture
+that leans on the superuser, and each needs its own reading. Suites move over one at a time,
+and a suite that has not moved is a suite whose row-level behaviour is not yet evidence.
+
+## Consequences
+
+- A `SECURITY DEFINER` function in this schema is not a way past row-level security on a
+  forced table. It never was on a host; now it is not in a test either. Any function that
+  needs to see across organizations must do so by design — `org.organization_retirement` is
+  the shape: a non-forced table, a minimal answer.
+- Three suites run under the ordinary owner and are the evidence for this ADR. The other
+  database suites still run under the superuser and are listed as the gap above; the full
+  suite stays green only because of that, and says so here rather than pretending otherwise.
+- A host's bootstrap-tier commands run as the table owner. `org.person` and `org.organization`
+  enable row-level security without forcing it, so the table owner reads across
+  organizations and any other login does not; the fixture script and `kf retire-organization`
+  are documented and run accordingly. The application login never holds that credential.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0027-access-is-a-grant-on-every-read.md · uuid: e751720e-b10b-5c2b-96f7-842cf0c50c21 -->
+
+# ADR KF-0027: Access is a grant on every read; the session ceiling is the clearance; people and organizations are the lowest tier
+
+- **Status:** accepted, 2026-09-11
+- **Extends:** ADR 0011 (organization-scoped authority), ADR 0016 (access is a grant),
+  ADR 0025, ADR 0026.
+
+> **UPDATED 2026-09-24.** `act` grants are now enforced by the database as well: an insert into
+> `core.action` for a `requires: act` action type is refused unless a live `act` grant reaches the
+> actor (`20260924000100_the_database_checks_act_authority.sql`). Read grants are still applied at
+> the API, as the last consequence below says.
+>
+> **UPDATED 2026-09-25.** The read gate moved to `@kf/authorization` (`readGranted`,
+> `readGrantedSubset`), so a surface outside the API can ask it. The three action-side reads that
+> still answered on row-level security alone — `GET /projects/:id` (and its package list),
+> `GET /objects/:id/history` and `GET /objects/:id/available-actions` — now ask it and answer not
+> found for an ungranted record, and so does every agent read tool (`@kf/agent-tools`): a record,
+> its history, what can be done to it, a search hit, a traced edge, its verification, citations
+> and evidence. A person cleared for a record but not granted it no longer learns its title,
+> history or existence through any of them (KF-SAS-RQ-039, RQ-041).
+
+## Context
+
+The first fixture company could not give a customer's contact their own master record, and
+the reason was three model decisions that had never met a customer.
+
+1. **The role ceiling capped the whole session.** `org.resolve_effective_classification` took
+   the lower of the person's clearance and the acting role assignment's ceiling as the
+   classification bound to the session. A contact cleared to `confidential` for their own
+   agreement, capped at `public` through their role, could reach nothing above `public` —
+   including the object-scoped `grant_access` recorded for them, which was therefore useless.
+2. **Only the master record checked grants.** `GET /documents/:id`, its bytes, its workbench,
+   its projections and search served on row-level security alone. That is why the role
+   ceiling _had_ to cap the session: it was the only thing keeping an organization-wide
+   reader away from records they were cleared for but not granted.
+3. **Every person and organization was `internal`**, the envelope default. A member capped
+   at `public` could not see the people around them, the organization they belong to, or —
+   fatally — their own person object, the target of `compile_master_record`.
+
+Two smaller findings arrived with them: `content.artifact.artifact_kind` was checked against
+a vocabulary the ontology never declared, and most materializers ignored the classification
+an act stated, so every decision record, configuration item and project was `internal`.
+
+## Decision
+
+**The session ceiling is the person's clearance.** The resolver no longer lowers it by the
+assignment's ceiling. The assignment ceiling means what `org.effective_access_grant` always
+said: the cap on the organization-wide read grant that a role assignment is.
+
+**Every read surface checks the grant.** `packages/authorization/src/read-grant.ts`
+(re-exported from `apps/api/src/routes/documents/read-grant.ts`) answers one question — does a live grant reach this object at its classification — from the
+same view the master record uses, and the document read, source bytes, workbench,
+projection, list and search routes all ask it. Not granted reads as not found, deliberately:
+the difference between "no such record" and "not yours" is itself information.
+
+**People and organizations are `public`** — the lowest classification inside a tenancy that
+row-level security already scopes to one organization. This is not publication, which
+remains an act. Existing rows were reclassified by migration `20260911000200`, under a
+transaction context and per-organization binding, because the guard is right to demand both.
+
+**One artifact-kind vocabulary**, the ontology's; the column's check follows it and the old
+values were mapped in the same migration. **Every materializer passes the classification the
+act states** through `classificationFrom(payload)` in `@kf/record-atoms`; the insert policy
+still refuses a classification above the session ceiling, so nothing can widen.
+
+**Two minimal definer answers for the bootstrap tier**, `org.organization_by_name` and
+`org.person_lookup`, so the owner login — which is not the table owner — can find an
+organization before it can bind one and verify a decider from another organization, and
+learns nothing else.
+
+## Consequences
+
+- A customer's contact holds `customer_contact` with a `public` role ceiling and a
+  `confidential` clearance: they read what the organization publishes to everyone in it, and
+  their own agreement through an object-scoped grant, and nothing else confidential. The
+  fixture demonstrates all nine personas.
+- `tests/permissions/identity.test.ts` encodes the new ceiling rule;
+  `tests/database/access-grants.test.ts` proves the read gate reaches exactly the granted
+  object; the route unit tests answer the gate's two tagged queries.
+- Grants are still not enforced inside row-level security itself. A caller with database
+  access at their clearance sees what RLS shows; the grant is applied at the API. That is
+  the boundary today and it is stated, not hidden.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0028-the-retrieval-index-is-masked-not-copied.md · uuid: c8928d12-6588-5381-b259-78b1ec826cdc -->
+
+# ADR KF-0028: The retrieval index holds vectors and identifiers; authorization crosses the wire as a mask
+
+- **Status:** accepted 2026-09-20; proposed 2026-09-14
+- **Extends:** ADR 0016 (access is a grant), ADR 0027 (access is a grant on every read),
+  ADR 0010 (the Liminal-backed compiler is deferred), ADR 0023 (business logic above,
+  data primitives within).
+- **Supersedes:** the "no `pgvector`" rationale recorded in
+  `database/migrations/20260811001800_search.sql`, on the condition that rationale set.
+
+## Context
+
+The README named a retrieval database inside the compiler's boundary and the specification had
+never heard of one. `\bRAG\b`, `\bLAMU\b` and `\bvector\b` each return zero files across
+`docs/sas` and `docs/decisions`. §104 lists four neighbouring programs and the retrieval engine
+is not among them. So the question was not how to build retrieval — it was whether the thing
+already written into the README had any architectural home at all.
+
+The code was ahead of both. `20260811001800_search.sql:7-13` refused `pgvector` with reasons and
+named the condition for revisiting: "Canonical search has to work first… Embeddings can be added
+later, ON TOP, and the shape here is what makes that safe: this table is derivable, so a second
+index alongside it changes nothing about where authority lives." Canonical search shipped. The
+condition is met, which is why this record supersedes that rationale rather than contradicting it.
+
+**What made the question hard.** An embedding is a lossy copy of content, and KF's access model
+is built on the opposite of copies. A pointer whose target you may not read shows you nothing; a
+copy you already hold shows you everything, and revocation becomes a distributed protocol rather
+than a commit. KF never deletes — Law 6 retires by sequester — so `on delete cascade`, the one
+mechanism that would have been free, never fires. Revocation here means reclassification or a
+withdrawn grant, and both must take effect on the next read.
+
+**The precedent, and a defect found while looking for it.** KF has already made this bargain
+once. `search.document` holds `body text` — the assembled plaintext of every controlled document
+since `20260812000100` folded parsed atoms into it — and `search_document_read` filters on the
+table's own **denormalised** `classification`, not on a join back to `core.object`. The column is
+refreshed by `search.index_object` through the outbox, and `apps/worker/src/outbox.ts` states, at its head,
+that delivery "is allowed to be late." So between a reclassification committing and the outbox
+draining, the search index evaluates a stale rank over live plaintext. Recorded as a gap in its
+own right; it is the failure this decision exists to avoid repeating one level down.
+
+**Measurement of the candidate engine.** LAMU persists to SQLite. Counting call sites in
+`lamu-memory/src` gives 100 in `lifetime_memory.rs`, 87 in `store.rs`, 46 in `tv_store.rs`, 34 in
+`ppr.rs`, 31 in `causal_graph.rs`, 22 in `entity_store.rs` and 14 in `hyper_store.rs` — on the
+order of three hundred, with the two sessions that measured independently agreeing on the
+distribution and differing on the total by counting method. Ten capabilities are feature-gated:
+`turbovec`, `hyperbolic`, `entities`, `assoc`, `consolidate`, `query_expand`, `rerank`,
+`retrieval_engine`, `learned_fusion`, `hyte`. A vector store substitution replaces exactly one of
+the ten — the semantic cosine leg. The three-geometry model and the BRIGHT-validated gains
+(`query_expand` +9-24% nDCG@10, `rerank` +7.6%) do not come from the index.
+
+**The correction that decided it.** This record initially asserted that an approximate index
+returns a global top-k and filters afterwards, collapsing recall for a caller cleared for a small
+fraction of the corpus, and that the engine had no mechanism for it. That was wrong. LAMU
+ADR 0043, accepted 2026-06-14, ships `search_with_mask(q, k, mask: Option<&[bool]>)` with SIMD
+block-skip, in its own words "masked-out vectors are never scored, not merely post-filtered", and
+the brute-force backend honours the mask too, so the mechanism is not gated behind an optional
+feature. Filtering happens **inside** the scan. §64's "one index, many audiences, filtered at read
+time" is therefore satisfied more literally by a masked scan than by any post-filter.
+
+## Decision
+
+**The retrieval index is inside KF's trust boundary and outside its authority boundary.** It is
+derived, disposable and rebuildable in full from authoritative rows, exactly as `search.document`
+is, and KF-SAS-RQ-010 already forbids it from being authoritative for anything. It is not a
+neighbouring program under §104 and Law 1 does not apply to it; it is a second derived index
+beside the first.
+
+**The role is named; the implementation is not.** The specification names a _retrieval index_.
+LAMU is the engine run in that role. A specification that names an implementation cannot change
+the implementation without a revision.
+
+**The index holds `(vector, object_id)` and nothing else.** No body, no title, no classification,
+no metadata — and specifically no authorization input at rest. Every hit is resolved through
+`read-grant.ts` before anything reaches a person or an agent.
+
+**Authorization crosses the wire as a mask, computed per query from live rows.** KF derives band
+membership bitmaps from `core.object`, keyed `(band_version, lamu_generation)`, and ships them by
+version rather than per query. The engine caches them **in memory only**, ORs the bands at or
+below the caller's ceiling, applies the per-object allow bits, and scores only unmasked slots.
+There is no denormalised copy of the decision and no denormalised copy of the decision's input,
+so reclassification takes effect on the next query with no outbox, no window and nothing to
+coordinate.
+
+The shape this relies on is already present: `enumerateAccessCoverage` runs **once per request**
+against `org.effective_access_grant` under the caller's RLS, and `AccessCoverage` reduces to one
+ceiling over four bands plus a small explicit per-object allow map, with `coveringGrants` pure and
+synchronous thereafter. A session's read authority is a compact predicate, not an enumeration.
+
+**A short mask pads false, never true.** Slots are append-only and positional — a stated contract
+at `tv_store.rs:1306` — so a mask shorter than the index means exactly "the newest vectors are not
+authorized yet". Fail-closed by construction, and it cannot produce a rebuild storm the way
+refusing the query could. The cost is that freshly embedded content is briefly unsearchable, which
+is a recall delay on new data rather than a disclosure. The length check is a hard runtime
+refusal, not the `debug_assert_eq!` that ADR 0043 records, which compiles out of release builds and
+would let a short mask mis-scope silently.
+
+**The version token covers both sides.** A bitmap is indexed by slot order, so it is invalid if
+the slot map moved even when nothing was reclassified. `(band_version, lamu_generation)` covers
+both, published at the existing `meta.json` commit point, and any mismatch takes the pad-false
+path rather than serving a mask built against a different slot order.
+
+**Amended 2026-09-24: the band version carries an epoch, so a lost row cannot replay a version.**
+`retrieval.band_version` is derived and excluded from preservation, so a restore that leaves it
+out recreates the row on the next band-moving write — and the counter used to restart at 1. A
+bitmap cached at version 7 before the loss would then be accepted again once the counter climbed
+back to 7, over records that had since moved. The row now carries `epoch uuid`, a fresh `uuidv7()`
+whenever the row is created, and the version token is `<epoch>.<counter>`; a lost row therefore
+comes back under a new epoch and no token it issues can equal one issued before. While no row
+exists the token is `unversioned.<random>`, fresh on every read, so nothing built in that window
+is ever reused. `@kf/retrieval` compares and caches on the whole token
+(`20260925064100_band_version_has_an_epoch.sql`). Not covered: a point-in-time restore of the
+whole database brings back an older row with its old epoch, and a process that outlives such a
+restore holds bitmaps it must not trust, and nothing yet forces it to restart. Recorded as a
+residual, not solved.
+
+**A degraded engine refuses; it never returns a short result set.** `retrieval_unavailable` is an
+explicit error. Where KF falls back to lexical search, the response carries a withholding-ledger
+entry under KF-SAS-RQ-120 stating that semantic ranking was unavailable. This is not a new flag:
+a ledger entry carries its basis and a boolean does not, and an agent that cannot distinguish a
+degraded answer from a complete one acts on it as complete.
+
+**The trace is derived and stays derived.** "What was disclosed to whom" is an authorization fact
+and belongs to KF under Law 1. KF's read audit records a digest of the engine's retrieval trace;
+the trace itself is disposable in the engine. No requirement names the retrieval engine as an
+authority for anything inside KF.
+
+**Vectors are encrypted at rest under a key KF releases at startup**, making "the engine is a
+compute dependency, not a store" literally true: without KF the index is inert. No date is
+recorded here, because the work needs its own Warrant and a date not yet earned is not evidence.
+
+**No controlled content leaves the host to be embedded.** The embedder is pinned local-only, a
+non-local provider resolving is a hard startup refusal rather than a warning or a null, and
+`kf-commissioning` asserts the binding. Enforcement is on both sides: the engine, because only it
+knows which provider actually resolved, and KF, because a control the engine enforces is a control
+the engine can be built without. A control on one of two paths gets missed on the other, which is
+the lesson `20260816000100_search_visibility_boundary.sql` already wrote down in this repository.
+
+**The composition root registers the embedder exactly once.** A second registration with a
+differing identity is refused, and clearing the registration does not enable a non-local provider.
+This is stated as an obligation rather than an observation deliberately: the engine's own
+`set_global` documents "a second call replaces the first (last registration wins… the identity is
+the same _in practice_)", and `clear_global` is documented as a seam for a composition root that
+wants to force the keyed fallback. First-use model validation is sufficient only while the chain
+is single-registration, so the constraint has to bind the code rather than describe it.
+
+**The socket protocol is the compatibility contract.** KF pins a protocol version, never an engine
+version. Everything behind it — all ten arms, new fusion, new rerankers, index format changes, the
+compressed-index work — ships on the engine's cadence with no KF deployment.
+
+## Options rejected, with what killed each
+
+**A Postgres extension via `pgrx`.** Attractive because it dissolves the boundary entirely:
+algorithms run in the backend, over KF's tables, under KF's RLS, in KF's transaction. Two
+structural blockers. The recall path is async and the embedder trait is `async fn embed` over HTTP
+to an inference server, so a backend would hold a transaction snapshot open across a GPU round
+trip — bloat and vacuum starvation, not a tuning matter. And a panic in ranking code is not a lost
+session: PostgreSQL treats any backend crash as possible shared-memory corruption and restarts the
+whole cluster.
+
+**Porting the engine onto PostgreSQL.** Preserves all ten arms and puts everything in one
+transaction domain. Costs the three hundred call sites and the three persistent index lifecycles,
+and trades a compressed quantized index for `pgvector`'s. Decided against on the engine's own
+recorded scope: its ADR 0078 already assigns authorization to KF and context assembly to itself,
+and its ADR 0074/0075 targets are public million-scale corpora with no clearances, where the
+compressed-index work has to win. KF is one consumer, so the port buys KF a great deal and costs
+the engine its reason for existing.
+
+**`pgvector` alone.** Cheapest, and the access story is free. Replaces one of ten capabilities and
+discards nine, including the three-geometry model and both BRIGHT-validated gains. Rejected as a
+trade of nine working things for one boundary that a mask already closes.
+
+**SQLite with an emulated row-security convention.** Rejected on four grounds, in descending
+severity. SQLite has no policies, so enforcement reduces to "the application only reads views",
+and KF-SAS-RQ-002's whole value is that the rule holds when the application is defective. It has
+no session GUCs, so the natural workaround is a per-connection temp table — and the engine pools
+connections, so a pooled connection hands its state to the next borrower, which is a cross-caller
+leak by construction and intermittent. The quantized index sidecars are flat files outside SQLite
+with no access control at all. And the engine's `owner` is tenancy — one string equality — where
+KF clearance is a lattice with per-record grants, delegation, effective dating and a withholding
+ledger; that is not a port but a replacement of the access model.
+
+**Generation stamps alone, without masks.** Closes the revocation window by refusing service on a
+stale index. Kept as a component — the version token above is exactly this — but rejected as the
+primary mechanism, because refusing service on every reclassification produces rebuild storms
+where masking produces nothing at all.
+
+## Consequences
+
+- Revocation is a commit, not a protocol. Reclassify a record and the next query masks it out.
+- The recall-collapse failure does not arise: masked slots are never scored, so a caller cleared
+  for a small fraction of the corpus asking for fifty receives fifty.
+- The withholding ledger does not apply to near misses. An unauthorized record never becomes a
+  candidate, so there is nothing withheld to report — which matters, because "four near misses
+  withheld" would disclose the shape of a semantic neighbourhood that is unbounded and steerable
+  by choice of query, a far worse bargain than §63's fixed-corpus disclosure.
+- The engine keeps its release cadence. Roughly a dozen versioned messages cross the boundary;
+  everything else is internal.
+- A global approximate index over the whole corpus remains possible, because masking happens
+  during the scan rather than after it. The scale ceiling that filter-first would have imposed
+  does not apply.
+
+**The residue, stated rather than implied.** Vectors are plaintext in the engine's address space
+while it serves. Anyone who can attach to the process or read a core dump reconstructs a degraded
+version of the embedded content, and sentence embeddings invert well enough for that to matter.
+At-rest encryption does not remove it. It is the irreducible floor of doing compute outside the
+kernel, no design on the list above removes it, and it is recorded as an accepted limit with a
+named remedy rather than left to be discovered.
+
+**Unwritten at the time of this record**, so that nothing here reads as existing. On the engine's
+side: the mask predicate is one string equality on tenancy rather than clearance; there is no
+entry point accepting an externally supplied mask; there is no socket server; at-rest encryption
+does not exist; the embedder is not pinned. On KF's side: there is no band-bitmap builder and no
+embed-on-ingest path. Seven items.
+
+**Retroactive exposure, measured 2026-09-14.** 2070 rows embedded through the external provider,
+all of them LongMemEval haystack turns — public benchmark data — in a single 91-minute burst on
+2026-07-10 that the engine's own project record identifies as a deliberate launch-validation run
+with an external-embed arm. Repository RAG over source trees: zero rows, never populated.
+Conversation memory: zero rows, and no embedding column. Non-benchmark memories: fifteen, all
+local models. No private content, no source, no conversation history. The measurement speaks only
+to what the store holds now. It does not weaken the pin: nothing sensitive was disclosed because
+the local path happened to be registered, not because the fallthrough was closed.
+
+## Provenance
+
+Drafted by an agent under direction, per §103.5. The masked-scoring correction, the two `pgrx`
+blockers, the bands-by-version design and the `set_global` finding came from the session working
+on the retrieval engine, which reviewed and corrected this analysis in four exchanges; the
+`search.document` staleness finding, the `AccessCoverage` measurement, the stale-scope-tag defect
+in the first form of the mask design and the embedder disclosure path came from this side. Both
+sessions verified the other's load-bearing claims against source before accepting them, and two
+claims were retracted in the process. Acceptance is a human act under §94.2.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0029-transient-observations-are-a-third-category.md · uuid: 25663b77-7731-5c66-94d7-eda6db80f641 -->
+
+# ADR KF-0029: Transient observations are a third category of stored thing, and expiry only counts if every copy expires
+
+- **Status:** accepted 2026-09-20; proposed 2026-09-14
+- **Extends:** ADR 0016 (access is a grant), ADR 0024 (friction is an architectural property).
+- **Bears on:** Law 6 (retire by sequester, never delete), §55 preservation export,
+  §62 the master-record boundary, §88 backup and restore, §89 checkpoints.
+
+## Context
+
+A manager cannot tell which records would be most useful if they were shared more widely.
+The signal exists — people search for things they cannot reach — and nothing captures it.
+The proposal was to record queries, let an executive re-run one at their own clearance, and
+see whether the search wanted material the original asker could not see.
+
+The instinct is right and the mechanism is structurally necessary rather than incidental.
+Under ADR 0028 a masked slot is never scored, so the original query genuinely cannot know
+whether a withheld record would have ranked. Only an unmasked run can answer that, and only
+somebody cleared for the records may perform one. A replay is the only thing that works.
+
+**But it inverts the threat model.** The results of the replay are fine — the executive sees
+only what they are cleared for. What is new is that the system would durably hold _what people
+were trying to find out_, and a query log is frequently more revealing than the documents it
+searched. It is a fresh high-value target that did not previously exist.
+
+**And it collides with a law.** Law 6 retires by sequester and never deletes. A permanent,
+unforgettable record of every search anyone ever ran is a surveillance artifact by construction,
+and it belongs to the same family as the health information, bank details and payroll secrets
+§8 already refuses. Carving an exception into Law 6 for this would be the wrong repair: the law
+is right, and the mistake is treating a query as a record.
+
+**KF has two categories of stored thing and needs a third.** Records are authoritative and
+governed by Law 6. Derived projections — `search.document`, the retrieval index — are not
+authoritative and are rebuildable, so losing one costs a rebuild. A query log is neither. It is
+not authoritative, and it cannot be recomputed from anything, because it observes something that
+happened once. Without a name for that category, a later reader infers that anything outside
+`core.object` is rebuildable, writes a restore procedure on that assumption, and silently loses
+what was never recoverable.
+
+## Decision
+
+**A third category exists and is named: the transient observation.** Not authoritative, not
+rebuildable, and expected to expire. Losing one is the intended behaviour rather than a fault,
+and no restore procedure may treat it as recoverable.
+
+|                       | Authoritative | Rebuildable | On loss              |
+| --------------------- | ------------- | ----------- | -------------------- |
+| Record                | yes           | —           | Law 6; never deleted |
+| Derived projection    | no            | yes         | rebuild it           |
+| Transient observation | no            | **no**      | expected             |
+
+**Raw queries are transient observations, not records.** They are declared in §70 alongside the
+other things KF refuses to be the authority for. Law 6 is untouched, because a query was never a
+record to begin with.
+
+**Expiry only counts if every copy expires.** A sweeper that deletes the rows while another
+mechanism retains them is decorative. A transient observation is therefore excluded from four
+places, and missing any one of them makes the guarantee false:
+
+- the preservation export (§55, §78), whose retention is explicitly unbounded and which would
+  otherwise keep every query forever by the back door;
+- the master-record boundary (§62), classified as excluded rather than incidentally absent;
+- checkpoint coverage (§89), which signs state and would pin it cryptographically;
+- backup retention (§88), which must not outlive the window.
+
+**Ninety days by default**, configurable downward with a stated floor below which the aggregate
+stops being meaningful.
+
+**The demand signal and the query log are different artifacts.** Conflating them is what turns a
+provisioning tool into workplace monitoring. The durable record is an **aggregate**: records that
+recur in high-clearance replays of lower-clearance queries, ranked, carrying a count of **distinct
+persons and never which persons**. The transient log carries identity, because otherwise the
+aggregate cannot distinguish fifty people wanting a document from one person wanting it fifty
+times, and those mean opposite things for a provisioning decision. Reading the transient log _with_
+attribution is its own act requiring its own grant — so de-anonymising is deliberate, recorded and
+answerable for, rather than a column on a dashboard.
+
+**The delta is never persisted.** "What was withheld from this person" is a derived fact about
+records they may not see. Computed on replay at the replayer's ceiling it is legitimate; written
+to a row it becomes a classified fact sitting at whatever classification the writer guessed.
+Compute, return, discard.
+
+## Amended 2026-09-24: who replays whose query, and what is deliberately not built
+
+The replay the decision needs is somebody cleared higher re-running what somebody cleared lower
+asked — the aggregate is "records that recur in high-clearance replays of lower-clearance
+queries". Two routes exist, and one does not:
+
+- **Your own query** (`GET /search/recorded-queries`, `POST /search/recorded-queries/:id/replay`,
+  `search.my_recorded_queries`): a person sees and replays what they asked, at their ceiling now.
+  The listing recomputes the caller's own pseudonymous key and takes no person argument.
+- **The organization's demand** (`POST /search/demand/replay`, `replayOrganizationDemand` in
+  `@kf/search`): the caller re-runs every live recorded query asked strictly below their ceiling
+  (the newest 500 per call), at their ceiling and grants, and each record a query's own ceiling
+  withheld counts once per distinct asker into `org.access_demand`. The answer is the aggregate
+  — records the caller may read, each with its count of distinct persons — and how many queries
+  were replayed. **No query text, recorded-query id, time or asker leaves the server.** The ids
+  are UUIDv7 and carry their recording time, so even an id alone would let a reader line up one
+  person's burst of searches.
+- **Not built, deliberately: listing other people's recorded queries.** A list of what colleagues
+  searched, even with no name on it, is the query log read as a dashboard: the text says what
+  somebody was trying to find out (often enough to say who), and times or ids re-link one person's
+  searches into "Jim's fifty searches". That is the workplace monitoring this decision separates
+  from the demand signal, and the owner's direction is that nobody browses the log. The table's
+  read policy still lets the application read `query_text` at or below the reader's ceiling,
+  because the demand replay must; no route returns it for anyone but its asker. Reading the log
+  with attribution remains its own act requiring its own grant, and none is implemented.
+
+## Consequences
+
+- Replay works only inside the retention window. Demand is a recent signal, so this is a small
+  cost, but it is a real one and it is stated rather than discovered.
+- The signal is biased and the requirement says so. It measures demand from people who searched
+  for things they could not find; people who have learned the system will not help them stop
+  searching. So it decays toward zero exactly where the access problem is worst, and a quiet
+  report must not be read as "no unmet demand."
+- Anything else with the same shape — rate-limit state, draft capture buffers, session scratch —
+  now has a category to go in, and its exclusions are already specified.
+- A restore drill must assert that transient observations are **absent** after restore. A drill
+  that finds them present has found a defect, not a success.
+
+## Provenance
+
+Drafted by an agent under direction, per §103.5. The demand-signal idea, the ninety-day window and
+the no-attribution-by-default split are the owner's. The third-category framing, the four
+exclusions and the distinct-persons refinement came from this side. Acceptance is a human act
+under §94.2.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0030-three-layers.md · uuid: 4854427a-4753-5247-8eb5-d26eeb22b0e9 -->
+
+# ADR KF-0030: The system is three layers, and the specification says so in one place
+
+- **Status:** accepted 2026-09-20; proposed 2026-09-14
+- **Builds on:** ADR 0002, ADR 0010, ADR 0013 (the compiler is a consumer),
+  ADR 0023 (business logic above, data primitives within), ADR 0028 (the retrieval index).
+
+## Context
+
+Anyone asking "how is this built" had to assemble the answer from ADRs 0002, 0010 and 0013 for
+the compiler, §8.10 and KF-SAS-RQ-190 for business logic, ADR 0023 for the scope boundary, and a
+README for the shape that holds them together. Every piece was written down. The structure they
+form was not, anywhere, with an identifier.
+
+That is the failure a Software Architecture Specification exists to prevent. A specification whose
+architecture must be reconstructed from fifty documents is not doing the one job it has, and the
+clearest statement of this system's structure existed in conversation and in a README rather than
+in the document that governs it.
+
+The README's account then outran the specification on a structural claim — it placed the retrieval
+index inside the compiler's boundary, which the specification had never heard of. That is the
+predictable consequence of leaving the architecture unstated: the informal description becomes the
+only description, and it drifts without a gate.
+
+## Decision
+
+**§8B states the three layers normatively, in one place, with requirements.**
+
+**Layer 1, the kernel.** PostgreSQL holds the rules. Row-level security, triggers, check
+constraints and foreign keys decide what a caller may see and change. One dispatcher is the only
+way to write. A defect in any layer above cannot widen what a reader may see — which is
+KF-SAS-RQ-002 restated as a property of the structure rather than of one mechanism.
+
+**Layer 2, the compiler.** Reads the kernel and writes nothing to it. Produces the master record —
+exactly the set of records one person may see at one moment — and projections over it: a page for
+a person, a context bundle for an agent, a view of one object and its neighbours. The retrieval
+index sits inside this boundary under ADR 0028, derived and never authoritative.
+
+**Layer 3, workflows.** Business rules, integrations, and every surface through which a person or
+an agent reaches the Fabric. Invoicing arithmetic, scheduling, CRM, the web application, the
+command line, chat, agents. All of them dispatch the same acts through the same seam, and none
+touches storage directly. This is ADR 0023's §8.10 stated positively rather than only as a
+non-goal.
+
+**The invariants that hold across the layers**, and which are what the requirements pin:
+
+- no layer above the kernel may widen what a reader sees;
+- no layer may write except as an attributed act through the dispatcher;
+- each layer above reads only what the layer below authorised it to read;
+- a layer may be replaced without the layers below it changing.
+
+**The description is normative; the vocabulary is explanatory.** §103 records that the prose
+describing the layers may be rewritten by a later revision, while the requirements pinning the
+invariants may not. Framings are refined and this one has been refined twice in a week; the
+invariants have not moved. Requirement identifiers are append-only under §97.2, so what is
+appended must be the part that is stable.
+
+## Consequences
+
+- "How is this built" is answerable from the specification, at a section number, without
+  reconstruction.
+- The README becomes a projection of §8B rather than an independent account, so the two can be
+  checked against each other instead of drifting.
+- The layer model is refinable. Rewriting the prose is an ordinary revision; changing an invariant
+  is a decision record.
+- A fourth layer, or a split of an existing one, is an ordinary appended requirement rather than a
+  restructuring, because the invariants are stated over layers generally rather than over three
+  named ones.
+
+## Provenance
+
+Drafted by an agent under direction, per §103.5. The three-layer framing is the owner's, stated in
+their own words before any document carried it; this record writes it down and pins the part that
+should not move. Acceptance is a human act under §94.2.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0031-a-draft-is-a-record-that-says-so.md · uuid: a9a14f35-5334-5a29-af57-ba1ba49671a7 -->
+
+# ADR KF-0031: An unverified record is a record that says so, and one gesture may produce many acts
+
+- **Status:** accepted 2026-09-20; proposed 2026-09-14, corrected in place 2026-09-18 while still proposed
+- **Extends:** ADR 0012 (ingestion: copy or reference), ADR 0024 (friction is architectural),
+  ADR 0029 (transient observations).
+- **Bears on:** KF-SAS-RQ-021, RQ-202, §48 ingestion, §62 the master-record boundary, §63 the
+  withholding ledger.
+
+> **UPDATED 2026-09-24.** The bulk ceiling named as undecided under Consequences is now decided
+> (`2d77c1a0`): `kf ingest` refuses a batch above 250 files, which a caller may lower but never
+> raise (`DEFAULT_INGEST_CEILING`, `apps/api/src/ingest/plan.ts`), and a confirmed sync is capped
+> at 2 000 (`MAX_BULK_CEILING`, `apps/api/src/sync/plan.ts`).
+>
+> **UPDATED 2026-09-24.** "The projection says it is unverified" now holds beyond the master
+> record's own rendering. Every `@kf/projections` Result labels each member verified or
+> unverified (format `kf-projection-result-v2`), and so do the Object View API and page,
+> `GET /master-record`'s items, the agent reads `read_record`, `find_records` and
+> `trace_relations`, and every search hit. Each reads `core.object_verification` under the
+> reader's row security, so the verification of a record the reader cannot see is never looked up.
+
+## Context
+
+The corpus is meant to be browsable, downloadable, and worked on offline, with a single gesture
+to put changes back. Stated that way it collides head-on with KF-SAS-RQ-021, accepted since
+`0.1.0-draft.1`: _ingestion SHALL admit external content one named item at a time, and SHALL NOT
+provide recursive synchronisation of an external container._ "Sync my folder into the store" is
+the named non-goal, almost word for word.
+
+The collision turned out to be in the mechanism and not the intent, and resolving it took two
+exchanges of reasoning that neither the specification nor this repository records anywhere. That
+is the argument for this record: the next person will re-derive it, and may derive it differently.
+
+**What RQ-021 actually forbids** is a container becoming a record set with no decision in it. It
+says nothing about how many acts one gesture may produce. ADR 0024 already made low friction
+architectural rather than product polish, and KF-SAS-RQ-202 already permits cheap capture as a
+draft, attributed from the first moment, with promotion as a separate act. The three are
+consistent once the distinction is drawn explicitly.
+
+**What the investigation found, and what changed the sequencing.** Nothing records whether a
+record has been verified, and nothing filters on such a thing anywhere — not master-record
+membership, not the preservation export, not projections. An unverified record is a full corpus
+member today, indistinguishable from a checked one. (First written as "`draft` is the initial state
+of every state machine and nothing filters on it". The second half was true; the first was not —
+`draft` is the initial state of 8 of 24 — and correcting it produced the orthogonality below.)
+So the "special set of rules" that unverified material was assumed to have does not exist. It is a
+label. Building the fast capture path first would put unverified material inside master records and
+inside the permanent preservation export, indistinguishable from records somebody checked — which
+is worse than the folder of files this program exists to replace, because the folder never claimed
+to be the record.
+
+## Decision
+
+**One gesture may produce many acts. It may not produce zero, and it may not produce one act
+covering many items.**
+
+Zero acts is folder synchronisation: unattributable, and what RQ-021 forbids. One act covering
+many items is "I admitted this folder", which is the same container decision reached by a
+different route. Many acts from one gesture is cheap capture with full attribution, which is what
+RQ-202 already blesses. The person clicks once; the ledger receives one entry per item, each
+naming them.
+
+**Verification is orthogonal to lifecycle state.** The first form of this record used "draft" and
+"unverified" as synonyms. They are not. `draft` is the initial state of 8 of the 24 state machines
+in `ontology/state-machines.yaml`; the rest begin at `planned`, `proposed`, `active`, `open`,
+`captured`, `prospective`, `in_service` or `received`. A work order beginning at `planned` was never
+a draft, so these rules would not have reached it — and "any initial state" fails the other way,
+because equipment beginning at `in_service` is not unverified, that is simply where the machine
+starts. A record carries whether anyone verified it, and who, independently of where its lifecycle
+sits: `active` and unverified is ordinary, and so is `draft` and verified.
+
+**An unverified record is a record.** Law 6 applies to it, it is attributed and audited from the moment it is
+written, and it appears in the preservation export marked as a draft. Excluding it would create a
+class of stored thing that can vanish, and ADR 0029 defined that category deliberately narrowly.
+
+**It is a member of a master record, and the projection says it is unverified.** A master
+record that silently omits is the failure §63's withholding ledger was written against, so
+omission is not available. What is available — and required — is that the reader can tell which
+members nobody has checked. An unlabelled unverified record inside "everything you may see" is worse than an
+absent one, because it borrows the credibility of the records around it.
+
+**It SHALL NOT be citable as evidence.** A Warrant tracing to an unverified record is a
+claim resting on something nobody has checked, which is the ticked box §97.3 exists to prevent.
+This is the one place where a draft is not a record like any other, and it is the place where the
+distinction earns its keep.
+
+**A promotion act records its basis: reviewed individually, or promoted in bulk.** Reviewing five
+hundred documents one at a time and promoting five hundred in one click are different facts. A
+ledger that writes "verified" for both has made the word carry no information, and an auditor
+asking "did a person look at this document" then has no answer available. Recording the basis costs
+the fast path nothing; it stops the fast path from misrepresenting itself.
+
+## Consequences
+
+- Sync is a fast path **through** the existing machinery rather than around it. Each file becomes
+  one draft and one act; verification becomes one act per item from one gesture.
+- The sequencing inverts from what it feels like. The lifecycle rules and the projection labelling
+  must exist before the capture path that fills them, because the visible part is the last part.
+- A mistaken sync is cheap and is recorded as a mistake: drafts withdraw, and the withdrawal is
+  evidence rather than an absence.
+- Two operational controls are needed and are not decided here: a ceiling above which a bulk
+  capture is refused without an explicit override, so pointing sync at the wrong directory does not
+  produce ten thousand drafts; and a classification for captured files, which can only default to
+  the capturing person's own ceiling, because anything lower is a widening nobody decided.
+
+## Provenance
+
+Drafted by an agent under direction, per §103.5. The low-friction sync model and the
+unverified-store framing are the owner's; the gesture-to-acts formulation, the finding that `draft`
+is filtered nowhere, and the individually-versus-bulk requirement came from this side. The owner
+decided that drafts appear in master records with a label rather than being omitted. Acceptance is
+a human act under §94.2.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0032-the-seven-day-floor-is-waived.md · uuid: e424fa5f-b1a1-56e4-bd7c-d488f22bfbfb -->
+
+# ADR KF-0032: The seven-day floor on compiler cutover is waived, and what that gives up
+
+- **Status:** accepted 2026-09-20; proposed 2026-09-20
+- **Amends:** [ADR 0004](KF-ADR-0004-production-release.md)'s replacement criterion. The other
+  three conditions stand unchanged.
+
+## Context
+
+ADR 0004 set four conditions for compiler cutover: each of the three constitution documents
+compiled at least twice with byte-identical output, each of the five document-lifecycle action
+paths exercised at least once, zero unexplained semantic drift, and at least seven days elapsed.
+
+That record is explicit about what the day floor is for, and it is worth quoting rather than
+paraphrasing: _"The day floor is not evidence. It exists so that a burst of activity in one
+afternoon cannot satisfy the criterion, because some drift is only visible across a restart, a
+certificate rotation or a scheduled job that runs daily."_
+
+It is also explicit that seven days was already a reduction from the thirty ADR 0002 wanted, and
+that the reduction was accepted because the strict-parity gate precedes it, the corpus is three
+documents, and _"the alternative in practice was not thirty observed days but thirty elapsed
+ones."_
+
+The floor cannot begin counting until a host exists (§93.1), and no host has been commissioned.
+So the condition has not been delaying a measurement — it has been queued behind one.
+
+## Decision
+
+**The seven-day floor is waived by the owner.** The other three conditions are unchanged and
+remain binding: twice-compiled byte-identical output, five action paths exercised, zero
+unexplained drift.
+
+## What this gives up, stated plainly
+
+The floor was the only condition that could observe something nobody enumerated. The remaining
+three observe exactly what they name, and nothing else. Specifically, cutover may now be accepted
+without ever having survived:
+
+- a process restart between compilations;
+- a certificate rotation;
+- a scheduled job that runs on a daily timer;
+- a date boundary of any kind.
+
+ADR 0004 named the first three itself as the reason the floor existed. Removing it does not make
+them unlikely to matter; it makes them unobserved.
+
+The mitigation ADR 0004 already relied on still holds — the strict-parity gate precedes cutover
+and is the stronger check — and the corpus is still three documents rather than a live changing
+estate. What has changed is that the weaker check is now absent rather than merely weak.
+
+## Consequences
+
+- Cutover becomes reachable on the day a host is commissioned rather than a week after.
+- If the corpus grows beyond the constitution, ADR 0004 already required the criterion to be
+  revisited. That requirement now carries more weight, because one of the four conditions is gone
+  and the remaining three do not scale with corpus size.
+- A drift that only appears across a restart or a timer will be found in service rather than
+  before cutover. That is the trade, and it is the owner's to make.
+
+## Provenance
+
+The waiver is the owner's decision, stated directly. Drafted by an agent under direction per
+§103.5, and recorded rather than left in conversation — twice in the preceding week a decision
+existed only in the owner's memory and was one conversation away from unrecoverable. Acceptance is
+a human act under §94.2.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0033-the-database-binds-the-principal.md · uuid: 656a10d9-0d42-5dfe-a29a-abc5d1083f56 -->
+
+# ADR KF-0033: The database binds the principal; the application only names one
+
+- **Status:** accepted 2026-09-23; proposed 2026-09-23
+- **Amends:** [ADR 0015](KF-ADR-0015-object-views.md) in one respect: reading an Object View no longer
+  compiles a stale master record. `GET /objects/:id` answers `409 master_record_stale`, and
+  `POST /objects/:id/refresh` performs the compile as an explicit act.
+
+> **UPDATED 2026-09-26 — a correction to this record's description, not to its decision.** Decision
+> 2 says `core.bind_principal` "clamps the ceiling to the person's clearance". It does not, and never
+> did: a requested ceiling above the clearance is refused. `org.resolve_effective_classification`
+> raises "requested classification … exceeds clearance …" (`20260923000100`), so nobody is bound,
+> and `kf-attestor`, which resolves the same function before it attests, answers 401
+> `classification_not_granted`. A request at or below the clearance binds the level requested. The
+> decision stands as taken — the application may only narrow, never widen — and SAS
+> `0.1.0-draft.9` §17 carries the same correction.
+
+## Context
+
+Every guard, policy and trigger reads who is acting, where, and at what ceiling from `kf.*`
+settings. A red-team pass executed as `kf_app` on 2026-09-23 showed those settings were the
+application's to write: any tenant could be bound at `restricted` with nobody behind it, the
+actor could be a uuid that was nobody, and the ledger, the audit chain, role assignments,
+identity links and verifications all accepted rows no act had made. Row-level security held
+against a buggy API and not against a hostile one, although threat model T2 says to assume the
+API is fully controlled.
+
+## Decision
+
+1. **The context is sealed.** Each `kf.*` setting carries an HMAC under a key no writing role can
+   read, bound to the backend and the transaction's start. An unsealed value reads as unset.
+   No function but the seal's own reads or writes a `kf.*` setting (asserted by the migration and
+   by `tests/database/principal-binding.test.ts`).
+2. **The application binds a principal, not an organization.** `core.bind_principal` takes a
+   person, their assignment, the organization and a requested ceiling; it checks the assignment
+   is live and clamps the ceiling to the person's clearance. After that the application may only narrow; the actor must be the
+   principal under that assignment. `public` alone may be bound with no principal.
+3. **Writes match the context.** Action rows, audit digests (recomputed by the database), role
+   and clearance end-dating, identity links, verifications and definer lookups are all checked
+   against the sealed principal.
+4. **Authority is minted only by the owner credential.** The application role has no INSERT on
+   people, role assignments or identity links; nobody grants themselves clearance.
+5. **Reading has no side effects** (the ADR 0015 amendment): a GET that performed an audited
+   compile could be triggered by a cross-site link carrying the viewer's cookie.
+
+## Consequences
+
+- A compromised API is bounded to impersonating real people **with their real authority**. It
+  cannot invent an actor, a tenant or a ceiling. Since `20260924001000` it also requires an attestation from `kf-attestor` that the person
+  presented a valid token within its lifetime; it still trusts the attestor's verification (threat
+  model open item 6).
+- Service logins (worker, readiness, backup) keep their credential as their authority, and the
+  worker's actor must still hold the assignment it names.
+- The seal key's row is excluded from backups: seals last one transaction, so a restore needs a
+  key, not this one.
+- Each accessor now verifies an HMAC, and a bare call in a policy is paid per row: a
+  policy-governed read of 12,000 rows went from 17 ms to 296 ms. Every policy and view now asks
+  once per query (`20260923000300`), and the same read measures 5.9 ms. A bare call added later
+  fails `tests/database/principal-binding.test.ts`.
+- One click to refresh a stale Object View, where there were none.
+- Which acts a role may perform is decided in the application and, since `20260924000100`, again
+  by the database on the ledger row (`org.act_grant_reaches`).
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0034-an-observation-is-captured-then-promoted.md · uuid: 1a31147f-7ca9-55cb-b934-de7f9cedeb70 -->
+
+# ADR KF-0034: An observation is captured in one gesture, and promoted by a separate act
+
+- **Status:** accepted 2026-09-24; proposed 2026-09-24
+- **Decision owner:** technical authority
+- **Scope:** the object type ADR 0024 left unnamed, and what capturing and promoting one costs
+- **Carries:** KF-SAS-RQ-200, RQ-202, RQ-203; closes the type half of §100.18
+
+## Context
+
+ADR 0024 decided that capture is cheap and governance applies at promotion, and that an
+observation enters "as an ordinary object in a draft lifecycle state". It did not name the type,
+so nothing can be captured: every surface still has to pick an existing record type, supply an
+acting role, an idempotency key and a row version, and that is the friction 0024 exists to remove.
+
+## Decision
+
+1. **One object type, `observation`.** Fields: `body` (Markdown, required), `observed_at`
+   (defaults to the database clock), `subjects` (zero or more object ids it is about, as
+   `concerns` relations), `tags`. Lifecycle: `captured` → `promoted` | `withdrawn`.
+2. **`record_observation` is not institutional.** It needs any live assignment in the
+   organization — no act grant, no approval — and the server forms everything else: the acting
+   assignment (the caller's only live one, or the one named), the idempotency key (gesture id plus
+   body digest), the target. One gesture, one act (RQ-227).
+3. **An observation is unverified until somebody verifies it**, exactly as any record (§48A).
+4. **`promote_observation` is institutional** (`requires: act`): it moves `captured` → `promoted`
+   and, when the observation is being turned into a controlled record of another type, creates
+   that record through that type's own create act in the same transaction, citing the observation.
+5. **Every surface uses the same two acts** (RQ-203): `POST /capture/observation`, `kf note`, the
+   web capture form, and agents through the same route.
+
+## Options rejected
+
+- **Draft state on every existing type instead of a new type.** Most state machines have no draft
+  state (the conflation `draft.6` corrected); adding one to each changes most lifecycles.
+- **Capture into a side table outside `core.object`.** A second shape for one fact — the drift
+  ADR 0024 forbids — and unattributed until promoted.
+- **Let the surface choose the acting role.** That is the detail RQ-200 says the actor never
+  supplies.
+
+## How we will know
+
+`record_observation` from `kf note` and the web form completes with no role, key or version in the
+request (a test asserts the request body carries none), and ADR 0024's capture bar is measured
+against it by the latency harness.
+
+## Consequences
+
+The ontology gains one type and three acts, which re-cuts the schema pack (§100.6: a re-sign).
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0035-an-agent-acts-for-a-named-human.md · uuid: 74dd2923-d6c9-5a6f-870e-5ebc22091642 -->
+
+# ADR KF-0035: An agent acts for a named human on a delegated token, and the ledger says so
+
+- **Status:** accepted 2026-09-24; proposed 2026-09-24
+- **Decision owner:** technical authority
+- **Scope:** how an agent authenticates when forming an act on a person's behalf
+- **Carries:** KF-SAS-RQ-204; closes §100.19
+
+## Context
+
+ADR 0020's service actor acts for itself and is barred from institutional acts. An agent drafting
+and dispatching an act _for_ a person is a different case: the act is the person's, the agent is a
+participant. Since ADR 0033 the database binds a person only on an attestation from `kf-attestor`
+that the person presented a valid token — so the question is what token an agent presents.
+
+## Decision
+
+1. **OAuth 2.0 Token Exchange (RFC 8693).** The agent holds its own client credential and
+   exchanges the person's token for a delegated one whose `sub` is the person and whose `act`
+   claim names the agent's client. Keycloak issues it; the person's consent is the exchange.
+2. **`kf-attestor` verifies the `act` claim** alongside everything it already verifies, and the
+   attestation records the agent's client id. An `act` claim naming a client that is not a declared
+   agent in the realm is refused.
+3. **The ledger records participation.** `core.action.agent_participation` holds the agent's
+   client id (null for a person acting directly), written by the database from the attestation,
+   never by the caller. The act remains the person's: actor, role, clearance and grants are theirs.
+4. **An agent never holds more than the person.** Everything it does binds as the person; the
+   service-actor bar is unaffected.
+
+## Options rejected
+
+- **The agent as a service actor with a "for" field.** The field would be caller-asserted, and
+  service actors cannot perform institutional acts — so the agent could not do what the person can.
+- **The agent reusing the person's own token.** Indistinguishable from the person; RQ-204 requires
+  the participation to be recorded.
+- **A KF-specific signed delegation.** Reinvents token exchange outside the identity provider that
+  already authenticates the person.
+
+## How we will know
+
+An act dispatched through the exchange carries the agent's client id in `agent_participation`; the
+same act with a plain token carries null; a forged `act` claim, or one naming an undeclared client,
+is refused by the attestor (tests at each seam).
+
+## Consequences
+
+Keycloak's token-exchange feature must be enabled for the agent clients; commissioning checks it.
+The `core.action` row gains one column; the audit digest is unchanged by this decision.
+
+## Implementation notes (2026-09-24; for the owner's review, not a change to the decision)
+
+- **Keycloak 26.4 emits no `act` claim.** Its standard token exchange records the exchanging
+  client only as `azp`, and ignores `actor_token` (measured against the pinned 26.4.7 image;
+  `docs/deployment/identity-and-login.md`). Each agent client in the realm therefore stamps
+  `act.client_id` with its own id by a hardcoded-claim mapper, and `kf-attestor` requires `act` to
+  be exactly `{ "client_id": <azp> }`, one level deep.
+- **"Declared agent" is declared in Knowledge Fabric, not in the realm.** Decision 2 reads "a
+  declared agent in the realm"; the implementation keeps the declaration in `org.declared_agent`,
+  written only over the owner credential by `kf declare-agent`, and `core.issue_attestation`
+  refuses any other client. A realm-side attribute would let a realm administrator make a client
+  an agent without touching this system — the reason role claims are never read. The realm's part
+  is the shape, checked at commissioning: exchange only on confidential clients that stamp their
+  own `act.client_id`.
+- A declared agent's token that arrives _without_ `act` (its mapper removed) is refused, so an
+  agent cannot pass as the person by losing its claim.
+- The declaration is a row with its decider, reason, login and time, not an act on the audit chain:
+  it belongs to no organization and targets no record.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0036-delegation-is-one-level-and-assignments-expire.md · uuid: 20c5e3a2-e514-5f20-89f6-bc6ccb1e5002 -->
+
+# ADR KF-0036: Delegation goes one level deep, and a new assignment carries a review date
+
+- **Status:** accepted 2026-09-24; proposed 2026-09-24
+- **Decision owner:** technical authority
+- **Scope:** the maximum delegation depth and the maximum life of a role assignment or project
+  membership
+- **Carries:** closes §100.8 and §100.9; bears on KF-SAS-RQ-039
+
+## Decision
+
+1. **Depth one.** A person holding a delegated assignment may not delegate it again. The database
+   refuses an assignment whose `delegated_by` holds the role only through delegation.
+2. **Every new role assignment and project membership has an end within 366 days**
+   (`valid_to` required, at most a year and a day ahead). Renewal is a new, attributed assignment —
+   the review is the act. Rows created before this decision are grandfathered and reported by
+   readiness as "no review date" until renewed.
+
+## Options rejected
+
+- **Unbounded depth with an audit report.** The chain would be recorded but every link would still
+  grant; depth one keeps "who can act" answerable from two rows.
+- **Expiry by a periodic sweep.** A sweep that stops leaves grants alive silently; an end date in the
+  row cannot be forgotten.
+- **Longer maximum.** A year is the longest interval in which a stale grant is still likely to be
+  noticed by the person who made it.
+
+## How we will know
+
+Planted tests: a re-delegation and an assignment without an end (or ending after 366 days) are
+refused by the database; a renewal is accepted.
+
+## Consequences
+
+`kf:grant-authority` asks for an end date (default one year). Assignments made by bootstrap are the
+exception the owner credential already is.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0037-what-a-query-withheld-is-a-count-within-your-ceiling.md · uuid: 0e1d1873-ee70-5b79-ad54-f2a661cc446e -->
+
+# ADR KF-0037: What a query withheld is disclosed as one count, within the asker's own ceiling
+
+- **Status:** accepted 2026-09-24; proposed 2026-09-24
+- **Decision owner:** technical authority
+- **Scope:** how much of a query's withheld set may be disclosed (KF-SAS-RQ-222)
+
+## Decision
+
+A search or retrieval answer may say how many matching records the asker **could** be granted but
+**is not** — records at or below their clearance that no grant reaches — as a single count, computed
+on demand and never stored. It never discloses records above the asker's clearance, not even as a
+count, and never titles, identifiers or types of anything withheld.
+
+## Options rejected
+
+- **Counts per classification level.** A count above the asker's ceiling proves such records exist
+  and match the query — a disclosure the ceiling exists to prevent.
+- **No disclosure at all.** Then a person who could simply ask for a grant never learns there is
+  something to ask for; the withholding ledger (§64A) already says the system does not hide that
+  things are withheld.
+
+## How we will know
+
+A test with matching records above the ceiling, within the ceiling but ungranted, and granted:
+the count equals the middle group only, and changes with no stored row.
+
+## Consequences
+
+The count reveals that N granted-able matches exist; that is the intended disclosure. It is
+computed at query time, so a revoked grant is reflected immediately.
+
+---
+
+<!-- source: docs/decisions/atoms/KF-ADR-0038-qualification-is-evidence-against-a-versioned-pack.md · uuid: dbf1bd1a-2428-59c6-9e56-49c4e19678aa -->
+
+# ADR KF-0038: Qualification is evidence against a versioned pack, and onboarding is its first use
+
+- **Status:** proposed 2026-09-26
+- **Decision owner:** technical authority
+- **Scope:** how the Fabric records that a person is ready to contribute within a named scope,
+  how that readiness is established, kept current and consulted
+- **Builds on:** [ADR 0016](KF-ADR-0016-access-is-a-grant.md) (grants),
+  [ADR 0019](KF-ADR-0019-warrants-as-institutional-record.md) (warrants),
+  [ADR 0020](KF-ADR-0020-service-actors.md), [ADR 0027](KF-ADR-0027-access-is-a-grant-on-every-read.md),
+  [ADR 0033](KF-ADR-0033-the-database-binds-the-principal.md) (authority checked in the database),
+  [ADR 0036](KF-ADR-0036-delegation-is-one-level-and-assignments-expire.md) (assignments end)
+
+## Context
+
+Bringing a person into the organization — so that they can contribute correctly and within
+bounds — was the reason the Fabric exists, and nothing in it models it. The ontology knows people,
+engagements, role assignments, grants, controlled documents, warrants and evidence. It can say what
+a person _may_ do. It cannot say what a person has shown they are _ready_ to do, against which
+requirements, on what evidence, or what they are missing after a procedure changes.
+
+The only qualification the Fabric records is a supplier's (`prospective → qualified | conditional →
+disqualified`, with `qualified_until`). Nothing comparable exists for a person.
+
+Onboarding systems usually fail in one of three directions. One is a role-specific checklist per
+job title, forked for each new role until nobody maintains any of them. Another is reading
+certified as competence: "I opened the document" recorded as "I can do the procedure". The third
+is a second bureaucracy of approvals, surveys and reports laid over the work instead of drawn from
+it.
+
+The shape adopted here is the common part of five mature systems, each taken for what it does well:
+
+- the DOE Technical Qualification Program: a common base, then functional, then local requirements;
+- the Navy's Personnel Qualification Standards: qualification is demonstrated ability, not
+  attendance;
+- FEMA's Position Task Books: a position's requirements, evidenced by observed tasks and accepted
+  by an evaluator;
+- GitLab's handbook onboarding: onboarding runs in the ordinary work system, with role content
+  injected;
+- ISO 10015: competence is maintained, not conferred once.
+
+It keeps none of their paperwork.
+
+## Decision
+
+1. **One protocol; roles are data.** Every person, in every role, follows the same five stages:
+   **Read-In** (what have I joined), **Role Read-In** (what is my place in it), **References**
+   (where does authoritative truth live), **Execution** (how does work move here), **First
+   Contribution** (bounded, useful work through the normal system). Stages are sections, not
+   waiting rooms: only a genuine prerequisite orders them. No evaluator, route, view or policy
+   branches on a role or job title; a role differs only in its pack.
+
+2. **Qualification is the primitive; onboarding is its first use.** The same mechanism serves:
+   - a new hire (initial qualification);
+   - a promotion or transfer (the missing requirements only);
+   - a procedure change (the affected people, for the changed requirement only);
+   - a return after absence;
+   - a narrow contractor scope.
+
+   There is no separate onboarding workflow.
+
+3. **Two new record types, and nothing else new.**
+   - A **qualification pack** is a controlled, versioned declaration of requirements for a scope.
+     It is assembled from a common part, a role part and any scope part, with duplicates
+     satisfied once. Composition is an explicit list: no inheritance language and no scripts. It
+     references resources by identifier and revision and never copies them. Approving a pack is
+     an institutional act.
+   - A **qualification record** holds one person's qualification for one scope:
+     - the exact pack revision assigned;
+     - per requirement, the evidence credited and who credited it;
+     - the acceptance decision;
+     - its supersession or withdrawal history.
+
+     It has a state machine in the pattern of the supplier's.
+
+   Person, engagement, role assignment, grants, documents, artifacts, test executions, decisions
+   and warrants already exist and are referenced, not duplicated.
+
+4. **Requirements are what is checked, not documents.** A requirement states the outcome that must
+   be true, the scope, the resources that help, the evidence that counts and who may accept it. A
+   document is a resource; opening it establishes nothing unless the requirement says
+   acknowledgement is the outcome.
+
+5. **Three evidence modes, never upgraded.**
+   - **Acknowledge:** received and reviewed.
+   - **Locate:** knows where the authority is and when to use it; usually shown during real work.
+   - **Demonstrate:** an accepted artifact or observed action shows it can be done.
+
+   Reading, watching and listening are formats, not modes. Acknowledged is never demonstrated, and
+   one task never implies an unrelated one. References carry an authority class (normative,
+   reference, learning), and the References stage teaches that hierarchy.
+
+6. **The test is real work, through a warrant.** The execution unit is the **warrant**
+   ([ADR 0019](KF-ADR-0019-warrants-as-institutional-record.md)), not the work order. A work order
+   authorizes an external party under an engagement and carries commercial acceptance, and
+   qualification must not invent a contractor to reuse it. Execution and First Contribution are
+   normally one bounded warrant, or another existing record where that is the work (a decision, a
+   test execution). One accepted piece of work may evidence several requirements, but the mapping
+   is explicit, and an accepted change evidences only what the requirement says it does.
+
+7. **No duplicate approval.** The reviewer who accepts the work, holding the authority the
+   requirement names, credits the evidence in the same act. When every requirement is evidenced,
+   the record closes under the pack's standing rule. A separate approval exists only where it
+   authorizes something different. Evidence already accepted elsewhere is credited against an
+   equivalent requirement; a title or a résumé is not evidence.
+
+8. **Qualified, authorized and operational are separate facts.**
+   - Employment and appointment remain `engagement` and `role_assignment`.
+   - Authority remains grants.
+   - Qualification is evidence of readiness.
+
+   An action that genuinely needs a qualification declares it. The database checks it at the moment
+   of the act, beside act-grant coverage, as ADR 0033 checks authority. Qualification never grants a
+   permission, and a permission never implies a qualification. A refusal names the specific missing
+   requirement.
+
+9. **Records are pinned; currency is computed.**
+   - A qualification record preserves the pack revision and evidence it was decided on.
+   - Whether it still satisfies today's pack is a separate, computed question.
+   - A requirement revision declares its **behavioural impact**. Only a revision that changes
+     required behaviour creates a gap, and only for the people whose scope it touches.
+   - A formatting change, a moved document or a clarification creates none.
+   - A missing specialized requirement restricts only the action that needs it; nobody's whole
+     qualification resets.
+   - Renewal needs a stated reason. There is no calendar reset.
+
+10. **The rules against bureaucracy are rules.**
+    - A mandatory requirement names what becomes unsafe, unauthorized or unreliable without it; if
+      nothing does, it is optional reading.
+    - Initial scope is the minimum needed to start.
+    - Each person has one named contact.
+    - Every prerequisite, required access and blocker is visible. An unavailable resource or
+      reviewer is **blocked on the organization**, never a failure of the person.
+    - Waivers cannot turn missing evidence into demonstrated competence. A legitimate scope change
+      or a supervised restriction is recorded as what it is.
+    - Time on page, forced watch duration and monitoring are not evidence.
+    - Normal work updates the record by reference: no second report and no repeated uploads.
+    - An assistant may explain, assemble and check that fields are present. It never infers
+      competence and never grants anything.
+
+11. **The person's page is a projection.** The five-stage "Start Here" view is generated from the
+    record, the pack and the evidence, under the projection rules (§59). It is never edited
+    separately. Every status resolves to a requirement and its evidence.
+
+12. **Qualification records are personal.** A record is confidential. The person, their named
+    contact and the crediting reviewers read it; others learn only the applicable scope and current
+    eligibility, through the ordinary grant path. Public role packs do not make individual records
+    public.
+
+13. **Founding authority.** Until the organization appoints otherwise, the technical authority
+    approves packs and the acceptance rules in them. This is recorded, not presumed, and
+    self-attestation is not presented as independent evaluation.
+
+## Options rejected
+
+- **A separate onboarding platform.** It would duplicate the people, documents, evidence and
+  permissions the Fabric already holds, and it would be the second system the Decision exists to
+  prevent.
+- **Role-specific onboarding flows.** One fork per title, maintained by nobody. A new role must
+  need a new pack, not new code.
+- **Reusing the work order.** It binds an external party, an engagement and commercial acceptance.
+  Qualification through it would fabricate all three.
+- **Quizzes as the gate.** A quiz measures recall of the pack, not readiness for the work.
+- **Qualification as a permission.** It would let a reading checklist manufacture authority.
+- **Retraining on any document change.** A digest change is not a behaviour change, and resetting
+  qualification on one teaches people to ignore the system.
+
+## How we will know
+
+These are the acceptance tests of the implementation, each a planted case:
+
+- **A new role:** a pack is added and no code changes.
+- **Two packs sharing a requirement:** it is satisfied once.
+- **Existing accepted evidence meeting a requirement:** it is credited without repeating the work.
+- **A person qualified for the baseline but not for a specialized requirement:** the baseline
+  action succeeds; the specialized action is refused, naming the requirement.
+- **A mandatory resource that is inaccessible:** the record shows the organization's blocker and
+  the contact, not a failure.
+- **Every requirement evidenced through accepted work:** the record closes with no second approval.
+- **An unrelated document revision:** no status changes.
+- **A behavioural revision of one requirement:** exactly the affected people gain exactly that gap.
+- **An absent grant:** qualification does not bypass it.
+
+## Consequences
+
+- The ontology gains two types, their relations and state machine, and the acts that assign,
+  credit, accept, withdraw and supersede them. The schema pack is re-cut and re-signed.
+- Actions may declare a required qualification; the database enforces it where declared and
+  nowhere else.
+- The first packs are written for the Véracier fixture, a CEO and an aero engineer, so the
+  protocol is exercised on data that looks like a company before any real person depends on it.
+- Implementation follows the owner's sequence: it is the final stage, after hosting and the
+  correctness pass. This record and the specification's requirements come first, so the design
+  is reviewed before it is built.

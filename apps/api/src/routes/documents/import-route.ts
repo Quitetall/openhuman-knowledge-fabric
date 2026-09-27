@@ -1,7 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import { ActionRejected } from '@kf/actions';
 import { ArtifactRejected, verifyUpload } from '@kf/artifacts';
-import { unidentified } from '../actions.js';
+import { DocumentParseRefused, preparseDocument, withPreparsedDocuments } from '@kf/documents';
+import { deniedPathRule, formatContentRefusal, scanContent } from '../../ingest/content-policy.js';
+import { refuseUnidentified } from '../actions.js';
+import { documentParseRefusalBody } from '../actions/errors.js';
 import {
   DOCUMENT_IMPORT_BODY_LIMIT_BYTES,
   ImportIdempotencyConflict,
@@ -28,7 +31,7 @@ export function registerDocumentImportRoute(
           headers: request.headers as Record<string, unknown>,
         });
       } catch (error: unknown) {
-        return reply.code(401).send(unidentified(error));
+        return refuseUnidentified(reply, error);
       }
       if (options.store === undefined) {
         return reply.code(503).send({
@@ -39,22 +42,44 @@ export function registerDocumentImportRoute(
 
       try {
         const source = parseDocumentImport(request.body ?? {}, identity.organizationId);
+        // The same content policy as ingest: an import is bytes entering KF by another door.
+        const refused =
+          deniedPathRule(source.fileName) ?? scanContent(source.fileName, source.bytes);
+        if (refused !== undefined) {
+          return reply.code(422).send({
+            error: 'content_refused',
+            message: formatContentRefusal(refused),
+            detail: {
+              rule: refused.ruleId,
+              ...(refused.line === undefined ? {} : { line: refused.line }),
+              ...(refused.part === undefined ? {} : { part: refused.part }),
+            },
+          });
+        }
         const common: DocumentActionContext = {
           actorId: identity.actorId,
           actingRoleId: identity.actingRoleId,
           organizationId: identity.organizationId,
           maxClassification: identity.maxClassification,
+          attestation: identity.attestation,
           targetIds: [],
           requestId: String(request.id),
         };
         await preflightDocumentImport(options, identity, source, common);
+        // Parsed with no transaction open, before the bytes are stored; see ingest-route.ts.
+        const preparsed =
+          options.documentParser === undefined
+            ? undefined
+            : await preparseDocument(options.documentParser, source.bytes, source.mediaType);
         await options.store.putIfAbsent(source.storageKey, source.bytes, source.mediaType);
         await verifyUpload(options.store, {
           key: source.storageKey,
           claimedSha256: source.sha256,
           claimedSizeBytes: source.bytes.length,
         });
-        const imported = await persistDocumentImport(options, identity, source, common);
+        const imported = await withPreparsedDocuments(preparsed && [preparsed], () =>
+          persistDocumentImport(options, identity, source, common),
+        );
         return reply.code(imported.statusCode).send(imported.body);
       } catch (error: unknown) {
         if (error instanceof SourceHolderConflict) {
@@ -76,6 +101,9 @@ export function registerDocumentImportRoute(
         }
         if (error instanceof TypeError) {
           return reply.code(400).send({ error: 'invalid_document', message: error.message });
+        }
+        if (error instanceof DocumentParseRefused) {
+          return reply.code(422).send(documentParseRefusalBody(error));
         }
         if (error instanceof ActionRejected) {
           return reply.code(error.failure === 'idempotency_conflict' ? 409 : 422).send({

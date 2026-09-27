@@ -41,8 +41,10 @@ produced on the workstation satisfies none of them.
 ### OBL-004 — a backup was verified where it landed, and restored
 - **scope:** KF-SAS-RQ-165, KF-SAS-RQ-166.
 - **gate:** `gate://kf.host.commissioning@1.0.0`
-- **evidence:** a backup manifest verified at the destination rather than the source, and a
-  restore drill run with the SHIPPED scripts into a scratch database, reporting what it restored.
+- **evidence:** a backup's encrypted archive verified at the destination rather than the source,
+  and a restore drill run with the SHIPPED scripts as `kf-drill`, which pulls that off-site
+  ciphertext back, decrypts it and restores it into a throwaway PostgreSQL cluster, reporting what
+  it restored.
   A backup is not valid until it has been restored.
 
 ### OBL-005 — the host answers after a reboot it was not watched through
@@ -76,11 +78,15 @@ That is why RR-001 is recorded as accepted residual risk rather than closed, and
 written as *serve the bytes from the durable copy after removing the working one* rather than
 *two location rows exist*. A row is a claim about storage; a served byte is storage.
 
-**The second adversarial question: could the gate itself be wrong?** It is unqualified. No plant
-battery exists for it, so its eight declared fault classes are asserted rather than demonstrated,
-and its `qualification_digest` is empty rather than fabricated. A PASS from an unqualified gate
-is a report. Qualifying it is inside this Warrant's scope, and this Warrant cannot cite its own
-gate's qualification as evidence for itself.
+**The second adversarial question: could the gate itself be wrong?** When this Warrant was raised
+the gate was unqualified. `docs/gates/kf.host.commissioning@1.0.0.yaml` is now
+`lifecycle: qualified`: `packages/operations/src/commissioning.test.ts`, a 60-case battery,
+plants a defect for each of its nine declared fault classes — `attestor-separation-broken`
+among them — and must accept a known-good fixture and read absent evidence as `unverifiable`.
+Its `qualification_digest` is empty by design, not fabricated: the qualifier's identity is its
+commit. The qualification's own limits stand: plants are single-fault and run against fixtures,
+not a live host, so a PASS still shows the checks fire on the states they are given, not that
+this host presents its states faithfully.
 
 **Executed attacks:** none yet — this Warrant has not been executed. The plants are named in
 OBL-001 (remove the working copy), OBL-003 (attempt the key read as the API account) and OBL-005

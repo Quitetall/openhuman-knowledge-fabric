@@ -167,8 +167,30 @@ export interface ProjectionDefinition {
   /** Mandatory last section: whatever no section claimed. Its presence is the coverage check. */
   readonly remainder: { readonly id: string; readonly title: string };
   readonly sort: readonly string[];
-  readonly budgets: { readonly maxMembers: number };
+  /**
+   * Hard ceilings the engine refuses to exceed rather than silently truncate (SAS §60,
+   * KF-SAS-RQ-116): members admitted, and wall-clock time to evaluate. Both are required — a
+   * projection that cannot be bounded cannot be declared.
+   */
+  readonly budgets: { readonly maxMembers: number; readonly maxRuntimeMs: number };
 }
+
+/**
+ * The static bounds of the projection grammar (SAS §60, KF-SAS-RQ-116).
+ *
+ * Declared here, once, so the checker that refuses a definition and the engine that refuses to
+ * evaluate one read the same numbers. A definition may choose anything at or below these; none
+ * may exceed them, whoever authored it.
+ *
+ *   maxDepth       `traverse.max_depth`. Eight is the deepest any shipped definition walks.
+ *   maxRuntimeMs   `budgets.max_runtime_ms`. The engine turns it into a deadline.
+ *   maxMembers     `budgets.max_members`.
+ */
+export const PROJECTION_GRAMMAR_LIMITS = {
+  maxDepth: 8,
+  maxRuntimeMs: 30_000,
+  maxMembers: 100_000,
+} as const;
 
 export interface ActionType {
   readonly id: string;
@@ -283,6 +305,23 @@ function asNumber(v: unknown, where: string): number {
     throw new OntologyError(`${where}: expected a number`);
   }
   return v;
+}
+
+/**
+ * Refuse any key the grammar does not name.
+ *
+ * A key the loader does not read is a declaration that exists in the repository and not in the
+ * system — `max_detph: 2` would parse, be ignored, and leave the definition unbounded while
+ * reading as bounded. The projection grammar is closed (KF-SAS-RQ-116), so an unknown key is an
+ * error, not a warning.
+ */
+function assertExactKeys(r: Record<string, unknown>, allowed: readonly string[], where: string) {
+  const unknown = Object.keys(r).filter((k) => !allowed.includes(k));
+  if (unknown.length > 0) {
+    throw new OntologyError(
+      `${where}: unknown key(s) ${unknown.join(', ')}; the grammar admits only ${allowed.join(', ')}`,
+    );
+  }
 }
 
 function parseField(raw: unknown, where: string): Field {
@@ -521,9 +560,31 @@ export function loadOntology(dir: string): Ontology {
     const r = asRecord(raw, `projection_definitions[${i}]`);
     const id = asString(r['id'], `projection_definitions[${i}].id`);
     const where = `projection_definitions.${id}`;
+    assertExactKeys(
+      r,
+      [
+        'id',
+        'title',
+        'version',
+        'anchor',
+        'parameters',
+        'filter',
+        'traverse',
+        'sections',
+        'remainder',
+        'sort',
+        'budgets',
+      ],
+      where,
+    );
     const filter = (value: unknown, at: string): ProjectionFilter | undefined => {
       if (value === undefined) return undefined;
       const f = asRecord(value, at);
+      assertExactKeys(
+        f,
+        ['object_types', 'lifecycle_states', 'classification_max', 'item_states', 'reachability'],
+        at,
+      );
       const out: Record<string, unknown> = {};
       if (f['object_types'] !== undefined) {
         out['objectTypes'] = asStringList(f['object_types'], `${at}.object_types`);
@@ -555,14 +616,24 @@ export function loadOntology(dir: string): Ontology {
       throw new OntologyError(`${where}.anchor: expected person or object`);
     }
     const remainderRaw = asRecord(r['remainder'], `${where}.remainder`);
+    assertExactKeys(remainderRaw, ['id', 'title'], `${where}.remainder`);
     const budgetsRaw = asRecord(r['budgets'], `${where}.budgets`);
+    assertExactKeys(budgetsRaw, ['max_members', 'max_runtime_ms'], `${where}.budgets`);
     const maxMembers = budgetsRaw['max_members'];
     if (typeof maxMembers !== 'number' || !Number.isInteger(maxMembers) || maxMembers < 1) {
       throw new OntologyError(`${where}.budgets.max_members: expected a positive integer`);
     }
+    const maxRuntimeMs = budgetsRaw['max_runtime_ms'];
+    if (typeof maxRuntimeMs !== 'number' || !Number.isInteger(maxRuntimeMs) || maxRuntimeMs < 1) {
+      throw new OntologyError(
+        `${where}.budgets.max_runtime_ms: expected a positive integer — a projection whose ` +
+          'runtime is not bounded cannot be declared',
+      );
+    }
     let traverse: ProjectionTraverse | undefined;
     if (r['traverse'] !== undefined) {
       const tr = asRecord(r['traverse'], `${where}.traverse`);
+      assertExactKeys(tr, ['relations', 'max_depth'], `${where}.traverse`);
       const relations = tr['relations'];
       const maxDepth = tr['max_depth'];
       if (typeof maxDepth !== 'number' || !Number.isInteger(maxDepth) || maxDepth < 0) {
@@ -579,6 +650,7 @@ export function loadOntology(dir: string): Ontology {
     const sections: ProjectionSection[] = asArray(r['sections'] ?? [], `${where}.sections`).map(
       (s, j) => {
         const sec = asRecord(s, `${where}.sections[${j}]`);
+        assertExactKeys(sec, ['id', 'title', 'select', 'filter'], `${where}.sections[${j}]`);
         const select = asString(sec['select'], `${where}.sections[${j}].select`);
         if (!['anchor', 'reached', 'unreached', 'withdrawn', 'all'].includes(select)) {
           throw new OntologyError(`${where}.sections[${j}].select: unknown select '${select}'`);
@@ -597,6 +669,11 @@ export function loadOntology(dir: string): Ontology {
       `${where}.parameters`,
     ).map((pr, j) => {
       const param = asRecord(pr, `${where}.parameters[${j}]`);
+      assertExactKeys(
+        param,
+        ['name', 'type', 'required', 'values', 'minimum', 'maximum'],
+        `${where}.parameters[${j}]`,
+      );
       const type = asString(param['type'], `${where}.parameters[${j}].type`);
       if (!['uuid', 'integer', 'string', 'enum', 'boolean'].includes(type)) {
         throw new OntologyError(`${where}.parameters[${j}].type: unknown parameter type '${type}'`);
@@ -609,8 +686,12 @@ export function loadOntology(dir: string): Ontology {
       if (param['values'] !== undefined) {
         out['values'] = asStringList(param['values'], `${where}.parameters[${j}].values`);
       }
-      if (typeof param['minimum'] === 'number') out['minimum'] = param['minimum'];
-      if (typeof param['maximum'] === 'number') out['maximum'] = param['maximum'];
+      if (param['minimum'] !== undefined) {
+        out['minimum'] = asNumber(param['minimum'], `${where}.parameters[${j}].minimum`);
+      }
+      if (param['maximum'] !== undefined) {
+        out['maximum'] = asNumber(param['maximum'], `${where}.parameters[${j}].maximum`);
+      }
       return out as unknown as ProjectionParameter;
     });
     const topFilter = filter(r['filter'], `${where}.filter`);
@@ -628,7 +709,7 @@ export function loadOntology(dir: string): Ontology {
         title: asString(remainderRaw['title'], `${where}.remainder.title`),
       },
       sort: asStringList(r['sort'] ?? [], `${where}.sort`),
-      budgets: { maxMembers },
+      budgets: { maxMembers, maxRuntimeMs },
     };
   });
 

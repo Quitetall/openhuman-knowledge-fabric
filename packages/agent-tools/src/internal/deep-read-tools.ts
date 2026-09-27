@@ -1,5 +1,7 @@
+import { readGrantedSubset } from '@kf/authorization';
 import type { Pool } from '@kf/database';
-import { scoped } from './scope.js';
+import { verificationOfRow } from './basic-read-tools.js';
+import { scopedToGranted } from './scope.js';
 import type {
   AgentScope,
   EvidenceItem,
@@ -15,7 +17,7 @@ export async function traceRelations(
   options: { readonly relationTypes?: readonly string[]; readonly maxDepth?: number } = {},
 ): Promise<readonly TracedEdge[]> {
   const depth = Math.min(Math.max(1, options.maxDepth ?? 3), 6);
-  return scoped(pool, scope, async (tx) => {
+  return scopedToGranted(pool, scope, objectId, [], async (tx) => {
     const rows = await tx.query<{
       relation_type: string;
       from_id: string;
@@ -23,6 +25,9 @@ export async function traceRelations(
       to_title: string;
       to_type: string;
       depth: number;
+      verified_at: Date | null;
+      verified_by: string | null;
+      verification_basis: string | null;
     }>(
       `with recursive walk(relation_type, from_id, to_id, depth, path) as (
          select r.relation_type, r.source_id, r.target_id, 1, array[r.source_id, r.target_id]
@@ -38,20 +43,35 @@ export async function traceRelations(
             and not r.target_id = any(w.path)
        )
        select w.relation_type, w.from_id, w.to_id, o.title as to_title, o.object_type as to_type,
-              w.depth
+              w.depth, v.verified_at, v.verified_by, v.basis as verification_basis
          from walk w
          join core.object o on o.id = w.to_id
+         left join core.object_verification v on v.object_id = o.id
         order by w.depth, o.title`,
       [objectId, options.relationTypes === undefined ? null : [...options.relationTypes], depth],
     );
-    return rows.map((r) => ({
-      relationType: r.relation_type,
-      fromId: r.from_id,
-      toId: r.to_id,
-      toTitle: r.to_title,
-      toType: r.to_type,
-      depth: Number(r.depth),
-    }));
+    // An edge names both of its ends, so it is shown only when a grant reaches both: a walk
+    // through an ungranted record must not disclose that record's id, title or type.
+    const granted = new Set(
+      (
+        await readGrantedSubset(
+          tx,
+          scope,
+          [...new Set(rows.flatMap((r) => [r.from_id, r.to_id]))].map((id) => ({ id })),
+        )
+      ).map((item) => item.id),
+    );
+    return rows
+      .filter((r) => granted.has(r.from_id) && granted.has(r.to_id))
+      .map((r) => ({
+        relationType: r.relation_type,
+        fromId: r.from_id,
+        toId: r.to_id,
+        toTitle: r.to_title,
+        toType: r.to_type,
+        depth: Number(r.depth),
+        toVerification: verificationOfRow(r),
+      }));
   });
 }
 
@@ -60,11 +80,7 @@ export async function verificationOf(
   scope: AgentScope,
   subjectId: string,
 ): Promise<VerificationSummary | undefined> {
-  return scoped(pool, scope, async (tx) => {
-    const visible = await tx.maybeOne<{ id: string }>('select id from core.object where id = $1', [
-      subjectId,
-    ]);
-    if (visible === undefined) return undefined;
+  return scopedToGranted(pool, scope, subjectId, undefined, async (tx) => {
     const row = await tx.maybeOne<{
       verified: boolean;
       approved_definitions: string;
@@ -101,7 +117,7 @@ export async function externalCitations(
   scope: AgentScope,
   objectId: string,
 ): Promise<readonly ExternalCitation[]> {
-  return scoped(pool, scope, async (tx) => {
+  return scopedToGranted(pool, scope, objectId, [], async (tx) => {
     const rows = await tx.query<{
       source_id: string;
       repository: string;
@@ -138,7 +154,7 @@ export async function evidenceFor(
   scope: AgentScope,
   objectId: string,
 ): Promise<readonly EvidenceItem[]> {
-  return scoped(pool, scope, async (tx) => {
+  return scopedToGranted(pool, scope, objectId, [], async (tx) => {
     const rows = await tx.query<{
       id: string;
       artifact_id: string;

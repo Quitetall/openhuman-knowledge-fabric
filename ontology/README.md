@@ -1,17 +1,21 @@
 # Ontology
 
-**This directory is canonical.** Everything under `generated/` is compiled from these six
+**This directory is canonical.** Everything under `generated/` is compiled from these seven
 files and must never be hand-edited — CI regenerates and fails on any difference, because a
 hand-edited generated file is an ontology change nobody reviewed.
 
 | File                  | Defines                                                                                                                       |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `meta.yaml`           | The envelope every object carries, shared types (`Money`, `ExternalReference`, `EvidenceReference`) and controlled value sets |
-| `object-types.yaml`   | The 21 object types, their states and their typed attributes                                                                  |
-| `relation-types.yaml` | The 34 typed relations and their inverses                                                                                     |
-| `action-types.yaml`   | The 30 actions — the only way a controlled fact changes                                                                       |
-| `state-machines.yaml` | The 8 lifecycles and their legal transitions                                                                                  |
-| `rules.yaml`          | The 10 machine-enforceable invariants and where each is enforced                                                              |
+| `object-types.yaml`   | The object types, their states and their typed attributes                                                                     |
+| `relation-types.yaml` | The typed relations and their inverses                                                                                        |
+| `action-types.yaml`   | The actions — the only way a controlled fact changes                                                                          |
+| `state-machines.yaml` | The lifecycles and their legal transitions                                                                                    |
+| `rules.yaml`          | The machine-enforceable invariants and where each is enforced                                                                 |
+| `projections.yaml`    | The declared readings of a master record (ADR 0013): anchor, traversal and ordered sections                                   |
+
+How many object, relation and action types there are today is in
+[`generated/measurements.md`](../generated/measurements.md).
 
 ```sh
 pnpm ontology:check    # validate + report drift in generated/. Never writes.
@@ -47,13 +51,107 @@ spec §1.2 makes a contradiction between prose and machine artifacts release-blo
 **R01 should not be approved as issued.** These five corrections belong in the pack before
 it becomes normative.
 
-## Known gap — edge typing
+## Edge typing
 
-The R01 pack does not declare `source_types` / `target_types` on relations, so nothing
-currently stops an edge connecting two objects that have no business being connected. All
-34 relations raise **ONT-012** at warning severity, so the gap is counted on every run
-rather than living in a comment. Typing lands in Gate 6, alongside the object-type
-extension where the full inventory is known.
+Every relation in `relation-types.yaml` declares `source_types` and `target_types` (SAS §100.2,
+closed in draft.8). The seed mirrors them into `registry.relation_type_endpoint`, and
+`core.relation`'s endpoint trigger (`20260925030300`) refuses an edge whose source or target type
+is not declared for its end — against seeded data, so the ontology stays the authority. A relation
+that omits either end is an ONT-012 **error**; it was a warning, counted on every run, while R01's
+relations were untyped.
+
+The generic relations (`linked_to`, `supersedes`, `derived_from`, `depends_on` and the PROV
+relations) admit any type at both ends, written as the YAML anchor `*any_type` so the breadth is
+declared rather than implied. `supersedes` in particular admits a pair of different types; a
+same-type rule is not expressible in this grammar yet.
+
+This narrows R01, which admitted every pair. `tests/conformance/edge-typing.test.ts` holds the
+narrowing to two conditions — no R01 edge carried typing to be redefined, and every edge of R01's
+own example graph is admitted — and the r01-golden comparison strips the typing only under them.
+
+## Every type is created by an act
+
+A type with no create act can only come into existence through an owner-credential insert —
+no actor, no authority, no audit event. `tests/conformance/create-act-coverage.test.ts` maps
+every object type to the act that creates it, or to a written reason it has none, and fails on
+a type in neither list. The R01 product and quality types (`product_system`, `requirement`,
+`risk`, `test`, `baseline`, `release`) gained create acts in draft.8 (KF-SAS-RQ-143); R01 gives
+them states and no lifecycle, so each is born in its first declared state. The three work-control
+types that had none gained them in draft.8 too (KF-SAS-RQ-142): `record_engagement`,
+`plan_milestone` and `define_deliverable`, owned by `@kf/work-control`, each writing the typed row
+that already existed (`org.engagement`, `work.milestone`, `work.deliverable`). None of the three
+types has a state machine, so each is born in its first declared state (`draft`, `planned`,
+`planned`) by the same rule.
+
+`work.deliverable` now holds the ontology's `deliverable` fields (migration `20260925130100`). Its
+columns predated them and differed (`deliverable_kind`, `definition_of_done`), and the ontology is
+the one that was right: `deliverable` is an R01 type, which `tests/conformance/r01-golden.test.ts`
+holds byte-identical to the released pack, and its `acceptance_criteria` are what an
+`acceptance_record`'s `criteria_results` are judged against, which a single free-text
+`definition_of_done` cannot be. The columns are `work_package_id`, `work_order_id` (optional, and
+when given the order must cover the package — a composite key on `work.work_order_scope`),
+`description`, `acceptance_criteria` and `due_date`; `artifact_refs` has no column because the
+artifacts handed over for a deliverable are `work.deliverable_submission` rows, as the other
+array-of-reference fields are child rows. Existing rows kept everything: `definition_of_done`
+became the `description` and the one acceptance criterion, and both retired values are kept,
+per deliverable, in `work.deliverable_retired_attribute` — read-only, exported, never written by
+an application role. An export cut before the migration restores the same way: the importer moves
+each old-shape row exactly as the migration did (`docs/backup-and-restore/README.md`).
+`define_deliverable` writes the ontology's fields.
+`tests/database/deliverable-fields.test.ts` holds the table's columns equal to the ontology's
+fields under that mapping.
+
+`engagement` gained a lifecycle in draft.8 as well (`state-machines.yaml`, the third machine
+given to a type R01 approved without one, after `organization` and `person`). R01 declared its
+five states — `draft, active, suspended, closed, terminated` — and `state_machine: null`, so an
+engagement `record_engagement` created stayed in `draft` whatever became of the agreement. The
+transitions run between R01's own states and invent none: `activate_engagement` (draft → active),
+`suspend_engagement` and `resume_engagement` (active ⇄ suspended), `close_engagement` (active or
+suspended → closed, the agreement ran its course) and `terminate_engagement` (draft, active or
+suspended → terminated, ended early or never taken up). `closed` and `terminated` are terminal;
+a renewed agreement is a new engagement. The acts are handler-free and none is institutional, for
+the reason `record_engagement` is not. An engagement ends after its work orders (rule
+`KF-ENG-001`): `close_engagement` and `terminate_engagement` are refused while a work order naming
+it (`work.work_order.engagement_id`) is in a state the `work_order` machine does not mark terminal,
+and no work order can be placed under an engagement that has ended — a work-control precondition
+names the open orders, and database triggers are the authority
+(`20260925142100_an_engagement_ends_after_its_work_orders.sql`).
+`tests/database/engagement-lifecycle.test.ts` walks it.
+
+`observation` (ADR 0034) is the one type whose create act is deliberately cheap:
+`record_observation` needs a live assignment and no act grant, and the server forms the acting
+assignment and the idempotency key (`formObservationRequest` in `@kf/work-control`).
+`promote_observation` is institutional (`requires: act`); `withdraw_observation` is not. What an
+observation is about is `concerns` relations from it, and a record it was promoted into is
+`derived_from` it.
+
+## Where each rule is enforced
+
+`rules.yaml` says where each invariant is enforced; `tests/database/rule-ledger.test.ts` is the
+record of whether it is. Every rule has a ledger entry citing a test that plants a violation,
+and the citation is checked by title, so renaming or deleting the test fails the ledger. All
+fifteen are live in the database or the dispatcher. The `validator` claim is counted
+separately: the frozen R01 `validate_graph.py` refuses three declared rules (KF-GRAPH-001,
+KF-FIN-001, KF-FIN-003 — its fourth check, invoice line totals, is not a declared rule), and
+the ledger asserts that count against the validator's own source (SAS §100.1).
+
+## The projection grammar is closed and bounded
+
+`projections.yaml` is a closed grammar (SAS §60, KF-SAS-RQ-116). The loader refuses any key it
+does not name — at the top of a definition and inside `traverse`, `filter`, `sections`,
+`parameters`, `remainder` and `budgets` — because an ignored `max_detph` would read as a bound
+and be none. Every definition declares `budgets.max_members` and `budgets.max_runtime_ms`, and
+no definition may exceed the grammar's ceilings (`PROJECTION_GRAMMAR_LIMITS` in
+`packages/ontology-compiler/src/model.ts`: depth 8, 30 000 ms, 100 000 members; ONT-018). The
+engine (`@kf/projections`) re-checks the same ceilings on whatever definition it is handed and
+turns `max_runtime_ms` into a deadline checked per node walked and per member placed: an
+overrun is refused, never truncated.
+
+What the depth ceiling bounds is `traverse.max_depth` — the anchor's first stance. After the
+first hop, composition and provenance walk to a fixpoint, bounded by the corpus (and so by
+`max_members`) and by the runtime deadline rather than by depth. That is deliberate, recorded in
+`packages/projections/src/closure.ts`: a depth cut there would turn a budget into silent
+membership loss.
 
 ## Editing
 

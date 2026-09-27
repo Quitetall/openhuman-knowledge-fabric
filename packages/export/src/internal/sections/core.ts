@@ -16,9 +16,14 @@ export const CORE_SECTIONS = [
   },
   {
     name: 'actions',
+    // `agent_participation` (ADR 0035, 20260925100000) is last so that an archive written before
+    // it existed differs only by the missing key. Such an archive restores every act with it
+    // null, which is what each of them was: nothing acted through an agent before the column.
+    // The restore is an administrator session, which keeps the value the archive states rather
+    // than deriving one from a bound attestation (core.action_agent_participation).
     sql: `select id, organization_id, request_digest, action_type, actor_id, acting_role_id,
                  target_ids, parameters, preconditions, idempotency_key, recorded_at,
-                 effective_at, request_id, reason, result_status, result
+                 effective_at, request_id, reason, result_status, result, agent_participation
             from core.action order by id`,
   },
   {
@@ -33,6 +38,27 @@ export const CORE_SECTIONS = [
             from core.approval order by id`,
   },
   {
+    // KF-SAS-RQ-228: an unverified record appears in the preservation export marked as such.
+    //
+    // The mark is the ABSENCE of a row here, which is the same shape the database uses and for
+    // the same reason: a `verified` column would have to default to something, and false on a
+    // table nobody writes is indistinguishable from a system that has never verified anything.
+    // Exporting the verifications means an imported corpus knows exactly which of its records
+    // somebody checked, and the round-trip test proves the two sets are identical.
+    name: 'object-verifications',
+    sql: `select object_id, verified_at, verified_by, basis, recorded_by_action
+            from core.object_verification order by object_id`,
+  },
+  {
+    // KF-SAS-RQ-221: the demand aggregate is a record — which records people could not reach,
+    // and how many distinct persons wanted each, never which persons. The recorded queries and
+    // per-asker contributions it was counted from are transient and are NOT exported (§64B).
+    name: 'access-demand',
+    sql: `select object_id, organization_id, distinct_person_count, first_counted_at,
+                 last_counted_at
+            from org.access_demand order by object_id`,
+  },
+  {
     name: 'snapshots',
     sql: `select id, object_id, action_id, object_revision, payload, payload_sha256,
                  ontology_digest, storage_uri, recorded_at
@@ -41,10 +67,13 @@ export const CORE_SECTIONS = [
   {
     name: 'audit-events',
     // Ordered by seq, not id: the chain is DEFINED over this order, so exporting it any
-    // other way would make the imported chain unverifiable.
+    // other way would make the imported chain unverifiable. `link_format` travels with each
+    // row because a link verifies only under the format it was recorded with; an archive
+    // written before the column existed restores every link as kf-audit-link-v1, which is
+    // what each of them was (importer/sections.ts).
     sql: `select seq, id, action_id, actor_id, acting_role_id, action_type, object_id,
                  recorded_at, effective_at, request_id, reason, before_digest, after_digest,
-                 prev_digest, digest
+                 prev_digest, digest, link_format
             from core.audit_event order by seq`,
   },
   {
@@ -71,7 +100,10 @@ export const CORE_SECTIONS = [
   },
   {
     name: 'artifact-stores',
-    sql: `select id, kind, label, writable, public, declared_at, notes
+    // endpoint/bucket/bound_at: 20260925160000. The address a store is bound to is part of the
+    // ledger's claim about where bytes live, so a restore that dropped it would unbind every
+    // store and let the next process to start rebind it anywhere.
+    sql: `select id, kind, label, writable, public, declared_at, notes, endpoint, bucket, bound_at
             from content.artifact_store order by id`,
   },
   {
@@ -80,6 +112,14 @@ export const CORE_SECTIONS = [
                  recorded_by_action, verified_at, verified_sha256, verification_failure,
                  verified_by_action
             from content.artifact_location order by version_id, role, store_id, id`,
+  },
+  {
+    // 20260924000400: bytes the storage sweep deleted because no record referenced them. The
+    // bytes are gone by definition; this is the only evidence that they existed and went.
+    name: 'orphan-collections',
+    sql: `select id, organization_id, store_id, storage_key, sha256, versions_removed,
+                 collected_at, collected_by, reason
+            from content.orphan_collection order by collected_at, id`,
   },
   {
     name: 'artifact-relationships',
@@ -235,7 +275,8 @@ export const CORE_SECTIONS = [
   },
   {
     name: 'backup-copies',
-    sql: `select id, backup_run_id, destination_label, offsite, copied_at, manifest_digest
+    sql: `select id, backup_run_id, destination_label, offsite, copied_at, manifest_digest,
+                 offsite_basis, failure_domain_ref, ciphertext_sha256
             from ops.backup_copy order by backup_run_id, id`,
   },
   {

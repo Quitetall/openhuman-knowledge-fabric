@@ -1,10 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import { ActionRejected } from '@kf/actions';
-import { IdentityRejected } from '@kf/authorization';
-import { setAccessContext, withTransaction } from '@kf/database';
+import { AttestorUnavailable, IdentityRejected } from '@kf/authorization';
+import { withTransaction, bindPrincipal } from '@kf/database';
 import { actionForMetricEventAppend, metricEventActionIdempotencyKey } from '@kf/integration';
 import { MetricEventJournal, MlRegistryRejected } from '@kf/ml-registry';
-import { CallerRejected, unidentified } from '../../actions.js';
+import { CallerRejected, refuseUnidentified } from '../../actions.js';
 import type { MlRoutesOptions } from '../../ml.js';
 import { MlSchemaUnavailable, requireMlSchema } from '../../../schema-contract.js';
 import type { MetricEventBody } from '../contracts.js';
@@ -40,8 +40,12 @@ export function registerMetricEventRoute(app: FastifyInstance, options: MlRoutes
           headers: request.headers as Record<string, unknown>,
         });
       } catch (error: unknown) {
-        if (error instanceof CallerRejected || error instanceof IdentityRejected) {
-          return reply.code(401).send(unidentified(error));
+        if (
+          error instanceof CallerRejected ||
+          error instanceof IdentityRejected ||
+          error instanceof AttestorUnavailable
+        ) {
+          return refuseUnidentified(reply, error);
         }
         request.log.error({ err: error }, 'ML metric caller identification failed');
         return reply.code(500).send({ error: 'internal_error', requestId: request.id });
@@ -70,10 +74,7 @@ export function registerMetricEventRoute(app: FastifyInstance, options: MlRoutes
 
       try {
         const result = await withTransaction(options.pool, async (tx) => {
-          await setAccessContext(tx, {
-            organizationId: caller.organizationId,
-            maxClassification: caller.maxClassification,
-          });
+          await bindPrincipal(tx, caller);
           await requireMlSchema(tx);
 
           const runRow = await tx.maybeOne<IngestRunRow>(
@@ -147,6 +148,7 @@ export function registerMetricEventRoute(app: FastifyInstance, options: MlRoutes
             idempotencyKey: metricEventActionIdempotencyKey(candidate.eventDigest),
             organizationId: caller.organizationId,
             maxClassification: caller.maxClassification,
+            attestation: caller.attestation,
             requestId: request.id,
           });
 

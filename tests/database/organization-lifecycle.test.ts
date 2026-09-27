@@ -7,7 +7,13 @@ import { createFabricDispatcher } from '@kf/orchestrator';
 import { runBootstrap } from '../../apps/api/src/admin/bootstrap-organization.js';
 import { runGrantAuthority } from '../../apps/api/src/admin/grant-authority.js';
 import { runRetireOrganization } from '../../apps/api/src/admin/retire-organization.js';
-import { seedFixtures, startHarness, type Fixtures, type Harness } from './harness.js';
+import {
+  aYearFromNow,
+  seedFixtures,
+  startHarness,
+  type Fixtures,
+  type Harness,
+} from './harness.js';
 
 /**
  * An organization is retired with its people, and the first authority in it can be granted.
@@ -73,6 +79,7 @@ async function foundOrganization(name: string): Promise<Founded> {
     organizationId: '',
   });
   const granted = await runGrantAuthority(harness.adminPool, {
+    validTo: aYearFromNow(),
     personId: created.personId,
     organizationId: created.organizationId,
     roleId: 'project_owner',
@@ -148,6 +155,11 @@ describe('the founding grant', () => {
     });
     expect(action.actor_id).toBe(founded.personId);
     expect(action.acting_role_id).toBe(founded.roleAssignmentId);
+    // A UUIDv7 like every other object id: the founding assignment was a random v4 until
+    // 2026-09-24, and the web context picker, which validates a UUIDv7, could not be given it.
+    expect(founded.roleAssignmentId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
     expect(await liveAuthority(founded.personId, founded.organizationId)).toEqual({
       roles: 1,
       clearances: 1,
@@ -165,6 +177,7 @@ describe('the founding grant', () => {
     });
     await expect(
       runGrantAuthority(harness.adminPool, {
+        validTo: aYearFromNow(),
         personId: second.personId,
         organizationId: founded.organizationId,
         roleId: 'performer',
@@ -175,6 +188,7 @@ describe('the founding grant', () => {
     ).rejects.toThrow(/holds no active role assignment/);
     // The founder, who holds one, can.
     const granted = await runGrantAuthority(harness.adminPool, {
+      validTo: aYearFromNow(),
       personId: second.personId,
       organizationId: founded.organizationId,
       roleId: 'performer',
@@ -374,6 +388,7 @@ describe('deactivate_person', () => {
       organizationId: founded.organizationId,
     });
     await runGrantAuthority(harness.adminPool, {
+      validTo: aYearFromNow(),
       personId: second.personId,
       organizationId: founded.organizationId,
       roleId: 'performer',
@@ -439,6 +454,7 @@ describe('deactivate_person', () => {
       retirements: 1,
     });
     const regrant = await runGrantAuthority(harness.adminPool, {
+      validTo: aYearFromNow(),
       personId: second.personId,
       organizationId: founded.organizationId,
       roleId: 'performer',

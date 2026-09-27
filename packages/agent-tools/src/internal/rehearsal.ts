@@ -1,5 +1,5 @@
 import { createDispatcher, type ActionRequest, ActionRejected } from '@kf/actions';
-import { withTransaction, type Pool, type Tx } from '@kf/database';
+import { attestationFor, bindPrincipal, withTransaction, type Pool, type Tx } from '@kf/database';
 import type { AgentScope } from './types.js';
 
 export interface Rehearsal {
@@ -31,19 +31,20 @@ export async function rehearseAction(
   request: Omit<ActionRequest, 'organizationId' | 'maxClassification' | 'actorId' | 'actingRoleId'>,
   dispatcherOptions: Parameters<typeof createDispatcher>[1] = {},
 ): Promise<Rehearsal> {
-  const full: ActionRequest = {
-    ...request,
-    actorId: scope.actorId,
-    actingRoleId: scope.actingRoleId,
-    organizationId: scope.organizationId,
-    maxClassification: scope.maxClassification,
-  };
   try {
     await withTransaction(pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [
-        scope.organizationId,
-        scope.maxClassification,
-      ]);
+      // One attestation for the rehearsal's bind and for the dispatcher's own bind inside it
+      // (20260924001000): the dispatcher runs on a single-transaction pool that no issuer knows.
+      const attestation = await attestationFor(tx, scope);
+      const full: ActionRequest = {
+        ...request,
+        actorId: scope.actorId,
+        actingRoleId: scope.actingRoleId,
+        organizationId: scope.organizationId,
+        maxClassification: scope.maxClassification,
+        attestation,
+      };
+      await bindPrincipal(tx, { ...scope, attestation });
       const before = await stateSnapshot(tx, full.targetIds);
       const execute = createDispatcher(singleTransactionPool(tx), dispatcherOptions);
       const result = await execute(full);

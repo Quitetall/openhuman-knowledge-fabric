@@ -1,4 +1,9 @@
-import { auditChainDigest, compareCanonicalText, digest } from '@kf/canonicalization';
+import {
+  auditChainDigest,
+  compareCanonicalText,
+  isAuditLinkFormat,
+  taggedDigest,
+} from '@kf/canonicalization';
 import type { Tx } from '@kf/database';
 import {
   ActionRejected,
@@ -15,8 +20,7 @@ import {
  * time stays null so dispatcher wall clock cannot make otherwise identical retries differ.
  */
 export function semanticActionRequestDigest(request: ActionRequest): string {
-  return digest({
-    format: 'kf-action-request-v1',
+  return taggedDigest('kf-action-request-v1', {
     organizationId: request.organizationId,
     actionType: request.actionType,
     actorId: request.actorId,
@@ -31,8 +35,7 @@ export function semanticActionRequestDigest(request: ActionRequest): string {
 
 /** Serialize equivalent retry lookups before any materialization can occur. */
 export async function lockIdempotencyKey(tx: Tx, request: ActionRequest): Promise<void> {
-  const lockIdentity = digest({
-    format: 'kf-action-idempotency-lock-v1',
+  const lockIdentity = taggedDigest('kf-action-idempotency-lock-v1', {
     organizationId: request.organizationId,
     actionType: request.actionType,
     idempotencyKey: request.idempotencyKey,
@@ -71,6 +74,7 @@ export async function replayPriorAction(
     event_before_digest: string | null;
     event_after_digest: string | null;
     event_prev_digest: string | null;
+    event_link_format: string | null;
     audit_digest: string | null;
   }>(
     `select action.id, action.actor_id::text, action.acting_role_id::text,
@@ -93,6 +97,7 @@ export async function replayPriorAction(
             event.before_digest as event_before_digest,
             event.after_digest as event_after_digest,
             event.prev_digest as event_prev_digest,
+            event.link_format as event_link_format,
             event.digest as audit_digest
        from core.action action
        left join lateral (
@@ -134,19 +139,24 @@ export async function replayPriorAction(
   if (
     targetIdsAreValid &&
     prior.event_prev_digest !== null &&
-    prior.event_effective_at_wire !== null
+    prior.event_effective_at_wire !== null &&
+    isAuditLinkFormat(prior.event_link_format)
   ) {
     try {
-      recomputedAuditDigest = auditChainDigest(prior.event_prev_digest, {
-        action_id: prior.id,
-        action_type: prior.action_type,
-        actor_id: prior.actor_id,
-        acting_role_id: prior.acting_role_id,
-        object_ids: [...prior.target_ids].sort(compareCanonicalText),
-        effective_at: prior.event_effective_at_wire,
-        before_digest: prior.event_before_digest,
-        after_digest: prior.event_after_digest,
-      });
+      recomputedAuditDigest = auditChainDigest(
+        prior.event_prev_digest,
+        {
+          action_id: prior.id,
+          action_type: prior.action_type,
+          actor_id: prior.actor_id,
+          acting_role_id: prior.acting_role_id,
+          object_ids: [...prior.target_ids].sort(compareCanonicalText),
+          effective_at: prior.event_effective_at_wire,
+          before_digest: prior.event_before_digest,
+          after_digest: prior.event_after_digest,
+        },
+        prior.event_link_format,
+      );
     } catch {
       recomputedAuditDigest = undefined;
     }

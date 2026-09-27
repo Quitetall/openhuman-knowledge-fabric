@@ -13,11 +13,10 @@
  *   example-atlas-enclosure-project.json    the conformance example, still valid
  *   validate_graph.py                       the portable reference validator
  *
- * `validate_graph.py` is carried forward WITH A KNOWN GAP: it implements four of the ten
- * invariants, leaving six enforced only in prose, which §27.1 calls nonconforming. Gate 3
- * closes that by making all ten simultaneously a database constraint, an action
- * precondition and a conformance test. The gap is reported by `packGaps()` rather than
- * quietly shipped.
+ * `validate_graph.py` is carried forward WITH A KNOWN GAP: it checks three of the declared
+ * invariants. Every declared invariant is enforced by the database or the dispatcher with a
+ * planted test (`tests/database/rule-ledger.test.ts`), so the gap is the offline validator's
+ * alone. It is reported by `packGaps()` rather than quietly shipped.
  */
 
 import { createHash } from 'node:crypto';
@@ -50,11 +49,14 @@ const CARRIED_FORWARD = [
 /** Known nonconformances that travel with the package, so approval is an informed act. */
 export function packGaps(): readonly string[] {
   return [
-    'validate_graph.py implements 4 of 10 invariants (KF-FIN-001, KF-FIN-003 partially, ' +
-      'plus invoice line totals). The remaining six exist only in prose, which §27.1 calls ' +
-      'nonconforming. Gate 3 enforces all ten as database constraints and action preconditions.',
-    'Relation types declare no source_types/target_types, so nothing constrains which object ' +
-      'types an edge may connect. Tracked as ONT-012; typing lands in Gate 6.',
+    'validate_graph.py checks KF-GRAPH-001, KF-FIN-001 and KF-FIN-003 and no other ' +
+      'declared invariant. Every invariant in ontology/rules.yaml is enforced by the database ' +
+      'or the dispatcher, each with a planted test, so a graph validated offline by this ' +
+      'script alone gets only those three rules.',
+    'Every relation type declares source_types/target_types (vocabulary edge_types) and the ' +
+      'database refuses an undeclared pair, but the carried-forward validate_graph.py does not ' +
+      'check endpoint types, so a graph validated only by it can still hold an edge the typing ' +
+      'forbids.',
     'The manifest is unsigned. §5 requires a signed or approved release manifest before the ' +
       'package is normative.',
   ];

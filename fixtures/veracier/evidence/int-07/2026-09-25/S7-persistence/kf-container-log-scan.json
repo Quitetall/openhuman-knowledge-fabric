@@ -1,0 +1,18 @@
+{
+  "needles_file_sha256": "0615ca6ffb408fcbae407160f7cffb393b09276c01cdc90ada8d883389bd657c",
+  "source": "docker logs <container> (full), 2026-09-25 ~21:02Z",
+  "containers": {
+    "kf-veracier-keycloak": {
+      "bytes": 2324,
+      "needles_found": 0
+    },
+    "kf-veracier-minio": {
+      "bytes": 492,
+      "needles_found": 0
+    },
+    "kf-veracier-postgres": {
+      "bytes": 1469533,
+      "needles_found": 0
+    }
+  }
+}

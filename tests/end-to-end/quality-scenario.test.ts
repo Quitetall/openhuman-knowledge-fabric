@@ -80,31 +80,35 @@ beforeAll(async () => {
     preconditions: { ...WORK_CONTROL_PRECONDITIONS, ...PRODUCT_QUALITY_PRECONDITIONS },
   });
 
-  // The product and the hazard are bootstrap facts: the product exists, and the hazard is
-  // owned by the QMS. Everything after this is an action.
-  await withTransaction(h.adminPool, async (tx) => {
-    await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
-    await tx.query('select core.set_transaction_context($1, $1, $2, $3)', [
-      f.reviewerId,
-      '01930000-0000-7000-8000-00000000ac10',
-      'quality-scenario-bootstrap',
-    ]);
-    const { version } = await tx.one<{ version: string }>(
-      'select version from registry.schema_release where is_current',
-    );
-    const mk = async (type: string, domain: string, state: string, title: string) => {
-      const row = await tx.one<{ id: string }>(
-        `insert into core.object
-           (object_type, authority_domain, lifecycle_state, classification, retention_class,
-            schema_version, organization_id, title, created_by, updated_by)
-         values ($1,$2,$3,'internal','project_record',$4,$5,$6,$7,$7) returning id`,
-        [type, domain, state, version, f.organizationId, title, f.reviewerId],
-      );
-      return row.id;
-    };
-    productSystem = await mk('product_system', 'configuration', 'development', 'OH-EEG-1');
-    risk = await mk('risk', 'engineering', 'identified', 'Excess electrode leakage current');
-  });
+  // The product and the hazard are records like any other, created by their own acts
+  // (KF-SAS-RQ-143). Until draft.8 they were owner-credential inserts into core.object — the
+  // "bootstrap facts" this scenario's own header says it does not use — because no act could
+  // create either type.
+  productSystem = (
+    await act({
+      actionType: 'register_product_system',
+      ...authority(),
+      targetIds: [],
+      payload: {
+        title: 'OH-EEG-1',
+        product_kind: 'product',
+        responsible_owner: f.reviewerId,
+      },
+    })
+  ).objectIds[0]!;
+  risk = (
+    await act({
+      actionType: 'identify_risk',
+      ...authority(),
+      targetIds: [],
+      payload: {
+        title: 'Excess electrode leakage current',
+        risk_kind: 'hazard',
+        description:
+          'Patient leakage current through an electrode path above the IEC 60601-1 limit.',
+      },
+    })
+  ).objectIds[0]!;
 }, 180_000);
 
 afterAll(async () => {
@@ -498,5 +502,91 @@ describe('5. the recall question', () => {
     // view reads the executions, so withdrawing the result withdraws the claim.
     expect(Number(status.invalidated)).toBe(1);
     expect(status.verified).toBe(false);
+  });
+});
+
+describe('6. the R01 product and quality records are acts too (KF-SAS-RQ-143)', () => {
+  it('created the product and the hazard by recorded acts, with their typed rows', async () => {
+    const rows = await withTransaction(h.adminPool, async (tx) =>
+      tx.query<{ id: string; action_type: string; typed: boolean }>(
+        `select o.id, a.action_type,
+                (exists (select 1 from product.product_system p where p.id = o.id)
+                 or exists (select 1 from engineering.risk r where r.id = o.id)) as typed
+           from core.object o
+           join core.action a on o.id = any(a.target_ids)
+          where o.id = any($1::uuid[])
+          order by a.action_type`,
+        [[productSystem, risk]],
+      ),
+    );
+    expect(rows.map((r) => r.action_type)).toEqual(['identify_risk', 'register_product_system']);
+    expect(rows.every((r) => r.typed)).toBe(true);
+  });
+
+  it('defines a requirement, an R01 test, a baseline and a release, each by its own act', async () => {
+    const requirement = await act({
+      actionType: 'define_requirement',
+      ...authority(),
+      targetIds: [],
+      payload: {
+        title: 'Leakage current limit',
+        statement: 'Patient leakage current SHALL NOT exceed 10 µA under normal condition.',
+        requirement_kind: 'regulatory',
+      },
+    });
+    const test = await act({
+      actionType: 'register_test',
+      ...authority(),
+      targetIds: [],
+      payload: {
+        title: 'Leakage current protocol',
+        test_kind: 'protocol',
+        objective: 'Measure patient leakage per IEC 60601-1 §8.7.',
+      },
+    });
+    const baseline = await act({
+      actionType: 'define_baseline',
+      ...authority(),
+      targetIds: [],
+      payload: {
+        title: 'OH-EEG-1 product baseline',
+        baseline_kind: 'product',
+        contained_nodes: [enclosure],
+      },
+    });
+    const release = await act({
+      actionType: 'define_release',
+      ...authority(),
+      targetIds: [],
+      payload: {
+        title: 'OH-EEG-1 release 1',
+        release_kind: 'product',
+        contained_nodes: [enclosure],
+      },
+    });
+    // Each is born in its type's first declared state: R01 gives them no lifecycle.
+    expect(await stateOf(requirement.objectIds[0]!)).toBe('draft');
+    expect(await stateOf(test.objectIds[0]!)).toBe('draft');
+    expect(await stateOf(baseline.objectIds[0]!)).toBe('draft');
+    expect(await stateOf(release.objectIds[0]!)).toBe('draft');
+    const items = await withTransaction(h.adminPool, async (tx) =>
+      tx.one<{ baseline: string; release: string }>(
+        `select (select count(*) from product.baseline_item where baseline_id = $1)::text as baseline,
+                (select count(*) from product.release_item where release_id = $2)::text as release`,
+        [baseline.objectIds[0], release.objectIds[0]],
+      ),
+    );
+    expect(items).toEqual({ baseline: '1', release: '1' });
+  });
+
+  it('refuses a create act that states a kind the type does not have', async () => {
+    await expect(
+      act({
+        actionType: 'identify_risk',
+        ...authority(),
+        targetIds: [],
+        payload: { title: 'x', risk_kind: 'vibes', description: 'Not a declared risk kind.' },
+      }),
+    ).rejects.toBeInstanceOf(ActionRejected);
   });
 });

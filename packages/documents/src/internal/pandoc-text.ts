@@ -1,5 +1,7 @@
-import { digest, type JsonValue } from '@kf/canonicalization';
+import type { JsonValue } from '@kf/canonicalization';
 import {
+  documentAtomDigest,
+  documentLossSourceDigest,
   parseJson,
   type DocumentAtom,
   type DocumentAtomKind,
@@ -59,7 +61,7 @@ export function createAtom(
 ): void {
   const ordinal = atoms.length + 1;
   const claim = { ordinal, kind, level, text: normalized(text), attributes };
-  atoms.push({ ...claim, digest: digest(claim) });
+  atoms.push({ ...claim, digest: documentAtomDigest(claim) });
 }
 
 export function parseLoss(
@@ -70,7 +72,13 @@ export function parseLoss(
   source: unknown,
 ): void {
   const sourceValue = parseJson(source, `conversion loss ${path} source`);
-  losses.push({ code, path, message, source: sourceValue, sourceDigest: digest(sourceValue) });
+  losses.push({
+    code,
+    path,
+    message,
+    source: sourceValue,
+    sourceDigest: documentLossSourceDigest(sourceValue),
+  });
 }
 
 const TRANSPARENT_INLINE_TYPES = new Set(['Str', 'Space', 'SoftBreak', 'LineBreak']);

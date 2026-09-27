@@ -34,7 +34,8 @@ export async function compositionNodes(
             object.title,
             subject.stable_key,
             revision.revision_digest,
-            revision.classification,
+            -- A composition revision carries no classification of its own; the record's is it.
+            object.classification,
             revision.created_at
        from content.compilation_basis_composition member
        join content.composition_revision revision on revision.id = member.composition_revision_id
@@ -68,7 +69,7 @@ export async function compositionInputs(
             coalesce(input.fragment_revision_id, input.child_composition_revision_id,
                      input.resource_version_id, input.binding_id, input.compiled_view_id)
               as target_id,
-            coalesce(fragment_object.title, composition_object.title, artifact.title,
+            coalesce(fragment_object.title, composition_object.title, resource_object.title,
                      binding.selector, compiled_view.target) as target_title,
             coalesce(input.content_digest, fragment_revision.content_digest,
                      artifact.sha256, binding.value_digest, compiled_view.content_digest)
@@ -87,6 +88,8 @@ export async function compositionInputs(
          on composition_subject.id = child_revision.composition_id
        left join core.object composition_object on composition_object.id = composition_subject.object_id
        left join content.artifact_version artifact on artifact.id = input.resource_version_id
+       -- A version has no title; the artifact it is a version of does.
+       left join core.object resource_object on resource_object.id = artifact.artifact_id
        left join content.typed_binding binding on binding.id = input.binding_id
        left join content.compiled_view compiled_view on compiled_view.id = input.compiled_view_id
       where member.basis_id = $1

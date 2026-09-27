@@ -47,6 +47,7 @@ Particularly interested in:
 
 ## Supported versions
 
-None yet. There is no released version; `main` is the only branch and nothing is tagged. When
+None yet. The one tag, `v0.9.0` (2026-08-21), is a pre-1.0 public release and is not supported
+separately: report against `main`, where fixes land. Other branches are work in progress. When
 v1.0 exists, the criteria it will have met are in
 [`docs/decisions/0004-production-release.md`](docs/decisions/0004-production-release.md).

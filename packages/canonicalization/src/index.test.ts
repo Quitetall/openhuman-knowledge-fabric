@@ -1,5 +1,10 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
+  auditChainDigest,
+  auditLinkFormatMayFollow,
+  type AuditLinkFormat,
+  CURRENT_AUDIT_LINK_FORMAT,
   canonicalize,
   canonicalBytes,
   chainDigest,
@@ -8,6 +13,8 @@ import {
   digestBytes,
   CanonicalizationError,
   GENESIS_DIGEST,
+  isFormatTag,
+  taggedDigest,
 } from './index.js';
 
 describe('RFC 8785 conformance', () => {
@@ -143,6 +150,57 @@ describe('digests', () => {
   });
 });
 
+describe('tagged digests (KF-SAS-RQ-016)', () => {
+  // Golden recomputed independently in Python (json.dumps sort_keys, compact separators,
+  // ensure_ascii=False, sha256): {"a":"x","b":2,"format":"kf-example-v1"}.
+  it('puts the tag in the preimage as a format property', () => {
+    expect(taggedDigest('kf-example-v1', { b: 2, a: 'x' })).toBe(
+      'b00b4633154d61fdec64d01db8071aab6944f1c15d73611d7c061d95dc59b62e',
+    );
+    expect(taggedDigest('kf-example-v1', { b: 2, a: 'x' })).toBe(
+      createHash('sha256').update('{"a":"x","b":2,"format":"kf-example-v1"}').digest('hex'),
+    );
+  });
+
+  it('is byte-identical to the older spelling with format written inline', () => {
+    // So a call site moved onto the helper keeps every value it ever produced.
+    expect(taggedDigest('kf-action-request-v1', { organizationId: 'o', targetIds: [] })).toBe(
+      digest({ format: 'kf-action-request-v1', organizationId: 'o', targetIds: [] }),
+    );
+  });
+
+  it('separates two tags over the same fields, and the tagged form from the bare one', () => {
+    const fields = { a: 1 };
+    expect(taggedDigest('kf-one-v1', fields)).not.toBe(taggedDigest('kf-one-v2', fields));
+    expect(taggedDigest('kf-one-v1', fields)).not.toBe(digest(fields));
+  });
+
+  it('refuses a malformed tag', () => {
+    for (const tag of ['', 'kf-x', 'x-v1', 'kf-x-v0', 'KF-X-V1', 'kf:x:v1', 'kf-x-v1 ']) {
+      expect(isFormatTag(tag)).toBe(false);
+      expect(() => taggedDigest(tag, { a: 1 })).toThrow(CanonicalizationError);
+    }
+    expect(isFormatTag('kf-audit-link-v2')).toBe(true);
+  });
+
+  it('refuses fields that already carry a format, whichever value it holds', () => {
+    expect(() => taggedDigest('kf-x-v1', { format: 'kf-x-v1' })).toThrow(/own format/);
+    expect(() => taggedDigest('kf-x-v1', { format: undefined })).toThrow(/own format/);
+  });
+
+  it('refuses a bare list or scalar, which has nowhere to put the tag', () => {
+    expect(() => taggedDigest('kf-x-v1', [] as unknown as Record<string, unknown>)).toThrow(
+      /plain object/,
+    );
+    expect(() => taggedDigest('kf-x-v1', null as unknown as Record<string, unknown>)).toThrow(
+      /plain object/,
+    );
+    expect(() =>
+      taggedDigest('kf-x-v1', new Date(0) as unknown as Record<string, unknown>),
+    ).toThrow(/plain object/);
+  });
+});
+
 describe('audit hash chain', () => {
   it('commits to its predecessor', () => {
     const a = chainDigest(GENESIS_DIGEST, { event: 1 });
@@ -171,5 +229,63 @@ describe('audit hash chain', () => {
     // let the same chain state be written two ways and then compare unequal.
     expect(() => chainDigest('A'.repeat(64), {})).toThrow(CanonicalizationError);
     expect(() => chainDigest(GENESIS_DIGEST, {})).not.toThrow();
+  });
+});
+
+describe('audit-chain link formats', () => {
+  const entry = {
+    action_id: '00000000-0000-7000-8000-000000000001',
+    action_type: 'create_initiative',
+    actor_id: '00000000-0000-7000-8000-000000000002',
+    acting_role_id: '00000000-0000-7000-8000-000000000003',
+    object_ids: ['00000000-0000-7000-8000-00000000000b', '00000000-0000-7000-8000-00000000000a'],
+    effective_at: '2026-09-24T08:05:22.578Z',
+    before_digest: null,
+    after_digest: 'ef'.repeat(32),
+  };
+  const fields =
+    '"acting_role_id":"00000000-0000-7000-8000-000000000003",' +
+    '"action_id":"00000000-0000-7000-8000-000000000001",' +
+    '"action_type":"create_initiative",' +
+    '"actor_id":"00000000-0000-7000-8000-000000000002",' +
+    `"after_digest":"${'ef'.repeat(32)}",` +
+    '"before_digest":null,' +
+    '"effective_at":"2026-09-24T08:05:22.578Z",';
+  const ids =
+    '"object_ids":["00000000-0000-7000-8000-00000000000a","00000000-0000-7000-8000-00000000000b"]';
+  const link = (preimage: string): string =>
+    createHash('sha256').update(GENESIS_DIGEST, 'hex').update(preimage, 'utf8').digest('hex');
+
+  it('v1 is the untagged preimage recorded links were computed under', () => {
+    expect(auditChainDigest(GENESIS_DIGEST, entry, 'kf-audit-link-v1')).toBe(
+      link(`{${fields}${ids}}`),
+    );
+  });
+
+  it('v2 carries its tag inside the preimage, as a format property', () => {
+    expect(auditChainDigest(GENESIS_DIGEST, entry, 'kf-audit-link-v2')).toBe(
+      link(`{${fields}"format":"kf-audit-link-v2",${ids}}`),
+    );
+    expect(CURRENT_AUDIT_LINK_FORMAT).toBe('kf-audit-link-v2');
+  });
+
+  it('the two formats never produce the same link for the same event', () => {
+    expect(auditChainDigest(GENESIS_DIGEST, entry, 'kf-audit-link-v1')).not.toBe(
+      auditChainDigest(GENESIS_DIGEST, entry, 'kf-audit-link-v2'),
+    );
+  });
+
+  it('refuses a format it does not know rather than guessing one', () => {
+    expect(() =>
+      auditChainDigest(GENESIS_DIGEST, entry, 'kf-audit-link-v3' as AuditLinkFormat),
+    ).toThrow(CanonicalizationError);
+  });
+
+  it('formats move forward once and never back', () => {
+    expect(auditLinkFormatMayFollow(undefined, 'kf-audit-link-v1')).toBe(true);
+    expect(auditLinkFormatMayFollow('kf-audit-link-v1', 'kf-audit-link-v1')).toBe(true);
+    expect(auditLinkFormatMayFollow('kf-audit-link-v1', 'kf-audit-link-v2')).toBe(true);
+    expect(auditLinkFormatMayFollow('kf-audit-link-v2', 'kf-audit-link-v2')).toBe(true);
+    expect(auditLinkFormatMayFollow('kf-audit-link-v2', 'kf-audit-link-v1')).toBe(false);
   });
 });

@@ -24,25 +24,63 @@ export {
   masterRecordItems,
   masterRecordWithholdings,
 } from './master-record-repository.js';
+export {
+  claimMemberCount,
+  claimMemberCountAmong,
+  claimMembersAmong,
+  enumerateNeighbourhoodGraph,
+  latestMasterRecordClaim,
+  masterRecordCurrency,
+  type ClaimCurrency,
+  type ClaimMembersSource,
+  type MasterRecordClaim,
+} from './master-record-reading.js';
 
 export { createDocumentActionAtoms } from './internal/action-atoms.js';
 export { DOCUMENT_ACTION_IDS, type DocumentActionAtoms } from './internal/action-types.js';
 export {
+  EVIDENCE_KEY_NAMESPACES,
+  evidenceStorageKey,
+  type EvidenceKeyNamespace,
+} from './internal/evidence-storage-key.js';
+export {
   artifactKindForDocumentClass,
   mediaTypeForDocumentFile,
   PandocDocumentParser,
+  type PandocParserOptions,
 } from './internal/pandoc-parser.js';
 export { atomsFromPandoc, projectionFromPandoc } from './internal/pandoc-projection.js';
 export {
   DocumentParseIntegrityError,
+  DocumentParseRefused,
+  DOCUMENT_ATOM_FORMAT,
+  DOCUMENT_CONVERSION_LOSS_FORMAT,
+  DOCUMENT_LOSS_SOURCE_FORMAT,
+  DOCUMENT_PARSE_DIGEST_FORMAT,
+  DOCUMENT_PROJECTION_FORMAT,
+  documentAtomDigest,
+  documentAtomPreimage,
+  documentConversionLossDigest,
+  documentConversionLossPreimage,
+  documentLossSourceDigest,
+  documentProjectionDigest,
+  documentProjectionPreimage,
   PANDOC_PROJECTION_CONTRACT,
   validateParsedDocument,
+  type DocumentAtomClaim,
   type DocumentAtom,
   type DocumentAtomKind,
   type DocumentParseLoss,
+  type DocumentParseRefusalReason,
   type DocumentParser,
   type ParsedDocument,
 } from './internal/parse-contract.js';
+export {
+  activePreparsedDocuments,
+  preparseDocument,
+  withPreparsedDocuments,
+  type PreparsedDocument,
+} from './internal/preparse.js';
 export {
   getDocument,
   listDocuments,

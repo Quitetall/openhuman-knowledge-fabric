@@ -1,0 +1,33 @@
+{
+  "schema": "lamu.kf-source-proof/v1",
+  "source_commit": "75fc86d4af0bd868ec3260ea50d0ccf354a93453",
+  "working_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "binary_sha256": "06c9553573486f14171fa718f5b239554d2f4c18f71cff517cbdd71917c496d1",
+  "backend_sha256": "dc62c844a61abee62abc75ae7237adb0b34b1215c95614de00adcd7765b2139a",
+  "harness_hashes": {
+    "lamu-rs/scripts/context-proof/kf_source.py": "7242b86e5e153349215de88a7efd560f8eb01f42746fe5a40ae73baf826dfdd6",
+    "lamu-rs/scripts/context-proof/run.py": "5733d41f3173b68e96141177f4a70e5f0099dc3448edd14666cbe15a9cfa64a4"
+  },
+  "kf": {
+    "url": "http://127.0.0.1:4100",
+    "organization": "01a0d684-9975-7ea6-8f8b-27942a7289bc",
+    "acting_role": "01a0d685-1cd0-78d3-9f39-9b013606056a",
+    "classification": "restricted"
+  },
+  "query_sha256": "435e7b249eda9fbf73665cda567ed3232bc47ddf043316d93f01acba75926a18",
+  "expect": "sources:access_denied",
+  "quality_claim": false,
+  "acceptance": "pending (owner or independent reviewer)",
+  "observations": {
+    "before_sources_exit": 0,
+    "sources": {
+      "status": 403,
+      "count": null,
+      "refusal": "access_denied"
+    }
+  },
+  "checks": {
+    "expected_outcome": true
+  },
+  "status": "pass"
+}

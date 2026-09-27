@@ -1,8 +1,9 @@
 /**
- * The rollback rehearsal claims migrations are reversible. Seven of them are not.
+ * The rollback rehearsal claims migrations are reversible. Some are not — seven when this was
+ * written, more since; the count is derived below and published in generated/measurements.md.
  *
  * `migrate-release.sh rehearse` used to migrate up, migrate all the way down, and assert the
- * database came back empty. That assertion cannot hold here: seven migrations are deliberate
+ * database came back empty. That assertion cannot hold here: some migrations are deliberate
  * one-way security hardening, and their down sections are empty on purpose —
  * `20260816000300_typed_table_row_security` reverts to 29 tables readable by any role that can
  * connect. So the rehearsal was asserting something the schema had already made false.
@@ -170,48 +171,26 @@ describe('the runbook describes the floor that actually exists', () => {
   // Four separate defects on this repo have been a hand-written count in prose that nothing
   // compared to the thing it counted. Both numbers below are load-bearing: an operator reads
   // them to decide whether a rehearsal that stopped short is correct or is a failure.
-  const WORDS: Record<string, number> = {
-    one: 1,
-    two: 2,
-    three: 3,
-    four: 4,
-    five: 5,
-    six: 6,
-    seven: 7,
-    eight: 8,
-    nine: 9,
-    ten: 10,
-    eleven: 11,
-    twelve: 12,
-    thirteen: 13,
-    fourteen: 14,
-    fifteen: 15,
-    sixteen: 16,
-    seventeen: 17,
-    eighteen: 18,
-    nineteen: 19,
-    twenty: 20,
-    'twenty-one': 21,
-    'twenty-two': 22,
-    'twenty-three': 23,
-    'twenty-four': 24,
-    'twenty-five': 25,
-  };
-
-  it('states the right number of forward-only migrations', () => {
+  // The count is not stated in prose any more: it moved with nearly every forward-only migration,
+  // and a hand-kept number is the defect this block exists to catch. The runbook points at
+  // generated/measurements.md, which is rebuilt from the migrations and gated for drift.
+  it('states the forward-only count only where it is measured', () => {
     const document = readFileSync(join(ROOT, 'docs', 'deployment', 'private-host.md'), 'utf8');
-    const word = /\*\*The floor[^]*?([\w-]+) migrations are one-way/.exec(document)?.[1];
+    const paragraph = /\*\*The floor[^]*?one-way[^]*?\)\./.exec(document)?.[0];
     expect(
-      word,
+      paragraph,
       'the forward-only paragraph moved or was reworded; this guard is now blind',
     ).toBeDefined();
-    const stated = WORDS[(word ?? '').toLowerCase()];
-    expect(stated, `private-host.md says "${word}", which is not a number I can check`).toBeTypeOf(
-      'number',
+    expect(paragraph ?? '', 'the runbook states a forward-only count by hand again').not.toMatch(
+      /\b(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty(?:-\w+)?|thirty(?:-\w+)?)\s+migrations\b/i,
     );
-    expect(stated, 'private-host.md states a forward-only count the migrations disagree with').toBe(
-      declaredForwardOnly().length,
-    );
+    expect(paragraph ?? '').toContain('generated/measurements.md');
+    const measured = readFileSync(join(ROOT, 'generated', 'measurements.md'), 'utf8');
+    const row = /\| forward-only migrations \| (\d+) \|/.exec(measured)?.[1];
+    expect(
+      Number(row),
+      'measurements.md disagrees with the migrations; run pnpm measurements:build',
+    ).toBe(declaredForwardOnly().length);
   });
 
   it('names the migration that is actually the floor', () => {

@@ -1,6 +1,12 @@
 import { createHash, generateKeyPairSync, sign as edSign, type KeyObject } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { canonicalBytes, digest } from '@kf/canonicalization';
+import {
+  auditChainDigest,
+  CURRENT_AUDIT_LINK_FORMAT,
+  canonicalBytes,
+  digest,
+  GENESIS_DIGEST,
+} from '@kf/canonicalization';
 import { withTransaction, type Tx } from '@kf/database';
 import { createFabricDispatcher } from '@kf/orchestrator';
 import {
@@ -13,6 +19,7 @@ import {
 } from './index.js';
 import {
   bindContext,
+  bindReader,
   seedFixtures,
   startHarness,
   type Fixtures,
@@ -27,6 +34,7 @@ const FIXTURE_RUN_SEAL_SPKI = Buffer.concat([
   Buffer.alloc(32, 9),
 ]);
 
+const BOOTSTRAP_IDENTITY = '01930000-0000-7000-8000-00000000b007';
 let harness: Harness;
 let fixtures: Fixtures;
 let fixtureRunSealKeyRegistryId: string;
@@ -229,9 +237,26 @@ async function insertPromotionDecisionFixture(
   const head = await tx.maybeOne<{ digest: string }>(
     'select digest from core.audit_event order by seq desc limit 1',
   );
-  const auditDigest = createHash('sha256')
-    .update(`promotion-authority-audit:${actionId}`)
+  // The database recomputes every audit link (20260923000200) and refuses a digest it cannot
+  // reproduce, so the fixture computes the real one: over the action's own targets.
+  const stateDigest = createHash('sha256')
+    .update(`promotion-authority-state:${actionId}`)
     .digest('hex');
+  const prevDigest = head?.digest ?? GENESIS_DIGEST;
+  const auditDigest = auditChainDigest(
+    prevDigest,
+    {
+      action_id: actionId,
+      action_type: 'authorize_ml_promotion',
+      actor_id: actorId,
+      acting_role_id: roleId,
+      object_ids: [object.id],
+      effective_at: effectiveAt,
+      before_digest: stateDigest,
+      after_digest: stateDigest,
+    },
+    CURRENT_AUDIT_LINK_FORMAT,
+  );
   await tx.query(
     `insert into core.audit_event
        (action_id, actor_id, acting_role_id, action_type, object_id, effective_at,
@@ -245,8 +270,8 @@ async function insertPromotionDecisionFixture(
       effectiveAt,
       requestId,
       reason,
-      createHash('sha256').update(`promotion-authority-state:${actionId}`).digest('hex'),
-      head?.digest ?? '0'.repeat(64),
+      stateDigest,
+      prevDigest,
       auditDigest,
     ],
   );
@@ -420,24 +445,37 @@ beforeAll(async () => {
         where id = $1`,
       [fixtures.reviewerRoleId],
     );
-    const insertQualityRole = async (subjectId: string, title: string): Promise<string> => {
-      const roleObject = await tx.one<{ id: string }>(
-        `insert into core.object
-           (object_type, authority_domain, lifecycle_state, classification, retention_class,
-            schema_version, organization_id, title, created_by, updated_by)
-         values ('role_assignment','organization','active','internal','project_record',
-                 $1,$2,$3,$4,$4)
-         returning id`,
-        [fixtures.schemaVersion, fixtures.organizationId, title, fixtures.reviewerId],
-      );
-      await tx.query(
-        `insert into org.role_assignment
-           (id, subject_id, role_id, scope_id, valid_from)
-         values ($1,$2,'quality_authority',$3,'2020-01-01T00:00:00.000Z')`,
-        [roleObject.id, subjectId, fixtures.organizationId],
-      );
-      return roleObject.id;
-    };
+    // Authority that predates every promotion these tests date (2026-08-14), written as fixture
+    // bootstrap — its own transaction under the bootstrap identity, like seedFixtures — because
+    // an assignment live since 2020 is exactly what ADR 0036 no longer lets anyone else create.
+    const insertQualityRole = (subjectId: string, title: string): Promise<string> =>
+      withTransaction(harness.adminPool, async (btx) => {
+        await btx.query('select core.set_access_context($1, $2)', [
+          fixtures.organizationId,
+          'restricted',
+        ]);
+        await btx.query('select core.set_transaction_context($1, $1, $2, $3)', [
+          BOOTSTRAP_IDENTITY,
+          fixtures.clearanceActionId,
+          'ml-fixture-bootstrap',
+        ]);
+        const roleObject = await btx.one<{ id: string }>(
+          `insert into core.object
+             (object_type, authority_domain, lifecycle_state, classification, retention_class,
+              schema_version, organization_id, title, created_by, updated_by)
+           values ('role_assignment','organization','active','internal','project_record',
+                   $1,$2,$3,$4,$4)
+           returning id`,
+          [fixtures.schemaVersion, fixtures.organizationId, title, BOOTSTRAP_IDENTITY],
+        );
+        await btx.query(
+          `insert into org.role_assignment
+             (id, subject_id, role_id, scope_id, valid_from)
+           values ($1,$2,'quality_authority',$3,'2020-01-01T00:00:00.000Z')`,
+          [roleObject.id, subjectId, fixtures.organizationId],
+        );
+        return roleObject.id;
+      });
     return {
       distinctHuman: await insertQualityRole(
         fixtures.performerId,
@@ -1494,11 +1532,11 @@ describe('organization-scoped ML registry database', () => {
     );
     expect(visible.privileges).toEqual({ canSelect: true, canWrite: false });
 
+    // A reader in another, real organization: the application can no longer bind an
+    // organization with nobody behind it (20260923000100).
+    const otherOrganization = await seedFixtures(harness.adminPool, { auditClearance: false });
     const hidden = await withTransaction(harness.pool, async (tx) => {
-      await tx.query('select core.set_access_context($1, $2)', [
-        OTHER_ORGANIZATION_ID,
-        'restricted',
-      ]);
+      await bindReader(tx, otherOrganization);
       return tx.query('select key_id from ml.promotion_verification_key where key_id = $1', [
         keyId,
       ]);

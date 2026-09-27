@@ -14,17 +14,48 @@ export const PACKAGE: PackageManifest = {
 };
 
 export {
+  IDENTIFICATION_SURFACES,
   IdentityRejected,
+  OIDC_SIGNING_ALGORITHMS,
   TokenVerifier,
+  agentOf,
+  holdingsFrom,
+  holdingsIn,
   linkIdentity,
   resolveCaller,
+  resolveHoldings,
   resolveIn,
   revokeIdentity,
+  soleAssignment,
   type Caller,
   type CallerRequest,
+  type HeldAssignment,
+  type HeldOrganization,
+  type Holdings,
   type IdentityConfig,
+  type IdentificationSurface,
   type IdentityFailure,
+  type LiveAssignment,
 } from './identity.js';
+
+export {
+  ATTESTOR_HOLDINGS_PATH,
+  ATTESTOR_MAX_ANSWER_BYTES,
+  ATTESTOR_MAX_BODY_BYTES,
+  ATTESTOR_PATH,
+  AttestorUnavailable,
+  LocalAttestor,
+  SocketAttestor,
+  decodeHoldings,
+  encodeAttestedCaller,
+  encodeHoldings,
+  encodeRefusal,
+  parseAttestorRequest,
+  parseHoldingsRequest,
+  type Attestor,
+  type AttestorAvailability,
+  type SocketAttestorOptions,
+} from './attestor.js';
 
 export {
   DEFAULT_STEP_UP,
@@ -47,6 +78,8 @@ export {
 export {
   ACCESS_ACTION_IDS,
   ACCESS_EFFECTS,
+  ACCESS_EXPLANATION_FORMAT,
+  accessExplanationDigest,
   coveringGrants,
   enumerateAccessCoverage,
   explainAccess,
@@ -55,6 +88,7 @@ export {
   revokeAccessEffect,
   type AccessCapability,
   type AccessCoverage,
+  type AccessDenial,
   type AccessExplanation,
   type AccessGrantRef,
   type AccessGrantWrite,
@@ -69,3 +103,12 @@ export {
   endPersonAuthority,
   type OrganizationLifecycleAtoms,
 } from './organization-lifecycle.js';
+export {
+  classificationsOf,
+  reaches,
+  readCoverage,
+  readGranted,
+  readGrantedSubset,
+  type Classified,
+  type ReadIdentity,
+} from './read-grant.js';

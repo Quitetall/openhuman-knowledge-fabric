@@ -1,0 +1,51 @@
+{
+  "source_needles_sha256": "0615ca6ffb408fcbae407160f7cffb393b09276c01cdc90ada8d883389bd657c",
+  "source_needle_count": 5,
+  "query_needles_sha256": "c49615765c16ce6c60586e1f53c7ff7f7698b4d6e8ba1d74e9a5459c4e18eb31",
+  "query_needle_count": 6,
+  "rows": {
+    "search.context_disclosure": "300",
+    "search.identification_refusal": "2",
+    "search.recorded_query": "372"
+  },
+  "scan": {
+    "source": {
+      "file /home/brianklam/.local/state/kf-veracier/logs/api.log": 0,
+      "file /home/brianklam/.local/state/kf-veracier/logs/attestor.log": 0,
+      "file /home/brianklam/.local/state/kf-veracier/logs/build.log": 0,
+      "file /home/brianklam/.local/state/kf-veracier/logs/embed.log": 0,
+      "file /home/brianklam/.local/state/kf-veracier/logs/migrate.log": 0,
+      "file /home/brianklam/.local/state/kf-veracier/logs/retrieval.log": 0,
+      "file /home/brianklam/.local/state/kf-veracier/logs/seed.log": 0,
+      "file /home/brianklam/.local/state/kf-veracier/logs/web.log": 0,
+      "file /home/brianklam/.local/state/kf-veracier/logs/worker.log": 0,
+      "container log kf-veracier-postgres": 0,
+      "container log kf-veracier-keycloak": 0,
+      "container log kf-veracier-minio": 0,
+      "CONTROL file /mnt/4tb/data/veracier/text/veracier_aero/export/classification/fiche_classification_aerovalve_av3000.pdf.txt": 5,
+      "search.context_disclosure (all columns)": 0,
+      "search.identification_refusal (all columns)": 0,
+      "search.recorded_query columns other than query_text": 0,
+      "DECLARED search.recorded_query.query_text (owner-accepted 90-day retention)": 0,
+      "CONTROL search.document.body (lexical index)": 5
+    },
+    "query": {
+      "file /home/brianklam/.local/state/kf-veracier/logs/api.log": 0,
+      "file /home/brianklam/.local/state/kf-veracier/logs/attestor.log": 0,
+      "file /home/brianklam/.local/state/kf-veracier/logs/build.log": 0,
+      "file /home/brianklam/.local/state/kf-veracier/logs/embed.log": 0,
+      "file /home/brianklam/.local/state/kf-veracier/logs/migrate.log": 0,
+      "file /home/brianklam/.local/state/kf-veracier/logs/retrieval.log": 0,
+      "file /home/brianklam/.local/state/kf-veracier/logs/seed.log": 0,
+      "file /home/brianklam/.local/state/kf-veracier/logs/web.log": 0,
+      "file /home/brianklam/.local/state/kf-veracier/logs/worker.log": 0,
+      "container log kf-veracier-postgres": 0,
+      "container log kf-veracier-keycloak": 0,
+      "container log kf-veracier-minio": 0,
+      "search.context_disclosure (all columns)": 0,
+      "search.identification_refusal (all columns)": 0,
+      "search.recorded_query columns other than query_text": 0,
+      "DECLARED search.recorded_query.query_text (owner-accepted 90-day retention)": 2
+    }
+  }
+}

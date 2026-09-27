@@ -9,7 +9,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDispatcher } from '@kf/actions';
-import { withTransaction } from '@kf/database';
+import { createPool, withTransaction } from '@kf/database';
 import { assessReadiness, formatReadiness } from '@kf/operations';
 import { generateSigningKey } from '../../apps/checkpoint/src/sign.js';
 import { runCheckpoint } from '../../apps/checkpoint/src/run.js';
@@ -258,6 +258,8 @@ describe('a system that is genuinely in order', () => {
       'schema_release',
       'write_guards',
       'schema_owner_bypasses_rls',
+      'row_security_reconciled',
+      'planner_settings',
       'audit_chain',
       'outbox_delivery',
       'search_index',
@@ -268,6 +270,7 @@ describe('a system that is genuinely in order', () => {
       'secure_object_storage_evidence',
       'backup_freshness',
       'pitr_readiness',
+      'assignment_review_dates',
     ]);
     expect(report.service.checks.every((candidate) => candidate.scope === 'service')).toBe(true);
     expect(
@@ -355,6 +358,39 @@ describe('noticing things', () => {
           );
         }
       });
+    }
+    expect(check(await assessReadiness(h.adminPool), 'audit_chain')?.status).toBe('ok');
+  });
+
+  it('counts a link format that regresses as a break', async () => {
+    // Every link here was appended after 20260924001100, so all are kf-audit-link-v2. Relabel
+    // the newest as v1 behind the triggers' back: its predecessor still links, so only the
+    // format-order rule can see it.
+    const events = await withTransaction(h.adminPool, async (tx) =>
+      tx.one<{ n: number; v2: number }>(
+        `select count(*)::integer as n,
+                count(*) filter (where link_format = 'kf-audit-link-v2')::integer as v2
+           from core.audit_event`,
+      ),
+    );
+    expect(events.n).toBeGreaterThan(1);
+    expect(events.v2).toBe(events.n);
+    const relabel = (format: string) =>
+      withTransaction(h.adminPool, async (tx) => {
+        await tx.query("set local session_replication_role = 'replica'");
+        await tx.query(
+          `update core.audit_event set link_format = $1
+            where seq = (select max(seq) from core.audit_event)`,
+          [format],
+        );
+      });
+    await relabel('kf-audit-link-v1');
+    try {
+      const chain = serviceCheck(await assessReadiness(h.adminPool), 'audit_chain');
+      expect(chain?.status).toBe('failed');
+      expect(chain?.measured).toMatchObject({ breaks: 1 });
+    } finally {
+      await relabel('kf-audit-link-v2');
     }
     expect(check(await assessReadiness(h.adminPool), 'audit_chain')?.status).toBe('ok');
   });
@@ -627,5 +663,167 @@ describe('the schema owner bypasses row-level security', () => {
     expect(
       serviceCheck(await assessReadiness(h.adminPool), 'schema_owner_bypasses_rls')?.status,
     ).toBe('ok');
+  });
+});
+
+describe('the seeded ontology is the one this release was compiled from (KF-SAS-RQ-081)', () => {
+  const PLANTED = 'b'.repeat(64);
+
+  it('fails schema_release when the database was seeded with a different digest', async () => {
+    const before = await assessReadiness(h.adminPool);
+    expect(serviceCheck(before, 'schema_release')?.status).toBe('ok');
+    const original = await withTransaction(h.adminPool, (tx) =>
+      tx.one<{ version: string }>('select version from registry.schema_release where is_current'),
+    );
+    // A second seed from another checkout: a new current release, another digest.
+    await withTransaction(h.adminPool, async (tx) => {
+      await tx.query('update registry.schema_release set is_current = false');
+      await tx.query(
+        `insert into registry.schema_release (version, ontology_digest, is_current)
+         values ('9.9.9-planted', $1, true)`,
+        [PLANTED],
+      );
+    });
+    try {
+      const report = await assessReadiness(h.adminPool);
+      const release = serviceCheck(report, 'schema_release');
+      expect(release?.status).toBe('failed');
+      expect(release?.detail).toMatch(/differs from this release's/);
+      expect(release?.measured?.['ontologyDigest']).toBe(PLANTED.slice(0, 12));
+      expect(report.service.ready).toBe(false);
+    } finally {
+      await withTransaction(h.adminPool, async (tx) => {
+        await tx.query(`delete from registry.schema_release where version = '9.9.9-planted'`);
+        await tx.query('update registry.schema_release set is_current = true where version = $1', [
+          original.version,
+        ]);
+      });
+    }
+    expect(serviceCheck(await assessReadiness(h.adminPool), 'schema_release')?.status).toBe('ok');
+  });
+
+  it('fails when the caller expects a different digest than the database holds', async () => {
+    const report = await assessReadiness(h.adminPool, {}, { expectedOntologyDigest: PLANTED });
+    expect(serviceCheck(report, 'schema_release')?.status).toBe('failed');
+    expect(report.service.ready).toBe(false);
+  });
+
+  it('fails closed when the release cannot say which ontology it carries', async () => {
+    const previous = process.env['KF_PROJECTIONS_ARTIFACT'];
+    process.env['KF_PROJECTIONS_ARTIFACT'] = '/nonexistent/knowledge-fabric.projections.json';
+    try {
+      const report = await assessReadiness(h.adminPool);
+      const release = serviceCheck(report, 'schema_release');
+      expect(release?.status).toBe('failed');
+      expect(release?.detail).toMatch(/cannot determine this release's ontology digest/);
+    } finally {
+      if (previous === undefined) delete process.env['KF_PROJECTIONS_ARTIFACT'];
+      else process.env['KF_PROJECTIONS_ARTIFACT'] = previous;
+    }
+  });
+});
+
+describe('the live server has jit off (KF-SAS-RQ-076)', () => {
+  it('fails planner_settings on a server where jit is on', async () => {
+    expect(serviceCheck(await assessReadiness(h.adminPool), 'planner_settings')).toMatchObject({
+      status: 'ok',
+      measured: { jit: 'off' },
+    });
+    // A database-level override: exactly what a host gets when somebody "tunes" it, and what no
+    // configuration file in this repository can see.
+    await withTransaction(h.adminPool, (tx) => tx.query('alter database kf_test set jit = on'));
+    const fresh = createPool({ connectionString: h.connectionString, maxConnections: 1 });
+    try {
+      const report = await assessReadiness(fresh);
+      const planner = serviceCheck(report, 'planner_settings');
+      expect(planner?.status).toBe('failed');
+      expect(planner?.measured).toMatchObject({ jit: 'on', source: 'database' });
+      expect(planner?.detail).toContain('planner.conf');
+      expect(report.service.ready).toBe(false);
+    } finally {
+      await fresh.end();
+      await withTransaction(h.adminPool, (tx) => tx.query('alter database kf_test reset jit'));
+    }
+  });
+});
+
+describe('row security is reconciled with the migrations (KF-SAS-RQ-186)', () => {
+  it('runs as the unprivileged readiness login and finds nothing on a migrated database', async () => {
+    const report = await assessReadiness(h.pool);
+    expect(serviceCheck(report, 'row_security_reconciled')).toMatchObject({
+      status: 'ok',
+      measured: { differences: 0 },
+    });
+  });
+
+  it('names a table that enables row security without forcing it', async () => {
+    await withTransaction(h.adminPool, (tx) =>
+      tx.query('alter table org.person no force row level security'),
+    );
+    try {
+      const check = serviceCheck(await assessReadiness(h.pool), 'row_security_reconciled');
+      expect(check?.status).toBe('failed');
+      expect(check?.detail).toContain('org.person (enabled_not_forced)');
+      expect(check?.measured).toMatchObject({ enabledNotForced: 1, undeclared: 0 });
+    } finally {
+      await withTransaction(h.adminPool, (tx) =>
+        tx.query('alter table org.person force row level security'),
+      );
+    }
+  });
+
+  it('names a table created outside the migrations with no row security', async () => {
+    await withTransaction(h.adminPool, (tx) =>
+      tx.query('create table core.hand_made (organization_id uuid, body text)'),
+    );
+    try {
+      const report = await assessReadiness(h.adminPool);
+      const check = serviceCheck(report, 'row_security_reconciled');
+      expect(check?.status).toBe('failed');
+      expect(check?.detail).toContain('core.hand_made (undeclared_without_row_security)');
+      expect(report.service.ready).toBe(false);
+    } finally {
+      await withTransaction(h.adminPool, (tx) => tx.query('drop table core.hand_made'));
+    }
+  });
+
+  it('declares the job queue: graphile_worker tables as the worker leaves them are not a finding', async () => {
+    // What the worker's job-queue library creates on its first start (dogfood-vm.md): tables that
+    // enable row security without forcing it, and a migration ledger with none. Before
+    // 20260926000200 every installation that ran the worker reported five differences here.
+    await withTransaction(h.adminPool, async (tx) => {
+      await tx.query('create schema graphile_worker');
+      await tx.query('create table graphile_worker._private_jobs (id bigint)');
+      await tx.query('alter table graphile_worker._private_jobs enable row level security');
+      await tx.query('create table graphile_worker.migrations (id int)');
+    });
+    try {
+      const check = serviceCheck(await assessReadiness(h.adminPool), 'row_security_reconciled');
+      expect(check?.status).toBe('ok');
+      // The exemption is the queue's schema and nothing else: the same shape anywhere else is.
+      await withTransaction(h.adminPool, async (tx) => {
+        await tx.query('create table core.queue_look_alike (id bigint)');
+        await tx.query('alter table core.queue_look_alike enable row level security');
+      });
+      const elsewhere = serviceCheck(await assessReadiness(h.adminPool), 'row_security_reconciled');
+      expect(elsewhere?.status).toBe('failed');
+      expect(elsewhere?.detail).toContain('core.queue_look_alike (enabled_not_forced)');
+      expect(elsewhere?.detail).not.toContain('graphile_worker');
+    } finally {
+      await withTransaction(h.adminPool, async (tx) => {
+        await tx.query('drop table if exists core.queue_look_alike');
+        await tx.query('drop schema graphile_worker cascade');
+      });
+    }
+  });
+
+  it('keeps the declared ops exception: a new ops table without row security is not a finding', async () => {
+    await withTransaction(h.adminPool, (tx) => tx.query('create table ops.hand_made (id int)'));
+    try {
+      const check = serviceCheck(await assessReadiness(h.adminPool), 'row_security_reconciled');
+      expect(check?.status).toBe('ok');
+    } finally {
+      await withTransaction(h.adminPool, (tx) => tx.query('drop table ops.hand_made'));
+    }
   });
 });

@@ -57,6 +57,12 @@ const MEASURING = process.env.KF_MEASURE_RLS === '1';
 const DOCUMENTS_PER_ORG = 12_000;
 /** Actions per organization. The ledger is the fastest-growing table, so it gets the most. */
 const ACTIONS_PER_ORG = 12_000;
+/**
+ * ML lineages per organization, each with a seal, a promotion receipt and two registrations.
+ * §100.7: the three ML policies with three or more EXISTS clauses (ADR 0007's census) had only
+ * ever been measured against EMPTY tables, where the hashed subplans never run.
+ */
+const ML_LINEAGES_PER_ORG = 2_000;
 /** Timed repetitions per query. Median reported, so an outlier does not set the number. */
 const RUNS = 7;
 
@@ -270,6 +276,126 @@ async function populate(): Promise<void> {
   });
 }
 
+/**
+ * Seed ml.* so the three multi-EXISTS ML policies have rows to evaluate (SAS §100.7, RQ-075).
+ *
+ * `session_replication_role = replica` skips the ML write triggers — signature and key
+ * registration checks, action binding — and foreign keys. The rows are for measuring what a
+ * policy costs to evaluate, not for proving they could have been written; the referential shape
+ * the policies read (every reference a lineage, seal or receipt names exists, in the same
+ * organization, at a classification the reader reaches) is built explicitly below, so every
+ * EXISTS the policies ask is answered by a real row. Check constraints still apply.
+ */
+async function populateMl(): Promise<void> {
+  const admin = harness!.adminPool;
+  const signature = "replace(encode(decode(repeat('ab', 64), 'hex'), 'base64'), E'\\n', '')";
+  const hex = (seed: string) => `md5(${seed}) || md5(${seed} || 'x')`;
+  const now = "date_trunc('milliseconds', now())";
+  for (const organizationId of organizations) {
+    await withTransaction(admin, async (tx) => {
+      await tx.query('set local session_replication_role = replica');
+      const reference = (kind: string, authority: string, extra = '') =>
+        `insert into ml.aggregate_reference
+           (organization_id, aggregate_kind, authority_id, revision_id, sha256, classification_id,
+            policy_id)
+         select $1::uuid, '${kind}', ${authority}, 'r1', ${hex(`${authority} || $1::uuid::text`)}, 'internal',
+                'bench.policy' ${extra}`;
+      await tx.query(`${reference('run', "'bench-run-' || g")} from generate_series(1, $2) g`, [
+        organizationId,
+        ML_LINEAGES_PER_ORG,
+      ]);
+      for (const [kind, name] of [
+        ['code', 'bench-code'],
+        ['recipe', 'bench-recipe'],
+        ['environment', 'bench-environment'],
+        ['metric_policy', 'bench-metric-policy'],
+        ['candidate', 'bench-candidate'],
+        ['evidence', 'bench-technical-decision'],
+        ['evidence', 'bench-quality-decision'],
+      ] as const) {
+        await tx.query(reference(kind, `'${name}'`), [organizationId]);
+      }
+      const shared = `(select id from ml.aggregate_reference
+                        where organization_id = $1 and authority_id = `;
+      await tx.query(
+        `insert into ml.run_lineage
+           (run_ref_id, code_ref_id, recipe_ref_id, environment_ref_id, metric_policy_ref_id,
+            lineage_sha256, recorded_at)
+         select run.id, ${shared}'bench-code'), ${shared}'bench-recipe'),
+                ${shared}'bench-environment'), ${shared}'bench-metric-policy'),
+                ${hex('run.id::text')}, ${now}
+           from ml.aggregate_reference run
+          where run.organization_id = $1 and run.aggregate_kind = 'run'`,
+        [organizationId],
+      );
+      await tx.query(
+        `insert into ml.run_seal
+           (run_lineage_id, lineage_sha256, segment_manifest, segment_manifest_sha256,
+            event_count, sealed_at, signing_key_id, seal_sha256, signature,
+            signing_key_registry_id, schema_version, event_manifest_sha256)
+         select lineage.id, lineage.lineage_sha256, array['bench-segment'],
+                ${hex("lineage.id::text || 'segments'")}, 1, ${now}, 'bench-key',
+                ${hex("lineage.id::text || 'seal'")}, ${signature}, uuidv7(), 2,
+                ${hex("lineage.id::text || 'events'")}
+           from ml.run_lineage lineage
+           join ml.aggregate_reference run on run.id = lineage.run_ref_id
+          where run.organization_id = $1`,
+        [organizationId],
+      );
+      await tx.query(
+        `insert into ml.promotion_receipt
+           (organization_id, alias_id, candidate_ref_id, run_seal_id, policy_ref_id,
+            evidence_manifest_sha256, risk_tier, technical_authority_decision_ref_id,
+            quality_authority_decision_ref_id, promoted_at, signing_key_id, receipt_sha256,
+            signature)
+         select $1::uuid, 'bench.' || replace(seal.id::text, '-', ''), ${shared}'bench-candidate'),
+                seal.id, ${shared}'bench-metric-policy'), ${hex("seal.id::text || 'evidence'")},
+                'regulated', ${shared}'bench-technical-decision'),
+                ${shared}'bench-quality-decision'), ${now}, 'bench-key',
+                ${hex("seal.id::text || 'receipt'")}, ${signature}
+           from ml.run_seal seal
+           join ml.run_lineage lineage on lineage.id = seal.run_lineage_id
+           join ml.aggregate_reference run on run.id = lineage.run_ref_id
+          where run.organization_id = $1`,
+        [organizationId],
+      );
+      // Two registrations per lineage — the lineage and its run reference — each bound to a
+      // distinct recorded act, as `action_id` is unique. Both CASE branches the policy has for
+      // them are therefore exercised.
+      await tx.query(
+        `with lineages as (
+           select lineage.id as lineage_id, lineage.run_ref_id,
+                  row_number() over (order by lineage.id) as n
+             from ml.run_lineage lineage
+             join ml.aggregate_reference run on run.id = lineage.run_ref_id
+            where run.organization_id = $1),
+         acts as (
+           select id, row_number() over (order by id) as n from core.action
+            where organization_id = $1 and idempotency_key like 'bench-%')
+         insert into ml.registry_registration
+           (record_kind, record_id, organization_id, action_id, registered_at)
+         select 'run_lineage', l.lineage_id, $1::uuid, a.id, ${now}
+           from lineages l join acts a on a.n = l.n
+         union all
+         select 'aggregate_reference', l.run_ref_id, $1::uuid, a.id, ${now}
+           from lineages l join acts a on a.n = l.n + $2`,
+        [organizationId, ML_LINEAGES_PER_ORG],
+      );
+    });
+  }
+  await withTransaction(admin, async (tx) => {
+    for (const table of [
+      'aggregate_reference',
+      'run_lineage',
+      'run_seal',
+      'promotion_receipt',
+      'registry_registration',
+    ]) {
+      await tx.query(`analyze ml.${table}`);
+    }
+  });
+}
+
 describe.skipIf(!MEASURING)('row-level security read cost on a populated database', () => {
   beforeAll(async () => {
     harness = await startHarness();
@@ -295,6 +421,7 @@ describe.skipIf(!MEASURING)('row-level security read cost on a populated databas
     readerPool = createPool({ connectionString: readerUri.toString(), maxConnections: 3 });
 
     await populate();
+    await populateMl();
   }, 900_000);
 
   afterAll(async () => {
@@ -419,6 +546,49 @@ describe.skipIf(!MEASURING)('row-level security read cost on a populated databas
     expect(envelopePolicy.rows).toBe(DOCUMENTS_PER_ORG);
     expect(actionUnbounded.rows).toBe(ACTIONS_PER_ORG * organizations.length);
     expect(actionPolicy.rows).toBe(ACTIONS_PER_ORG);
+  }, 900_000);
+
+  it('measures the three ML policies that had only been measured empty (§100.7)', async () => {
+    // ADR 0007's census found four policies with three or more EXISTS clauses. One cost 950 ms
+    // and was rewritten; the other three were measured on EMPTY tables, where the JIT half of
+    // their cost shows and the hashed-subplan half never runs. This is the other half.
+    const organizationId = organizations[0]!;
+    const tables = [
+      ['ml.run_lineage', ML_LINEAGES_PER_ORG],
+      ['ml.promotion_receipt', ML_LINEAGES_PER_ORG],
+      ['ml.registry_registration', 2 * ML_LINEAGES_PER_ORG],
+    ] as const;
+    const report: Measurement[] = [];
+    const plans: string[] = [];
+    for (const [table, perOrganization] of tables) {
+      const sql = `select count(*)::text as count from ${table}`;
+      const policy = await measure(`${table} · policy`, sql, organizationId);
+      await setRowSecurity(table, false);
+      const unbounded = await measure(`${table} · no policy (lower bound)`, sql, organizationId);
+      await setRowSecurity(table, true);
+      report.push(policy, unbounded);
+      plans.push(
+        `${table} policy plan:\n${await planFor(sql.replace('::text', ''), organizationId)}`,
+      );
+      // The policy evaluated real rows and filtered them: this organization's and no other's.
+      expect(policy.rows, table).toBe(perOrganization);
+      expect(unbounded.rows, table).toBe(perOrganization * organizations.length);
+    }
+    const width = Math.max(...report.map((entry) => entry.label.length));
+    // eslint-disable-next-line no-console
+    console.info(
+      [
+        '',
+        `ML policy read cost — ${ML_LINEAGES_PER_ORG} lineages, seals and receipts per organization, ${organizations.length} organizations`,
+        ...report.map(
+          (entry) =>
+            `  ${entry.label.padEnd(width)}  ${entry.medianMs.toFixed(1).padStart(8)} ms median  ` +
+            `${entry.minMs.toFixed(1).padStart(8)} ms min  ${String(entry.rows).padStart(7)} rows`,
+        ),
+        '',
+        ...plans,
+      ].join('\n'),
+    );
   }, 900_000);
 
   it('says whether JIT tuning would help the queries an application actually runs', async () => {
