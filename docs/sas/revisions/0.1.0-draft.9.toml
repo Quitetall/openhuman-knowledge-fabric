@@ -3,7 +3,7 @@ version = "0.1.0-draft.9"
 source = "docs/sas/KF_Software_Architecture_Specification.md"
 sha256 = "028058b5983a6508d14d63709182763d5a67bff485e2c1abc8cd11be4e100ea3"
 state = "proposed"
-predecessor = "0.1.0-draft.7"
+predecessor = "0.1.0-draft.8"
 architecture_changing = true
 
 [requirements]

@@ -46,6 +46,7 @@ const ACCEPTED_DIGESTS: Readonly<Record<string, string>> = {
   '0.1.0-draft.5': '84d23d16f0a9cd1e880502a67812982d75053b7d7abd890d5908c65d7e282f0d',
   '0.1.0-draft.6': '1445c75ab04570358a43531627276d36d9d12265ca00941d1bdad2cefabc6dae',
   '0.1.0-draft.7': 'cd221037a66d3b94cfdaf77215b58bc36982491a337af3d5e6ddfc65b574dd37',
+  '0.1.0-draft.8': 'b7cfdf1f0eea15625b61ba00c43beb9466171280d08e77bd3d8911415b2c23ea',
 };
 
 type TomlValue = string | boolean;
