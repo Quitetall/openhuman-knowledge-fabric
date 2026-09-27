@@ -50,7 +50,7 @@ interface Org {
 }
 
 interface SearchBody {
-  lexical: { total: number; hits: { objectId: string }[] };
+  lexical: { total: number; complete: boolean; hits: { objectId: string }[] };
   semantic?: { hits: { objectId: string }[] };
   withheldCount: number;
 }
@@ -171,8 +171,19 @@ describe.skipIf(!live)(
               seen.filter((id) => b.objects.has(id)),
               `${pair}: ${b.org.id}'s objects`,
             ).toEqual([]);
-            expect(res.lexical.total, pair).toBe(0);
-            expect(res.withheldCount, `${pair}: withheld count`).toBe(0);
+            // The probe words occur nowhere in the other organizations' SAMPLES. A stack holding a
+            // full corpus can hold them in A's own records too, and since 20260926100000 a record
+            // holding enough of them matches: then everything found must be A's own, all of it on
+            // the page. With none of A's own found, nothing at all may be found or counted.
+            if (res.lexical.total === 0) {
+              expect(res.withheldCount, `${pair}: withheld count`).toBe(0);
+            } else {
+              expect(res.lexical.complete, `${pair}: every match on the page`).toBe(true);
+              expect(
+                res.lexical.hits.filter((h) => !a.objects.has(h.objectId)),
+                `${pair}: a match that is not ${a.org.id}'s own`,
+              ).toEqual([]);
+            }
           }
         }
         // A broad search, which does find this organization's own records, finds nobody else's.

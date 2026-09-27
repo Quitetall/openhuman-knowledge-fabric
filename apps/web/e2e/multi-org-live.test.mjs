@@ -89,6 +89,10 @@ async function searchCounts(page, web, query) {
       (await withheld.count()) === 0
         ? 0
         : Number(await withheld.first().getAttribute('data-withheld-count')),
+    // Every record the page names, in any list, shown or folded.
+    ids: await page
+      .locator('article[data-object-id]')
+      .evaluateAll((nodes) => nodes.map((n) => n.getAttribute('data-object-id'))),
   };
 }
 
@@ -169,11 +173,27 @@ test(
         for (const other of walk) {
           if (other === a) continue;
           const counts = await searchCounts(page, web, other.probes.join(' or '));
-          assert.deepEqual(
-            counts,
-            { total: 0, withheld: 0 },
-            `${a.org.id} sees nothing of ${other.org.id}, and is told of nothing withheld`,
+          // The probe words occur in no other organization's SAMPLE; a stack holding a full
+          // corpus may hold them in A's own records, which A then finds. Nothing of B may appear,
+          // and with nothing found, nothing may be counted as withheld.
+          const theirs = new Set(
+            Object.values(other.ids.documents ?? {}).flatMap((d) =>
+              [d.artifactId, d.textArtifactId].filter(Boolean),
+            ),
           );
+          assert.ok(theirs.size > 0, `${other.org.id}'s artifacts are known to the probe`);
+          assert.deepEqual(
+            counts.ids.filter((id) => theirs.has(id)),
+            [],
+            `${a.org.id} is shown nothing of ${other.org.id}`,
+          );
+          if (counts.total === 0) {
+            assert.equal(
+              counts.withheld,
+              0,
+              `${a.org.id} sees nothing of ${other.org.id}, and is told of nothing withheld`,
+            );
+          }
         }
         const foreign = await objectPage(page, web, b.artifact);
         const nowhere = await objectPage(page, web, '01a0d6d3-0000-7000-8000-00000000abcd');
