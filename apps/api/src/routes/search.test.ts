@@ -95,36 +95,40 @@ function searchPool() {
     if (sql.includes('core.bind_principal')) return { rows: [{ ceiling: params[3] }] };
     // A query is recorded as a transient observation (§64B); the seam answers with its id.
     if (sql.includes('search.record_query')) return { rows: [{ id: 'recorded-query' }] };
-    if (!sql.includes('with visible as')) return { rows: [] };
-    // Six parameters: the unranked match set. Seven: the ranked page, restricted to `only`.
-    const [organizationId, maxClassification, text, objectTypes, lifecycleStates, only, limit] =
-      params as [
-        string,
-        string,
-        string,
-        string[] | null,
-        string[] | null,
-        string[] | null,
-        number | undefined,
-      ];
-    const rank = CLASSIFICATION_RANK[maxClassification] ?? -1;
-    const needle = text.toLowerCase();
-    const rows = INDEX_ROWS.filter(
-      (row) =>
-        row.organization_id === organizationId &&
-        CLASSIFICATION_RANK[row.classification]! <= rank &&
-        (objectTypes === null || objectTypes.includes(row.object_type)) &&
-        (lifecycleStates === null || lifecycleStates.includes(row.lifecycle_state)) &&
-        `${row.title} ${row.body}`.toLowerCase().includes(needle) &&
-        (only === null || only.includes(row.object_id)),
-    )
-      .slice(0, limit ?? Number.POSITIVE_INFINITY)
+    const matching = (params: readonly unknown[]) => {
+      const [organizationId, maxClassification, text, objectTypes, lifecycleStates, only] =
+        params as [string, string, string, string[] | null, string[] | null, string[] | null];
+      const rank = CLASSIFICATION_RANK[maxClassification] ?? -1;
+      const needle = text.toLowerCase();
+      return INDEX_ROWS.filter(
+        (row) =>
+          row.organization_id === organizationId &&
+          CLASSIFICATION_RANK[row.classification]! <= rank &&
+          (objectTypes === null || objectTypes.includes(row.object_type)) &&
+          (lifecycleStates === null || lifecycleStates.includes(row.lifecycle_state)) &&
+          `${row.title} ${row.body}`.toLowerCase().includes(needle) &&
+          (only === null || only.includes(row.object_id)),
+      );
+    };
+    if (sql.includes('/* search.lexical-matches */')) {
+      return {
+        rows: matching(params).map((row) => ({
+          object_id: row.object_id,
+          classification: row.classification,
+          coverage: 1,
+          matched_by: 'full_text',
+        })),
+      };
+    }
+    if (!sql.includes('/* search.lexical-page */')) return { rows: [] };
+    const ids = params[0] as readonly string[];
+    const rows = INDEX_ROWS.filter((row) => ids.includes(row.object_id))
       // The columns the real query adds from `core.object` and `core.object_verification`:
       // every fake record is visible and nobody has verified any of them.
       .map((row) => ({
         ...row,
-        rank: 0.75,
-        matched_by: 'full_text',
+        phrase: false,
+        text_rank: 0.1,
         record_visible: true,
         verified_at: null,
         verified_by: null,
@@ -152,14 +156,10 @@ describe('GET /search', () => {
     const lowResponse = await low.app.inject({ method: 'GET', url: '/search?q=contingency' });
     expect(lowResponse.statusCode).toBe(200);
     expect(lowResponse.json()).toMatchObject({ hits: [], withheldCount: 0 });
-    expect(low.query).toHaveBeenCalledWith(expect.stringContaining('with visible as'), [
-      ORGANIZATION_A,
-      'internal',
-      'contingency',
-      null,
-      null,
-      null,
-    ]);
+    expect(low.query).toHaveBeenCalledWith(
+      expect.stringContaining('/* search.lexical-matches */'),
+      [ORGANIZATION_A, 'internal', 'contingency', null, null, null],
+    );
 
     const high = await appFor({ identify: identify({ maxClassification: 'restricted' }) });
     const highResponse = await high.app.inject({ method: 'GET', url: '/search?q=contingency' });
@@ -186,14 +186,18 @@ describe('GET /search', () => {
     expect(response.json()).toMatchObject({
       hits: [{ objectType: 'decision_record', lifecycleState: 'accepted' }],
     });
-    expect(query).toHaveBeenCalledWith(expect.stringContaining('with visible as'), [
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('/* search.lexical-matches */'), [
       ORGANIZATION_A,
       'internal',
       'compiler',
       ['decision_record'],
       ['accepted'],
+      null,
+    ]);
+    // The page is cut from the matches the caller's grants reach, and only they are read.
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('/* search.lexical-page */'), [
       [INDEX_ROWS[3].object_id],
-      25,
+      'compiler',
     ]);
   });
 
@@ -204,7 +208,7 @@ describe('GET /search', () => {
       url: '/search?q=document&objectType=&lifecycleState=&limit=50',
     });
     expect(response.statusCode).toBe(200);
-    expect(query).toHaveBeenCalledWith(expect.stringContaining('with visible as'), [
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('/* search.lexical-matches */'), [
       ORGANIZATION_A,
       'internal',
       'document',
@@ -219,7 +223,9 @@ describe('GET /search', () => {
     const response = await app.inject({ method: 'GET', url: '/search?q=+++%20' });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ hits: [], withheld: [] });
-    expect(query.mock.calls.some(([sql]) => String(sql).includes('with visible as'))).toBe(false);
+    expect(
+      query.mock.calls.some(([sql]) => String(sql).includes('/* search.lexical-matches */')),
+    ).toBe(false);
   });
 
   it('serves lexical results and says why there is no semantic ranking when no engine is configured', async () => {
@@ -228,9 +234,16 @@ describe('GET /search', () => {
     expect(response.statusCode).toBe(200);
     const body = response.json();
     expect(body.lexical).toMatchObject({
-      ranking: 'kf.lexical.full_text+partial_identifier.v1',
+      ranking: 'kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2',
       exhaustive: true,
     });
+    // One list to read first; without an engine it is the lexical page, and says so.
+    expect(body.ranked.ranking).toBe(
+      'kf.fused.rrf.v1(k=60; kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2)',
+    );
+    expect(body.ranked.hits.map((hit: { objectId: string }) => hit.objectId)).toEqual(
+      body.lexical.hits.map((hit: { objectId: string }) => hit.objectId),
+    );
     expect(body.lexical.hits.length).toBeGreaterThan(0);
     expect(body.hits).toEqual(body.lexical.hits);
     expect(body.semantic).toBeUndefined();
@@ -256,7 +269,9 @@ describe('GET /search', () => {
     const response = await app.inject({ method: 'GET', url });
     expect(response.statusCode).toBe(400);
     expect(response.json()).toEqual({ error: 'invalid_search_query', field });
-    expect(query.mock.calls.some(([sql]) => String(sql).includes('with visible as'))).toBe(false);
+    expect(
+      query.mock.calls.some(([sql]) => String(sql).includes('/* search.lexical-matches */')),
+    ).toBe(false);
   });
 
   it('refuses access before opening a database transaction', async () => {
@@ -272,7 +287,8 @@ describe('GET /search', () => {
 
   it('does not expose database details in a failed search response', async () => {
     const query = vi.fn(async (sql: string) => {
-      if (sql.includes('with visible as')) throw new Error('hidden title: acquisition target');
+      if (sql.includes('/* search.lexical-matches */'))
+        throw new Error('hidden title: acquisition target');
       return { rows: [] };
     });
     const app = Fastify({ logger: false });

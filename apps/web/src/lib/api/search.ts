@@ -38,6 +38,23 @@ export interface SemanticSearchHit {
   readonly verification: Verification;
 }
 
+/**
+ * A record in the fused list (KF-SAS-RQ-224): its place there, and where each source ranking put
+ * it — the lexical page (and how it matched) and the re-checked semantic list.
+ */
+export interface RankedSearchHit {
+  readonly objectId: string;
+  readonly objectType: string;
+  readonly title: string;
+  readonly lifecycleState: string;
+  readonly classification: string;
+  readonly rank: number;
+  readonly score: number;
+  readonly lexical?: { readonly rank: number; readonly matchedBy: SearchHit['matchedBy'] };
+  readonly semantic?: { readonly rank: number };
+  readonly verification: Verification;
+}
+
 /** Why a part of the answer could not be given (§63): the semantic ranking, today. */
 export interface WithholdingNote {
   readonly reasonClass: string;
@@ -45,11 +62,12 @@ export interface WithholdingNote {
 }
 
 /**
- * One query, two rankings, composed rather than merged (KF-SAS-RQ-224). Each list keeps the name
- * of the ranking that produced it, and the page shows them apart: the lexical list is the complete
- * answer within its scope, the semantic one cannot be.
+ * One query, one fused list and the two rankings it was fused from (KF-SAS-RQ-224). Every list
+ * keeps the name of the ranking that produced it: `ranked` is read first, `lexical` is the complete
+ * answer within its scope, and the semantic one cannot be.
  */
 export interface SearchResponse {
+  readonly ranked: { readonly ranking: string; readonly hits: readonly RankedSearchHit[] };
   readonly lexical: {
     readonly ranking: string;
     readonly total: number;
@@ -94,6 +112,39 @@ function semanticHit(value: unknown): value is Omit<SemanticSearchHit, 'verifica
   );
 }
 
+function positiveInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 1;
+}
+
+function rankedHit(value: unknown): value is Omit<RankedSearchHit, 'verification'> {
+  const hit = record(value);
+  if (
+    hit === undefined ||
+    !hasStrings(hit, ['objectId', 'objectType', 'title', 'lifecycleState', 'classification']) ||
+    !positiveInteger(hit['rank']) ||
+    typeof hit['score'] !== 'number' ||
+    !Number.isFinite(hit['score'])
+  ) {
+    return false;
+  }
+  const lexical = hit['lexical'] === undefined ? undefined : record(hit['lexical']);
+  const semantic = hit['semantic'] === undefined ? undefined : record(hit['semantic']);
+  if (hit['lexical'] !== undefined) {
+    if (
+      lexical === undefined ||
+      !positiveInteger(lexical['rank']) ||
+      (lexical['matchedBy'] !== 'full_text' && lexical['matchedBy'] !== 'partial_identifier')
+    ) {
+      return false;
+    }
+  }
+  if (hit['semantic'] !== undefined) {
+    if (semantic === undefined || !positiveInteger(semantic['rank'])) return false;
+  }
+  // A fused hit comes from at least one of the two lists; one from neither is off contract.
+  return lexical !== undefined || semantic !== undefined;
+}
+
 function withVerification<T extends object>(hit: T): T & { readonly verification: Verification } {
   return {
     ...hit,
@@ -132,6 +183,12 @@ export function parseSearchResponse(value: unknown): SearchResponse {
     contractBroken();
   }
   const lexicalHits = hitList(lexical['hits'], searchHit).map(withVerification);
+  const rankedList = record(response?.['ranked']);
+  if (rankedList === undefined || !nonEmptyString(rankedList['ranking'])) contractBroken();
+  const ranked = {
+    ranking: rankedList['ranking'],
+    hits: hitList(rankedList['hits'], rankedHit).map(withVerification),
+  };
   const withheld = (response['withheld'] as unknown[]).map((entry) => {
     const note = record(entry);
     if (
@@ -172,6 +229,7 @@ export function parseSearchResponse(value: unknown): SearchResponse {
   }
 
   return {
+    ranked,
     lexical: {
       ranking: lexical['ranking'],
       total: lexical['total'],

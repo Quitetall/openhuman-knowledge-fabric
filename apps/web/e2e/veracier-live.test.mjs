@@ -81,8 +81,9 @@ async function signIn(browser, username, secret) {
 /** The search page's own statement of the answer: exact-match total and withheld count. */
 async function searchCounts(page) {
   await page.goto(`${WEB}/search?q=${encodeURIComponent(QUERY)}`);
+  // The complete list of word matches is folded under the fused list: present, not shown.
   const lexical = page.locator('section[data-list="lexical"]');
-  await lexical.waitFor();
+  await lexical.waitFor({ state: 'attached' });
   const total = Number(await lexical.getAttribute('data-total'));
   assert.ok(Number.isSafeInteger(total), 'the lexical list states its total');
   const withheldNote = page.locator('[data-withheld-count]');

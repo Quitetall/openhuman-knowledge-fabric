@@ -300,10 +300,20 @@ test(
             assert.equal(request.method, 'GET');
             assert.equal(url.searchParams.get('q'), 'constitution');
             assert.equal(url.searchParams.get('limit'), '50');
+            const LEXICAL = 'kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2';
             const lexical = (hits) => ({
               hits,
+              ranked: {
+                ranking: `kf.fused.rrf.v1(k=60; ${LEXICAL})`,
+                hits: hits.map((hit, index) => ({
+                  ...hit,
+                  rank: index + 1,
+                  score: 1 / (61 + index),
+                  lexical: { rank: index + 1, matchedBy: hit.matchedBy },
+                })),
+              },
               lexical: {
-                ranking: 'kf.lexical.full_text+partial_identifier.v1',
+                ranking: LEXICAL,
                 exhaustive: true,
                 total: hits.length,
                 complete: true,
@@ -1178,7 +1188,7 @@ test(
       await assert.doesNotReject(() =>
         page.getByRole('link', { name: 'OpenHuman Document Constitution' }).waitFor(),
       );
-      await assert.doesNotReject(() => page.getByText('All 1 exact match.').waitFor());
+      await assert.doesNotReject(() => page.getByText('Word match #1').waitFor());
 
       await page.getByRole('link', { name: 'ML runs' }).click();
       await page.getByLabel('Run authority').fill(RUN_AUTHORITY_ID);
@@ -1254,7 +1264,7 @@ test(
 
       await page.goto(`${webOrigin}/search?q=constitution`);
       await assert.doesNotReject(() =>
-        page.getByText('No exact matches in your current access context.').waitFor(),
+        page.getByText('Nothing found in your current access context.').waitFor(),
       );
 
       await page.goto(`${webOrigin}/documents`);

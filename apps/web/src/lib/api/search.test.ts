@@ -27,8 +27,18 @@ const originalApiUrl = process.env['KF_API_URL'];
 function composed<T>(hits: readonly T[], extra: Record<string, unknown> = {}) {
   return {
     hits,
+    ranked: {
+      ranking:
+        'kf.fused.rrf.v1(k=60; kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2)',
+      hits: hits.map((hit, index) => ({
+        ...hit,
+        rank: index + 1,
+        score: 1 / (61 + index),
+        lexical: { rank: index + 1, matchedBy: (hit as { matchedBy?: unknown }).matchedBy },
+      })),
+    },
     lexical: {
-      ranking: 'kf.lexical.full_text+partial_identifier.v1',
+      ranking: 'kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2',
       exhaustive: true,
       total: hits.length,
       complete: true,
@@ -81,6 +91,37 @@ describe('search API client', () => {
     expect(() => parseSearchResponse(composed([{ ...body.hits[0], rank: -1 }]))).toThrow(
       /search response/,
     );
+  });
+
+  it('decodes the fused list with where each ranking placed a hit, and refuses one from nowhere', () => {
+    const hit = {
+      objectId: 'document-1',
+      objectType: 'controlled_document',
+      title: 'Document Constitution',
+      lifecycleState: 'draft',
+      classification: 'internal',
+      rank: 0.75,
+      matchedBy: 'full_text',
+      verification: { verified: false, label: UNVERIFIED_LABEL },
+    };
+    const body = composed([hit]);
+    const parsed = parseSearchResponse(body);
+    expect(parsed.ranked.ranking).toMatch(/^kf\.fused\.rrf\.v1/);
+    expect(parsed.ranked.hits[0]).toMatchObject({
+      objectId: 'document-1',
+      rank: 1,
+      lexical: { rank: 1, matchedBy: 'full_text' },
+    });
+    const fused = (body.ranked.hits as Record<string, unknown>[])[0]!;
+    const withHits = (hits: unknown[]) => ({ ...body, ranked: { ...body.ranked, hits } });
+    const { lexical: _placed, ...fromNowhere } = fused;
+    expect(() => parseSearchResponse(withHits([fromNowhere]))).toThrow(/search response/);
+    expect(() => parseSearchResponse(withHits([{ ...fused, rank: 0 }]))).toThrow(/search response/);
+    expect(() => parseSearchResponse(withHits([{ ...fused, semantic: { rank: 1.5 } }]))).toThrow(
+      /search response/,
+    );
+    const { ranked: _missing, ...unfused } = body;
+    expect(() => parseSearchResponse(unfused)).toThrow(/search response/);
   });
 
   it('rejects an oversized result set even if every row is individually valid', () => {
@@ -156,7 +197,9 @@ describe('the composed answer (KF-SAS-RQ-224, RQ-217, ADR 0037)', () => {
         withheldCount: 3,
       }),
     );
-    expect(parsed.lexical.ranking).toBe('kf.lexical.full_text+partial_identifier.v1');
+    expect(parsed.lexical.ranking).toBe(
+      'kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2',
+    );
     expect(parsed.semantic?.ranking).toBe('lamu.embed.bge-m3.v1');
     expect(parsed.semantic?.hits[0]!.verification.verified).toBe(false);
     expect(parsed.nearMisses?.label).toBe('near_miss');

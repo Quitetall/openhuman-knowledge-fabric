@@ -25,12 +25,15 @@ export interface SearchRoutesOptions {
 }
 
 /**
- * GET /search — one query, two rankings, composed rather than merged (KF-SAS-RQ-224).
+ * GET /search — one query, one fused list, and the two rankings it was fused from
+ * (KF-SAS-RQ-224).
  *
- * `lexical` is the exhaustive answer, `semantic` the engine's (when it answered), `nearMisses`
- * only on request (KF-SAS-RQ-217), `withheld` the ledger of what could not be done and why,
- * `withheldCount` how many matching records within the caller's ceiling no grant reaches
- * (ADR 0037). `hits` repeats `lexical.hits` for clients written before composition.
+ * `ranked` is the list to read first: the lexical page and the re-checked semantic list fused by
+ * reciprocal rank fusion, named, each hit saying where each ranking placed it. `lexical` is the
+ * exhaustive answer, `semantic` the engine's (when it answered), `nearMisses` only on request
+ * (KF-SAS-RQ-217), `withheld` the ledger of what could not be done and why, `withheldCount` how
+ * many matching records within the caller's ceiling no grant reaches (ADR 0037). `hits` repeats
+ * `lexical.hits` for clients written before composition.
  */
 export async function registerSearchRoutes(
   app: FastifyInstance,

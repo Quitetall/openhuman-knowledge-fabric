@@ -6,7 +6,8 @@ import { UNVERIFIED_LABEL } from '../../lib/api/verification.js';
 import { SearchResults, withheldCountSentence } from './search-results.js';
 
 const unverified = { verified: false, label: UNVERIFIED_LABEL } as const;
-const LEXICAL = 'kf.lexical.full_text+partial_identifier.v1';
+const LEXICAL = 'kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2';
+const FUSED = `kf.fused.rrf.v1(k=60; ${LEXICAL}; lamu.embed.bge-m3.v1)`;
 const SEMANTIC = 'lamu.embed.bge-m3.v1';
 
 const exact = {
@@ -31,8 +32,18 @@ const related = {
 };
 const adjacent = { ...related, objectId: 'near-1', title: 'Near miss record', rank: 51 };
 
+const fusedExact = {
+  ...exact,
+  rank: 1,
+  score: 1 / 61 + 1 / 62,
+  lexical: { rank: 1, matchedBy: 'full_text' as const },
+  semantic: { rank: 2 },
+};
+const fusedRelated = { ...related, rank: 2, score: 1 / 61, semantic: { rank: 1 } };
+
 function response(extra: Partial<SearchResponse> = {}): SearchResponse {
   return {
+    ranked: { ranking: FUSED, hits: [fusedExact, fusedRelated] },
     lexical: { ranking: LEXICAL, total: 1, complete: true, hits: [exact] },
     withheld: [],
     withheldCount: 0,
@@ -59,6 +70,20 @@ describe('the search page renders the composed answer, not just the hits', () =>
   it('links every hit, including types without a dossier page, to where it can be read', () => {
     const html = render(response());
     expect(html).toContain('href="/objects/exact-1"');
+  });
+
+  it('leads with the one fused list, naming the fusion and where each ranking placed a result', () => {
+    const html = render(response({ semantic: { ranking: SEMANTIC, hits: [related] } }));
+    const ranked = list(html, 'ranked');
+    expect(ranked).toContain(FUSED);
+    expect(ranked).toContain('Exact match record');
+    expect(ranked).toContain('Word match #1 · Related by meaning #2');
+    expect(ranked).toContain('Related by meaning record');
+    expect(ranked).toContain('Related by meaning #1');
+    expect(ranked).not.toContain('Word match #1 · Related by meaning #1');
+    // The fused list comes before either source list.
+    expect(html.indexOf('data-list="ranked"')).toBeLessThan(html.indexOf('data-list="lexical"'));
+    expect(html.indexOf('data-list="ranked"')).toBeLessThan(html.indexOf('data-list="semantic"'));
   });
 
   it('shows the lexical and semantic lists apart, each with its ranking name', () => {
@@ -115,5 +140,9 @@ describe('the search page renders the composed answer, not just the hits', () =>
     expect(semantic).toContain('Semantic ranking unavailable: no retrieval engine is configured');
     expect(semantic).toContain('data-withholding="semantic_ranking_unavailable"');
     expect(list(html, 'lexical')).toContain('Exact match record');
+    // And at the top, over the one list, so nobody reads word matches as the whole answer.
+    expect(list(html, 'ranked')).toContain(
+      'Semantic ranking unavailable: no retrieval engine is configured. These results are word matches only.',
+    );
   });
 });

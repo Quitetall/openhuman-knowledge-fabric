@@ -66,8 +66,9 @@ async function signIn(browser, web, person, context) {
 
 async function searchCounts(page, web, query) {
   await page.goto(`${web}/search?q=${encodeURIComponent(query)}`);
+  // The complete list of word matches is folded under the fused list: present, not shown.
   const lexical = page.locator('section[data-list="lexical"]');
-  await lexical.waitFor();
+  await lexical.waitFor({ state: 'attached' });
   const total = Number(await lexical.getAttribute('data-total'));
   assert.ok(Number.isSafeInteger(total), 'the lexical list states its total');
   const withheld = page.locator('[data-withheld-count]');

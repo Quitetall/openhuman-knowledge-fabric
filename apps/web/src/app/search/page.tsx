@@ -39,10 +39,11 @@ export default async function SearchPage({
         </p>
         <h1 style={{ margin: '0.25rem 0 0.5rem', fontSize: '2rem' }}>Search knowledge fabric</h1>
         <p style={{ color: '#475569', marginTop: 0 }}>
-          Exact matches and, when the retrieval engine is running, records related by meaning —
-          shown as two lists, each named by its ranking. Records above your clearance stay absent
-          and uncounted; matching records within it that nobody has granted you are counted, never
-          named. <Link href="/search/recorded">Your recorded queries</Link>.
+          Records matching your words and, when the retrieval engine is running, records related by
+          meaning, fused into one list that says where each ranking placed every result. Records
+          above your clearance stay absent and uncounted; matching records within it that nobody has
+          granted you are counted, never named.{' '}
+          <Link href="/search/recorded">Your recorded queries</Link>.
         </p>
       </div>
 
@@ -59,7 +60,7 @@ export default async function SearchPage({
             required
             maxLength={512}
             defaultValue={request?.text ?? ''}
-            placeholder="Document title, subject, or partial identifier"
+            placeholder="A question, a subject, a title, or a partial identifier"
             className="kf-control"
           />
         </label>

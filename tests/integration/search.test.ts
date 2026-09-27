@@ -42,6 +42,9 @@ let percentLiteral: string;
 let percentWildcardNeighbour: string;
 let underscoreLiteral: string;
 let underscoreWildcardNeighbour: string;
+let frenchPorosity: string;
+let phraseInOrder: string;
+let phraseApart: string;
 
 // A search runs as a principal (20260923000100): a person under a live assignment, whose
 // clearance the database clamps the requested ceiling to.
@@ -138,8 +141,44 @@ beforeAll(async () => {
     createdBy: f.performerId,
   });
 
+  // A French record, indexed in French (20260926100000): its words are French stems, and a French
+  // query finds them through the French stems of its own words.
+  frenchPorosity = await createObject(h.adminPool, f, {
+    type: 'nonconformity',
+    domain: 'qms',
+    state: 'open',
+    title: 'Porosités sur les carters du lot 2024-0312',
+    createdBy: f.performerId,
+  });
+  await withTransaction(h.adminPool, async (tx) => {
+    await bindContext(tx, f);
+    await tx.query(
+      `insert into quality.nonconformity (id, severity, detected_on, description)
+       values ($1, 'major', now(), 'Les porosités constatées sur les carters sont dues à une ' ||
+               'mauvaise maîtrise de la température de coulée, et le lot est bloqué.')`,
+      [frenchPorosity],
+    );
+  });
+  phraseInOrder = await createObject(h.adminPool, f, {
+    type: 'decision_record',
+    domain: 'engineering',
+    state: 'proposed',
+    title: 'Torque wrench calibration interval',
+    createdBy: f.performerId,
+  });
+  phraseApart = await createObject(h.adminPool, f, {
+    type: 'decision_record',
+    domain: 'engineering',
+    state: 'proposed',
+    title: 'Calibration of the wrench used for torque interval checks',
+    createdBy: f.performerId,
+  });
+
   await withTransaction(h.adminPool, async (tx) => {
     for (const id of [
+      frenchPorosity,
+      phraseInOrder,
+      phraseApart,
       board,
       nc,
       restrictedOrder,
@@ -275,7 +314,89 @@ describe('visibility', () => {
   });
 });
 
+describe('a question finds what it is about, in the record’s own language (20260926100000)', () => {
+  it('matches a sentence as typed without requiring every word', async () => {
+    // "much" is in no record. Every word used to be required.
+    const hits = await search(h.pool, restricted(), {
+      text: 'How much leakage was measured under single fault?',
+    });
+    expect(hits.map((x) => x.title)).toContain('Leakage current above specification');
+  });
+
+  it('refuses a flood: a record holding less than half of what the query says is not a match', async () => {
+    // "leakage" is in two records; the other four words are in none. Under any-word matching
+    // both would be matches; the floor finds that neither holds half the query's information.
+    expect(
+      await search(h.pool, restricted(), { text: 'leakage quokka platypus wombat zebu' }),
+    ).toEqual([]);
+    // The same word alone is a full match.
+    expect((await search(h.pool, restricted(), { text: 'leakage' })).map((x) => x.title)).toContain(
+      'Leakage current above specification',
+    );
+  });
+
+  it('puts the records holding every word, and the phrase as typed, first', async () => {
+    const hits = await search(h.pool, restricted(), { text: 'torque wrench calibration' });
+    const ids = hits.map((x) => x.objectId);
+    expect(ids.slice(0, 2).sort()).toEqual([phraseInOrder, phraseApart].sort());
+    expect(ids[0], 'the words in the order typed rank first').toBe(phraseInOrder);
+    expect(hits[0]!.rank).toBe(1);
+  });
+
+  it('indexes a French record in French and finds it by a French query and its stems', async () => {
+    const languages = await withTransaction(h.adminPool, async (tx) =>
+      tx.one<{ languages: string }>(
+        'select languages::text as languages from search.document where object_id = $1',
+        [frenchPorosity],
+      ),
+    );
+    expect(languages.languages).toBe('{french}');
+    // "bloquant" where the record has "bloqué": only a French stemmer joins them. English
+    // stemming, which every record had, does not.
+    const hits = await search(h.pool, restricted(), { text: 'porosité bloquant' });
+    expect(hits.map((x) => x.objectId)).toContain(frenchPorosity);
+    const english = await withTransaction(h.adminPool, async (tx) =>
+      tx.one<{ found: boolean }>(
+        `select to_tsvector('english', title || ' ' || body) @@ plainto_tsquery('english', 'bloquant')
+                  as found
+           from search.document where object_id = $1`,
+        [frenchPorosity],
+      ),
+    );
+    expect(english.found, 'the probe: English stemming alone would not have found it').toBe(false);
+  });
+
+  it('keeps an English record English and a title with no language as it was', async () => {
+    const rows = await withTransaction(h.adminPool, async (tx) =>
+      tx.query<{ object_id: string; languages: string }>(
+        'select object_id, languages::text as languages from search.document where object_id = any($1)',
+        [[board, percentLiteral]],
+      ),
+    );
+    expect(rows.map((r) => r.languages)).toEqual(['{english}', '{english}']);
+  });
+});
+
 describe('the index is derived, and provably disposable', () => {
+  it('rebuilds in batches, and a stopped rebuild resumes where it stopped', async () => {
+    const total = await withTransaction(h.adminPool, async (tx) =>
+      tx.one<{ n: string }>('select count(*)::text as n from core.object'),
+    );
+    const seen: { indexed: number; last: string }[] = [];
+    const first = await rebuild(h.adminPool, { batchSize: 7, onBatch: (p) => seen.push(p) });
+    expect(first).toBe(Number(total.n));
+    expect(seen.length).toBeGreaterThan(1);
+    // Resume from the third batch's last record: exactly the remainder is indexed.
+    const resumed = await rebuild(h.adminPool, { batchSize: 7, after: seen[2]!.last });
+    expect(resumed).toBe(Number(total.n) - seen[2]!.indexed);
+    // The batch seam is the worker's, like rebuild(): not the application's.
+    await expect(
+      withTransaction(h.pool, async (tx) =>
+        tx.query('select * from search.rebuild_batch(null, 10)'),
+      ),
+    ).rejects.toThrow(/permission denied/i);
+  });
+
   it('rebuilds to exactly what was there', async () => {
     const before = await withTransaction(h.adminPool, async (tx) =>
       tx.query<{ object_id: string; title: string; body: string }>(

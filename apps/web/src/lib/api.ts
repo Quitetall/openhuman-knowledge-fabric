@@ -100,6 +100,7 @@ export type {
   SearchHit,
   SearchRequest,
   SearchResponse,
+  RankedSearchHit,
   SemanticSearchHit,
   WithholdingNote,
 } from './api/search';
