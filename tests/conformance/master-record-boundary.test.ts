@@ -58,6 +58,8 @@ describe('master-record permission boundary', () => {
       'search.asker_key',
       'retrieval.disclosure',
       'search.context_disclosure',
+      'content.master_record_currency',
+      'content.master_record_input_write',
     ]);
     expect(registry.materializedTables).toContain('org.access_demand');
     expect(registry.materializedTables).toContain('content.master_record_item');

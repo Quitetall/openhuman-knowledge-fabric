@@ -1,17 +1,29 @@
 import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { OBJECT_HISTORY_SQL } from '@kf/actions';
-import { setResolvedAccessContext, withTransaction } from '@kf/database';
+import { setResolvedAccessContext, withTransaction, type Tx } from '@kf/database';
 import {
-  assertPermissionSetInvariant,
-  CURRENT_MASTER_RECORD_MEMBER_FORMAT,
+  claimMemberCount,
+  claimMemberCountAmong,
+  claimMembersAmong,
+  enumerateNeighbourhoodGraph,
   enumeratePermittedSet,
-  masterRecordMemberFormat,
   enumerateRelevanceGraph,
-  latestMasterRecord,
-  type MasterRecordManifest,
+  latestMasterRecordClaim,
+  masterRecordCurrency,
+  type ClaimCurrency,
+  type MasterRecordClaim,
 } from '@kf/documents';
-import { project, ProjectionRefused, type ProjectionCorpus } from '@kf/projections';
+import {
+  assertMemberBudget,
+  bindParameters,
+  isNeighbourhoodReading,
+  neighbourhoodScope,
+  project,
+  projectNeighbourhood,
+  ProjectionRefused,
+  type ProjectionResult,
+} from '@kf/projections';
 import { refuseUnidentified } from '../actions.js';
 import { actionRejectionBody } from '../actions/errors.js';
 import type { DocumentRoutesOptions } from './contracts.js';
@@ -34,6 +46,13 @@ import { liveVerifications, projectionMembersOf } from './master-record-projecti
  * a signed-in person perform a recorded act by linking to an object. The GET is now
  * side-effect free and answers `409 master_record_stale`; the refresh is a POST, which the web
  * sends only from its own form (a server action, origin-checked by Next).
+ *
+ * WHY IT READS ONE NEIGHBOURHOOD. The view used to load the claim's whole manifest, enumerate the
+ * whole permitted set and the whole relation graph, and project all of it to show one record. For a
+ * reader of ~50 000 records that was 12-16 s per view on the kf-fixa fixture (2026-09-26). It now
+ * asks the database whether the claim is still current (answered from its record of writes when it
+ * can be, by enumerating otherwise, `masterRecordCurrency`), then reads only the edges touching the
+ * anchor and the claim's members among what they reach.
  */
 export function registerObjectViewRoute(
   app: FastifyInstance,
@@ -83,39 +102,23 @@ async function serveObjectView(
     // person is offered the refresh rather than having it done to them by whoever sent the
     // link. (The fixture workflow, 2026-09-11, found every view answering 409 after any
     // corpus change with no way forward; the POST is that way forward.)
-    let record = await latestMasterRecord(tx, identity.actorId, identity.organizationId);
-    // Under the member format the claim RECORDED (KF-SAS-RQ-016); with no claim yet, the
-    // current one, which is what a compilation will write.
-    const permittedFor = (
-      claim: Record<string, unknown> | undefined,
-    ): ReturnType<typeof enumeratePermittedSet> =>
-      enumeratePermittedSet(
-        tx,
-        identity.actorId,
-        identity.organizationId,
-        claim === undefined
-          ? CURRENT_MASTER_RECORD_MEMBER_FORMAT
-          : masterRecordMemberFormat(claim['manifest']),
-      );
-    let permitted = await permittedFor(record);
-    const current = (claim: Record<string, unknown> | undefined): boolean => {
-      if (claim === undefined) return false;
-      const m = claim['manifest'] as MasterRecordManifest;
-      try {
-        assertPermissionSetInvariant(
-          {
-            corpusDigest: String(claim['corpus_digest']),
-            included: Array.isArray(m.included) ? m.included : [],
-            withdrawn: Array.isArray(m.withdrawn) ? m.withdrawn : [],
-          },
-          permitted,
-        );
-        return true;
-      } catch {
-        return false;
-      }
-    };
-    if (!current(record)) {
+    //
+    // "Current" means what it always has — the corpus has not moved since the claim — and is
+    // asked first of the database's record of writes, which answers without enumerating the
+    // corpus when the reader's own compilation saw every write since (20260926110100). Only
+    // when it cannot is the whole permitted set enumerated and compared.
+    const reader = { personId: identity.actorId, organizationId: identity.organizationId };
+    const currencyOf = async (
+      claim: MasterRecordClaim | undefined,
+    ): Promise<ClaimCurrency | undefined> =>
+      claim === undefined ? undefined : masterRecordCurrency(tx, reader, claim);
+    let claim = await latestMasterRecordClaim(tx, identity.actorId, identity.organizationId);
+    let currency = await currencyOf(claim);
+    // The refresh also compiles a claim that is current but could only be shown so by
+    // enumerating: the compilation reuses it (ADR 0013) and records that it looked, so the
+    // views after it are answered from the record of writes again.
+    const refreshable = currency?.current !== true || currency.basis !== 'recorded';
+    if (currency?.current !== true || (mode.refresh && refreshable)) {
       if (!mode.refresh) {
         return answer(409, {
           error: 'master_record_stale',
@@ -145,29 +148,17 @@ async function serveObjectView(
         if (refusal !== undefined) return answer(refusal.status, refusal.body);
         throw error;
       }
-      record = await latestMasterRecord(tx, identity.actorId, identity.organizationId);
-      permitted = await permittedFor(record);
-      if (!current(record)) return answer(409, { error: 'master_record_stale' });
+      claim = await latestMasterRecordClaim(tx, identity.actorId, identity.organizationId);
+      currency = await currencyOf(claim);
+      if (currency?.current !== true) return answer(409, { error: 'master_record_stale' });
     }
-    if (record === undefined) return answer(404, { error: 'master_record_not_found' });
-    const manifest = record['manifest'] as MasterRecordManifest;
-    const included = Array.isArray(manifest.included) ? manifest.included : [];
-    const withdrawn = Array.isArray(manifest.withdrawn) ? manifest.withdrawn : [];
+    if (claim === undefined) return answer(404, { error: 'master_record_not_found' });
 
-    const corpus: ProjectionCorpus = {
-      personId: identity.actorId,
-      organizationId: identity.organizationId,
-      corpusDigest: String(record['corpus_digest']),
-      members: projectionMembersOf({ included, withdrawn }, liveVerifications(permitted)),
-    };
     let result;
     try {
-      result = project({
-        definition,
-        parameters: { object_id: request.params.id },
-        corpus,
-        graph: await enumerateRelevanceGraph(tx),
-      });
+      result = isNeighbourhoodReading(definition)
+        ? await readNeighbourhood(tx, definition, request.params.id, claim, currency)
+        : await readWholeClaim(tx, definition, request.params.id, claim, currency);
     } catch (error: unknown) {
       if (error instanceof ProjectionRefused && error.reason !== 'unlabelled_member') {
         // An anchor outside the corpus reads as not found, not as a different error: the
@@ -181,6 +172,7 @@ async function serveObjectView(
       }
       throw error;
     }
+    if (result === 'stale') return answer(409, { error: 'master_record_stale' });
 
     const history = await tx.query<Record<string, unknown>>(OBJECT_HISTORY_SQL, [
       request.params.id,
@@ -217,6 +209,109 @@ async function serveObjectView(
   });
   for (const [name, value] of Object.entries(outcome.headers ?? {})) reply.header(name, value);
   return reply.code(outcome.status).send(outcome.body);
+}
+
+type CurrentClaim = Extract<ClaimCurrency, { current: true }>;
+type ProjectionDefinition = NonNullable<
+  ReturnType<NonNullable<DocumentRoutesOptions['projections']>['byId']>
+>;
+
+/**
+ * The `object_view` Result over the anchor's neighbourhood only — the Result the whole claim gives
+ * (`projectNeighbourhood`; tests/database/object-view-scoped.test.ts compares the two): the edges a
+ * walk from the anchor can cross, the claim's members among what it reaches, and the claim's size
+ * to count the rest. Each included member shown is re-checked live under the reader's own rules at
+ * the revision the claim holds; a difference is a moved corpus and answers `stale`, whatever said
+ * the claim was current.
+ */
+async function readNeighbourhood(
+  tx: Tx,
+  definition: ProjectionDefinition,
+  objectId: string,
+  claim: MasterRecordClaim,
+  currency: CurrentClaim,
+): Promise<ProjectionResult | 'stale'> {
+  // Refuse a malformed id before it reaches SQL, exactly as the engine would.
+  const parameters = bindParameters(definition, { object_id: objectId });
+  const graph = await enumerateNeighbourhoodGraph(
+    tx,
+    String(parameters['object_id']),
+    definition.traverse?.maxDepth ?? 0,
+  );
+  const scope = [...neighbourhoodScope(definition, parameters, graph)];
+  // A hub can touch more records than the reading may hold: refuse it by counting, before a
+  // single payload is loaded.
+  if (scope.length > definition.budgets.maxMembers) {
+    assertMemberBudget(definition, await claimMemberCountAmong(tx, claim, currency.members, scope));
+  }
+  const members = await claimMembersAmong(tx, claim, currency.members, scope);
+  const shown = members.included.map((member) => member.objectId);
+  const live =
+    currency.permitted ??
+    (shown.length === 0
+      ? []
+      : await enumeratePermittedSet(
+          tx,
+          claim.personId,
+          claim.organizationId,
+          currency.memberFormat,
+          shown,
+        ));
+  const liveDigest = new Map(live.map((member) => [member.objectId, member.contentDigest]));
+  if (members.included.some((member) => liveDigest.get(member.objectId) !== member.contentDigest)) {
+    return 'stale';
+  }
+  return projectNeighbourhood({
+    definition,
+    parameters,
+    corpus: {
+      personId: claim.personId,
+      organizationId: claim.organizationId,
+      corpusDigest: claim.corpusDigest,
+      members: projectionMembersOf(members, liveVerifications(live)),
+      corpusMemberCount: await claimMemberCount(tx, claim, currency.members),
+    },
+    graph,
+  });
+}
+
+/**
+ * A definition that could place a member outside the anchor's neighbourhood is evaluated over the
+ * whole claim and the whole graph, as every Object View was before the neighbourhood reading.
+ */
+async function readWholeClaim(
+  tx: Tx,
+  definition: ProjectionDefinition,
+  objectId: string,
+  claim: MasterRecordClaim,
+  currency: CurrentClaim,
+): Promise<ProjectionResult> {
+  const everyMember = await tx.query<{ object_id: string }>(
+    'select object_id from content.master_record_item where master_record_id = $1',
+    [claim.id],
+  );
+  const members = await claimMembersAmong(
+    tx,
+    claim,
+    currency.members,
+    currency.members.kind === 'manifest'
+      ? [...currency.members.included, ...currency.members.withdrawn].map((m) => m.objectId)
+      : everyMember.map((row) => row.object_id),
+  );
+  const permitted =
+    currency.permitted ??
+    (await enumeratePermittedSet(tx, claim.personId, claim.organizationId, currency.memberFormat));
+  return project({
+    definition,
+    parameters: { object_id: objectId },
+    corpus: {
+      personId: claim.personId,
+      organizationId: claim.organizationId,
+      corpusDigest: claim.corpusDigest,
+      members: projectionMembersOf(members, liveVerifications(permitted)),
+    },
+    graph: await enumerateRelevanceGraph(tx),
+  });
 }
 
 interface Outcome {

@@ -225,25 +225,30 @@ export async function enumerateRelevanceGraph(tx: Tx): Promise<{
         and (valid_to is null or valid_to > now())
       order by id`,
   );
-  const policies = await tx.query<RelationPolicyRow>(
-    `select /* master-record.relevance-policy */
-            id, person_anchor, propagation_class, anchor_depth
-       from registry.relation_type
-      order by id`,
-  );
   return {
     edges: edges.map((edge) => ({
       sourceId: edge.source_id,
       targetId: edge.target_id,
       relationType: edge.relation_type,
     })),
-    policies: policies.map((policy) => ({
-      relationType: policy.id,
-      personAnchor: policy.person_anchor,
-      propagationClass: policy.propagation_class,
-      anchorDepth: policy.anchor_depth,
-    })),
+    policies: await enumerateRelationPolicies(tx),
   };
+}
+
+/** The compiler-owned propagation policy of every relation type. */
+export async function enumerateRelationPolicies(tx: Tx): Promise<readonly RelationPolicy[]> {
+  const policies = await tx.query<RelationPolicyRow>(
+    `select /* master-record.relevance-policy */
+            id, person_anchor, propagation_class, anchor_depth
+       from registry.relation_type
+      order by id`,
+  );
+  return policies.map((policy) => ({
+    relationType: policy.id,
+    personAnchor: policy.person_anchor,
+    propagationClass: policy.propagation_class,
+    anchorDepth: policy.anchor_depth,
+  }));
 }
 
 /** Read one immutable claim; latest is selected by compilation time, never by mutable status. */
@@ -329,6 +334,12 @@ export async function compileAndRecordMasterRecord(
 ): Promise<
   MasterRecordCompilation & { readonly masterRecordId: string; readonly reused: boolean }
 > {
+  // Before anything of the corpus is read: the snapshot a currency row records is the earliest
+  // one any read below could have seen, so a write it did not see may have been missed by the
+  // reading and is never mistaken for one it saw (20260926110100).
+  const { snapshot } = await tx.one<{ snapshot: string }>(
+    'select /* master-record.reading-snapshot */ pg_current_snapshot()::text as snapshot',
+  );
   const person = await tx.maybeOne<{ id: string }>(
     `select person.id
        from org.person person
@@ -507,6 +518,7 @@ export async function compileAndRecordMasterRecord(
           'belongs to a different request (ADR 0013)',
       );
     }
+    await recordCurrency(tx, options, existing.id, snapshot);
     return { ...compilation, masterRecordId: existing.id, reused: true };
   }
 
@@ -532,41 +544,31 @@ export async function compileAndRecordMasterRecord(
     ],
   );
 
-  for (const member of compilation.manifest.included) {
-    await tx.query(
-      `insert into content.master_record_item
-         (master_record_id, object_id, object_type, title, classification, content_digest,
-          item_state, content_payload)
-       values ($1,$2,$3,$4,$5,$6,'included',$7::jsonb)`,
-      [
-        master.id,
-        member.objectId,
-        member.objectType,
-        member.title ?? member.objectType,
-        member.classification,
-        member.contentDigest,
-        JSON.stringify(member.content ?? {}),
-      ],
-    );
-  }
-  for (const member of compilation.manifest.withdrawn) {
-    await tx.query(
-      `insert into content.master_record_item
-         (master_record_id, object_id, object_type, title, classification, content_digest,
-          item_state, withdrawn_at, withdrawal_reason, content_payload)
-       values ($1,$2,$3,$4,$5,$6,'withdrawn',now(),$7,$8::jsonb)`,
-      [
-        master.id,
-        member.objectId,
-        member.objectType,
-        member.title ?? member.objectType,
-        member.classification,
-        member.contentDigest,
-        member.withdrawalReason ?? 'permission set no longer admits this object',
-        JSON.stringify(member.content ?? {}),
-      ],
-    );
-  }
+  // Every member in ONE statement, read back out of the manifest just stored rather than sent a
+  // second time: the item table is the manifest's members and nothing else, which the statement
+  // trigger `master_record_item_matches_manifest` holds once per statement (20260926110000). One
+  // INSERT per member made a 50 000-member compilation send its corpus twice and, under the old
+  // per-row policy, expand the manifest once per member.
+  await tx.query(
+    `insert /* master-record.items */ into content.master_record_item
+       (master_record_id, object_id, object_type, title, classification, content_digest,
+        item_state, withdrawn_at, withdrawal_reason, content_payload)
+     select master.id, (member ->> 'objectId')::uuid, member ->> 'objectType',
+            coalesce(member ->> 'title', member ->> 'objectType'), member ->> 'classification',
+            member ->> 'contentDigest', state.name,
+            case state.name when 'withdrawn' then now() end,
+            case state.name
+              when 'withdrawn'
+                then coalesce(member ->> 'withdrawalReason',
+                              'permission set no longer admits this object')
+            end,
+            coalesce(member -> 'content', '{}'::jsonb)
+       from content.master_record master
+      cross join (values ('included'), ('withdrawn')) as state(name)
+      cross join lateral jsonb_array_elements(master.manifest -> state.name) as member
+      where master.id = $1`,
+    [master.id],
+  );
   for (const item of compilation.manifest.withheld.items) {
     await tx.query(
       `insert into content.master_record_withholding
@@ -583,5 +585,26 @@ export async function compileAndRecordMasterRecord(
       [master.id, options.recordedBy, count],
     );
   }
+  await recordCurrency(tx, options, master.id, snapshot);
   return { ...compilation, masterRecordId: master.id, reused: false };
+}
+
+/**
+ * Record that this compilation found the claim current as of `snapshot`, so a reading can know it
+ * is still current without enumerating the corpus again (20260926110100). Only for a person's own
+ * record: the reading was made under the compiler's context, and it is the person's own context a
+ * view of their record is read under. The database takes everything but the claim and the snapshot
+ * from the sealed context.
+ */
+async function recordCurrency(
+  tx: Tx,
+  options: { readonly personId: string; readonly recordedBy: string },
+  masterRecordId: string,
+  snapshot: string,
+): Promise<void> {
+  if (options.personId !== options.recordedBy) return;
+  await tx.query(
+    'select /* master-record.currency */ content.record_master_record_currency($1, $2::pg_snapshot)',
+    [masterRecordId, snapshot],
+  );
 }
