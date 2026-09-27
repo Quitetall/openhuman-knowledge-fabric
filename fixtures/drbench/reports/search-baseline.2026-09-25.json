@@ -1,0 +1,37 @@
+{
+  "date": "2026-09-25",
+  "commit": "3b7a2258",
+  "summary": {
+    "k": 10,
+    "lists": [
+      "lexical"
+    ],
+    "overall": {
+      "questions": 101,
+      "ceiling": 0.9654,
+      "verbatim_lexical": 0.0717,
+      "keywords_lexical": 0.7922
+    },
+    "byType": [
+      {
+        "type": "easy",
+        "questions": 21,
+        "verbatim_lexical": 0.0397,
+        "keywords_lexical": 0.6944
+      },
+      {
+        "type": "hard",
+        "questions": 57,
+        "verbatim_lexical": 0.0744,
+        "keywords_lexical": 0.8182
+      },
+      {
+        "type": "medium",
+        "questions": 23,
+        "verbatim_lexical": 0.0942,
+        "keywords_lexical": 0.8173
+      }
+    ],
+    "semantic": "not configured"
+  }
+}

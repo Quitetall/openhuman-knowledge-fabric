@@ -268,20 +268,28 @@ test(
               institutional: { ready: false, checks: institutionalChecks },
             });
           }
-          if (url.pathname === '/api/session/assignments' && request.method === 'GET') {
-            // The picker asks before any role is chosen: bearer and organization only.
+          if (url.pathname === '/api/session/contexts' && request.method === 'GET') {
+            // The picker asks before any context is chosen, with the bearer token alone: no
+            // organization, no role, no person. Whose holdings these are is the token's to say.
             assert.equal(request.headers['x-kf-acting-role'], undefined);
-            if (
-              request.headers.authorization !== 'Bearer fixture-access-token' ||
-              request.headers['x-kf-organization'] !== ORGANIZATION_ID
-            ) {
+            assert.equal(request.headers['x-kf-organization'], undefined);
+            assert.equal(request.headers['x-kf-actor'], undefined);
+            if (request.headers.authorization !== 'Bearer fixture-access-token') {
               return json(response, 401, { error: 'unidentified', message: 'bearer refused' });
             }
             return json(response, 200, {
-              organizationId: ORGANIZATION_ID,
               personId: '01900000-0000-7000-8000-000000000003',
-              clearance: 'internal',
-              assignments: [{ assignmentId: ROLE_ID, roleId: 'work_order_manager', validTo: null }],
+              organizations: [
+                {
+                  organizationId: ORGANIZATION_ID,
+                  legalName: 'OpenHuman Fixture Organization',
+                  clearance: 'internal',
+                  assignments: [
+                    { assignmentId: ROLE_ID, roleId: 'work_order_manager', validTo: null },
+                  ],
+                  refused: null,
+                },
+              ],
             });
           }
           if (
@@ -300,10 +308,20 @@ test(
             assert.equal(request.method, 'GET');
             assert.equal(url.searchParams.get('q'), 'constitution');
             assert.equal(url.searchParams.get('limit'), '50');
+            const LEXICAL = 'kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2';
             const lexical = (hits) => ({
               hits,
+              ranked: {
+                ranking: `kf.fused.rrf.v1(k=60; ${LEXICAL})`,
+                hits: hits.map((hit, index) => ({
+                  ...hit,
+                  rank: index + 1,
+                  score: 1 / (61 + index),
+                  lexical: { rank: index + 1, matchedBy: hit.matchedBy },
+                })),
+              },
               lexical: {
-                ranking: 'kf.lexical.full_text+partial_identifier.v1',
+                ranking: LEXICAL,
                 exhaustive: true,
                 total: hits.length,
                 complete: true,
@@ -926,6 +944,10 @@ test(
       // and offers no ceiling above their clearance.
       const onlyRole = page.getByRole('radio', { name: /Work order manager/ });
       assert.equal(await onlyRole.isChecked(), true);
+      // Grouped under the organization's legal name, so nobody has to recognise an id.
+      await assert.doesNotReject(() =>
+        page.getByRole('heading', { name: 'OpenHuman Fixture Organization' }).waitFor(),
+      );
       const ceiling = page.getByLabel('Maximum classification', { exact: true });
       assert.equal(await ceiling.inputValue(), 'internal');
       assert.deepEqual(
@@ -1178,7 +1200,7 @@ test(
       await assert.doesNotReject(() =>
         page.getByRole('link', { name: 'OpenHuman Document Constitution' }).waitFor(),
       );
-      await assert.doesNotReject(() => page.getByText('All 1 exact match.').waitFor());
+      await assert.doesNotReject(() => page.getByText('Word match #1').waitFor());
 
       await page.getByRole('link', { name: 'ML runs' }).click();
       await page.getByLabel('Run authority').fill(RUN_AUTHORITY_ID);
@@ -1254,7 +1276,7 @@ test(
 
       await page.goto(`${webOrigin}/search?q=constitution`);
       await assert.doesNotReject(() =>
-        page.getByText('No exact matches in your current access context.').waitFor(),
+        page.getByText('Nothing found in your current access context.').waitFor(),
       );
 
       await page.goto(`${webOrigin}/documents`);

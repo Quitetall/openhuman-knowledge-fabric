@@ -7,56 +7,61 @@ question asked through `GET /search` as its asker). Do not edit by hand; re-run 
 - ceiling on mean recall@10 (min(10, |truth|)/|truth|): 0.5911
 - semantic ranking: present
 
-| mean recall@10 | verbatim question | keyword query (`or`) |
-| --- | --- | --- |
-| lexical | 0.0168 | 0.1793 |
-| semantic alone | 0.1866 | 0.202 |
-| composed (lexical list, then semantic list, as served and shown) | 0.1767 | 0.1793 |
+| mean recall@10 | verbatim question | keyword query (`or`) | before (2026-09-25): verbatim | before: keywords |
+| --- | --- | --- | --- | --- |
+| lexical | 0.0736 | 0.0918 | 0.0168 | 0.1793 |
+| semantic alone | 0.1866 | 0.202 | 0.1866 | 0.202 |
+| fused (the one list served and shown first) | 0.1603 | 0.1855 | — | — |
+| before: composed (lexical list, then semantic list) | — | — | 0.1767 | 0.1793 |
 
-**Reading the composed row.** KF serves the two rankings as two lists, not one merged order (`packages/search/src/compose.ts`: the lexical list is exhaustive, the semantic one is not, and a merged order would hide which is which), and the web application shows the lexical list first. So the composed top 10 is the lexical hits, then the semantic hits after them. The lexical list alone filled all 10 slots for 5 of 40 questions as written and 40 of 40 as `or`'d words; for those the semantic list contributes nothing to the first ten, and elsewhere the few lexical hits still take slots ahead of it. Where the lexical hits are worse than the semantic ones, the composed ranking is worse than semantic alone. Nothing here is tuned on these answers.
+Fused ranking: `kf.fused.rrf.v1(k=60; kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2; lamu.kf.masked-cosine.v1)`.
+
+**What changed since 2026-09-25.** Lexical search no longer needs every word: a record matches when it holds at least half of the query’s information (IDF-weighted), each record is indexed in its own detected language(s), and the answer leads with one list fused from the lexical page and the semantic list by reciprocal rank fusion (k = 60). The before columns are that run’s: every word required, English stemming for every language, and two lists shown lexical first. Nothing here is tuned on these answers: the floor, the IDF, the language rule and the fusion constant are stated defaults.
+
+**Reading the lexical and fused rows.** As written, 6 of 40 questions match no record by their words, and 14 match three or fewer: the questions name people, products and figures in words the documents (mostly French) do not hold, and a word no record holds carries the most weight, so few records hold half of a question. Where the word matches that remain rank records the semantic list does not, reciprocal rank fusion places them among its first ten, and the fused list can fall below the semantic list alone.
 
 First run (2026-09-24, lexical only, no retrieval engine): verbatim 0.0168,
 keywords 0.1793, ceiling 0.5911.
 
-| question | asker | truth (source) | readable by asker | verbatim lexical | keywords lexical | verbatim semantic | keywords semantic | verbatim composed | keywords composed | withheld (keywords) |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| CEO-01 | Hélène Daubrac | 14 (answer key) | 14 | 0 | 0.1429 | 0.4286 | 0.4286 | 0.4286 | 0.1429 | 0 |
-| CEO-02 | Hélène Daubrac | 9 (answer key) | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| FIN-01 | Antoine Morel | 20 (index labels) | 20 | 0.1 | 0.1 | 0.3 | 0.1 | 0.1 | 0.1 | 0 |
-| FIN-02 | Antoine Morel | 18 (index labels) | 18 | 0 | 0.1111 | 0.2222 | 0.0556 | 0.2222 | 0.1111 | 0 |
-| FIN-03 | Antoine Morel | 24 (index labels) | 24 | 0 | 0.2917 | 0.25 | 0.25 | 0.25 | 0.2917 | 0 |
-| CTO-01 | Farida Benziane | 5 (index labels) | 5 | 0 | 0.6 | 0 | 0.6 | 0 | 0.6 | 174 |
-| CTO-02 | Farida Benziane | 16 (index labels) | 16 | 0 | 0 | 0 | 0 | 0 | 0 | 46 |
-| LEGAL-01 | Jean-Philippe Garnier | 19 (answer key) | 19 | 0 | 0.2105 | 0.0526 | 0.1053 | 0.0526 | 0.2105 | 0 |
-| LEGAL-02 | Jean-Philippe Garnier | 15 (index labels) | 15 | 0 | 0.0667 | 0.2667 | 0 | 0.2667 | 0.0667 | 0 |
-| LEGAL-03 | Jean-Philippe Garnier | 11 (index labels) | 11 | 0 | 0.2727 | 0.1818 | 0.2727 | 0.1818 | 0.2727 | 0 |
-| CISO-01 | Marc Lefèvre | 15 (index labels) | 15 | 0 | 0.2 | 0.3333 | 0.2667 | 0.3333 | 0.2 | 122 |
-| CISO-02 | Marc Lefèvre | 16 (index labels) | 16 | 0 | 0.3125 | 0.125 | 0.125 | 0.125 | 0.3125 | 122 |
-| HR-01 | Nathalie Verdier | 28 (index labels) | 28 | 0 | 0.2143 | 0.1071 | 0.0357 | 0.1071 | 0.2143 | 0 |
-| HR-02 | Nathalie Verdier | 20 (index labels) | 20 | 0 | 0.1 | 0.1 | 0.1 | 0 | 0.1 | 0 |
-| PROC-01 | Isabelle Roche | 9 (index labels) | 9 | 0 | 0 | 0.3333 | 0.4444 | 0.3333 | 0 | 0 |
-| PROC-02 | Isabelle Roche | 18 (index labels) | 18 | 0 | 0.0556 | 0.0556 | 0.0556 | 0.0556 | 0.0556 | 0 |
-| QUAL-01 | Karim Hadj-Ali | 20 (index labels) | 20 | 0.05 | 0.15 | 0.1 | 0.25 | 0.15 | 0.15 | 0 |
-| QUAL-02 | Karim Hadj-Ali | 20 (index labels) | 20 | 0.05 | 0.05 | 0.1 | 0.05 | 0.05 | 0.05 | 0 |
-| SALES-01 | Thierry Blanchard | 7 (index labels) | 7 | 0 | 0.5714 | 0.4286 | 0.7143 | 0.4286 | 0.5714 | 173 |
-| OPS-01 | Laurent Pasquier | 13 (index labels) | 13 | 0 | 0.1538 | 0 | 0 | 0 | 0.1538 | 0 |
-| FIN-04 | Antoine Morel | 17 (index labels) | 17 | 0 | 0.2941 | 0.1176 | 0.4118 | 0.1176 | 0.2941 | 0 |
-| CTO-03 | Farida Benziane | 17 (index labels) | 17 | 0 | 0.1176 | 0.1176 | 0.1765 | 0.1176 | 0.1176 | 207 |
-| LEGAL-04 | Jean-Philippe Garnier | 15 (index labels) | 15 | 0 | 0.1333 | 0.0667 | 0.1333 | 0.0667 | 0.1333 | 0 |
-| CISO-03 | Marc Lefèvre | 18 (index labels) | 18 | 0 | 0.1111 | 0.1667 | 0.0556 | 0.1667 | 0.1111 | 116 |
-| AERO-01 | Sophie Pélissier | 23 (index labels) | 23 | 0.0435 | 0.1739 | 0.1739 | 0.2609 | 0.1739 | 0.1739 | 580 |
-| AERO-02 | Audrey Lescure | 21 (index labels) | 21 | 0.1429 | 0.1429 | 0.1905 | 0.1429 | 0.1429 | 0.1429 | 458 |
-| DEF-01 | Franck Dubois | 20 (index labels) | 20 | 0 | 0 | 0.25 | 0.2 | 0.25 | 0 | 823 |
-| DEF-02 | Virginie Marchand | 20 (index labels) | 20 | 0 | 0.1 | 0.2 | 0.15 | 0.2 | 0.1 | 25 |
-| ENRG-01 | Benoît Charrier | 24 (index labels) | 24 | 0.0417 | 0.3333 | 0.3333 | 0.375 | 0.3333 | 0.3333 | 489 |
-| ENRG-02 | Gilles Perrin | 19 (index labels) | 19 | 0 | 0.1053 | 0.1579 | 0.1053 | 0.1579 | 0.1053 | 425 |
-| GMBH-01 | Petra Zimmermann | 20 (index labels) | 20 | 0 | 0.15 | 0.2 | 0.1 | 0.2 | 0.15 | 590 |
-| GMBH-02 | Claudia Engel | 20 (index labels) | 20 | 0 | 0.2 | 0.3 | 0.35 | 0.3 | 0.2 | 51 |
-| UK-01 | Sarah Mitchell | 23 (index labels) | 23 | 0.0435 | 0.2609 | 0.3478 | 0.3043 | 0.3478 | 0.2609 | 608 |
-| UK-02 | David Owens | 19 (index labels) | 19 | 0 | 0.1579 | 0.2105 | 0.3158 | 0.2105 | 0.1579 | 232 |
-| US-01 | Diane Foster | 20 (index labels) | 20 | 0 | 0.3 | 0.2 | 0.2 | 0.2 | 0.3 | 781 |
-| US-02 | Samuel Okafor | 20 (index labels) | 20 | 0 | 0.35 | 0.4 | 0.35 | 0.4 | 0.35 | 110 |
-| MAROC-01 | Amina El Fassi | 17 (index labels) | 17 | 0 | 0.2941 | 0.3529 | 0.3529 | 0.3529 | 0.2941 | 448 |
-| MAROC-02 | Rachid Benali | 20 (index labels) | 20 | 0.2 | 0.2 | 0.25 | 0.15 | 0.2 | 0.2 | 683 |
-| COMP-01 | Jean-Philippe Garnier | 20 (index labels) | 20 | 0 | 0.1 | 0 | 0 | 0 | 0.1 | 0 |
-| COMP-02 | Jean-Philippe Garnier | 22 (index labels) | 22 | 0 | 0.0455 | 0.0455 | 0.0909 | 0.0455 | 0.0455 | 0 |
+| question | asker | truth (source) | readable by asker | verbatim lexical | keywords lexical | verbatim semantic | keywords semantic | verbatim fused | keywords fused | matches (verbatim) | withheld (keywords) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| CEO-01 | Hélène Daubrac | 14 (answer key) | 14 | 0 | 0 | 0.4286 | 0.4286 | 0.4286 | 0.4286 | 0 | 0 |
+| CEO-02 | Hélène Daubrac | 9 (answer key) | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| FIN-01 | Antoine Morel | 20 (index labels) | 20 | 0.05 | 0.05 | 0.3 | 0.1 | 0.15 | 0.1 | 470 | 0 |
+| FIN-02 | Antoine Morel | 18 (index labels) | 18 | 0 | 0 | 0.2222 | 0.0556 | 0.2222 | 0.0556 | 0 | 0 |
+| FIN-03 | Antoine Morel | 24 (index labels) | 24 | 0 | 0.0417 | 0.25 | 0.25 | 0.125 | 0.0417 | 8 | 0 |
+| CTO-01 | Farida Benziane | 5 (index labels) | 5 | 0 | 0 | 0 | 0.6 | 0 | 0.6 | 1 | 0 |
+| CTO-02 | Farida Benziane | 16 (index labels) | 16 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| LEGAL-01 | Jean-Philippe Garnier | 19 (answer key) | 19 | 0.2105 | 0.2105 | 0.0526 | 0.1053 | 0.1053 | 0.1053 | 36 | 0 |
+| LEGAL-02 | Jean-Philippe Garnier | 15 (index labels) | 15 | 0 | 0.0667 | 0.2667 | 0 | 0 | 0.0667 | 17 | 0 |
+| LEGAL-03 | Jean-Philippe Garnier | 11 (index labels) | 11 | 0 | 0 | 0.1818 | 0.2727 | 0.1818 | 0.2727 | 0 | 0 |
+| CISO-01 | Marc Lefèvre | 15 (index labels) | 15 | 0 | 0 | 0.3333 | 0.2667 | 0.2667 | 0.2667 | 1 | 0 |
+| CISO-02 | Marc Lefèvre | 16 (index labels) | 16 | 0 | 0.25 | 0.125 | 0.125 | 0.25 | 0.1875 | 267 | 42 |
+| HR-01 | Nathalie Verdier | 28 (index labels) | 28 | 0.3214 | 0.3214 | 0.1071 | 0.0357 | 0.2857 | 0.3214 | 95 | 0 |
+| HR-02 | Nathalie Verdier | 20 (index labels) | 20 | 0.05 | 0.05 | 0.1 | 0.1 | 0.05 | 0.1 | 302 | 0 |
+| PROC-01 | Isabelle Roche | 9 (index labels) | 9 | 0 | 0 | 0.3333 | 0.4444 | 0 | 0 | 35 | 0 |
+| PROC-02 | Isabelle Roche | 18 (index labels) | 18 | 0 | 0 | 0.0556 | 0.0556 | 0.0556 | 0.0556 | 1 | 0 |
+| QUAL-01 | Karim Hadj-Ali | 20 (index labels) | 20 | 0.3 | 0.4 | 0.1 | 0.25 | 0.05 | 0.2 | 60 | 0 |
+| QUAL-02 | Karim Hadj-Ali | 20 (index labels) | 20 | 0 | 0.05 | 0.1 | 0.05 | 0.1 | 0.1 | 173 | 0 |
+| SALES-01 | Thierry Blanchard | 7 (index labels) | 7 | 0.1429 | 0.1429 | 0.4286 | 0.7143 | 0.4286 | 0.5714 | 5 | 6 |
+| OPS-01 | Laurent Pasquier | 13 (index labels) | 13 | 0.1538 | 0.1538 | 0 | 0 | 0.0769 | 0.0769 | 22 | 0 |
+| FIN-04 | Antoine Morel | 17 (index labels) | 17 | 0 | 0.2353 | 0.1176 | 0.4118 | 0 | 0.0588 | 87 | 0 |
+| CTO-03 | Farida Benziane | 17 (index labels) | 17 | 0.1176 | 0.0588 | 0.1176 | 0.1765 | 0.1176 | 0.1765 | 3 | 0 |
+| LEGAL-04 | Jean-Philippe Garnier | 15 (index labels) | 15 | 0.1333 | 0.1333 | 0.0667 | 0.1333 | 0.0667 | 0.0667 | 19 | 0 |
+| CISO-03 | Marc Lefèvre | 18 (index labels) | 18 | 0.0556 | 0.0556 | 0.1667 | 0.0556 | 0.1667 | 0.0556 | 1 | 0 |
+| AERO-01 | Sophie Pélissier | 23 (index labels) | 23 | 0.0435 | 0.087 | 0.1739 | 0.2609 | 0.1739 | 0.2609 | 1 | 0 |
+| AERO-02 | Audrey Lescure | 21 (index labels) | 21 | 0.1429 | 0.1429 | 0.1905 | 0.1429 | 0.1429 | 0.1429 | 9 | 8 |
+| DEF-01 | Franck Dubois | 20 (index labels) | 20 | 0 | 0 | 0.25 | 0.2 | 0.25 | 0.15 | 3 | 0 |
+| DEF-02 | Virginie Marchand | 20 (index labels) | 20 | 0.05 | 0.05 | 0.2 | 0.15 | 0.2 | 0.2 | 2 | 1 |
+| ENRG-01 | Benoît Charrier | 24 (index labels) | 24 | 0.1667 | 0.1667 | 0.3333 | 0.375 | 0.3333 | 0.375 | 7 | 3 |
+| ENRG-02 | Gilles Perrin | 19 (index labels) | 19 | 0.1053 | 0.1053 | 0.1579 | 0.1053 | 0.1579 | 0.1579 | 3 | 0 |
+| GMBH-01 | Petra Zimmermann | 20 (index labels) | 20 | 0.05 | 0.05 | 0.2 | 0.1 | 0.2 | 0.1 | 1 | 0 |
+| GMBH-02 | Claudia Engel | 20 (index labels) | 20 | 0 | 0 | 0.3 | 0.35 | 0.2 | 0.35 | 3 | 1 |
+| UK-01 | Sarah Mitchell | 23 (index labels) | 23 | 0.2174 | 0.2174 | 0.3478 | 0.3043 | 0.2174 | 0.2174 | 10 | 28 |
+| UK-02 | David Owens | 19 (index labels) | 19 | 0.1053 | 0.1053 | 0.2105 | 0.3158 | 0.2105 | 0.3158 | 2 | 0 |
+| US-01 | Diane Foster | 20 (index labels) | 20 | 0.05 | 0.05 | 0.2 | 0.2 | 0.2 | 0.25 | 2 | 7 |
+| US-02 | Samuel Okafor | 20 (index labels) | 20 | 0.05 | 0.05 | 0.4 | 0.35 | 0.4 | 0.35 | 1 | 0 |
+| MAROC-01 | Amina El Fassi | 17 (index labels) | 17 | 0.1765 | 0.1765 | 0.3529 | 0.3529 | 0.3529 | 0.3529 | 8 | 1 |
+| MAROC-02 | Rachid Benali | 20 (index labels) | 20 | 0.2 | 0.2 | 0.25 | 0.15 | 0.2 | 0.2 | 45 | 332 |
+| COMP-01 | Jean-Philippe Garnier | 20 (index labels) | 20 | 0.05 | 0.05 | 0 | 0 | 0 | 0 | 446 | 0 |
+| COMP-02 | Jean-Philippe Garnier | 22 (index labels) | 22 | 0 | 0 | 0.0455 | 0.0909 | 0.0455 | 0.0909 | 0 | 0 |

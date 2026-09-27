@@ -14,10 +14,11 @@
 #   Keycloak http://localhost:18180         PostgreSQL 127.0.0.1:15532   MinIO 127.0.0.1:19100
 #   state    ~/.local/state/kf-multi        (0700; credentials 0600, never printed)
 #
-# The web application's context picker lists assignments in ONE organization
-# (KF_WEB_ORGANIZATION); here that is Redwood Inference. A person of another organization signs
-# in the same way and chooses their context with the typed form beneath the picker (organization,
-# role assignment, ceiling), which the API validates exactly as it validates a picked one.
+# The web application's context picker lists every live assignment the signed-in person holds, in
+# every organization they hold one in, under its legal name; a person of any organization picks
+# their context from it. KF_WEB_ORGANIZATION (here Redwood Inference) only puts that organization
+# first. The typed form beneath the picker (organization, role assignment, ceiling) stays as a
+# fallback, which the API validates exactly as it validates a picked one.
 
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

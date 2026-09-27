@@ -39,6 +39,8 @@ import { PandocDocumentParser, createDocumentActionAtoms } from '@kf/documents';
 import { createFabricDispatcher } from '@kf/orchestrator';
 import { createAttestorServer } from '../../apps/attestor/src/server.js';
 import { createCallerIdentifier, registerActionRoutes } from '../../apps/api/src/routes/actions.js';
+import { createHoldingsLister } from '../../apps/api/src/routes/actions/auth.js';
+import { registerSessionRoutes } from '../../apps/api/src/routes/session.js';
 import { registerSearchRoutes } from '../../apps/api/src/routes/search.js';
 import { registerVerificationRoutes } from '../../apps/api/src/routes/verifications.js';
 import {
@@ -492,6 +494,121 @@ describe('a refusal before anybody is bound is recorded, attributably and naming
         );
       }),
     ).rejects.toThrow(/permission denied/u);
+  });
+});
+
+describe('holdings: every assignment the token’s own person holds (20260926120000)', () => {
+  const holdingsAnswer = (body: string) =>
+    new Promise<number>((resolve, reject) => {
+      const req = httpRequest(
+        {
+          socketPath,
+          path: '/holdings',
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+        },
+        (res) => {
+          res.resume();
+          resolve(res.statusCode ?? 0);
+        },
+      );
+      req.on('error', reject);
+      req.end(body);
+    });
+
+  it('lists the person’s organizations with their legal names, and attests nothing', async () => {
+    const before = await attestationCount();
+    const holdings = await attestor.holdings(await token());
+    const { legal_name: legalName } = await withTransaction(h.adminPool, (tx) =>
+      tx.one<{ legal_name: string }>('select legal_name from org.organization where id = $1', [
+        f.organizationId,
+      ]),
+    );
+    expect(holdings).toEqual({
+      personId: f.reviewerId,
+      organizations: [
+        {
+          organizationId: f.organizationId,
+          legalName,
+          assignments: [
+            {
+              assignmentId: f.reviewerRoleId,
+              roleId: 'technical_authority',
+              scopeId: f.organizationId,
+            },
+          ],
+        },
+      ],
+    });
+    expect(await attestationCount()).toBe(before);
+  });
+
+  it('refuses a bad token as identify does, and an unlinked subject', async () => {
+    for (const bad of [
+      await token({ issuer: 'https://evil.invalid/' }),
+      await token({ audience: 'some-other-service' }),
+      await token({ expiresIn: '-1h' }),
+      await token({ alg: 'RS512' }),
+    ]) {
+      const err = await attestor.holdings(bad).catch((e: unknown) => e);
+      expect((err as IdentityRejected).failure).toBe('invalid_token');
+    }
+    const stranger = await attestor
+      .holdings(await token({ subject: 'auth0|stranger' }))
+      .catch((e: unknown) => e);
+    expect((stranger as IdentityRejected).failure).toBe('unknown_subject');
+    const empty = await attestor.holdings('  ').catch((e: unknown) => e);
+    expect((empty as IdentityRejected).failure).toBe('no_token');
+  });
+
+  it('takes a token and nothing else: a request naming a person or organization is refused', async () => {
+    const bearer = await token();
+    expect(await holdingsAnswer(JSON.stringify({ token: bearer }))).toBe(200);
+    expect(await holdingsAnswer(JSON.stringify({ token: bearer, personId: f.performerId }))).toBe(
+      400,
+    );
+    expect(
+      await holdingsAnswer(JSON.stringify({ token: bearer, organizationId: f.organizationId })),
+    ).toBe(400);
+    expect(await holdingsAnswer('{"token": 7}')).toBe(400);
+  });
+
+  it('serves GET /session/contexts to the application login, bound only through attestations', async () => {
+    const api = Fastify({ logger: false });
+    registerSessionRoutes(api, {
+      pool: bareApp,
+      identify: createCallerIdentifier(bareApp, attestor, { trustHeaders: false }),
+      holdings: createHoldingsLister(bareApp, attestor, { trustHeaders: false }),
+    });
+    await api.ready();
+    try {
+      const r = await api.inject({
+        method: 'GET',
+        url: '/session/contexts',
+        headers: { authorization: `Bearer ${await token()}` },
+      });
+      expect(r.statusCode, r.body).toBe(200);
+      expect(r.json()).toMatchObject({
+        personId: f.reviewerId,
+        organizations: [
+          {
+            organizationId: f.organizationId,
+            clearance: 'restricted',
+            assignments: [{ assignmentId: f.reviewerRoleId, roleId: 'technical_authority' }],
+            refused: null,
+          },
+        ],
+      });
+      const stranger = await api.inject({
+        method: 'GET',
+        url: '/session/contexts',
+        headers: { authorization: `Bearer ${await token({ subject: 'auth0|stranger' })}` },
+      });
+      expect(stranger.statusCode).toBe(401);
+      expect(stranger.json()).toMatchObject({ error: 'unknown_subject' });
+    } finally {
+      await api.close();
+    }
   });
 });
 

@@ -1,0 +1,182 @@
+{
+  "date": "2026-09-25",
+  "commit": "3b7a2258",
+  "summary": {
+    "k": 10,
+    "lists": [
+      "lexical"
+    ],
+    "overall": {
+      "questions": 500,
+      "ceiling": 1,
+      "verbatim_lexical": 0.0717,
+      "keywords_lexical": 0.7046
+    },
+    "byType": [
+      {
+        "type": "basic",
+        "questions": 175,
+        "verbatim_lexical": 0.0629,
+        "keywords_lexical": 0.8114
+      },
+      {
+        "type": "completeness",
+        "questions": 20,
+        "verbatim_lexical": 0.0894,
+        "keywords_lexical": 0.3911
+      },
+      {
+        "type": "conflicting_info",
+        "questions": 20,
+        "verbatim_lexical": 0.475,
+        "keywords_lexical": 0.95
+      },
+      {
+        "type": "constrained",
+        "questions": 30,
+        "verbatim_lexical": 0.05,
+        "keywords_lexical": 0.85
+      },
+      {
+        "type": "high_level",
+        "questions": 10,
+        "verbatim_lexical": null,
+        "keywords_lexical": null
+      },
+      {
+        "type": "info_not_found",
+        "questions": 20,
+        "verbatim_lexical": null,
+        "keywords_lexical": null
+      },
+      {
+        "type": "intra_document_reasoning",
+        "questions": 40,
+        "verbatim_lexical": 0.1,
+        "keywords_lexical": 0.95
+      },
+      {
+        "type": "miscellaneous",
+        "questions": 20,
+        "verbatim_lexical": 0.05,
+        "keywords_lexical": 0.7
+      },
+      {
+        "type": "project_related",
+        "questions": 40,
+        "verbatim_lexical": 0.1231,
+        "keywords_lexical": 0.871
+      },
+      {
+        "type": "semantic",
+        "questions": 125,
+        "verbatim_lexical": 0,
+        "keywords_lexical": 0.4
+      }
+    ],
+    "semantic": "not configured",
+    "documents": 50001
+  },
+  "info_not_found": [
+    {
+      "id": "qst_0481",
+      "verbatim_lexical_total": 0,
+      "keywords_lexical_total": 44131
+    },
+    {
+      "id": "qst_0482",
+      "verbatim_lexical_total": 0,
+      "keywords_lexical_total": 46562
+    },
+    {
+      "id": "qst_0483",
+      "verbatim_lexical_total": 0,
+      "keywords_lexical_total": 42076
+    },
+    {
+      "id": "qst_0484",
+      "verbatim_lexical_total": 0,
+      "keywords_lexical_total": 47698
+    },
+    {
+      "id": "qst_0485",
+      "verbatim_lexical_total": 296,
+      "keywords_lexical_total": 48103
+    },
+    {
+      "id": "qst_0486",
+      "verbatim_lexical_total": 0,
+      "keywords_lexical_total": 46384
+    },
+    {
+      "id": "qst_0487",
+      "verbatim_lexical_total": 0,
+      "keywords_lexical_total": 48368
+    },
+    {
+      "id": "qst_0488",
+      "verbatim_lexical_total": 0,
+      "keywords_lexical_total": 48982
+    },
+    {
+      "id": "qst_0489",
+      "verbatim_lexical_total": 0,
+      "keywords_lexical_total": 48184
+    },
+    {
+      "id": "qst_0490",
+      "verbatim_lexical_total": 0,
+      "keywords_lexical_total": 45602
+    },
+    {
+      "id": "qst_0491",
+      "verbatim_lexical_total": 0,
+      "keywords_lexical_total": 48377
+    },
+    {
+      "id": "qst_0492",
+      "verbatim_lexical_total": 0,
+      "keywords_lexical_total": 44415
+    },
+    {
+      "id": "qst_0493",
+      "verbatim_lexical_total": 0,
+      "keywords_lexical_total": 48462
+    },
+    {
+      "id": "qst_0494",
+      "verbatim_lexical_total": 0,
+      "keywords_lexical_total": 46221
+    },
+    {
+      "id": "qst_0495",
+      "verbatim_lexical_total": 0,
+      "keywords_lexical_total": 43633
+    },
+    {
+      "id": "qst_0496",
+      "verbatim_lexical_total": 0,
+      "keywords_lexical_total": 49869
+    },
+    {
+      "id": "qst_0497",
+      "verbatim_lexical_total": 0,
+      "keywords_lexical_total": 46064
+    },
+    {
+      "id": "qst_0498",
+      "verbatim_lexical_total": 0,
+      "keywords_lexical_total": 47109
+    },
+    {
+      "id": "qst_0499",
+      "verbatim_lexical_total": 0,
+      "keywords_lexical_total": 49513
+    },
+    {
+      "id": "qst_0500",
+      "verbatim_lexical_total": 0,
+      "keywords_lexical_total": 46730
+    }
+  ]
+}

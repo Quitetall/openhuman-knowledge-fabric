@@ -1,10 +1,13 @@
 /**
  * kf-attestor's socket server.
  *
- * Two routes. `POST /attest` takes a bearer token and the (organization, acting assignment,
+ * Three routes. `POST /attest` takes a bearer token and the (organization, acting assignment,
  * ceiling) the caller asked for, runs `resolveCaller` — the one token verifier this codebase has
- * — and answers the attested caller, or 401 with the identity failure. `GET /health` answers
- * whether the process is up, for the API's readiness.
+ * — and answers the attested caller, or 401 with the identity failure. `POST /holdings` takes a
+ * bearer token and nothing else, runs `resolveHoldings` over the same verifier, and answers every
+ * live assignment the token's own person holds, by organization, or 401 with the same failures
+ * (20260926120000); it attests nothing. `GET /health` answers whether the process is up, for the
+ * API's readiness.
  *
  * It never logs a token or an attestation, and never answers with more than the API's own
  * identify path did before it moved here: the same failure codes, the same collapsed
@@ -13,12 +16,15 @@
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import {
+  ATTESTOR_HOLDINGS_PATH,
   ATTESTOR_MAX_BODY_BYTES,
   ATTESTOR_PATH,
   IdentityRejected,
   encodeAttestedCaller,
+  encodeHoldings,
   encodeRefusal,
   parseAttestorRequest,
+  parseHoldingsRequest,
   type Attestor,
 } from '@kf/authorization';
 
@@ -73,7 +79,7 @@ export function createAttestorServer(attestor: Attestor, log: AttestorLog = sile
       answer(response, 200, { status: 'ok' });
       return;
     }
-    if (request.method !== 'POST' || path !== ATTESTOR_PATH) {
+    if (request.method !== 'POST' || (path !== ATTESTOR_PATH && path !== ATTESTOR_HOLDINGS_PATH)) {
       answer(response, 404, { failure: 'not_found' });
       return;
     }
@@ -92,6 +98,30 @@ export function createAttestorServer(attestor: Attestor, log: AttestorLog = sile
       parsed = JSON.parse(raw);
     } catch {
       answer(response, 400, { failure: 'bad_request' });
+      return;
+    }
+    if (path === ATTESTOR_HOLDINGS_PATH) {
+      const holdingsRequest = parseHoldingsRequest(parsed);
+      if (holdingsRequest === undefined) {
+        answer(response, 400, { failure: 'bad_request' });
+        return;
+      }
+      try {
+        const holdings = await attestor.holdings(holdingsRequest.token);
+        log('listed', {
+          person: holdings.personId,
+          organizations: holdings.organizations.length,
+        });
+        answer(response, 200, encodeHoldings(holdings));
+      } catch (err: unknown) {
+        if (err instanceof IdentityRejected) {
+          log('refused', { failure: err.failure, organization: null });
+          const refusal = encodeRefusal(err);
+          answer(response, refusal.status, refusal.body);
+          return;
+        }
+        throw err;
+      }
       return;
     }
     const callerRequest = parseAttestorRequest(parsed);

@@ -5,13 +5,24 @@ Search over canonical records, with access control applied before results are re
 Authority: none. Indexes are disposable and must be rebuildable from authoritative records
 (§2.10).
 
-## Composition, not merging (§64A, KF-SAS-RQ-224)
+## One fused list, and the two it was fused from (§64A, KF-SAS-RQ-224)
 
-`composeSearch` answers one query with two separately ranked lists and never one merged order:
+`composeSearch` answers one query with one list to read first and the two rankings it came from:
 
-- **lexical** — full text and partial identifier over `search.document`, ranking named
-  `kf.lexical.full_text+partial_identifier.v1`. Exhaustive within its scope: `total` is the number
-  of granted matches, and `complete` says whether the page holds all of them.
+- **ranked** — the lexical page and the re-checked semantic list fused by reciprocal rank fusion
+  with its published constant (k = 60; Cormack, Clarke and Büttcher, 2009), named
+  `kf.fused.rrf.v1(k=60; <lexical>; <semantic>)`. Every fused hit says where each ranking placed it
+  (`lexical.rank` and how it matched, `semantic.rank`). Fusion adds no record and uses nothing but
+  the two lists' places, so a semantic hit reaches it only after the re-check below. Without a
+  semantic list the fused list is the lexical page, and its name says so.
+- **lexical** — word matching over `search.document` (`search.lexical_matches`, 20260926100000),
+  ranking named `kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2`. A record
+  matches when it holds at least half of the query's information: the inverse document frequency
+  of the query terms it contains over that of all terms. Not every word is required; the records
+  holding every word, and then the phrase as typed, rank first. Each record is indexed in its own
+  detected language(s) and each query term is matched through every supported language's stem of
+  it. Exhaustive within its scope: `total` is the number of granted matches, and `complete` says
+  whether the page holds all of them.
 - **semantic** — the retrieval engine's ranking, under the name the engine gives it, present only
   when the engine answered. Every id is re-read through `search.document` and `core.object` under
   the caller's row security in one statement, then through the caller's grants. An id that fails
@@ -30,7 +41,8 @@ re-checked like every semantic hit. The withholding ledger does not count them.
 below the asker's ceiling that match the lexical query and that no grant reaches. It is computed on
 every request and stored nowhere. Records above the ceiling are invisible to the query under row
 security, so they are never counted, and nothing about a withheld record except the count is
-returned. A masked record is never scored by the engine, so the count is over lexical matches.
+returned. A masked record is never scored by the engine, so the count is over lexical matches, under
+the same floor that decides what the lexical list holds.
 
 ## Transient observations (§64B)
 

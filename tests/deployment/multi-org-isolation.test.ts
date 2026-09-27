@@ -12,7 +12,8 @@
  *              forbidden — and the same answer for B's id as for an id that exists nowhere
  *   act        a grant on B's artifact, an observation about it: not found, nothing recorded
  *   context    A's token with B's organization, with B's assignment: refused; B's assignments
- *              are never listed to A
+ *              are never listed to A, and A's menu of every organization (/session/contexts)
+ *              names A's own and nothing of B's
  *
  * Each probe is checked to be able to fail: every organization's probe words ARE found by its own
  * reader (a probe that finds nothing anywhere would prove nothing), and each foreign id is read
@@ -49,7 +50,7 @@ interface Org {
 }
 
 interface SearchBody {
-  lexical: { total: number; hits: { objectId: string }[] };
+  lexical: { total: number; complete: boolean; hits: { objectId: string }[] };
   semantic?: { hits: { objectId: string }[] };
   withheldCount: number;
 }
@@ -170,8 +171,19 @@ describe.skipIf(!live)(
               seen.filter((id) => b.objects.has(id)),
               `${pair}: ${b.org.id}'s objects`,
             ).toEqual([]);
-            expect(res.lexical.total, pair).toBe(0);
-            expect(res.withheldCount, `${pair}: withheld count`).toBe(0);
+            // The probe words occur nowhere in the other organizations' SAMPLES. A stack holding a
+            // full corpus can hold them in A's own records too, and since 20260926100000 a record
+            // holding enough of them matches: then everything found must be A's own, all of it on
+            // the page. With none of A's own found, nothing at all may be found or counted.
+            if (res.lexical.total === 0) {
+              expect(res.withheldCount, `${pair}: withheld count`).toBe(0);
+            } else {
+              expect(res.lexical.complete, `${pair}: every match on the page`).toBe(true);
+              expect(
+                res.lexical.hits.filter((h) => !a.objects.has(h.objectId)),
+                `${pair}: a match that is not ${a.org.id}'s own`,
+              ).toEqual([]);
+            }
           }
         }
         // A broad search, which does find this organization's own records, finds nobody else's.
@@ -291,6 +303,21 @@ describe.skipIf(!live)(
             expect(listed.status, `${a.org.id} → ${what}: assignments`).not.toBe(200);
           const text = JSON.stringify(listed.body);
           for (const p of Object.values(b.ids.people)) expect(text).not.toContain(p.assignmentId);
+          // Every organization's menu (20260926120000) is the token's own person's, whatever
+          // the request names: A's organization under its legal name, and nothing of B's.
+          const everywhere = await answer(session, 'GET', '/session/contexts');
+          expect(everywhere.status, `${a.org.id} → ${what}: contexts`).toBe(200);
+          const menu = everywhere.body as {
+            organizations: { organizationId: string; legalName: string }[];
+          };
+          expect(
+            menu.organizations.find((o) => o.organizationId === a.ids.organizationId)?.legalName,
+            `${a.org.id} → ${what}: its own organization is listed`,
+          ).toBe(a.org.legalName);
+          const all = JSON.stringify(everywhere.body);
+          expect(all).not.toContain(b.ids.organizationId);
+          expect(all).not.toContain(JSON.stringify(b.org.legalName).slice(1, -1));
+          for (const p of Object.values(b.ids.people)) expect(all).not.toContain(p.assignmentId);
         }
       }
     });

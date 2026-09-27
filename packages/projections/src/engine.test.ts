@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { recordVerification, UNVERIFIED_LABEL } from '@kf/domain';
 import type { ProjectionDefinition } from '@kf/ontology-compiler';
-import { bindParameters, project, ProjectionRefused } from './engine.js';
+import {
+  bindParameters,
+  isNeighbourhoodReading,
+  neighbourhoodScope,
+  project,
+  projectNeighbourhood,
+  ProjectionRefused,
+} from './engine.js';
 import { renderProjection } from './render.js';
 import type { ProjectionCorpus, ProjectionGraph, ProjectionMember } from './types.js';
 
@@ -358,6 +365,132 @@ describe('object-anchored readings', () => {
     });
     expect(after.sections[1]!.members.map((m) => m.objectId).sort()).toEqual([B, C, D]);
     expect(after.projectionDigest).not.toBe(before.projectionDigest);
+  });
+
+  describe('over the neighbourhood alone', () => {
+    // Only the edges touching the anchor: all a one-hop walk can cross.
+    const touching: ProjectionGraph = {
+      ...neighbourhoodGraph,
+      edges: neighbourhoodGraph.edges.filter((e) => e.sourceId === A || e.targetId === A),
+    };
+    const W = '019ff405-2eca-7e77-96cb-00990ac6f24f';
+    const withdrawnNeighbour = member(W, {
+      itemState: 'withdrawn',
+      withdrawnAt: '2026-09-01T00:00:00.000Z',
+      withdrawalReason: 'gone',
+    });
+    const whole: ProjectionCorpus = {
+      ...neighbourhoodCorpus,
+      members: [...neighbourhoodCorpus.members, withdrawnNeighbour, member('far-away')],
+    };
+    const wholeGraph: ProjectionGraph = {
+      ...neighbourhoodGraph,
+      edges: [...neighbourhoodGraph.edges, { sourceId: A, targetId: W, relationType: 'affects' }],
+    };
+    const scopedGraph: ProjectionGraph = {
+      ...touching,
+      edges: [...touching.edges, { sourceId: A, targetId: W, relationType: 'affects' }],
+    };
+
+    it('names the anchor and what touches it as its scope', () => {
+      expect(isNeighbourhoodReading(objectView)).toBe(true);
+      expect(isNeighbourhoodReading(definition)).toBe(false);
+      expect([...neighbourhoodScope(objectView, { object_id: A }, scopedGraph)].sort()).toEqual(
+        [A, B, C, W].sort(),
+      );
+    });
+
+    it('gives the Result the whole corpus gives, byte for byte, counting what it never loaded', () => {
+      const scope = neighbourhoodScope(objectView, { object_id: A }, scopedGraph);
+      const full = project({
+        definition: objectView,
+        parameters: { object_id: A },
+        corpus: whole,
+        graph: wholeGraph,
+      });
+      const scoped = projectNeighbourhood({
+        definition: objectView,
+        parameters: { object_id: A },
+        corpus: {
+          ...whole,
+          members: whole.members.filter((m) => scope.has(m.objectId)),
+          corpusMemberCount: whole.members.length,
+        },
+        graph: scopedGraph,
+      });
+      expect(JSON.stringify(scoped)).toBe(JSON.stringify(full));
+      expect(scoped.measurements.excludedByFilter).toBe(2);
+      expect(scoped.sections[2]!.members.map((m) => m.objectId)).toEqual([W]);
+    });
+
+    it('refuses a definition that could place a member outside the neighbourhood', () => {
+      const { filter: _filter, ...unscoped } = objectView;
+      expect(() =>
+        projectNeighbourhood({
+          definition: unscoped,
+          parameters: { object_id: A },
+          corpus: { ...neighbourhoodCorpus, corpusMemberCount: 4 },
+          graph: touching,
+        }),
+      ).toThrow(ProjectionRefused);
+    });
+
+    it('refuses a member outside the neighbourhood, and a corpus smaller than what it was given', () => {
+      expect(() =>
+        projectNeighbourhood({
+          definition: objectView,
+          parameters: { object_id: A },
+          corpus: { ...neighbourhoodCorpus, corpusMemberCount: 4 },
+          graph: touching,
+        }),
+      ).toThrow(/outside the neighbourhood/);
+      expect(() =>
+        projectNeighbourhood({
+          definition: objectView,
+          parameters: { object_id: A },
+          corpus: { ...neighbourhoodCorpus, members: [member(A)], corpusMemberCount: 0 },
+          graph: touching,
+        }),
+      ).toThrow(/told has 0/);
+    });
+
+    it('refuses an anchor outside the corpus exactly as the whole reading does', () => {
+      expect(() =>
+        projectNeighbourhood({
+          definition: objectView,
+          parameters: { object_id: '019ff405-2eca-7e77-96cb-00990ac6f24e' },
+          corpus: { ...neighbourhoodCorpus, members: [], corpusMemberCount: 4 },
+          graph: touching,
+        }),
+      ).toThrow(/not in this reader's corpus/);
+    });
+
+    it('applies the member budget to the members it evaluates', () => {
+      const tight = { ...objectView, budgets: { maxMembers: 2, maxRuntimeMs: 1000 } };
+      expect(() =>
+        projectNeighbourhood({
+          definition: tight,
+          parameters: { object_id: A },
+          corpus: {
+            ...neighbourhoodCorpus,
+            members: [member(A), member(B), member(C)],
+            corpusMemberCount: 50_000,
+          },
+          graph: touching,
+        }),
+      ).toThrow(/at most 2 members/);
+      const fits = projectNeighbourhood({
+        definition: tight,
+        parameters: { object_id: A },
+        corpus: {
+          ...neighbourhoodCorpus,
+          members: [member(A), member(B)],
+          corpusMemberCount: 50_000,
+        },
+        graph: { ...touching, edges: touching.edges.filter((e) => e.sourceId === B) },
+      });
+      expect(fits.measurements.corpusMemberCount).toBe(50_000);
+    });
   });
 });
 

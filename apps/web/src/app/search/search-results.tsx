@@ -1,19 +1,21 @@
 import Link from 'next/link';
 import { formatState } from '@kf/ui';
-import type { SearchHit, SearchResponse, SemanticSearchHit } from '../../lib/api';
+import type { RankedSearchHit, SearchHit, SearchResponse, SemanticSearchHit } from '../../lib/api';
 import { Badge } from '../components/badge';
 import { VerificationNote } from '../components/verification-note';
 import { recordHref } from './search-view';
 
 /**
- * The composed search answer, list by list (KF-SAS-RQ-224, RQ-216, RQ-217, ADR 0037).
+ * The composed search answer (KF-SAS-RQ-224, RQ-216, RQ-217, ADR 0037).
  *
- * Two rankings are shown apart, each under the name of the ranking that produced it, because the
- * lexical list is the complete answer within its scope and the semantic one cannot be: rendered
- * as one list, a merely similar record would look like a match. Near misses appear only when asked
- * for, labelled as what they are. What the caller could be granted but is not is one count, never
- * a title; when the engine could not rank, the page says so rather than showing one list as if it
- * were the whole answer.
+ * One list first: the word matches and the records related by meaning, fused, under the name of
+ * the fusion. Each result says which ranking placed it and where — "words #3 · meaning #1" — so a
+ * merely similar record never reads as a match on the words. The two source lists follow, folded,
+ * each under its own ranking's name: the word matches are the complete answer within the caller's
+ * scope, with their count, and the meaning list is the engine's own order. Near misses appear only
+ * when asked for, labelled as what they are. What the caller could be granted but is not is one
+ * count, never a title; when the engine could not rank, the page says so at the top rather than
+ * showing the word matches as if they were the whole answer.
  */
 
 /** ADR 0037's disclosure, in words: a count within the caller's ceiling, and nothing else. */
@@ -27,7 +29,19 @@ export function withheldCountSentence(count: number): string | undefined {
   );
 }
 
-type AnyHit = SearchHit | SemanticSearchHit;
+type AnyHit = SearchHit | SemanticSearchHit | RankedSearchHit;
+
+/** Where the two rankings placed a fused result, in words. */
+export function placesSentence(hit: RankedSearchHit): string {
+  const places: string[] = [];
+  if (hit.lexical !== undefined) {
+    places.push(
+      `${hit.lexical.matchedBy === 'full_text' ? 'Word match' : 'Partial-identifier match'} #${hit.lexical.rank}`,
+    );
+  }
+  if (hit.semantic !== undefined) places.push(`Related by meaning #${hit.semantic.rank}`);
+  return places.join(' · ');
+}
 
 function HitCard({ hit, detail }: { readonly hit: AnyHit; readonly detail: string }) {
   const href = recordHref(hit.objectType, hit.objectId);
@@ -79,7 +93,7 @@ export function SearchResults({
   readonly nearMissesRequested: boolean;
   readonly limit: number;
 }) {
-  const { lexical, semantic, nearMisses, withheld } = response;
+  const { ranked, lexical, semantic, nearMisses, withheld } = response;
   const withheldSentence = withheldCountSentence(response.withheldCount);
   const engineNotes = withheld.filter(
     (entry) => entry.reasonClass === 'semantic_ranking_unavailable',
@@ -96,82 +110,128 @@ export function SearchResults({
         </p>
       )}
 
-      <section
-        aria-labelledby="search-lexical-heading"
-        data-list="lexical"
-        data-total={lexical.total}
-      >
-        <h3 id="search-lexical-heading" style={{ fontSize: '1.05rem', margin: 0 }}>
-          Exact matches
+      <section aria-labelledby="search-ranked-heading" data-list="ranked">
+        <h3 id="search-ranked-heading" style={{ fontSize: '1.05rem', margin: 0 }}>
+          Results
         </h3>
-        <RankingName ranking={lexical.ranking} />
-        {lexical.hits.length === 0 ? (
+        <RankingName ranking={ranked.ranking} />
+        {engineNotes.map((note) => (
+          <p
+            key={note.reason}
+            role="status"
+            className="kf-status kf-status-warning"
+            data-withholding={note.reasonClass}
+          >
+            Semantic ranking unavailable: {note.reason}. These results are word matches only.
+          </p>
+        ))}
+        {ranked.hits.length === 0 ? (
           <p role="status" className="kf-status kf-status-neutral">
-            No exact matches in your current access context.
+            Nothing found in your current access context.
           </p>
         ) : (
           <div style={{ display: 'grid', gap: '0.75rem' }}>
-            <p role="status" aria-live="polite" style={{ color: '#475569', margin: 0 }}>
-              {lexical.complete
-                ? `All ${lexical.total} exact match${lexical.total === 1 ? '' : 'es'}.`
-                : `Showing ${lexical.hits.length} of ${lexical.total} exact matches (request limit ${limit}).`}
-            </p>
-            {lexical.hits.map((hit) => (
-              <HitCard
-                key={hit.objectId}
-                hit={hit}
-                detail={
-                  hit.matchedBy === 'full_text' ? 'Full-text match' : 'Partial-identifier match'
-                }
-              />
+            {ranked.hits.map((hit) => (
+              <HitCard key={hit.objectId} hit={hit} detail={placesSentence(hit)} />
             ))}
           </div>
         )}
       </section>
 
-      <section aria-labelledby="search-semantic-heading" data-list="semantic">
-        <h3 id="search-semantic-heading" style={{ fontSize: '1.05rem', margin: 0 }}>
-          Related by meaning
-        </h3>
-        {semantic === undefined ? (
-          engineNotes.length === 0 ? (
+      <details>
+        <summary style={{ cursor: 'pointer', color: '#334155' }}>
+          All word matches ({lexical.total})
+        </summary>
+        <section
+          aria-labelledby="search-lexical-heading"
+          data-list="lexical"
+          data-total={lexical.total}
+          style={{ marginTop: '0.75rem' }}
+        >
+          <h3 id="search-lexical-heading" style={{ fontSize: '1.05rem', margin: 0 }}>
+            Word matches
+          </h3>
+          <RankingName ranking={lexical.ranking} />
+          <p style={{ color: '#475569', margin: '0 0 0.6rem', fontSize: '0.85rem' }}>
+            Every record in your scope that holds at least half of what your words say, weighted so
+            that rare words count more; the ones holding every word, and the phrase as typed, come
+            first.
+          </p>
+          {lexical.hits.length === 0 ? (
             <p role="status" className="kf-status kf-status-neutral">
-              No semantic ranking for this query.
+              No word matches in your current access context.
             </p>
           ) : (
-            engineNotes.map((note) => (
-              <p
-                key={note.reason}
-                role="status"
-                className="kf-status kf-status-warning"
-                data-withholding={note.reasonClass}
-              >
-                Semantic ranking unavailable: {note.reason}. The exact matches above are still
-                complete.
+            <div style={{ display: 'grid', gap: '0.75rem' }}>
+              <p role="status" aria-live="polite" style={{ color: '#475569', margin: 0 }}>
+                {lexical.complete
+                  ? `All ${lexical.total} word match${lexical.total === 1 ? '' : 'es'}.`
+                  : `Showing ${lexical.hits.length} of ${lexical.total} word matches (request limit ${limit}).`}
               </p>
-            ))
-          )
-        ) : (
-          <>
-            <RankingName ranking={semantic.ranking} />
-            <p style={{ color: '#475569', margin: '0 0 0.6rem', fontSize: '0.85rem' }}>
-              Ranked by the retrieval engine and re-checked against your access. Not exhaustive: a
-              record missing here may still be an exact match above.
-            </p>
-            {semantic.hits.length === 0 ? (
+              {lexical.hits.map((hit) => (
+                <HitCard
+                  key={hit.objectId}
+                  hit={hit}
+                  detail={hit.matchedBy === 'full_text' ? 'Word match' : 'Partial-identifier match'}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      </details>
+
+      <details>
+        <summary style={{ cursor: 'pointer', color: '#334155' }}>
+          Related by meaning, in the engine&apos;s order
+          {semantic === undefined ? '' : ` (${semantic.hits.length})`}
+        </summary>
+        <section
+          aria-labelledby="search-semantic-heading"
+          data-list="semantic"
+          style={{ marginTop: '0.75rem' }}
+        >
+          <h3 id="search-semantic-heading" style={{ fontSize: '1.05rem', margin: 0 }}>
+            Related by meaning
+          </h3>
+          {semantic === undefined ? (
+            engineNotes.length === 0 ? (
               <p role="status" className="kf-status kf-status-neutral">
-                No related records.
+                No semantic ranking for this query.
               </p>
             ) : (
-              <div style={{ display: 'grid', gap: '0.75rem' }}>
-                {semantic.hits.map((hit) => (
-                  <HitCard key={hit.objectId} hit={hit} detail={`Rank ${hit.rank}`} />
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </section>
+              engineNotes.map((note) => (
+                <p
+                  key={note.reason}
+                  role="status"
+                  className="kf-status kf-status-warning"
+                  data-withholding={note.reasonClass}
+                >
+                  Semantic ranking unavailable: {note.reason}. The word matches are still complete.
+                </p>
+              ))
+            )
+          ) : (
+            <>
+              <RankingName ranking={semantic.ranking} />
+              <p style={{ color: '#475569', margin: '0 0 0.6rem', fontSize: '0.85rem' }}>
+                Ranked by the retrieval engine and re-checked against your access. Not exhaustive: a
+                record missing here may still be a word match.
+              </p>
+              {semantic.hits.length === 0 ? (
+                <p role="status" className="kf-status kf-status-neutral">
+                  No related records.
+                </p>
+              ) : (
+                <div style={{ display: 'grid', gap: '0.75rem' }}>
+                  {semantic.hits.map((hit) => (
+                    <HitCard key={hit.objectId} hit={hit} detail={`Rank ${hit.rank}`} />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </section>
+      </details>
 
       {nearMissesRequested ? (
         <section aria-labelledby="search-near-miss-heading" data-list="near-misses">

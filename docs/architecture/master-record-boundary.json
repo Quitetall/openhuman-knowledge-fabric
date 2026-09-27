@@ -155,6 +155,7 @@
     "work.work_order_scope",
     "work.work_package",
     "org.access_demand",
+    "content.master_record_input_exemption",
     "work.deliverable_retired_attribute"
   ],
   "derivedTables": ["search.document", "retrieval.band_version", "retrieval.embed_pending"],
@@ -184,6 +185,14 @@
     {
       "table": "search.identification_refusal",
       "expiry": "90 days"
+    },
+    {
+      "table": "content.master_record_currency",
+      "expiry": "7 days"
+    },
+    {
+      "table": "content.master_record_input_write",
+      "expiry": "30 days"
     }
   ],
   "transientDecision": "Transient observations (§64B, ADR 0029) are neither permission members nor rebuildable projections: they are kept for their stated expiry and then swept, and are excluded from the preservation export, checkpoint coverage and backup data, so no copy outlives the window."

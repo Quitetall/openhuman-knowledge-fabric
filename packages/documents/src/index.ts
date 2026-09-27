@@ -24,6 +24,17 @@ export {
   masterRecordItems,
   masterRecordWithholdings,
 } from './master-record-repository.js';
+export {
+  claimMemberCount,
+  claimMemberCountAmong,
+  claimMembersAmong,
+  enumerateNeighbourhoodGraph,
+  latestMasterRecordClaim,
+  masterRecordCurrency,
+  type ClaimCurrency,
+  type ClaimMembersSource,
+  type MasterRecordClaim,
+} from './master-record-reading.js';
 
 export { createDocumentActionAtoms } from './internal/action-atoms.js';
 export { DOCUMENT_ACTION_IDS, type DocumentActionAtoms } from './internal/action-types.js';

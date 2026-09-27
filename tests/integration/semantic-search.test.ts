@@ -267,7 +267,7 @@ describe('lexical and semantic are composed, not merged (KF-SAS-RQ-224, RQ-219)'
       { grants: grantsOf(coverage), semantic: ranker(engine.path, coverage) },
     );
     expect(answer.lexical).toMatchObject({
-      ranking: 'kf.lexical.full_text+partial_identifier.v1',
+      ranking: 'kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2',
       exhaustive: true,
       total: 1,
       complete: true,

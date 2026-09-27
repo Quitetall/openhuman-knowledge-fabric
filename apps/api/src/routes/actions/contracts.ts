@@ -4,6 +4,7 @@ import type {
   Attestor,
   AuthenticationEvent,
   IdentificationSurface,
+  Holdings,
   StepUpPolicy,
   TokenVerifier,
 } from '@kf/authorization';
@@ -95,6 +96,14 @@ export type IdentifyCaller = (request: {
    */
   surface?: IdentificationSurface;
 }) => Promise<Caller>;
+
+/**
+ * Every live assignment the caller's own person holds, across organizations (20260926120000):
+ * the bearer token alone decides whose, and nothing in the request can name anybody else. Refuses
+ * as identifying does — `unknown_subject`, `revoked_identity`, `invalid_token`, and
+ * `no_live_assignment` for a person holding nothing anywhere.
+ */
+export type ListHoldings = (request: { headers: Record<string, unknown> }) => Promise<Holdings>;
 
 export interface ActionRequestBody {
   readonly targetIds?: string[];

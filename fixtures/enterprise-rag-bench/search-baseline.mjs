@@ -19,7 +19,7 @@
 // the API the `semantic` list is scored beside `lexical`.
 
 import path from 'node:path';
-import { scoreQuestions, summarize, writeReport } from '../lib/baseline.mjs';
+import { readPrevious, scoreQuestions, summarize, writeReport } from '../lib/baseline.mjs';
 import { readJsonLines } from '../lib/loader.mjs';
 import { corpusSessions } from '../lib/sessions.mjs';
 import { DEFAULT_DATA, HERE, SAMPLE_DIR, documentsIn, loadPeople } from './fixture.mjs';
@@ -61,20 +61,28 @@ const summary = summarize(results);
 summary.documents = documents.length;
 
 const notFound = results.filter((r) => r.type === 'info_not_found');
+const previous = await readPrevious(path.join(HERE, 'reports', 'search-baseline.2026-09-25.json'));
+const before = new Map((previous.info_not_found ?? []).map((r) => [r.id, r]));
+const sum = (rows, key) => rows.reduce((a, r) => a + (r[key] ?? 0), 0);
 const extra = [
   '## Info Not Found',
   '',
   'Questions whose answer is not in the corpus. No ground truth: what search returns is listed for',
-  'a reader to judge. As written (AND of every term) the ideal is no match at all.',
+  'a reader to judge; the ideal is few matches, or none. A record matches when it holds at least',
+  'half of the query’s information (IDF-weighted), so a question whose subject is absent matches',
+  `little. Before (${previous.date}) every word was required as written, and \`or\`'d words matched`,
+  'any record holding any of them.',
   '',
-  `- as written: ${notFound.filter((r) => r.verbatim_lexical_total === 0).length} of ${notFound.length} return nothing`,
-  `- keywords (\`or\`): ${notFound.filter((r) => r.keywords_lexical_total === 0).length} of ${notFound.length} return nothing`,
+  `- as written: ${notFound.filter((r) => r.verbatim_lexical_total === 0).length} of ${notFound.length} return no word match; ${sum(notFound, 'verbatim_lexical_total')} matches in all (before: ${sum([...before.values()], 'verbatim_lexical_total')})`,
+  `- keywords (\`or\`): ${notFound.filter((r) => r.keywords_lexical_total === 0).length} of ${notFound.length} return no word match; ${sum(notFound, 'keywords_lexical_total')} matches in all (before: ${sum([...before.values()], 'keywords_lexical_total')})`,
+  '- the fused and semantic lists are capped at the page (the engine ranks the first k it finds, and',
+  '  has no floor), so they are never a flood; what they return is in the JSON (`*_top3`).',
   '',
-  '| question | matches as written | matches (keywords) | top 3 titles (keywords) |',
-  '| --- | --- | --- | --- |',
+  '| question | matches as written | before | matches (keywords) | before | top 3 titles (keywords, word matches) |',
+  '| --- | --- | --- | --- | --- | --- |',
   ...notFound.map(
     (r) =>
-      `| ${r.id} | ${r.verbatim_lexical_total} | ${r.keywords_lexical_total} | ${(r.keywords_lexical_top3 ?? []).join('; ').replace(/\|/g, '\\|')} |`,
+      `| ${r.id} | ${r.verbatim_lexical_total} | ${before.get(r.id)?.verbatim_lexical_total ?? '—'} | ${r.keywords_lexical_total} | ${before.get(r.id)?.keywords_lexical_total ?? '—'} | ${(r.keywords_lexical_top3 ?? []).join('; ').replace(/\|/g, '\\|')} |`,
   ),
   '',
 ];
@@ -90,6 +98,7 @@ if (out !== undefined) {
     ],
     results,
     summary,
+    previous,
     extra,
   });
 }

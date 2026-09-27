@@ -567,6 +567,143 @@ async function deriveSoleAssignment(
   return soleAssignment(assignments);
 }
 
+/** An organization a person holds at least one live assignment in, and those assignments. */
+export interface HeldOrganization {
+  readonly organizationId: string;
+  /** The organization's legal name, so the person recognises it without reading an id. */
+  readonly legalName: string;
+  readonly assignments: readonly LiveAssignment[];
+}
+
+/**
+ * Everything a verified token's own person holds, across organizations (20260926120000): what
+ * the context picker offers them. Never another person's, and never an organization they hold
+ * nothing in.
+ */
+export interface Holdings {
+  readonly personId: string;
+  /** At least one organization; a person holding nothing is refused `no_live_assignment`. */
+  readonly organizations: readonly HeldOrganization[];
+}
+
+/**
+ * The live assignments, in every organization, of the person the token names.
+ *
+ * The token is verified exactly as `resolveCaller` verifies it — the same verifier, the same
+ * collapsed `invalid_token` — and the lookup takes only its issuer and subject, so there is no
+ * input that could name somebody else. It attests nothing and binds nothing: choosing one of these
+ * is still a `resolveCaller`, which checks it again and issues the attestation.
+ *
+ * `pool` must be a login that may attest; the lookup is `kf_attestor`'s alone.
+ */
+export async function resolveHoldings(
+  pool: Pool,
+  verifier: TokenVerifier,
+  token: string,
+): Promise<Holdings> {
+  if (token.trim() === '') {
+    throw new IdentityRejected('no_token', 'no bearer token was supplied');
+  }
+  const payload = await verifier.verify(token);
+  const subject = typeof payload.sub === 'string' ? payload.sub : '';
+  if (subject === '') {
+    throw new IdentityRejected('invalid_token', 'token carries no subject');
+  }
+  const issuer = typeof payload.iss === 'string' ? payload.iss : '';
+  // `verify` refuses a token without a finite `exp`; inside its clock tolerance but past its own
+  // expiry by our clock is refused here as `resolveCaller` refuses it.
+  if ((payload.exp as number) * 1000 <= Date.now()) {
+    throw new IdentityRejected('invalid_token', 'token rejected');
+  }
+  return withTransaction(pool, (tx) => holdingsIn(tx, { issuer, subject }));
+}
+
+/** The database half of `resolveHoldings`, separated so it can be tested without a token. */
+export async function holdingsIn(
+  tx: Tx,
+  request: { readonly issuer: string; readonly subject: string },
+): Promise<Holdings> {
+  const rows = await tx.query<{
+    person_id: string;
+    identity_revoked: boolean;
+    organization_id: string | null;
+    legal_name: string | null;
+    assignment_id: string | null;
+    role_id: string | null;
+    scope_id: string | null;
+  }>(
+    `select person_id, identity_revoked, organization_id, legal_name, assignment_id, role_id,
+            scope_id
+       from org.resolve_identity_assignments_everywhere($1, $2)`,
+    [request.issuer, request.subject],
+  );
+  if (rows.length === 0) {
+    throw new IdentityRejected(
+      'unknown_subject',
+      'this identity is not linked to a person in this system',
+    );
+  }
+  if (rows[0]!.identity_revoked) {
+    throw new IdentityRejected('revoked_identity', 'this identity link has been revoked');
+  }
+  return holdingsFrom(
+    rows[0]!.person_id,
+    rows.flatMap((row) =>
+      row.organization_id === null || row.assignment_id === null
+        ? []
+        : [
+            {
+              organizationId: row.organization_id,
+              legalName: row.legal_name ?? '',
+              assignmentId: row.assignment_id,
+              roleId: row.role_id!,
+              scopeId: row.scope_id!,
+            },
+          ],
+    ),
+  );
+}
+
+/** An assignment row as the cross-organization lookup lists it. */
+export interface HeldAssignment extends LiveAssignment {
+  readonly organizationId: string;
+  readonly legalName: string;
+}
+
+/**
+ * Group assignment rows by organization, in the order they came, or refuse a person who holds
+ * nothing live anywhere as `no_live_assignment` — the refusal a one-organization lookup gives.
+ */
+export function holdingsFrom(personId: string, rows: readonly HeldAssignment[]): Holdings {
+  if (rows.length === 0) {
+    throw new IdentityRejected(
+      'no_live_assignment',
+      'you hold no live role assignment in any organization, so there is no context to choose',
+    );
+  }
+  const organizations = new Map<string, { legalName: string; assignments: LiveAssignment[] }>();
+  for (const row of rows) {
+    const held = organizations.get(row.organizationId) ?? {
+      legalName: row.legalName,
+      assignments: [],
+    };
+    held.assignments.push({
+      assignmentId: row.assignmentId,
+      roleId: row.roleId,
+      scopeId: row.scopeId,
+    });
+    organizations.set(row.organizationId, held);
+  }
+  return {
+    personId,
+    organizations: [...organizations].map(([organizationId, held]) => ({
+      organizationId,
+      legalName: held.legalName,
+      assignments: held.assignments,
+    })),
+  };
+}
+
 /** One live assignment is the answer; several or none is a refusal the caller can act on. */
 export function soleAssignment(assignments: readonly LiveAssignment[]): string {
   if (assignments.length === 1) return assignments[0]!.assignmentId;

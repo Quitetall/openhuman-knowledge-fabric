@@ -10,8 +10,13 @@ export { relevanceClosure, relevanceClosureWithMetrics } from './closure.js';
 export { neighbourhood } from './neighbourhood.js';
 export { loadProjectionDefinitions, type ProjectionDefinitionSet } from './definitions.js';
 export {
+  assertMemberBudget,
   bindParameters,
+  isNeighbourhoodReading,
+  neighbourhoodScope,
   project,
+  projectNeighbourhood,
+  type NeighbourhoodCorpus,
   projectionResultDigest,
   ProjectionRefused,
   type ProjectOptions,

@@ -11,10 +11,11 @@
 // extracted text are one document, found by either. Two query forms, both applied to every
 // question the same way and neither tuned on the answers:
 //
-//   verbatim   the question as the executive wrote it. KF's lexical search ANDs every term
-//              (websearch_to_tsquery), so this measures what a person typing a sentence gets.
+//   verbatim   the question as the executive wrote it: what a person typing a sentence gets.
 //   keywords   the question's content words (stopwords of fr/en/de/es/it removed, deduplicated,
-//              in order) joined with `or`, the websearch operator KF already supports.
+//              in order) joined with `or`. Since 20260926100000 KF's lexical search does not
+//              need every word and treats `or` as a word of no weight, so the two forms differ
+//              only in which words reach the query.
 //
 // Ground truth, per question: the files ANSWER_KEY.json lists when it lists any (its `trap`
 // entries excluded); otherwise the index rows for that question whose label is not a negative
@@ -22,16 +23,10 @@
 // states, per question, how many of those the asker may read at all: a document they are not
 // granted is withheld from them by design, and recall over it measures access control, not search.
 //
-// The seam for semantic ranking (LAMU): `GET /search` already returns a `semantic` list when the
-// API is started with KF_RETRIEVAL_SOCKET. This script scores `lexical.hits` as `lexical` and,
-// when present, `semantic.hits` as `semantic`, with the same ground truth and the same cut-off, so
-// a later run with the engine attached adds a column rather than a new method.
-//
-// `composed` is what a person reading the answer sees, top to bottom: KF composes the two rankings
-// rather than merging them (packages/search/src/compose.ts, KF-SAS-RQ-224), and the web
-// application renders the lexical list first and the semantic list after it
-// (apps/web/src/app/search/search-results.tsx). So `composed` is the lexical hits followed by the
-// semantic hits, one entry per document, cut at the same ten.
+// Three lists are scored with the same truth and cut-off: `lexical.hits`, `semantic.hits` (when
+// the API runs with KF_RETRIEVAL_SOCKET), and `ranked.hits` — the one fused list the API serves
+// first and the web application shows first (packages/search/src/compose.ts, reciprocal rank
+// fusion). `fused` is what a person reading the answer sees.
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -52,6 +47,18 @@ const FIRST_RUN = {
   verbatimLexical: 0.0168,
   keywordsLexical: 0.1793,
   ceiling: 0.5911,
+};
+
+/**
+ * The run before one fused list (2026-09-25): every word required, English stemming for every
+ * language, and the answer served as two lists, lexical first (`composed`). Per-question rows are
+ * in git history (fixtures/veracier/reports/search-baseline.json at 3c5d1b58).
+ */
+const PREVIOUS_RUN = {
+  date: '2026-09-25',
+  lexical: { verbatim: 0.0168, keywords: 0.1793 },
+  semantic: { verbatim: 0.1866, keywords: 0.202 },
+  composed: { verbatim: 0.1767, keywords: 0.1793 },
 };
 
 /** Labels that mark a row as NOT an answer to its question. */
@@ -226,13 +233,15 @@ async function main() {
       );
       const lexicalHits = res.body.lexical?.hits ?? [];
       const semanticHits = res.body.semantic?.hits ?? null;
+      const fusedHits = res.body.ranked?.hits ?? [];
+      row.fused_ranking ??= res.body.ranked?.ranking;
       if (semanticHits === null && res.body.withheld?.length > 0 && variant === 'verbatim') {
         row.semantic_withheld = res.body.withheld.map((w) => w.reason).join('; ');
       }
       for (const [list, hits] of [
         ['lexical', lexicalHits],
         ['semantic', semanticHits],
-        ['composed', semanticHits === null ? null : [...lexicalHits, ...semanticHits]],
+        ['fused', fusedHits],
       ]) {
         if (hits === null) continue;
         const top = [];
@@ -268,11 +277,11 @@ async function main() {
     mean_keywords_lexical_recall: mean(`keywords_lexical_recall@${K}`),
     mean_verbatim_semantic_recall: mean(`verbatim_semantic_recall@${K}`),
     mean_keywords_semantic_recall: mean(`keywords_semantic_recall@${K}`),
-    mean_verbatim_composed_recall: mean(`verbatim_composed_recall@${K}`),
-    mean_keywords_composed_recall: mean(`keywords_composed_recall@${K}`),
+    mean_verbatim_fused_recall: mean(`verbatim_fused_recall@${K}`),
+    mean_keywords_fused_recall: mean(`keywords_fused_recall@${K}`),
+    fused_ranking: results.find((r) => r.fused_ranking !== undefined)?.fused_ranking ?? null,
     semantic_unavailable: results.filter((r) => r.semantic_withheld !== undefined).length,
-    // Questions whose lexical list alone filled the ten: there the composed top ten IS the
-    // lexical top ten, and the semantic list is below it.
+    // Questions whose lexical list alone filled the ten.
     verbatim_lexical_filled: results.filter((r) => r[`verbatim_lexical_documents@${K}`] === K)
       .length,
     keywords_lexical_filled: results.filter((r) => r[`keywords_lexical_documents@${K}`] === K)
@@ -307,39 +316,44 @@ async function main() {
         ? ` (unavailable for ${summary.semantic_unavailable} question(s); see the JSON)`
         : ''),
     '',
-    `| mean recall@${K} | verbatim question | keyword query (\`or\`) |`,
-    '| --- | --- | --- |',
-    `| lexical | ${cell(summary.mean_verbatim_lexical_recall)} | ${cell(summary.mean_keywords_lexical_recall)} |`,
-    `| semantic alone | ${cell(summary.mean_verbatim_semantic_recall)} | ${cell(summary.mean_keywords_semantic_recall)} |`,
-    `| composed (lexical list, then semantic list, as served and shown) | ${cell(summary.mean_verbatim_composed_recall)} | ${cell(summary.mean_keywords_composed_recall)} |`,
+    `| mean recall@${K} | verbatim question | keyword query (\`or\`) | before (${PREVIOUS_RUN.date}): verbatim | before: keywords |`,
+    '| --- | --- | --- | --- | --- |',
+    `| lexical | ${cell(summary.mean_verbatim_lexical_recall)} | ${cell(summary.mean_keywords_lexical_recall)} | ${PREVIOUS_RUN.lexical.verbatim} | ${PREVIOUS_RUN.lexical.keywords} |`,
+    `| semantic alone | ${cell(summary.mean_verbatim_semantic_recall)} | ${cell(summary.mean_keywords_semantic_recall)} | ${PREVIOUS_RUN.semantic.verbatim} | ${PREVIOUS_RUN.semantic.keywords} |`,
+    `| fused (the one list served and shown first) | ${cell(summary.mean_verbatim_fused_recall)} | ${cell(summary.mean_keywords_fused_recall)} | — | — |`,
+    `| before: composed (lexical list, then semantic list) | — | — | ${PREVIOUS_RUN.composed.verbatim} | ${PREVIOUS_RUN.composed.keywords} |`,
     '',
-    ...(semanticOn
-      ? [
-          [
-            '**Reading the composed row.** KF serves the two rankings as two lists, not one merged',
-            'order (`packages/search/src/compose.ts`: the lexical list is exhaustive, the semantic',
-            'one is not, and a merged order would hide which is which), and the web application',
-            `shows the lexical list first. So the composed top ${K} is the lexical hits, then the`,
-            `semantic hits after them. The lexical list alone filled all ${K} slots for`,
-            `${summary.verbatim_lexical_filled} of ${summary.questions} questions as written and`,
-            `${summary.keywords_lexical_filled} of ${summary.questions} as \`or\`'d words; for those`,
-            'the semantic list contributes nothing to the first ten, and elsewhere the few lexical',
-            'hits still take slots ahead of it. Where the lexical hits are worse than the semantic',
-            'ones, the composed ranking is worse than semantic alone. Nothing here is tuned on these',
-            'answers.',
-          ].join(' '),
-          '',
-        ]
-      : []),
+    `Fused ranking: \`${summary.fused_ranking ?? '—'}\`.`,
+    '',
+    [
+      `**What changed since ${PREVIOUS_RUN.date}.** Lexical search no longer needs every word: a`,
+      'record matches when it holds at least half of the query’s information (IDF-weighted), each',
+      'record is indexed in its own detected language(s), and the answer leads with one list fused',
+      'from the lexical page and the semantic list by reciprocal rank fusion (k = 60). The before',
+      'columns are that run’s: every word required, English stemming for every language, and two',
+      'lists shown lexical first. Nothing here is tuned on these answers: the floor, the IDF, the',
+      'language rule and the fusion constant are stated defaults.',
+    ].join(' '),
+    '',
+    [
+      `**Reading the lexical and fused rows.** As written, ${results.filter((r) => r.verbatim_lexical_total === 0).length}`,
+      `of ${summary.questions} questions match no record by their words, and ${results.filter((r) => (r.verbatim_lexical_total ?? 0) > 0 && r.verbatim_lexical_total <= 3).length}`,
+      'match three or fewer: the questions name people, products and figures in words the',
+      'documents (mostly French) do not hold, and a word no record holds carries the most weight,',
+      'so few records hold half of a question. Where the word matches that remain rank records the',
+      'semantic list does not, reciprocal rank fusion places them among its first ten, and the fused',
+      'list can fall below the semantic list alone.',
+    ].join(' '),
+    '',
     `First run (${FIRST_RUN.date}, lexical only, no retrieval engine): verbatim ${FIRST_RUN.verbatimLexical},`,
     `keywords ${FIRST_RUN.keywordsLexical}, ceiling ${FIRST_RUN.ceiling}.`,
     '',
     `| question | asker | truth (source) | readable by asker | verbatim lexical | keywords lexical |` +
       (semanticOn
-        ? ' verbatim semantic | keywords semantic | verbatim composed | keywords composed |'
+        ? ' verbatim semantic | keywords semantic | verbatim fused | keywords fused |'
         : '') +
-      ' withheld (keywords) |',
-    `| --- | --- | --- | --- | --- | --- |${semanticOn ? ' --- | --- | --- | --- |' : ''} --- |`,
+      ' matches (verbatim) | withheld (keywords) |',
+    `| --- | --- | --- | --- | --- | --- |${semanticOn ? ' --- | --- | --- | --- |' : ''} --- | --- |`,
     ...results.map((r) =>
       [
         r.question,
@@ -352,10 +366,11 @@ async function main() {
           ? [
               r[`verbatim_semantic_recall@${K}`],
               r[`keywords_semantic_recall@${K}`],
-              r[`verbatim_composed_recall@${K}`],
-              r[`keywords_composed_recall@${K}`],
+              r[`verbatim_fused_recall@${K}`],
+              r[`keywords_fused_recall@${K}`],
             ]
           : []),
+        r[`verbatim_lexical_total`],
         r.keywords_withheld,
       ]
         .map(cell)

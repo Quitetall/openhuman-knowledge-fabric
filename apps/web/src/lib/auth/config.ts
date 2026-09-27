@@ -92,9 +92,9 @@ function configuredSessionKey(env: Environment): Uint8Array {
 }
 
 /**
- * The deployment's organization, optional. Held to the same shape the context selection accepts
- * for an organization, so a configured value can always be chosen; a malformed one fails startup
- * rather than silently turning the picker back into three blank fields.
+ * The deployment's organization, optional: the one the context picker lists first, and the one
+ * the typed-ids form is filled with when nothing is listed. Held to the same shape the context
+ * selection accepts for an organization; a malformed one fails startup rather than being ignored.
  */
 function configuredOrganization(env: Environment): string | undefined {
   const value = env['KF_WEB_ORGANIZATION']?.trim();

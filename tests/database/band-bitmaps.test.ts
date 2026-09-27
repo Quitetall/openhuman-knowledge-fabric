@@ -328,4 +328,92 @@ describe('the band mask is derived from live records', () => {
       ),
     ).rejects.toThrow(/never moves backwards/);
   });
+
+  it('lets two transactions create records in one organization at once, each moving the version once, at commit', async () => {
+    // 20260926100200. The bump used to run as each record was created, and its row lock was held
+    // until commit: a second transaction creating a record in the same organization waited for
+    // the first to finish, whatever else the first was doing. Under the old trigger the second
+    // transaction below waits on the first and fails on its lock timeout.
+    const counter = async (): Promise<number> =>
+      withTransaction(harness.adminPool, async (tx) => {
+        const rows = await tx.query<{ version: string }>(
+          'select version::text as version from retrieval.band_version where organization_id = $1',
+          [f.organizationId],
+        );
+        return Number(rows[0]?.version ?? '0');
+      });
+    const insert = async (
+      tx: Parameters<Parameters<typeof withTransaction>[1]>[0],
+      title: string,
+    ) => {
+      const { version } = await tx.one<{ version: string }>(
+        'select version from registry.schema_release where is_current',
+      );
+      await tx.query(
+        `insert into core.object
+           (object_type, authority_domain, lifecycle_state, classification, retention_class,
+            schema_version, organization_id, title, created_by, updated_by)
+         values ('decision_record','engineering','draft','internal','project_record',
+                 $1,$2,$3,$4,$4)`,
+        [version, f.organizationId, title, f.performerId],
+      );
+    };
+    const before = await counter();
+
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let created!: () => void;
+    const firstCreated = new Promise<void>((resolve) => {
+      created = resolve;
+    });
+    const first = withTransaction(harness.adminPool, async (tx) => {
+      await bindContext(tx, f);
+      await insert(tx, 'Concurrent ingest one, record one');
+      await insert(tx, 'Concurrent ingest one, record two');
+      await insert(tx, 'Concurrent ingest one, record three');
+      created();
+      await held;
+    });
+    await firstCreated;
+
+    const second = withTransaction(harness.adminPool, async (tx) => {
+      await tx.query("set local lock_timeout = '2s'");
+      await bindContext(tx, f);
+      await insert(tx, 'Concurrent ingest two');
+    });
+    await expect(
+      second,
+      'a record created while another transaction holds uncommitted records must not wait for it',
+    ).resolves.toBeUndefined();
+    expect(await counter(), 'the second committed first and moved the version').toBe(before + 1);
+
+    release();
+    await first;
+    expect(
+      await counter(),
+      'the first moved it once for its three records, after the second: never the same value twice',
+    ).toBe(before + 2);
+  });
+
+  it('moves the version in the same commit as the change, so no reader sees one without the other', async () => {
+    const read = () =>
+      withTransaction(harness.pool, async (tx) => {
+        await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'public']);
+        return currentBandVersion(tx, f.organizationId);
+      });
+    const before = await read();
+    await expect(
+      withTransaction(harness.adminPool, async (tx) => {
+        await bindContext(tx, f);
+        await tx.query(
+          `update core.object set classification = 'internal', row_version = row_version + 1 where id = $1`,
+          [restrictedId],
+        );
+        throw new Error('rolled back');
+      }),
+    ).rejects.toThrow('rolled back');
+    expect(await read(), 'a rolled-back reclassification moved nothing').toBe(before);
+  });
 });

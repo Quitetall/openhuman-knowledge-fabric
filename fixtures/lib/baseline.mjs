@@ -3,17 +3,21 @@
 // the documents returned (an original and its extracted text are one document, found by either).
 //
 // Two query forms, applied to every question the same way and tuned on none:
-//   verbatim   the question as written; KF's lexical search ANDs every term
-//              (websearch_to_tsquery), so this is what a person typing a sentence gets
+//   verbatim   the question as written: what a person typing a sentence gets
 //   keywords   the question's content words joined with `or` (keywordQuery, the Véracier
 //              baseline's function: stopwords of fr/en/de/es/it removed, deduplicated, in order),
-//              cut to the API's 512-character limit at the last whole term (fit)
+//              cut to the API's 512-character limit at the last whole term (fit). Since
+//              20260926100000 lexical search does not need every word and `or` is a word of no
+//              weight, so the forms differ only in which words reach the query.
 //
-// The seam for semantic ranking is the Véracier script's: `GET /search` returns a `semantic`
-// list when the API runs with KF_RETRIEVAL_SOCKET; it is scored beside `lexical` with the same
-// truth and cut-off, adding columns rather than a new method.
+// Three lists are scored with the same truth and cut-off: `lexical`, `semantic` (present when the
+// API runs with KF_RETRIEVAL_SOCKET) and `fused` — `ranked`, the one list the API serves first and
+// the web application shows first (reciprocal rank fusion of the other two).
+//
+// `previous` (a committed `search-baseline.<date>.json` holding an earlier run's summary) is
+// printed beside this run's numbers, so a report keeps the numbers it replaced.
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { keywordQuery } from '../veracier/search-baseline.mjs';
 
@@ -65,9 +69,11 @@ export async function scoreQuestions(questions, { sessionOf, docOf, k = 10 }) {
       );
       row[`${variant}_lexical_total`] = res.body.lexical?.total ?? 0;
       row[`${variant}_withheld`] = res.body.withheldCount ?? 0;
+      row.fused_ranking ??= res.body.ranked?.ranking;
       for (const [list, hits] of [
         ['lexical', res.body.lexical?.hits ?? []],
         ['semantic', res.body.semantic?.hits ?? null],
+        ['fused', res.body.ranked?.hits ?? null],
       ]) {
         if (hits === null) continue;
         const top = [];
@@ -95,7 +101,7 @@ export async function scoreQuestions(questions, { sessionOf, docOf, k = 10 }) {
 }
 
 export function summarize(results, k = 10) {
-  const lists = ['lexical', 'semantic'].filter((l) =>
+  const lists = ['lexical', 'semantic', 'fused'].filter((l) =>
     results.some((r) => `verbatim_${l}_recall@${k}` in r || `keywords_${l}_recall@${k}` in r),
   );
   const ceiling = mean(
@@ -120,6 +126,7 @@ export function summarize(results, k = 10) {
     overall,
     byType,
     semantic: lists.includes('semantic') ? 'present' : 'not configured',
+    fusedRanking: results.find((r) => r.fused_ranking !== undefined)?.fused_ranking ?? null,
   };
 }
 
@@ -131,8 +138,16 @@ const table = (header, rows) => [
   ...rows.map((r) => `| ${r.map((c) => cell(c).replace(/\|/g, '\\|')).join(' | ')} |`),
 ];
 
+/** An earlier run's summary, as committed beside the report (`search-baseline.<date>.json`). */
+export async function readPrevious(file) {
+  return JSON.parse(await readFile(file, 'utf8'));
+}
+
 /** Writes `<out>/search-baseline.{md,json}`. */
-export async function writeReport(out, { title, intro, results, summary, extra = [] }) {
+export async function writeReport(
+  out,
+  { title, intro, results, summary, extra = [], previous = undefined },
+) {
   const k = summary.k;
   await mkdir(out, { recursive: true });
   await writeFile(
@@ -142,6 +157,17 @@ export async function writeReport(out, { title, intro, results, summary, extra =
   const columns = summary.lists.flatMap((l) => [`verbatim ${l}`, `keywords ${l}`]);
   const values = (row) =>
     summary.lists.flatMap((l) => [row[`verbatim_${l}`], row[`keywords_${l}`]]);
+  const before = previous?.summary;
+  const beforeLists = before?.lists ?? [];
+  const beforeColumns = beforeLists.flatMap((l) => [
+    `before: verbatim ${l}`,
+    `before: keywords ${l}`,
+  ]);
+  const beforeValues = (row) =>
+    row === undefined
+      ? beforeLists.flatMap(() => [undefined, undefined])
+      : beforeLists.flatMap((l) => [row[`verbatim_${l}`], row[`keywords_${l}`]]);
+  const beforeType = (type) => before?.byType?.find((t) => t.type === type);
   const lines = [
     `# ${title}`,
     '',
@@ -149,16 +175,32 @@ export async function writeReport(out, { title, intro, results, summary, extra =
     '',
     `- questions: ${summary.overall.questions}; cut-off: ${k} documents; semantic ranking: ${summary.semantic}`,
     `- ceiling on mean recall@${k} (min(${k}, |truth|)/|truth|): ${cell(summary.overall.ceiling)}`,
+    ...(summary.fusedRanking === null ? [] : [`- fused ranking: \`${summary.fusedRanking}\``]),
+    ...(before === undefined
+      ? []
+      : [
+          `- before: the run of ${previous.date} (${previous.commit}), whose summary is committed as`,
+          `  \`search-baseline.${previous.date}.json\`: every word required as written, English stemming`,
+          '  for every language, lexical and semantic served as two lists.',
+        ]),
     '',
     `## Mean recall@${k}`,
     '',
-    ...table(['questions', ...columns], [[summary.overall.questions, ...values(summary.overall)]]),
+    ...table(
+      ['questions', ...columns, ...beforeColumns],
+      [[summary.overall.questions, ...values(summary.overall), ...beforeValues(before?.overall)]],
+    ),
     '',
     '## By question type',
     '',
     ...table(
-      ['type', 'questions', ...columns],
-      summary.byType.map((t) => [t.type, t.questions, ...values(t)]),
+      ['type', 'questions', ...columns, ...beforeColumns],
+      summary.byType.map((t) => [
+        t.type,
+        t.questions,
+        ...values(t),
+        ...beforeValues(beforeType(t.type)),
+      ]),
     ),
     '',
     ...extra,
@@ -176,6 +218,9 @@ export async function writeReport(out, { title, intro, results, summary, extra =
         'verbatim matches',
         `keywords hits@${k}`,
         'keywords recall',
+        ...(summary.lists.includes('fused')
+          ? ['verbatim fused recall', 'keywords fused recall']
+          : []),
         'withheld (keywords)',
       ],
       results.map((r) => [
@@ -189,6 +234,9 @@ export async function writeReport(out, { title, intro, results, summary, extra =
         r.verbatim_lexical_total,
         r[`keywords_lexical_hits@${k}`],
         r[`keywords_lexical_recall@${k}`],
+        ...(summary.lists.includes('fused')
+          ? [r[`verbatim_fused_recall@${k}`], r[`keywords_fused_recall@${k}`]]
+          : []),
         r.keywords_withheld,
       ]),
     ),
