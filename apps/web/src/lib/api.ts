@@ -29,6 +29,8 @@ export { parseAvailableActionsView, parseHistoryView, parseProjectView } from '.
 export type { AvailableActionsView, HistoryView, ProjectView } from './api/project-views';
 export { getSessionAssignments, parseSessionAssignments } from './api/session-assignments';
 export type { SessionAssignment, SessionAssignments } from './api/session-assignments';
+export { getSessionContexts, parseSessionContexts } from './api/session-contexts';
+export type { SessionContextOrganization, SessionContexts } from './api/session-contexts';
 export { parseObjectView, refreshObjectView } from './api/object-views';
 export {
   ARTIFACT_TEXT_LIMIT_BYTES,

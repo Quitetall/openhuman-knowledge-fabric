@@ -27,11 +27,19 @@ development fixtures. Encrypted session values are capped at 3,800 bytes, includ
 authority context; an oversized identity-provider token fails login instead of being silently
 dropped by the browser's cookie limit.
 
-Optional: `KF_WEB_ORGANIZATION=<organization UUIDv7>` names the deployment's organization. With it
-(or once a context has been chosen), the context picker asks the API (`GET /session/assignments`,
-bearer and organization only) which live role assignments the person holds there and offers them
-as a choice, with ceilings up to their clearance; the typed-ids form stays available beneath it.
-Nothing is granted by the list: the choice is still validated by the API before it is kept.
+The context picker asks the API (`GET /session/contexts`, the bearer token and nothing else) which
+live role assignments the person holds, in every organization they hold one in, and offers them
+grouped by organization under its legal name, each with ceilings up to the person's clearance
+there. Whose assignments these are is the verified token's to say: kf-attestor lists the linked
+person's own, and no organization they hold nothing in is named. The typed-ids form stays
+available beneath the list as a fallback. Nothing is granted by the list: the choice is still
+validated by the API before it is kept.
+
+Optional: `KF_WEB_ORGANIZATION=<organization UUIDv7>` names the deployment's organization. It is a
+preference, not a limit: the picker lists it first (after the context already in use) when the
+person holds an assignment there, and fills the typed-ids form with it only when nothing is
+listed. It never hides another organization the person holds an assignment in, and never adds one
+they do not.
 
 A successful choice is also remembered in `__Host-kf_context_hint` (sealed like the session, no
 token, 12 hours from the choice). The session lives only as long as its access token, so after

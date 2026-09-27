@@ -8,10 +8,11 @@
  *   - another organization's object id opens exactly as an id that exists nowhere: "Not
  *     available", with nothing of the record on the page
  *
- * The web application's picker lists assignments in the ONE organization it is configured for
- * (KF_WEB_ORGANIZATION; the multi stack names Redwood Inference). A person of any other
- * organization chooses their context with the typed form beneath it, which the API validates the
- * same way.
+ * The web application's picker lists every organization the signed-in person holds a live
+ * assignment in, under its legal name (GET /session/contexts, 20260926120000); KF_WEB_ORGANIZATION
+ * (the multi stack names Redwood Inference) only puts that one first. So a person of EVERY
+ * organization picks their context from the list, never typing an id, and the list names no
+ * organization but their own: no other organization's id or legal name is on the page.
  *
  * Opt-in only (`KF_MULTI_LIVE=1`): it needs the multi stack running with every corpus's --sample
  * loaded and the persona passwords on this machine. Passwords are typed into Keycloak's form and
@@ -28,7 +29,7 @@ const LIVE = process.env.KF_MULTI_LIVE === '1';
 const FIXTURES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../fixtures');
 const STEP_TIMEOUT = 45_000;
 
-async function signIn(browser, web, person, context) {
+async function signIn(browser, web, person, context, strangers) {
   const ctx = await browser.newContext();
   ctx.setDefaultTimeout(STEP_TIMEOUT);
   ctx.setDefaultNavigationTimeout(STEP_TIMEOUT);
@@ -40,27 +41,37 @@ async function signIn(browser, web, person, context) {
     await p.locator('#kc-login').click();
   }
   await p.waitForURL((url) => url.href.startsWith(web) && !url.pathname.startsWith('/auth/'));
-  if (new URL(p.url()).pathname === '/session/select') {
-    const picker = p.locator('form[action="/auth/context"]:has(input[type="radio"])');
-    const typed = p.locator(
-      'form[action="/auth/context"]:has(input[name="organizationId"]:not([type="hidden"]))',
-    );
-    await typed.waitFor({ state: 'attached' });
-    const radio = picker.locator(`input[type="radio"][value="${context.assignmentId}"]`);
-    if ((await picker.count()) > 0 && (await radio.count()) > 0) {
-      await radio.check();
-      await picker.getByRole('button', { name: 'Validate with KF API', exact: true }).click();
-    } else {
-      // The typed form sits in "Enter ids manually", closed when a picker is offered.
-      const manual = p.locator('details:has(form[action="/auth/context"])');
-      if ((await manual.getAttribute('open')) === null) await manual.locator('summary').click();
-      await typed.locator('input[name="actingRoleId"]').fill(context.assignmentId);
-      await typed.locator('input[name="organizationId"]').fill(context.organizationId);
-      await typed.locator('select[name="maxClassification"]').selectOption(person.clearance);
-      await typed.getByRole('button', { name: 'Validate typed ids with KF API' }).click();
-    }
-    await p.waitForURL(`${web}/search**`);
+  assert.equal(
+    new URL(p.url()).pathname,
+    '/session/select',
+    `${person.username} is asked to choose a context`,
+  );
+  const listed = p.locator('[data-organization-list]');
+  const failure = p.locator('[data-assignments]');
+  await Promise.race([listed.waitFor(), failure.waitFor()]);
+  assert.equal(
+    await failure.count(),
+    0,
+    `the picker lists ${person.username}'s assignments` +
+      ((await failure.count()) > 0 ? `: ${await failure.first().innerText()}` : ''),
+  );
+  // The person's own organization, under its legal name, with their assignment in it.
+  const own = p.locator(`section[data-organization="${context.organizationId}"]`);
+  assert.equal(await own.count(), 1, `${context.legalName} is listed for ${person.username}`);
+  assert.equal((await own.locator('h2').innerText()).trim(), context.legalName);
+  // Nothing of any other organization: not its id, not its legal name.
+  const page = await p.locator('main').innerText();
+  const html = await p.content();
+  for (const other of strangers) {
+    assert.ok(!html.includes(other.organizationId), `no ${other.legalName} id on the picker`);
+    assert.ok(!page.includes(other.legalName), `no ${other.legalName} name on the picker`);
   }
+  const radio = own.locator(`input[type="radio"][value="${context.assignmentId}"]`);
+  assert.equal(await radio.count(), 1, `${person.username}'s assignment is offered`);
+  await radio.check();
+  await own.locator('select[name="maxClassification"]').selectOption(person.clearance);
+  await own.getByRole('button', { name: 'Validate with KF API', exact: true }).click();
+  await p.waitForURL(`${web}/search**`);
   return { ctx, page: p };
 }
 
@@ -137,10 +148,22 @@ test(
     try {
       for (const [index, a] of walk.entries()) {
         const b = walk[(index + 1) % walk.length];
-        const { ctx, page } = await signIn(browser, web, a.person, {
-          organizationId: a.ids.organizationId,
-          assignmentId: a.ids.people[a.person.key].assignmentId,
-        });
+        const { ctx, page } = await signIn(
+          browser,
+          web,
+          a.person,
+          {
+            organizationId: a.ids.organizationId,
+            legalName: a.org.legalName,
+            assignmentId: a.ids.people[a.person.key].assignmentId,
+          },
+          walk
+            .filter((other) => other !== a)
+            .map((other) => ({
+              organizationId: other.ids.organizationId,
+              legalName: other.org.legalName,
+            })),
+        );
         const own = await searchCounts(page, web, a.probes[0]);
         assert.ok(own.total > 0, `${a.org.id} finds its own "${a.probes[0]}" on the page`);
         for (const other of walk) {

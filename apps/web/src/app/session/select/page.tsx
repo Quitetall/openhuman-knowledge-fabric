@@ -1,13 +1,20 @@
 import { redirect } from 'next/navigation';
 import type { Metadata } from 'next';
-import { getSessionAssignments, type SessionAssignments } from '../../../lib/api';
+import {
+  getSessionContexts,
+  type SessionContextOrganization,
+  type SessionContexts,
+} from '../../../lib/api';
 import { CLASSIFICATIONS, sanitizeReturnTo, type WebSession } from '../../../lib/auth';
 import { currentWebSession, dogfoodConfig } from '../../../lib/session';
 import { PendingButton } from '../../components/pending-button';
 import {
-  assignmentsFailure,
   ceilingOptions,
+  contextsFailure,
   defaultCeiling,
+  orderOrganizations,
+  organizationName,
+  organizationRefusal,
   preselectedAssignment,
   roleName,
   validUntil,
@@ -29,25 +36,19 @@ const UUID_V7_PATTERN =
   '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}';
 
 type Menu =
-  | { readonly kind: 'unknown_organization' }
-  | { readonly kind: 'listed'; readonly assignments: SessionAssignments }
-  | { readonly kind: 'failed'; readonly organizationId: string; readonly reason: string };
+  | { readonly kind: 'listed'; readonly contexts: SessionContexts }
+  | { readonly kind: 'failed'; readonly reason: string };
 
 /**
- * Ask the API what this person may choose from. The organization comes from the context already
- * in use, else the deployment's configured one; with neither there is nothing to ask about, and
- * the person types the ids as before.
+ * Ask the API what this person may choose from: every live assignment they hold, in every
+ * organization they hold one in. The bearer token alone says whose; no organization is named, so
+ * the deployment's configured one is only an order of display, never a limit on what is listed.
  */
-async function loadMenu(session: WebSession, configured: string | undefined): Promise<Menu> {
-  const organizationId = session.context?.organizationId ?? configured;
-  if (organizationId === undefined) return { kind: 'unknown_organization' };
+async function loadMenu(session: WebSession): Promise<Menu> {
   try {
-    return {
-      kind: 'listed',
-      assignments: await getSessionAssignments(session.accessToken, organizationId),
-    };
+    return { kind: 'listed', contexts: await getSessionContexts(session.accessToken) };
   } catch (error: unknown) {
-    return { kind: 'failed', organizationId, reason: assignmentsFailure(error) };
+    return { kind: 'failed', reason: contextsFailure(error) };
   }
 }
 
@@ -109,81 +110,115 @@ function ManualForm({
   );
 }
 
-function AssignmentPicker({
+function OrganizationPicker({
   session,
   next,
-  menu,
+  organization,
 }: {
   readonly session: WebSession;
   readonly next: string;
-  readonly menu: SessionAssignments;
+  readonly organization: SessionContextOrganization;
 }) {
-  const selected = preselectedAssignment(menu.assignments, session.context);
-  const ceilings = ceilingOptions(menu.clearance);
-  return (
-    <form method="post" action="/auth/context" style={{ display: 'grid', gap: '1rem' }}>
-      <input type="hidden" name="next" value={next} />
-      <input type="hidden" name="organizationId" value={menu.organizationId} />
-      <p style={{ margin: 0 }}>
-        Organization <code data-organization={menu.organizationId}>{menu.organizationId}</code>
-      </p>
-      <fieldset
+  const name = organizationName(organization);
+  const headingId = `organization-${organization.organizationId}`;
+  const ceilingId = `picker-ceiling-${organization.organizationId}`;
+  if (organization.refused !== null || organization.clearance === null) {
+    return (
+      <section
+        aria-labelledby={headingId}
+        data-organization={organization.organizationId}
+        data-organization-refused={organization.refused ?? 'unknown'}
         style={{ border: '1px solid #cbd5e1', borderRadius: '0.5rem', padding: '0.75rem 1rem' }}
       >
-        <legend>Acting role</legend>
-        <div style={{ display: 'grid', gap: '0.5rem' }}>
-          {menu.assignments.map((assignment) => (
-            <label
-              key={assignment.assignmentId}
-              style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}
-            >
-              <input
-                type="radio"
-                name="actingRoleId"
-                value={assignment.assignmentId}
-                required
-                defaultChecked={assignment.assignmentId === selected}
-              />
-              <span>
-                <strong>{roleName(assignment.roleId)}</strong>{' '}
-                <span style={{ color: '#475569', fontSize: '0.85rem' }}>
-                  · {validUntil(assignment.validTo)}
-                </span>
-                <br />
-                <code style={{ color: '#64748b', fontSize: '0.75rem' }}>
-                  {assignment.assignmentId}
-                </code>
-              </span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
-      <label>
-        <span id="picker-ceiling-label">Maximum classification</span>
-        <select
-          aria-labelledby="picker-ceiling-label"
-          name="maxClassification"
-          defaultValue={defaultCeiling(menu.clearance, session.context, menu.organizationId)}
-          className="kf-control"
-        >
-          {ceilings.map((classification) => (
-            <option key={classification} value={classification}>
-              {classification}
-            </option>
-          ))}
-        </select>
-      </label>
-      <p style={{ margin: 0, color: '#475569', fontSize: '0.85rem' }}>
-        Your clearance here is <strong>{menu.clearance}</strong>; a lower ceiling hides more.
+        <h2 id={headingId} style={{ margin: 0, fontSize: '1.05rem' }}>
+          {name}
+        </h2>
+        <p role="status" className="kf-status kf-status-warning" style={{ marginBottom: 0 }}>
+          {organizationRefusal(organization.refused ?? 'unknown')}
+        </p>
+      </section>
+    );
+  }
+  const selected = preselectedAssignment(organization.assignments, session.context);
+  const ceilings = ceilingOptions(organization.clearance);
+  return (
+    <section
+      aria-labelledby={headingId}
+      data-organization={organization.organizationId}
+      style={{ border: '1px solid #cbd5e1', borderRadius: '0.5rem', padding: '0.75rem 1rem' }}
+    >
+      <h2 id={headingId} style={{ margin: 0, fontSize: '1.05rem' }}>
+        {name}
+      </h2>
+      <p style={{ margin: '0.25rem 0 0.75rem' }}>
+        <code style={{ color: '#64748b', fontSize: '0.75rem' }}>{organization.organizationId}</code>
       </p>
-      <PendingButton
-        pendingLabel="Validating authority context…"
-        className="kf-button-primary"
-        style={{ justifySelf: 'start', padding: '0.55rem 1rem', cursor: 'pointer' }}
-      >
-        Validate with KF API
-      </PendingButton>
-    </form>
+      <form method="post" action="/auth/context" style={{ display: 'grid', gap: '1rem' }}>
+        <input type="hidden" name="next" value={next} />
+        <input type="hidden" name="organizationId" value={organization.organizationId} />
+        <fieldset
+          style={{ border: '1px solid #cbd5e1', borderRadius: '0.5rem', padding: '0.75rem 1rem' }}
+        >
+          <legend>Acting role</legend>
+          <div style={{ display: 'grid', gap: '0.5rem' }}>
+            {organization.assignments.map((assignment) => (
+              <label
+                key={assignment.assignmentId}
+                style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}
+              >
+                <input
+                  type="radio"
+                  name="actingRoleId"
+                  value={assignment.assignmentId}
+                  required
+                  defaultChecked={assignment.assignmentId === selected}
+                />
+                <span>
+                  <strong>{roleName(assignment.roleId)}</strong>{' '}
+                  <span style={{ color: '#475569', fontSize: '0.85rem' }}>
+                    · {validUntil(assignment.validTo)}
+                  </span>
+                  <br />
+                  <code style={{ color: '#64748b', fontSize: '0.75rem' }}>
+                    {assignment.assignmentId}
+                  </code>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <label>
+          <span id={ceilingId}>Maximum classification</span>
+          <select
+            aria-labelledby={ceilingId}
+            name="maxClassification"
+            defaultValue={defaultCeiling(
+              organization.clearance,
+              session.context,
+              organization.organizationId,
+            )}
+            className="kf-control"
+          >
+            {ceilings.map((classification) => (
+              <option key={classification} value={classification}>
+                {classification}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p style={{ margin: 0, color: '#475569', fontSize: '0.85rem' }}>
+          Your clearance here is <strong>{organization.clearance}</strong>; a lower ceiling hides
+          more.
+        </p>
+        <PendingButton
+          pendingLabel="Validating authority context…"
+          className="kf-button-primary"
+          style={{ justifySelf: 'start', padding: '0.55rem 1rem', cursor: 'pointer' }}
+        >
+          Validate with KF API
+        </PendingButton>
+      </form>
+    </section>
   );
 }
 
@@ -202,8 +237,12 @@ export default async function SelectSessionPage({
   const query = await searchParams;
   const next = sanitizeReturnTo(query.next);
   if (session === undefined) redirect(`/auth/login?next=${encodeURIComponent(next)}`);
-  const menu = await loadMenu(session, config.organizationId);
-  const pickable = menu.kind === 'listed' && menu.assignments.assignments.length > 0;
+  const menu = await loadMenu(session);
+  const organizations =
+    menu.kind === 'listed'
+      ? orderOrganizations(menu.contexts.organizations, session.context, config.organizationId)
+      : [];
+  const pickable = organizations.some((organization) => organization.refused === null);
 
   return (
     <main style={{ maxWidth: '38rem', margin: '3rem auto', padding: '0 1.5rem 4rem' }}>
@@ -228,10 +267,21 @@ export default async function SelectSessionPage({
       ) : null}
       {menu.kind === 'listed' && !pickable ? (
         <p role="status" className="kf-status kf-status-warning" data-assignments="empty">
-          The API lists no live role assignment for you in this organization.
+          The API lists no role assignment you can choose in any organization.
         </p>
       ) : null}
-      {pickable ? <AssignmentPicker session={session} next={next} menu={menu.assignments} /> : null}
+      {organizations.length > 0 ? (
+        <div data-organization-list="" style={{ display: 'grid', gap: '1rem' }}>
+          {organizations.map((organization) => (
+            <OrganizationPicker
+              key={organization.organizationId}
+              session={session}
+              next={next}
+              organization={organization}
+            />
+          ))}
+        </div>
+      ) : null}
       <details open={!pickable} style={{ marginTop: pickable ? '1.5rem' : '1rem' }}>
         <summary style={{ cursor: 'pointer' }}>Enter ids manually</summary>
         <div style={{ marginTop: '1rem' }}>
@@ -239,11 +289,12 @@ export default async function SelectSessionPage({
             session={session}
             next={next}
             organizationId={
-              menu.kind === 'listed'
-                ? menu.assignments.organizationId
-                : menu.kind === 'failed'
-                  ? menu.organizationId
-                  : undefined
+              // The first organization offered (the one in use, else the preferred one when the
+              // person holds something there, else the first listed); the configured one only
+              // when nothing is listed, so the form never shows a person another tenant's id.
+              organizations[0]?.organizationId ??
+              session.context?.organizationId ??
+              config.organizationId
             }
           />
         </div>

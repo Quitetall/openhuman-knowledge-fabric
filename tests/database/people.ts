@@ -82,3 +82,57 @@ export async function fixtureProject(adminPool: Pool, f: Fixtures, title: string
     createdBy: f.reviewerId,
   });
 }
+
+/**
+ * Give a person of one organization a live assignment in ANOTHER (`elsewhere`), as a supplier's
+ * engineer might hold a role at the customer: the cross-organization case the context picker
+ * lists (20260926120000). Cleared there at `clearance` when one is given. Returns the assignment.
+ */
+export async function assignElsewhere(
+  adminPool: Pool,
+  elsewhere: Fixtures,
+  spec: {
+    readonly personId: string;
+    readonly role: string;
+    readonly clearance?: 'public' | 'internal' | 'confidential' | 'restricted';
+  },
+): Promise<string> {
+  const assignmentId = await createObject(adminPool, elsewhere, {
+    type: 'role_assignment',
+    domain: 'organization',
+    state: 'active',
+    title: `${spec.role} assignment held from another organization`,
+    createdBy: elsewhere.reviewerId,
+  });
+  await withTransaction(adminPool, async (tx) => {
+    await tx.query('select core.set_access_context($1, $2)', [
+      elsewhere.organizationId,
+      'restricted',
+    ]);
+    await tx.query('select core.set_transaction_context($1, $1, $2, $3)', [
+      elsewhere.reviewerId,
+      elsewhere.clearanceActionId,
+      'people-fixture-elsewhere',
+    ]);
+    await tx.query(
+      `insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to)
+       values ($1, $2, $3, $4, now() + interval '1 year')`,
+      [assignmentId, spec.personId, spec.role, elsewhere.organizationId],
+    );
+    if (spec.clearance !== undefined) {
+      await tx.query(
+        `insert into org.person_clearance
+           (subject_id, organization_id, max_classification, granted_by, granted_by_action, reason)
+         values ($1, $2, $3, $4, $5, 'people fixture clearance elsewhere')`,
+        [
+          spec.personId,
+          elsewhere.organizationId,
+          spec.clearance,
+          elsewhere.reviewerId,
+          elsewhere.clearanceActionId,
+        ],
+      );
+    }
+  });
+  return assignmentId;
+}

@@ -1,6 +1,12 @@
 import type { ActionRequest } from '@kf/actions';
 import type { Pool } from '@kf/database';
-import type { Attestor, AuthenticationEvent, StepUpPolicy, TokenVerifier } from '@kf/authorization';
+import type {
+  Attestor,
+  AuthenticationEvent,
+  Holdings,
+  StepUpPolicy,
+  TokenVerifier,
+} from '@kf/authorization';
 import type { EffectiveAtBounds } from './effective-at.js';
 
 /**
@@ -84,6 +90,14 @@ export type IdentifyCaller = (request: {
    */
   deriveAssignment?: boolean;
 }) => Promise<Caller>;
+
+/**
+ * Every live assignment the caller's own person holds, across organizations (20260926120000):
+ * the bearer token alone decides whose, and nothing in the request can name anybody else. Refuses
+ * as identifying does — `unknown_subject`, `revoked_identity`, `invalid_token`, and
+ * `no_live_assignment` for a person holding nothing anywhere.
+ */
+export type ListHoldings = (request: { headers: Record<string, unknown> }) => Promise<Holdings>;
 
 export interface ActionRequestBody {
   readonly targetIds?: string[];
