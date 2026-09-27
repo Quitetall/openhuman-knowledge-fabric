@@ -360,16 +360,30 @@ async function reindexAll(opts) {
   try {
     // In batches, one short transaction each (search.rebuild_batch, 20260926100100): one statement
     // over every record outlasts the statement budget on a stack holding tens of thousands.
+    // A batch holding several large documents can still outlast the budget: halve it and carry on
+    // from the same record, rather than failing the whole rebuild at record 30 000.
     let after = null;
     let rebuilt = 0;
+    let size = 500;
     for (;;) {
-      const batch = await withTransaction(pool, (tx) =>
-        tx.one('select indexed, last_object from search.rebuild_batch($1::uuid, 500)', [after]),
-      );
+      let batch;
+      try {
+        batch = await withTransaction(pool, (tx) =>
+          tx.one('select indexed, last_object from search.rebuild_batch($1::uuid, $2)', [
+            after,
+            size,
+          ]),
+        );
+      } catch (error) {
+        if (error?.code !== '57014' || size === 1) throw error;
+        size = Math.max(1, Math.floor(size / 2));
+        log(`  (a batch outlasted the statement budget; continuing ${size} at a time)`);
+        continue;
+      }
       if (Number(batch.indexed) === 0 || batch.last_object === null) break;
       rebuilt += Number(batch.indexed);
       after = batch.last_object;
-      if (rebuilt % 5000 < 500) log(`  … ${rebuilt} records re-indexed`);
+      if (rebuilt % 5000 < size) log(`  … ${rebuilt} records re-indexed`);
     }
     log(`== search index rebuilt by the worker's login: ${rebuilt} records`);
     // The worker's login reads search.document under row security and sees none of it, so the
