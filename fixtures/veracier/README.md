@@ -152,13 +152,15 @@ the new revision with the same digest.
 
 **Refusals before binding.** A retrieve, read, revision check or `GET /search` that kf-attestor
 refuses after verifying the token — `classification_not_granted`, `undeclared_agent`,
-`role_not_held`, `unknown_subject`, `revoked_identity`, `assignment_ambiguous`,
-`no_live_assignment` — is recorded by the attestor in `search.identification_refusal`: the
-organization asked for (only if it exists), the surface, the failure, the agent client the token
-named, the rank of the classification asked for, and the asker as the recorded-query pseudonym (the
-person's, found from the identity link, or the token subject's when it is linked to nobody). No
-token and no person column; 90 days, swept. Token defects are not recorded: nothing verified
-names anybody. The attestor's log line says `recorded: true|false`.
+`role_not_held`, `revoked_identity`, `assignment_ambiguous`, `no_live_assignment` — is recorded by
+the attestor in `search.identification_refusal`, but only when the token's subject is linked to a
+person who belongs to the organization named (theirs by `org.person.organization`, or through a role
+assignment scoped to it or its records; 20260927000100, enforced in the database seam). The row
+holds the organization, the surface, the failure, the agent client the token named, the rank of the
+classification asked for, and the asker as that person's recorded-query pseudonym. No token and no
+person column; 90 days, swept. A subject linked to nobody (`unknown_subject`), a person naming
+another organization, and token defects write nothing: the attestor's log line, with
+`recorded: false` where recording was attempted, is the only trace.
 
 ## Personas
 

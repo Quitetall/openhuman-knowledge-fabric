@@ -334,14 +334,22 @@ describe('the API routes, bound only through the attestation', () => {
     const r = await api.inject({
       method: 'GET',
       url: '/search?q=anything',
-      headers: await headers(await token({ subject: 'auth0|unlinked-searcher' })),
+      headers: { ...(await headers()), 'x-kf-acting-role': f.performerRoleId },
     });
     expect(r.statusCode, r.body).toBe(401);
+    // A subject linked to nobody is refused too, and recorded nowhere (20260927000100).
+    const unlinked = await api.inject({
+      method: 'GET',
+      url: '/search?q=anything',
+      headers: await headers(await token({ subject: 'auth0|unlinked-searcher' })),
+    });
+    expect(unlinked.statusCode, unlinked.body).toBe(401);
     expect(await refusalsSince(since)).toEqual([
       expect.objectContaining({
         surface: 'search',
-        failure: 'unknown_subject',
-        asker_kind: 'subject',
+        failure: 'role_not_held',
+        asker_kind: 'person',
+        person_key: true,
       }),
     ]);
   });
@@ -404,7 +412,8 @@ describe('a refusal before anybody is bound is recorded, attributably and naming
       refusals.push([request.surface, (err as IdentityRejected).failure]);
     };
     // The person's own role, a ceiling this database does not know; another's role; a delegated
-    // token naming an agent nobody declared; a subject nobody linked.
+    // token naming an agent nobody declared; a subject nobody linked, which is refused and, as
+    // nobody of this organization, not recorded (20260927000100).
     await attempt(on('context-source/retrieve', {}, 'top-secret'), await token());
     await attempt(on('context-source/read', { actingRoleId: f.performerRoleId }), await token());
     await attempt(
@@ -444,12 +453,6 @@ describe('a refusal before anybody is bound is recorded, attributably and naming
         asker_kind: 'person',
         asker_rank: 1,
         person_key: true,
-      }),
-      expect.objectContaining({
-        surface: 'search',
-        failure: 'unknown_subject',
-        asker_kind: 'subject',
-        person_key: false,
       }),
     ]);
   });
@@ -494,6 +497,80 @@ describe('a refusal before anybody is bound is recorded, attributably and naming
         );
       }),
     ).rejects.toThrow(/permission denied/u);
+  });
+});
+
+describe('a refusal is recorded only for a person of the organization named (20260927000100)', () => {
+  let other: Fixtures;
+  beforeAll(async () => {
+    other = await seedFixtures(h.adminPool, { auditClearance: false });
+  });
+
+  /** The seam called as kf-attestor itself, or anything holding its login: no attestor in the way. */
+  const seam = (issuer: string, subject: string, organization: string) =>
+    withTransaction(h.attestorPool, (tx) =>
+      tx.one<{ id: string | null }>(
+        `select search.record_identification_refusal($1, $2, $3, 'restricted',
+                                                     'context-source/read',
+                                                     'classification_not_granted', null) as id`,
+        [issuer, subject, organization],
+      ),
+    );
+
+  it('writes no row for a subject linked to no person, through the attestor or around it', async () => {
+    const since = await refusalsNow();
+    const err = await attestor
+      .identify({
+        ...asked(await token({ subject: 'auth0|injector' })),
+        surface: 'context-source/read',
+      })
+      .catch((e: unknown) => e);
+    expect((err as IdentityRejected).failure).toBe('unknown_subject');
+    expect((await seam(ISSUER, 'auth0|injector', f.organizationId)).id).toBeNull();
+    expect((await seam(ISSUER, 'auth0|injector', other.organizationId)).id).toBeNull();
+    expect(await refusalsSince(since)).toEqual([]);
+  });
+
+  it('writes no row for a linked person naming an organization they do not belong to', async () => {
+    const since = await refusalsNow();
+    const err = await attestor
+      .identify({
+        ...asked(await token(), { organizationId: other.organizationId }),
+        surface: 'context-source/read',
+      })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(IdentityRejected);
+    // `recorded` stays in the attestor process (its log line); across the socket, the rows speak.
+    expect((err as IdentityRejected).failure).toBe('role_not_held');
+    // In the attestor's own process, the refusal says it was not recorded.
+    const local = await new LocalAttestor(h.attestorPool, verifierForFlaky)
+      .identify({
+        ...asked(await token(), { organizationId: other.organizationId }),
+        surface: 'context-source/read',
+      })
+      .catch((e: unknown) => e);
+    expect((local as IdentityRejected).recorded).toBe(false);
+    expect((await seam(ISSUER, 'auth0|reviewer', other.organizationId)).id).toBeNull();
+    const rows = await withTransaction(h.adminPool, (tx) =>
+      tx.query('select 1 from search.identification_refusal where organization_id = $1', [
+        other.organizationId,
+      ]),
+    );
+    expect(rows).toEqual([]);
+    expect(await refusalsSince(since)).toEqual([]);
+  });
+
+  it('still writes the row for the same person in their own organization (the control)', async () => {
+    const since = await refusalsNow();
+    expect((await seam(ISSUER, 'auth0|reviewer', f.organizationId)).id).toMatch(/^[0-9a-f-]{36}$/u);
+    expect(await refusalsSince(since)).toEqual([
+      expect.objectContaining({
+        organization_id: f.organizationId,
+        failure: 'classification_not_granted',
+        asker_kind: 'person',
+        person_key: true,
+      }),
+    ]);
   });
 });
 
