@@ -276,6 +276,7 @@ echo "==> logical dump"
   --exclude-table-data=search.asker_key \
   --exclude-table-data=retrieval.disclosure \
   --exclude-table-data=search.context_disclosure \
+  --exclude-table-data=search.identification_refusal \
   --file="$DEST/dump.pgcustom" "$DATABASE_URL"
 
 echo "==> canonical export"

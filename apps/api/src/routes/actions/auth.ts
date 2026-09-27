@@ -177,6 +177,7 @@ export function createCallerIdentifier(
       organizationId: header('x-kf-organization'),
       maxClassification: header('x-kf-classification') || 'internal',
       ...(request.deriveAssignment === true ? { deriveAssignment: true } : {}),
+      ...(request.surface === undefined ? {} : { surface: request.surface }),
     });
   };
 }

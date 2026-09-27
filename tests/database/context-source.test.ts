@@ -204,6 +204,15 @@ async function read(caller: Caller, reference: unknown): Promise<LightMyRequestR
   });
 }
 
+async function revisionOf(caller: Caller, reference: unknown): Promise<LightMyRequestResponse> {
+  who = caller;
+  return app.inject({
+    method: 'POST',
+    url: '/context-source/revision',
+    payload: reference as Record<string, unknown>,
+  });
+}
+
 interface Reference {
   adapter: string;
   record: string;
@@ -413,7 +422,7 @@ describe('retrieve and read, allowed', () => {
     expect(factsRead.statusCode, factsRead.body).toBe(200);
     const factsText = (factsRead.json() as { text: string }).text;
     expect(JSON.parse(factsText)).toMatchObject({
-      schema: 'kf.context-facts/v1',
+      schema: 'kf.context-facts/v2',
       objectId: facts,
       objectType: 'decision_record',
       title: 'Context source probe decision',
@@ -468,6 +477,114 @@ describe('retrieve and read, allowed', () => {
     );
     expect(dump).not.toContain('alpha bearing');
     expect(dump).not.toContain('Context source probe');
+  });
+
+  it('serves a non-text record as its content facts, never its grants, their reasons or other records’ rows', async () => {
+    const REASON = 'need-to-know-reason-needle-5d3f';
+    const bytes = Buffer.from('%PDF-1.7 not text\n', 'utf8');
+    const sha256 = digestOf(bytes);
+    const storageUri = `ingest/${f.organizationId}/${sha256}`;
+    await store.put(storageUri, bytes, 'application/pdf');
+    const pdf = (
+      await execute()({
+        ...reviewer(),
+        targetIds: [],
+        actionType: 'attach_evidence',
+        idempotencyKey: 'context-facts-pdf',
+        payload: {
+          title: 'Supplier audit report.pdf',
+          artifact_kind: 'document',
+          classification: 'internal',
+          sha256,
+          size_bytes: bytes.length,
+          media_type: 'application/pdf',
+          storage_uri: storageUri,
+          revision_label: 'R02',
+        },
+      })
+    ).objectIds[0]!;
+    await index(pdf);
+    const grantId = await execute()({
+      ...reviewer(),
+      targetIds: [pdf],
+      actionType: 'grant_access',
+      idempotencyKey: `grant-${randomUUID()}`,
+      reason: REASON,
+      payload: { principal_kind: 'person', principal_id: capped.personId, capability: 'read' },
+    }).then(() =>
+      withTransaction(h.adminPool, (tx) =>
+        tx.one<{ id: string }>(
+          `select id from org.access_grant where scope_object_id = $1 and revoked_at is null`,
+          [pdf],
+        ),
+      ),
+    );
+    await compile(performer());
+    engineIds = [pdf];
+    const [reference] = referencesOf(await retrieve(performer()));
+    const served = await read(performer(), reference);
+    expect(served.statusCode, served.body).toBe(200);
+    const text = (served.json() as { text: string }).text;
+    expect(digestBytes(Buffer.from(text, 'utf8'))).toBe(reference!.digest);
+
+    // Not who may see it, or why, or who wrote which row, or where the bytes are stored.
+    const facts = JSON.parse(text) as Record<string, unknown>;
+    for (const absent of [
+      REASON,
+      grantId.id,
+      capped.personId,
+      'access_grant',
+      storageUri,
+      'created_by',
+      'row_version',
+      f.reviewerId,
+    ]) {
+      expect(text, absent).not.toContain(absent);
+    }
+
+    // What the record says: its title, type, state, its own typed row and its file's version.
+    expect(facts).toEqual({
+      schema: 'kf.context-facts/v2',
+      objectId: pdf,
+      objectType: 'artifact',
+      classification: 'internal',
+      title: 'Supplier audit report.pdf',
+      lifecycle_state: 'draft',
+      enterprise_id: null,
+      created_at: expect.any(String) as unknown,
+      updated_at: expect.any(String) as unknown,
+      records: {
+        'content.artifact': expect.objectContaining({ artifact_kind: 'document' }) as unknown,
+      },
+      versions: [
+        {
+          version_no: 1,
+          revision_label: 'R02',
+          media_type: 'application/pdf',
+          size_bytes: bytes.length,
+          sha256,
+          created_at: expect.any(String) as unknown,
+        },
+      ],
+    });
+    // A grant change moves the revision (the member digest covers the grants) and not the text:
+    // the old reference is 409 KF-CTX-003, and the one retrieved after compiling has the same digest.
+    await execute()({
+      ...reviewer(),
+      targetIds: [pdf],
+      actionType: 'revoke_access',
+      idempotencyKey: `revoke-${randomUUID()}`,
+      reason: 'the capped reader is done with the audit',
+      payload: { grant_id: grantId.id },
+    });
+    const moved = await read(performer(), reference);
+    expect(moved.statusCode, moved.body).toBe(409);
+    expect(moved.json()).toEqual({ error: 'revision_mismatch', rule: 'KF-CTX-003' });
+    await compile(performer());
+    const [after] = referencesOf(await retrieve(performer()));
+    expect(after!.revision).not.toBe(reference!.revision);
+    expect(after!.digest).toBe(reference!.digest);
+    expect((await read(performer(), after)).statusCode).toBe(200);
   });
 
   it('keeps the list to the agent_context projection, which is the master record’s corpus', async () => {
@@ -862,9 +979,125 @@ describe('the seam records only what it can stand behind', () => {
       classification: 'internal' as const,
       contentDigest: 'e'.repeat(64),
       title: 'Order',
-      content: { b: 1, a: 2 },
+      content: { 'engineering.decision': { b: 1, a: 2 } },
     };
-    expect(contextFacts(member)).toBe(contextFacts({ ...member, content: { a: 2, b: 1 } }));
+    expect(contextFacts(member)).toBe(
+      contextFacts({ ...member, content: { 'engineering.decision': { a: 2, b: 1 } } }),
+    );
+    expect(contextFacts(member)).toContain('"a":2,"b":1');
+  });
+});
+
+describe('the revision check answers as read does, without the text', () => {
+  it('answers {revision, digest} for a readable reference, and records operation revision', async () => {
+    const text = 'Revision check probe: a file whose text is never sent.\n';
+    const probe = await attachText('context-revision-probe', text, 'internal');
+    await compile(performer());
+    engineIds = [probe];
+    const [reference] = referencesOf(await retrieve(performer()));
+    const since = await now();
+    const answered = await revisionOf(performer(), reference);
+    expect(answered.statusCode, answered.body).toBe(200);
+    expect(answered.json()).toEqual({ revision: reference!.revision, digest: reference!.digest });
+    expect(answered.body).not.toContain('never sent');
+    expect(await disclosuresSince(since)).toEqual([
+      expect.objectContaining({
+        operation: 'revision',
+        refusal: null,
+        corpus_digest: await corpusDigestOf(performer()),
+        object_id: probe,
+        revision: reference!.revision,
+        text_digest: reference!.digest,
+      }),
+    ]);
+  });
+
+  it('refuses with read’s status, body and record for every refusal', async () => {
+    const reader = person(capped.personId, capped.assignmentId);
+    const granted = await attachText(
+      'context-revision-granted',
+      'Granted, then withdrawn, for the revision check.\n',
+      'internal',
+    );
+    const grantId = await grant(granted, capped.personId);
+    await compile(reader);
+    engineIds = [granted];
+    const [withdrawnRef] = referencesOf(await retrieve(reader));
+    await execute()({
+      ...reviewer(),
+      targetIds: [granted],
+      actionType: 'revoke_access',
+      idempotencyKey: `revoke-${randomUUID()}`,
+      reason: 'withdrawn for the revision check',
+      payload: { grant_id: grantId },
+    });
+
+    const steady = await attachText(
+      'context-revision-steady',
+      'Steady text for the revision check.\n',
+      'internal',
+    );
+    await compile(performer());
+    engineIds = [steady];
+    const [steadyRef] = referencesOf(await retrieve(performer()));
+    const later = await attachText(
+      'context-revision-later',
+      'Added after the claim, for the revision check.\n',
+      'internal',
+    );
+    const laterRef = await withTransaction(h.pool, async (tx) => {
+      await bindReader(tx, f, f.performerId);
+      const [member] = await enumeratePermittedSet(tx, f.performerId, f.organizationId, undefined, [
+        later,
+      ]);
+      return {
+        adapter: 'knowledge-fabric',
+        record: later,
+        revision: member!.contentDigest,
+        digest: digestBytes(Buffer.from('Added after the claim, for the revision check.\n')),
+      };
+    });
+
+    const cases: [Caller, unknown][] = [
+      [reader, withdrawnRef],
+      [performer(), { ...steadyRef, digest: 'f'.repeat(64) }],
+      [performer(), laterRef],
+      [performer(), { ...steadyRef, record: randomUUID() }],
+      [performer(), { ...steadyRef, record: 'not-a-uuid' }],
+    ];
+    const rules: string[] = [];
+    for (const [caller, reference] of cases) {
+      const since = await now();
+      const viaRead = await read(caller, reference);
+      const readRows = await disclosuresSince(since);
+      const between = await now();
+      const viaRevision = await revisionOf(caller, reference);
+      const revisionRows = await disclosuresSince(between);
+      expect(viaRevision.statusCode, viaRevision.body).toBe(viaRead.statusCode);
+      expect(viaRevision.rawPayload.equals(viaRead.rawPayload)).toBe(true);
+      expect(revisionRows.map(({ operation: _o, ...row }) => row)).toEqual(
+        readRows.map(({ operation: _o, ...row }) => row),
+      );
+      expect(revisionRows.map((row) => row.operation)).toEqual(['revision']);
+      rules.push((viaRevision.json() as { rule: string }).rule);
+    }
+    expect(rules).toEqual(['KF-CTX-002', 'KF-CTX-003', 'KF-CTX-004', 'KF-CTX-001', 'KF-CTX-001']);
+  });
+
+  it('is refused to a forwarded caller, like the other routes', async () => {
+    who = performer();
+    const forwarded = await app.inject({
+      method: 'POST',
+      url: '/context-source/revision',
+      headers: { 'x-forwarded-for': '203.0.113.9' },
+      payload: {
+        adapter: 'knowledge-fabric',
+        record: randomUUID(),
+        revision: 'a'.repeat(64),
+        digest: 'b'.repeat(64),
+      },
+    });
+    expect(forwarded.statusCode).toBe(403);
   });
 });
 

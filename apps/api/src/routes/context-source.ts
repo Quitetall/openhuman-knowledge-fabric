@@ -3,6 +3,7 @@
  *
  *   POST /context-source/retrieve {query, limit} → {references: [SourceRef]}
  *   POST /context-source/read     SourceRef       → kf.context-source-record/v1
+ *   POST /context-source/revision SourceRef       → {revision, digest}
  *
  * The same governed path as `fixtures/veracier/context-example.mjs`, done in the server: the
  * caller's semantic list from composed search, re-checked as search re-checks it (§64A), kept to the
@@ -10,9 +11,13 @@
  * their grants. A SourceRef's `revision` is the record's master-record member digest and its `digest`
  * the SHA-256 of the exact text `read` returns.
  *
- * CURRENT AUTHORITY ON EVERY CALL. Both routes identify the caller from the bearer token through
- * kf-attestor and bind the principal in every transaction, and decide from live rows, never from what
- * an earlier call returned. `read` answers:
+ * `revision` is `read` without the text, for LAMU's recheck (PERF-09): the same decision, the same
+ * refusals with the same statuses and bodies, recorded as operation `revision`; no byte is read
+ * from the store.
+ *
+ * CURRENT AUTHORITY ON EVERY CALL. Every route identifies the caller from the bearer token through
+ * kf-attestor, binds the principal in every transaction, and decides from live rows, never from what
+ * an earlier call returned. `read` answers (and `revision`, with `{revision, digest}` for the 200):
  *
  *   200 — the caller may read the record now, at the revision and text digest asked for, and their
  *         latest master record included it at that revision, so it is a member of their
@@ -44,10 +49,15 @@
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ObjectStore, StoreRegistry } from '@kf/artifacts';
-import { AttestorUnavailable, reaches as grantReaches, readCoverage } from '@kf/authorization';
+import {
+  AttestorUnavailable,
+  reaches as grantReaches,
+  readCoverage,
+  type IdentificationSurface,
+} from '@kf/authorization';
 import { digestBytes } from '@kf/canonicalization';
 import { bindPrincipal, PrincipalRefused, withTransaction, type Pool, type Tx } from '@kf/database';
-import { CURRENT_MASTER_RECORD_MEMBER_FORMAT } from '@kf/documents';
+import { CURRENT_MASTER_RECORD_MEMBER_FORMAT, type PermissionMember } from '@kf/documents';
 import type { SemanticRetrieval } from '@kf/retrieval';
 import { composeSearch, type SemanticRanker } from '@kf/search';
 import type { Caller, IdentifyCaller } from './actions.js';
@@ -67,9 +77,12 @@ import {
   recordContextDisclosure,
   referenceOf,
   referencesDigest,
+  type AgentContextClaim,
   type ContextDisclosure,
   type ContextRefusal,
   type ContextSourceRecord,
+  type ContextSourceRevision,
+  type ContextText,
   type SourceReference,
 } from './context-source/record.js';
 
@@ -111,6 +124,7 @@ export async function registerContextSourceRoutes(
   async function handle(
     request: FastifyRequest,
     reply: FastifyReply,
+    surface: IdentificationSurface,
     serve: (caller: Caller, store: ObjectStore) => Promise<FastifyReply>,
   ): Promise<FastifyReply> {
     if (!directLoopback(request)) {
@@ -118,7 +132,12 @@ export async function registerContextSourceRoutes(
     }
     let caller: Caller;
     try {
-      caller = await options.identify({ headers: request.headers as Record<string, unknown> });
+      // The surface is named so a refusal before anybody is bound is recorded by kf-attestor
+      // (search.identification_refusal, 20260926200200).
+      caller = await options.identify({
+        headers: request.headers as Record<string, unknown>,
+        surface,
+      });
     } catch (error: unknown) {
       return refuseUnidentified(reply, error);
     }
@@ -169,7 +188,7 @@ export async function registerContextSourceRoutes(
       },
     },
     (request, reply) =>
-      handle(request, reply, async (caller) => {
+      handle(request, reply, 'context-source/retrieve', async (caller) => {
         const semantic = options.semantic;
         if (semantic === undefined) {
           return refuse(reply, caller, {
@@ -264,73 +283,109 @@ export async function registerContextSourceRoutes(
       }),
   );
 
-  app.post<{ Body: SourceReference }>(
-    '/context-source/read',
-    {
-      bodyLimit: 4096,
-      schema: {
-        body: {
-          type: 'object',
-          additionalProperties: false,
-          required: ['adapter', 'record', 'revision', 'digest'],
-          properties: {
-            adapter: { const: CONTEXT_SOURCE_ADAPTER },
-            record: { type: 'string', minLength: 1, maxLength: 128 },
-            revision: { type: 'string', pattern: HEX64 },
-            digest: { type: 'string', pattern: HEX64 },
-          },
-        },
+  const sourceReferenceSchema = {
+    body: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['adapter', 'record', 'revision', 'digest'],
+      properties: {
+        adapter: { const: CONTEXT_SOURCE_ADAPTER },
+        record: { type: 'string', minLength: 1, maxLength: 128 },
+        revision: { type: 'string', pattern: HEX64 },
+        digest: { type: 'string', pattern: HEX64 },
       },
     },
+  } as const;
+
+  /**
+   * The current-authority decision `read` and `revision` share, in the caller's bound transaction:
+   * readable now, at this revision and text digest, in their latest claim at this revision, and
+   * within what a read serves. A refusal is recorded here; an answer is recorded by the caller of
+   * this, once it knows what it will answer.
+   */
+  async function decide(
+    tx: Tx,
+    caller: Caller,
+    reference: SourceReference,
+    operation: 'read' | 'revision',
+  ): Promise<
+    | { readonly refused: ContextRefusal }
+    | {
+        readonly member: PermissionMember;
+        readonly text: ContextText;
+        readonly claim: AgentContextClaim;
+      }
+  > {
+    const decline = async (
+      refusal: ContextRefusal,
+      named: boolean,
+    ): Promise<{ readonly refused: ContextRefusal }> => {
+      await recordContextDisclosure(tx, {
+        operation,
+        refusal,
+        ...(named
+          ? {
+              objectId: reference.record,
+              revision: reference.revision,
+              textDigest: reference.digest,
+            }
+          : {}),
+      });
+      return { refused: refusal };
+    };
+
+    const claim = await latestClaim(tx, caller);
+    const members = await permittedAmong(
+      tx,
+      caller,
+      claim?.memberFormat ?? CURRENT_MASTER_RECORD_MEMBER_FORMAT,
+      [reference.record],
+    );
+    const member = members.get(reference.record);
+    if (member === undefined) {
+      return (await onceIncluded(tx, caller, reference.record))
+        ? decline('grant_withdrawn', true)
+        : decline('not_found', false);
+    }
+    const text = await describeText(tx, member);
+    if (member.contentDigest !== reference.revision || text.digest !== reference.digest) {
+      return decline('revision_mismatch', true);
+    }
+    if (claim === undefined) return decline('master_record_not_found', true);
+    const claimed = await claimedRevisions(tx, claim, [member.objectId]);
+    if (claimed.get(member.objectId) !== member.contentDigest) {
+      return decline('master_record_stale', true);
+    }
+    if (text.oversize) return decline('source_text_unavailable', true);
+    return { member, text, claim };
+  }
+
+  app.post<{ Body: SourceReference }>(
+    '/context-source/read',
+    { bodyLimit: 4096, schema: sourceReferenceSchema },
     (request, reply) =>
-      handle(request, reply, async (caller, store) => {
+      handle(request, reply, 'context-source/read', async (caller, store) => {
         const reference = request.body;
         // Not an identifier this Fabric issues, so nothing it could name: the one not-found answer.
         if (!UUID.test(reference.record)) {
           return refuse(reply, caller, { operation: 'read', refusal: 'not_found' });
         }
         const outcome = await bound(caller, async (tx): Promise<Outcome<ContextSourceRecord>> => {
+          const decided = await decide(tx, caller, reference, 'read');
+          if ('refused' in decided) return decided;
+          const { member, text, claim } = decided;
           const decline = async (
             refusal: ContextRefusal,
-            named: boolean,
           ): Promise<Outcome<ContextSourceRecord>> => {
             await recordContextDisclosure(tx, {
               operation: 'read',
               refusal,
-              ...(named
-                ? {
-                    objectId: reference.record,
-                    revision: reference.revision,
-                    textDigest: reference.digest,
-                  }
-                : {}),
+              objectId: reference.record,
+              revision: reference.revision,
+              textDigest: reference.digest,
             });
             return { refused: refusal };
           };
-
-          const claim = await latestClaim(tx, caller);
-          const members = await permittedAmong(
-            tx,
-            caller,
-            claim?.memberFormat ?? CURRENT_MASTER_RECORD_MEMBER_FORMAT,
-            [reference.record],
-          );
-          const member = members.get(reference.record);
-          if (member === undefined) {
-            return (await onceIncluded(tx, caller, reference.record))
-              ? decline('grant_withdrawn', true)
-              : decline('not_found', false);
-          }
-          const text = await describeText(tx, member);
-          if (member.contentDigest !== reference.revision || text.digest !== reference.digest) {
-            return decline('revision_mismatch', true);
-          }
-          if (claim === undefined) return decline('master_record_not_found', true);
-          const claimed = await claimedRevisions(tx, claim, [member.objectId]);
-          if (claimed.get(member.objectId) !== member.contentDigest) {
-            return decline('master_record_stale', true);
-          }
-          if (text.oversize) return decline('source_text_unavailable', true);
 
           let body: string | undefined;
           if (text.kind === 'facts') {
@@ -352,7 +407,7 @@ export async function registerContextSourceRoutes(
           // The bytes were verified against the version's recorded SHA-256; encoding the text back
           // proves the string LAMU receives hashes to the digest it was promised.
           if (body === undefined || digestBytes(Buffer.from(body, 'utf8')) !== reference.digest) {
-            return decline('source_text_unavailable', true);
+            return decline('source_text_unavailable');
           }
           const record: ContextSourceRecord = {
             schema: CONTEXT_SOURCE_RECORD_SCHEMA,
@@ -369,7 +424,7 @@ export async function registerContextSourceRoutes(
             retention: 'ephemeral',
           };
           if (Buffer.byteLength(JSON.stringify(record), 'utf8') > MAX_CONTEXT_RESPONSE_BYTES) {
-            return decline('source_text_unavailable', true);
+            return decline('source_text_unavailable');
           }
           await recordContextDisclosure(tx, {
             operation: 'read',
@@ -379,6 +434,40 @@ export async function registerContextSourceRoutes(
             textDigest: reference.digest,
           });
           return { answer: record };
+        });
+        if ('refused' in outcome) {
+          return reply
+            .code(CONTEXT_REFUSALS[outcome.refused].status)
+            .send(refusalBody(outcome.refused));
+        }
+        return reply.send(outcome.answer);
+      }),
+  );
+
+  // LAMU's recheck (PERF-09): `read`'s decision without the text. No byte is read from the store,
+  // so a source whose bytes are not UTF-8, or whose response would exceed the read's size bound,
+  // passes here and is refused KF-CTX-007 by `read`; everything else answers as `read` would.
+  app.post<{ Body: SourceReference }>(
+    '/context-source/revision',
+    { bodyLimit: 4096, schema: sourceReferenceSchema },
+    (request, reply) =>
+      handle(request, reply, 'context-source/revision', async (caller) => {
+        const reference = request.body;
+        if (!UUID.test(reference.record)) {
+          return refuse(reply, caller, { operation: 'revision', refusal: 'not_found' });
+        }
+        const outcome = await bound(caller, async (tx): Promise<Outcome<ContextSourceRevision>> => {
+          const decided = await decide(tx, caller, reference, 'revision');
+          if ('refused' in decided) return decided;
+          const { member, claim } = decided;
+          await recordContextDisclosure(tx, {
+            operation: 'revision',
+            corpusDigest: claim.corpusDigest,
+            objectId: member.objectId,
+            revision: member.contentDigest,
+            textDigest: reference.digest,
+          });
+          return { answer: { revision: member.contentDigest, digest: reference.digest } };
         });
         if ('refused' in outcome) {
           return reply

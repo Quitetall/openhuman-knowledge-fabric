@@ -5,8 +5,9 @@
 import path from 'node:path';
 
 /**
- * KF's object title limit (core.object: 1 to 240 characters). The ingest route accepts a title up
- * to 512 and answers the rest with a 500; a longer title is cut here, keeping `suffix` whole.
+ * KF's object title limit (core.object: 1 to 240 characters). The ingest route refuses a longer
+ * title with 400 `invalid_ingest` rather than shortening it, so a longer title is cut here, where
+ * the loader knows what it is cutting, keeping `suffix` whole.
  */
 export const TITLE_MAX = 240;
 export function fitTitle(title, suffix = '') {

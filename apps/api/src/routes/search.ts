@@ -39,7 +39,11 @@ export async function registerSearchRoutes(
   app.get<{ Querystring: Record<string, unknown> }>('/search', async (request, reply) => {
     let caller;
     try {
-      caller = await options.identify({ headers: request.headers as Record<string, unknown> });
+      // Named, so a refusal before anybody is bound is recorded (20260926200200).
+      caller = await options.identify({
+        headers: request.headers as Record<string, unknown>,
+        surface: 'search',
+      });
     } catch (error: unknown) {
       return refuseUnidentified(reply, error);
     }

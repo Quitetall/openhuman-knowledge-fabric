@@ -111,7 +111,14 @@ export function createAttestorServer(attestor: Attestor, log: AttestorLog = sile
       answer(response, 200, encodeAttestedCaller(caller));
     } catch (err: unknown) {
       if (err instanceof IdentityRejected) {
-        log('refused', { failure: err.failure, organization: callerRequest.organizationId });
+        // `recorded`: whether the refusal is in search.identification_refusal (true), could not be
+        // written there (false), or is not one that is recorded (absent).
+        log('refused', {
+          failure: err.failure,
+          organization: callerRequest.organizationId,
+          ...(callerRequest.surface === undefined ? {} : { surface: callerRequest.surface }),
+          ...(err.recorded === undefined ? {} : { recorded: err.recorded }),
+        });
         const refusal = encodeRefusal(err);
         answer(response, refusal.status, refusal.body);
         return;

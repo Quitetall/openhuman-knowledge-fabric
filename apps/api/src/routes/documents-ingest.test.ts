@@ -152,6 +152,46 @@ describe('POST /ingest', () => {
     expect(execute).not.toHaveBeenCalled();
   });
 
+  it('refuses a title past the record’s 240 characters as 400, before touching the store', async () => {
+    const store = new InMemoryObjectStore();
+    const execute = vi.fn(async () => ({
+      actionId: 'a1',
+      status: 'applied' as const,
+      replayed: false,
+      objectIds: ['artifact-1'],
+      auditDigest: 'd1',
+    }));
+    const app = Fastify({ logger: false });
+    registerIngestRoute(
+      app,
+      options(store, execute as DocumentRoutesOptions['executeInTransaction']),
+    );
+    const ingest = (title: string) =>
+      app.inject({
+        method: 'POST',
+        url: '/ingest',
+        payload: {
+          title,
+          artifactKind: 'document',
+          classification: 'internal',
+          mediaType: 'text/plain',
+          contentBase64: FILE.toString('base64'),
+        },
+      });
+    // core.object counts characters: 240 of them is a title, astral or not, and 241 is not.
+    for (const title of ['t'.repeat(240), '\u{1F600}'.repeat(240), `  ${'t'.repeat(240)}  `]) {
+      expect((await ingest(title)).statusCode).toBe(201);
+    }
+    expect(execute).toHaveBeenCalledTimes(3);
+    execute.mockClear();
+    for (const title of ['t'.repeat(241), '\u{1F600}'.repeat(241), 't'.repeat(512), 'a\u0000b']) {
+      const response = await ingest(title);
+      expect(response.statusCode, title.slice(0, 8)).toBe(400);
+      expect(response.json()).toMatchObject({ error: 'invalid_ingest' });
+    }
+    expect(execute).not.toHaveBeenCalled();
+  });
+
   it('answers 503 rather than pretending when no store is configured', async () => {
     const app = Fastify({ logger: false });
     registerIngestRoute(

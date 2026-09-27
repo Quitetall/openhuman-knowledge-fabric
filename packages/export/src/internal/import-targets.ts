@@ -196,6 +196,9 @@ export const PRESERVATION_TABLE_EXCLUSIONS = {
   'search.context_disclosure':
     'transient observation (§64B): what each context-source retrieval and read disclosed to an ' +
     'agent, or refused, as digests; expires in 90 days',
+  'search.identification_refusal':
+    'transient observation (§64B): a context-source or search request kf-attestor refused before ' +
+    'a principal was bound, under the asker pseudonym; expires in 90 days',
   'core.principal_attestation':
     'transient proof a person was present (20260924001000): digests only, expired within 60 s, ' +
     'never evidence of an act — the action and audit rows are',

@@ -105,7 +105,7 @@ export async function resolveDocumentWorkbenchTarget(
               subject.document_policy,
               revision.id as base_revision_id,
               target.row_version::text as target_row_version,
-              revision.classification,
+              target.classification,
               holder.id as holder_id,
               holder.holder_kind,
               holder.fabric_artifact_version_id,
@@ -126,8 +126,9 @@ export async function resolveDocumentWorkbenchTarget(
          join core.object target
            on target.id = subject.object_id and target.object_type = 'document_composition'
          join content.document_source_holder holder on holder.id = subject.current_holder_id
-         join content.composition_revision revision
-           on revision.composition_id = subject.id and revision.holder_id = holder.id
+         -- A composition revision names no holder and carries no classification of its own: the
+         -- source holder is the subject's current one, and the classification is the record's.
+         join content.composition_revision revision on revision.composition_id = subject.id
          left join content.artifact_version artifact on artifact.id = holder.fabric_artifact_version_id
          join content.compilation_basis_composition member
            on member.composition_revision_id = revision.id

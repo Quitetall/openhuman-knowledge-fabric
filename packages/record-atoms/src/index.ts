@@ -13,7 +13,29 @@ export interface NewObject {
   readonly retentionClass?: string;
 }
 
+/**
+ * The longest title a record may carry: `core.object` checks `length(btrim(title)) between 1 and
+ * 240`, counting characters (code points) after trimming spaces.
+ */
+export const OBJECT_TITLE_MAX_CHARACTERS = 240;
+
+/**
+ * Why `title` cannot be a record's title, or undefined when it can. The database's own rule, said
+ * before the insert so a caller gets a refusal naming the field rather than a check violation
+ * surfacing as a 500. NUL is refused too: PostgreSQL text cannot hold it at all.
+ */
+export function objectTitleProblem(title: string): string | undefined {
+  if (title.includes('\u0000')) return 'title must not contain NUL characters';
+  const characters = [...title.replace(/^ +| +$/gu, '')].length;
+  if (characters < 1 || characters > OBJECT_TITLE_MAX_CHARACTERS) {
+    return `title must be 1 to ${String(OBJECT_TITLE_MAX_CHARACTERS)} characters; it is ${String(characters)}`;
+  }
+  return undefined;
+}
+
 export async function createControlledObject(tx: Tx, spec: NewObject): Promise<string> {
+  const titleProblem = objectTitleProblem(spec.title);
+  if (titleProblem !== undefined) throw new PayloadInvalid('title', titleProblem);
   const { version } = await tx.one<{ version: string }>(
     'select version from registry.schema_release where is_current',
   );

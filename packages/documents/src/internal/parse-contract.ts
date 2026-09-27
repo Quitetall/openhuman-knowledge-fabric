@@ -214,12 +214,28 @@ export function parseJson(value: unknown, field: string): JsonValue {
   return JSON.parse(canonical) as JsonValue;
 }
 
+/** Whether any string in `value`, key or value, holds U+0000. */
+function containsNul(value: unknown): boolean {
+  if (typeof value === 'string') return value.includes('\u0000');
+  if (Array.isArray(value)) return value.some(containsNul);
+  if (value !== null && typeof value === 'object') {
+    return Object.entries(value).some(([key, item]) => key.includes('\u0000') || containsNul(item));
+  }
+  return false;
+}
+
 /**
  * Recompute every parser-authored digest from exact source bytes and retained preimages.
  * Parser implementations are untrusted at this boundary; only this normalized receipt persists.
  */
 export function validateParsedDocument(value: ParsedDocument, sourceBytes: Buffer): ParsedDocument {
   const parsed = parseRecord(value, 'parsed document');
+  // PostgreSQL holds no NUL in text or jsonb. A parser replaces and records it (pandoc-nul.ts); one
+  // that hands it on is refused here, as a receipt that could not be stored, not at the insert.
+  parseIntegrity(
+    !containsNul(parsed),
+    'parsed document carries a NUL character, which cannot be stored; a parser must replace it and record the loss',
+  );
   exactParseKeys(
     parsed,
     [
