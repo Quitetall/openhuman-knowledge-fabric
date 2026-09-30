@@ -11,6 +11,7 @@ import {
   type ParsedDocument,
 } from './parse-contract.js';
 import { projectionFromPandoc } from './pandoc-projection.js';
+import { preparePandocTextSource } from './pandoc-nul.js';
 import type { PandocDocument } from './pandoc-types.js';
 
 const PANDOC_FORMATS: Readonly<Record<string, string>> = {
@@ -296,8 +297,11 @@ export class PandocDocumentParser implements DocumentParser {
     if (bytes.length === 0) throw new Error('document source is empty');
     if (bytes.length > MAX_SOURCE_BYTES) throw new Error('document source exceeds 20 MiB limit');
     const limits = this.#resolvedLimits();
-    const document = await pandocJson(limits, bytes, format);
-    const { atoms, conversionLoss } = projectionFromPandoc(document);
+    const input = preparePandocTextSource(bytes, format);
+    const document = await pandocJson(limits, input.bytes, format);
+    const projection = projectionFromPandoc(document);
+    const { atoms } = projection;
+    const conversionLoss = Object.freeze([...input.losses, ...projection.conversionLoss]);
     const apiVersion = Array.isArray(document['pandoc-api-version'])
       ? document['pandoc-api-version'].join('.')
       : 'unknown';

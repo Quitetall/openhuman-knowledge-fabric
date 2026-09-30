@@ -8,12 +8,10 @@ import { bindReader, seedFixtures, startHarness, type Fixtures, type Harness } f
 /**
  * A source holding NUL characters is stored, with the replacement recorded as conversion loss.
  *
- * PostgreSQL holds no NUL in text or jsonb. Pandoc hands a NUL through as `\u0000`, so the parse's
- * preimages were refused by the database ("document parse preimage is not valid JSON") and the
- * ingest answered 500: three Slack threads of the enterprise-rag-bench corpus never loaded. Now the
- * parser replaces each NUL with U+FFFD and records a `nul_character_replaced` loss naming the
- * string and the code-point runs, so the original is recoverable from the parse and nothing is
- * silently changed (§52.1). Real pandoc, real database.
+ * PostgreSQL holds no NUL in text or jsonb. Some readers pass it through; GFM in pandoc 3.11
+ * replaces it before emitting the AST. KF records the UTF-8 source replacement before parsing,
+ * naming original byte ranges, while preserving the stored source and its digest (§52.1).
+ * The AST sanitizer independently guards binary readers and imported ASTs. Real pandoc and DB.
  */
 
 let harness: Harness;
@@ -81,14 +79,19 @@ describe('a source with NUL characters', () => {
     });
     expect(atoms).toEqual(['Kick�off', 'Thread �� text co�de.']);
     const replaced = losses.filter((loss) => loss.code === 'nul_character_replaced');
-    // One claim per pandoc string that held a NUL, each with its code-point runs.
-    expect(replaced.map((loss) => loss.source)).toEqual(
-      expect.arrayContaining([
-        { replacement: 'U+FFFD', ranges: [[4, 1]] },
-        { replacement: 'U+FFFD', ranges: [[0, 2]] },
-        { replacement: 'U+FFFD', ranges: [[2, 1]] },
-      ]),
-    );
-    expect(replaced.every((loss) => loss.path.startsWith('/blocks/'))).toBe(true);
+    // One source-level claim survives even when pandoc itself never emits a NUL-bearing AST.
+    expect(replaced.map((loss) => loss.source)).toEqual([
+      {
+        replacement: 'U+FFFD',
+        encoding: 'utf-8',
+        offsetUnit: 'byte',
+        ranges: [
+          [6, 1],
+          [19, 2],
+          [30, 1],
+        ],
+      },
+    ]);
+    expect(replaced.map((loss) => loss.path)).toEqual(['/source']);
   });
 });

@@ -95,15 +95,21 @@ afterEach(() => {
   active = undefined;
 });
 
-function stubEngine(capabilities: string[]): {
+function stubEngine(
+  capabilities: string[],
+  delayMs = 0,
+): {
   path: string;
   received: string[];
   written: Written[];
+  peakWriters: () => number;
 } {
   const dir = mkdtempSync(join(tmpdir(), 'kf-embed-'));
   const path = join(dir, 'engine.sock');
   const received: string[] = [];
   const written: Written[] = [];
+  let writers = 0;
+  let peak = 0;
   const server = createServer((socket) => {
     let buffer = '';
     socket.on('data', (chunk) => {
@@ -126,6 +132,8 @@ function stubEngine(capabilities: string[]): {
             }),
           );
         } else if (message['type'] === 'write_vector') {
+          writers += 1;
+          peak = Math.max(peak, writers);
           const objectId = message['objectId']!;
           const text = message['text']!;
           void withTransaction(h.adminPool, (tx) =>
@@ -136,7 +144,10 @@ function stubEngine(capabilities: string[]): {
             ),
           ).then(({ open }) => {
             written.push({ objectId, text, openTransactions: open });
-            socket.write(encode({ type: 'write_vector_ok', objectId, generation: 'g1' }));
+            setTimeout(() => {
+              writers -= 1;
+              socket.write(encode({ type: 'write_vector_ok', objectId, generation: 'g1' }));
+            }, delayMs);
           });
         }
         newline = buffer.indexOf('\n');
@@ -145,10 +156,40 @@ function stubEngine(capabilities: string[]): {
   });
   server.listen(path);
   active = { server, dir };
-  return { path, received, written };
+  return { path, received, written, peakWriters: () => peak };
 }
 
 describe('embed on ingest (KF-SAS-RQ-225)', () => {
+  it('overlaps engine requests within the configured bound, without holding a transaction', async () => {
+    const ids = await Promise.all(
+      Array.from({ length: 6 }, (_, i) => acceptSomething(`Bounded embedding work ${i}`)),
+    );
+    await drainOutbox(workerPool, { handlers: { '*': embeddingOutboxHandler } });
+    const engine = stubEngine(['vectors_only_write'], 40);
+    const client = new RetrievalClient({ socketPath: engine.path, timeoutMs: 2_000 });
+    const result = await drainEmbeddings(workerPool, client, { concurrency: 2 });
+    expect(result.failed).toEqual([]);
+    expect(engine.peakWriters()).toBe(2);
+    for (const id of ids) expect(engine.written.map((row) => row.objectId)).toContain(id);
+    expect(engine.written.every((row) => row.openTransactions === 0)).toBe(true);
+    for (const id of ids) expect(await pending()).not.toContain(id);
+  });
+
+  it.each([0, -1, 1.5, 17, Number.NaN, Number.POSITIVE_INFINITY])(
+    'refuses concurrency %s before claiming work',
+    async (concurrency) => {
+      const engine = stubEngine(['vectors_only_write']);
+      const before = await pending();
+      await expect(
+        drainEmbeddings(workerPool, new RetrievalClient({ socketPath: engine.path }), {
+          concurrency,
+        }),
+      ).rejects.toThrow(/embedding concurrency/);
+      expect(await pending()).toEqual(before);
+      expect(engine.received).toEqual([]);
+    },
+  );
+
   it('queues what an act touched and embeds it with no transaction open', async () => {
     const id = await acceptSomething('Heat exchanger fouling allowance');
     const drained = await drainOutbox(workerPool, { handlers: { '*': embeddingOutboxHandler } });

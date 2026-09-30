@@ -1,10 +1,64 @@
-import type { DocumentParseLoss } from './parse-contract.js';
+import { DocumentParseRefused, type DocumentParseLoss } from './parse-contract.js';
 import { parseLoss } from './pandoc-text.js';
 import type { PandocDocument } from './pandoc-types.js';
 
 /** What stands in for a NUL character in a parse: the Unicode replacement character. */
 export const NUL_REPLACEMENT = '�';
 export const NUL_REPLACED_LOSS_CODE = 'nul_character_replaced';
+
+const MAX_SOURCE_NUL_RANGES = 65_536;
+
+/**
+ * Replace NUL bytes in UTF-8 text before a reader can silently replace them itself. Offsets
+ * refer to original source bytes, not AST strings or code points. Binary containers are untouched.
+ * The caller still binds the parse to its original bytes and stores those bytes unchanged.
+ */
+export function preparePandocTextSource(
+  bytes: Buffer,
+  format: string,
+): {
+  readonly bytes: Buffer;
+  readonly losses: readonly DocumentParseLoss[];
+} {
+  if ((format !== 'gfm' && format !== 'markdown') || !bytes.includes(0)) {
+    return { bytes, losses: [] };
+  }
+  const ranges: [number, number][] = [];
+  let nulCount = 0;
+  for (let start = bytes.indexOf(0); start !== -1;) {
+    let end = start + 1;
+    while (end < bytes.length && bytes[end] === 0) end += 1;
+    if (ranges.length === MAX_SOURCE_NUL_RANGES) {
+      throw new DocumentParseRefused(
+        'output_limit',
+        'source NUL conversion-loss ranges exceed limit',
+      );
+    }
+    ranges.push([start, end - start]);
+    nulCount += end - start;
+    start = bytes.indexOf(0, end);
+  }
+  const cleaned = Buffer.allocUnsafe(bytes.length + nulCount * 2);
+  let previous = 0;
+  let destination = 0;
+  for (const [start, length] of ranges) {
+    destination += bytes.copy(cleaned, destination, previous, start);
+    const replacementEnd = destination + length * 3;
+    cleaned.fill(NUL_REPLACEMENT, destination, replacementEnd, 'utf8');
+    destination = replacementEnd;
+    previous = start + length;
+  }
+  bytes.copy(cleaned, destination, previous);
+  const losses: DocumentParseLoss[] = [];
+  parseLoss(
+    losses,
+    NUL_REPLACED_LOSS_CODE,
+    '/source',
+    'U+0000 in UTF-8 source was replaced by U+FFFD before parsing at these original byte ranges',
+    { replacement: 'U+FFFD', encoding: 'utf-8', offsetUnit: 'byte', ranges },
+  );
+  return { bytes: cleaned, losses };
+}
 
 /** A run of replaced characters: `[start, length]` in code points of the string as recorded. */
 type Range = readonly [number, number];

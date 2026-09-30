@@ -35,8 +35,10 @@ let server: Server | undefined;
 let port = 0;
 /** Bodies the endpoint received, in order. */
 let received: string[] = [];
+let paths: string[] = [];
 /** What the endpoint should answer with next. */
 let status = 200;
+let responseBody = '';
 
 beforeAll(async () => {
   workspace = mkdtempSync(join(tmpdir(), 'kf-alert-'));
@@ -77,7 +79,8 @@ beforeAll(async () => {
       });
       request.on('end', () => {
         received.push(body);
-        response.writeHead(status).end('');
+        paths.push(request.url!);
+        response.writeHead(status).end(responseBody);
       });
     },
   );
@@ -94,7 +97,9 @@ afterAll(() => {
 
 afterEach(() => {
   received = [];
+  paths = [];
   status = 200;
+  responseBody = '';
 });
 
 /** Write a webhook-url secret with the given contents and mode. */
@@ -117,6 +122,7 @@ function urlFile(contents: string, mode = 0o600): string {
 async function dispatch(
   args: readonly string[],
   urlFilePath: string,
+  env: Record<string, string> = {},
 ): Promise<{ code: number; stderr: string }> {
   return new Promise((resolve) => {
     const child = spawn('bash', [SCRIPT, ...args], {
@@ -125,6 +131,7 @@ async function dispatch(
         KF_ALERT_WEBHOOK_URL_FILE: urlFilePath,
         // What a private CA would supply on a real host. The script is unchanged.
         CURL_CA_BUNDLE: certificate,
+        ...env,
       },
     });
     let output = '';
@@ -139,6 +146,97 @@ async function dispatch(
 }
 
 describe('the alert path', () => {
+  it('retains the heartbeat liveness guard in the encrypted-credential drop-in', () => {
+    const heartbeat = readFileSync(
+      join(ROOT, 'deploy/systemd/alert-heartbeat-ntfy-healthchecks.conf'),
+      'utf8',
+    );
+    expect(heartbeat).toContain('ExecStartPre=\n');
+    expect(heartbeat).toContain(
+      'ExecStartPre=/opt/kf/scripts/timer-liveness.sh kf-readiness.timer',
+    );
+    expect(heartbeat).toContain('LoadCredentialEncrypted=heartbeat-url:');
+    expect(heartbeat).toContain('Environment=KF_ALERT_HEARTBEAT_URL_FILE=%d/heartbeat-url');
+  });
+
+  it('sends only a fixed generic message to a free ntfy topic', async () => {
+    responseBody = JSON.stringify({
+      event: 'message',
+      message: 'Service needs attention. Check the service locally.',
+    });
+    const file = urlFile(`https://127.0.0.1:${port}/ntfy-topic`);
+    const result = await dispatch(['failure', 'sensitive-unit.service'], file, {
+      KF_ALERT_PROVIDER: 'ntfy-healthchecks',
+    });
+    expect(result.code, result.stderr).toBe(0);
+    expect(received).toEqual(['Service needs attention. Check the service locally.']);
+    expect(paths).toEqual(['/ntfy-topic']);
+  });
+
+  it('sends an empty heartbeat to Healthchecks, not to ntfy', async () => {
+    responseBody = 'OK';
+    // Write distinct paths: the old helper names files from length, not from contents.
+    const topic = urlFile(`https://127.0.0.1:${port}/topic`);
+    const heartbeat = urlFile(`https://127.0.0.1:${port}/healthchecks-heartbeat`);
+    const result = await dispatch(['heartbeat'], topic, {
+      KF_ALERT_PROVIDER: 'ntfy-healthchecks',
+      KF_ALERT_HEARTBEAT_URL_FILE: heartbeat,
+    });
+    expect(result.code, result.stderr).toBe(0);
+    expect(paths).toEqual(['/healthchecks-heartbeat']);
+    expect(received).toEqual(['']);
+  });
+
+  it('refuses Healthchecks HTTP 200 responses for an unknown check', async () => {
+    responseBody = 'OK (not found)';
+    const file = urlFile(`https://127.0.0.1:${port}/unknown-check`);
+    const result = await dispatch(['heartbeat'], file, {
+      KF_ALERT_PROVIDER: 'ntfy-healthchecks',
+      KF_ALERT_HEARTBEAT_URL_FILE: file,
+    });
+    expect(result.code).not.toBe(0);
+    expect(result.stderr).toContain('nobody has been told');
+    expect(received).toHaveLength(3);
+  }, 60_000);
+
+  it('refuses a false ntfy acknowledgement without exposing its response', async () => {
+    responseBody = JSON.stringify({ event: 'message', message: 'private-provider-content' });
+    const file = urlFile(`https://127.0.0.1:${port}/false-ack`);
+    const result = await dispatch(['failure', 'kf-backup.service'], file, {
+      KF_ALERT_PROVIDER: 'ntfy-healthchecks',
+    });
+    expect(result.code).not.toBe(0);
+    expect(result.stderr).not.toContain('private-provider-content');
+    expect(received).toHaveLength(3);
+  }, 60_000);
+
+  it('refuses an unknown provider before delivering anything', async () => {
+    const result = await dispatch(['failure', 'kf-backup.service'], '/no-such-file', {
+      KF_ALERT_PROVIDER: 'typo',
+    });
+    expect(result.code).toBe(2);
+    expect(received).toEqual([]);
+  });
+
+  it('refuses a failure ping URL accidentally configured as a heartbeat', async () => {
+    const file = urlFile(`https://127.0.0.1:${port}/check/fail`);
+    const result = await dispatch(['heartbeat'], file, {
+      KF_ALERT_PROVIDER: 'ntfy-healthchecks',
+      KF_ALERT_HEARTBEAT_URL_FILE: file,
+    });
+    expect(result.code).not.toBe(0);
+    expect(received).toEqual([]);
+  });
+
+  it('refuses multiline URL config injection', async () => {
+    const result = await dispatch(
+      ['failure', 'kf-backup.service'],
+      urlFile(`https://127.0.0.1:${port}/hook\noutput = /tmp/not-allowed`),
+    );
+    expect(result.code).not.toBe(0);
+    expect(received).toEqual([]);
+  });
+
   it('delivers a failure alert over real TLS and says which unit and where the logs are', async () => {
     const file = urlFile(`https://127.0.0.1:${port}/hook`);
     const { code, stderr } = await dispatch(['failure', 'kf-backup.service'], file);

@@ -1,0 +1,141 @@
+# Phone alerts without a subscription
+
+The deployment owner chose free hosted ntfy and free Healthchecks, accepting that anyone who
+learns a free ntfy topic can read or forge notifications. A long random topic is not an ACL.
+Neither alert grants authority nor proves an incident: inspect KF locally before taking action.
+
+The `ntfy-healthchecks` provider sends a fixed generic failure message directly to ntfy. It
+sends an empty daily heartbeat to Healthchecks. Healthchecks sends a notification to the same
+topic when a heartbeat is missed. A heartbeat cannot clear an unrelated failure notification.
+No host/unit names, timestamps, invocation IDs, log commands, record identifiers, logs or
+document content are sent by this provider. The existing JSON webhook provider remains the
+default for other deployments.
+
+## Owner setup
+
+1. Install the ntfy iOS app and allow notifications. Use the hosted `https://ntfy.sh` server.
+2. Generate a 32-byte random topic and store the endpoint in the encrypted secret store as
+   `KF_ALERT_NTFY_URL`. Do not paste the endpoint into chat, source, a command argument or a
+   plaintext file. Inspect it only in your own terminal through `secrets run` to subscribe in
+   the app. Do not use a guessable topic such as `kf-alerts`.
+3. In Healthchecks, create a check with the generic name **Service heartbeat**. Configure
+   a simple period of **1 day** and grace time of **3 hours**, matching the existing daily
+   timer's one-hour random spread and 27-hour silence limit. This is daily detection, not an
+   immediate host outage alarm.
+4. Add the ntfy integration to that check: hosted server, the random topic, and no access token
+   for this explicitly public free-topic setup. Keep the check's name and tags generic because
+   the integration can include them in notifications. Add email to the same check whenever
+   desired; no KF code change is needed for that.
+5. Store the check's base HTTPS ping URL (no `/fail`, `/start`, `/log`, or query suffix) with
+   `secrets set KF_ALERT_HEARTBEAT_URL`. That command prompts without echoing when run in a
+   terminal. Share only the environment name, not its value.
+
+## Host integration
+
+The mode needs both endpoints: `KF_ALERT_WEBHOOK_URL_FILE` for ntfy and
+`KF_ALERT_HEARTBEAT_URL_FILE` for Healthchecks. Each file must be readable only by its owner.
+The owner selected the workstation's TPM-backed encrypted secret store for VM startup. The
+handoff module is `scripts/deploy/workstation-credentials.mjs`; its interface exports exactly
+`KF_ALERT_NTFY_URL` and `KF_ALERT_HEARTBEAT_URL`, never the entire store. Both endpoints travel on
+SSH stdin, not in command arguments, and the SSH process receives a clean environment without
+decrypted keys. SSH requires the pinned VM Ed25519 host key, ignores ambient SSH configuration,
+does not forward an agent, and verifies the receiver's source digest before invoking it.
+
+The root receiver accepts only bounded fixed framing. It refuses non-tmpfs destinations,
+active swap, symlinked directories, incorrect ownership and widened permissions. It publishes
+one complete generation atomically under `/run/kf-workstation-credentials/current`, with
+directory mode `0700` and file mode `0400`, tied to the current guest boot ID. It emits no values.
+The workstation timer checks readiness every 30 seconds, and unlocks the encrypted store only
+when credentials are missing. A stopped guest, changed host key or receiver drift fails closed.
+Secret rotation requires an explicit `send` rather than relying on the boot readiness check.
+
+Use `deploy/systemd/alert-workstation-credentials.conf` for `kf-alert@.service` and
+`deploy/systemd/alert-heartbeat-workstation-credentials.conf` for
+`kf-alert-heartbeat.service`. They use `LoadCredential=` to copy the volatile source into
+systemd's per-module credential directory. Neither source endpoints nor a decrypting key are
+stored on the VM disk. The heartbeat drop-in retains the readiness timer-liveness check.
+
+The workstation templates live under `deploy/workstation/`. Render `@SENDER@` and `@CONFIG@`
+with absolute paths to the versioned module and its owner-controlled non-secret JSON config.
+The config contains only `identityFile`, `knownHostsFile`, `receiverPath` and `secretsCommand`.
+The selected VM uses `kfadmin@127.0.0.1:2222`; this adapter deliberately does not route to an
+arbitrary host. Enable the timer as a dependency of `kf-host-1.service`. Order the triggered
+module after QEMU, not the timer: a timer's default ordering before `timers.target` would make
+an `After=kf-host-1.service` timer cyclic at boot.
+
+Install identical module bytes at a digest-versioned path on workstation and VM, outside any
+sealed KF release. The VM copy is root-owned and mode `0555`; its config is not a credential.
+Installing this host bootstrap is separate from installing an application release, and grants
+no document authority. Existing database/signing credentials and retrieval-key release are
+not migrated or completed by this two-endpoint interface.
+
+### Alternative for an independently provisioned encrypted-credential host
+
+Use this only if a different credential-unlock mechanism is explicitly selected. The optional
+`deploy/systemd/alert-ntfy-healthchecks.conf` belongs in
+`kf-alert@.service.d/ntfy-healthchecks.conf`. The separate
+`deploy/systemd/alert-heartbeat-ntfy-healthchecks.conf` belongs in
+`kf-alert-heartbeat.service.d/ntfy-healthchecks.conf` and includes the required readiness
+timer-liveness precheck. Do not use the failure-unit drop-in for the heartbeat.
+
+The empty `ExecStartPre=` replaces the legacy endpoint precheck. Omitting the heartbeat's
+timer-liveness precheck would falsely report a working monitoring path when readiness had
+stopped. Encrypt credentials on the target host with `systemd-creds encrypt`, reading values
+over stdin through an encrypted transport; persist only ciphertext in
+`/etc/kf/credstore.encrypted/alert-ntfy-url` and `alert-heartbeat-url`.
+
+Before encryption, verify that the host has an approved credential-unlock mechanism and that
+the transport's host key is pinned. Do not silently initialize a persistent plaintext
+systemd host credential key as a fallback on a host without a TPM. Encryption at rest
+and automatic reboot recovery must both be demonstrated; a working workstation secret store
+does not establish either property inside a VM.
+
+Install only with a release containing this provider, preserving release integrity. Do not
+edit the installed sealed release in place or treat a successful local test as host deployment.
+
+## Acceptance
+
+- Run an explicit test failure and confirm the generic alert arrives on the locked iPhone.
+- Start the heartbeat service and confirm Healthchecks records the ping; no daily success
+  notification is sent directly to the phone.
+- Exercise a separate short-period test check, withholding its next ping, and confirm the
+  missing-heartbeat notification arrives. Do not stop production monitoring for the test.
+- Confirm encrypted source custody, volatile guest credentials, active timer, readiness-liveness
+  guard and reboot persistence
+  on the real host. The owner confirms reception; an HTTP success alone does not prove it.
+
+An endpoint rejection, malformed ntfy acknowledgement, or Healthchecks `OK (not found)` /
+`OK (rate limited)` response fails delivery. Three bounded attempts are made. Provider response
+bodies and bearer URLs are not printed or put in curl's command arguments.
+
+## Observed setup, not host commissioning
+
+On 2026-09-30, both endpoint references were present in the workstation's encrypted secret
+store. The KF dispatcher sent its fixed generic failure message and an empty heartbeat using
+ephemeral input descriptors. Both providers accepted them, and the owner confirmed receipt of
+the KF message on the iPhone. The Healthchecks integration's own test had also reached the
+phone. No endpoint or topic is recorded here.
+
+The owner then selected workstation custody. The bootstrap module was installed with SHA-256
+`33423ce64080782f13f0f96866b54647c2ab7eaa68e2d5a780a090c4913e898d`, outside the sealed
+application release. The timer is enabled under the existing lingering workstation account.
+Pinned SSH delivered both endpoints to root-owned tmpfs files. An ordinary guest account could
+not read the source files, while a transient systemd module using `LoadCredential=` could read
+both private credential copies. No values were printed.
+
+A real guest reboot changed boot ID from `5a13783e-0b4d-41a0-8a2c-fade335624d3` to
+`256a97d2-cd41-4445-9d73-4ec8f58a82af`; the timer automatically restored both credentials and
+the five previously active KF modules returned active. No systemd host credential key was
+created. This proves guest-reboot handoff, not a physical workstation reboot or full
+commissioning. The VM's ntfy/Healthchecks alert modules and drop-ins have not been installed;
+they require the new application release. A missing-heartbeat notification and the VM readiness
+guard remain untested.
+
+The handoff's nine tests passed and the full `pnpm gate` passed with 2,853 tests passed and
+24 opt-in tests skipped. A value-aware check of the workstation startup journal found neither
+endpoint value; the check emitted only its result, not the values or journal contents.
+
+References: [ntfy publishing](https://docs.ntfy.sh/publish/),
+[Healthchecks ping protocol](https://healthchecks.io/docs/http_api/),
+[Healthchecks notification setup](https://healthchecks.io/docs/configuring_notifications/).
+Credential semantics: [systemd v257 execution configuration](https://github.com/systemd/systemd/blob/v257/man/systemd.exec.xml).

@@ -60,11 +60,21 @@ case "$event" in
     ;;
 esac
 
+provider="${KF_ALERT_PROVIDER:-webhook}"
+case "$provider" in
+  webhook) ;;
+  ntfy-healthchecks) ;;
+  *) echo "unsupported KF_ALERT_PROVIDER; refusing to send" >&2; exit 2 ;;
+esac
+
 url_file="${KF_ALERT_WEBHOOK_URL_FILE:-/etc/kf/alert/webhook-url}"
+if [ "$provider" = ntfy-healthchecks ] && [ "$event" = heartbeat ]; then
+  url_file="${KF_ALERT_HEARTBEAT_URL_FILE:-/etc/kf/alert/heartbeat-url}"
+fi
 # Mode-checked exactly like every other secret here: group or other bits mean it is already
 # disclosed to another account on this host. A webhook URL is a credential — anyone holding it
 # can forge alerts from this deployment, which is worse than being unable to send them.
-webhook_url="$(kf_read_secret_file "$url_file" KF_ALERT_WEBHOOK_URL_FILE)"
+webhook_url="$(kf_read_secret_file "$url_file" "alert endpoint")"
 
 # HTTPS only, for the same reason the API refuses to serve bearer tokens over clear HTTP: this
 # request carries a credential in its URL and says which host is in trouble, which is a useful
@@ -77,13 +87,37 @@ case "$webhook_url" in
     ;;
 esac
 
+# The URL is a bearer credential. Feed curl a validated config on stdin instead of putting
+# it in argv, and never echo a provider error body (it can contain the URL or private data).
+curl_config="$(printf '%s' "$webhook_url" | node -e '
+  let input = "";
+  process.stdin.setEncoding("utf8");
+  process.stdin.on("data", chunk => { input += chunk; });
+  process.stdin.on("end", () => {
+    try {
+      const url = new URL(input);
+      if (url.protocol !== "https:" || url.username || url.password || /[\s\\\x00-\x1f\x7f]/.test(input)) {
+        throw new Error();
+      }
+      if (process.argv[1] === "ntfy-healthchecks" && (url.search || url.hash ||
+          (process.argv[2] === "heartbeat" && /\/(fail|start|log|[0-9]+)\/?$/.test(url.pathname)))) {
+        throw new Error();
+      }
+      process.stdout.write("url = " + JSON.stringify(url.href) + "\n");
+    } catch {
+      console.error("invalid HTTPS alert endpoint; refusing to send");
+      process.exitCode = 1;
+    }
+  });
+' "$provider" "$event")"
+
 # Structured facts from systemd, never log text. `--property` output is `Key=Value` lines; a
 # unit that does not exist yields empty values rather than an error, which is the right
 # behaviour for an alerter that must not add a second failure to the one it is reporting.
 result=""
 exit_status=""
 invocation=""
-if command -v systemctl >/dev/null 2>&1 && [ "$event" = failure ]; then
+if [ "$provider" = webhook ] && command -v systemctl >/dev/null 2>&1 && [ "$event" = failure ]; then
   while IFS='=' read -r key value; do
     case "$key" in
       Result) result="$value" ;;
@@ -96,6 +130,7 @@ fi
 # JSON built by node rather than by string concatenation. A unit name reaches this script from
 # systemd's `%i`, and hand-rolled quoting is how an alerter becomes an injection point into
 # whatever consumes the webhook.
+if [ "$provider" = webhook ]; then
 payload="$(
   KF_EVENT="$event" \
   KF_UNIT="$unit" \
@@ -125,6 +160,18 @@ payload="$(
     process.stdout.write(JSON.stringify(body));
   '
 )"
+content_type=application/json
+elif [ "$event" = failure ]; then
+  # A free ntfy topic is public to anyone who knows its name. The owner explicitly chose
+  # generic alerts: not even host/unit names, timestamps, invocation ids or log commands.
+  payload='Service needs attention. Check the service locally.'
+  content_type=text/plain
+else
+  # Healthchecks stores POST bodies. Send no metadata, and accept only its exact success
+  # response: it can also return HTTP 200 for an unknown or rate-limited check.
+  payload=''
+  content_type=text/plain
+fi
 
 # Bounded, retried, then loud. Three attempts over roughly half a minute: enough to ride out a
 # reload at the far end, short enough that a queue of failing units does not pile up behind it.
@@ -132,12 +179,30 @@ payload="$(
 # rather than a success that reached nobody.
 attempt=1
 while :; do
-  if curl --fail --silent --show-error \
+  if response="$(printf '%s' "$curl_config" | curl --config - --fail --silent \
        --max-time 20 \
-       --header 'content-type: application/json' \
+       --max-filesize 65536 \
+       --header "content-type: $content_type" \
        --data "$payload" \
-       "$webhook_url" >/dev/null; then
-    exit 0
+       2>/dev/null)"; then
+    if [ "$provider" = webhook ]; then
+      exit 0
+    elif [ "$event" = heartbeat ] && [ "$response" = OK ]; then
+      exit 0
+    elif [ "$event" = failure ] && printf '%s' "$response" | node -e '
+      let input = "";
+      process.stdin.setEncoding("utf8");
+      process.stdin.on("data", chunk => { input += chunk; });
+      process.stdin.on("end", () => {
+        try {
+          const response = JSON.parse(input);
+          process.exitCode = response.event === "message" &&
+            response.message === "Service needs attention. Check the service locally." ? 0 : 1;
+        } catch { process.exitCode = 1; }
+      });
+    '; then
+      exit 0
+    fi
   fi
   if [ "$attempt" -ge 3 ]; then
     echo "alert delivery failed after $attempt attempts for $unit ($event)" >&2

@@ -30,7 +30,7 @@ export interface DocumentParseLoss {
   readonly code: string;
   readonly path: string;
   readonly message: string;
-  /** Exact Pandoc JSON value whose omission or flattening produced this loss claim. */
+  /** Exact omitted/flattened Pandoc value, or an explicit source-transformation descriptor. */
   readonly source: JsonValue;
   readonly sourceDigest: string;
 }

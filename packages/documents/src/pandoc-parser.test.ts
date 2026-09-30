@@ -27,6 +27,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PandocDocumentParser } from './internal/pandoc-parser.js';
 import { DocumentParseRefused } from './internal/parse-contract.js';
+import { digestOf } from '@kf/artifacts';
 
 /** Deliberately dull constructs: a heading and a paragraph, whose parse should be stable. */
 const SOURCE = Buffer.from('# Heading\n\nOne fact, one owner.\n');
@@ -117,6 +118,31 @@ const DRIFT_CASES: ReadonlyArray<{
 ];
 
 describe('the real pandoc parser', () => {
+  it.each(['text/markdown', 'text/plain'])(
+    'records source NUL replacements before the %s reader can erase their provenance',
+    async (mediaType) => {
+      const source = Buffer.from('é�x\u0000\u0000y😀\u0000z');
+      const parsed = await new PandocDocumentParser().parse(source, mediaType);
+      expect(parsed!.sourceDigest).toBe(digestOf(source));
+      expect(parsed!.atoms.map((atom) => atom.text)).toEqual(['é�x��y😀�z']);
+      expect(parsed!.conversionLoss).toEqual([
+        expect.objectContaining({
+          code: 'nul_character_replaced',
+          path: '/source',
+          source: {
+            replacement: 'U+FFFD',
+            encoding: 'utf-8',
+            offsetUnit: 'byte',
+            ranges: [
+              [6, 2],
+              [13, 1],
+            ],
+          },
+        }),
+      ]);
+    },
+  );
+
   it('records the pandoc BINARY version, not only the AST schema version', async () => {
     // The defect this was written for: `parserVersion` carried `pandoc-api-version`, the
     // pandoc-types AST SCHEMA version, which tracks pandoc-types rather than pandoc and so can

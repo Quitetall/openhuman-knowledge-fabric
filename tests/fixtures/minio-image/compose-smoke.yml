@@ -1,0 +1,9 @@
+# Scoped by scripts/object-store-smoke.mjs. No published ports or shared volume names.
+services:
+  minio:
+    pull_policy: never
+    container_name: ${KF_OBJECT_STORE_SMOKE_PROJECT:?}-minio
+    ports: !override []
+  minio-init:
+    pull_policy: never
+    container_name: ${KF_OBJECT_STORE_SMOKE_PROJECT:?}-init

@@ -8,7 +8,7 @@
  *
  * The engine is reached from a separate pump, never from inside the drain, and never with a
  * transaction open: claim a batch (one short transaction, committed), send each record's text to
- * the engine's vectors-only write (no transaction), complete each one that the engine acknowledged
+ * the engine's vectors-only write with bounded concurrency (no transaction), complete each one that the engine acknowledged
  * (another short transaction). The engine may be slow or down; the database does not wait for it.
  *
  * And the text goes only to a path that keeps none of it: the client refuses, before writing the
@@ -54,13 +54,23 @@ export interface EmbeddingDrainResult {
 
 const DEFAULT_BATCH = 32;
 const DEFAULT_LEASE_SECONDS = 120;
+const DEFAULT_CONCURRENCY = 4;
+const MAX_CONCURRENCY = 16;
 
 /** One pass of the embedding pump. */
 export async function drainEmbeddings(
   pool: Pool,
   client: RetrievalClient,
-  options: { readonly batchSize?: number; readonly leaseSeconds?: number } = {},
+  options: {
+    readonly batchSize?: number;
+    readonly leaseSeconds?: number;
+    readonly concurrency?: number;
+  } = {},
 ): Promise<EmbeddingDrainResult> {
+  const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
+  if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > MAX_CONCURRENCY) {
+    throw new RangeError(`embedding concurrency must be an integer from 1 to ${MAX_CONCURRENCY}`);
+  }
   const claimed = await withTransaction(pool, (tx) =>
     tx.query<{
       object_id: string;
@@ -74,22 +84,35 @@ export async function drainEmbeddings(
   );
 
   let embedded = 0;
-  const failed: { objectId: string; reason: string }[] = [];
-  for (const row of claimed) {
-    // No transaction is open here: the claim committed above, and the completion below is its own.
-    const outcome = await client.writeVector({
-      organizationId: row.organization_id,
-      objectId: row.object_id,
-      text: row.text ?? '',
-    });
-    if ('status' in outcome) {
-      failed.push({ objectId: row.object_id, reason: outcome.reason });
-      continue;
+  const failures = new Map<number, { objectId: string; reason: string }>();
+  let next = 0;
+  async function consume(): Promise<void> {
+    while (next < claimed.length) {
+      const index = next++;
+      const row = claimed[index]!;
+      // No transaction is open while the engine works. Each completion is its own transaction.
+      try {
+        const outcome = await client.writeVector({
+          organizationId: row.organization_id,
+          objectId: row.object_id,
+          text: row.text ?? '',
+        });
+        if ('status' in outcome) {
+          failures.set(index, { objectId: row.object_id, reason: outcome.reason });
+          continue;
+        }
+        await withTransaction(pool, (tx) =>
+          tx.query('select retrieval.complete_embedding($1, $2)', [row.object_id, row.claim]),
+        );
+        embedded += 1;
+      } catch {
+        // Leave the claim retryable and let the rest of the batch progress. An arbitrary
+        // transport/database exception may contain text or credentials; never report it here.
+        failures.set(index, { objectId: row.object_id, reason: 'embedding or completion failed' });
+      }
     }
-    await withTransaction(pool, (tx) =>
-      tx.query('select retrieval.complete_embedding($1, $2)', [row.object_id, row.claim]),
-    );
-    embedded += 1;
   }
+  await Promise.all(Array.from({ length: Math.min(concurrency, claimed.length) }, () => consume()));
+  const failed = [...failures.entries()].sort(([a], [b]) => a - b).map(([, failure]) => failure);
   return { claimed: claimed.length, embedded, failed };
 }

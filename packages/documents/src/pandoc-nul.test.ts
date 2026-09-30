@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { digestOf } from '@kf/artifacts';
 import { projectionFromPandoc } from './internal/pandoc-projection.js';
-import { replaceNulCharacters } from './internal/pandoc-nul.js';
+import { preparePandocTextSource, replaceNulCharacters } from './internal/pandoc-nul.js';
 import {
   documentConversionLossDigest,
   documentProjectionDigest,
@@ -26,6 +26,32 @@ function restore(kept: string, ranges: readonly (readonly [number, number])[]): 
 }
 
 describe('replacing NUL in a pandoc parse', () => {
+  it('preserves source bytes and copies unchanged binary containers and NUL-free text', () => {
+    const binary = Buffer.from([0x50, 0x4b, 0, 0x80]);
+    for (const format of ['docx', 'odt']) {
+      const prepared = preparePandocTextSource(binary, format);
+      expect(prepared.bytes).toBe(binary);
+      expect(prepared.losses).toEqual([]);
+    }
+    const text = Buffer.from('plain � text');
+    expect(preparePandocTextSource(text, 'gfm').bytes).toBe(text);
+    const source = Buffer.from([0, 0x61, 0, 0]);
+    const prepared = preparePandocTextSource(source, 'gfm');
+    expect(source).toEqual(Buffer.from([0, 0x61, 0, 0]));
+    expect(prepared.bytes.toString('utf8')).toBe('�a��');
+    expect(prepared.losses[0]!.source).toMatchObject({
+      ranges: [
+        [0, 1],
+        [2, 2],
+      ],
+    });
+  });
+
+  it('refuses excessive source-loss ranges instead of silently truncating them', () => {
+    const source = Buffer.from('x\u0000'.repeat(65_537));
+    expect(() => preparePandocTextSource(source, 'gfm')).toThrow(/ranges exceed limit/);
+  });
+
   it('records each string’s runs so the original is exact, a genuine U+FFFD included', () => {
     const original = `a${NUL}${NUL}b�c${NUL}\u{1F600}${NUL}`;
     const { document, losses } = replaceNulCharacters({

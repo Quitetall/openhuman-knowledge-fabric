@@ -15,7 +15,7 @@
     "@kf/ml-registry": "workspace:*",
     "@kf/ui": "workspace:*",
     "jose": "^6.2.8",
-    "next": "^16.3.4",
+    "next": "^16.3.7",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

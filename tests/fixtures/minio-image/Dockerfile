@@ -15,6 +15,7 @@ ARG GOLANG=docker.io/library/golang:1.24-bookworm@sha256:1a6d4452c65dea36aac2e2d
 # distroless/static-debian12 on 2026-09-26: CA certificates, /tmp, and nothing to execute but the
 # one binary. The fixture drives the server only through `docker create|start|stop|cp|rm` and S3.
 ARG RUNTIME=gcr.io/distroless/static-debian12@sha256:d75cdd72874d4790092fcb1b058493ecf6bb5bf2b2b897045b00ff01d91843f2
+ARG SHELL=docker.io/library/busybox:1.37.0-musl@sha256:5cec3fc171c87218698e85a52af7087de727372aae264a787b8112901a5b0092
 
 ARG MINIO_RELEASE=RELEASE.2025-09-07T16-13-09Z
 ARG MINIO_COMMIT=07c3a429bfed433e49018cb0f78a52145d4bedeb
@@ -58,3 +59,14 @@ COPY --from=minio-build /out/minio /usr/bin/minio
 EXPOSE 9000
 VOLUME ["/data"]
 ENTRYPOINT ["/usr/bin/minio"]
+
+# Compose uses mc's readiness probe and a shell for bucket initialization. Keep those additions
+# out of the preservation fixture's minimal images while sharing the exact verified binaries.
+FROM ${SHELL} AS shell
+
+FROM minio AS minio-development
+ENV MC_CONFIG_DIR=/tmp/.mc
+COPY --from=mc-build /out/mc /usr/bin/mc
+
+FROM mc AS mc-development
+COPY --from=shell /bin/busybox /bin/sh
