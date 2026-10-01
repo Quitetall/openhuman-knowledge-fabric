@@ -607,7 +607,10 @@ previous release before switching `/opt/kf` back), then re-run preflight. Readin
 both compare the installed ontology digest with the live release's, so a rollback across an
 ontology change is refused at API startup rather than served. For incompatible schema or partial migration, restore pre-migration backup
 into new database instance, verify audit/export/readiness there, then change credential file
-under approved recovery procedure. Never run `dbmate down` against production database.
+under approved recovery procedure. First close ingress and hold every API and retrieval-engine
+cache holder with the [persistent recovery interlock](../backup-and-restore/README.md#live-recovery-stop-permission-cache-holders-first);
+resume only fresh processes after verification. This applies to PITR as well as dump recovery:
+a restored band-version epoch can repeat a cached token. Never run `dbmate down` against production database.
 
 ## PostgreSQL JIT: off, and readiness checks it
 

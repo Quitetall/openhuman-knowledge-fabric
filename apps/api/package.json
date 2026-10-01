@@ -36,7 +36,7 @@
     "@kf/retrieval": "workspace:*",
     "@kf/search": "workspace:*",
     "@kf/work-control": "workspace:*",
-    "fastify": "^5.12.1",
+    "fastify": "^5.12.5",
     "jose": "^6.2.8"
   },
   "devDependencies": {

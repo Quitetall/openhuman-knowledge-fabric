@@ -91,12 +91,64 @@ unbounded package.
 
 ## Restore, and prove it
 
+### Live recovery: stop permission-cache holders first
+
+A restore or point-in-time recovery can repeat a previously issued `(epoch, counter)` band
+version with different classification membership (KF-SAS §100.29). An API or retrieval engine
+that survives it must not reuse its old in-memory mask. Do not alter the preserved snapshot to
+solve this: recovery must still re-export the same authoritative bytes.
+
+Before restoring a database that will serve requests, close ingress and run the host interlock:
+
+```sh
+sudo node /opt/kf/scripts/deploy/recovery-barrier.mjs hold <actual-retrieval-unit>.service
+```
+
+Name every additional cache-holder unit on that host, including the installed LAMU retrieval
+engine. The API and worker are always included. If several hosts use the database, hold each
+one and verify its stopped processes before touching the database; an undeclared remote or
+unmanaged process is not covered. A lexical-only host has no additional retrieval unit.
+
+`hold` writes a persistent `/var/lib/kf-recovery/held` record and start guards for the exact
+units, reloads the manager, stops their entire control groups, and verifies they are stopped.
+It refuses missing units, unsafe unit names, non-control-group stopping and unsafe files. A
+failed hold is not permission to restore. The guards survive reboot and prevent timer,
+dependency or manual starts while held. Retrying `hold` without arguments retains the original
+unit list; it cannot silently forget the external engine. Do not run resume from an EXIT trap.
+
+Perform recovery into a new database, verify the export, audit checkpoints and object bytes,
+and switch the approved connection routing while every host is still held. For PITR, verify
+the selected recovery point and audit/object consistency rather than claiming byte equality
+with a different backup snapshot. Only after recovery verification succeeds:
+
+```sh
+sudo node /opt/kf/scripts/deploy/recovery-barrier.mjs resume-confirmed
+```
+
+This command is the operator's confirmation of verification, not evidence that the script
+performed it. It rereads the held list, refuses any surviving process or changed guard, removes
+the hold and requests fresh processes. Run host preflight before reopening ingress. The guard
+drop-ins remain installed for the next recovery. If the coordinator is killed, its exclusive
+`operation.lock` fails closed; an operator must confirm no coordinator is running before
+removing that single stale lock. Never remove `held` to bypass an incomplete recovery.
+
+The real-systemd regression is opt-in (`KF_RECOVERY_SYSTEMD_TEST=1`): isolated synthetic cache
+holders in the workstation's user manager are killed, refused restart while held, then read
+restored membership under a repeated version in fresh processes. This is not a production
+database restore or VM commissioning receipt.
+
+### Isolated backup verification
+
     scripts/restore-verify.sh backups/2026-08-11 /run/kf/restore-target-url
 
 `/run/kf/restore-target-url` must be an owner-only regular file containing the connection string.
 An optional third argument is an owner-only production-ledger URL file. Connection strings are
 never accepted directly as arguments: an inline password would already be visible in
 `/proc/<pid>/cmdline` before the script could move it into `PGPASSFILE`.
+
+This verifier does not reopen a host or coordinate its processes. Scheduled drills use a
+private, throwaway cluster and therefore do not stop production. A live replacement still
+requires the recovery interlock above.
 
 The script:
 

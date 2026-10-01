@@ -7,6 +7,10 @@
 # may produce a generic verified outcome; any missing dimension is recorded partial and exits
 # nonzero.
 #
+# This is isolated verification, not permission to reopen a production host. Before live
+# replacement or PITR, hold every cache holder with deploy/recovery-barrier.mjs; only resume
+# fresh processes after verified recovery (docs/backup-and-restore/README.md).
+#
 # It refuses to touch a database that already has a `core` schema. Restoring over live records
 # is the failure mode this whole system exists to prevent, and an operator running a drill at
 # 3am should not be one typo away from it.

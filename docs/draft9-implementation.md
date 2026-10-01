@@ -78,6 +78,23 @@ scope. This does not complete the separate retrieval-key release requirement.
 
 The source changes are in `implement/draft9`, not a promoted application release. The VM still
 uses its earlier application release; the ntfy/Healthchecks alert drop-ins remain uninstalled.
-Restore invalidation, the remaining correctness pass, retrieval-key release, real-host
+The remaining correctness pass, retrieval-key release, real-host
 commissioning and qualification remain open in the delivery order above. The selected second
 drive is independent-device storage, not an off-site copy.
+
+## Recovery checkpoint — 2026-10-01
+
+The [live recovery procedure](backup-and-restore/README.md#live-recovery-stop-permission-cache-holders-first)
+now has an executable, persistent interlock. It stops the API, worker and every explicitly
+declared external cache-holder unit, refuses starts while held even after reboot, and only
+requests fresh processes after the operator confirms recovery verification. Its scope must
+include every host using the restored database; undeclared or unmanaged processes are not covered.
+It does not mutate the restored snapshot or manufacture a recovery-verification receipt.
+
+Seven coordination tests cover stopping, retry, list retention, unsafe files and names, missing
+units, control-group stopping and refusal to resume surviving processes. An opt-in test against
+the real workstation user-systemd manager demonstrated that a synthetic cache-holder PID dies,
+cannot restart while held, and reads changed classification in a fresh process even though the
+restored version token repeats. The existing retrieval and restore-verifier/drill regressions
+also passed. No production database was restored and no VM recovery or reboot commissioning is
+claimed. Deployment and exact-host recovery proof remain outstanding.
