@@ -141,3 +141,33 @@ The full `pnpm gate` subsequently passed: 295 test files passed, four opt-in fil
 generated outputs remained current and the production build succeeded. Six existing fixture
 lint warnings and 83 ontology warnings remain. The batch is local implementation only: no
 application release was promoted and no host or search-quality qualification is claimed.
+
+## Retrieval-key broker checkpoint — 2026-10-01
+
+The KF side of startup key release is implemented as a socket-activated, single-connection
+broker with a small Linux kernel-credential atom. It admits one configured UID, requires the
+request's exact release-manifest digest, authenticates executable inputs before invoking the
+whole-tree release verifier, and only then reads its own private tmpfs credential. It refuses
+active swap, unsafe files and malformed keys; key bytes go only to the accepted socket. The
+broker has a separate unprivileged identity and no database or document authority.
+
+Nine connected-socket and declaration tests cover exact release, wrong UID, stale/extra framing,
+drifted verifier/data bytes, unsafe credentials, active swap, a stopped listener, non-socket
+stdin and packaging/contract alignment. They use a public fixture key, the compiled helper,
+real packaged dbmate and the existing release verifier. The successful fixture injects an empty
+swap table because this workstation has active zram; the deployed CLI does not. The native unit
+declarations pass `systemd-analyze verify`, not an execution or commissioning proof.
+
+Provisioning originally copied only services and timers. A planted test demonstrated that the
+new socket unit was silently absent; provisioning now copies socket units too and creates the
+separate broker identity. No host account or installed unit was changed by these tests.
+
+The [broker contract](deployment/retrieval-key-release.md) pins its request/response framing and
+remaining integration: LAMU's authenticated client, the fixed workstation retrieval-key handoff,
+the selected engine account and exact-release policy, real service-manager identities, startup
+and reboot proof. The existing two-alert-credential host bootstrap is unchanged, no real retrieval
+key was provisioned and §100.39 remains open until that complete path is observed.
+
+The full `pnpm gate` passed after this broker batch, including dependency audit, current
+generated outputs and production build. Existing fixture/ontology warnings and opt-in skips
+remain separate from runtime qualification. No release was promoted onto the VM.

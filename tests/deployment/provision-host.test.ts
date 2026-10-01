@@ -144,13 +144,25 @@ describe('provision-host.sh', () => {
     const result = h.run();
     expect(result.code, result.output).toBe(0);
 
-    for (const user of ['kf-api', 'kf-migrator', 'kf-checkpoint', 'kf-audit-verify', 'kf-drill']) {
+    for (const user of [
+      'kf-api',
+      'kf-migrator',
+      'kf-checkpoint',
+      'kf-audit-verify',
+      'kf-drill',
+      'kf-retrieval-key',
+    ]) {
       expect(h.calls()).toContain(
         `useradd --system --user-group --home-dir /nonexistent --shell /usr/sbin/nologin ${user}`,
       );
     }
     expect(h.calls()).toContain('usermod -aG kf-archive kf-backup');
     expect(h.calls()).toContain('usermod -aG kf-archive kf-offsite');
+    for (const name of ['kf-retrieval-key.socket', 'kf-retrieval-key@.service']) {
+      expect(readFileSync(h.path(`/etc/systemd/system/${name}`), 'utf8')).toBe(
+        readFileSync(join(ROOT, 'deploy/systemd', name), 'utf8'),
+      );
+    }
     expect(mode(h.path('/srv/kf-backups'))).toBe('2750');
     expect(mode(h.path('/etc/kf/drill'))).toBe('750');
     expect(mode(h.path('/etc/kf/credstore.encrypted'))).toBe('700');

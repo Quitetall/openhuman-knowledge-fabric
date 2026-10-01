@@ -25,14 +25,14 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 | check constraints | 818 | `check (` clauses in migration up-sections |
 | group roles | 11 | distinct `NOLOGIN` roles created in migration up-sections |
 | workspace packages | 31 | 25 libraries under `packages/`, 6 executables under `apps/` |
-| systemd services | 14 | `*.service` units under `deploy/systemd/`, the `kf-alert@` template counted once |
+| systemd services | 15 | `*.service` units under `deploy/systemd/`, the `kf-alert@` template counted once |
 | systemd timers | 7 | `*.timer` units under `deploy/systemd/` |
 | action types | 170 | declared in `ontology/action-types.yaml` |
 | object types | 40 | declared in `ontology/object-types.yaml` |
 | relation types | 42 | declared in `ontology/relation-types.yaml` |
 | decision records | 38 | atoms under `docs/decisions/atoms/` — 35 accepted, 1 proposed, 2 superseded |
 | architecture requirements | 192 | distinct identifiers in §106 |
-| test files | 299 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
+| test files | 300 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
 
 ## Runtime measurements, cited rather than derived
 

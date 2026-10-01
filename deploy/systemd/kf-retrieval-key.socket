@@ -1,0 +1,18 @@
+[Unit]
+Description=Knowledge Fabric retrieval-key release socket
+Documentation=file:///opt/kf/docs/deployment/retrieval-key-release.md
+
+[Socket]
+ListenStream=/run/kf-retrieval-key/release.sock
+Accept=yes
+SocketUser=root
+SocketGroup=kf-retrieval-key
+SocketMode=0660
+DirectoryMode=0755
+RemoveOnStop=yes
+MaxConnections=4
+TriggerLimitIntervalSec=60s
+TriggerLimitBurst=4
+
+[Install]
+WantedBy=sockets.target

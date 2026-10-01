@@ -98,7 +98,7 @@ human() { HUMAN+=("$1|$2"); }
 # ---------------------------------------------------------------------------------------------
 
 USERS=(kf-api kf-web kf-worker kf-migrator kf-checkpoint kf-backup kf-offsite kf-readiness
-  kf-storage kf-audit-verify kf-alert kf-drill kf-attestor)
+  kf-storage kf-audit-verify kf-alert kf-drill kf-attestor kf-retrieval-key)
 
 # Numeric ids from the account database, root included, so ownership is compared as the kernel
 # records it.
@@ -639,7 +639,8 @@ install_units() {
     mkdir -p -- "$(p /etc/systemd/system)"
     chmod 755 "$(p /etc/systemd/system)"
   fi
-  for unit in "$TEMPLATES"/*.service "$TEMPLATES"/*.timer; do
+  for unit in "$TEMPLATES"/*.service "$TEMPLATES"/*.timer "$TEMPLATES"/*.socket; do
+    [ -f "$unit" ] || continue
     target="$(p /etc/systemd/system)/$(basename -- "$unit")"
     if [ -f "$target" ] && cmp -s "$unit" "$target"; then continue; fi
     if [ "$MODE" = check ]; then pending "unit $(basename -- "$unit") (missing or differs from this release)"; continue; fi

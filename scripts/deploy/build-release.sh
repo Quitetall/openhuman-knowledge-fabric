@@ -25,6 +25,10 @@ set -euo pipefail
 
 source_root="$(git rev-parse --show-toplevel)"
 release_commit="$(git rev-parse HEAD)"
+command -v cc >/dev/null 2>&1 || {
+  echo 'release build requires a Linux C11 compiler (cc) for kernel peer credentials' >&2
+  exit 1
+}
 build_parent="$(mktemp -d)"
 
 echo "== disposable worktree at $release_commit =="
@@ -85,6 +89,11 @@ dbmate_binary="$(node --input-type=module -e \
    process.stdout.write(resolveBinary())")"
 install -d "$release_root/tools"
 install -m 0755 "$dbmate_binary" "$release_root/tools/dbmate"
+# The key-release broker obtains kernel peer credentials on an inherited AF_UNIX connection.
+# Node exposes no peer-credential interface; this atom links only the Linux C runtime.
+cc -std=c11 -O2 -Wall -Wextra -Werror -D_FORTIFY_SOURCE=3 -fstack-protector-strong \
+  -Wl,-z,relro,-z,now scripts/deploy/peer-credentials.c \
+  -o "$release_root/tools/kf-peer-credentials"
 
 # All three LIMINAL_* values, or none. A partial set is refused rather than resolved, because
 # guessing which half was meant is how a release seals an artifact nobody reviewed. ADR 0010

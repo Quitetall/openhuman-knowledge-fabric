@@ -197,6 +197,9 @@ procedure whose only executable form lives in `/tmp` gets reconstructed from mem
 time it is needed, which is how a release quietly stops matching its own runbook.
 
 Use Linux with the same architecture as the target and the pinned Node.js and pnpm versions.
+The build machine also needs a C11 compiler (`cc`) and linker for the small Linux peer-credential
+helper. The release carries that executable; the target does not need a C toolchain. See
+[retrieval-key release](retrieval-key-release.md) for its purpose and remaining integration.
 Build in a newly created disposable worktree at the exact commit intended for dogfood. Do not
 reuse an interactive checkout: Git's normal dirty check omits ignored `dist/`, `.next/` and
 dependency trees, so it cannot prove runtime bytes are fresh. Before installing anything, the
@@ -310,6 +313,9 @@ dbmate_binary="$(node --input-type=module -e \
    process.stdout.write(resolveBinary())")"
 install -d "$release_root/tools"
 install -m 0755 "$dbmate_binary" "$release_root/tools/dbmate"
+cc -std=c11 -O2 -Wall -Wextra -Werror -D_FORTIFY_SOURCE=3 -fstack-protector-strong \
+  -Wl,-z,relro,-z,now scripts/deploy/peer-credentials.c \
+  -o "$release_root/tools/kf-peer-credentials"
 
 # A release MAY carry a reviewed Liminal compiler, and must say which. ADR 0010 defers the
 # Liminal-backed compiler: v1.0 ships the native one, so `liminal=none` is the ordinary case
