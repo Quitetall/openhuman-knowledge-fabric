@@ -8,10 +8,10 @@
 
 import { randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
-import { createServer, type Server } from 'node:net';
+import { createServer, type Server, type Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createDispatcher } from '@kf/actions';
 import { createPool, withTransaction, type Pool } from '@kf/database';
 import { RetrievalClient, RETRIEVAL_PROTOCOL_VERSION, encode } from '@kf/retrieval';
@@ -98,6 +98,7 @@ afterEach(() => {
 function stubEngine(
   capabilities: string[],
   delayMs = 0,
+  sampleWhenWriters = 1,
 ): {
   path: string;
   received: string[];
@@ -110,6 +111,7 @@ function stubEngine(
   const written: Written[] = [];
   let writers = 0;
   let peak = 0;
+  const waiting: { objectId: string; text: string; socket: Socket }[] = [];
   const server = createServer((socket) => {
     let buffer = '';
     socket.on('data', (chunk) => {
@@ -136,19 +138,30 @@ function stubEngine(
           peak = Math.max(peak, writers);
           const objectId = message['objectId']!;
           const text = message['text']!;
-          void withTransaction(h.adminPool, (tx) =>
-            tx.one<{ open: number }>(
-              `select count(*)::int as open from pg_stat_activity
+          waiting.push({ objectId, text, socket });
+          if (waiting.length === sampleWhenWriters) {
+            const batch = waiting.splice(0);
+            // With concurrent consumers, a completed sibling may hold its short
+            // completion transaction. Sample only when every consumer awaits
+            // inference, before acknowledging any member of this cohort.
+            void withTransaction(h.adminPool, (tx) =>
+              tx.one<{ open: number }>(
+                `select count(*)::int as open from pg_stat_activity
                 where usename = $1 and state like 'idle in transaction%'`,
-              [workerRole],
-            ),
-          ).then(({ open }) => {
-            written.push({ objectId, text, openTransactions: open });
-            setTimeout(() => {
-              writers -= 1;
-              socket.write(encode({ type: 'write_vector_ok', objectId, generation: 'g1' }));
-            }, delayMs);
-          });
+                [workerRole],
+              ),
+            ).then(({ open }) => {
+              for (const row of batch)
+                written.push({ objectId: row.objectId, text: row.text, openTransactions: open });
+              setTimeout(() => {
+                writers -= batch.length;
+                for (const row of batch)
+                  row.socket.write(
+                    encode({ type: 'write_vector_ok', objectId: row.objectId, generation: 'g1' }),
+                  );
+              }, delayMs);
+            });
+          }
         }
         newline = buffer.indexOf('\n');
       }
@@ -159,15 +172,56 @@ function stubEngine(
   return { path, received, written, peakWriters: () => peak };
 }
 
+/** Deterministically keep one completed sibling idle briefly, never its inference request. */
+async function withDelayedFirstCompletion<T>(fn: () => Promise<T>): Promise<T> {
+  const connect = workerPool.connect.bind(workerPool);
+  const wrapped = new WeakSet<object>();
+  const restore: (() => void)[] = [];
+  let completions = 0;
+  const spy = vi.spyOn(workerPool, 'connect').mockImplementation(async () => {
+    const connection = await connect();
+    if (!wrapped.has(connection)) {
+      wrapped.add(connection);
+      const original = connection.query;
+      restore.push(() => {
+        connection.query = original;
+      });
+      const query = connection.query.bind(connection);
+      connection.query = (...args: unknown[]) => {
+        const outcome = Reflect.apply(query, connection, args);
+        if (typeof args[0] === 'string' && args[0].includes('retrieval.complete_embedding')) {
+          completions += 1;
+          if (completions === 1)
+            return Promise.resolve(outcome).then(async (result) => {
+              await new Promise((resolve) => setTimeout(resolve, 300));
+              return result;
+            });
+        }
+        return outcome;
+      };
+    }
+    return connection;
+  });
+  try {
+    return await fn();
+  } finally {
+    spy.mockRestore();
+    for (const reset of restore) reset();
+  }
+}
+
 describe('embed on ingest (KF-SAS-RQ-225)', () => {
   it('overlaps engine requests within the configured bound, without holding a transaction', async () => {
     const ids = await Promise.all(
       Array.from({ length: 6 }, (_, i) => acceptSomething(`Bounded embedding work ${i}`)),
     );
     await drainOutbox(workerPool, { handlers: { '*': embeddingOutboxHandler } });
-    const engine = stubEngine(['vectors_only_write'], 40);
+    expect(await pending()).toHaveLength(6); // Three complete cohorts of two consumers.
+    const engine = stubEngine(['vectors_only_write'], 40, 2);
     const client = new RetrievalClient({ socketPath: engine.path, timeoutMs: 2_000 });
-    const result = await drainEmbeddings(workerPool, client, { concurrency: 2 });
+    const result = await withDelayedFirstCompletion(() =>
+      drainEmbeddings(workerPool, client, { concurrency: 2 }),
+    );
     expect(result.failed).toEqual([]);
     expect(engine.peakWriters()).toBe(2);
     for (const id of ids) expect(engine.written.map((row) => row.objectId)).toContain(id);

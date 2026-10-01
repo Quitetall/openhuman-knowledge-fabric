@@ -49,20 +49,24 @@ beforeAll(() => {
   ])
     copyFileSync(join(ROOT, path), join(release, path));
   const compiled = spawnSync(
-    'cc',
+    'bash',
     [
-      '-std=c11',
-      '-O2',
-      '-Wall',
-      '-Wextra',
-      '-Werror',
-      join(ROOT, 'scripts/deploy/peer-credentials.c'),
-      '-o',
+      join(ROOT, 'scripts/deploy/build-peer-credentials.sh'),
       join(release, 'tools/kf-peer-credentials'),
     ],
     { encoding: 'utf8' },
   );
   expect(compiled.status, compiled.stderr).toBe(0);
+  const custody = spawnSync(
+    'bash',
+    [
+      join(ROOT, 'scripts/deploy/build-peer-credentials.sh'),
+      '--credential-custody',
+      join(release, 'tools/kf-credential-custody'),
+    ],
+    { encoding: 'utf8' },
+  );
+  expect(custody.status, custody.stderr).toBe(0);
   const resolved = spawnSync(
     process.execPath,
     [
@@ -144,7 +148,7 @@ async function exchange(
           '--input-type=module',
           '-e',
           `import { releaseConnection } from ${JSON.stringify(pathToFileURL(join(release, 'scripts/deploy/retrieval-key-release.mjs')).href)};
-         try { await releaseConnection({ policyPath:${JSON.stringify(policy)}, credentialsDirectory:${JSON.stringify(credentials)}, ownerUid:${uid}, swapTable:${JSON.stringify(swapTable)} }); }
+         try { await releaseConnection({ policyPath:${JSON.stringify(policy)}, credentialsDirectory:${JSON.stringify(credentials)}, ownerUid:${uid}, credentialCustody:'private-test', swapTable:${JSON.stringify(swapTable)} }); }
          catch { console.warn('retrieval key release refused'); process.exitCode=1; }`,
         ],
         { stdio: [connection, connection, 'pipe'], env: { PATH: '/usr/bin:/bin' } },
@@ -204,8 +208,12 @@ it('keeps the documented framing, release packaging and credential declaration a
   expect(guide).toContain(PROTOCOL);
   expect(guide).toContain('at most 93 bytes');
   const recipe = readFileSync(join(ROOT, 'scripts/deploy/build-release.sh'), 'utf8');
-  expect(recipe).toContain('scripts/deploy/peer-credentials.c');
-  expect(recipe).toContain('-o "$release_root/tools/kf-peer-credentials"');
+  expect(recipe).toContain(
+    'bash scripts/deploy/build-peer-credentials.sh "$release_root/tools/kf-peer-credentials"',
+  );
+  const atom = readFileSync(join(ROOT, 'scripts/deploy/build-peer-credentials.sh'), 'utf8');
+  expect(atom).toContain('source_atom=peer-credentials.c');
+  expect(atom).toContain('"$source_directory/$source_atom" -o "$1"');
   const service = readFileSync(join(ROOT, 'deploy/systemd/kf-retrieval-key@.service'), 'utf8');
   expect(service).toContain('StandardInput=socket');
   expect(service).toContain('StandardOutput=socket');
@@ -248,6 +256,7 @@ it('refuses changed sealed release bytes, including executable verifier inputs',
     'scripts/deploy/migrate-release.sh',
     'scripts/lib/secret.sh',
     'tools/kf-peer-credentials',
+    'tools/kf-credential-custody',
   ]) {
     const location = join(release, path);
     const original = readFileSync(location);

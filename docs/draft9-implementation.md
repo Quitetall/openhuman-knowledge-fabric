@@ -171,3 +171,39 @@ key was provisioned and §100.39 remains open until that complete path is observ
 The full `pnpm gate` passed after this broker batch, including dependency audit, current
 generated outputs and production build. Existing fixture/ontology warnings and opt-in skips
 remain separate from runtime qualification. No release was promoted onto the VM.
+
+## Joint startup-seam checkpoint — 2026-10-01
+
+LAMU's Linux client now authenticates the root-owned listener and kernel peer before sending
+the exact KF release pin. It refuses malformed or oversized responses and requires EOF under
+one whole-operation deadline; its fixed receive buffer is erased on success, refusal and
+cancellation. CLI key-source options are mutually exclusive, with no file fallback after a
+broker refusal. Invalid startup cannot create an index or listener.
+
+The real selected-VM fixture exposed a custody mismatch: systemd 257 supplies root-owned,
+read-only copies with a service-UID ACL, not a service-owned `0400` file. A separate sealed
+Linux custody atom now checks exact ownership, modes, ACL and read-only tmpfs mount flags
+without reading key contents. It refuses widened rights and incorrect identities. A shared
+builder supports target-compatible static musl: workstation glibc CRT artifacts carried an
+x86-64-v3 floor and were refused by the VM before application code ran.
+
+The unchanged production broker and actual LAMU client passed through PID 1's root listener,
+an unprivileged broker and a separate client UID on the selected VM. Wrong client UID, altered
+sealed release data and a stopped broker all refused. The fixture used only a known public
+key and temporary units/directories, which were removed; no installed account, live key,
+production alert, database or index was changed. See the
+[broker contract](deployment/retrieval-key-release.md) for the executable proof and limits.
+The three-credential encrypted-store handoff, installed engine and exact policy, promoted
+release and startup/reboot commissioning still remain; §100.39 is not closed.
+
+The embedding observer also had a false-positive race: it counted a different consumer's
+legitimate completion transaction as a transaction held across inference. The regression now
+delays that completion deterministically and samples only when all consumers are awaiting
+inference. Planting a real transaction held across inference still failed the assertion.
+Worker production code is unchanged by that test correction.
+
+The full `pnpm gate` passed on this batch: 297 test files passed, four opt-in
+files skipped, 2,888 tests passed and 25 skipped; dependency audit found no known
+vulnerabilities, generated outputs stayed current and the production build passed.
+Six existing fixture lint warnings and 83 ontology warnings remain. This does not
+promote a release or establish hosted qualification.

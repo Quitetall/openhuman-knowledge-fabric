@@ -5,10 +5,11 @@ SAS §100.39 and the owner's decision that KF releases the key at startup. The w
 encrypted secret store remains the selected persistent custody. This is a startup adapter,
 not a document-authority primitive or a general secret-export endpoint.
 
-**Current scope:** the KF broker and connected-socket tests are implemented. LAMU's broker
-client, the fixed three-credential workstation handoff and real-host installation remain to be
-integrated. The existing two-alert-credential bootstrap is unchanged. Do not enable the new
-socket yet or treat this document as commissioning evidence.
+**Current scope:** the KF broker and LAMU startup client are implemented candidates. Their
+joint, public-key fixture passed on the selected VM through the real service manager on
+2026-10-01. The fixed three-credential workstation handoff and real-host installation remain
+to be integrated. The existing two-alert-credential bootstrap is unchanged. Do not enable the
+installed startup path yet or treat this fixture as commissioning evidence.
 
 ## Interface
 
@@ -21,8 +22,10 @@ No self-declared UID or PID is accepted from the request.
 
 The native `tools/kf-peer-credentials` atom calls `SO_PEERCRED` on the connected stdin socket.
 It reports only UID, GID and PID to the broker, not key material. It refuses a regular file,
-unconnected socket or non-Unix socket. It links the Linux C runtime only and is built and sealed
-with the release; the build machine requires `cc`, not the target.
+unconnected socket or non-Unix socket. A separate `tools/kf-credential-custody` atom checks
+kernel file/mount metadata and the credential's exact service-UID ACL without reading key
+contents. Both link the Linux C runtime only and are built and sealed with the release; the
+build machine requires a target-compatible C compiler, not the target.
 
 The client must authenticate the root-owned listener and its protected parent directory, and
 verify the listener's kernel peer UID is root before sending a request. The caller sends exactly
@@ -63,12 +66,20 @@ runs the existing whole-tree release verifier with a clean environment and seale
 Altered content, ownership, modes, inventory or manifest refuses before key reading.
 
 Only PID 1 reads `/run/kf-workstation-credentials/current/retrieval-index-key` to supply
-`LoadCredential=index-key:...`. The broker reads its own private credential copy, never that
-root-only source and never a value in arguments or environment. The credential must be a
-regular, singly-linked, owner-only mode `0400` file on tmpfs, containing 32 raw bytes or 64
-lowercase hex characters and an optional newline. A symlink, widened permissions or malformed
-key is refused. Active swap is refused before reading any key. Core dumps and service swapping
-are disabled; writable application memory remains necessary to serve the engine (§100.22).
+`LoadCredential=index-key:...`. The broker reads its own service-manager credential copy,
+never that root-only source and never a value in arguments or environment. On the selected
+systemd 257 host, the copy is root:root, mode `0440`, in a root:root `0550` directory. Its ACL
+admits exactly the broker UID, with read access (and directory traversal), plus root; other
+has no access. The broker requires that exact ACL, ownership and modes on a read-only tmpfs
+mount with `nosuid`, `nodev` and `noexec`. Ordinary group-readable files are not accepted.
+This corrects the original `0400`/service-owned assumption, which passed private-file fixtures
+but refused PID 1's real credential copy. The root-only source remains mode `0400`.
+
+The credential must be regular and singly linked, containing 32 raw bytes or 64 lowercase hex
+characters and an optional newline. A symlink, writable mount, extra ACL principal, widened
+permissions or malformed key is refused. Active swap is refused before reading any key. Core
+dumps and service swapping are disabled; writable application memory remains necessary to
+serve the engine (§100.22).
 
 The broker writes only to the accepted socket. Refusal logs contain a fixed generic message,
 not request fields, endpoint text, credential contents or release-verifier output. Binary key
@@ -89,9 +100,24 @@ that is a refusal, not a successful empty key.
 The workstation has active zram. Tests inject an empty swap table only for the public fixture's
 success case, and separately plant an active swap table. The deployed CLI always reads the live
 swap table and requires root ownership of policy and release. These are not production-unit,
-cross-UID service-manager or VM-reboot proofs.
+cross-UID service-manager or VM-reboot proofs by themselves.
 
-Before closing §100.39: integrate the LAMU client; extend the workstation handoff with one
+The separate root-only `scripts/deploy/test-retrieval-key-release.mjs` fixture drives LAMU's
+opt-in `kf_key_release_broker` test binary through temporary copies of the production units.
+It uses the existing engine fixture UID and `nobody` broker UID, the unchanged production
+broker, sealed native helpers and real packaged dbmate. A known public key stays in tmpfs;
+public executables live in an owned `/opt` fixture because `/run` is `noexec`. The selected VM
+passed release to the authorized client, wrong UID refusal, sealed data drift refusal and
+stopped broker refusal. Only fixture units/directories are removed afterward; installed
+accounts, production alerts, keys, indexes and databases are untouched. Target-compatible
+static musl artifacts were necessary; an Arch-linked x86-64-v3 artifact was refused by the
+VM loader. This is a joint startup-seam proof, not a deployed engine or reboot proof.
+
+Native predicate tests plant wrong ACL identities, extra/truncated entries, widened masks,
+permissions and incorrect custody metadata/mount flags. Connected-socket private-file tests
+select an explicit internal test seam; the deployed CLI accepts only systemd custody.
+
+Before closing §100.39: promote the tested LAMU client; extend the workstation handoff with one
 explicitly named retrieval-key entry (no whole-store export); keep any existing index bound to
 its existing key or explicitly rebuild that derived index; install a sealed release and exact
 policy; exercise the real systemd identities, wrong peer, stopped broker, invalid release and

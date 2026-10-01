@@ -25,10 +25,7 @@ set -euo pipefail
 
 source_root="$(git rev-parse --show-toplevel)"
 release_commit="$(git rev-parse HEAD)"
-command -v cc >/dev/null 2>&1 || {
-  echo 'release build requires a Linux C11 compiler (cc) for kernel peer credentials' >&2
-  exit 1
-}
+bash "$source_root/scripts/deploy/build-peer-credentials.sh" --check
 build_parent="$(mktemp -d)"
 
 echo "== disposable worktree at $release_commit =="
@@ -90,10 +87,10 @@ dbmate_binary="$(node --input-type=module -e \
 install -d "$release_root/tools"
 install -m 0755 "$dbmate_binary" "$release_root/tools/dbmate"
 # The key-release broker obtains kernel peer credentials on an inherited AF_UNIX connection.
-# Node exposes no peer-credential interface; this atom links only the Linux C runtime.
-cc -std=c11 -O2 -Wall -Wextra -Werror -D_FORTIFY_SOURCE=3 -fstack-protector-strong \
-  -Wl,-z,relro,-z,now scripts/deploy/peer-credentials.c \
-  -o "$release_root/tools/kf-peer-credentials"
+# Node exposes no peer-credential interface. Its builder records the native
+# baseline explicitly; CC=musl-gcc KF_PEER_CREDENTIALS_STATIC=1 avoids host CRT drift.
+bash scripts/deploy/build-peer-credentials.sh "$release_root/tools/kf-peer-credentials"
+bash scripts/deploy/build-peer-credentials.sh --credential-custody "$release_root/tools/kf-credential-custody"
 
 # All three LIMINAL_* values, or none. A partial set is refused rather than resolved, because
 # guessing which half was meant is how a release seals an artifact nobody reviewed. ADR 0010
@@ -127,9 +124,9 @@ install -d "$release_root/apps/web/.next/cache"
 # `liminal=` is what `liminal_runtime_inventory` reads. BUILD-METADATA is covered by SHA256SUMS,
 # so the declaration is sealed with everything else and cannot be edited on the host without
 # failing `migrate-release.sh check`.
-printf 'git_commit=%s\nnode=%s\npnpm=%s\ndbmate=%s\nliminal=%s\n' \
+printf 'git_commit=%s\nnode=%s\npnpm=%s\ndbmate=%s\nliminal=%s\npeer_credentials_cc=%s\npeer_credentials_static=%s\n' \
   "$(git rev-parse HEAD)" "$(node --version)" "$(pnpm --version)" \
-  "$("$release_root/tools/dbmate" --version)" "$liminal_declaration" \
+  "$("$release_root/tools/dbmate" --version)" "$liminal_declaration" "${CC:-cc}" "${KF_PEER_CREDENTIALS_STATIC:-0}" \
   > "$release_root/BUILD-METADATA"
 if [ "$liminal_declaration" = sealed ]; then
   cat "$release_root/vendor/liminal/RUNTIME.env" >> "$release_root/BUILD-METADATA"

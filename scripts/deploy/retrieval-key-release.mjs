@@ -119,6 +119,7 @@ function pinnedExecutables(value, ownerUid) {
   const lines = manifest.toString('utf8').split('\n');
   for (const path of [
     'tools/kf-peer-credentials',
+    'tools/kf-credential-custody',
     'scripts/deploy/migrate-release.sh',
     'scripts/lib/secret.sh',
     'scripts/deploy/retrieval-key-release.mjs',
@@ -199,6 +200,36 @@ function request(input) {
   });
 }
 
+function credentialFile(path, release, ownerUid, credentialCustody) {
+  if (
+    typeof path !== 'string' ||
+    !isAbsolute(path) ||
+    resolve(path) !== path ||
+    realpathSync(path) !== path
+  )
+    refuse();
+  if (credentialCustody === 'private-test') {
+    directory(path, process.getuid(), true);
+    return privateFile(join(path, 'index-key'), process.getuid(), 65, 0o400, true);
+  }
+  if (credentialCustody !== 'systemd') refuse();
+  // Root creates the private read-only credential mount and its service-UID
+  // ACL. Check the kernel's ownership, mount flags and exact ACL before reading.
+  let parent = dirname(path);
+  while (parent !== '/') {
+    directory(parent, ownerUid);
+    parent = dirname(parent);
+  }
+  const custody = spawnSync(join(release, 'tools/kf-credential-custody'), [path], {
+    env: cleanEnvironment(),
+    stdio: ['ignore', 'pipe', 'pipe'],
+    timeout: TIMEOUT,
+    maxBuffer: 256,
+  });
+  if (custody.status !== 0) refuse();
+  return privateFile(join(path, 'index-key'), 0, 65, 0o440, true);
+}
+
 /** Internal test seam uses another policy owner; the deployed CLI always requires root ownership. */
 export async function releaseConnection({
   policyPath,
@@ -206,6 +237,7 @@ export async function releaseConnection({
   input = process.stdin,
   output = process.stdout,
   ownerUid = 0,
+  credentialCustody = 'systemd',
   swapTable = readFileSync('/proc/swaps', 'utf8'),
 }) {
   const value = policy(policyPath, ownerUid);
@@ -216,15 +248,12 @@ export async function releaseConnection({
   const bytes = await request(input);
   if (!bytes.equals(Buffer.from(`${PROTOCOL}\n${value.releaseManifestSha256}\n`))) refuse();
   verifyRelease(value, ownerUid);
-  if (typeof credentialsDirectory !== 'string' || !isAbsolute(credentialsDirectory)) refuse();
-  directory(credentialsDirectory, process.getuid(), true);
-  if (statfsSync(credentialsDirectory).type !== TMPFS) refuse();
   const swaps = swapTable.trim().split('\n');
   if (swaps.length !== 1 || !/^Filename\s+Type\s+Size\s+Used\s+Priority$/.test(swaps[0])) refuse();
   let key;
   let response;
   try {
-    key = privateFile(join(credentialsDirectory, 'index-key'), process.getuid(), 65, 0o400, true);
+    key = credentialFile(credentialsDirectory, value.releaseDirectory, ownerUid, credentialCustody);
     const hex = key.toString('utf8');
     if (key.length !== 32 && !/^[0-9a-f]{64}\n?$/.test(hex)) refuse();
     const raw = key.length === 32 ? key : Buffer.from(hex.trim(), 'hex');

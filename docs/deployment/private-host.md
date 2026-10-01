@@ -198,7 +198,15 @@ time it is needed, which is how a release quietly stops matching its own runbook
 
 Use Linux with the same architecture as the target and the pinned Node.js and pnpm versions.
 The build machine also needs a C11 compiler (`cc`) and linker for the small Linux peer-credential
-helper. The release carries that executable; the target does not need a C toolchain. See
+and credential-custody helpers. CPU architecture alone is insufficient: their ISA floor, libc and interpreter must load
+on the target. The Arch workstation's glibc CRT marked both C and Rust binaries as x86-64-v3;
+the selected VM refused them before application code ran. Do not remove that loader guard.
+For the C atoms, this workstation can use
+`CC=musl-gcc KF_PEER_CREDENTIALS_STATIC=1 bash scripts/deploy/build-release.sh`:
+the shared atom builder fixes the architecture baseline and links static musl without carrying
+the workstation's glibc CRT. Dynamic builds require a target-compatible build image/runtime.
+LAMU is a separate artifact and needs its own target-compatible build, not this C option.
+The release carries the executable; the target does not need a C toolchain. See
 [retrieval-key release](retrieval-key-release.md) for its purpose and remaining integration.
 Build in a newly created disposable worktree at the exact commit intended for dogfood. Do not
 reuse an interactive checkout: Git's normal dirty check omits ignored `dist/`, `.next/` and
