@@ -282,3 +282,42 @@ this staging. The candidate records tested Node 24.21.0; the installed VM runtim
 24.18.1, so the tested-runtime commissioning comparison also needs reconciliation before
 promotion. The full target-compatible LAMU engine build and post-watcher-fix default suite
 are separate running jobs, not inferred from this KF gate.
+
+## Tested Node runtime reconciliation — 2026-10-01
+
+The selected VM now has `/usr/bin/node` version 24.21.0, matching the staged
+candidate's sealed `BUILD-METADATA`. The official Linux x64 archive was checked
+against its clear-signed checksum message using the Node release keyring at
+commit `481637f813e912c4aa3622d7964ab426c97b8e8d`. GPG reported a valid signature
+by fingerprint `5BE8A3F6C8A5C01D106C0AD820B1A390B168D356`. Its warning says the
+separate checksum file is not independently signed; the extracted checksums
+were also compared with the signed message payload, apart from the signature
+separator newline. This follows the
+[upstream binary-verification procedure](https://github.com/nodejs/node#verifying-binaries).
+
+The archive's SHA-256 is
+`fd8e59d5a511510f6a298afb548f18c7d2b1be404d8b4a27d94fbe49f56cb2d6`;
+its extracted `bin/node` digest is
+`7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c`.
+The public archive, signed checksums, extracted checksums and pinned keyring
+are retained privately under `runtimes/node-v24.21.0-linux-x64` in both
+`/mnt/4tb/kf-vm` and `/mnt/2tb/kf-preservation`; both archive copies verified.
+These are runtime artifact copies, not database backups or an off-site copy.
+
+Transport bytes were checked again before root-owned guest extraction into
+`/opt/kf-runtimes/node-v24.21.0-linux-x64`. The baseline guest ran its version,
+crypto and in-memory SQLite probes as `kfadmin`. After those passed, the old
+root-owned regular `/usr/bin/node` was retained at
+`/opt/kf-runtimes/node-v24.18.1-root-binary/node`, with unchanged SHA-256
+`f3432a45b03b2da0d270095fdd8813dc34cbea73f5fc8b18c7a384b7cf9b333a`.
+The new executable was verified and atomically renamed into place. The
+pre-existing unprivileged `/opt/node-v24.18.1-linux-x64` tree was not used as
+the trusted rollback copy.
+
+All five live KF services stayed active. A new workstation credential-delivery
+oneshot succeeded with exit zero, its timer remained active and the guest v2
+receiver reported ready under the new runtime. No application service was
+restarted, `/opt/kf` was not switched, and no database migration, restore or
+reboot occurred. The API, web and worker still hold the old executable; runtime
+parity for those running services must be proved after the guarded release
+promotion and restart. Installed Node parity alone does not commission the host.
