@@ -321,3 +321,44 @@ restarted, `/opt/kf` was not switched, and no database migration, restore or
 reboot occurred. The API, web and worker still hold the old executable; runtime
 parity for those running services must be proved after the guarded release
 promotion and restart. Installed Node parity alone does not commission the host.
+
+## Retrieval runtime checkpoint — 2026-10-01
+
+The previously running LAMU jobs have terminal results. The pinned Rust 1.89.0
+default-member suite passed at clean source `10854d1`: 1,571 passing tests,
+zero failures and 15 ignored tests across 61 test executions. This is a new
+full-suite result; the earlier CLI deadline failures remain historical evidence.
+No deadline was enlarged. The corrected isolated-`libdl` baseline musl debug
+build also finished and passed a public loader probe on the selected VM.
+
+An optimized, baseline x86-64, self-contained musl engine was then built at
+clean LAMU source `a20e5154016c3fb7d98af1884ba54113bd20e3fb`. This is a
+documentation-only successor to the full-suite source. Its SHA-256 is
+`e02e3bf7e66443f411c823b1da4b54fb8a7523a7582205ade02f8019dfc93a33`.
+The selected VM verified those bytes and ran its version and startup-key CLI
+help as an ordinary user. KF's real-engine suite passed all ten tests against
+this binary with an explicitly absent developer settings file. Those tests
+use the hash embedder: they establish protocol, masks, refusals and encrypted
+storage, not semantic ranking quality or real-key startup.
+
+The pinned BGE-M3 public model is staged under `/opt/kf-models` after archive,
+closed-file-set, per-file and source-provenance checks. An actual CPU model
+probe exposed NumPy 2.5.3's incompatible `X86_V2` wheel baseline. A source
+build of the same version with `cpu-baseline=none` and `cpu-dispatch=none`
+passed import and matrix checks without changing the VM CPU or disabling its
+guard; the `SSE2` build did not. Its source, wheel, license, install report and
+build log have verified copies on both local devices.
+
+Under the resource-limited service-manager probe, the real model produced
+finite, normalized 1,024-dimensional vectors. Repeating an identical batch
+and an identical single input was bitwise exact, but changing batch shape was
+not: the maximum component difference was `5.960464477539063e-08`. The
+cross-batch exact-equality assertion remains failed; it was not replaced with
+a tolerance. [Retrieval runtime evidence](deployment/retrieval-runtime-evidence.md)
+records the recipe, artifacts and scope boundaries.
+
+This remains a probe, not a commissioned provider. A sealed Python/provider
+closure, service isolation, input-limit refusals, the actual KF-held engine
+startup, recovery and reboot proof remain open. All five existing KF services
+stayed active and `/opt/kf` still selects `637677e2c5e1`. No live index, release
+promotion, backup, restore, qualification or human approval was created.
