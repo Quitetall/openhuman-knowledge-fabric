@@ -21,6 +21,7 @@ function evaluate(body: string): string {
 const ENV = `{
   KF_ALERT_NTFY_URL: 'https://ntfy.sh/public-test-fixture',
   KF_ALERT_HEARTBEAT_URL: 'https://hc-ping.com/00000000-0000-0000-0000-000000000000',
+  KF_RETRIEVAL_INDEX_KEY_HEX: '12'.repeat(32),
   UNRELATED_SECRET: 'never-export-this'
 }`;
 
@@ -38,12 +39,23 @@ const root = join(parent, 'kf-workstation-credentials');
 `;
 
 describe('workstation credential handoff', () => {
-  it('transmits exactly the two named credentials, never unrelated store entries', () => {
+  it('transmits exactly the three named credentials, never unrelated store entries', () => {
     const output = evaluate(`process.stdout.write(handoff.encodeBundle(${ENV}));`);
     expect(output).toBe(
-      'kf-workstation-alert-credentials-v1\nhttps://ntfy.sh/public-test-fixture\nhttps://hc-ping.com/00000000-0000-0000-0000-000000000000\n',
+      `kf-workstation-credentials-v2\nhttps://ntfy.sh/public-test-fixture\nhttps://hc-ping.com/00000000-0000-0000-0000-000000000000\n${'12'.repeat(32)}\n`,
     );
     expect(output).not.toContain('never-export-this');
+  });
+
+  it('refuses absent or malformed retrieval keys rather than sending an alerts-only bundle', () => {
+    evaluate(`
+import assert from 'node:assert/strict';
+const env = ${ENV};
+for (const key of [undefined, '', '12'.repeat(31), '12'.repeat(33), 'AB'.repeat(32), 'xx'.repeat(32), '12'.repeat(32)+'\\n']) {
+  assert.throws(() => handoff.encodeBundle({ ...env, KF_RETRIEVAL_INDEX_KEY_HEX: key }));
+}
+assert.throws(() => handoff.decodeBundle(Buffer.from('kf-workstation-alert-credentials-v1\\n'+env.KF_ALERT_NTFY_URL+'\\n'+env.KF_ALERT_HEARTBEAT_URL+'\\n')));
+`);
   });
 
   it('strips decrypted keys from the SSH child environment', () => {
@@ -78,10 +90,11 @@ try {
   assert.equal(statSync(root).mode & 0o777, 0o700);
   const generation = join(root, readlinkSync(join(root, 'current')));
   assert.equal(statSync(generation).mode & 0o777, 0o700);
-  for (const name of ['alert-ntfy-url', 'alert-heartbeat-url', 'boot-id']) {
+  for (const name of ['alert-ntfy-url', 'alert-heartbeat-url', 'retrieval-index-key', 'boot-id']) {
     assert.equal(statSync(join(generation, name)).mode & 0o777, 0o400);
   }
   assert.equal(readFileSync(join(generation, 'alert-ntfy-url'), 'utf8'), 'https://ntfy.sh/public-test-fixture');
+  assert.equal(readFileSync(join(generation, 'retrieval-index-key'), 'utf8'), '12'.repeat(32));
   assert.throws(() => handoff.runtimeStatus(parent, uid, '00000000-0000-0000-0000-000000000002', swaps));
 } finally { rmSync(parent, { recursive: true, force: true }); }
 `);
@@ -95,6 +108,24 @@ try {
   assert.throws(() => handoff.receiveBundle(Buffer.from('bad'), parent, uid, boot, swaps));
   assert.equal(readlinkSync(join(root, 'current')), before);
   assert.equal(handoff.runtimeStatus(parent, uid, boot, swaps), 'ready');
+} finally { rmSync(parent, { recursive: true, force: true }); }
+`);
+  });
+
+  it('requires the retrieval key in readiness and preserves it on refused updates', () => {
+    evaluate(`${RUNTIME}
+try {
+  handoff.receiveBundle(bytes, parent, uid, boot, swaps);
+  const before = readlinkSync(join(root, 'current'));
+  const keyPath = join(root, before, 'retrieval-index-key');
+  const env = ${ENV};
+  assert.throws(() => handoff.receiveBundle(Buffer.from('kf-workstation-credentials-v2\\n'+env.KF_ALERT_NTFY_URL+'\\n'+env.KF_ALERT_HEARTBEAT_URL+'\\ninvalid-key\\n'), parent, uid, boot, swaps));
+  assert.equal(readlinkSync(join(root, 'current')), before);
+  assert.equal(readFileSync(keyPath, 'utf8'), '12'.repeat(32));
+  chmodSync(keyPath, 0o440);
+  assert.throws(() => handoff.runtimeStatus(parent, uid, boot, swaps));
+  unlinkSync(keyPath);
+  assert.equal(handoff.runtimeStatus(parent, uid, boot, swaps), 'missing');
 } finally { rmSync(parent, { recursive: true, force: true }); }
 `);
   });

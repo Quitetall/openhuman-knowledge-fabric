@@ -1,4 +1,4 @@
-// A fixed two-credential handoff over pinned SSH; no general secret-export interface.
+// A fixed three-credential handoff over pinned SSH; no general secret-export interface.
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
@@ -19,10 +19,10 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout, clearTimeout } from 'node:timers';
 
 const SELF = fileURLToPath(import.meta.url);
-const PROTOCOL = 'kf-workstation-alert-credentials-v1';
+const PROTOCOL = 'kf-workstation-credentials-v2';
 const TMPFS = 0x01021994;
 const LIMIT = 16_384;
-const NAMES = ['alert-ntfy-url', 'alert-heartbeat-url'];
+const NAMES = ['alert-ntfy-url', 'alert-heartbeat-url', 'retrieval-index-key'];
 const BOOT_ID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 const GENERATION = /^generation-[A-Za-z0-9]{6}$/;
 
@@ -43,18 +43,28 @@ function endpoint(value, heartbeat) {
   return value;
 }
 
+function retrievalKey(value) {
+  if (typeof value !== 'string' || !/^[0-9a-f]{64}$/.test(value)) refuse();
+  return value;
+}
+
+function credential(value, index) {
+  return index === 2 ? retrievalKey(value) : endpoint(value, index === 1);
+}
+
 /** Fixed line framing makes extra fields, embedded newlines and ambiguous JSON keys impossible. */
 export function decodeBundle(bytes) {
   if (bytes.length > LIMIT) refuse();
   const lines = bytes.toString('utf8').split('\n');
-  if (lines.length !== 4 || lines[0] !== PROTOCOL || lines[3] !== '') refuse();
-  return [endpoint(lines[1], false), endpoint(lines[2], true)];
+  if (lines.length !== 5 || lines[0] !== PROTOCOL || lines[4] !== '') refuse();
+  return lines.slice(1, 4).map(credential);
 }
 
 export function encodeBundle(env) {
   const values = [
     endpoint(env.KF_ALERT_NTFY_URL, false),
     endpoint(env.KF_ALERT_HEARTBEAT_URL, true),
+    retrievalKey(env.KF_RETRIEVAL_INDEX_KEY_HEX),
   ];
   return Buffer.from(`${PROTOCOL}\n${values.join('\n')}\n`);
 }
@@ -83,7 +93,13 @@ function runtime(parent, uid, swaps) {
 
 function readPrivate(path, uid) {
   const stat = lstatSync(path);
-  if (!stat.isFile() || stat.uid !== uid || (stat.mode & 0o777) !== 0o400 || stat.size > LIMIT) {
+  if (
+    !stat.isFile() ||
+    stat.uid !== uid ||
+    stat.nlink !== 1 ||
+    (stat.mode & 0o777) !== 0o400 ||
+    stat.size > LIMIT
+  ) {
     refuse();
   }
   return readFileSync(path, { encoding: 'utf8', flag: constants.O_RDONLY | constants.O_NOFOLLOW });
@@ -103,7 +119,7 @@ export function runtimeStatus(parent, uid, bootId, swaps) {
     const generation = join(root, target);
     directory(generation, uid, true);
     if (readPrivate(join(generation, 'boot-id'), uid) !== bootId) refuse();
-    NAMES.forEach((name, index) => endpoint(readPrivate(join(generation, name), uid), index === 1));
+    NAMES.forEach((name, index) => credential(readPrivate(join(generation, name), uid), index));
     return 'ready';
   } catch (error) {
     if (error.code === 'ENOENT') return 'missing';
@@ -241,6 +257,7 @@ async function boundedInput(stream) {
     return Buffer.concat(chunks);
   } finally {
     clearTimeout(timeout);
+    chunks.forEach((chunk) => chunk.fill(0));
   }
 }
 
@@ -251,10 +268,15 @@ async function main() {
     if (configPath !== undefined || process.getuid() !== 0) refuse();
     const bootId = readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim();
     const swaps = readFileSync('/proc/swaps', 'utf8');
-    const status =
-      action === 'receive'
-        ? receiveBundle(await boundedInput(process.stdin), '/run', 0, bootId, swaps)
-        : runtimeStatus('/run', 0, bootId, swaps);
+    let status;
+    if (action === 'receive') {
+      const bytes = await boundedInput(process.stdin);
+      try {
+        status = receiveBundle(bytes, '/run', 0, bootId, swaps);
+      } finally {
+        bytes.fill(0);
+      }
+    } else status = runtimeStatus('/run', 0, bootId, swaps);
     if (status !== 'ready') refuse();
     process.stdout.write(`${PROTOCOL} ready\n`);
     return;
@@ -262,7 +284,12 @@ async function main() {
   if ((action !== 'send' && action !== 'sync') || configPath === undefined) refuse();
   const config = configFile(configPath);
   if (action === 'send') {
-    transport(config, 'receive', encodeBundle(process.env));
+    const bytes = encodeBundle(process.env);
+    try {
+      transport(config, 'receive', bytes);
+    } finally {
+      bytes.fill(0);
+    }
   } else {
     try {
       transport(config, 'status');

@@ -207,3 +207,24 @@ files skipped, 2,888 tests passed and 25 skipped; dependency audit found no know
 vulnerabilities, generated outputs stayed current and the production build passed.
 Six existing fixture lint warnings and 83 ontology warnings remain. This does not
 promote a release or establish hosted qualification.
+
+## Fixed three-credential handoff checkpoint — 2026-10-01
+
+Source `workstation-credentials.mjs` now uses a distinct v2 bundle for exactly the two alert
+endpoints and `KF_RETRIEVAL_INDEX_KEY_HEX`. Missing or malformed keys and v1 bundles refuse;
+an alerts-only generation cannot satisfy v2 readiness. All three are published atomically in
+root-only tmpfs and bound to the guest boot. Refused updates preserve the prior generation.
+SSH retains its clean child environment, pinned host/receiver bytes and bounded framing.
+Owned bundle/chunk buffers are erased after use; runtime string copies are not guaranteed
+erased. Persistent plaintext storage or whole-store export is not introduced.
+
+Two failing regression tests preceded the change. Eleven handoff tests then passed, and the
+selected VM fixture composed the public bundle's root-only key source, PID 1 credential copy,
+production broker and actual LAMU client. Wrong UID, sealed release drift and a stopped broker
+still refused. This is public-fixture integration evidence only. The installed v1 bootstrap,
+encrypted secret store and live VM credentials were not changed. Provisioning the selected
+key, digest-versioned upgrade and actual startup/reboot evidence remain open.
+
+The full `pnpm gate` passed afterward: 2,890 tests passed, 25 opt-in tests skipped,
+dependency audit clear, generated outputs current and production build successful.
+The existing fixture/ontology warnings remain; the gate is not hosted qualification.

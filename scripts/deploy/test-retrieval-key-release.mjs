@@ -147,9 +147,30 @@ try {
   const pin = seal(release);
   const policyPath = join(parent, 'policy.json');
   policy(policyPath, release, pin, engineUid);
-  // This constant is a public fault fixture, not an encryption credential.
-  const publicKeyPath = join(parent, 'public-fixture-key');
-  writeFileSync(publicKeyPath, '12'.repeat(32), { mode: 0o400 });
+  // Compose the fixed handoff and broker using public fixture values only. The
+  // destination is our isolated root, not the installed /run credential store.
+  const handoff = await import('./workstation-credentials.mjs');
+  const bundle = handoff.encodeBundle({
+    KF_ALERT_NTFY_URL: 'https://ntfy.sh/public-test-fixture',
+    KF_ALERT_HEARTBEAT_URL: 'https://hc-ping.com/00000000-0000-0000-0000-000000000000',
+    KF_RETRIEVAL_INDEX_KEY_HEX: '12'.repeat(32),
+  });
+  step = 'isolated-three-credential-handoff';
+  try {
+    if (
+      handoff.receiveBundle(
+        bundle,
+        parent,
+        0,
+        readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim(),
+        readFileSync('/proc/swaps', 'utf8'),
+      ) !== 'ready'
+    )
+      throw new Error('isolated bundle refused');
+  } finally {
+    bundle.fill(0);
+  }
+  const publicKeyPath = join(parent, 'kf-workstation-credentials/current/retrieval-index-key');
   const client = join(executableParent, 'public-fixture-probe');
   copyFileSync(probe, client);
   chmodSync(client, 0o755);

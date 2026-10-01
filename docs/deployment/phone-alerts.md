@@ -35,8 +35,10 @@ default for other deployments.
 The mode needs both endpoints: `KF_ALERT_WEBHOOK_URL_FILE` for ntfy and
 `KF_ALERT_HEARTBEAT_URL_FILE` for Healthchecks. Each file must be readable only by its owner.
 The owner selected the workstation's TPM-backed encrypted secret store for VM startup. The
-handoff module is `scripts/deploy/workstation-credentials.mjs`; its interface exports exactly
-`KF_ALERT_NTFY_URL` and `KF_ALERT_HEARTBEAT_URL`, never the entire store. Both endpoints travel on
+handoff module is `scripts/deploy/workstation-credentials.mjs`; its v2 interface exports exactly
+`KF_ALERT_NTFY_URL`, `KF_ALERT_HEARTBEAT_URL` and `KF_RETRIEVAL_INDEX_KEY_HEX`, never the entire
+store. The index key is exactly 64 lowercase hexadecimal characters; it is a separate
+credential from the two HTTPS endpoints. All three travel on
 SSH stdin, not in command arguments, and the SSH process receives a clean environment without
 decrypted keys. SSH requires the pinned VM Ed25519 host key, ignores ambient SSH configuration,
 does not forward an agent, and verifies the receiver's source digest before invoking it.
@@ -66,8 +68,13 @@ an `After=kf-host-1.service` timer cyclic at boot.
 Install identical module bytes at a digest-versioned path on workstation and VM, outside any
 sealed KF release. The VM copy is root-owned and mode `0555`; its config is not a credential.
 Installing this host bootstrap is separate from installing an application release, and grants
-no document authority. Existing database/signing credentials and retrieval-key release are
-not migrated or completed by this two-endpoint interface.
+no document authority. Existing database/signing credentials are not migrated by this fixed
+interface. The installed bootstrap is still the two-endpoint v1 digest recorded below;
+source v2 does not upgrade that installation automatically. Install matching digest-versioned
+sender/receiver bytes and update the owner-controlled config/timer only after provisioning the
+selected encrypted-store key. A v1 bundle is refused by v2; no partial alerts-only fallback
+can claim retrieval readiness. Keep any existing index on its existing key or explicitly
+rebuild the derived index. Real encrypted-store delivery and reboot proof for v2 remain open.
 
 ### Alternative for an independently provisioned encrypted-credential host
 
@@ -134,6 +141,13 @@ guard remain untested.
 The handoff's nine tests passed and the full `pnpm gate` passed with 2,853 tests passed and
 24 opt-in tests skipped. A value-aware check of the workstation startup journal found neither
 endpoint value; the check emitted only its result, not the values or journal contents.
+
+Source v2 was exercised on 2026-10-01 with public values only: eleven tests cover the fixed
+three-entry bundle, missing/malformed keys, boot readiness, unchanged generations on refusal,
+private tmpfs custody and transport isolation. The selected VM's isolated broker fixture now
+obtains its public key through that atomic generation and supplies it through PID 1 to the
+actual LAMU client. Wrong UID, sealed data drift and a stopped broker still refuse. This
+did not touch the installed v1 bootstrap, encrypted store, real key or alert delivery.
 
 References: [ntfy publishing](https://docs.ntfy.sh/publish/),
 [Healthchecks ping protocol](https://healthchecks.io/docs/http_api/),
