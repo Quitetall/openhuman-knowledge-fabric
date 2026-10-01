@@ -7,10 +7,10 @@ not a document-authority primitive or a general secret-export endpoint.
 
 **Current scope:** the KF broker and LAMU startup client are implemented candidates. Their
 joint, public-key fixture passed on the selected VM through the real service manager on
-2026-10-01. The fixed three-credential handoff is implemented and composes with that fixture;
-real encrypted-store delivery and installation remain open. The installed two-alert-credential
-bootstrap is unchanged. Do not enable the
-installed startup path yet or treat this fixture as commissioning evidence.
+2026-10-01. The fixed three-credential handoff composes with that fixture and now delivers the
+actual encrypted-store credentials into guest tmpfs. The digest-versioned v2 bootstrap is
+installed; the engine, sealed application release and exact policy remain uninstalled. Do not
+enable the engine startup path yet or treat credential delivery as commissioning evidence.
 
 ## Interface
 
@@ -118,8 +118,7 @@ Native predicate tests plant wrong ACL identities, extra/truncated entries, wide
 permissions and incorrect custody metadata/mount flags. Connected-socket private-file tests
 select an explicit internal test seam; the deployed CLI accepts only systemd custody.
 
-Before closing §100.39: promote the tested LAMU client and fixed v2 workstation handoff with
-`KF_RETRIEVAL_INDEX_KEY_HEX` (no whole-store export); keep any existing index bound to
+Before closing §100.39: promote the tested LAMU client; keep any existing index bound to
 its existing key or explicitly rebuild that derived index; install a sealed release and exact
 policy; exercise the real systemd identities, wrong peer, stopped broker, invalid release and
 reboot. Record delivery evidence separately from signing, release acceptance and independent

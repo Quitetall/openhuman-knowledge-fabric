@@ -228,3 +228,29 @@ key, digest-versioned upgrade and actual startup/reboot evidence remain open.
 The full `pnpm gate` passed afterward: 2,890 tests passed, 25 opt-in tests skipped,
 dependency audit clear, generated outputs current and production build successful.
 The existing fixture/ontology warnings remain; the gate is not hosted qualification.
+
+## Actual encrypted-store delivery checkpoint — 2026-10-01
+
+The selected key is now held in the workstation's encrypted store and the digest-versioned
+v2 bootstrap is installed on workstation and guest. The actual timer-driven delivery passed
+receiver readiness for all three credentials. Root-only guest tmpfs custody, ordinary-user
+key refusal and a value-aware startup-journal secrecy check passed. No key value was written
+to persistent plaintext, an argument or a log. No existing index was rotated. See
+[phone alerts](deployment/phone-alerts.md#actual-three-credential-delivery--2026-10-01)
+for the exact artifact and observed scope. The real engine, exact policy, application release
+promotion, v2 reboot proof and host alert/commissioning tests still remain.
+
+A fresh sealed-release build stopped at a test that assumed its repository directory was
+disk-backed. The disposable checkout is on `/tmp`, which is tmpfs on this workstation;
+the production handoff correctly accepted that destination. The named test reproduced in
+that checkout and passed in the disk-backed implementation tree. Its negative fixture now
+selects and asserts an actual non-tmpfs mount and verifies refusal creates no runtime root.
+All eleven handoff tests passed in both locations. Production custody checks are unchanged;
+the stopped build is not a release artifact or a successful full gate.
+
+The full `pnpm gate` then passed in the implementation tree: 2,890 tests passed and 25
+opt-in tests skipped, dependency audit clear, generated outputs current and production
+build successful. The existing six fixture lint warnings and 83 ontology warnings remain.
+The approved `/mnt/2tb/kf-preservation/releases` directory was created privately after
+confirming `/dev/sda` is separate from the VM's `/dev/nvme0n1`. No artifact replica or
+encrypted backup has been written there yet, and it is not an off-site destination.

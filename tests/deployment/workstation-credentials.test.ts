@@ -27,7 +27,7 @@ const ENV = `{
 
 // Public test values only; filesystem writes stay in a private, uniquely named tmpfs directory.
 const RUNTIME = `
-import { mkdtempSync, readFileSync, readlinkSync, rmSync, statSync, chmodSync, symlinkSync, unlinkSync, existsSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readlinkSync, rmSync, statSync, statfsSync, chmodSync, symlinkSync, unlinkSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
 const parent = mkdtempSync('/dev/shm/kf-credential-proof-');
@@ -136,8 +136,16 @@ try {
   assert.throws(() => handoff.receiveBundle(bytes, parent, uid, boot, swaps + '/swap file 1 0 -2\\n'));
   assert.throws(() => handoff.receiveBundle(bytes, parent, uid + 1, boot, swaps));
   assert.equal(existsSync(root), false);
-  const disk = mkdtempSync(join(${JSON.stringify(ROOT)}, '.credential-proof-'));
-  try { assert.throws(() => handoff.receiveBundle(bytes, disk, uid, boot, swaps)); }
+  // A disposable release checkout can itself be on tmpfs. Verify the negative
+  // fixture's mount instead of assuming that a repository path is disk-backed.
+  const diskParent = [${JSON.stringify(ROOT)}, '/var/tmp'].find(path => statfsSync(path).type !== 0x01021994);
+  assert.notEqual(diskParent, undefined, 'disk-refusal test requires a non-tmpfs writable destination');
+  const disk = mkdtempSync(join(diskParent, '.kf-credential-proof-'));
+  try {
+    assert.notEqual(statfsSync(disk).type, 0x01021994);
+    assert.throws(() => handoff.receiveBundle(bytes, disk, uid, boot, swaps));
+    assert.equal(existsSync(join(disk, 'kf-workstation-credentials')), false);
+  }
   finally { rmSync(disk, { recursive: true, force: true }); }
 } finally { rmSync(parent, { recursive: true, force: true }); }
 `);

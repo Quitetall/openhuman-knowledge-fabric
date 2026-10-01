@@ -149,6 +149,28 @@ obtains its public key through that atomic generation and supplies it through PI
 actual LAMU client. Wrong UID, sealed data drift and a stopped broker still refuse. This
 did not touch the installed v1 bootstrap, encrypted store, real key or alert delivery.
 
+### Actual three-credential delivery — 2026-10-01
+
+The encrypted store had no `KF_RETRIEVAL_INDEX_KEY_HEX`; the selected VM had no installed
+LAMU account, service or retrieval index. A new random key was generated in memory and supplied
+on stdin to `secrets set`, without a plaintext file, argument or log value. A subsequent
+encrypted-store check reported only that the named key was present and valid. No existing
+index key was rotated.
+
+The v2 bootstrap with SHA-256
+`a57ae5112ed474458f9dc4d306b774792f57ed29ff481661670c003cd8626183` was installed
+byte-identically on workstation and guest. The timer was stopped only for its coordinated
+configuration/service update, then restarted. Its triggered service exited successfully;
+the receiver reported `kf-workstation-credentials-v2 ready`. Both endpoints and the retrieval
+key are in a root-owned `0700` generation with root-owned `0400` files. The ordinary guest
+account could not read the key. A value-aware workstation startup-journal check found none of
+the three credential values and printed only its verdict. The old versioned bootstrap files
+remain available; there is no guest persistent plaintext retrieval key or decrypting identity.
+
+This proves actual encrypted-store delivery, not engine installation, reboot recovery of v2,
+phone delivery from the VM or commissioning. The application still points to release
+`637677e2c5e1`; the full engine and alert modules remain uninstalled.
+
 References: [ntfy publishing](https://docs.ntfy.sh/publish/),
 [Healthchecks ping protocol](https://healthchecks.io/docs/http_api/),
 [Healthchecks notification setup](https://healthchecks.io/docs/configuring_notifications/).
