@@ -1,21 +1,17 @@
 import type { FastifyInstance } from 'fastify';
 import { setResolvedAccessContext, withTransaction } from '@kf/database';
 import {
-  assertPermissionSetInvariant,
-  corpusDigest,
   deriveMasterRecordSections,
-  enumeratePermittedSet,
-  masterRecordMemberFormat,
   enumerateRelevanceGraph,
   latestMasterRecord,
   masterRecordItems,
   masterRecordWithholdings,
-  type MasterRecordManifest,
   type PermissionMember,
 } from '@kf/documents';
 import { recordVerification } from '@kf/domain';
 import { project } from '@kf/projections';
-import { liveVerifications, projectionMembersOf } from './master-record-projection-route.js';
+import { projectionMembersOf } from './master-record-members.js';
+import { readCurrentMasterRecord } from './current-master-record.js';
 import { refuseUnidentified } from '../actions.js';
 import { actionRejectionBody } from '../actions/errors.js';
 import type { DocumentRoutesOptions } from './contracts.js';
@@ -103,47 +99,26 @@ export function registerMasterRecordRoute(
           requestedClassification: identity.maxClassification,
           attestation: identity.attestation,
         });
-        const record = await latestMasterRecord(tx, identity.actorId, identity.organizationId);
-        if (record === undefined) return reply.code(404).send({ error: 'master_record_not_found' });
-
-        // Under the member format the claim RECORDED, so a claim compiled before a format
-        // change is exactly as current as it was (KF-SAS-RQ-016).
-        const permitted = await enumeratePermittedSet(
-          tx,
-          identity.actorId,
-          identity.organizationId,
-          masterRecordMemberFormat(record['manifest']),
-        );
-        const manifest = record['manifest'] as Partial<MasterRecordManifest> | null;
+        const reading = await readCurrentMasterRecord(tx, identity);
+        if (reading.status === 'missing')
+          return reply.code(404).send({ error: 'master_record_not_found' });
+        if (reading.status === 'stale')
+          return reply.code(409).send({
+            error: 'master_record_stale',
+            currentCorpusDigest: reading.currentCorpusDigest,
+          });
+        const { record, manifest, verifications } = reading;
         const withdrawn = Array.isArray(manifest?.withdrawn) ? manifest.withdrawn : [];
         const included = Array.isArray(manifest?.included) ? manifest.included : [];
         // Staleness is a CORPUS question (ADR 0013): is the stored claim still the exact set the
         // person is authorized to see? A change in sectioning is not staleness — sections are
         // derived below against the graph as it is now, so a new edge is visible immediately.
-        const currentCorpusDigest = corpusDigest(permitted, withdrawn);
-        const stale = ((): boolean => {
-          try {
-            assertPermissionSetInvariant(
-              {
-                corpusDigest: String(record['corpus_digest']),
-                included: included as PermissionMember[],
-                withdrawn,
-              },
-              permitted,
-            );
-            return false;
-          } catch {
-            return true;
-          }
-        })();
-        if (stale) {
-          return reply.code(409).send({ error: 'master_record_stale', currentCorpusDigest });
-        }
+        const currentCorpusDigest = String(record['corpus_digest']);
+        const stale = false;
         // Sections come from ONE engine. The `master_sections` definition is the reading this
         // record has always had, now declared in ontology/projections.yaml and evaluated against
         // the relation graph as it is today. Without compiled definitions (a test harness that
         // registers this route alone) the same closure is used directly — same arithmetic.
-        const verifications = liveVerifications(permitted);
         const sectionOf = new Map<string, string>();
         let sectionsSummary: Record<string, unknown>;
         const definition = options.projections?.byId('master_sections');

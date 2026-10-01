@@ -113,7 +113,7 @@ export async function latestClaim(
 ): Promise<AgentContextClaim | undefined> {
   const row = await tx.maybeOne<{ id: string; corpus_digest: string; format: string | null }>(
     `select /* context-source.latest-claim */
-            id, corpus_digest, manifest ->> 'format' as format
+            id, corpus_digest, manifest_format as format
        from content.master_record
       where person_id = $1 and organization_id = $2
       order by compiled_at desc, recorded_at desc, id desc

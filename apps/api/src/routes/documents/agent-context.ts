@@ -1,18 +1,12 @@
 import type { Tx } from '@kf/database';
-import {
-  assertPermissionSetInvariant,
-  enumeratePermittedSet,
-  enumerateRelevanceGraph,
-  latestMasterRecord,
-  type MasterRecordManifest,
-} from '@kf/documents';
+import { enumerateRelevanceGraph } from '@kf/documents';
 import {
   project,
   ProjectionRefused,
   type ProjectionDefinitionSet,
   type ProjectionResult,
 } from '@kf/projections';
-import { liveVerifications, projectionMembersOf } from './master-record-projection-route.js';
+import { readCurrentProjectionCorpus } from './current-master-record.js';
 
 /** What the AI planner is given to draw its context from (KF-SAS-RQ-115), or why not. */
 export type AgentContextOutcome =
@@ -42,32 +36,18 @@ export function agentContextReader(
   return async (tx, reader, tokenBudget) => {
     const definition = definitions?.byId('agent_context');
     if (definition === undefined) return { status: 'projections_unavailable' };
-    const record = await latestMasterRecord(tx, reader.actorId, reader.organizationId);
-    if (record === undefined) return { status: 'master_record_not_found' };
-    const manifest = record['manifest'] as MasterRecordManifest;
-    const included = Array.isArray(manifest.included) ? manifest.included : [];
-    const withdrawn = Array.isArray(manifest.withdrawn) ? manifest.withdrawn : [];
-    const permitted = await enumeratePermittedSet(tx, reader.actorId, reader.organizationId);
     try {
-      assertPermissionSetInvariant(
-        { corpusDigest: String(record['corpus_digest']), included, withdrawn },
-        permitted,
-      );
-    } catch {
-      return { status: 'master_record_stale' };
-    }
-    try {
+      const reading = await readCurrentProjectionCorpus(tx, reader, definition, {
+        token_budget: tokenBudget,
+      });
+      if (reading.status === 'missing') return { status: 'master_record_not_found' };
+      if (reading.status === 'stale') return { status: 'master_record_stale' };
       return {
         status: 'ready',
         projection: project({
           definition,
           parameters: { token_budget: tokenBudget },
-          corpus: {
-            personId: reader.actorId,
-            organizationId: reader.organizationId,
-            corpusDigest: String(record['corpus_digest']),
-            members: projectionMembersOf({ included, withdrawn }, liveVerifications(permitted)),
-          },
+          corpus: reading.corpus,
           graph: await enumerateRelevanceGraph(tx),
         }),
       };

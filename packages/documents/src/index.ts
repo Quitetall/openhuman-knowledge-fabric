@@ -22,10 +22,12 @@ export {
   enumerateRelevanceGraph,
   latestMasterRecord,
   masterRecordItems,
+  masterRecordById,
   masterRecordWithholdings,
 } from './master-record-repository.js';
 export {
   claimMemberCount,
+  claimMembers,
   claimMemberCountAmong,
   claimMembersAmong,
   enumerateNeighbourhoodGraph,

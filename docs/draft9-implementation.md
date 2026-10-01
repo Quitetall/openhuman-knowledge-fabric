@@ -98,3 +98,46 @@ cannot restart while held, and reads changed classification in a fresh process e
 restored version token repeats. The existing retrieval and restore-verifier/drill regressions
 also passed. No production database was restored and no VM recovery or reboot commissioning is
 claimed. Deployment and exact-host recovery proof remain outstanding.
+
+## Read-path checkpoint — 2026-10-01
+
+The master-record GET, whole-corpus projection routes and AI planner now share the existing
+database currency proof instead of always re-enumerating every permitted content payload. A
+stale claim is refused before loading its full-record response. Full-record GET retains its
+manifest wire contract; v3 projections read validated item payloads rather than the full manifest.
+Legacy members and exact withdrawn-member facts retain the manifest fallback. Budgets still
+refuse rather than truncate and are checked before projection payload reads. Current verification
+labels remain live, under row security and current grants.
+
+The context source and claim header read `manifest_format`, a stored generated column derived
+from the immutable manifest. It cannot be independently authored and is not added to canonical
+export rows; restored archives recompute it. A rolled-back synthetic physical-layout probe
+measured 138 shared buffers for the previous JSON format extraction and 2 for the header. This
+is a database read-cost regression proof, not an organization-scale latency qualification.
+
+Item-backed reading exposed a missing guard: the existing statement check accepted a title or
+classification different from its manifest. Two planted regressions reproduced that acceptance.
+The replacement checks both fields as well as the existing content identity, once per statement;
+its migration refuses pre-existing contradictions rather than silently rewriting claims. This is
+forward-only hardening (`20261001000200_item_metadata_matches_the_manifest`), moving the rollback
+floor and requiring a freshly rehearsed receipt for the next sealed release. No live database
+has been migrated by this work.
+
+Preservation import disables user triggers while restoring rows. It now checks item identity,
+title, classification, digest and payload against the immutable manifest explicitly before
+accepting the restored database. Two altered archives, authenticated by an ephemeral trusted
+test key, were accepted before the fix and are now refused. Failed restores roll back the rows
+and trigger state; untouched archives still restore and recompute their generated format header.
+
+Thirteen focused real-database tests cover header derivation, query shape, byte-identical projection
+results, budget/parameter refusal before payload reads, measured TOAST avoidance, contradictory
+item/import refusals and refusal to migrate contradictory historical data. Existing format-compatibility,
+projection and Object View regressions also passed. Whole repository gating and real-host
+qualification are separate evidence; neither this checkpoint nor a header optimization qualifies
+search ranking, key release or the hosted application.
+
+The full `pnpm gate` subsequently passed: 295 test files passed, four opt-in files skipped,
+2,873 tests passed and 25 skipped. Dependency audit reported no known vulnerabilities,
+generated outputs remained current and the production build succeeded. Six existing fixture
+lint warnings and 83 ontology warnings remain. The batch is local implementation only: no
+application release was promoted and no host or search-quality qualification is claimed.

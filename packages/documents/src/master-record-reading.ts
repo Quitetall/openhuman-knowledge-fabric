@@ -27,6 +27,7 @@ export interface MasterRecordClaim {
   readonly personId: string;
   readonly organizationId: string;
   readonly corpusDigest: string;
+  readonly manifestFormat: string | null;
 }
 
 /** The latest claim, selected exactly as `latestMasterRecord` selects it, without its manifest. */
@@ -40,8 +41,9 @@ export async function latestMasterRecordClaim(
     person_id: string;
     organization_id: string;
     corpus_digest: string;
+    manifest_format: string | null;
   }>(
-    `select /* master-record.latest-claim */ id, person_id, organization_id, corpus_digest
+    `select /* master-record.latest-claim */ id, person_id, organization_id, corpus_digest, manifest_format
        from content.master_record
       where person_id = $1 and organization_id = $2
       order by compiled_at desc, recorded_at desc, id desc
@@ -55,6 +57,7 @@ export async function latestMasterRecordClaim(
         personId: row.person_id,
         organizationId: row.organization_id,
         corpusDigest: row.corpus_digest,
+        manifestFormat: row.manifest_format,
       };
 }
 
@@ -77,7 +80,7 @@ export type ClaimCurrency =
       /** The whole permitted set, when it was enumerated to decide. */
       readonly permitted?: readonly PermissionMember[];
     }
-  | { readonly current: false };
+  | { readonly current: false; readonly currentCorpusDigest: string };
 
 /**
  * Whether `claim` is still the reader's current corpus (ADR 0013: "stale means the corpus moved").
@@ -107,11 +110,7 @@ export async function masterRecordCurrency(
     };
   }
 
-  const { format } = await tx.one<{ format: string | null }>(
-    `select /* master-record.format */ manifest ->> 'format' as format
-       from content.master_record where id = $1`,
-    [claim.id],
-  );
+  const format = claim.manifestFormat;
   const memberFormat = masterRecordMemberFormat({ format });
   const permitted = await enumeratePermittedSet(
     tx,
@@ -142,9 +141,31 @@ export async function masterRecordCurrency(
       permitted,
     );
   } catch {
-    return { current: false };
+    return { current: false, currentCorpusDigest: corpusDigest(permitted, withdrawn) };
   }
   return { current: true, basis: 'enumerated', memberFormat, members, permitted };
+}
+
+/** All members required by a whole-corpus projection, without the full manifest for v3 items. */
+export async function claimMembers(
+  tx: Tx,
+  claim: MasterRecordClaim,
+  source: ClaimMembersSource,
+): Promise<{
+  readonly included: readonly PermissionMember[];
+  readonly withdrawn: readonly PermissionMember[];
+}> {
+  if (source.kind === 'manifest') return { included: source.included, withdrawn: source.withdrawn };
+  const rows = await tx.query<{ object_id: string }>(
+    'select /* master-record.member-ids */ object_id from content.master_record_item where master_record_id = $1 order by object_id',
+    [claim.id],
+  );
+  return claimMembersAmong(
+    tx,
+    claim,
+    source,
+    rows.map((row) => row.object_id),
+  );
 }
 
 interface ItemRow extends Record<string, unknown> {

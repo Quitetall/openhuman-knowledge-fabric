@@ -270,6 +270,21 @@ export async function latestMasterRecord(
   );
 }
 
+/** Read the exact immutable claim whose currency was checked, not a newly compiled successor. */
+export async function masterRecordById(
+  tx: Tx,
+  masterRecordId: string,
+): Promise<Record<string, unknown> | undefined> {
+  return tx.maybeOne(
+    `select /* master-record.by-id */
+            id, person_id, organization_id, compilation_run_id, effective_classification,
+            corpus_digest, permission_digest, record_digest, manifest, compiled_at, recorded_at,
+            recorded_by, recorded_by_action
+       from content.master_record where id = $1`,
+    [masterRecordId],
+  );
+}
+
 export async function masterRecordItems(
   tx: Tx,
   masterRecordId: string,

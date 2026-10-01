@@ -7,6 +7,7 @@ import { predatedSections } from '../section-eras.js';
 import { verifyExport } from '../verifier.js';
 import { assertRestoredAuditChain } from './audit-chain.js';
 import { assertActionTargetScope, assertLegacyActionProvenance } from './legacy-actions.js';
+import { assertMasterRecordItems } from './master-record.js';
 import { restoreSections } from './sections.js';
 
 /** Import an authenticated export into an empty, migrated database. */
@@ -77,6 +78,7 @@ export async function importExport(
                              where l.version_id = v.id and l.role = 'working')`,
       );
     }
+    await assertMasterRecordItems(tx);
     await assertLegacyActionProvenance(tx);
     await assertActionTargetScope(tx);
     await assertRestoredAuditChain(tx);
