@@ -254,3 +254,31 @@ build successful. The existing six fixture lint warnings and 83 ontology warning
 The approved `/mnt/2tb/kf-preservation/releases` directory was created privately after
 confirming `/dev/sda` is separate from the VM's `/dev/nvme0n1`. No artifact replica or
 encrypted backup has been written there yet, and it is not an off-site destination.
+
+## Sealed candidate staging checkpoint — 2026-10-01
+
+The clean disposable release build at `cf40e8e622469b4758ff5dedbeb57bbff6e779b3`
+passed the full gate, packaged all runtime trees and sealed 36,302 files. The archive
+`knowledge-fabric-cf40e8e62246.tar.gz` has SHA-256
+`6ad7849a9e5cb481238fe946e6ed704884817c5de27c1b71e31a8e3a5a3bab90`;
+its `SHA256SUMS` digest is
+`bc243e78968bae036eb6f3b644f1aa50bbb2b018b0cc4dd76eeff504c57cebe1`.
+Both private archive copies verified on `/mnt/4tb/kf-vm/releases` and the independent
+`/mnt/2tb/kf-preservation/releases`. This is artifact replication, not encrypted data backup
+or an off-site copy.
+
+The archive was extracted as root into
+`/opt/kf-releases/knowledge-fabric-cf40e8e62246` on the selected VM without changing
+`/opt/kf`. The packaged whole-tree release verifier passed against the exact manifest,
+root ownership and packaged dbmate 2.35.0; Bash measured 4.855 seconds. An initial timing
+wrapper stopped before verification because `/usr/bin/time` was absent; no re-extraction
+was attempted, and the successful retry used Bash's built-in timer. Native helpers are
+baseline static musl, not workstation glibc CRT artifacts.
+
+The live link still names `637677e2c5e1`. Its five main services remain active; the database
+has 91 applied migrations through `20260911000200`. No production migration, release
+switch, rehearsal receipt, backup, restore, engine installation or reboot was performed by
+this staging. The candidate records tested Node 24.21.0; the installed VM runtime is
+24.18.1, so the tested-runtime commissioning comparison also needs reconciliation before
+promotion. The full target-compatible LAMU engine build and post-watcher-fix default suite
+are separate running jobs, not inferred from this KF gate.
