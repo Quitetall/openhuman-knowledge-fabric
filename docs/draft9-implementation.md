@@ -554,3 +554,35 @@ The old `kf_rehearsal` remained at 80 migrations, highest `20260901000100`.
 No production database, credential, role grant, migration or restore changed.
 Bounded encrypted-store delivery, a new authenticated rehearsal receipt, guarded
 promotion and the original commissioning/qualification/release acts remain open.
+
+## Separate migration handoff checkpoint — 2026-10-02
+
+The [migration credential interface](deployment/migration-credential-custody.md)
+now has its own fixed protocol, environment names, guest tmpfs root and
+workstation timer. It shares transport/custody atoms with startup delivery but
+does not expand the startup bundle or expose an arbitrary secret exporter.
+Connection validation refuses redirected or swapped targets, reserved database
+names, encoded credentials and shared production/rehearsal credentials. The
+receipt key's 64 ASCII hex bytes are preserved exactly for the existing raw-byte
+HMAC contract.
+
+The public selected-VM proof passed both realms and the refusal/preservation
+cases. Nine new tests and existing custody, migration and broker regressions
+passed. The full `pnpm gate` passed: 2,950 tests, 25 opt-in skips, 302 passed test
+files and four skipped files; dependency audit clear, generated outputs current
+and production build successful. Existing fixture/ontology warnings remain.
+
+The real migration connections and a separate random deployment receipt key
+are now in the workstation encrypted store. Actual pinned delivery succeeded,
+the guest root-only tmpfs generation is ready, and the new enabled recovery
+timer's oneshot exited zero. The rehearsal connection targets the fresh empty
+port-5433 database; neither the old rehearsal database nor production was
+migrated. Legacy guest connection files remain for existing consumers.
+
+The working alert/retrieval v2 bootstrap and its generation are unchanged.
+`/opt/kf` still selects `637677e2c5e1`, with all five existing modules active.
+The new handoff has not yet been proved across a real reboot. Next are a fresh
+sealed release, actual authenticated rehearsal receipt and guarded promotion;
+preservation/recovery, hosted retrieval, commissioning, qualification and human
+release acts remain open. This checkpoint is implementation/delivery evidence,
+not authority or acceptance.

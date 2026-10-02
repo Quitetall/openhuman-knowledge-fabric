@@ -103,9 +103,66 @@ the future credential-enabled invocation must explicitly expose the swap table.
 
 ## Remaining integration
 
-Deliver the migration credentials through a separate bounded encrypted-store
-handoff; do not broaden the existing fixed three-credential alert/retrieval
-bundle into a general secret exporter. Install its manual migration policy only
+The [handoff module](../../scripts/deploy/workstation-credentials.mjs) has two
+closed realms sharing the custody and transport implementation. The migration
+interface is `migration-send CONFIG` (explicit delivery/rotation) and
+`migration-sync CONFIG` (deliver only when the boot-bound generation is missing).
+Root-only guest commands are `migration-receive` and `migration-status`, with no
+extra arguments. Its protocol is `kf-workstation-migration-credentials-v1`,
+exactly five newline-delimited lines, bounded to 16,384 bytes. The payload is:
+
+| Encrypted-store name           | Guest credential name    |
+| ------------------------------ | ------------------------ |
+| `KF_MIGRATOR_DATABASE_URL`     | `database-url`           |
+| `KF_REHEARSAL_DATABASE_URL`    | `rehearsal-database-url` |
+| `KF_REHEARSAL_RECEIPT_KEY_HEX` | `rehearsal-receipt-key`  |
+
+This selected-host adapter accepts only PostgreSQL URIs on `127.0.0.1`,
+production port 5432 and rehearsal port 5433, with different database names,
+principals and passwords. Names are plain identifiers; passwords use printable
+unencoded letters, digits, dot, underscore, tilde or hyphen. Each URI is bounded
+to 8,192 bytes. Reserved PostgreSQL database names, encoded userinfo, fragments
+and connection redirection/options refuse. The only optional query is exactly
+`sslmode=disable`, for these local selected-host connections. This does not
+replace the migration script's disposable-cluster and empty-target checks.
+
+The receipt key is 64 lowercase hex characters, representing 32 bytes of random
+entropy. It is delivered as **64 ASCII bytes without a newline**, not hex-decoded.
+The existing HMAC interface reads exactly those raw bytes in rehearsal and apply.
+It is a deployment receipt credential, not a preservation signing key, document
+approval or authority grant.
+
+Atomic generations live only under
+`/run/kf-workstation-migration-credentials/current`, with the same root-only,
+unswapped tmpfs and boot-binding policy as startup credentials. Readiness checks
+validate all three values, not just their presence. Cross-realm bundles refuse.
+Neither successful delivery nor refused updates touch the startup generation.
+No environment name, arbitrary destination, host or credential list can be
+supplied by a caller. SSH retains the clean child environment, pinned host key,
+exact receiver digest, deadlines and suppression of untrusted output.
+
+The separate [service](../../deploy/workstation/kf-host-migration-credentials.service.in)
+and [timer](../../deploy/workstation/kf-host-migration-credentials.timer.in)
+templates use the existing four-field non-secret config contract and a
+digest-versioned sender/receiver pair. They recover only this realm. The timer
+never invokes a migration. Installing the new pair does not require changing
+the already installed v2 alert/retrieval pair or its timer. Source sharing is
+not permission to replace a sealed or installed module in place.
+
+The [native public proof](../../scripts/deploy/test-workstation-migration-credentials.mjs)
+runs as root on an unswapped tmpfs host. It uses a uniquely owned `/run` fixture,
+not the real credential roots, and removes only that fixture. It demonstrates
+both realms, exact permissions/receipt encoding, preserved generations and
+cross-realm, ownership, swap, boot and widened-access refusals. It does not
+connect to a database, import a real credential or qualify reboot recovery.
+
+For manual sender/import commands, disable core dumps in the invoking shell
+before unlocking secrets (`ulimit -c 0`). The workstation template sets both
+core limits to zero; the pinned remote transport disables them before `sudo`.
+Neither this contract nor buffer clearing promises erasure of every runtime
+string copy.
+
+Install its manual migration policy only
 after the exact new release and handoff are verified. The baseline provisioner
 still has legacy persistent secret generation and must not be run unchanged for
 the selected custody policy.
@@ -115,6 +172,39 @@ The selected rehearsal database is already occupied (80 migration rows observed
 cluster; never bypass the nonempty-target refusal or destroy existing state to
 make the test pass. The fresh `kf_rehearsal_20261002_custody_v1` on the separate
 port-5433 cluster now passes that exact empty-target query under builtin
-`C.UTF-8`/UTF8; the old database is retained unchanged. No URL or credential has
-yet been changed to target it. A freshly authenticated receipt, guarded promotion, installed
+`C.UTF-8`/UTF8; the old database is retained unchanged. The new encrypted-store
+rehearsal connection now targets it; the legacy guest file still targets the
+old database and is preserved, not overwritten. A freshly authenticated receipt, guarded promotion, installed
 startup/recovery/reboot proof, preservation and qualification remain separate work.
+
+## Actual handoff checkpoint — 2026-10-02
+
+The selected VM passed the public native proof, leaving no temporary proof
+directory. Nine new regression tests and the eleven existing startup-handoff
+tests passed. The ordinary full `pnpm gate` then passed: 2,950 tests, 25 opt-in
+skips, 302 passed files and four skipped files, clear dependency audit, current
+generated outputs and successful production build. Existing fixture/ontology
+warnings remain; this is not independent qualification.
+
+The migration sender/receiver was installed byte-identically at a separate
+digest-versioned path, SHA-256
+`29c787cddd061f494d9777247ffdc712ee2ac891a4f10c0a3eefd577901c064d`.
+Existing production and rehearsal connection credentials were imported directly
+through pinned SSH into the workstation encrypted store. Only the rehearsal
+database name changed, in memory, to the fresh target above. A separate random
+receipt key was generated in memory and stored encrypted. No credential value
+entered a command argument, source, log or new persistent plaintext file.
+
+Actual `migration-sync` succeeded. The guest reported the migration v1 realm
+ready, with root-owned `0400` files; the ordinary guest account could not read
+any of them. The separate workstation timer is enabled and active, and its
+oneshot exited zero with both core limits zero. A value-aware journal check
+found none of the three credential values and printed only its verdict.
+
+The existing startup sender/receiver remains at its prior v2 digest, its
+generation is unchanged, its timer remains active, and all five existing KF
+modules are active on the old application release. Legacy plaintext guest
+database files are preserved for existing consumers: this handoff does not
+claim that all host secret custody has been converted. No database migration,
+rehearsal receipt, application promotion, production alert or human approval
+was performed. Real reboot recovery of this new realm remains unproved.

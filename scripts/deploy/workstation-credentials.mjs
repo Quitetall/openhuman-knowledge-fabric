@@ -1,4 +1,4 @@
-// A fixed three-credential handoff over pinned SSH; no general secret-export interface.
+// Two closed credential realms share custody and pinned transport, never a general exporter.
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
@@ -20,9 +20,26 @@ import { setTimeout, clearTimeout } from 'node:timers';
 
 const SELF = fileURLToPath(import.meta.url);
 const PROTOCOL = 'kf-workstation-credentials-v2';
+const MIGRATION_PROTOCOL = 'kf-workstation-migration-credentials-v1';
 const TMPFS = 0x01021994;
 const LIMIT = 16_384;
 const NAMES = ['alert-ntfy-url', 'alert-heartbeat-url', 'retrieval-index-key'];
+const STARTUP = {
+  protocol: PROTOCOL,
+  root: 'kf-workstation-credentials',
+  names: NAMES,
+  encode: encodeBundle,
+  decode: decodeBundle,
+  validate: (values) => values.map(credential),
+};
+const MIGRATION = {
+  protocol: MIGRATION_PROTOCOL,
+  root: 'kf-workstation-migration-credentials',
+  names: ['database-url', 'rehearsal-database-url', 'rehearsal-receipt-key'],
+  encode: encodeMigrationBundle,
+  decode: decodeMigrationBundle,
+  validate: migrationValues,
+};
 const BOOT_ID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 const GENERATION = /^generation-[A-Za-z0-9]{6}$/;
 
@@ -69,6 +86,68 @@ export function encodeBundle(env) {
   return Buffer.from(`${PROTOCOL}\n${values.join('\n')}\n`);
 }
 
+function migrationDatabase(value, index) {
+  if (
+    typeof value !== 'string' ||
+    value.length > 8192 ||
+    !/^postgres(?:ql)?:\/\/[^\s\\]+$/.test(value) ||
+    /[^\x21-\x7e]/.test(value)
+  ) {
+    refuse();
+  }
+  const url = new URL(value);
+  if (
+    url.hostname !== '127.0.0.1' ||
+    url.port !== (index === 0 ? '5432' : '5433') ||
+    !/^[A-Za-z_][A-Za-z0-9_]*$/.test(url.username) ||
+    !/^[A-Za-z0-9._~-]+$/.test(url.password) ||
+    !/^\/[A-Za-z_][A-Za-z0-9_]*$/.test(url.pathname) ||
+    /^\/(?:postgres|template0|template1)$/.test(url.pathname) ||
+    url.hash ||
+    value.includes('#') ||
+    (url.search !== '' && url.search !== '?sslmode=disable')
+  ) {
+    refuse();
+  }
+  return url;
+}
+
+function migrationValues(values) {
+  const production = migrationDatabase(values[0], 0);
+  const rehearsal = migrationDatabase(values[1], 1);
+  if (
+    production.username === rehearsal.username ||
+    production.password === rehearsal.password ||
+    production.pathname === rehearsal.pathname
+  ) {
+    refuse();
+  }
+  retrievalKey(values[2]);
+  return values;
+}
+
+/** The receipt credential stays 64 ASCII hex bytes: HMAC consumes raw bytes, not decoded hex. */
+export function decodeMigrationBundle(bytes) {
+  if (bytes.length > LIMIT) refuse();
+  const lines = bytes.toString('utf8').split('\n');
+  if (lines.length !== 5 || lines[0] !== MIGRATION_PROTOCOL || lines[4] !== '') refuse();
+  return migrationValues(lines.slice(1, 4));
+}
+
+export function encodeMigrationBundle(env) {
+  const values = migrationValues([
+    env.KF_MIGRATOR_DATABASE_URL,
+    env.KF_REHEARSAL_DATABASE_URL,
+    env.KF_REHEARSAL_RECEIPT_KEY_HEX,
+  ]);
+  const bytes = Buffer.from(`${MIGRATION_PROTOCOL}\n${values.join('\n')}\n`);
+  if (bytes.length > LIMIT) {
+    bytes.fill(0);
+    refuse();
+  }
+  return bytes;
+}
+
 function directory(path, uid, privateMode = false) {
   const stat = lstatSync(path);
   if (
@@ -82,11 +161,11 @@ function directory(path, uid, privateMode = false) {
   }
 }
 
-function runtime(parent, uid, swaps) {
+function runtime(parent, uid, swaps, profile) {
   directory(parent, uid);
   const rows = swaps.trim().split('\n');
   if (rows.length !== 1 || !/^Filename\s+Type\s+Size\s+Used\s+Priority$/.test(rows[0])) refuse();
-  const root = join(parent, 'kf-workstation-credentials');
+  const root = join(parent, profile.root);
   if (statfsSync(parent).type !== TMPFS) refuse();
   return root;
 }
@@ -107,8 +186,16 @@ function readPrivate(path, uid) {
 
 /** Internal filesystem seam; production supplies /run, uid 0 and the live swap table. */
 export function runtimeStatus(parent, uid, bootId, swaps) {
+  return statusForProfile(parent, uid, bootId, swaps, STARTUP);
+}
+
+export function migrationRuntimeStatus(parent, uid, bootId, swaps) {
+  return statusForProfile(parent, uid, bootId, swaps, MIGRATION);
+}
+
+function statusForProfile(parent, uid, bootId, swaps, profile) {
   if (!BOOT_ID.test(bootId)) refuse();
-  const root = runtime(parent, uid, swaps);
+  const root = runtime(parent, uid, swaps, profile);
   try {
     directory(root, uid, true);
     const current = join(root, 'current');
@@ -119,7 +206,7 @@ export function runtimeStatus(parent, uid, bootId, swaps) {
     const generation = join(root, target);
     directory(generation, uid, true);
     if (readPrivate(join(generation, 'boot-id'), uid) !== bootId) refuse();
-    NAMES.forEach((name, index) => credential(readPrivate(join(generation, name), uid), index));
+    profile.validate(profile.names.map((name) => readPrivate(join(generation, name), uid)));
     return 'ready';
   } catch (error) {
     if (error.code === 'ENOENT') return 'missing';
@@ -128,9 +215,17 @@ export function runtimeStatus(parent, uid, bootId, swaps) {
 }
 
 export function receiveBundle(bytes, parent, uid, bootId, swaps) {
-  const values = decodeBundle(bytes);
+  return receiveForProfile(bytes, parent, uid, bootId, swaps, STARTUP);
+}
+
+export function receiveMigrationBundle(bytes, parent, uid, bootId, swaps) {
+  return receiveForProfile(bytes, parent, uid, bootId, swaps, MIGRATION);
+}
+
+function receiveForProfile(bytes, parent, uid, bootId, swaps, profile) {
+  const values = profile.decode(bytes);
   if (!BOOT_ID.test(bootId)) refuse();
-  const root = runtime(parent, uid, swaps);
+  const root = runtime(parent, uid, swaps, profile);
   try {
     mkdirSync(root, { mode: 0o700 });
   } catch (error) {
@@ -151,7 +246,7 @@ export function receiveBundle(bytes, parent, uid, bootId, swaps) {
   try {
     directory(generation, uid, true);
     const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW;
-    NAMES.forEach((name, index) =>
+    profile.names.forEach((name, index) =>
       writeFileSync(join(generation, name), values[index], { mode: 0o400, flag: flags }),
     );
     writeFileSync(join(generation, 'boot-id'), bootId, { mode: 0o400, flag: flags });
@@ -162,7 +257,7 @@ export function receiveBundle(bytes, parent, uid, bootId, swaps) {
     rmSync(generation, { recursive: true, force: true });
     throw error;
   }
-  return runtimeStatus(parent, uid, bootId, swaps);
+  return statusForProfile(parent, uid, bootId, swaps, profile);
 }
 
 function configFile(path) {
@@ -195,7 +290,7 @@ export function transportEnvironment(env) {
   return { HOME: env.HOME, PATH: '/usr/local/bin:/usr/bin:/bin', LANG: 'C.UTF-8' };
 }
 
-function transport(config, action, input) {
+function transport(config, action, input, profile) {
   const digest = createHash('sha256').update(readFileSync(SELF)).digest('hex');
   const path = config.receiverPath;
   const command = `set -eu; ulimit -c 0; test "$(/usr/bin/sha256sum '${path}' | /usr/bin/cut -d ' ' -f 1)" = '${digest}'; exec sudo -n /usr/bin/node '${path}' ${action}`;
@@ -241,7 +336,7 @@ function transport(config, action, input) {
     },
   );
   // Neither remote stderr nor untrusted stdout is ever forwarded: it could echo a secret.
-  if (result.status !== 0 || result.stdout !== `${PROTOCOL} ready\n`) refuse();
+  if (result.status !== 0 || result.stdout !== `${profile.protocol} ready\n`) refuse();
 }
 
 async function boundedInput(stream) {
@@ -264,42 +359,52 @@ async function boundedInput(stream) {
 async function main() {
   const [action, configPath, ...extra] = process.argv.slice(2);
   if (extra.length !== 0) refuse();
-  if (action === 'receive' || action === 'status') {
+  const migration = [
+    'migration-receive',
+    'migration-status',
+    'migration-send',
+    'migration-sync',
+  ].includes(action);
+  if (!migration && !['receive', 'status', 'send', 'sync'].includes(action)) refuse();
+  const profile = migration ? MIGRATION : STARTUP;
+  const prefix = migration ? 'migration-' : '';
+  const verb = migration ? action.slice(prefix.length) : action;
+  if (verb === 'receive' || verb === 'status') {
     if (configPath !== undefined || process.getuid() !== 0) refuse();
     const bootId = readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim();
     const swaps = readFileSync('/proc/swaps', 'utf8');
     let status;
-    if (action === 'receive') {
+    if (verb === 'receive') {
       const bytes = await boundedInput(process.stdin);
       try {
-        status = receiveBundle(bytes, '/run', 0, bootId, swaps);
+        status = receiveForProfile(bytes, '/run', 0, bootId, swaps, profile);
       } finally {
         bytes.fill(0);
       }
-    } else status = runtimeStatus('/run', 0, bootId, swaps);
+    } else status = statusForProfile('/run', 0, bootId, swaps, profile);
     if (status !== 'ready') refuse();
-    process.stdout.write(`${PROTOCOL} ready\n`);
+    process.stdout.write(`${profile.protocol} ready\n`);
     return;
   }
-  if ((action !== 'send' && action !== 'sync') || configPath === undefined) refuse();
+  if (configPath === undefined) refuse();
   const config = configFile(configPath);
-  if (action === 'send') {
-    const bytes = encodeBundle(process.env);
+  if (verb === 'send') {
+    const bytes = profile.encode(process.env);
     try {
-      transport(config, 'receive', bytes);
+      transport(config, `${prefix}receive`, bytes, profile);
     } finally {
       bytes.fill(0);
     }
   } else {
     try {
-      transport(config, 'status');
+      transport(config, `${prefix}status`, undefined, profile);
       return;
     } catch {
       // A reboot, unavailable guest, wrong host key or missing payload cannot be treated as ready.
     }
     const result = spawnSync(
       config.secretsCommand,
-      ['run', '--', process.execPath, SELF, 'send', configPath],
+      ['run', '--', process.execPath, SELF, `${prefix}send`, configPath],
       {
         timeout: 35_000,
         maxBuffer: LIMIT,
