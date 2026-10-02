@@ -53,11 +53,11 @@ If the visible console differs, stop and check rather than guessing.
 ## Engineering and commissioning still required
 
 `scripts/backup-offsite.sh` currently speaks rsync/local destinations; it is not
-an S3 adapter. Do not pass a B2 or S3 URI into it and claim integration. A B2
-adapter must preserve source-manifest authentication, ciphertext-only transfer,
-destination read-back hashing, exact remote object/version identity, ledger
-recording and the restore drill's download path. Test refused or truncated
-uploads, wrong destinations and mismatched read-back, not only HTTP success.
+an S3 adapter. Do not pass a B2 or S3 URI into it and claim integration. The
+[shared transport module](b2-ciphertext-transport.md) now implements version-pinned
+upload/read-back and download. Source-manifest authentication, encrypted-store
+credential delivery, exact cloud identity in the copy ledger, and the restore
+drill's B2 download path still need wiring and verification before use.
 
 The separate-drive `/mnt/2tb/kf-preservation` is a replica on the same
 workstation. It remains useful but does not become off-site because B2 has now

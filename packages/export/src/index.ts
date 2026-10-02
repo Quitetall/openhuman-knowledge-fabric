@@ -6,6 +6,7 @@
  */
 
 export * from './publication.js';
+export * from './offsite.js';
 
 export type {
   CreateExportOptions,

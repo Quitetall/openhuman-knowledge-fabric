@@ -629,3 +629,20 @@ migration and promotion still await preservation/recovery work; B2 transfer,
 real restore, hosted retrieval/reboot commissioning, qualification and human
 release acts remain open. The owner starts B2 setup at signup through the
 prepared human-only helper; an account or saved recovery key is not claimed.
+
+## B2 transport implementation — 2026-10-02
+
+The [shared ciphertext transport](deployment/b2-ciphertext-transport.md) now
+provides bounded upload/read-back and download of an exact historical version.
+The small preservation interface composes contract, file/streaming and SDK atoms;
+manifest authentication, encryption and the copy ledger keep their existing owners.
+Controlled responses and an owned HTTP server exercise the actual pinned SDK,
+including refusal, truncation, version/digest mismatch and cancellation. Public
+framing fixtures are not an encryption or provider qualification.
+
+This does not wire the rsync-based live scripts, record cloud copy identities in
+the database, deliver B2 credentials to the VM, upload a real backup or restore
+one. The owner starts the existing helper at signup; account/MFA and Bitwarden
+recovery-key storage remain human actions. Production and the sealed release
+remain unchanged. The ledger/CLI/restore integration is the next implementation
+slice; hosting, qualification and release acceptance remain open.

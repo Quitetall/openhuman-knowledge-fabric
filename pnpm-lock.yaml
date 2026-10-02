@@ -481,6 +481,9 @@ importers:
 
   packages/export:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: 3.1107.0
+        version: 3.1107.0
       '@kf/canonicalization':
         specifier: workspace:*
         version: link:../canonicalization

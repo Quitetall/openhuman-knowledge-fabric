@@ -396,6 +396,12 @@ const ALLOWED: readonly Allowed[] = [
     reason: "raw bytes: streamed over a backup tree's paths and file bytes",
   },
   {
+    path: 'packages/export/src/internal/offsite/io.ts',
+    line: "const hash = createHash('sha256');",
+    reason:
+      'raw bytes: streamed ciphertext SHA-256 for exact-version transfer/read-back, compatible with ops.backup_copy.ciphertext_sha256 and sha256sum; not a semantic-record digest',
+  },
+  {
     path: 'packages/export/src/internal/importer/legacy-actions.ts',
     line: "return createHash('sha256').update(`kf-action-legacy-v1:${actionId}`, 'utf8').digest('hex');",
     reason:
