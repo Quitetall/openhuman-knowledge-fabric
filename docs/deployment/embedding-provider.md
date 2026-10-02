@@ -124,7 +124,10 @@ with journal output and retained evidence.
 
 ## Remaining deployment work
 
-Seal and verify the Python, wheel, native-library and model inventories, then
+The [runtime assembler and verifier](embedding-runtime.md) now seal a
+host-bound candidate's interpreter, copied package tree and declared native
+libraries. Bind the Python, wheel, native-library and model inventories to the
+actual production release, then
 install dedicated provider/engine identities and supervision. Bind their
 toolchains, model recipe and release pins to the actual startup configuration;
 prove KF-held key release against the complete installed engine, permission

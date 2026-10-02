@@ -399,3 +399,34 @@ The provider's complete sealed Python/native runtime, dedicated installation,
 actual KF-controlled engine startup and reboot proof remain open. No live
 application release, backup, restore, qualification or human act was promoted
 by these checks. Hosting and correctness still precede qualification.
+
+## Host-bound embedding runtime checkpoint — 2026-10-02
+
+The offline assembler, closed-tree/native-library verifier and isolated Python
+launcher now exist as separate atoms. The selected VM built a root-protected
+candidate with 22,123 tree entries, 207 loadable ELF files and 25 declared host
+library paths. Its retained manifest digest is
+`0c7f0c7ee64e46e2c64a55d37a98e34cc68297928149adc3db50231298492c30`.
+The copied interpreter imported NumPy, Torch and Transformers without the old
+virtual environment or host standard-library import path. Verification accepted
+the corrected candidate before real model startup. An explicit stop ended the
+first successful temporary provider unit with result success and main status 0,
+not the earlier diagnostic unit's lifetime timeout.
+
+A second temporary start passed the actual HTTP probe including the full
+8,192-token input, 64 short inputs, canonical repeatability and refusals;
+the combined probe took 120.197 seconds. The ordinary LAMU client resolved
+the same recipe. An explicit stop again returned success and main status 0.
+This is not mixed/long-batch capacity, a persistent account or a reboot proof.
+
+Failed intermediate assemblies remain distinct evidence. The filename guard
+was observed rejecting actual setuptools data with spaces and parentheses;
+its regression failed before the correction. Python build objects and
+no-DT_NEEDED extensions are now distinguished from unresolved dependencies.
+Source-user ownership survived some initial copies and was correctly refused
+by startup; assembly now sets ownership explicitly without relaxing custody.
+See the [runtime contract](deployment/embedding-runtime.md) for bounds and
+remaining integration. This host-bound runtime still requires production
+release inventory, dedicated installation, actual key/index integration,
+preservation/recovery, reboot and host commissioning. Qualification remains
+after those proofs; neither a manifest nor a candidate lifecycle is acceptance.
