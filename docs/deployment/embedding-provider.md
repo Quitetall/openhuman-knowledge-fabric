@@ -55,6 +55,14 @@ The earlier immediate close raced `http.client`'s separate header/body writes
 and caused a broken pipe. The named regression retains a scheduler gap and
 asserts receipt of the busy response, not merely a closed connection.
 
+The listener enables `SO_REUSEADDR`, not `SO_REUSEPORT`, so a recent closed
+connection in `TIME_WAIT` does not prevent an immediate restart. A second live
+listener at the same address remains refused. Production HTTP is confined to
+the [provider/engine private namespace](retrieval-startup.md), not exposed on
+host loopback. The earlier non-reusable listener passed its initial start but
+failed a real provider-only restart; a minimal Linux TCP lifecycle regression
+reproduced `EADDRINUSE` before the correction.
+
 ## Run and test
 
 After the declared runtime and root-protected model are installed:
@@ -76,8 +84,8 @@ The ordinary repository gate runs:
 pnpm exec vitest run tests/deployment/embedding-provider.test.ts
 ```
 
-That wrapper executes 18 Python standard-library tests against the real HTTP,
-parser, admission and deadline code with a synthetic inference adapter. No
+That wrapper executes 20 Python standard-library tests against the real HTTP,
+parser, admission, listener lifecycle and deadline code with a synthetic inference adapter. No
 model or model-quality claim comes from those tests. In separate owned copies,
 plants admitting a one-token overflow, echoing an arbitrary refusal and
 omitting the inference abort each failed a named test. The unplanted source

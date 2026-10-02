@@ -430,3 +430,37 @@ remaining integration. This host-bound runtime still requires production
 release inventory, dedicated installation, actual key/index integration,
 preservation/recovery, reboot and host commissioning. Qualification remains
 after those proofs; neither a manifest nor a candidate lifecycle is acceptance.
+
+## Composed startup checkpoint — 2026-10-02
+
+The [startup contract](deployment/retrieval-startup.md) now separates the fixed
+non-secret configuration, bounded readiness and orchestration from the existing
+runtime and engine. Root custody and pinned recipe bytes precede child execution;
+the only engine key source is the authenticated KF broker. Dedicated identities,
+shared private network, event-only credential activation and the existing recovery
+holder name are declared. A planted provisioning test first failed because the
+new identities/path unit were absent; provisioning now includes them and the
+explicit API/worker filesystem group, without generating a retrieval key.
+
+Public native-unit tests on the selected VM passed private-network isolation,
+the full model interface under the syscall filter, actual LAMU identity,
+credential presence/event/recovery-guard behaviour and recipe-drift refusal.
+They exposed a real provider restart failure: an old TCP connection's `TIME_WAIT`
+blocked binding. The minimal Linux lifecycle regression failed before enabling
+address reuse, then passed while a second live listener still refused. The real
+provider restarted with the peer PID and namespace unchanged after that fix.
+
+The production orchestrator started the real provider from a pinned public
+fixture. Against a ready provider but missing broker, the actual engine refused
+before creating its store or socket. Earlier unsupported caller arguments,
+a disconnected public harness and an omitted private-temporary-directory probe
+setting remain recorded failures, not successful startup evidence. The corrected
+provider stopped explicitly with success/status 0; the peer's fixed probe
+lifetime ended separately as a timeout. Probe activations are stopped and their
+temporary installed unit links are retained outside the service manager's search
+path. No live application release, database or actual retrieval index changed.
+
+Fresh sealed-release construction, installed real-key startup and permission-mask
+integration, migration rehearsal/promotion, recovery/reboot commissioning,
+encrypted preservation, off-site backup and qualification remain in the delivery
+order above. New service accounts and source declarations do not close §100.39.

@@ -47,7 +47,10 @@ class EmbeddingServer(ThreadingHTTPServer):
 
     daemon_threads = True
     block_on_close = False
-    allow_reuse_address = False
+    # SO_REUSEADDR permits restart over a closed connection's TIME_WAIT, not a
+    # second live listener. No SO_REUSEPORT is enabled; production loopback is
+    # additionally confined to the provider/engine's private namespace.
+    allow_reuse_address = True
     request_queue_size = MAX_CONNECTIONS
 
     def __init__(self, address, embedder, model_name, *, read_deadline=10.0,

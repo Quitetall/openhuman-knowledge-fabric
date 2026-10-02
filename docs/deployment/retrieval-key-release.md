@@ -12,6 +12,11 @@ actual encrypted-store credentials into guest tmpfs. The digest-versioned v2 boo
 installed; the engine, sealed application release and exact policy remain uninstalled. Do not
 enable the engine startup path yet or treat credential delivery as commissioning evidence.
 
+The [composed startup contract](retrieval-startup.md) defines the provider/engine
+identities, private network, fixed non-secret artifact pins and credential-event
+activation. Source declarations and public native-unit proofs do not close the
+remaining installed real-key startup requirement.
+
 ## Interface
 
 `kf-retrieval-key.socket` accepts local Unix connections only. PID 1 owns the listening socket

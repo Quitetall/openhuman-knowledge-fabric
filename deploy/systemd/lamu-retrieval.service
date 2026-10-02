@@ -1,0 +1,62 @@
+[Unit]
+Description=Knowledge Fabric derived encrypted LAMU retrieval engine
+Documentation=file:///opt/kf/docs/deployment/retrieval-key-release.md
+Wants=kf-embedding.service
+Requires=kf-retrieval-key.socket
+After=kf-embedding.service kf-retrieval-key.socket
+JoinsNamespaceOf=kf-embedding.service
+ConditionPathExists=/run/kf-workstation-credentials/current/retrieval-index-key
+OnFailure=kf-alert@%n.service
+StartLimitIntervalSec=30min
+StartLimitBurst=5
+
+[Service]
+Type=exec
+User=kf-retrieval
+Group=kf-retrieval
+SupplementaryGroups=kf-retrieval-key
+UnsetEnvironment=NODE_OPTIONS NODE_PATH PYTHONPATH PYTHONHOME LAMU_API_TOKEN
+ExecStart=/usr/bin/node /opt/kf/scripts/retrieval/startup.mjs engine /etc/kf/retrieval-runtime.json
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+KillMode=control-group
+RuntimeDirectory=lamu-retrieval
+RuntimeDirectoryMode=0750
+StateDirectory=lamu-retrieval
+StateDirectoryMode=0700
+LimitCORE=0
+MemoryHigh=512M
+MemoryMax=1G
+MemorySwapMax=0
+TasksMax=64
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+PrivateNetwork=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectClock=true
+ProtectHostname=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectProc=invisible
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+IPAddressDeny=any
+IPAddressAllow=localhost
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+
+[Install]
+# PID 1 skips a credential-less boot start before forking. The event-only path
+# retries when handoff changes, without continuously restarting an intentionally stopped engine.
+WantedBy=multi-user.target

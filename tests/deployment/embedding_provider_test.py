@@ -1,6 +1,7 @@
 """Interface tests use public synthetic tokens/vectors, never semantic qualification."""
 
 import contextlib
+import errno
 import http.client
 import io
 import json
@@ -68,6 +69,46 @@ class CanonicalTests(unittest.TestCase):
             with self.assertRaisesRegex(Refusal, '^model_custody$'):
                 load_model(Path(directory))
         self.assertNotIn('torch', sys.modules)
+
+
+class ListenerLifecycleTests(unittest.TestCase):
+    def test_closed_connection_does_not_prevent_immediate_restart(self):
+        if not Path('/proc/net/tcp').exists():
+            self.skipTest('Linux TCP lifecycle contract')
+        adapter = CanonicalEmbedder(lambda _: TokenInput(2, None), lambda _: [1, 0],
+                                   dimensions=2)
+        server = EmbeddingServer(('127.0.0.1', 0), adapter, 'public-model')
+        address = server.server_address
+        client = socket.create_connection(address, timeout=2)
+        accepted, _ = server.get_request()
+        try:
+            # The server actively closes first, just as its HTTP/1.0 reply does.
+            # Complete both FIN directions so the old local address is in TIME_WAIT.
+            accepted.shutdown(socket.SHUT_WR)
+            self.assertEqual(client.recv(1), b'')
+            client.shutdown(socket.SHUT_WR)
+            self.assertEqual(accepted.recv(1), b'')
+        finally:
+            accepted.close()
+            client.close()
+            server.server_close()
+        port = f'{address[1]:04X}'
+        self.assertTrue(any(row.split()[1].endswith(':' + port) and row.split()[3] == '06'
+                            for row in Path('/proc/net/tcp').read_text().splitlines()[1:]),
+                        'fixture must exercise a real TIME_WAIT connection')
+        restarted = EmbeddingServer(address, adapter, 'public-model')
+        restarted.server_close()
+
+    def test_address_reuse_does_not_admit_a_second_live_listener(self):
+        adapter = CanonicalEmbedder(lambda _: TokenInput(2, None), lambda _: [1, 0],
+                                   dimensions=2)
+        server = EmbeddingServer(('127.0.0.1', 0), adapter, 'public-model')
+        try:
+            with self.assertRaises(OSError) as refusal:
+                EmbeddingServer(server.server_address, adapter, 'public-model')
+            self.assertEqual(refusal.exception.errno, errno.EADDRINUSE)
+        finally:
+            server.server_close()
 
 
 class TransportTests(unittest.TestCase):

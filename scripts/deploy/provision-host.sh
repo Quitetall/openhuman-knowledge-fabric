@@ -98,7 +98,7 @@ human() { HUMAN+=("$1|$2"); }
 # ---------------------------------------------------------------------------------------------
 
 USERS=(kf-api kf-web kf-worker kf-migrator kf-checkpoint kf-backup kf-offsite kf-readiness
-  kf-storage kf-audit-verify kf-alert kf-drill kf-attestor kf-retrieval-key)
+  kf-storage kf-audit-verify kf-alert kf-drill kf-attestor kf-retrieval-key kf-embedding kf-retrieval)
 
 # Numeric ids from the account database, root included, so ownership is compared as the kernel
 # records it.
@@ -146,6 +146,17 @@ ensure_attest_group() {
     if [ "$MODE" = check ]; then pending "$member in group kf-attest"; continue; fi
     usermod -aG kf-attest "$member"
     created "$member in group kf-attest"
+  done
+}
+
+ensure_retrieval_group() {
+  # Unix filesystem access and kernel peer admission are separate checks. Only the
+  # declared API and worker identities may traverse the engine's runtime directory.
+  for member in kf-api kf-worker; do
+    if getent group kf-retrieval | cut -d: -f4 | tr ',' '\n' | grep -qx "$member"; then continue; fi
+    if [ "$MODE" = check ]; then pending "$member in group kf-retrieval"; continue; fi
+    usermod -aG kf-retrieval "$member"
+    created "$member in group kf-retrieval"
   done
 }
 
@@ -639,7 +650,7 @@ install_units() {
     mkdir -p -- "$(p /etc/systemd/system)"
     chmod 755 "$(p /etc/systemd/system)"
   fi
-  for unit in "$TEMPLATES"/*.service "$TEMPLATES"/*.timer "$TEMPLATES"/*.socket; do
+  for unit in "$TEMPLATES"/*.service "$TEMPLATES"/*.timer "$TEMPLATES"/*.socket "$TEMPLATES"/*.path; do
     [ -f "$unit" ] || continue
     target="$(p /etc/systemd/system)/$(basename -- "$unit")"
     if [ -f "$target" ] && cmp -s "$unit" "$target"; then continue; fi
@@ -676,6 +687,7 @@ check_verifier_override() {
 for user in "${USERS[@]}"; do ensure_user "$user"; done
 ensure_archive_group
 ensure_attest_group
+ensure_retrieval_group
 
 for entry in "${DIRECTORIES[@]}"; do
   read -r mode owner group path <<< "$entry"

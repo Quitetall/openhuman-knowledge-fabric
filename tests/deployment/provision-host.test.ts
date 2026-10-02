@@ -151,6 +151,8 @@ describe('provision-host.sh', () => {
       'kf-audit-verify',
       'kf-drill',
       'kf-retrieval-key',
+      'kf-embedding',
+      'kf-retrieval',
     ]) {
       expect(h.calls()).toContain(
         `useradd --system --user-group --home-dir /nonexistent --shell /usr/sbin/nologin ${user}`,
@@ -158,7 +160,15 @@ describe('provision-host.sh', () => {
     }
     expect(h.calls()).toContain('usermod -aG kf-archive kf-backup');
     expect(h.calls()).toContain('usermod -aG kf-archive kf-offsite');
-    for (const name of ['kf-retrieval-key.socket', 'kf-retrieval-key@.service']) {
+    expect(h.calls()).toContain('usermod -aG kf-retrieval kf-api');
+    expect(h.calls()).toContain('usermod -aG kf-retrieval kf-worker');
+    for (const name of [
+      'kf-retrieval-key.socket',
+      'kf-retrieval-key@.service',
+      'kf-embedding.service',
+      'lamu-retrieval.service',
+      'kf-retrieval-credentials.path',
+    ]) {
       expect(readFileSync(h.path(`/etc/systemd/system/${name}`), 'utf8')).toBe(
         readFileSync(join(ROOT, 'deploy/systemd', name), 'utf8'),
       );

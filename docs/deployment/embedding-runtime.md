@@ -125,7 +125,9 @@ is an ELF-linkage contract, not proof about every possible future `dlopen`,
 optional package, hardware or application. Representative provider execution
 and an explicit service configuration remain required.
 
-Install dedicated provider/engine identities and persistent supervision; prove
+The [composed startup contract](retrieval-startup.md) declares dedicated
+provider/engine identities, isolated supervision and credential-event activation.
+Install that composition and prove
 actual KF-held key release, encrypted index, permission-mask integration,
 retry behaviour, restart and reboot. Complete encrypted preservation and
 restore, host commissioning, corpus relevance and independent qualification
