@@ -464,3 +464,29 @@ Fresh sealed-release construction, installed real-key startup and permission-mas
 integration, migration rehearsal/promotion, recovery/reboot commissioning,
 encrypted preservation, off-site backup and qualification remain in the delivery
 order above. New service accounts and source declarations do not close §100.39.
+
+## Fresh startup release staging — 2026-10-02
+
+Exact source `bdbe15e937183b3bd02788782a0e3abe5e67997c` passed `pnpm gate` in
+both the implementation tree and a fresh disposable release checkout: 2,935 tests
+passed, 25 skipped, 300 files passed and four skipped. Audit, generated-output
+checks and production builds passed; existing fixture and ontology warnings remain.
+
+The clean build sealed 36,319 files, including the startup modules, under Node
+24.21.0 and pnpm 11.21.0, with dbmate 2.35.0 and baseline static musl helpers.
+Archive `knowledge-fabric-bdbe15e93718.tar.gz` has SHA-256
+`a80a1fad73fad115f8c0081e562448bc12ea4544d5c021dd5e8bbfd3bdc096d1`;
+its independently retained manifest digest is
+`d65546b87e20b61b2c2325a42e7e75b8270386d7714eb78346dbc5ee077ca94d`.
+The archive copies verified on both `/mnt/4tb/kf-vm/releases` and
+`/mnt/2tb/kf-preservation/releases`. These are local artifact replicas, not
+encrypted database backups or an off-site copy.
+
+The VM's root-owned extraction at
+`/opt/kf-releases/knowledge-fabric-bdbe15e93718` passed the packaged whole-release
+verifier against that manifest, expected root custody and packaged dbmate.
+`/opt/kf` still selects `637677e2c5e1`, and the five existing modules remain active.
+The staging applied no production migration, generated no migration rehearsal
+receipt, installed no permanent engine/broker policy and used no actual retrieval
+key. Promotion, actual startup, encrypted preservation/recovery and commissioning
+remain open before qualification. The gate and replica do not supply human acts.
