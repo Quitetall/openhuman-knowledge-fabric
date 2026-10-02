@@ -318,10 +318,8 @@ receipt_key_file() {
     fail 'KF_REHEARSAL_RECEIPT_KEY_FILE must be an absolute path to the host-local receipt key'
   [ -f "$key_file" ] && [ ! -L "$key_file" ] ||
     fail 'KF_REHEARSAL_RECEIPT_KEY_FILE must name a regular non-symlink file'
-  local key_mode
-  key_mode="$(stat -c '%a' "$key_file")"
-  [ $((8#$key_mode & 8#077)) -eq 0 ] ||
-    fail 'rehearsal receipt key must be readable by its owner only (chmod 600)'
+  kf_validate_secret_file "$key_file" ||
+    fail 'rehearsal receipt key custody could not be verified'
   [ "$(stat -c '%s' "$key_file")" -ge 32 ] ||
     fail 'rehearsal receipt key must hold at least 32 bytes'
   printf '%s' "$key_file"

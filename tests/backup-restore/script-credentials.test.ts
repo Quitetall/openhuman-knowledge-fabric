@@ -182,6 +182,27 @@ describe('no script may install a bare EXIT trap', () => {
 });
 
 describe('reading the connection string from a file', () => {
+  it('does not export the file password to parsing and escaping children', () => {
+    const bin = mkdtempSync(join(work, 'observe-child-environment-'));
+    const file = join(bin, 'database-url');
+    writeFileSync(file, 'postgres://u:public-file-password@h/d', { mode: 0o600 });
+    writeFileSync(
+      join(bin, 'sed'),
+      '#!/usr/bin/bash\n' +
+        'if [[ "${DATABASE_URL:-}" == *public-file-password* ]]; then\n' +
+        '  echo "file password reached a child environment" >&2; exit 73\n' +
+        'fi\nexec /usr/bin/sed "$@"\n',
+      { mode: 0o755 },
+    );
+    const r = sh('unset DATABASE_URL; kf_resolve_database_url; printf "%s" "$DATABASE_URL"', {
+      DATABASE_URL_FILE: file,
+      PATH: `${bin}:${process.env['PATH']}`,
+    });
+    expect(r.code, r.out).toBe(0);
+    expect(r.out).not.toContain('file password reached a child environment');
+    expect(r.out).toBe('postgres://u@h/d');
+  });
+
   it('refuses one readable beyond its owner', () => {
     const r = sh(
       `
@@ -207,6 +228,46 @@ describe('reading the connection string from a file', () => {
       { DATABASE_URL_FILE: keywordFile },
     );
     expect(r.out).toContain('[host=db user=kf dbname=kf]');
+  });
+});
+
+describe('explicit systemd credential custody', () => {
+  it('refuses unknown custody modes instead of falling back to a private file', () => {
+    const r = sh('printf unexpected', { KF_SECRET_CUSTODY: 'almost-systemd' });
+    expect(r.code).not.toBe(0);
+    expect(r.out).toContain('unsupported secret custody');
+    expect(r.out).not.toContain('unexpected');
+  });
+
+  it('refuses a disk-backed or non-private temporary directory before creating pgpass', () => {
+    const dir = mkdtempSync(join(work, 'not-volatile-'));
+    chmodSync(dir, 0o755);
+    const r = sh('printf unexpected', { KF_SECRET_CUSTODY: 'systemd', TMPDIR: dir });
+    expect(r.code).not.toBe(0);
+    expect(r.out).toContain('private tmpfs');
+    expect(readdirSync(dir)).toEqual([]);
+  });
+
+  it('refuses an inherited password file before using the systemd adapter', () => {
+    const theirs = join(work, 'inherited-systemd-pgpass');
+    const r = sh('printf unexpected', {
+      KF_SECRET_CUSTODY: 'systemd',
+      PGPASSFILE: theirs,
+      KF_PGPASS_OWNED: 'true',
+    });
+    expect(r.code).not.toBe(0);
+    expect(r.out).toContain('inherited PGPASSFILE');
+    expect(existsSync(theirs)).toBe(false);
+  });
+
+  it('does not treat an ordinary 0440 file as a systemd credential', () => {
+    const file = join(work, 'not-systemd-database-url');
+    writeFileSync(file, 'public planted credential');
+    chmodSync(file, 0o440);
+    const r = sh(`kf_read_secret_file "${file}" DATABASE_URL_FILE`);
+    expect(r.code).not.toBe(0);
+    expect(r.out).toContain('readable beyond its owner');
+    expect(r.out).not.toContain('public planted credential');
   });
 });
 

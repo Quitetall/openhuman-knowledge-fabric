@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/statfs.h>
@@ -40,7 +41,25 @@ static int acl_grants_service(const unsigned char *acl, ssize_t length,
   return 1;
 }
 
-static int custody(int fd, int is_directory) {
+static int credential_policy(const char *name, off_t *minimum, off_t *maximum) {
+  *minimum = 0;
+  *maximum = 65;
+  if (strcmp(name, "index-key") == 0) return 1;
+  if (strcmp(name, "database-url") == 0 ||
+      strcmp(name, "rehearsal-database-url") == 0) {
+    *minimum = 1;
+    *maximum = 8192;
+    return 1;
+  }
+  if (strcmp(name, "rehearsal-receipt-key") == 0) {
+    *minimum = 32;
+    *maximum = 4096;
+    return 1;
+  }
+  return 0;
+}
+
+static int custody_size(int fd, int is_directory, off_t minimum, off_t maximum) {
   struct stat st;
   struct statfs fs;
   unsigned char acl[64];
@@ -49,7 +68,7 @@ static int custody(int fd, int is_directory) {
       st.st_uid != 0 || st.st_gid != 0 ||
       (st.st_mode & 07777) != (is_directory ? 0550 : 0440) ||
       (is_directory ? !S_ISDIR(st.st_mode) : !S_ISREG(st.st_mode)) ||
-      (!is_directory && (st.st_nlink != 1 || st.st_size < 0 || st.st_size > 65)) ||
+      (!is_directory && (st.st_nlink != 1 || st.st_size < minimum || st.st_size > maximum)) ||
       (unsigned long)fs.f_type != 0x01021994UL ||
       ((unsigned long)fs.f_flags & flags) != flags)
     return 0;
@@ -57,15 +76,22 @@ static int custody(int fd, int is_directory) {
   return acl_grants_service(acl, length, is_directory ? 5 : 4, geteuid());
 }
 
+static int custody(int fd, int is_directory) {
+  return custody_size(fd, is_directory, 0, 65);
+}
+
 int main(int argc, char **argv) {
   int directory = -1;
   int file = -1;
   int accepted = 0;
-  if (argc == 2 && argv[1][0] == '/' && geteuid() != 0) {
+  off_t minimum = 0, maximum = 0;
+  const char *name = argc == 2 ? "index-key" : argc == 3 ? argv[2] : "";
+  if ((argc == 2 || argc == 3) && argv[1][0] == '/' && geteuid() != 0 &&
+      credential_policy(name, &minimum, &maximum)) {
     directory = open(argv[1], O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     if (directory >= 0 && custody(directory, 1)) {
-      file = openat(directory, "index-key", O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
-      accepted = file >= 0 && custody(file, 0);
+      file = openat(directory, name, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
+      accepted = file >= 0 && custody_size(file, 0, minimum, maximum);
     }
   }
   if (file >= 0) close(file);

@@ -490,3 +490,40 @@ The staging applied no production migration, generated no migration rehearsal
 receipt, installed no permanent engine/broker policy and used no actual retrieval
 key. Promotion, actual startup, encrypted preservation/recovery and commissioning
 remain open before qualification. The gate and replica do not supply human acts.
+
+## Migration custody checkpoint — 2026-10-02
+
+The [migration credential adapter](deployment/migration-credential-custody.md)
+now reuses the existing native metadata checker for three explicitly named,
+bounded migration credentials. The retrieval broker's default index-key interface
+is unchanged. Ordinary group-readable files remain refused; systemd custody
+requires the actual root-owned read-only tmpfs mount and exact service-UID ACL.
+The PostgreSQL password temporary file must be service-private unswapped tmpfs,
+not the disk-backed directory that `PrivateTmp` may supply.
+
+New refusal cases failed before implementation and passed after it. The selected
+VM's public native-unit proof admitted the named credentials, removed passwords
+from connection arguments and proved exit cleanup. Oversized/short/unknown
+credentials, outside paths and incorrectly owned/writable helpers refused; the
+positive proof passed again after helper custody was restored. No actual key,
+database connection, migration, receipt or release promotion was used.
+
+Inspection also found a real existing password exposure: the raw file-loaded
+database URL was exported briefly before escaping, so parsing children inherited
+its password. A public child-environment observer reproduced it and passed after
+keeping the raw value local until password removal. Existing private-file,
+receipt authenticity and retrieval-broker regressions passed (83 focused tests).
+
+The first full gate failed on four existing database fixture deadlines (two
+startup hooks and two preservation tests), not on a credential assertion. All
+four files passed unchanged in a narrower run: 21 tests, original deadlines.
+The full-suite bounded-worker experiment and the resulting complete gate are
+still pending; neither the focused tests nor native custody proof substitutes
+for that gate.
+
+The existing rehearsal database contains 80 applied migrations, so it is not the
+empty target required by the current rehearsal. It is retained, not reset. A
+separate bounded encrypted-store migration handoff and fresh disposable target
+remain next, before a new authenticated receipt and guarded promotion. Backup
+custody/off-site choices and hosting, qualification and human release acts remain
+open in the original delivery order.

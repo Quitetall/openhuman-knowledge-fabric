@@ -5,9 +5,57 @@
 # — where it would be readable from /proc/<pid>/environ by anything running as the same user,
 # inherited by every child process, and printed by most crash reporters.
 #
-# The permission rule matches `loadSecret()` in packages/operations: group or other bits on a
-# secret file mean it is already disclosed to another account on this host, so it is refused
-# rather than warned about.
+# The permission rule matches `loadSecret()` in packages/operations: group or other bits on an
+# ordinary secret file mean it is already disclosed to another account on this host, so it is
+# refused rather than warned about. Explicit systemd custody is a different adapter: only the
+# native kernel check may admit PID 1's read-only, service-UID-specific credential mount.
+
+kf_credential_helper() {
+  local helper parent metadata
+  # Fixed to this library's release, never an executable supplied in the environment. A
+  # root-protected executable and every ancestor must be trusted before it can check a key.
+  helper="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../tools" && pwd -P)/kf-credential-custody" || return 1
+  [ -f "$helper" ] && [ ! -L "$helper" ] && [ -x "$helper" ] || return 1
+  [ "$(stat -c '%u:%h' "$helper")" = '0:1' ] || return 1
+  metadata="$(stat -c '%a' "$helper")"
+  [ $((8#$metadata & 8#7022)) -eq 0 ] || return 1
+  parent="$(dirname -- "$helper")"
+  while :; do
+    [ -d "$parent" ] && [ ! -L "$parent" ] && [ "$(stat -c '%u' "$parent")" = 0 ] || return 1
+    metadata="$(stat -c '%a' "$parent")"
+    [ $((8#$metadata & 8#022)) -eq 0 ] || return 1
+    [ "$parent" != / ] || break
+    parent="$(dirname -- "$parent")"
+  done
+  printf '%s' "$helper"
+}
+
+kf_validate_secret_file() {
+  local path="$1" mode directory name helper
+  if [ "${KF_SECRET_CUSTODY:-}" = systemd ]; then
+    directory="${CREDENTIALS_DIRECTORY:-}"
+    if [[ "$directory" != /* ]] || [ "$(readlink -e -- "$directory")" != "$directory" ] ||
+      [ "$(dirname -- "$path")" != "$directory" ]; then
+      echo 'systemd secret custody unavailable' >&2
+      return 1
+    fi
+    name="$(basename -- "$path")"
+    helper="$(kf_credential_helper)" || {
+      echo 'systemd secret custody helper is not root-protected' >&2
+      return 1
+    }
+    env -i PATH=/usr/bin:/bin LANG=C.UTF-8 "$helper" "$directory" "$name" || return 1
+    return 0
+  fi
+  [ -z "${KF_SECRET_CUSTODY:-}" ] || { echo 'unsupported secret custody' >&2; return 1; }
+  # %a is the octal mode. 077 is group+other; anything set there fails.
+  mode="$(stat -c '%a' "$path")" || return 1
+  if [ $(( 8#$mode & 8#077 )) -ne 0 ]; then
+    echo "$path is mode $mode — a secret readable beyond its owner is already disclosed" >&2
+    echo 'to anything running as another user on this host. chmod 600 it.' >&2
+    return 1
+  fi
+}
 
 kf_read_secret_file() {
   _path="$1"
@@ -16,13 +64,7 @@ kf_read_secret_file() {
     echo "$_label points at $_path, which cannot be read" >&2
     return 1
   fi
-  # %a is the octal mode. 077 is group+other; anything set there fails.
-  _mode="$(stat -c '%a' "$_path")"
-  if [ $(( 8#$_mode & 8#077 )) -ne 0 ]; then
-    echo "$_path is mode $_mode — a secret readable beyond its owner is already disclosed" >&2
-    echo "to anything running as another user on this host. chmod 600 it." >&2
-    return 1
-  fi
+  kf_validate_secret_file "$_path" || return 1
   # TRAILING whitespace only. Every editor and every `echo` adds a newline, and a credential
   # that differs from the intended one by one byte fails in a way nobody diagnoses quickly —
   # but a libpq keyword/value string ("host=... user=...") contains spaces that are part of
@@ -35,17 +77,18 @@ kf_read_secret_file() {
 }
 
 kf_resolve_database_url() {
+  local resolved_database_url="${DATABASE_URL:-}"
   if [ -n "${DATABASE_URL_FILE:-}" ]; then
-    DATABASE_URL="$(kf_read_secret_file "$DATABASE_URL_FILE" DATABASE_URL_FILE)" || return 1
-    export DATABASE_URL
+    resolved_database_url="$(kf_read_secret_file "$DATABASE_URL_FILE" DATABASE_URL_FILE)" || return 1
   fi
-  if [ -z "${DATABASE_URL:-}" ]; then
+  if [ -z "$resolved_database_url" ]; then
     echo "neither DATABASE_URL_FILE nor DATABASE_URL is set" >&2
     return 1
   fi
   # Defined below. The password moves to a PGPASSFILE and DATABASE_URL keeps everything else,
-  # so nothing downstream has to know this happened.
-  DATABASE_URL="$(kf_pgpass_url "$DATABASE_URL")" || return 1
+  # so nothing downstream has to know this happened. A file-supplied raw value stays local:
+  # exporting it before escaping would disclose its password to parsing child processes.
+  DATABASE_URL="$(kf_pgpass_url "$resolved_database_url")" || return 1
   export DATABASE_URL
 }
 
@@ -90,6 +133,29 @@ kf_at_exit() {
 # The cost is an empty 0600 file per run of a script that may not need one. That is the right
 # trade for making the invariant unconditional.
 kf_pgpass_init() {
+  case "${KF_SECRET_CUSTODY:-}" in
+    '') ;;
+    systemd)
+      # Do not copy a temporary credential to the disk-backed /tmp used by an ordinary
+      # PrivateTmp unit. Its owned RuntimeDirectory must instead be on private tmpfs.
+      [ -z "${PGPASSFILE:-}" ] || {
+        echo 'systemd custody refuses an inherited PGPASSFILE' >&2
+        return 1
+      }
+      if [ "$EUID" -eq 0 ] || [[ "${TMPDIR:-}" != /* ]] ||
+        [ ! -d "${TMPDIR:-}" ] || [ "$(readlink -e -- "$TMPDIR")" != "$TMPDIR" ] ||
+        [ "$(stat -c '%u:%a' "$TMPDIR")" != "$EUID:700" ] ||
+        [ "$(stat -f -c '%t' "$TMPDIR")" != 1021994 ]; then
+        echo 'systemd custody requires a service-owned private tmpfs TMPDIR' >&2
+        return 1
+      fi
+      [ -r /proc/swaps ] && [ "$(wc -l < /proc/swaps)" -eq 1 ] || {
+        echo 'systemd custody refuses active or unverifiable swap' >&2
+        return 1
+      }
+      ;;
+    *) echo 'unsupported secret custody' >&2; return 1 ;;
+  esac
   if [ -n "${PGPASSFILE:-}" ] && [ -n "${KF_PGPASS_OWNED:-}" ]; then
     return 0
   fi

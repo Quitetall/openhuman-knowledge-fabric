@@ -124,5 +124,33 @@ int main(void) {
       if (custody(123, 0)) return 1;
     }
   }
+  /* The named interface must preserve the old index limit and admit only the
+   * bounded migration credentials. Unknown names and traversal have no policy.
+   */
+  const char *names[4] = {"index-key", "database-url", "rehearsal-database-url",
+                          "rehearsal-receipt-key"};
+  const off_t minimum[4] = {0, 1, 1, 32};
+  const off_t maximum[4] = {65, 8192, 8192, 4096};
+  fixture_stat.st_mode = S_IFREG | 0440;
+  valid(fixture_acl, 4);
+  for (unsigned int i = 0; i < 4; ++i) {
+    off_t lower = -1, upper = -1;
+    if (!credential_policy(names[i], &lower, &upper) ||
+        lower != minimum[i] || upper != maximum[i]) return 1;
+    fixture_stat.st_nlink = 1;
+    fixture_stat.st_size = lower;
+    if (!custody_size(123, 0, lower, upper)) return 1;
+    fixture_stat.st_size = upper;
+    if (!custody_size(123, 0, lower, upper)) return 1;
+    fixture_stat.st_size = upper + 1;
+    if (custody_size(123, 0, lower, upper)) return 1;
+    fixture_stat.st_size = lower - 1;
+    if (custody_size(123, 0, lower, upper)) return 1;
+  }
+  const char *refused[5] = {"", "../database-url", "/database-url", "anything", "index-key/"};
+  for (unsigned int i = 0; i < 5; ++i) {
+    off_t lower = 0, upper = 0;
+    if (credential_policy(refused[i], &lower, &upper)) return 1;
+  }
   return 0;
 }

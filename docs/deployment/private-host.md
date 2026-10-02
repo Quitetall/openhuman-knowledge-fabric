@@ -587,6 +587,13 @@ function bodies the rehearsal database held after migrating and seeding — and 
 That key is host-local, 0600 `kf-migrator`, 32 random bytes, and never leaves the host;
 `scripts/deploy/provision-host.sh` creates it (see [Provision the host](#provision-the-host)).
 
+That is the legacy private-file provisioning path. The selected VM instead uses
+workstation encrypted-store custody; do not run that plaintext key generator there.
+The [systemd migration-credential adapter](migration-credential-custody.md) now
+accepts PID 1's exact service-UID credential copies and confines temporary
+PostgreSQL password files to unswapped tmpfs. Its public native proof is not yet
+a real encrypted-store migration handoff or a freshly authenticated rehearsal.
+
 `apply` (and `kf-migrate.service`) recompute the MAC with the same key and refuse a receipt that
 does not verify, a v2 receipt, and a v1 receipt, each by name — and each refusal prints the exact
 `rehearse-rollback` command, with this release's path, manifest digest and dbmate version filled

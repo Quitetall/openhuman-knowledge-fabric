@@ -1012,7 +1012,8 @@ describe('release migration command', () => {
         },
       );
       expect(result.code).not.toBe(0);
-      expect(result.output).toContain('readable by its owner only');
+      expect(result.output).toContain('readable beyond its owner');
+      expect(result.output).toContain('rehearsal receipt key custody could not be verified');
       expect(existsSync(dbmate.log) ? readFileSync(dbmate.log, 'utf8') : '').not.toContain(' up');
     });
   });
