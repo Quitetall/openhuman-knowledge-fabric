@@ -223,6 +223,8 @@ test -z "$(git status --porcelain=v1 --untracked-files=all --ignored)" || {
   echo 'refusing release build from a nonempty disposable worktree' >&2
   exit 1
 }
+# Public, secret-free build tree: do not inherit an operator's restrictive umask.
+umask 022
 pnpm install --frozen-lockfile
 pnpm gate
 ```
@@ -376,9 +378,13 @@ fi
 # content, not modes, so nothing downstream would have noticed the difference — only the
 # verifier, at install time, on somebody else's evening.
 #
-# Symlinks are skipped: their mode bits are `lrwxrwxrwx` on Linux and cannot be changed.
+# Removing write bits alone retained owner-only generated files under umask 077:
+# those bytes would become root-owned and unreadable to separate service identities.
+# Release bytes contain no secrets. Make regular files readable, and propagate existing
+# executable intent, without making data executable or following symlinks.
 find "$release_root" -type d -exec chmod go-w,go+rx {} +
-find "$release_root" -type f -exec chmod go-w {} +
+find "$release_root" -type f -exec chmod go-w,go+r {} +
+find "$release_root" -type f -perm /111 -exec chmod a+x {} +
 
 (
   cd "$release_root"

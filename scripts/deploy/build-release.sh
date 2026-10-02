@@ -22,6 +22,9 @@
 # and never deletes anything outside it.
 
 set -euo pipefail
+# This is a public, secret-free build tree. Declare the creation policy before the gate:
+# permission fixtures and generated executables must not inherit an operator's umask.
+umask 022
 
 source_root="$(git rev-parse --show-toplevel)"
 release_commit="$(git rev-parse HEAD)"
@@ -136,9 +139,14 @@ fi
 # 2026-08-26 it turned out to be: the first host install carried group/other-writable files and
 # the verifier refused on the first one it reached. SHA256SUMS covers content, not modes, so
 # nothing downstream would have noticed — only the verifier, at install time.
+# Removing write bits alone retained owner-only generated files under umask 077:
+# those bytes would become root-owned and unreadable to separate service identities.
+# Release bytes contain no secrets. Make regular files readable, and propagate existing
+# executable intent, without making data executable or following symlinks.
 echo "== normalise modes before sealing =="
 find "$release_root" -type d -exec chmod go-w,go+rx {} +
-find "$release_root" -type f -exec chmod go-w {} +
+find "$release_root" -type f -exec chmod go-w,go+r {} +
+find "$release_root" -type f -perm /111 -exec chmod a+x {} +
 
 echo "== seal =="
 (
