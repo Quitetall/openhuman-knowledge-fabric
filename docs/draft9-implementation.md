@@ -362,3 +362,40 @@ closure, service isolation, input-limit refusals, the actual KF-held engine
 startup, recovery and reboot proof remain open. All five existing KF services
 stayed active and `/opt/kf` still selects `637677e2c5e1`. No live index, release
 promotion, backup, restore, qualification or human approval was created.
+
+## Composed provider checkpoint — 2026-10-02
+
+The local embedding provider now has separate model-verification/input-policy,
+bounded HTTP transport and CLI orchestration atoms. It retains the existing
+LAMU embedding interface, refuses token overflow rather than truncating, and
+uses an explicitly distinct CPU3 canonical-single-input model identity.
+[Provider contract and evidence](deployment/embedding-provider.md) states the
+limits and remaining production inventory work.
+
+The ordinary gate executes 18 Python interface tests through Vitest without
+ML dependencies. Isolated owned-copy plants admitting one extra token,
+echoing an arbitrary refusal and failing to abort inference were each caught
+by named tests. The initial full gate found a real connection-admission race;
+the same delayed header/body regression failed before the bounded half-close
+and drain correction and passed afterward. The next full gate passed:
+2,891 tests, 25 skipped; 298 files passed, four skipped. Audit, ontology,
+generated-output and production build steps passed with the existing fixture
+lint and ontology warnings. These are local implementation checks, not an
+independent verification or a release approval.
+
+On the selected VM, the full 8,192-token public input completed in 149.928
+seconds with three inference threads, under unchanged memory and time limits.
+The one-thread timeout and original fixture's cross-batch difference remain
+historical evidence. The final HTTP CLI separately passed 64 short inputs,
+exact canonical repeatability and overflow/wrong-model refusals, and the
+ordinary optimized LAMU client resolved its new identity. No real key,
+index or KF record was used. After the tests, the transient provider reached
+its fixed 300-second probe lifetime and the supervisor stopped it as a timeout;
+the subsequent explicit stop found the unit already collected. Its runtime
+directory disappeared and the existing five KF modules remained active. This
+does not prove an operator-initiated normal stop or production restart.
+
+The provider's complete sealed Python/native runtime, dedicated installation,
+actual KF-controlled engine startup and reboot proof remain open. No live
+application release, backup, restore, qualification or human act was promoted
+by these checks. Hosting and correctness still precede qualification.
