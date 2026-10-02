@@ -520,6 +520,14 @@ Before migration, stop API, web and worker; take pre-migration backup, copy it o
 restore it into isolated target. Then provision separate disposable PostgreSQL 18 cluster with
 no non-system schemas. Its credential must differ from production migrator credential.
 
+The trusted schema/migration owner is a **non-superuser with `BYPASSRLS`**, as
+[ADR 0026](../decisions/atoms/KF-ADR-0026-definer-functions-resolve-under-a-bound-context.md)
+requires for its security-definer seams. Application logins must not have that attribute.
+Check both before rehearsal: the selected disposable login initially lacked it, so all
+152 migrations applied but the ontology seed refused a forced-RLS trigger write. That
+failed target is retained, not emptied or silently repaired; a new empty target passed
+after reconciling only the disposable migration owner's declared attribute.
+
 **Run it from a directory `kf-migrator` can read** — the `cd /` below is load-bearing, not
 tidiness.
 
@@ -597,8 +605,9 @@ That is the legacy private-file provisioning path. The selected VM instead uses
 workstation encrypted-store custody; do not run that plaintext key generator there.
 The [systemd migration-credential adapter](migration-credential-custody.md) now
 accepts PID 1's exact service-UID credential copies and confines temporary
-PostgreSQL password files to unswapped tmpfs. Its public native proof is not yet
-a real encrypted-store migration handoff or a freshly authenticated rehearsal.
+PostgreSQL password files to unswapped tmpfs. Its selected-host checkpoints record
+the actual encrypted-store handoff and freshly authenticated rehearsal separately
+from the earlier public native proof. Neither is production migration or commissioning.
 
 `apply` (and `kf-migrate.service`) recompute the MAC with the same key and refuse a receipt that
 does not verify, a v2 receipt, and a v1 receipt, each by name — and each refusal prints the exact

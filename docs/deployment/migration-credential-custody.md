@@ -167,15 +167,15 @@ after the exact new release and handoff are verified. The baseline provisioner
 still has legacy persistent secret generation and must not be run unchanged for
 the selected custody policy.
 
-The selected rehearsal database is already occupied (80 migration rows observed
+The original rehearsal database is already occupied (80 migration rows observed
 2026-10-02). Preserve it and use a fresh empty target on a verified disposable
 cluster; never bypass the nonempty-target refusal or destroy existing state to
-make the test pass. The fresh `kf_rehearsal_20261002_custody_v1` on the separate
-port-5433 cluster now passes that exact empty-target query under builtin
-`C.UTF-8`/UTF8; the old database is retained unchanged. The new encrypted-store
-rehearsal connection now targets it; the legacy guest file still targets the
-old database and is preserved, not overwritten. A freshly authenticated receipt, guarded promotion, installed
-startup/recovery/reboot proof, preservation and qualification remain separate work.
+make the test pass. `kf_rehearsal_20261002_custody_v1` initially passed that exact
+empty-target query under builtin `C.UTF-8`/UTF8, but is now occupied by the failed
+authenticated rehearsal below. The subsequent v2 target is also occupied after
+success. Future rehearsals need another fresh target. The legacy guest file still
+targets the original database and is preserved, not overwritten. Guarded promotion,
+installed startup/recovery/reboot proof, preservation and qualification remain separate work.
 
 ## Actual handoff checkpoint — 2026-10-02
 
@@ -208,3 +208,64 @@ database files are preserved for existing consumers: this handoff does not
 claim that all host secret custody has been converted. No database migration,
 rehearsal receipt, application promotion, production alert or human approval
 was performed. Real reboot recovery of this new realm remains unproved.
+
+## Authenticated rehearsal checkpoint — 2026-10-02
+
+The first clean build from `121715ef` inherited umask `077`: six permission-sensitive
+tests failed across five files, and generated runtime JavaScript had mode `0600`.
+Changing only the old worktree's invocation to `022` made all 75 tests in those
+files pass. A separate regression executed the recipe's actual mode-normalization
+block: two cases failed because regular files retained `0600` and executables
+retained `0700`; directory and symlink noninterference already passed. Commit
+`6be020cc` declares public build creation modes and normalizes read and existing
+execute intent before sealing, without changing secret-file custody or following
+symlinks. Four regressions and the fast gate passed.
+
+A fresh disposable build at exact commit
+`6be020ccff53ba8455c3a52a3d88b3c01aee269b` passed the ordinary full gate: 2,954 tests,
+25 opt-in skips, 303 passed files and four skipped files, clear dependency audit,
+current generated outputs and successful production build. The static-musl release
+contains 36,325 manifest entries. Its manifest digest is
+`d52542db08038adc1cc35a82048c4881b3023107cf1799884624be98a2f6642a`;
+archive digest is `7812d3ea9323da6539f2c3e667f5c7fa1850389afba75363b5a760464115714c`.
+It was extracted beside the live release as
+`/opt/kf-releases/knowledge-fabric-6be020ccff53` and verified as an existing
+non-root service identity. Byte-identical archives are retained on the workstation
+and independent `/mnt/2tb` device. These are release copies, not database backups.
+
+The first actual rehearsal applied all 152 migrations but refused the ontology
+seed on `content.master_record_input_write`. The disposable schema owner lacked
+the `BYPASSRLS` attribute required by
+[ADR 0026](../decisions/atoms/KF-ADR-0026-definer-functions-resolve-under-a-bound-context.md).
+Production's existing schema owner already has it. This was a fixture provisioning
+mismatch, not a reason to relax forced-RLS policies or grant bypass to applications.
+The failed v1 target and its no-receipt state are retained. A grouped SQL attempt
+to reconcile the owner and create a database refused `CREATE DATABASE` inside a
+transaction and rolled back; separate statements then succeeded.
+
+Only the dedicated port-5433 migration owner was reconciled to non-superuser
+`BYPASSRLS`. A new builtin-locale empty target,
+`kf_rehearsal_20261002_custody_v2`, was created. Its connection was updated directly
+from the existing private guest credential into the workstation encrypted store,
+changing only the database name in memory. A direct sender without the decrypted
+environment refused; explicit `secrets run -- ... migration-send ...` then delivered
+the new migration generation. Neither the production credential, receipt key nor
+startup realm changed, and no persistent plaintext credential was added.
+
+The new native oneshot used its own non-root OS identity, PID 1 credentials,
+private tmpfs password directory, `ProcSubset=all`, zero core limits and zero swap
+budget. It applied all migrations and verified the ontology digest
+`acea0b4f8ca21738e4b6de0bf1e7382b76f39d11cc8ac745ab6a25e9e3166e94`, then wrote
+`/var/lib/kf-rehearsal-6be020cc-v2/rollback-rehearsal-6be020cc.receipt`.
+A separate read-only verifier authenticated its HMAC under the unchanged 64 raw
+ASCII key bytes and compared the actual database count, top version and ontology.
+The service-owned receipt is `0600`; the temporary password directory was removed,
+and that service account cannot read the original root-only credential sources.
+
+Exactly 152 migrations remain, highest `20261001000200`. The newest migration is
+also the forward-only floor, so **zero down migrations ran**. This is successful
+installation and exact floor-state evidence, not full reversibility. The five live
+modules remain active on `637677e2c5e1`. No production migration, release switch,
+encrypted database backup, off-site upload, restore, reboot qualification or human
+approval is claimed. The separate rehearsal cluster still has JIT enabled; this
+receipt is not its readiness or latency qualification.
