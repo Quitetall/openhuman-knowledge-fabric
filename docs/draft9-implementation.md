@@ -527,3 +527,30 @@ separate bounded encrypted-store migration handoff and fresh disposable target
 remain next, before a new authenticated receipt and guarded promotion. Backup
 custody/off-site choices and hosting, qualification and human release acts remain
 open in the original delivery order.
+
+## Test fixture budget checkpoint — 2026-10-02
+
+The complete bounded-worker experiment passed all 304 files in its collected
+manifest: 300 passed, four opt-in files skipped; 2,940 tests passed and 25 skipped.
+It used four workers and unchanged fixture/test deadlines. The earlier default
+run's four deadline failures are retained, not recategorized as passes.
+
+The ordinary local/CI configuration now caps fixture workers at four, with a
+regression holding that budget, file parallelism and the unchanged 30-second
+default test/60-second hook deadlines. Every real PostgreSQL fixture and each
+within-file concurrency case is retained. The ordinary full gate on this resulting
+configuration was then run separately; the command-line experiment was not used
+as a substitute. `pnpm gate` passed: 301 files passed and four opt-in files skipped;
+2,941 tests passed and 25 skipped. Dependency audit found no known vulnerabilities,
+generated outputs stayed current and the production build passed. Existing fixture
+lint/ontology warnings remain. This is local implementation evidence, not a
+promoted application release or host qualification.
+
+The selected VM now has a fresh empty target on its separate port-5433 rehearsal
+cluster: `kf_rehearsal_20261002_custody_v1`, owned by the existing rehearsal login,
+with PostgreSQL's builtin `C.UTF-8` locale provider and UTF8 encoding. The exact
+reserved/nonempty-target query used by the migration module returned `empty`.
+The old `kf_rehearsal` remained at 80 migrations, highest `20260901000100`.
+No production database, credential, role grant, migration or restore changed.
+Bounded encrypted-store delivery, a new authenticated rehearsal receipt, guarded
+promotion and the original commissioning/qualification/release acts remain open.

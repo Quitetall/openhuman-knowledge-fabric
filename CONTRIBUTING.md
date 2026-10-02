@@ -75,6 +75,14 @@ database, because the guarantees under test — row-level security, append-only 
 exclusion constraints, `for update` locking — do not exist in a fake, and a test against a fake
 would report that they hold when nobody had checked.
 
+Database fixture workers are capped at four in `vitest.config.ts`, in local gates
+and CI alike. File isolation and concurrency scenarios inside each file remain
+unchanged. The previous CPU-minus-one default admitted 31 workers on the shared
+32-thread workstation; a full run missed two setup and two preservation deadlines.
+Those four files passed unchanged alone, and the entire suite then passed with
+four workers and the same deadlines. This is a fixture-resource budget, not a
+latency qualification or a guarantee against arbitrary external host load.
+
 Some things are deliberately not in `pnpm test`:
 
 |                                                                        |                                                                                       |

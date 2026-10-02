@@ -113,5 +113,8 @@ the selected custody policy.
 The selected rehearsal database is already occupied (80 migration rows observed
 2026-10-02). Preserve it and use a fresh empty target on a verified disposable
 cluster; never bypass the nonempty-target refusal or destroy existing state to
-make the test pass. A freshly authenticated receipt, guarded promotion, installed
+make the test pass. The fresh `kf_rehearsal_20261002_custody_v1` on the separate
+port-5433 cluster now passes that exact empty-target query under builtin
+`C.UTF-8`/UTF8; the old database is retained unchanged. No URL or credential has
+yet been changed to target it. A freshly authenticated receipt, guarded promotion, installed
 startup/recovery/reboot proof, preservation and qualification remain separate work.
