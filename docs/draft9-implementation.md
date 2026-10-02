@@ -586,3 +586,17 @@ sealed release, actual authenticated rehearsal receipt and guarded promotion;
 preservation/recovery, hosted retrieval, commissioning, qualification and human
 release acts remain open. This checkpoint is implementation/delivery evidence,
 not authority or acceptance.
+
+## Backup destination and custody selection — 2026-10-02
+
+The owner selected Backblaze B2 and an owner-held Bitwarden recovery copy.
+[The deployment contract](deployment/backup-custody.md) distinguishes that
+selection from actual account creation, saved-key custody, transfer and restore
+evidence. Existing OpenPGP encryption and Ed25519 preservation signatures remain
+the contracts; neither receipt credentials nor another project's keys are reused.
+
+The current off-site module is rsync-based. A B2 transport and matching restore
+download path still need implementation and verification. Nothing was uploaded,
+no provider account or bill was created, and no off-site readiness was granted
+by this selection. These are no longer undecided choices, but their deployment
+and the actual human recovery-key save remain open.
