@@ -56,6 +56,12 @@ static int credential_policy(const char *name, off_t *minimum, off_t *maximum) {
     *maximum = 4096;
     return 1;
   }
+  if (strcmp(name, "b2-endpoint") == 0 || strcmp(name, "b2-bucket") == 0 ||
+      strcmp(name, "b2-key-id") == 0 || strcmp(name, "b2-key") == 0) {
+    *minimum = 1;
+    *maximum = 514;
+    return 1;
+  }
   return 0;
 }
 

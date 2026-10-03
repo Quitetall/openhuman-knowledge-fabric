@@ -16,6 +16,7 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
@@ -28,6 +29,7 @@ import {
   type RecipientKeys,
   type Toolchain,
 } from './fake-toolchain.js';
+import { b2Environment, b2Identity, installB2CliPlant } from './b2-fixture.js';
 
 const open: Toolchain[] = [];
 afterEach(() => {
@@ -64,6 +66,10 @@ function drill(): Drill {
   copyFileSync(
     join(ROOT, 'scripts', 'lib', 'secret.sh'),
     join(release, 'scripts', 'lib', 'secret.sh'),
+  );
+  copyFileSync(
+    join(ROOT, 'scripts', 'lib', 'offsite-b2.sh'),
+    join(release, 'scripts', 'lib', 'offsite-b2.sh'),
   );
   const verifyLog = join(tools.work, 'restore-verify.log');
   const verify = join(release, 'scripts', 'restore-verify.sh');
@@ -195,6 +201,70 @@ describe('the drill restores the copy that left, not the one that stayed', () =>
     const facts = verified(d);
     expect(facts['source']).toBe(d.location);
     expect(facts['notes']).toMatch(/^source=local-fallback reason=/);
+  });
+});
+
+describe('the cloud drill selects the recorded version, never latest or the local original', () => {
+  const copyId = '22222222-2222-4222-8222-222222222222';
+  function cloud(refuse = false) {
+    const d = drill();
+    const ciphertext = join(d.vault, '20260923T020000Z.tar.gpg');
+    const identity = b2Identity(sha256(ciphertext), statSync(ciphertext).size);
+    const row = readFileSync(join(d.tools.responses, 'drill-row'), 'utf8').trim();
+    writeFileSync(
+      join(d.tools.responses, 'drill-row'),
+      `${row}\t${JSON.stringify(identity)}\t${copyId}\n`,
+    );
+    installB2CliPlant(d.tools, ciphertext, identity, refuse);
+    return {
+      ...d,
+      identity,
+      row,
+      env: { ...d.env, ...b2Environment, KF_DRILL_OFFSITE_SOURCE: 'b2' },
+    };
+  }
+  it('downloads and decrypts the exact recorded object and names its copy row in drill evidence', () => {
+    const d = cloud();
+    writeFileSync(join(d.location, 'backup.manifest.json'), '{"which":"LOCAL ORIGINAL"}\n');
+    const result = runScript(d.script, [], d.env);
+    expect(result.code, result.output).toBe(0);
+    expect(verified(d)['manifest']).toBe('{"which":"the recorded backup"}');
+    expect(verified(d)['notes']).toContain(`transport=b2 backup_copy_id=${copyId}`);
+    expect(d.tools.sqlLog()).toContain('b2:pull:recorded-version-not-latest');
+    expect(d.tools.sqlLog()).not.toContain('b2:publish');
+    expect(readdirSync(d.workRoot)).toEqual([]);
+    expect(d.tools.sqlLog() + result.output).not.toContain(b2Environment.KF_B2_APPLICATION_KEY);
+  });
+  it('refuses a changed recorded version before decryption or starting a scratch database', () => {
+    const d = cloud();
+    writeFileSync(
+      join(d.tools.responses, 'drill-row'),
+      `${d.row}\t${JSON.stringify({ ...d.identity, versionId: 'unrecorded-latest' })}\t${copyId}\n`,
+    );
+    const result = runScript(d.script, [], d.env);
+    expect(result.code).not.toBe(0);
+    expect(existsSync(d.verifyLog)).toBe(false);
+    expect(d.tools.sqlLog()).not.toContain('initdb:');
+    expect(readdirSync(d.workRoot)).toEqual([]);
+  });
+  it('refuses provider failure without silently falling back to the original', () => {
+    const d = cloud(true);
+    const result = runScript(d.script, [], d.env);
+    expect(result.code).not.toBe(0);
+    expect(existsSync(d.verifyLog)).toBe(false);
+    expect(d.tools.sqlLog()).not.toContain('initdb:');
+    expect(readdirSync(d.workRoot)).toEqual([]);
+  });
+  it('requires a recorded identity for b2, and the b2 selector for a recorded cloud copy', () => {
+    const d = cloud();
+    const wrongSource = runScript(d.script, [], { ...d.env, KF_DRILL_OFFSITE_SOURCE: d.vault });
+    expect(wrongSource.code).not.toBe(0);
+    expect(wrongSource.output).toContain('requires KF_DRILL_OFFSITE_SOURCE=b2');
+    writeFileSync(join(d.tools.responses, 'drill-row'), `${d.row}\tnull\t${copyId}\n`);
+    const noIdentity = runScript(d.script, [], d.env);
+    expect(noIdentity.code).not.toBe(0);
+    expect(noIdentity.output).toContain('no recorded cloud version identity');
+    expect(d.tools.sqlLog()).not.toContain('b2:');
   });
 });
 

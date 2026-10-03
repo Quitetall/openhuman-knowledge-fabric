@@ -54,12 +54,18 @@ try {
   chmodSync(volatileParent, 0o700);
   for (const path of ['scripts/lib', 'tools', 'tests/fixtures'])
     mkdirSync(join(executableParent, path), { recursive: true, mode: 0o755 });
-  for (const path of ['scripts/lib/secret.sh', 'tests/fixtures/systemd-migration-credentials.sh']) {
+  for (const path of [
+    'scripts/lib/secret.sh',
+    'scripts/lib/offsite-b2.sh',
+    'tests/fixtures/systemd-migration-credentials.sh',
+  ]) {
     copyFileSync(join(ROOT, path), join(executableParent, path));
+    chownSync(join(executableParent, path), 0, 0);
     chmodSync(join(executableParent, path), 0o644);
   }
   const helper = join(executableParent, 'tools/kf-credential-custody');
   copyFileSync(custody, helper);
+  chownSync(helper, 0, 0);
   chmodSync(helper, 0o755);
   const inputs = {
     'database-url': 'postgres://fixture:public-fixture-password@127.0.0.1:5433/public_probe',
@@ -70,6 +76,12 @@ try {
     'unknown-name': 'public unknown name',
     'oversized-url': 'p'.repeat(8193),
     'short-key': 'p'.repeat(31),
+    'b2-endpoint': 'https://s3.us-west-004.backblazeb2.com',
+    'b2-bucket': 'opaque-backups',
+    'b2-key-id': 'public-fixture-key-id',
+    'b2-key': 'public-fixture-application-key',
+    'empty-b2': '',
+    'oversized-b2': 'p'.repeat(515),
   };
   for (const [name, value] of Object.entries(inputs))
     writeFileSync(join(volatileParent, name), value, { mode: 0o400, flag: 'wx' });
@@ -84,13 +96,19 @@ try {
       'rehearsal-receipt-key',
       'index-key',
       'unknown-name',
+      'b2-endpoint',
+      'b2-bucket',
+      'b2-key-id',
+      'b2-key',
     ].map((name) => {
       const source =
         name === 'database-url' && alteredInput === 'oversized-url'
           ? alteredInput
           : name === 'rehearsal-receipt-key' && alteredInput === 'short-key'
             ? alteredInput
-            : name;
+            : name === 'b2-key' && ['empty-b2', 'oversized-b2'].includes(alteredInput)
+              ? alteredInput
+              : name;
       return `--property=LoadCredential=${name}:${join(volatileParent, source)}`;
     });
     const output = run('/usr/bin/systemd-run', [
@@ -135,6 +153,9 @@ try {
   prove('oversized-url', 'oversized-url');
   prove('short-key', 'short-key');
   prove('unknown-name');
+  prove('empty-b2', 'empty-b2');
+  prove('oversized-b2', 'oversized-b2');
+  prove('b2-purpose-mismatch');
   chownSync(helper, uid, 0);
   prove('unsafe-helper', undefined, 'owner');
   chownSync(helper, 0, 0);

@@ -577,7 +577,7 @@ or commissioning record.
 hardening or records-model corrections and cannot be reverted — `20260816000300_typed_table_row_security` would return 29
 tables to unrestricted reads, `20260816000500` another 28. Each declares itself with
 `-- kf:forward-only <reason>` in its down section (how many, `generated/measurements.md` says), and rollback stops at the highest such
-migration (currently `20261001000200_item_metadata_matches_the_manifest`). The earlier contract —
+migration (currently `20261002000100_cloud_backup_copy_keeps_its_version`). The earlier contract —
 roll back everything, expect an empty database — could never pass once staged RLS landed, and
 the first rehearsal ever run failed on `cannot drop column organization_id of table core.action
 because other objects depend on it`. The promise was narrowed rather than loosened: it is still

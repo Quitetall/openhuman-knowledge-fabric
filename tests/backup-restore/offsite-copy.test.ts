@@ -9,9 +9,11 @@
  */
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { withTransaction } from '@kf/database';
+import { startHarness } from '../database/harness.js';
 import {
   recipientKeys,
   ROOT,
@@ -20,6 +22,7 @@ import {
   type RecipientKeys,
   type Toolchain,
 } from './fake-toolchain.js';
+import { b2Environment, b2Identity, installB2CliPlant } from './b2-fixture.js';
 
 const OFFSITE = join(ROOT, 'scripts', 'backup-offsite.sh');
 const open: Toolchain[] = [];
@@ -152,6 +155,124 @@ printf 'corrupted in transit\\n' > "$dst"
     expect(result.code).not.toBe(0);
     expect(result.output).toContain('does not match the encrypted archive that was sent');
     expect(tools.sqlLog()).not.toContain('insert into ops.backup_copy');
+  });
+});
+
+describe('the cloud caller preserves exact version identity and refuses misleading credit', () => {
+  function cloud(refuse = false) {
+    const f = fixture();
+    const ciphertext = `${f.backup}.tar.gpg`;
+    const identity = b2Identity(sha256(ciphertext), statSync(ciphertext).size);
+    installB2CliPlant(f.tools, ciphertext, identity, refuse);
+    const tmp = join(f.tools.work, 'tmp');
+    mkdirSync(tmp, { mode: 0o700 });
+    return { ...f, identity, env: { ...f.tools.env, ...b2Environment, TMPDIR: tmp } };
+  }
+  it('passes only ciphertext and secret stdin, then records the verified provider identity', () => {
+    const f = cloud();
+    const result = runScript(OFFSITE, [f.backup, 'b2', 'cloud-vault'], f.env);
+    expect(result.code, result.output).toBe(0);
+    const log = f.tools.sqlLog();
+    expect(log).toContain('b2:publish:new');
+    const insert = psqlCalls(f.tools).find((line) => line.includes('-v provider='));
+    expect(insert).toContain('-v basis=remote-object');
+    expect(insert).toContain('-v offsite=true');
+    expect(insert).toContain(`-v provider=${JSON.stringify(f.identity)}`);
+    expect(log).not.toContain('insert into ops.encrypted_backup_evidence');
+    for (const secret of [b2Environment.KF_B2_APPLICATION_KEY, b2Environment.KF_UNRELATED_SECRET]) {
+      expect(log + result.output).not.toContain(secret);
+    }
+    expect(result.output).toContain('Physical-domain approval and retention are separate');
+  });
+  it('appends and retries through the shipped SQL against real PostgreSQL as the backup role', async () => {
+    const f = cloud();
+    const h = await startHarness();
+    try {
+      await withTransaction(h.adminPool, async (tx) => {
+        await tx.query(
+          "create role kf_b2_fixture login password 'public-fixture-password' in role kf_backup",
+        );
+        await tx.query(
+          `insert into ops.backup_run (started_at, finished_at, kind, location, manifest_digest, byte_size, database_name)
+          values (now(), now(), 'logical', $1, $2, 123, current_database())`,
+          [f.backup, sha256(join(f.backup, 'backup.manifest.json'))],
+        );
+      });
+      const url = new URL(h.connectionString);
+      url.username = 'kf_b2_fixture';
+      url.password = 'public-fixture-password';
+      // The public fixture connects to the isolated container; every SQL byte is the script's.
+      writeFileSync(join(f.tools.bin, 'psql'), '#!/usr/bin/env bash\nexec /usr/bin/psql "$@"\n', {
+        mode: 0o755,
+      });
+      const env = { ...f.env, DATABASE_URL: url.href };
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const result = runScript(OFFSITE, [f.backup, 'b2', 'cloud-vault'], env);
+        expect(result.code, result.output).toBe(0);
+      }
+      const rows = await withTransaction(h.adminPool, (tx) =>
+        tx.query<{ provider_object: unknown; offsite_basis: string }>(
+          "select provider_object, offsite_basis from ops.backup_copy where destination_label = 'cloud-vault'",
+        ),
+      );
+      expect(rows).toEqual([{ provider_object: f.identity, offsite_basis: 'remote-object' }]);
+      expect(f.tools.sqlLog()).toContain('b2:publish:new');
+      expect(f.tools.sqlLog()).toContain('b2:pull:recorded-version-not-latest');
+    } finally {
+      await h.stop();
+    }
+  });
+  it('pulls and verifies the already recorded historical version on retry, without another PUT', () => {
+    const f = cloud();
+    writeFileSync(join(f.tools.responses, 'existing-copy'), `${JSON.stringify(f.identity)}\n`);
+    const result = runScript(OFFSITE, [f.backup, 'b2', 'cloud-vault'], f.env);
+    expect(result.code, result.output).toBe(0);
+    expect(f.tools.sqlLog()).toContain('b2:pull:recorded-version-not-latest');
+    expect(f.tools.sqlLog()).not.toContain('b2:publish');
+    expect(readdirSync(f.env.TMPDIR).filter((name) => name.startsWith('kf-b2-copy.'))).toEqual([]);
+  });
+  it('never records a failed cloud transfer as a copy', () => {
+    const f = cloud(true);
+    const result = runScript(OFFSITE, [f.backup, 'b2', 'cloud-vault'], f.env);
+    expect(result.code).not.toBe(0);
+    expect(f.tools.sqlLog()).toContain('b2:publish:new');
+    expect(f.tools.sqlLog()).not.toContain('insert into ops.backup_copy');
+  });
+  it('refuses conflicting immutable history before uploading or downloading anything', () => {
+    const f = cloud();
+    writeFileSync(join(f.tools.responses, 'existing-copy'), 'conflict\n');
+    const result = runScript(OFFSITE, [f.backup, 'b2', 'cloud-vault'], f.env);
+    expect(result.code).not.toBe(0);
+    expect(result.output).toContain('conflicting immutable history');
+    expect(f.tools.sqlLog()).not.toContain('b2:');
+  });
+  it('refuses an unapproved physical domain before cloud transfer', () => {
+    const f = cloud();
+    writeFileSync(join(f.tools.responses, 'domain-current'), '0\n');
+    const result = runScript(
+      OFFSITE,
+      [f.backup, 'b2', 'cloud-vault', '--separate-domain', 'invented'],
+      f.env,
+    );
+    expect(result.code).not.toBe(0);
+    expect(result.output).toContain('no current approval');
+    expect(f.tools.sqlLog()).not.toContain('b2:');
+  });
+  it.each(['s3://opaque-backups', 'b2://opaque-backups', 'https://bucket.invalid'])(
+    'refuses cloud URI %s instead of treating it as rsync',
+    (destination) => {
+      const f = cloud();
+      const result = runScript(OFFSITE, [f.backup, destination, 'cloud-vault'], f.env);
+      expect(result.code).toBe(64);
+      expect(result.output).toContain('use the b2 selector');
+      expect(f.tools.sqlLog()).not.toContain('b2:');
+    },
+  );
+  it('refuses same-host credit for a cloud object', () => {
+    const f = cloud();
+    const result = runScript(OFFSITE, [f.backup, 'b2', 'cloud-vault', '--same-host'], f.env);
+    expect(result.code).toBe(64);
+    expect(f.tools.sqlLog()).not.toContain('b2:');
   });
 });
 

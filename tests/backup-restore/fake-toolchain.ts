@@ -67,6 +67,7 @@ case "$sql" in
   *'select id, manifest_digest from ops.backup_run'*) respond run-row ;;
   *'from ops.physical_failure_domain_evidence'*'count(*)'*|*'count(*) from ops.physical_failure_domain_evidence'*) respond domain-current ;;
   *'drill-selection'*) respond drill-row ;;
+  *'offsite-existing-copy'*) respond existing-copy ;;
   *'select id from ops.backup_run where location'*) respond run-id ;;
   *) ;;
 esac

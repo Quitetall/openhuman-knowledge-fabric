@@ -25,6 +25,8 @@ packages:
 # own resolution entries, so the lockfile is larger and a workspace package's dependency
 # change now touches every dependent's entry.
 injectWorkspacePackages: true
+# A changed workspace bin list must be relinked even when dependencies did not change.
+optimisticRepeatInstall: false
 
 allowBuilds:
   cpu-features: true

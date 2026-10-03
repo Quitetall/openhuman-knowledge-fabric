@@ -276,7 +276,7 @@ export const CORE_SECTIONS = [
   {
     name: 'backup-copies',
     sql: `select id, backup_run_id, destination_label, offsite, copied_at, manifest_digest,
-                 offsite_basis, failure_domain_ref, ciphertext_sha256
+                 offsite_basis, failure_domain_ref, ciphertext_sha256, provider_object
             from ops.backup_copy order by backup_run_id, id`,
   },
   {

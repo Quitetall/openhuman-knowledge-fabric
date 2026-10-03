@@ -31,11 +31,12 @@ then a purpose-specific bucket-scoped application key. The account data region i
 explicit owner choice at signup; the bucket and its endpoint use that region. Do not enable public access,
 web hosting, cross-origin access or automatic historical-backup deletion.
 
-Proposed capture names for the setup helper are `KF_B2_BUCKET_NAME`,
+Capture names for the setup helper and transport are `KF_B2_BUCKET_NAME`,
 `KF_B2_S3_ENDPOINT`, `KF_B2_APPLICATION_KEY_ID` and `KF_B2_APPLICATION_KEY`.
 They go directly into the workstation encrypted store, not a `.env`, GitHub
-secret or source file. These names are a proposed setup interface, not evidence
-that the current backup modules consume them. Do not use a master application
+secret or source file. The [transport caller contract](b2-ciphertext-transport.md#cli-copy-ledger-and-restore-callers)
+now consumes these names; this is not evidence that real values were delivered
+or provider access was verified. Do not use a master application
 key or the existing Cloudflare DNS credential. Measure the created key's actual
 capabilities before treating it as least-privilege delivery.
 
@@ -52,12 +53,13 @@ If the visible console differs, stop and check rather than guessing.
 
 ## Engineering and commissioning still required
 
-`scripts/backup-offsite.sh` currently speaks rsync/local destinations; it is not
-an S3 adapter. Do not pass a B2 or S3 URI into it and claim integration. The
-[shared transport module](b2-ciphertext-transport.md) now implements version-pinned
-upload/read-back and download. Source-manifest authentication, encrypted-store
-credential delivery, exact cloud identity in the copy ledger, and the restore
-drill's B2 download path still need wiring and verification before use.
+`scripts/backup-offsite.sh` now supports the literal `b2` selector beside its
+rsync/local paths; B2/S3 URIs are refused. The [shared transport module](b2-ciphertext-transport.md)
+provides version-pinned upload/read-back and download. Source-manifest authentication,
+the exact cloud identity in the append-only copy ledger, and the restore drill's
+B2 download path are wired and locally tested. Real encrypted-store credential
+delivery to these consumers, provider authentication/capabilities, uploaded backup,
+recovery-key custody and isolated restore still require commissioning.
 
 The separate-drive `/mnt/2tb/kf-preservation` is a replica on the same
 workstation. It remains useful but does not become off-site because B2 has now

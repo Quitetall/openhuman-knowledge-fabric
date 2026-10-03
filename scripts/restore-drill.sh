@@ -39,6 +39,9 @@
 #   KF_DRILL_PORT                 its port (default 55432); it never listens on TCP
 
 set -euo pipefail
+set +x
+set +v
+ulimit -c 0
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=lib/secret.sh
@@ -69,7 +72,8 @@ echo "==> choosing a backup"
 # The newest backup with a copy recorded off-site at the configured destination label.
 ROW="$("$KF_PSQL" "$DATABASE_URL" -v ON_ERROR_STOP=1 -tA -F $'\t' -v label="$LABEL" <<'SQL'
 -- drill-selection
-select b.id, b.location, b.manifest_digest, coalesce(c.ciphertext_sha256, '')
+select b.id, b.location, b.manifest_digest, coalesce(c.ciphertext_sha256, '-'),
+       coalesce(c.provider_object::text, 'null'), c.id
   from ops.backup_run b
   join ops.backup_copy c on c.backup_run_id = b.id and c.offsite
  where :'label' = '' or c.destination_label = :'label'
@@ -78,7 +82,9 @@ select b.id, b.location, b.manifest_digest, coalesce(c.ciphertext_sha256, '')
 SQL
 )"
 RUN_ID=""
-IFS=$'\t' read -r RUN_ID LOCATION MANIFEST_DIGEST CIPHERTEXT_DIGEST <<< "$ROW" || true
+IFS=$'\t' read -r RUN_ID LOCATION MANIFEST_DIGEST CIPHERTEXT_DIGEST PROVIDER_OBJECT COPY_ID <<< "$ROW" || true
+PROVIDER_OBJECT="${PROVIDER_OBJECT:-null}"
+[ "$CIPHERTEXT_DIGEST" != '-' ] || CIPHERTEXT_DIGEST=''
 if [ -z "$RUN_ID" ]; then
   echo "no backup has an off-site copy recorded${LABEL:+ at $LABEL} — nothing to drill" >&2
   echo "run scripts/backup.sh then scripts/backup-offsite.sh first" >&2
@@ -98,6 +104,10 @@ elif [ -z "$CIPHERTEXT_DIGEST" ]; then
   OFFSITE_UNAVAILABLE="the newest off-site copy predates encrypted copies and has no recorded ciphertext digest"
 elif [ -z "${KF_DRILL_DECRYPTION_KEY_FILE:-}" ]; then
   OFFSITE_UNAVAILABLE="KF_DRILL_DECRYPTION_KEY_FILE is not set, so the copy cannot be decrypted"
+elif [ "$SOURCE" = b2 ] && [ "$PROVIDER_OBJECT" = null ]; then
+  OFFSITE_UNAVAILABLE="the selected copy has no recorded cloud version identity"
+elif [ "$SOURCE" != b2 ] && [ "$PROVIDER_OBJECT" != null ]; then
+  OFFSITE_UNAVAILABLE="the selected cloud copy requires KF_DRILL_OFFSITE_SOURCE=b2"
 fi
 if [ -n "$OFFSITE_UNAVAILABLE" ] && [ "$ALLOW_LOCAL_FALLBACK" != true ]; then
   echo "refusing to drill: $OFFSITE_UNAVAILABLE" >&2
@@ -122,7 +132,15 @@ kf_at_exit drill_cleanup
 
 if [ -z "$OFFSITE_UNAVAILABLE" ]; then
   echo "==> pulling the off-site copy back from $LABEL"
-  rsync --checksum -- "$SOURCE/$NAME.tar.gpg" "$DRILL_DIR/pulled.tar.gpg"
+  if [ "$SOURCE" = b2 ]; then
+    # shellcheck source=lib/offsite-b2.sh
+    . "$ROOT/scripts/lib/offsite-b2.sh"
+    [[ "$COPY_ID" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || { echo 'cloud copy identifier missing' >&2; exit 1; }
+    kf_b2_transport pull "$DRILL_DIR/pulled.tar.gpg" "$CIPHERTEXT_DIGEST" "$PROVIDER_OBJECT"
+  else
+    case "$SOURCE" in s3://*|b2://*|https://*) echo 'use the b2 selector, not a cloud URI' >&2; exit 64 ;; esac
+    rsync --checksum -- "$SOURCE/$NAME.tar.gpg" "$DRILL_DIR/pulled.tar.gpg"
+  fi
   PULLED_DIGEST="$(sha256sum -- "$DRILL_DIR/pulled.tar.gpg" | cut -d' ' -f1)"
   # The ledger recorded what was sent; anything else that comes back — a replaced object, a
   # truncated one, somebody else's backup under this name — is refused before decryption.
@@ -158,6 +176,7 @@ if [ -z "$OFFSITE_UNAVAILABLE" ]; then
   fi
   RESTORE_SOURCE="$DRILL_DIR/backup"
   NOTES="source=offsite label=$LABEL ciphertext_sha256=$PULLED_DIGEST"
+  [ "$SOURCE" != b2 ] || NOTES="$NOTES transport=b2 backup_copy_id=$COPY_ID"
 else
   echo "==> LOCAL FALLBACK: $OFFSITE_UNAVAILABLE" >&2
   if [ ! -d "$LOCATION" ]; then

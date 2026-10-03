@@ -1304,6 +1304,15 @@ describe('extended preservation coverage', () => {
           offsite_basis: 'attested-domain',
           failure_domain_ref: 'fixture-domain-1',
           ciphertext_sha256: sha256(44),
+          provider_object: {
+            format: 'kf-offsite-object-v1',
+            endpoint: 'https://s3.us-west-004.backblazeb2.com',
+            bucket: 'opaque-fixture-backups',
+            key: `kf-backups/v1/${sha256(44)}.tar.gpg`,
+            versionId: 'historical-fixture-version-1',
+            sha256: sha256(44),
+            sizeBytes: 2048,
+          },
         });
         await insert(tx, 'ops.restore_drill', {
           id: uuid(),

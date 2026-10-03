@@ -125,15 +125,16 @@ int main(void) {
     }
   }
   /* The named interface must preserve the old index limit and admit only the
-   * bounded migration credentials. Unknown names and traversal have no policy.
+   * bounded migration and B2 credentials. Unknown names and traversal have no policy.
    */
-  const char *names[4] = {"index-key", "database-url", "rehearsal-database-url",
-                          "rehearsal-receipt-key"};
-  const off_t minimum[4] = {0, 1, 1, 32};
-  const off_t maximum[4] = {65, 8192, 8192, 4096};
+  const char *names[8] = {"index-key", "database-url", "rehearsal-database-url",
+                          "rehearsal-receipt-key", "b2-endpoint", "b2-bucket",
+                          "b2-key-id", "b2-key"};
+  const off_t minimum[8] = {0, 1, 1, 32, 1, 1, 1, 1};
+  const off_t maximum[8] = {65, 8192, 8192, 4096, 514, 514, 514, 514};
   fixture_stat.st_mode = S_IFREG | 0440;
   valid(fixture_acl, 4);
-  for (unsigned int i = 0; i < 4; ++i) {
+  for (unsigned int i = 0; i < 8; ++i) {
     off_t lower = -1, upper = -1;
     if (!credential_policy(names[i], &lower, &upper) ||
         lower != minimum[i] || upper != maximum[i]) return 1;

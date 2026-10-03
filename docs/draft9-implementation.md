@@ -646,3 +646,26 @@ one. The owner starts the existing helper at signup; account/MFA and Bitwarden
 recovery-key storage remain human actions. Production and the sealed release
 remain unchanged. The ledger/CLI/restore integration is the next implementation
 slice; hosting, qualification and release acceptance remain open.
+
+## B2 caller and ledger integration — 2026-10-02
+
+The [CLI and caller contract](deployment/b2-ciphertext-transport.md#cli-copy-ledger-and-restore-callers)
+now connects source-authenticated backup copying, exact provider identities in
+the existing append-only copy ledger, preservation export/import, and version-pinned
+restore drills. Cloud URI confusion, historical-version retries, transfer failure,
+conflicting history and optional physical-domain approval have explicit refusal
+tests. The shipped append/retry SQL also runs against an isolated PostgreSQL 18
+through a backup-role login, not just the shell fixture's fake database client.
+
+Public native PID 1 credential probes on the selected VM admitted the four B2
+purpose-specific names and refused empty/oversized credentials, index-key confusion,
+inline fallback and unsafe helpers. The first fixture copy preserved a non-root
+source owner and was correctly refused; the driver now explicitly installs its
+copied helper as root. No installed production helper or real credential was changed.
+
+The new forward-only migration moves the candidate floor to `20261002000100`.
+The earlier sealed release and its authenticated receipt remain evidence of that
+earlier tree; a newly sealed candidate needs a fresh empty rehearsal target and
+receipt. Real B2 account/credentials, volatile delivery to the actual backup
+consumers, encryption/recovery custody, cloud upload/read-back, isolated recovery,
+production promotion, retrieval/reboot commissioning and qualification remain open.

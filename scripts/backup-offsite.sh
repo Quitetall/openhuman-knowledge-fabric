@@ -19,7 +19,8 @@
 # Usage: scripts/backup-offsite.sh <backup-directory> <destination> <label>
 #                                  [--same-host | --separate-domain <domain-ref>]
 #
-#   <destination>  anything rsync accepts: /mnt/vault/kf, user@host:/srv/backups/kf
+#   <destination>  rsync path (/mnt/vault/kf, user@host:/srv/backups/kf) or literal b2.
+#                  B2 configuration comes through scripts/lib/offsite-b2.sh's stdin channel.
 #   <label>        the name this destination is known by, recorded in the ledger. Not the
 #                  destination itself — that can carry a username, and the ledger is readable
 #                  by every read role in the system.
@@ -33,6 +34,7 @@
 # What `offsite` is recorded as, and why (ops.backup_copy.offsite_basis):
 #
 #   user@host:/path                        remote-host        off-site
+#   b2                                     remote-object      off-site, not human domain approval
 #   anything + --separate-domain <ref>     attested-domain    off-site, and encryption evidence
 #   /local/path                            local-unattested   NOT off-site
 #   anything + --same-host                 same-host          NOT off-site
@@ -41,6 +43,9 @@
 # a second disk in the same chassis satisfied the readiness check built to catch exactly that.
 
 set -euo pipefail
+set +x
+set +v
+ulimit -c 0
 
 # DATABASE_URL_FILE where set, DATABASE_URL otherwise. A connection string is a credential;
 # see scripts/lib/secret.sh for why the file is preferred and why its mode is checked.
@@ -73,15 +78,23 @@ if [ "$SAME_HOST" = true ] && [ -n "$FAILURE_DOMAIN" ]; then
   exit 64
 fi
 
+CLOUD=false
 case "$DESTINATION" in
+  b2) CLOUD=true; REMOTE=false ;;
+  s3://*|b2://*|https://*) echo 'use the b2 selector, not a cloud URI or rsync URL' >&2; exit 64 ;;
   *:*) REMOTE=true ;;
   *) REMOTE=false ;;
 esac
+if [ "$CLOUD" = true ] && [ "$SAME_HOST" = true ]; then
+  echo 'a B2 object cannot truthfully be recorded as same-host' >&2; exit 64
+fi
 
 if [ "$SAME_HOST" = true ]; then
   OFFSITE=false; BASIS=same-host
 elif [ -n "$FAILURE_DOMAIN" ]; then
   OFFSITE=true; BASIS=attested-domain
+elif [ "$CLOUD" = true ]; then
+  OFFSITE=true; BASIS=remote-object
 elif [ "$REMOTE" = true ]; then
   OFFSITE=true; BASIS=remote-host
 else
@@ -89,6 +102,10 @@ else
 fi
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [ "$CLOUD" = true ]; then
+  # shellcheck source=lib/offsite-b2.sh
+  . "$ROOT/scripts/lib/offsite-b2.sh"
+fi
 LOCATION="$(cd "$BACKUP" && pwd)"
 NAME="$(basename "$LOCATION")"
 CIPHERTEXT="$(dirname "$LOCATION")/$NAME.tar.gpg"
@@ -156,7 +173,40 @@ SQL
   fi
 fi
 
+# Re-copying can otherwise silently replace a destination while immutable history still
+# names older ciphertext. Refuse a conflicting record before any destination write.
+EXISTING_COPY="$("$KF_PSQL" "$DATABASE_URL" -v ON_ERROR_STOP=1 -tA \
+  -v run="$RUN_ID" -v label="$LABEL" -v offsite="$OFFSITE" -v digest="$RUN_MANIFEST_DIGEST" \
+  -v basis="$BASIS" -v domain="$FAILURE_DOMAIN" -v ciphertext="$CIPHERTEXT_DIGEST" -v cloud="$CLOUD" <<'SQL'
+-- offsite-existing-copy
+select case when offsite = :'offsite'::boolean and manifest_digest = :'digest'
+  and offsite_basis is not distinct from :'basis'
+  and failure_domain_ref is not distinct from nullif(:'domain', '')
+  and ciphertext_sha256 = :'ciphertext'
+  and (provider_object is not null) = :'cloud'::boolean
+  then coalesce(provider_object::text, 'rsync') else 'conflict' end
+ from ops.backup_copy where backup_run_id = :'run'::uuid and destination_label = :'label';
+SQL
+)"
+if [ "$EXISTING_COPY" = conflict ]; then
+  echo 'refusing to replace a copy with conflicting immutable history' >&2; exit 1
+fi
+
+PROVIDER_OBJECT=null
 echo "==> copying the encrypted archive to $DESTINATION"
+if [ "$CLOUD" = true ]; then
+  if [ -n "$EXISTING_COPY" ]; then
+    COPY_WORK="$(mktemp -d "${TMPDIR:-/tmp}/kf-b2-copy.XXXXXX")"
+    copy_cleanup() { rm -rf -- "$COPY_WORK"; }
+    kf_at_exit copy_cleanup
+    # Verify the already recorded version instead of creating an unrecorded replacement.
+    kf_b2_transport pull "$COPY_WORK/ciphertext" "$CIPHERTEXT_DIGEST" "$EXISTING_COPY"
+    PROVIDER_OBJECT="$EXISTING_COPY"
+  else
+    PROVIDER_OBJECT="$(kf_b2_transport publish "$CIPHERTEXT" "$CIPHERTEXT_DIGEST")"
+  fi
+  DESTINATION_DIGEST="$CIPHERTEXT_DIGEST"
+else
 # --partial off by omission: a half-transferred file should not be left looking like a backup.
 # rsync writes to a temporary name and renames on completion, and --fsync flushes each file.
 rsync --checksum --times --fsync -- "$CIPHERTEXT" "$DESTINATION/$NAME.tar.gpg"
@@ -175,6 +225,7 @@ else
   DESTINATION_DIGEST="$(sha256sum -- "$DESTINATION/$NAME.tar.gpg" | cut -d' ' -f1)"
   sync -f -- "$DESTINATION/$NAME.tar.gpg"
 fi
+fi
 
 if [ "$DESTINATION_DIGEST" != "$CIPHERTEXT_DIGEST" ]; then
   echo "the copy at $DESTINATION does not match the encrypted archive that was sent" >&2
@@ -184,16 +235,23 @@ fi
 echo "==> recording the copy ($BASIS)"
 "$KF_PSQL" "$DATABASE_URL" -v ON_ERROR_STOP=1 -q \
   -v run="$RUN_ID" -v label="$LABEL" -v offsite="$OFFSITE" -v digest="$RUN_MANIFEST_DIGEST" \
-  -v basis="$BASIS" -v domain="$FAILURE_DOMAIN" -v ciphertext="$DESTINATION_DIGEST" <<'SQL'
-insert into ops.backup_copy
+  -v basis="$BASIS" -v domain="$FAILURE_DOMAIN" -v ciphertext="$DESTINATION_DIGEST" \
+  -v provider="$PROVIDER_OBJECT" <<'SQL'
+with written as (insert into ops.backup_copy
   (backup_run_id, destination_label, offsite, manifest_digest,
-   offsite_basis, failure_domain_ref, ciphertext_sha256)
+   offsite_basis, failure_domain_ref, ciphertext_sha256, provider_object)
 values (:'run'::uuid, :'label', :'offsite'::boolean, :'digest',
-        :'basis', nullif(:'domain', ''), :'ciphertext')
--- Re-copying the same backup to the same destination is a repeat of an event that already
--- happened, not a new one. The ciphertext is unchanged by definition; if it were not, the
--- verification above would have failed before reaching here.
-on conflict (backup_run_id, destination_label) do nothing;
+        :'basis', nullif(:'domain', ''), :'ciphertext', nullif(:'provider'::jsonb, 'null'::jsonb))
+on conflict (backup_run_id, destination_label) do nothing returning id)
+-- A conflicting concurrent insert is a refusal, never silently credited as this copy.
+select 1 / case when exists (select 1 from written) or exists (
+  select 1 from ops.backup_copy where backup_run_id = :'run'::uuid and destination_label = :'label'
+   and offsite = :'offsite'::boolean and manifest_digest = :'digest'
+   and offsite_basis is not distinct from :'basis'
+   and failure_domain_ref is not distinct from nullif(:'domain', '')
+   and ciphertext_sha256 = :'ciphertext'
+   and provider_object is not distinct from nullif(:'provider'::jsonb, 'null'::jsonb)
+) then 1 else 0 end;
 SQL
 
 if [ -n "$FAILURE_DOMAIN" ]; then
@@ -245,5 +303,8 @@ EOF
 Recorded as off-site (another host). No encryption evidence was recorded, because no approved
 failure domain was named: re-run with --separate-domain <domain-ref> to record it.
 EOF
+    ;;
+  remote-object)
+    echo 'Recorded as a verified remote cloud object. Physical-domain approval and retention are separate.' >&2
     ;;
 esac

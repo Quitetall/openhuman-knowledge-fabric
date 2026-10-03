@@ -58,7 +58,63 @@ limit, not a measured provider maximum or multipart/large-corpus qualification.
 Processing uses bounded streaming buffers rather than whole-archive buffering.
 It does not decrypt or restore the database.
 
-## Evidence and remaining integration
+## CLI, copy ledger and restore callers
+
+`kf-offsite publish|pull <absolute-path> <ciphertext-sha256>` is the Linux
+preservation entry point. Core dumps must be disabled. It accepts no credential
+arguments and reads one UTF-8 JSON request on stdin, capped at 16 KiB and 15 seconds:
+`format` is `kf-offsite-request-v1`, `configuration` contains exactly endpoint,
+bucket, applicationKeyId and applicationKey, and `copy` is null for publish or
+the closed recorded object identity for pull. Cancellation closes stalled stdin
+before a network adapter is created. Publish stdout contains only the verified
+copy identity; pull stdout is empty. Entry-point errors print one generic refusal,
+not request contents or provider causes. Never save this request in a plaintext file.
+
+The first installed-command smoke check exposed a pnpm repeat-install fast-path
+defect: the entry point worked, but an unchanged dependency graph let installation
+skip creating its new command shim. KF's `pnpm-workspace.yaml` now disables that
+fast path. Placing the setting in `.npmrc` did not work under the installed pnpm 11;
+the fixture remained red until the effective workspace setting was used.
+`tests/deployment/cli-install.test.ts` reproduces a new workspace command after an
+initial install and requires a repeated offline frozen install to expose it without
+changing the lockfile. It failed before the setting and passed after it; the real
+`pnpm exec kf-offsite` entry also emits the expected redacted refusal for malformed input.
+
+The shell callers now select this adapter with literal `b2`, not a cloud URI:
+`scripts/backup-offsite.sh` with arguments `<backup-directory> b2 <label>` and
+`KF_DRILL_OFFSITE_SOURCE=b2` for `scripts/restore-drill.sh`. The shared shell atom
+reads `KF_B2_S3_ENDPOINT`, `KF_B2_BUCKET_NAME`, `KF_B2_APPLICATION_KEY_ID` and
+`KF_B2_APPLICATION_KEY`, preferring their `_FILE` forms. Inline values are for the
+sanctioned workstation `secrets run` path, not plaintext environment files.
+Explicit systemd custody requires the corresponding purpose-specific PID 1
+credential files: `b2-endpoint`, `b2-bucket`, `b2-key-id`, `b2-key`; no inline fallback.
+The parent sends values on stdin to a child with a clean environment, so neither
+B2 values nor unrelated encrypted-store entries are forwarded in its environment.
+
+The off-site script retains signed source-manifest authentication, its binding to
+`ops.backup_run`, packet framing and independently measured ciphertext SHA-256.
+The new nullable `ops.backup_copy.provider_object` holds the closed seven-field
+identity in the existing append-only ledger. PostgreSQL binds its digest and opaque
+key to the row's ciphertext, rejects extra fields (including credentials), and
+refuses SQL NULL bypasses. Historical/rsync rows retain null provider metadata.
+The preservation exporter/importer round-trips that identity.
+
+A cloud transfer without a human-approved domain uses `offsite_basis=remote-object`,
+not an invented physical-domain approval or encryption-evidence assertion. On retry
+the script downloads the already recorded version instead of uploading another one.
+Conflicting immutable history refuses before transfer, and a conflicting concurrent
+insert cannot silently receive credit. Restore requires the configured B2 selector,
+recorded identity and copy ID; it downloads that version, rechecks its digest, and
+decrypts before the existing signed-manifest and isolated database verification.
+Drill notes name the exact backup-copy row. Transfer failures never silently fall
+back to the local original.
+
+This migration is forward-only: removing version identities would destroy
+restore-critical lineage. The floor is now `20261002000100`; a new sealed candidate
+requires a fresh authenticated rehearsal receipt. Earlier receipts still prove
+only their earlier release. No production migration is implied.
+
+## Evidence and remaining commissioning
 
 `pnpm exec vitest run packages/export/src/offsite.test.ts packages/export/src/offsite-wire.test.ts`
 checks controlled SDK refusals and the real SDK's serialization/streaming against
@@ -75,9 +131,22 @@ capabilities, provider quota/cost, physical independence, recovery-key custody o
 an isolated restore. No account, upload, copy-ledger entry, backup readiness,
 human approval or production promotion is created by those tests.
 
-The live scripts still use rsync. Next wire this module into their authenticated
-source checks, append-only copy ledger and exact-version restore selection;
-deliver the dedicated credential through volatile custody; then observe a real
+The CLI controller suite checks bounded/closed input, exact identity output,
+cancellation and input deadlines. The shell caller suites use real GPG archives
+and controlled cloud adapters; one additionally runs the shipped insert and retry
+SQL against real PostgreSQL through a backup-role login. The database suite checks
+valid append-only identities and refusal plants; the full preservation round-trip
+includes provider metadata. Removing the SQL NULL refusal makes the database
+suite fail on an unbound ciphertext digest; the predicate is restored afterwards.
+
+The selected VM's public PID 1 fixture admits all four named B2 credentials and
+refuses empty/oversized values, foreign purpose, inline systemd fallback and unsafe
+helper ownership/permissions. The first copied-helper attempt refused because its
+source owner was preserved; the fixture driver now explicitly installs root ownership.
+The original production release and five live services were unchanged. These public
+credential tests do not deliver real B2 credentials or prove provider access.
+
+Next deliver the dedicated credential through volatile custody; then observe a real
 encrypted upload/read-back and isolated restore after the owner completes signup
 and recovery-key storage. Retention/Object Lock and archives above the operating
 budget need an explicit decision rather than a silent downgrade.

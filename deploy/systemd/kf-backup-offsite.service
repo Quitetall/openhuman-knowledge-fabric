@@ -24,7 +24,7 @@ ExecStartPre=/usr/bin/test -s /etc/kf/offsite/database-url
 ExecStartPre=/bin/sh -c 'if [ -z "$${KF_OFFSITE_DESTINATION:-}" ] || [ -z "$${KF_OFFSITE_LABEL:-}" ]; then echo "kf-backup-offsite: KF_OFFSITE_DESTINATION and KF_OFFSITE_LABEL must be set in /etc/kf/offsite.env (see deploy/systemd/offsite.env.example). Nothing was copied." >&2; exit 1; fi'
 # A local destination must be writable INSIDE this sandbox. ProtectSystem=strict makes every
 # path read-only except ReadWritePaths=, so a local vault needs a drop-in adding it.
-ExecStartPre=/bin/sh -c 'case "$$KF_OFFSITE_DESTINATION" in *:*) exit 0 ;; esac; if [ ! -d "$$KF_OFFSITE_DESTINATION" ] || [ ! -w "$$KF_OFFSITE_DESTINATION" ]; then echo "kf-backup-offsite: $$KF_OFFSITE_DESTINATION is not a writable directory inside this unit. Add ReadWritePaths=$$KF_OFFSITE_DESTINATION with: systemctl edit kf-backup-offsite.service" >&2; exit 1; fi'
+ExecStartPre=/bin/sh -c 'case "$$KF_OFFSITE_DESTINATION" in b2|*:*) exit 0 ;; esac; if [ ! -d "$$KF_OFFSITE_DESTINATION" ] || [ ! -w "$$KF_OFFSITE_DESTINATION" ]; then echo "kf-backup-offsite: $$KF_OFFSITE_DESTINATION is not a writable directory inside this unit. Add ReadWritePaths=$$KF_OFFSITE_DESTINATION with: systemctl edit kf-backup-offsite.service" >&2; exit 1; fi'
 # The newest directory, because it is the one the backup that just ran produced. Resolved at
 # run time rather than passed in, so a manual `systemctl start` copies the right thing. The
 # script ships that backup's encrypted archive, never the directory itself.
@@ -40,3 +40,5 @@ ProtectSystem=strict
 ReadWritePaths=/srv/kf-backups
 ProtectHome=true
 UMask=0077
+LimitCORE=0
+MemorySwapMax=0

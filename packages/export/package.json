@@ -27,6 +27,7 @@
     "@types/node": "^24.13.3"
   },
   "bin": {
-    "kf-export": "./dist/cli.js"
+    "kf-export": "./dist/cli.js",
+    "kf-offsite": "./dist/offsite-cli.js"
   }
 }
