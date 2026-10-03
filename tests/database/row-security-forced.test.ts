@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { createPool, withTransaction, type Pool } from '@kf/database';
 import { seedFixtures, startHarness, type Harness } from './harness.js';
 
@@ -10,7 +11,7 @@ import { seedFixtures, startHarness, type Harness } from './harness.js';
  * tenant at every classification with no context bound; the API refusing to start as one was
  * the only thing in the way.
  */
-describe('every table that enables row security forces it', () => {
+describe('every governed table that enables row security forces it', () => {
   let h: Harness;
   let ownerMember: Pool;
 
@@ -38,13 +39,14 @@ describe('every table that enables row security forces it', () => {
     await h?.stop();
   });
 
-  it('leaves no table in any schema enabling row security without forcing it', async () => {
+  it('leaves no governed table enabling row security without forcing it', async () => {
     const unforced = await withTransaction(h.adminPool, (tx) =>
       tx.query<{ table: string }>(
         `select c.oid::regclass::text as table
            from pg_class c join pg_namespace n on n.oid = c.relnamespace
           where c.relkind in ('r', 'p') and c.relrowsecurity and not c.relforcerowsecurity
             and n.nspname not in ('pg_catalog', 'information_schema') and n.nspname !~ '^pg_'
+            and n.nspname <> 'graphile_worker'
           order by 1`,
       ),
     );
@@ -76,6 +78,85 @@ describe('every table that enables row security forces it', () => {
       ),
     );
     expect(owner.bypasses, 'the harness owner must be what a host owner is: BYPASSRLS').toBe(true);
+  });
+
+  it('upgrades governed tables as their ordinary owner without touching the worker-owned queue', async () => {
+    // A running host already has a separately owned Graphile Worker schema. Applying this
+    // migration to an empty database hid its attempt to ALTER that private queue's tables.
+    const migration = readFileSync(
+      new URL(
+        '../../database/migrations/20260924000200_row_security_is_forced_everywhere.sql',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    const up = migration.split('-- migrate:up')[1]?.split('-- migrate:down')[0];
+    expect(up).toBeDefined();
+    await withTransaction(h.adminPool, async (tx) => {
+      await tx.query('create role kf_queue_owner nologin nosuperuser nobypassrls');
+      await tx.query('create schema graphile_worker authorization kf_queue_owner');
+      await tx.query('set local role kf_queue_owner');
+      await tx.query('create table graphile_worker._private_jobs (id integer)');
+      await tx.query('alter table graphile_worker._private_jobs enable row level security');
+      await tx.query('reset role');
+      await tx.query('set local role kf_harness_owner');
+      await tx.query('create table core.migration_force_probe (id integer)');
+      await tx.query('alter table core.migration_force_probe enable row level security');
+    });
+    try {
+      await withTransaction(h.adminPool, async (tx) => {
+        await tx.query('set local role kf_harness_owner');
+        const identity = await tx.one<{ role: string; superuser: boolean }>(
+          `select current_user as role, rolsuper as superuser
+             from pg_roles where rolname = current_user`,
+        );
+        expect(identity).toEqual({ role: 'kf_harness_owner', superuser: false });
+        await tx.query(up ?? '');
+      });
+      const posture = await withTransaction(h.adminPool, (tx) =>
+        tx.query<{ table: string; forced: boolean }>(
+          `select c.oid::regclass::text as table, c.relforcerowsecurity as forced
+             from pg_class c where c.oid in (
+               'core.migration_force_probe'::regclass,
+               'graphile_worker._private_jobs'::regclass)
+            order by 1`,
+        ),
+      );
+      expect(posture).toEqual([
+        { table: 'core.migration_force_probe', forced: true },
+        { table: 'graphile_worker._private_jobs', forced: false },
+      ]);
+      await withTransaction(h.adminPool, async (tx) => {
+        await tx.query('set local role kf_queue_owner');
+        // The queue owner has no BYPASSRLS: FORCE here would break its own insert.
+        await tx.query('insert into graphile_worker._private_jobs values (1)');
+        expect(
+          await tx.one<{ jobs: number }>(
+            'select count(*)::int as jobs from graphile_worker._private_jobs',
+          ),
+        ).toEqual({ jobs: 1 });
+      });
+      // Exempt exactly the declared queue schema, not every separately owned table.
+      await withTransaction(h.adminPool, async (tx) => {
+        await tx.query('create schema unrecognized_queue authorization kf_queue_owner');
+        await tx.query('set local role kf_queue_owner');
+        await tx.query('create table unrecognized_queue.jobs (id integer)');
+        await tx.query('alter table unrecognized_queue.jobs enable row level security');
+      });
+      await expect(
+        withTransaction(h.adminPool, async (tx) => {
+          await tx.query('set local role kf_harness_owner');
+          await tx.query(up ?? '');
+        }),
+      ).rejects.toThrow('permission denied for schema unrecognized_queue');
+    } finally {
+      await withTransaction(h.adminPool, async (tx) => {
+        await tx.query('drop schema if exists unrecognized_queue cascade');
+        await tx.query('drop table core.migration_force_probe');
+        await tx.query('drop schema graphile_worker cascade');
+        await tx.query('drop role kf_queue_owner');
+      });
+    }
   });
 
   it('names why the ops tables carry no row security at all', async () => {

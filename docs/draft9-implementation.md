@@ -797,3 +797,42 @@ consumer activation, old baseline preservation/recovery, off-site exact-version
 copy/read-back/downloaded restore, Bitwarden recovery, fresh release/rehearsal,
 guarded promotion, retrieval/reboot commissioning, qualification and human
 authority remain open. No production credential, route or acceptance is changed.
+
+## Restored-owner migration finding — 2026-10-03
+
+The packaged `4c285e13` candidate upgraded an authenticated restored 91-migration baseline
+to 153 migrations as an isolated administrator, preserving all existing rows in eleven core
+and artifact tables and passing candidate export/read-back. That did not prove the installed
+migrator's permission path: its portable dump omitted privileges.
+
+A second real signed/encrypted baseline includes database creation metadata, ownership,
+grants and a password-free security inventory. It was retained and checksum-verified on
+the workstation and `/mnt/2tb/kf-preservation`. In a fresh socket-only clone, the inventory
+matched across roles, memberships, schemas, relations, routines, types, default grants,
+extensions and the database. Bootstrap restoration was separate from migration. The actual
+OS account `kf-migrator` then invoked the exact gated candidate apply path as the restored
+non-superuser `kf_migrator_login`, with its declared `BYPASSRLS` and `CREATEROLE`, but without
+`CREATEDB`. No production password was copied; the isolated clone used a closed peer map.
+
+That apply refused with SQLSTATE `42501` in
+[`20260924000200`](../database/migrations/20260924000200_row_security_is_forced_everywhere.sql):
+it tried to force row security on the separately worker-owned `graphile_worker` queue. Those
+tables enable row security without policies and rely on their ordinary owner's exemption.
+The later [`20260926000200`](../database/migrations/20260926000200_the_job_queue_schema_is_declared.sql)
+already declares this private queue outside KF's governed-record reconciliation; the earlier
+upgrade did not respect that boundary. Granting the migrator ownership or granting the worker
+`BYPASSRLS` would obscure the defect and is not the correction.
+
+The [row-security regression](../tests/database/row-security-forced.test.ts) reproduced the
+same schema-permission refusal under an ordinary KF owner beside a separately owned queue.
+The source correction excludes exactly `graphile_worker` from this migration. The test
+requires a governed-table positive control to become forced, the queue to remain unforced
+and writable by its non-bypass owner, and an undeclared separately owned queue schema to
+remain a refusal. Before the correction, one of five row-security tests failed at the actual
+migration call; afterward all five and all 29 readiness tests passed.
+
+The existing `4c285e13` archive and rehearsal receipt remain unchanged and do not attest these
+new source bytes. They cannot be promoted as the corrected candidate. A new exact release,
+repository gate and rehearsal, followed by the real-role restored-baseline upgrade, are
+required. Production remains on `637677e2c5e1` with 91 migrations; this finding grants no
+new authority and creates no approval, cutover, commissioning or qualification record.

@@ -1,6 +1,6 @@
 -- migrate:up
 
--- Every table that enables row-level security also forces it (KF-SAS-RQ-073).
+-- Every governed table that enables row-level security also forces it (KF-SAS-RQ-073).
 --
 -- ENABLE binds every role except the table's OWNER, and PostgreSQL counts as the owner any
 -- login that inherits the owner role. FORCE binds the owner too. Until now 70 governed tables
@@ -20,8 +20,13 @@
 -- login that merely INHERITS the owner role without being it — which is the misconfiguration
 -- this closes.
 --
--- WHAT IS LEFT UNFORCED, AND WHY: nothing that enables row security. Tables that do not enable
--- it are not governed records and carry no tenant or classification:
+-- WHAT IS LEFT UNFORCED, AND WHY: the worker library owns graphile_worker, not this migrator.
+-- Its queue tables deliberately enable RLS without policies and rely on their non-BYPASSRLS
+-- owner's exemption; forcing them would break the queue. The schema contains job references,
+-- not governed record content, and application logins have no grant to it. This is the same
+-- boundary declared by 20260926000200 for readiness. No other schema is exempted here.
+-- Tables that do not enable row security are not governed records and carry no tenant or
+-- classification:
 --
 --   * `ops.*` — recovery objectives, backup runs and copies, restore drills and their evidence.
 --     Operational facts about the installation, written by the backup and readiness logins and
@@ -47,6 +52,7 @@ begin
        and not c.relforcerowsecurity
        and n.nspname not in ('pg_catalog', 'information_schema')
        and n.nspname !~ '^pg_'
+       and n.nspname <> 'graphile_worker'
      order by 1
   loop
     execute format('alter table %s force row level security', r.tbl);
@@ -60,7 +66,8 @@ begin
      and c.relrowsecurity
      and not c.relforcerowsecurity
      and n.nspname not in ('pg_catalog', 'information_schema')
-     and n.nspname !~ '^pg_';
+     and n.nspname !~ '^pg_'
+     and n.nspname <> 'graphile_worker';
   if v_offenders is not null then
     raise exception 'tables still enable row security without forcing it: %', v_offenders;
   end if;
