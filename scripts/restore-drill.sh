@@ -46,6 +46,9 @@ ulimit -c 0
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=lib/secret.sh
 . "$ROOT/scripts/lib/secret.sh"
+# shellcheck source=lib/preservation-secrets.sh
+. "$ROOT/scripts/lib/preservation-secrets.sh"
+kf_validate_drill_workspace
 kf_resolve_database_url
 kf_configure_postgres_client
 
@@ -150,15 +153,7 @@ if [ -z "$OFFSITE_UNAVAILABLE" ]; then
   fi
 
   echo "==> decrypting"
-  if [ ! -f "$KF_DRILL_DECRYPTION_KEY_FILE" ] || [ -L "$KF_DRILL_DECRYPTION_KEY_FILE" ]; then
-    echo "refusing KF_DRILL_DECRYPTION_KEY_FILE: it must be an owner-only regular file" >&2
-    exit 1
-  fi
-  KEY_MODE="$(stat -c '%a' -- "$KF_DRILL_DECRYPTION_KEY_FILE")"
-  if [ $(( 8#$KEY_MODE & 8#077 )) -ne 0 ]; then
-    echo "refusing KF_DRILL_DECRYPTION_KEY_FILE: mode $KEY_MODE is readable beyond its owner" >&2
-    exit 1
-  fi
+  kf_validate_backup_decryption_key "$KF_DRILL_DECRYPTION_KEY_FILE"
   install -d -m 0700 -- "$DRILL_DIR/gnupg" "$DRILL_DIR/backup"
   gpg --batch --no-tty --quiet --homedir "$DRILL_DIR/gnupg" \
     --import "$KF_DRILL_DECRYPTION_KEY_FILE" 2>/dev/null

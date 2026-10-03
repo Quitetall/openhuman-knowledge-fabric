@@ -686,3 +686,19 @@ baseline. Baseline preservation/recovery must precede candidate migration;
 consumer database/signing/decryption custody, Bitwarden recovery, live B2 copy
 and restore, fresh release/rehearsal, guarded promotion, retrieval/reboot
 commissioning and qualification remain open.
+
+## Preservation consumer key adapter — 2026-10-02
+
+The [preservation caller custody adapter](deployment/backup-custody.md#preservation-caller-custody-adapter)
+adds two bounded credential purposes to the native guard. The backup stages its
+native-checked signing input as an owner-only volatile file without relaxing the
+export CLI's file contract. The drill validates the recovery credential through
+that guard and requires its keyring/decrypted work to use the private, unswapped
+runtime directory. Ordinary standalone owner-only inputs remain supported.
+
+The focused shell/native-predicate checks passed, and the extended selected-VM
+PID 1 fixture demonstrated admission, purpose/bounds refusals, exact volatile
+signing-copy metadata and cleanup. Public fixtures are not cryptographic key
+custody, an actual backup, a restore or production activation. Consumer delivery
+and drop-ins, nested restore-verifier credential handoff, baseline recovery,
+real B2 access, promotion, commissioning and qualification remain open.

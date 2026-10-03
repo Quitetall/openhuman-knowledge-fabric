@@ -132,6 +132,20 @@ kf_at_exit() {
 #
 # The cost is an empty 0600 file per run of a script that may not need one. That is the right
 # trade for making the invariant unconditional.
+kf_validate_private_tmpfs() {
+  if [ "$EUID" -eq 0 ] || [[ "${TMPDIR:-}" != /* ]] ||
+    [ ! -d "${TMPDIR:-}" ] || [ "$(readlink -e -- "$TMPDIR")" != "$TMPDIR" ] ||
+    [ "$(stat -c '%u:%a' "$TMPDIR")" != "$EUID:700" ] ||
+    [ "$(stat -f -c '%t' "$TMPDIR")" != 1021994 ]; then
+    echo 'systemd custody requires a service-owned private tmpfs TMPDIR' >&2
+    return 1
+  fi
+  [ -r /proc/swaps ] && [ "$(wc -l < /proc/swaps)" -eq 1 ] || {
+    echo 'systemd custody refuses active or unverifiable swap' >&2
+    return 1
+  }
+}
+
 kf_pgpass_init() {
   case "${KF_SECRET_CUSTODY:-}" in
     '') ;;
@@ -142,17 +156,7 @@ kf_pgpass_init() {
         echo 'systemd custody refuses an inherited PGPASSFILE' >&2
         return 1
       }
-      if [ "$EUID" -eq 0 ] || [[ "${TMPDIR:-}" != /* ]] ||
-        [ ! -d "${TMPDIR:-}" ] || [ "$(readlink -e -- "$TMPDIR")" != "$TMPDIR" ] ||
-        [ "$(stat -c '%u:%a' "$TMPDIR")" != "$EUID:700" ] ||
-        [ "$(stat -f -c '%t' "$TMPDIR")" != 1021994 ]; then
-        echo 'systemd custody requires a service-owned private tmpfs TMPDIR' >&2
-        return 1
-      fi
-      [ -r /proc/swaps ] && [ "$(wc -l < /proc/swaps)" -eq 1 ] || {
-        echo 'systemd custody refuses active or unverifiable swap' >&2
-        return 1
-      }
+      kf_validate_private_tmpfs || return 1
       ;;
     *) echo 'unsupported secret custody' >&2; return 1 ;;
   esac

@@ -71,6 +71,10 @@ function drill(): Drill {
     join(ROOT, 'scripts', 'lib', 'offsite-b2.sh'),
     join(release, 'scripts', 'lib', 'offsite-b2.sh'),
   );
+  copyFileSync(
+    join(ROOT, 'scripts', 'lib', 'preservation-secrets.sh'),
+    join(release, 'scripts', 'lib', 'preservation-secrets.sh'),
+  );
   const verifyLog = join(tools.work, 'restore-verify.log');
   const verify = join(release, 'scripts', 'restore-verify.sh');
   writeFileSync(

@@ -57,6 +57,7 @@ try {
   for (const path of [
     'scripts/lib/secret.sh',
     'scripts/lib/offsite-b2.sh',
+    'scripts/lib/preservation-secrets.sh',
     'tests/fixtures/systemd-migration-credentials.sh',
   ]) {
     copyFileSync(join(ROOT, path), join(executableParent, path));
@@ -82,6 +83,11 @@ try {
     'b2-key': 'public-fixture-application-key',
     'empty-b2': '',
     'oversized-b2': 'p'.repeat(515),
+    'preservation-signing-key': 'public-fixture-preservation-signer',
+    'backup-decryption-key': 'public-fixture-recovery-key',
+    'empty-preservation': '',
+    'oversized-signer': 'p'.repeat(4097),
+    'oversized-recovery': 'p'.repeat(65537),
   };
   for (const [name, value] of Object.entries(inputs))
     writeFileSync(join(volatileParent, name), value, { mode: 0o400, flag: 'wx' });
@@ -100,6 +106,8 @@ try {
       'b2-bucket',
       'b2-key-id',
       'b2-key',
+      'preservation-signing-key',
+      'backup-decryption-key',
     ].map((name) => {
       const source =
         name === 'database-url' && alteredInput === 'oversized-url'
@@ -108,7 +116,12 @@ try {
             ? alteredInput
             : name === 'b2-key' && ['empty-b2', 'oversized-b2'].includes(alteredInput)
               ? alteredInput
-              : name;
+              : name === 'preservation-signing-key' &&
+                  ['empty-preservation', 'oversized-signer'].includes(alteredInput)
+                ? alteredInput
+                : name === 'backup-decryption-key' && alteredInput === 'oversized-recovery'
+                  ? alteredInput
+                  : name;
       return `--property=LoadCredential=${name}:${join(volatileParent, source)}`;
     });
     const output = run('/usr/bin/systemd-run', [
@@ -156,6 +169,11 @@ try {
   prove('empty-b2', 'empty-b2');
   prove('oversized-b2', 'oversized-b2');
   prove('b2-purpose-mismatch');
+  prove('empty-preservation', 'empty-preservation');
+  prove('oversized-signer', 'oversized-signer');
+  prove('oversized-recovery', 'oversized-recovery');
+  prove('preservation-purpose-mismatch');
+  prove('drill-workspace-mismatch');
   chownSync(helper, uid, 0);
   prove('unsafe-helper', undefined, 'owner');
   chownSync(helper, 0, 0);

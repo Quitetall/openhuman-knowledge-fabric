@@ -19,6 +19,9 @@
 # Usage: scripts/backup.sh [destination-directory]
 
 set -euo pipefail
+set +x
+set +v
+ulimit -c 0
 
 # DATABASE_URL_FILE where set, DATABASE_URL otherwise. A connection string is a credential;
 # see scripts/lib/secret.sh for why the file is preferred and why its mode is checked.
@@ -33,6 +36,9 @@ kf_configure_postgres_client
 : "${PRESERVATION_SIGNING_KEY_PATH:?set PRESERVATION_SIGNING_KEY_PATH to an owner-only Ed25519 private key file}"
 : "${PRESERVATION_SIGNING_KEY_ID:?set PRESERVATION_SIGNING_KEY_ID to its immutable key id}"
 : "${PRESERVATION_TRUST_STORE_DIR:?set PRESERVATION_TRUST_STORE_DIR to the historical public-key directory}"
+# shellcheck source=lib/preservation-secrets.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/preservation-secrets.sh"
+kf_prepare_preservation_signing_key
 
 # A deployed host is one whose unit declares a deployment profile; the shipped kf-backup.service
 # sets KF_DEPLOYMENT_PROFILE=dogfood. There, two things that are optional on a workstation are

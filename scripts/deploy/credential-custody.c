@@ -62,6 +62,12 @@ static int credential_policy(const char *name, off_t *minimum, off_t *maximum) {
     *maximum = 514;
     return 1;
   }
+  if (strcmp(name, "preservation-signing-key") == 0 ||
+      strcmp(name, "backup-decryption-key") == 0) {
+    *minimum = 1;
+    *maximum = strcmp(name, "preservation-signing-key") == 0 ? 4096 : 65536;
+    return 1;
+  }
   return 0;
 }
 
