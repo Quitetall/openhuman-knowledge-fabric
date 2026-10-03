@@ -147,6 +147,12 @@ because the workstation secret command accepts single-line values. Public
 native custody/command proofs and recovery templates do not establish actual
 key capture, consumer drop-in installation or baseline recovery.
 
+The [selected consumer binding](preservation-consumer-binding.md) adds a
+closed entrypoint and optional overrides with public PID 1 invocation/cleanup
+proof. They remain uninstalled; distinct production users, grants, keys and
+the dedicated B2 reader handoff are still required. Do not substitute the
+uploader's key for the drill key to satisfy a missing source.
+
 The separate-drive `/mnt/2tb/kf-preservation` is a replica on the same
 workstation. It remains useful but does not become off-site because B2 has now
 been selected. B2 custody/credentials, encrypted backup generation, independent

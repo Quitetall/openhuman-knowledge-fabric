@@ -745,3 +745,21 @@ checks do not establish decryption, real custody, grants, SSH delivery or consum
 activation. Distinct consumer drop-ins, baseline preservation/recovery, actual
 key capture and Bitwarden recovery, B2 access, fresh release/rehearsal, guarded
 promotion, commissioning, qualification and human release acts remain open.
+
+## Native preservation consumer binding — 2026-10-03
+
+The [selected binding](deployment/preservation-consumer-binding.md) adds three
+fixed commands and optional overrides above unchanged preservation scripts.
+They bind exact PID 1 file sets after environment-file loading, require private
+unswapped runtime custody and trusted code/public routing, and invoke only a
+fixed callee with a clean environment. Backup has no recovery input; drill has
+no signer. The drill template deliberately requires a separate reader-key
+source, not the uploader's key; that handoff remains to be implemented.
+
+Public native fixtures exercise actual binding, refusals, child status and
+cleanup before runtime deletion. Removing the clean-environment guard fails
+the native proof on an inherited password file. This is not actual SQL,
+cryptographic preservation, provider operation or installed-unit proof.
+Distinct live identities, grants, real keys/Bitwarden custody, the reader
+handoff, baseline recovery, fresh release/rehearsal/promotion, hosted retrieval
+and reboot commissioning, qualification and human acts remain open.

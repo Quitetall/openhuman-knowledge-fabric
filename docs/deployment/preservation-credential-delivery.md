@@ -105,11 +105,12 @@ publishes into the real credential roots and removes only its owned directory.
 It proves custody/command behavior, not real encrypted-store/SSH delivery,
 database grants, installed consumer operation or recovery.
 
-Actual consumer drop-ins still need explicit `LoadCredential`, private
-service-owned runtime directories and core/swap restrictions, with old path
-checks and conflicting environment-file settings resolved. In particular,
-systemd `EnvironmentFile` values can override `Environment`; merely declaring
-a new signing path beside the old `backup.env` path is not working activation.
+The [selected consumer binding](preservation-consumer-binding.md) now implements
+optional explicit `LoadCredential`, private runtime and core/swap overrides
+with a closed entrypoint. They are not installed. It resolves old prechecks and
+conflicting environment-file routes: `EnvironmentFile` can override
+`Environment`, so the actual child bindings are set after that loading.
+Its distinct B2 reader-key handoff remains required before drill activation.
 Do not run candidate preservation SQL against production's old 91-migration
 schema. Demonstrate baseline preservation/recovery first, then seal and rehearse
 the exact candidate before guarded migration/promotion. Dedicated real keys,
