@@ -40,6 +40,13 @@ if [ "$role" != backup ]; then
     [ "$KF_B2_APPLICATION_KEY_ID_FILE" = "$CREDENTIALS_DIRECTORY/b2-key-id" ] &&
     [ "$KF_B2_APPLICATION_KEY_FILE" = "$CREDENTIALS_DIRECTORY/b2-key" ] || exit 95
 fi
+if [ "$role" = drill ]; then
+  if [ "$(<"$KF_B2_APPLICATION_KEY_ID_FILE")" != public-drill-reader-id-123456 ] ||
+     [ "$(<"$KF_B2_APPLICATION_KEY_FILE")" != public-drill-reader-token-123456 ]; then
+    echo 'public callee refused uploader token for drill' >&2
+    exit 98
+  fi
+fi
 . "$ROOT/scripts/lib/secret.sh"
 . "$ROOT/scripts/lib/preservation-secrets.sh"
 kf_preservation_database_child "$DATABASE_URL_FILE" /usr/bin/bash -c '

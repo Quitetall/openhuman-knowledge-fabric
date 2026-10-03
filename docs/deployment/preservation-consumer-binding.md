@@ -51,9 +51,10 @@ restrictions. Drill also clears the persistent StateDirectory and sealed-key
 input. Public routing remains in the existing environment files.
 
 The drill key ID/key source is deliberately **not** the uploader's B2 realm:
-it names `/run/kf-workstation-drill-b2-credentials/current`. That dedicated
-reader handoff is not yet implemented or installed. PID 1 therefore refuses
-activation while the source is absent; never point it at the upload key just
+it names `/run/kf-workstation-drill-b2-credentials/current`. The
+[dedicated reader handoff](drill-b2-credential-delivery.md) is now implemented,
+but not installed. PID 1 still refuses activation while the source is absent;
+never point it at the upload key just
 to make the unit start. Endpoint/bucket remain shared public routing. A separate
 provider reader key and measured read-only permissions are required. Names or
 metadata admission do not establish provider capabilities.
@@ -83,6 +84,13 @@ password/key cleanup before PID 1 removes the runtime directory. Its private
 `/srv` mount never creates or modifies the real backup directory. Deliberately
 removing the clean-child-environment guard makes this proof fail at the callee
 on inherited `PGPASSFILE`, not at a source-string comparison.
+
+Its integrated reader case now uses the actual reader publication function
+and an owned private generation as PID 1's source, instead of a direct token
+fixture file. The fixed callee verifies the public reader bytes. All 15 cases
+pass, including deliberately selecting the uploader source for drill and
+observing refusal with status `98`, followed by empty-runtime cleanup.
+It still uses the fixture UID and no installed credential root or SSH sender.
 
 The fixture does not run SQL, upload/download, parse real cryptographic keys or
 recover a database. It proves invocation and custody only, not the entire

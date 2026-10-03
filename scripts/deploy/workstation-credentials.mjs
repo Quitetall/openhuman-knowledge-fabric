@@ -8,6 +8,7 @@ import {
   mkdtempSync,
   readFileSync,
   readlinkSync,
+  readdirSync,
   renameSync,
   rmSync,
   statfsSync,
@@ -22,6 +23,7 @@ const SELF = fileURLToPath(import.meta.url);
 const PROTOCOL = 'kf-workstation-credentials-v2';
 const MIGRATION_PROTOCOL = 'kf-workstation-migration-credentials-v1';
 const B2_PROTOCOL = 'kf-workstation-b2-credentials-v1';
+const DRILL_B2_PROTOCOL = 'kf-workstation-drill-b2-credentials-v1';
 const TMPFS = 0x01021994;
 const LIMIT = 16_384;
 const NAMES = ['alert-ntfy-url', 'alert-heartbeat-url', 'retrieval-index-key'];
@@ -78,6 +80,16 @@ const DRILL = {
   encode: encodeDrillBundle,
   decode: decodeDrillBundle,
   validate: drillValues,
+};
+const DRILL_B2 = {
+  protocol: DRILL_B2_PROTOCOL,
+  root: 'kf-workstation-drill-b2-credentials',
+  names: ['b2-key-id', 'b2-key'],
+  limits: [512, 512],
+  exactNames: true,
+  encode: encodeDrillB2Bundle,
+  decode: decodeDrillB2Bundle,
+  validate: b2KeyPair,
 };
 const BOOT_ID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 const GENERATION = /^generation-[A-Za-z0-9]{6}$/;
@@ -187,6 +199,14 @@ export function encodeMigrationBundle(env) {
   return bytes;
 }
 
+function b2KeyPair(values) {
+  if (values.length !== 2) refuse();
+  for (const value of values) {
+    if (typeof value !== 'string' || !/^[A-Za-z0-9._/+~=-]{16,512}$/.test(value)) refuse();
+  }
+  return values;
+}
+
 function b2Values(values) {
   const [endpoint, bucket, keyId, key] = values;
   if (
@@ -197,10 +217,7 @@ function b2Values(values) {
   ) {
     refuse();
   }
-  for (const value of [keyId, key]) {
-    if (typeof value !== 'string' || !/^[A-Za-z0-9._/+~=-]{16,512}$/.test(value)) refuse();
-  }
-  return [endpoint.replace(/\/$/, ''), bucket, keyId, key];
+  return [endpoint.replace(/\/$/, ''), bucket, ...b2KeyPair([keyId, key])];
 }
 
 /** Exactly four B2 settings, not database, retrieval, signing or recovery credentials. */
@@ -219,6 +236,19 @@ export function decodeB2Bundle(bytes) {
   const lines = bytes.toString('utf8').split('\n');
   if (lines.length !== 6 || lines[0] !== B2_PROTOCOL || lines[5] !== '') refuse();
   return b2Values(lines.slice(1, 5));
+}
+
+/** Reader credentials only; uploader names never supply a missing reader value. */
+export function encodeDrillB2Bundle(env) {
+  const values = b2KeyPair([env.KF_DRILL_B2_APPLICATION_KEY_ID, env.KF_DRILL_B2_APPLICATION_KEY]);
+  return Buffer.from(`${DRILL_B2_PROTOCOL}\n${values.join('\n')}\n`);
+}
+
+export function decodeDrillB2Bundle(bytes) {
+  if (bytes.length > LIMIT) refuse();
+  const lines = bytes.toString('utf8').split('\n');
+  if (lines.length !== 4 || lines[0] !== DRILL_B2_PROTOCOL || lines[3] !== '') refuse();
+  return b2KeyPair(lines.slice(1, 3));
 }
 
 function boundedText(value, maximum) {
@@ -403,6 +433,10 @@ export function drillRuntimeStatus(parent, uid, bootId, swaps) {
   return statusForProfile(parent, uid, bootId, swaps, DRILL);
 }
 
+export function drillB2RuntimeStatus(parent, uid, bootId, swaps) {
+  return statusForProfile(parent, uid, bootId, swaps, DRILL_B2);
+}
+
 function statusForProfile(parent, uid, bootId, swaps, profile) {
   if (!BOOT_ID.test(bootId)) refuse();
   const root = runtime(parent, uid, swaps, profile);
@@ -421,6 +455,11 @@ function statusForProfile(parent, uid, bootId, swaps, profile) {
         readPrivate(join(generation, name), uid, profile.limits?.[i] ?? LIMIT),
       ),
     );
+    if (profile.exactNames) {
+      const actual = readdirSync(generation).sort();
+      const expected = [...profile.names, 'boot-id'].sort();
+      if (JSON.stringify(actual) !== JSON.stringify(expected)) refuse();
+    }
     return 'ready';
   } catch (error) {
     if (error.code === 'ENOENT') return 'missing';
@@ -450,6 +489,10 @@ export function receiveOffsiteBundle(bytes, parent, uid, bootId, swaps) {
 
 export function receiveDrillBundle(bytes, parent, uid, bootId, swaps) {
   return receiveForProfile(bytes, parent, uid, bootId, swaps, DRILL);
+}
+
+export function receiveDrillB2Bundle(bytes, parent, uid, bootId, swaps) {
+  return receiveForProfile(bytes, parent, uid, bootId, swaps, DRILL_B2);
 }
 
 function receiveForProfile(bytes, parent, uid, bootId, swaps, profile) {
@@ -596,6 +639,7 @@ async function main() {
     ['backup-', BACKUP],
     ['offsite-', OFFSITE],
     ['drill-', DRILL],
+    ['drill-b2-', DRILL_B2],
   ];
   const selected = prefixes.find(([prefix]) =>
     ['receive', 'status', 'send', 'sync'].some((verb) => action === `${prefix}${verb}`),

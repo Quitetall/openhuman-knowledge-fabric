@@ -150,8 +150,13 @@ key capture, consumer drop-in installation or baseline recovery.
 The [selected consumer binding](preservation-consumer-binding.md) adds a
 closed entrypoint and optional overrides with public PID 1 invocation/cleanup
 proof. They remain uninstalled; distinct production users, grants, keys and
-the dedicated B2 reader handoff are still required. Do not substitute the
+actual dedicated B2 reader delivery are still required. Do not substitute the
 uploader's key for the drill key to satisfy a missing source.
+
+The [dedicated B2 drill-reader handoff](drill-b2-credential-delivery.md) now
+implements a separate two-token realm and recovery templates. It never falls
+back to the uploader key. Actual reader-key capture and measured read-only
+provider capability remain prerequisites, not consequences of field naming.
 
 The separate-drive `/mnt/2tb/kf-preservation` is a replica on the same
 workstation. It remains useful but does not become off-site because B2 has now

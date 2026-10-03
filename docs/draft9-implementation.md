@@ -754,7 +754,8 @@ They bind exact PID 1 file sets after environment-file loading, require private
 unswapped runtime custody and trusted code/public routing, and invoke only a
 fixed callee with a clean environment. Backup has no recovery input; drill has
 no signer. The drill template deliberately requires a separate reader-key
-source, not the uploader's key; that handoff remains to be implemented.
+source, not the uploader's key. That delivery interface was still missing in
+this slice; the following section records its implementation, not activation.
 
 Public native fixtures exercise actual binding, refusals, child status and
 cleanup before runtime deletion. Removing the clean-environment guard fails
@@ -763,3 +764,36 @@ cryptographic preservation, provider operation or installed-unit proof.
 Distinct live identities, grants, real keys/Bitwarden custody, the reader
 handoff, baseline recovery, fresh release/rehearsal/promotion, hosted retrieval
 and reboot commissioning, qualification and human acts remain open.
+
+## Dedicated B2 drill-reader delivery — 2026-10-03
+
+The [reader delivery interface](deployment/drill-b2-credential-delivery.md)
+adds exactly two fixed encrypted-store names, its own root/protocol and
+recovery templates. It does not export or fall back to uploader credentials.
+Shared public endpoint/bucket routing stays separate. Existing six protocols
+and pinned installed pairs are preserved; the new pair is not installed.
+
+Nine new interface tests first reported eight missing-feature failures and
+one existing generic-command refusal pass. The first implementation's inventory
+check changed missing-file semantics; moving its new-reader-only check after
+named reads corrected that regression. Focused checks now pass 48 tests across
+five delivery files. The selected-VM public native proof passes root custody,
+all-six-prior-realm isolation and actual private-namespace reader commands.
+These are development proofs, not real provider access or qualification.
+
+A deliberate uploader-token substitution made the same native proof fail at
+`reader-source`; restoring the source returned it to PASS with matching local
+and guest hashes. The fixture never installs or changes the live sender,
+receiver or real credential generations.
+
+The joined native consumer proof publishes the reader pair through the actual
+handoff function in an owned private generation, then exercises PID 1 loading
+and drill binding under the fixture UID. All 15 cases pass; deliberately using
+the uploader source refuses with status `98`. This covers the integration seam,
+not actual SSH delivery, provider permissions, encryption, SQL or recovery.
+
+Actual reader-key creation/capture, provider read-only capabilities, SSH/PID 1
+consumer activation, old baseline preservation/recovery, off-site exact-version
+copy/read-back/downloaded restore, Bitwarden recovery, fresh release/rehearsal,
+guarded promotion, retrieval/reboot commissioning, qualification and human
+authority remain open. No production credential, route or acceptance is changed.

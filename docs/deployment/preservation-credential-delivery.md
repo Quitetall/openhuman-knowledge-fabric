@@ -6,6 +6,11 @@ three closed realms beside the unchanged startup, migration and B2 protocols.
 This is a delivery interface, not actual key custody, database authorization,
 consumer activation, baseline recovery or qualification.
 
+The [separate B2 drill-reader realm](drill-b2-credential-delivery.md) adds only
+two reader-token inputs, never the uploader's credential values. Its independent
+root/protocol and recovery templates are implemented but not installed. Shared
+endpoint/bucket routing does not authorize a restore reader to use an upload key.
+
 ## Fixed consumer sets
 
 Each realm has its own root-only generation and explicit `send`, `sync`,
@@ -110,7 +115,8 @@ optional explicit `LoadCredential`, private runtime and core/swap overrides
 with a closed entrypoint. They are not installed. It resolves old prechecks and
 conflicting environment-file routes: `EnvironmentFile` can override
 `Environment`, so the actual child bindings are set after that loading.
-Its distinct B2 reader-key handoff remains required before drill activation.
+Its [distinct B2 reader-key handoff](drill-b2-credential-delivery.md) is
+implemented, but remains uninstalled and required before drill activation.
 Do not run candidate preservation SQL against production's old 91-migration
 schema. Demonstrate baseline preservation/recovery first, then seal and rehearse
 the exact candidate before guarded migration/promotion. Dedicated real keys,

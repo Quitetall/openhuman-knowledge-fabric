@@ -16,6 +16,7 @@ import {
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { encodeDrillB2Bundle, receiveDrillB2Bundle } from './workstation-credentials.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const [custody, ...extra] = process.argv.slice(2);
@@ -83,6 +84,23 @@ try {
   };
   for (const [name, value] of Object.entries(values))
     writeFileSync(join(volatile, name), value, { mode: 0o400, flag: 'wx' });
+  // Exercise the real publisher-to-PID 1 seam inside this owned public fixture.
+  const readerBytes = encodeDrillB2Bundle({
+    KF_DRILL_B2_APPLICATION_KEY_ID: 'public-drill-reader-id-123456',
+    KF_DRILL_B2_APPLICATION_KEY: 'public-drill-reader-token-123456',
+  });
+  try {
+    receiveDrillB2Bundle(
+      readerBytes,
+      volatile,
+      0,
+      readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim(),
+      readFileSync('/proc/swaps', 'utf8'),
+    );
+  } finally {
+    readerBytes.fill(0);
+  }
+  const readerCurrent = join(volatile, 'kf-workstation-drill-b2-credentials/current');
   mkdirSync(join(volatile, 'backups'), { mode: 0o755 });
   for (const name of ['20261003T000001Z', '20261003T000002Z'])
     mkdirSync(join(volatile, 'backups', name), { mode: 0o755 });
@@ -153,7 +171,13 @@ try {
       '--setenv=KF_OFFSITE_LABEL=public label with spaces',
       '--setenv=KF_DRILL_OFFSITE_SOURCE=b2',
       '--setenv=KF_DRILL_OFFSITE_LABEL=public-fixture',
-      ...names.map((name) => `--property=LoadCredential=${name}:${join(volatile, name)}`),
+      ...names.map((name) => {
+        const source =
+          role === 'drill' && plant !== 'reader-uploader' && ['b2-key-id', 'b2-key'].includes(name)
+            ? join(readerCurrent, name)
+            : join(volatile, name);
+        return `--property=LoadCredential=${name}:${source}`;
+      }),
       '/usr/bin/bash',
       join(executable, 'scripts/deploy/preservation-consumer.sh'),
       role,
@@ -189,6 +213,7 @@ try {
     'systemd custody requires a service-owned private tmpfs TMPDIR',
   );
   prove('backup', 'child-failure', 37);
+  prove('drill', 'reader-uploader', 98, 'public callee refused uploader token for drill');
   chmodSync(join(executable, 'scripts/backup.sh'), 0o666);
   prove('backup', 'unsafe-callee', 1, 'preservation public routing is not root-protected');
   chmodSync(join(executable, 'scripts/backup.sh'), 0o644);
