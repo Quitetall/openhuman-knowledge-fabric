@@ -146,7 +146,10 @@ source owner was preserved; the fixture driver now explicitly installs root owne
 The original production release and five live services were unchanged. These public
 credential tests do not deliver real B2 credentials or prove provider access.
 
-Next deliver the dedicated credential through volatile custody; then observe a real
+The [dedicated B2 credential handoff](b2-credential-custody.md) now implements
+closed four-field volatile custody with separate reboot recovery templates.
+Public fixture proofs do not install it or deliver real credentials. Next wire
+the actual consumers and deliver the dedicated credentials; then observe a real
 encrypted upload/read-back and isolated restore after the owner completes signup
 and recovery-key storage. Retention/Object Lock and archives above the operating
 budget need an explicit decision rather than a silent downgrade.

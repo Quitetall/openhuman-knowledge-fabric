@@ -1,4 +1,4 @@
-// Two closed credential realms share custody and pinned transport, never a general exporter.
+// Three closed credential realms share custody and pinned transport, never a general exporter.
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
@@ -21,6 +21,7 @@ import { setTimeout, clearTimeout } from 'node:timers';
 const SELF = fileURLToPath(import.meta.url);
 const PROTOCOL = 'kf-workstation-credentials-v2';
 const MIGRATION_PROTOCOL = 'kf-workstation-migration-credentials-v1';
+const B2_PROTOCOL = 'kf-workstation-b2-credentials-v1';
 const TMPFS = 0x01021994;
 const LIMIT = 16_384;
 const NAMES = ['alert-ntfy-url', 'alert-heartbeat-url', 'retrieval-index-key'];
@@ -39,6 +40,14 @@ const MIGRATION = {
   encode: encodeMigrationBundle,
   decode: decodeMigrationBundle,
   validate: migrationValues,
+};
+const B2 = {
+  protocol: B2_PROTOCOL,
+  root: 'kf-workstation-b2-credentials',
+  names: ['b2-endpoint', 'b2-bucket', 'b2-key-id', 'b2-key'],
+  encode: encodeB2Bundle,
+  decode: decodeB2Bundle,
+  validate: b2Values,
 };
 const BOOT_ID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 const GENERATION = /^generation-[A-Za-z0-9]{6}$/;
@@ -148,6 +157,40 @@ export function encodeMigrationBundle(env) {
   return bytes;
 }
 
+function b2Values(values) {
+  const [endpoint, bucket, keyId, key] = values;
+  if (
+    typeof endpoint !== 'string' ||
+    !/^https:\/\/s3\.[a-z]{2}-[a-z]+-[0-9]{3}\.backblazeb2\.com\/?$/.test(endpoint) ||
+    typeof bucket !== 'string' ||
+    !/^[a-z0-9][a-z0-9-]{4,61}[a-z0-9]$/.test(bucket)
+  ) {
+    refuse();
+  }
+  for (const value of [keyId, key]) {
+    if (typeof value !== 'string' || !/^[A-Za-z0-9._/+~=-]{16,512}$/.test(value)) refuse();
+  }
+  return [endpoint.replace(/\/$/, ''), bucket, keyId, key];
+}
+
+/** Exactly four B2 settings, not database, retrieval, signing or recovery credentials. */
+export function encodeB2Bundle(env) {
+  const values = b2Values([
+    env.KF_B2_S3_ENDPOINT,
+    env.KF_B2_BUCKET_NAME,
+    env.KF_B2_APPLICATION_KEY_ID,
+    env.KF_B2_APPLICATION_KEY,
+  ]);
+  return Buffer.from(`${B2_PROTOCOL}\n${values.join('\n')}\n`);
+}
+
+export function decodeB2Bundle(bytes) {
+  if (bytes.length > LIMIT) refuse();
+  const lines = bytes.toString('utf8').split('\n');
+  if (lines.length !== 6 || lines[0] !== B2_PROTOCOL || lines[5] !== '') refuse();
+  return b2Values(lines.slice(1, 5));
+}
+
 function directory(path, uid, privateMode = false) {
   const stat = lstatSync(path);
   if (
@@ -193,6 +236,10 @@ export function migrationRuntimeStatus(parent, uid, bootId, swaps) {
   return statusForProfile(parent, uid, bootId, swaps, MIGRATION);
 }
 
+export function b2RuntimeStatus(parent, uid, bootId, swaps) {
+  return statusForProfile(parent, uid, bootId, swaps, B2);
+}
+
 function statusForProfile(parent, uid, bootId, swaps, profile) {
   if (!BOOT_ID.test(bootId)) refuse();
   const root = runtime(parent, uid, swaps, profile);
@@ -220,6 +267,10 @@ export function receiveBundle(bytes, parent, uid, bootId, swaps) {
 
 export function receiveMigrationBundle(bytes, parent, uid, bootId, swaps) {
   return receiveForProfile(bytes, parent, uid, bootId, swaps, MIGRATION);
+}
+
+export function receiveB2Bundle(bytes, parent, uid, bootId, swaps) {
+  return receiveForProfile(bytes, parent, uid, bootId, swaps, B2);
 }
 
 function receiveForProfile(bytes, parent, uid, bootId, swaps, profile) {
@@ -359,16 +410,17 @@ async function boundedInput(stream) {
 async function main() {
   const [action, configPath, ...extra] = process.argv.slice(2);
   if (extra.length !== 0) refuse();
-  const migration = [
-    'migration-receive',
-    'migration-status',
-    'migration-send',
-    'migration-sync',
-  ].includes(action);
-  if (!migration && !['receive', 'status', 'send', 'sync'].includes(action)) refuse();
-  const profile = migration ? MIGRATION : STARTUP;
-  const prefix = migration ? 'migration-' : '';
-  const verb = migration ? action.slice(prefix.length) : action;
+  const prefixes = [
+    ['', STARTUP],
+    ['migration-', MIGRATION],
+    ['b2-', B2],
+  ];
+  const selected = prefixes.find(([prefix]) =>
+    ['receive', 'status', 'send', 'sync'].some((verb) => action === `${prefix}${verb}`),
+  );
+  if (!selected) refuse();
+  const [prefix, profile] = selected;
+  const verb = action.slice(prefix.length);
   if (verb === 'receive' || verb === 'status') {
     if (configPath !== undefined || process.getuid() !== 0) refuse();
     const bootId = readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim();

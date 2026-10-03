@@ -61,6 +61,10 @@ B2 download path are wired and locally tested. Real encrypted-store credential
 delivery to these consumers, provider authentication/capabilities, uploaded backup,
 recovery-key custody and isolated restore still require commissioning.
 
+The [separate B2 handoff](b2-credential-custody.md) now implements the four-field
+encrypted-store-to-volatile-VM interface and reboot recovery templates. Public
+native custody/command tests are not actual credential delivery or installation.
+
 The separate-drive `/mnt/2tb/kf-preservation` is a replica on the same
 workstation. It remains useful but does not become off-site because B2 has now
 been selected. B2 custody/credentials, encrypted backup generation, independent

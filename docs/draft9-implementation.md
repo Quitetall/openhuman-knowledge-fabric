@@ -669,3 +669,20 @@ earlier tree; a newly sealed candidate needs a fresh empty rehearsal target and
 receipt. Real B2 account/credentials, volatile delivery to the actual backup
 consumers, encryption/recovery custody, cloud upload/read-back, isolated recovery,
 production promotion, retrieval/reboot commissioning and qualification remain open.
+
+## Separate B2 credential handoff — 2026-10-02
+
+The [B2 custody interface](deployment/b2-credential-custody.md) now adds a third
+closed realm to the existing pinned handoff module, without changing either
+installed alert/retrieval or migration pair. Its payload contains only endpoint,
+bucket, application-key ID and key. Separate timer templates recover volatile
+custody, not backups or migration. Refusal and rotation tests preserve both
+other realms. The public native VM proof also runs the actual receive/status
+commands in a private mount namespace, never the real credential roots.
+
+This does not claim account creation, real encrypted-store/SSH delivery, installed
+B2 timer or PID 1 consumer activation. Production remains on its 91-migration
+baseline. Baseline preservation/recovery must precede candidate migration;
+consumer database/signing/decryption custody, Bitwarden recovery, live B2 copy
+and restore, fresh release/rehearsal, guarded promotion, retrieval/reboot
+commissioning and qualification remain open.
