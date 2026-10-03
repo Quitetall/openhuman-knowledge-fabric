@@ -33,7 +33,10 @@ default for other deployments.
 ## Host integration
 
 The mode needs both endpoints: `KF_ALERT_WEBHOOK_URL_FILE` for ntfy and
-`KF_ALERT_HEARTBEAT_URL_FILE` for Healthchecks. Each file must be readable only by its owner.
+`KF_ALERT_HEARTBEAT_URL_FILE` for Healthchecks. Ordinary files must be readable only by their
+owner. Explicit systemd custody uses the separate native validator: it admits only PID 1's
+root-owned, read-only tmpfs credential mount with an ACL for the exact service UID. A `0440`
+ordinary file is still refused; do not chmod a credential mount or weaken that permission rule.
 The owner selected the workstation's TPM-backed encrypted secret store for VM startup. The
 handoff module is `scripts/deploy/workstation-credentials.mjs`; its v2 interface exports exactly
 `KF_ALERT_NTFY_URL`, `KF_ALERT_HEARTBEAT_URL` and `KF_RETRIEVAL_INDEX_KEY_HEX`, never the entire
@@ -56,6 +59,15 @@ Use `deploy/systemd/alert-workstation-credentials.conf` for `kf-alert@.service` 
 `kf-alert-heartbeat.service`. They use `LoadCredential=` to copy the volatile source into
 systemd's per-module credential directory. Neither source endpoints nor a decrypting key are
 stored on the VM disk. The heartbeat drop-in retains the readiness timer-liveness check.
+
+All four endpoint drop-ins explicitly select `KF_SECRET_CUSTODY=systemd`. They supply a
+service-owned `0700` RuntimeDirectory on `/run`, bind TMPDIR to it, disable cgroup swap and
+core dumps, and leave `/proc/swaps` visible to the shell adapter. Each failure instance has
+its own runtime directory; the heartbeat has a separate directory. The native policy accepts
+only the exact `ntfy-url` and `heartbeat-url` names, with 1–4097 bytes (the handoff's bounded
+URL plus an optional newline). The dispatcher still validates HTTPS URL syntax and provider
+acknowledgement. These settings are required even though the dispatcher does not use a
+database: sourcing the shared secret library initializes its owned temporary password file.
 
 The workstation templates live under `deploy/workstation/`. Render `@SENDER@` and `@CONFIG@`
 with absolute paths to the versioned module and its owner-controlled non-secret JSON config.
@@ -114,6 +126,38 @@ edit the installed sealed release in place or treat a successful local test as h
 An endpoint rejection, malformed ntfy acknowledgement, or Healthchecks `OK (not found)` /
 `OK (rate limited)` response fails delivery. Three bounded attempts are made. Provider response
 bodies and bearer URLs are not printed or put in curl's command arguments.
+
+### Native credential regression check
+
+On an isolated Linux/systemd host with the existing `kf-retrieval` fixture account, compile
+the custody helper for that host, then run the root-only
+[native alert driver](../../scripts/deploy/test-alert-credentials.mjs) with the fresh helper
+path as its sole argument. Its [shell fixture](../../tests/fixtures/systemd-alert-credentials.sh)
+calls the actual dispatcher under PID 1 credentials, not an imitation of the secret reader.
+Use the build helper's `--credential-custody` option; the ordinary peer helper is a different atom.
+
+The driver exercises four drop-ins and eight cases each: valid failure/heartbeat dispatch,
+ordinary-file custody, missing private TMPDIR, inherited PGPASSFILE, empty/oversized endpoint,
+non-HTTPS URL, and an unknown credential name. It checks the running cgroup's zero swap
+limit, zero core limit, private tmpfs ownership, no transport call on refusal, and password
+file/runtime cleanup. The known-public transport accepts only the fixed generic failure
+message or empty heartbeat, with the endpoint on stdin, never argv. Networking is disabled.
+
+This is a native custody/dispatcher check, not an installed alert service check. The fixed
+heartbeat runtime is relocated to avoid a live service; `%d`/`%i` are explicitly resolved for
+the transient units because `systemd-run --setenv` escapes specifiers. Encrypted drop-ins
+use public `LoadCredential` fixtures here: encrypted unlock, ExecStartPre timer-liveness,
+the `kf-alert` identity, provider delivery, phone receipt, reboot and commissioning each
+still need their own actual-host evidence.
+
+On 2026-10-03 the sealed candidate's workstation drop-in refused an actual native credential
+mount as mode `0440`, before transport. Four new declaration tests and the expanded native
+policy test failed before correction. Adding the explicit custody/runtime profile and endpoint
+policies made those regressions pass; the selected VM then passed all 32 native cases using
+public fixtures. The first positive native attempt failed in the fixture's transport reader
+because the valid curl config lacked a trailing newline; correcting that fixture, not the
+dispatcher, produced the pass. No installed release was edited or promoted, and this proof
+sent no phone notification. Existing sealed archives and receipts do not attest these new bytes.
 
 ## Observed setup, not host commissioning
 

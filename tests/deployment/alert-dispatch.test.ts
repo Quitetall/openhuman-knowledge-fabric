@@ -146,6 +146,33 @@ async function dispatch(
 }
 
 describe('the alert path', () => {
+  it('refuses an incomplete native proof invocation before creating fixtures', () => {
+    const result = spawnSync(
+      process.execPath,
+      [join(ROOT, 'scripts/deploy/test-alert-credentials.mjs')],
+      { env: { PATH: '/usr/bin:/bin', LANG: 'C.UTF-8' }, encoding: 'utf8' },
+    );
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toBe('run as root with one freshly compiled custody helper path\n');
+  });
+
+  it.each([
+    ['alert-workstation-credentials.conf', 'kf-alert-%i'],
+    ['alert-heartbeat-workstation-credentials.conf', 'kf-alert-heartbeat'],
+    ['alert-ntfy-healthchecks.conf', 'kf-alert-%i'],
+    ['alert-heartbeat-ntfy-healthchecks.conf', 'kf-alert-heartbeat'],
+  ])('binds native endpoint custody and private unswapped runtime in %s', (file, runtime) => {
+    const dropin = readFileSync(join(ROOT, 'deploy/systemd', file), 'utf8');
+    expect(dropin).toContain('Environment=KF_SECRET_CUSTODY=systemd');
+    expect(dropin).toContain(`RuntimeDirectory=${runtime}\n`);
+    expect(dropin).toContain('RuntimeDirectoryMode=0700\n');
+    expect(dropin).toContain(`Environment=TMPDIR=/run/${runtime}\n`);
+    expect(dropin).toContain('MemorySwapMax=0\n');
+    expect(dropin).toContain('LimitCORE=0\n');
+    expect(dropin).toContain('ProcSubset=all\n');
+  });
+
   it('retains the heartbeat liveness guard in the encrypted-credential drop-in', () => {
     const heartbeat = readFileSync(
       join(ROOT, 'deploy/systemd/alert-heartbeat-ntfy-healthchecks.conf'),

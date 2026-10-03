@@ -73,6 +73,14 @@ static int credential_policy(const char *name, off_t *minimum, off_t *maximum) {
     *maximum = 8192;
     return 1;
   }
+  if (strcmp(name, "ntfy-url") == 0 || strcmp(name, "heartbeat-url") == 0) {
+    /* The handoff admits a 4096-character URL, optionally followed by a newline.
+     * URL grammar and acknowledgement remain the dispatcher's responsibility.
+     */
+    *minimum = 1;
+    *maximum = 4097;
+    return 1;
+  }
   return 0;
 }
 
