@@ -836,3 +836,31 @@ new source bytes. They cannot be promoted as the corrected candidate. A new exac
 repository gate and rehearsal, followed by the real-role restored-baseline upgrade, are
 required. Production remains on `637677e2c5e1` with 91 migrations; this finding grants no
 new authority and creates no approval, cutover, commissioning or qualification record.
+
+## Restored-owner backup-grant finding — 2026-10-03
+
+The exact sealed `38700842` candidate passed its complete repository gate, release
+file checks and fresh 153-migration authenticated rehearsal. Its new real-role
+restored-baseline apply passed the previous queue RLS boundary but refused in
+[`20260925130000`](../database/migrations/20260925130000_the_backup_login_reaches_every_schema.sql)
+with SQLSTATE `42501`: the ordinary KF migration owner cannot grant SELECT on the
+separately worker-owned queue's sequences. The preserved ownership/security
+inventory matched before apply. The later export and post-upgrade row probes were
+not reached. Production release and database remained unchanged.
+
+The [queue-owner interface](deployment/worker-queue-backup.md) now commissions
+read-only queue backup access using its actual ordinary owner. Worker startup and
+a no-argument CLI share that interface and credential policy. The KF migration
+checks the read contract and excludes exactly that queue from its own grant loop;
+it does not silently discard queue rows. It does not transfer ownership, widen
+worker authority, or change queue RLS flags.
+
+The real-library fixture proves owner provisioning, migration ordering, denied
+backup writes and idempotence. Two additional tests exposed column-level UPDATE
+and MAINTAIN grants missing from the first guard; both now refuse. The complete
+backup-only-login drill restores a real queue job payload. These are local
+implementation checks, not an upgraded VM. The `38700842` archive and receipt are
+unchanged historical evidence and cannot attest the new bytes. A new exact
+release, repository gate, fresh rehearsal and real-role restored-baseline apply
+are required before considering guarded promotion; off-site recovery, key
+custody, commissioning, qualification and human authority remain open.

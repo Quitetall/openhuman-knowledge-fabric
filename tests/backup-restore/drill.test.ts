@@ -21,6 +21,7 @@ import { createDispatcher } from '@kf/actions';
 import { createPool, withTransaction } from '@kf/database';
 import { generateSigningKey } from '../../apps/checkpoint/src/sign.js';
 import { runCheckpoint } from '../../apps/checkpoint/src/run.js';
+import { prepareWorkerQueue } from '../../apps/worker/src/queue-backup.js';
 import {
   createObject,
   POSTGRES_INITDB_ARGS,
@@ -630,6 +631,27 @@ describe('backup as the backup login', () => {
       );
       expect(attested.n, 'the harness binds through attestations').toBeGreaterThan(0);
     });
+    // A deployed host's private queue belongs to the worker, not to the KF owner.
+    // Use the real library and the same owner-provisioning interface as startup/CLI.
+    await withTransaction(h.adminPool, async (tx) => {
+      await tx.query(
+        "create role queue_drill_owner login password 'test-only-not-a-secret' nosuperuser nobypassrls",
+      );
+      await tx.query('grant create on database kf_test to queue_drill_owner');
+    });
+    const queueUrl = new URL(h.connectionString);
+    queueUrl.username = 'queue_drill_owner';
+    const queuePool = createPool({ connectionString: queueUrl.toString(), maxConnections: 2 });
+    try {
+      await prepareWorkerQueue(queuePool);
+      await withTransaction(queuePool, (tx) =>
+        tx.query(
+          'select graphile_worker.add_job(\'queue-backup-fixture\',\'{"reference":"test-only"}\'::json)',
+        ),
+      );
+    } finally {
+      await queuePool.end();
+    }
     const url = new URL(h.connectionString);
     url.username = 'kf_backup_drill';
     url.password = 'test-only-not-a-secret';
@@ -739,6 +761,24 @@ describe('backup as the backup login', () => {
     expect(listing).not.toMatch(/TABLE DATA core principal_attestation/);
     // The derived index is in it: nothing in the restore path rebuilds it.
     expect(listing).toMatch(/TABLE DATA search document/);
+    expect(listing).toMatch(/TABLE DATA graphile_worker _private_jobs/);
+
+    const queueTarget = await emptyDatabase();
+    const queueRestore = runRestore(destination, queueTarget);
+    expect(queueRestore.code, queueRestore.output).toBe(0);
+    const queueRestoredPool = createPool({ connectionString: queueTarget, maxConnections: 1 });
+    try {
+      const restoredQueue = await withTransaction(queueRestoredPool, (tx) =>
+        tx.query<{ payload: unknown }>(
+          `select j.payload from graphile_worker._private_jobs j
+          join graphile_worker._private_tasks t on t.id=j.task_id
+          where t.identifier='queue-backup-fixture'`,
+        ),
+      );
+      expect(restoredQueue).toEqual([{ payload: { reference: 'test-only' } }]);
+    } finally {
+      await queueRestoredPool.end();
+    }
 
     // And the login that took it cannot read a table whose rows are left out, though it may lock
     // one: were an exclusion dropped from backup.sh, pg_dump would fail on the table rather than

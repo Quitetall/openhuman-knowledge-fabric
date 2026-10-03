@@ -16,7 +16,8 @@ import {
   createPostgresCompilerRuntimeRepository,
   type CompilationRuntime,
 } from './compiler-runtime.js';
-import { workerConcurrency } from './config.js';
+import { workerConcurrency, workerDatabaseUrl } from './config.js';
+import { prepareWorkerQueue } from './queue-backup.js';
 import { RetrievalClient } from '@kf/retrieval';
 import { drainEmbeddings, embeddingOutboxHandler, requireVectorsOnlyEngine } from './embedding.js';
 import { drainOutbox, OUTBOX_HANDLERS, type OutboxHandler } from './outbox.js';
@@ -84,13 +85,6 @@ function startPump(
 
 function configured(name: string): boolean {
   return process.env[name] !== undefined || process.env[`${name}_FILE`] !== undefined;
-}
-
-function databaseUrl(): string | undefined {
-  const name = configured('WORKER_DATABASE_URL') ? 'WORKER_DATABASE_URL' : 'DATABASE_URL';
-  return configured(name)
-    ? loadSecret(name, process.env, { allowInline: process.env['NODE_ENV'] !== 'production' })
-    : undefined;
 }
 
 function liminalRuntimeFilePaths(): readonly string[] {
@@ -227,7 +221,7 @@ async function main(): Promise<void> {
   // Absent stays absent — the idle path below is deliberate. What this adds is that a
   // DATABASE_URL_FILE is preferred where one is set, and that an inline credential in
   // production is refused rather than used.
-  const connectionString = databaseUrl();
+  const connectionString = workerDatabaseUrl();
 
   if (!connectionString) {
     console.warn(
@@ -275,6 +269,7 @@ async function main(): Promise<void> {
       : { compileDocument: (actionId) => runtime.process(actionId) },
   );
   const { run } = await import('graphile-worker');
+  await prepareWorkerQueue(pool);
   const runner = await run({
     pgPool: pool,
     concurrency,

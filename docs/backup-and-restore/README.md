@@ -39,6 +39,12 @@ policy on `core.object`, so a backup as that login failed outright, and an expor
 held no records. The drill ran as the superuser and passed. It now also runs the whole script as
 a `kf_backup` login (`tests/backup-restore/drill.test.ts`, "backup as the backup login").
 
+The separately worker-owned Graphile queue is included, not exempted from backup.
+Its ordinary owner commissions read-only access through the
+[queue-owner handoff](../deployment/worker-queue-backup.md); the KF migrator verifies
+that access rather than granting another owner's sequences. The drill now enqueues
+a real library job and requires its payload to survive the backup and restore.
+
 Neither the dump nor the export substitutes for the other. The dump answers "get us running
 again this afternoon". The export answers "can this still be read in 2045". The backup
 coordinator opens one `REPEATABLE READ READ ONLY` transaction, exports one PostgreSQL snapshot,

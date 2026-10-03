@@ -1,5 +1,34 @@
 -- migrate:up
 
+-- A running host also has the separately worker-owned Graphile queue. The KF
+-- migrator cannot grant another owner's sequences. Its owner commissions that
+-- schema through the worker queue-backup CLI before this migration; verify the
+-- read contract here, without taking ownership or silently omitting queue data.
+do $$
+declare
+  v_schema oid;
+begin
+  select oid into v_schema from pg_namespace where nspname='graphile_worker';
+  if v_schema is not null and (
+    not has_schema_privilege('kf_backup',v_schema,'usage')
+    or exists(select from pg_class c where c.relnamespace=v_schema
+      and case when c.relkind='S' then not has_sequence_privilege('kf_backup',c.oid,'select')
+        when c.relkind in ('r','p','v','m') then not has_table_privilege('kf_backup',c.oid,'select')
+        else false end)
+    or exists(select from pg_class c where c.relnamespace=v_schema
+      and c.relkind in ('r','p') and c.relrowsecurity and not exists(
+        select from pg_policy p where p.polrelid=c.oid and p.polpermissive
+        and p.polcmd in ('r','*') and pg_get_expr(p.polqual,p.polrelid)='true'
+        and 'kf_backup'::regrole=any(p.polroles)))
+    or exists(select from pg_policy p join pg_class c on c.oid=p.polrelid
+      where c.relnamespace=v_schema and p.polcmd in ('r','*') and not p.polpermissive
+      and exists(select from unnest(p.polroles) role_id where
+        case when role_id=0 then true else pg_has_role('kf_backup',role_id,'usage') end))
+  ) then
+    raise exception 'worker queue backup access must be provisioned by its owner';
+  end if;
+end $$;
+
 -- The backup login reaches every table (KF-SAS-RQ-220, §88).
 --
 -- A deployed host runs scripts/backup.sh as a login holding kf_backup and nothing else
@@ -97,6 +126,7 @@ begin
     select n.nspname from pg_namespace n
      where n.nspname not like 'pg\_%' and n.nspname <> 'information_schema'
        and n.nspname <> 'public'
+       and n.nspname <> 'graphile_worker'
        and exists (select 1 from pg_class c where c.relnamespace = n.oid and c.relkind = 'S')
   loop
     execute format('grant select on all sequences in schema %I to kf_backup', v_schema);

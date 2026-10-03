@@ -516,6 +516,11 @@ services never applies schema changes.
 
 ## Migration and rollback rehearsal
 
+For an existing host with a worker-owned Graphile queue, follow the
+[queue-owner backup handoff](worker-queue-backup.md) in the restored target before
+applying KF migrations. KF ownership does not confer permission to grant the
+worker's sequences; do not transfer ownership to make rehearsal pass.
+
 Before migration, stop API, web and worker; take pre-migration backup, copy it off host, and
 restore it into isolated target. Then provision separate disposable PostgreSQL 18 cluster with
 no non-system schemas. Its credential must differ from production migrator credential.
