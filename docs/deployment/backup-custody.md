@@ -8,8 +8,15 @@ data has been uploaded, a restore succeeded or a release was accepted.
 ## Preserve the existing contracts
 
 The [backup interface](../backup-and-restore/README.md) already encrypts to an
-operator-held **OpenPGP public key**. Only that public recipient belongs on the
-VM; the recovery private key must not. Signed preservation manifests use a
+operator-held **OpenPGP public key**. The backup producer receives only that
+public recipient. The recovery private key must not be persisted on the VM or
+made readable to the backup identity; the separately identified automated drill
+may receive it temporarily through the selected volatile credential channel.
+The workstation encrypted store and owner's Bitwarden recovery copy remain
+the persistent custodians. The previous wording said only the public key could
+ever be on the VM, contradicting the declared drill's decryption input; this
+distinguishes producer access and persistent custody from temporary drill use.
+Signed preservation manifests use a
 separate **Ed25519 key** and external historical public-key trust store. Do not
 replace either format with another encryption scheme just to configure B2.
 
@@ -132,6 +139,13 @@ explicit `LoadCredential` and runtime-directory drop-ins. Do not set systemd
 custody on those old units and infer that the whole drill can run. Preserve and
 demonstrate the 91-migration baseline recovery before using the candidate's
 153-migration backup/export paths.
+
+The [purpose-separated delivery interface](preservation-credential-delivery.md)
+now implements fixed backup, offsite and drill realms, preserving the installed
+startup/migration/B2 pairs. It uses explicit base64 names for multiline keys
+because the workstation secret command accepts single-line values. Public
+native custody/command proofs and recovery templates do not establish actual
+key capture, consumer drop-in installation or baseline recovery.
 
 The separate-drive `/mnt/2tb/kf-preservation` is a replica on the same
 workstation. It remains useful but does not become off-site because B2 has now

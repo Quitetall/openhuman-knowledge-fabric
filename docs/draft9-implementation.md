@@ -726,3 +726,22 @@ Actual consumer delivery/drop-ins, preservation of and recovery from the old
 91-migration baseline, real B2 authentication/copy/recovery, Bitwarden key
 custody, a fresh sealed release/rehearsal receipt, guarded promotion, retrieval
 and reboot commissioning, qualification and human acceptance remain open.
+
+## Purpose-separated preservation delivery — 2026-10-02
+
+The [delivery interface](deployment/preservation-credential-delivery.md) adds
+closed backup, offsite and drill realms alongside the existing three protocols.
+Backup holds database/signing inputs, offsite only its ledger input, and drill
+its ledger/recovery/object-reader inputs. Multiline keys use explicit canonical
+base64 store names because the actual workstation secret command accepts one
+line. Guest files preserve decoded key bytes; larger recovery framing does not
+widen other realms' or files' bounds. Independent timer templates recover only
+custody, never execute preservation or migration.
+
+The focused handoff suites and selected-VM public native proof exercise field
+sets, rotation/refusal isolation, actual receive/status commands and the maximum
+recovery input. Public armor is deliberately not a valid GPG recovery key; these
+checks do not establish decryption, real custody, grants, SSH delivery or consumer
+activation. Distinct consumer drop-ins, baseline preservation/recovery, actual
+key capture and Bitwarden recovery, B2 access, fresh release/rehearsal, guarded
+promotion, commissioning, qualification and human release acts remain open.

@@ -8,7 +8,9 @@ It does not create an account, bucket, key, backup or copy-ledger row.
 ## Closed handoff interface
 
 The [handoff module](../../scripts/deploy/workstation-credentials.mjs) now has
-three fixed realms sharing filesystem custody and pinned SSH transport. B2 uses
+six fixed realms sharing filesystem custody and pinned SSH transport, including
+the separate [preservation consumer sets](preservation-credential-delivery.md).
+B2 uses
 `b2-send CONFIG` for explicit delivery/rotation and `b2-sync CONFIG` for delivery
 only when the boot-bound generation is unavailable. Root-only guest commands
 are `b2-receive` and `b2-status`, with no further arguments. A ready generation

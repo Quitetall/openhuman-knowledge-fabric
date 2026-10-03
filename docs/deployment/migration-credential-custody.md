@@ -103,10 +103,11 @@ the future credential-enabled invocation must explicitly expose the swap table.
 
 ## Remaining integration
 
-The [handoff module](../../scripts/deploy/workstation-credentials.mjs) now has three
+The [handoff module](../../scripts/deploy/workstation-credentials.mjs) now has six
 closed realms sharing the custody and transport implementation; the separate
 [B2 interface](b2-credential-custody.md) was added after the two-realm migration
-checkpoint. The migration
+checkpoint, followed by the three
+[preservation consumer sets](preservation-credential-delivery.md). The migration
 interface is `migration-send CONFIG` (explicit delivery/rotation) and
 `migration-sync CONFIG` (deliver only when the boot-bound generation is missing).
 Root-only guest commands are `migration-receive` and `migration-status`, with no

@@ -1,6 +1,6 @@
-// Three closed credential realms share custody and pinned transport, never a general exporter.
+// Closed credential realms share custody and pinned transport, never a general exporter.
 import { spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, createPrivateKey } from 'node:crypto';
 import {
   constants,
   lstatSync,
@@ -48,6 +48,36 @@ const B2 = {
   encode: encodeB2Bundle,
   decode: decodeB2Bundle,
   validate: b2Values,
+};
+const BACKUP = {
+  protocol: 'kf-workstation-backup-credentials-v1',
+  root: 'kf-workstation-backup-credentials',
+  names: ['database-url', 'preservation-signing-key'],
+  limits: [8192, 4096],
+  byteLimit: 20_480,
+  encode: encodeBackupBundle,
+  decode: decodeBackupBundle,
+  validate: backupValues,
+};
+const OFFSITE = {
+  protocol: 'kf-workstation-offsite-credentials-v1',
+  root: 'kf-workstation-offsite-credentials',
+  names: ['database-url'],
+  limits: [8192],
+  byteLimit: LIMIT,
+  encode: encodeOffsiteBundle,
+  decode: decodeOffsiteBundle,
+  validate: offsiteValues,
+};
+const DRILL = {
+  protocol: 'kf-workstation-drill-credentials-v1',
+  root: 'kf-workstation-drill-credentials',
+  names: ['database-url', 'backup-decryption-key', 's3-secret-access-key'],
+  limits: [8192, 65536, 8192],
+  byteLimit: 112_640,
+  encode: encodeDrillBundle,
+  decode: decodeDrillBundle,
+  validate: drillValues,
 };
 const BOOT_ID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 const GENERATION = /^generation-[A-Za-z0-9]{6}$/;
@@ -191,6 +221,127 @@ export function decodeB2Bundle(bytes) {
   return b2Values(lines.slice(1, 5));
 }
 
+function boundedText(value, maximum) {
+  if (
+    typeof value !== 'string' ||
+    value.length < 1 ||
+    value.length > maximum ||
+    /[^\x20-\x7e\n]/.test(value)
+  )
+    refuse();
+  return value;
+}
+
+function canonicalBase64(value, maximum) {
+  if (
+    typeof value !== 'string' ||
+    value.length > 4 * Math.ceil(maximum / 3) ||
+    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)
+  )
+    refuse();
+  const decoded = Buffer.from(value, 'base64');
+  try {
+    if (!decoded.length || decoded.length > maximum || decoded.toString('base64') !== value)
+      refuse();
+    const text = decoded.toString('utf8');
+    if (!Buffer.from(text).equals(decoded)) refuse();
+    return text;
+  } finally {
+    decoded.fill(0);
+  }
+}
+
+function backupValues(values) {
+  migrationDatabase(values[0], 0);
+  const pem = boundedText(values[1], 4096);
+  if (
+    !/^-----BEGIN PRIVATE KEY-----\n[A-Za-z0-9+/=\n]+\n-----END PRIVATE KEY-----\n?$/.test(pem) ||
+    createPrivateKey(pem).asymmetricKeyType !== 'ed25519'
+  )
+    refuse();
+  return values;
+}
+
+function offsiteValues(values) {
+  migrationDatabase(values[0], 0);
+  return values;
+}
+
+function drillValues(values) {
+  migrationDatabase(values[0], 0);
+  const armor = boundedText(values[1], 65536);
+  // Transport admission is not a GnuPG import/decryption or recovery-custody proof.
+  if (
+    !/^-----BEGIN PGP PRIVATE KEY BLOCK-----\n[\x20-\x7e\n]+\n-----END PGP PRIVATE KEY BLOCK-----\n?$/.test(
+      armor,
+    ) ||
+    armor.indexOf('-----BEGIN ', 1) !== -1
+  )
+    refuse();
+  if (typeof values[2] !== 'string' || !/^[\x21-\x7e]{1,8192}$/.test(values[2])) refuse();
+  return values;
+}
+
+function encodePreservation(values, profile) {
+  const admitted = profile.validate(values);
+  const bytes = Buffer.from(
+    `${profile.protocol}\n${admitted.map((value) => Buffer.from(value).toString('base64')).join('\n')}\n`,
+  );
+  if (bytes.length > profile.byteLimit) {
+    bytes.fill(0);
+    refuse();
+  }
+  return bytes;
+}
+
+function decodePreservation(bytes, profile) {
+  if (bytes.length > profile.byteLimit) refuse();
+  const lines = bytes.toString('utf8').split('\n');
+  if (
+    lines.length !== profile.names.length + 2 ||
+    lines[0] !== profile.protocol ||
+    lines.at(-1) !== ''
+  )
+    refuse();
+  return profile.validate(
+    lines.slice(1, -1).map((value, i) => canonicalBase64(value, profile.limits[i])),
+  );
+}
+
+export function encodeBackupBundle(env) {
+  return encodePreservation(
+    [env.KF_BACKUP_DATABASE_URL, canonicalBase64(env.KF_PRESERVATION_SIGNING_KEY_BASE64, 4096)],
+    BACKUP,
+  );
+}
+
+export function decodeBackupBundle(bytes) {
+  return decodePreservation(bytes, BACKUP);
+}
+
+export function encodeOffsiteBundle(env) {
+  return encodePreservation([env.KF_OFFSITE_DATABASE_URL], OFFSITE);
+}
+
+export function decodeOffsiteBundle(bytes) {
+  return decodePreservation(bytes, OFFSITE);
+}
+
+export function encodeDrillBundle(env) {
+  return encodePreservation(
+    [
+      env.KF_DRILL_DATABASE_URL,
+      canonicalBase64(env.KF_BACKUP_RECOVERY_PRIVATE_KEY_BASE64, 65536),
+      env.KF_DRILL_S3_SECRET_ACCESS_KEY,
+    ],
+    DRILL,
+  );
+}
+
+export function decodeDrillBundle(bytes) {
+  return decodePreservation(bytes, DRILL);
+}
+
 function directory(path, uid, privateMode = false) {
   const stat = lstatSync(path);
   if (
@@ -213,14 +364,14 @@ function runtime(parent, uid, swaps, profile) {
   return root;
 }
 
-function readPrivate(path, uid) {
+function readPrivate(path, uid, maximum = LIMIT) {
   const stat = lstatSync(path);
   if (
     !stat.isFile() ||
     stat.uid !== uid ||
     stat.nlink !== 1 ||
     (stat.mode & 0o777) !== 0o400 ||
-    stat.size > LIMIT
+    stat.size > maximum
   ) {
     refuse();
   }
@@ -240,6 +391,18 @@ export function b2RuntimeStatus(parent, uid, bootId, swaps) {
   return statusForProfile(parent, uid, bootId, swaps, B2);
 }
 
+export function backupRuntimeStatus(parent, uid, bootId, swaps) {
+  return statusForProfile(parent, uid, bootId, swaps, BACKUP);
+}
+
+export function offsiteRuntimeStatus(parent, uid, bootId, swaps) {
+  return statusForProfile(parent, uid, bootId, swaps, OFFSITE);
+}
+
+export function drillRuntimeStatus(parent, uid, bootId, swaps) {
+  return statusForProfile(parent, uid, bootId, swaps, DRILL);
+}
+
 function statusForProfile(parent, uid, bootId, swaps, profile) {
   if (!BOOT_ID.test(bootId)) refuse();
   const root = runtime(parent, uid, swaps, profile);
@@ -253,7 +416,11 @@ function statusForProfile(parent, uid, bootId, swaps, profile) {
     const generation = join(root, target);
     directory(generation, uid, true);
     if (readPrivate(join(generation, 'boot-id'), uid) !== bootId) refuse();
-    profile.validate(profile.names.map((name) => readPrivate(join(generation, name), uid)));
+    profile.validate(
+      profile.names.map((name, i) =>
+        readPrivate(join(generation, name), uid, profile.limits?.[i] ?? LIMIT),
+      ),
+    );
     return 'ready';
   } catch (error) {
     if (error.code === 'ENOENT') return 'missing';
@@ -271,6 +438,18 @@ export function receiveMigrationBundle(bytes, parent, uid, bootId, swaps) {
 
 export function receiveB2Bundle(bytes, parent, uid, bootId, swaps) {
   return receiveForProfile(bytes, parent, uid, bootId, swaps, B2);
+}
+
+export function receiveBackupBundle(bytes, parent, uid, bootId, swaps) {
+  return receiveForProfile(bytes, parent, uid, bootId, swaps, BACKUP);
+}
+
+export function receiveOffsiteBundle(bytes, parent, uid, bootId, swaps) {
+  return receiveForProfile(bytes, parent, uid, bootId, swaps, OFFSITE);
+}
+
+export function receiveDrillBundle(bytes, parent, uid, bootId, swaps) {
+  return receiveForProfile(bytes, parent, uid, bootId, swaps, DRILL);
 }
 
 function receiveForProfile(bytes, parent, uid, bootId, swaps, profile) {
@@ -390,14 +569,14 @@ function transport(config, action, input, profile) {
   if (result.status !== 0 || result.stdout !== `${profile.protocol} ready\n`) refuse();
 }
 
-async function boundedInput(stream) {
+async function boundedInput(stream, maximum = LIMIT) {
   const chunks = [];
   let size = 0;
   const timeout = setTimeout(() => stream.destroy(new Error('input deadline')), 10_000);
   try {
     for await (const chunk of stream) {
       size += chunk.length;
-      if (size > LIMIT) refuse();
+      if (size > maximum) refuse();
       chunks.push(chunk);
     }
     return Buffer.concat(chunks);
@@ -414,6 +593,9 @@ async function main() {
     ['', STARTUP],
     ['migration-', MIGRATION],
     ['b2-', B2],
+    ['backup-', BACKUP],
+    ['offsite-', OFFSITE],
+    ['drill-', DRILL],
   ];
   const selected = prefixes.find(([prefix]) =>
     ['receive', 'status', 'send', 'sync'].some((verb) => action === `${prefix}${verb}`),
@@ -427,7 +609,7 @@ async function main() {
     const swaps = readFileSync('/proc/swaps', 'utf8');
     let status;
     if (verb === 'receive') {
-      const bytes = await boundedInput(process.stdin);
+      const bytes = await boundedInput(process.stdin, profile.byteLimit ?? LIMIT);
       try {
         status = receiveForProfile(bytes, '/run', 0, bootId, swaps, profile);
       } finally {
