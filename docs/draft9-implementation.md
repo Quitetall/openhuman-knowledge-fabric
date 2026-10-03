@@ -702,3 +702,27 @@ signing-copy metadata and cleanup. Public fixtures are not cryptographic key
 custody, an actual backup, a restore or production activation. Consumer delivery
 and drop-ins, nested restore-verifier credential handoff, baseline recovery,
 real B2 access, promotion, commissioning and qualification remain open.
+
+## Preservation child credential handoff — 2026-10-02
+
+The [child handoff interface](deployment/backup-custody.md#database-and-object-reader-child-handoff)
+now gives the backup export child an admitted owner-only volatile database
+input and gives the built-in object reader its separate admitted input. The
+restore verifier binds re-export and checkpoint verification to the requested
+scratch target, not an inherited production database file. Explicit systemd
+custody distinguishes the private runtime target from the native ledger input,
+and the nested verifier owns a fresh password file.
+
+The public native proof found subshell exit-hook registration inheriting cleanup
+for the parent's password file. Registration and owned-copy cleanup now use
+process ownership, with a direct failing-then-passing regression. The corrected
+focused set passed 71 tests across seven files; all 14 real PostgreSQL
+backup/restore tests passed, including inherited-production-file isolation. The
+extended selected-VM PID 1 fixture passed using the actual ordinary secret
+loader, without admitting arbitrary group-readable files or changing installed
+production credentials. Failed initial runs are retained as development evidence.
+
+Actual consumer delivery/drop-ins, preservation of and recovery from the old
+91-migration baseline, real B2 authentication/copy/recovery, Bitwarden key
+custody, a fresh sealed release/rehearsal receipt, guarded promotion, retrieval
+and reboot commissioning, qualification and human acceptance remain open.

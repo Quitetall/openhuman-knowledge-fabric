@@ -118,6 +118,24 @@ describe('moving the password out of the connection string', () => {
     expect(r.out).toContain('MINE RAN');
     expect(existsSync(path), `${path} survived the script`).toBe(false);
   });
+
+  it('a subshell registering cleanup cannot remove the parent password file or run its hooks', () => {
+    const r = sh(`
+      kf_at_exit 'echo PARENT-HOOK'
+      child="$(kf_at_exit 'echo CHILD-HOOK'; echo CHILD-BODY)"
+      [ -e "$PGPASSFILE" ] || exit 22
+      printf 'PASSWORD_FILE=%s\\n%s\\n' "$PGPASSFILE" "$child"
+    `);
+    expect(r.code, r.out).toBe(0);
+    expect(r.out.match(/PARENT-HOOK/g)).toHaveLength(1);
+    expect(r.out.match(/CHILD-HOOK/g)).toHaveLength(1);
+    const path = r.out
+      .split('\n')
+      .find((line) => line.startsWith('PASSWORD_FILE='))
+      ?.slice(14);
+    expect(path).toBeDefined();
+    expect(existsSync(path!)).toBe(false);
+  });
 });
 
 describe('refusing what it cannot do safely', () => {

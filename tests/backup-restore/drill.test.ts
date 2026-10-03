@@ -411,9 +411,12 @@ describe('backup', () => {
 });
 
 describe('restore drill', () => {
-  it('restores into an empty database and re-exports identically', async () => {
+  it('restores into an empty database and re-exports identically despite an inherited production file', async () => {
     const target = await emptyDatabase();
-    const r = runRestore(backupDir, target);
+    const r = runRestore(backupDir, target, undefined, {
+      DATABASE_URL_FILE: databaseUrlFile('ambient-production', h.connectionString),
+      NODE_ENV: 'test',
+    });
     expect(r.code, r.output).toBe(0);
     expect(r.output).toContain('restore fully verified');
     expect(r.output).not.toContain('checkpoint signatures were NOT verified');

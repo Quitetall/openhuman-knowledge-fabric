@@ -88,8 +88,8 @@ describe('preservation key custody deployment contract', () => {
     );
 
     expect(restore).toContain('TARGET_URL_FILE="${2:');
-    expect(restore).toContain('kf_read_secret_file "$TARGET_URL_FILE"');
-    expect(restore).toContain('kf_read_secret_file "$LEDGER_URL_FILE"');
+    expect(restore).toContain('kf_read_restore_target_file "$TARGET_URL_FILE"');
+    expect(restore).toContain('kf_read_restore_ledger_file "$LEDGER_URL_FILE"');
     expect(restore).not.toContain('<target-database-url>');
     expect(drill).toContain('"$RESTORE_TARGET_URL_FILE" "$RESTORE_LEDGER_URL_FILE"');
     expect(documentation).not.toContain('postgres://...target');

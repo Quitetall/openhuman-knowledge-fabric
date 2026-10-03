@@ -299,7 +299,8 @@ if [ -n "${CHECKPOINT_PUBLIC_KEY_DIR:-}" ]; then
   # PEM blocks, invalid Ed25519 keys, and a configured-but-absent/empty directory.
   EXPORT_WRITE_ARGS+=(--checkpoint-public-key-dir "$CHECKPOINT_PUBLIC_KEY_DIR")
 fi
-node "$ROOT/packages/export/dist/cli.js" "${EXPORT_WRITE_ARGS[@]}"
+kf_preservation_database_child "${DATABASE_URL_FILE:-}" \
+  node "$ROOT/packages/export/dist/cli.js" "${EXPORT_WRITE_ARGS[@]}"
 
 echo "==> authenticating canonical export through the external trust store"
 node "$ROOT/packages/export/dist/cli.js" verify "$DEST/export" \

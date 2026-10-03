@@ -35,7 +35,7 @@ function release() {
   mkdirSync(join(tree, 'scripts', 'lib'), { recursive: true });
   const script = join(tree, 'scripts', 'restore-verify.sh');
   copyFileSync(join(ROOT, 'scripts', 'restore-verify.sh'), script);
-  for (const lib of ['secret.sh', 'object-store-proof.mjs']) {
+  for (const lib of ['secret.sh', 'preservation-secrets.sh', 'object-store-proof.mjs']) {
     copyFileSync(join(ROOT, 'scripts', 'lib', lib), join(tree, 'scripts', 'lib', lib));
   }
 
@@ -81,6 +81,7 @@ case "\${1:-}" in
   */packages/export/dist/cli.js)
     if [ "\${2:-}" = write ]; then
       printf 'export-write:%s\\n' "$*" >> "$KF_FAKE_LOG"
+      printf 'export-database-input:%s\\n' "$(cat "\${DATABASE_URL_FILE:-/dev/null}")" >> "$KF_FAKE_LOG"
       mkdir -p "$3"; cp -a "${reexportSource}/." "$3/"
       exit 0
     fi
@@ -129,7 +130,10 @@ fs.writeFileSync(proof, out.join(''));
   writeFileSync(join(tree, 'apps', 'kf-storage', 'package.json'), '{"type":"commonjs"}\n');
   const checkpoint = join(tree, 'apps', 'checkpoint', 'dist', 'main.js');
   mkdirSync(join(checkpoint, '..'), { recursive: true });
-  writeFileSync(checkpoint, "console.log('checkpoints verified');\n");
+  writeFileSync(
+    checkpoint,
+    "const fs = require('node:fs'); fs.appendFileSync(process.env.KF_FAKE_LOG, 'checkpoint-database-input:' + fs.readFileSync(process.env.DATABASE_URL_FILE ?? '/dev/null', 'utf8').trim() + '\\n'); console.log('checkpoints verified');\n",
+  );
   writeFileSync(join(tree, 'apps', 'checkpoint', 'package.json'), '{"type":"commonjs"}\n');
   const checkpointKeys = join(tools.work, 'checkpoint-public-keys');
   mkdirSync(checkpointKeys);
@@ -174,6 +178,17 @@ fs.writeFileSync(proof, out.join(''));
 }
 
 describe('restore-verify.sh with only what the release ships', () => {
+  it('binds export and checkpoint children to the restore target instead of an inherited production file', () => {
+    const r = release();
+    const inherited = join(r.tools.work, 'production-url');
+    writeFileSync(inherited, 'postgres://not-the-target@localhost/production\n', { mode: 0o600 });
+    const result = runScript(r.script, r.args, { ...r.env, DATABASE_URL_FILE: inherited });
+    expect(result.code, result.output).toBe(0);
+    const target = readFileSync(r.args[1]!, 'utf8').trim();
+    expect(r.tools.sqlLog()).toContain(`export-database-input:${target}`);
+    expect(r.tools.sqlLog()).toContain(`checkpoint-database-input:${target}`);
+    expect(r.tools.sqlLog()).not.toContain('database-input:postgres://not-the-target');
+  });
   it('verifies the object store with the in-release verifier and records a verified drill', () => {
     const r = release();
     const result = runScript(r.script, r.args, r.env);

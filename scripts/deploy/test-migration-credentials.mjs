@@ -52,13 +52,15 @@ try {
   chmodSync(executableParent, 0o755);
   volatileParent = mkdtempSync('/run/kf-migration-credential-fixture-');
   chmodSync(volatileParent, 0o700);
-  for (const path of ['scripts/lib', 'tools', 'tests/fixtures'])
+  for (const path of ['scripts/lib', 'tools', 'tests/fixtures', 'packages/operations/dist'])
     mkdirSync(join(executableParent, path), { recursive: true, mode: 0o755 });
   for (const path of [
     'scripts/lib/secret.sh',
     'scripts/lib/offsite-b2.sh',
     'scripts/lib/preservation-secrets.sh',
     'tests/fixtures/systemd-migration-credentials.sh',
+    'packages/operations/package.json',
+    'packages/operations/dist/secrets.js',
   ]) {
     copyFileSync(join(ROOT, path), join(executableParent, path));
     chownSync(join(executableParent, path), 0, 0);
@@ -88,6 +90,9 @@ try {
     'empty-preservation': '',
     'oversized-signer': 'p'.repeat(4097),
     'oversized-recovery': 'p'.repeat(65537),
+    's3-secret-access-key': 'public-object-reader-key',
+    'empty-object-key': '',
+    'oversized-object-key': 'p'.repeat(8193),
   };
   for (const [name, value] of Object.entries(inputs))
     writeFileSync(join(volatileParent, name), value, { mode: 0o400, flag: 'wx' });
@@ -108,6 +113,7 @@ try {
       'b2-key',
       'preservation-signing-key',
       'backup-decryption-key',
+      's3-secret-access-key',
     ].map((name) => {
       const source =
         name === 'database-url' && alteredInput === 'oversized-url'
@@ -121,7 +127,10 @@ try {
                 ? alteredInput
                 : name === 'backup-decryption-key' && alteredInput === 'oversized-recovery'
                   ? alteredInput
-                  : name;
+                  : name === 's3-secret-access-key' &&
+                      ['empty-object-key', 'oversized-object-key'].includes(alteredInput)
+                    ? alteredInput
+                    : name;
       return `--property=LoadCredential=${name}:${join(volatileParent, source)}`;
     });
     const output = run('/usr/bin/systemd-run', [
@@ -174,6 +183,9 @@ try {
   prove('oversized-recovery', 'oversized-recovery');
   prove('preservation-purpose-mismatch');
   prove('drill-workspace-mismatch');
+  prove('empty-object-key', 'empty-object-key');
+  prove('oversized-object-key', 'oversized-object-key');
+  prove('child-purpose-mismatch');
   chownSync(helper, uid, 0);
   prove('unsafe-helper', undefined, 'owner');
   chownSync(helper, 0, 0);

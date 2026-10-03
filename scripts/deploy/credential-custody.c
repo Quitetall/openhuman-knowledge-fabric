@@ -68,6 +68,11 @@ static int credential_policy(const char *name, off_t *minimum, off_t *maximum) {
     *maximum = strcmp(name, "preservation-signing-key") == 0 ? 4096 : 65536;
     return 1;
   }
+  if (strcmp(name, "s3-secret-access-key") == 0) {
+    *minimum = 1;
+    *maximum = 8192;
+    return 1;
+  }
   return 0;
 }
 

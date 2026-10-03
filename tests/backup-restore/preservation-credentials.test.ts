@@ -10,6 +10,7 @@ import {
   rmSync,
   symlinkSync,
   writeFileSync,
+  existsSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -137,4 +138,61 @@ it('wires the backup and drill to the actual preservation credential interface',
   expect(drill.indexOf('kf_validate_drill_workspace')).toBeLessThan(
     drill.indexOf('"$KF_PSQL" "$DATABASE_URL"'),
   );
+});
+
+it('passes an ordinary database file without inline credentials or inherited passwords to its child', () => {
+  const f = fixture('database-url', 'postgres://fixture:public-fixture-password@localhost/target');
+  const result = sh(
+    'DATABASE_URL=wrong-inline PGPASSFILE="$(dirname "$2")/inherited-passwords" KF_PGPASS_OWNED=true kf_preservation_database_child "$2" bash -c \'[ -z "${DATABASE_URL:-}" ] && [ -z "${PGPASSFILE:-}" ] && [ -z "${KF_PGPASS_OWNED:-}" ] && [ "$(cat "$DATABASE_URL_FILE")" = "postgres://fixture:public-fixture-password@localhost/target" ]\'',
+    f.path,
+  );
+  expect(result.status, result.stderr).toBe(0);
+  expect(existsSync(f.path)).toBe(true);
+});
+
+it('returns a database child failure without deleting the supplied ordinary input', () => {
+  const f = fixture('database-url', 'postgres://fixture@localhost/target');
+  const result = sh('kf_preservation_database_child "$2" bash -c \'exit 23\'', f.path);
+  expect(result.status).toBe(23);
+  expect(existsSync(f.path)).toBe(true);
+});
+
+it('refuses unreadable-purpose ordinary child files instead of falling back inline', () => {
+  const f = fixture('database-url', 'postgres://fixture@localhost/target');
+  chmodSync(f.path, 0o644);
+  const result = sh(
+    'export DATABASE_URL=postgres://wrong@localhost/wrong; kf_preservation_database_child "$2" bash -c \'echo CHILD-RAN\'',
+    f.path,
+  );
+  expect(result.status).not.toBe(0);
+  expect(result.stdout).not.toContain('CHILD-RAN');
+});
+
+it('keeps the ordinary inline database mode when no file was supplied', () => {
+  const f = fixture('unused');
+  const result = sh(
+    'export DATABASE_URL=postgres://fixture@localhost/target; kf_preservation_database_child "" bash -c \'[ "$DATABASE_URL" = postgres://fixture@localhost/target ] && [ -z "${DATABASE_URL_FILE:-}" ]\'',
+    f.path,
+  );
+  expect(result.status, result.stderr).toBe(0);
+});
+
+it('passes the object-reader file without disclosing its inline value or database credentials', () => {
+  const f = fixture('s3-key', 'public-object-reader');
+  const result = sh(
+    'S3_SECRET_ACCESS_KEY=wrong-inline DATABASE_URL=wrong DATABASE_URL_FILE="$(dirname "$2")/wrong" PGPASSFILE="$(dirname "$2")/wrong" kf_preservation_object_child "$2" bash -c \'[ -z "${S3_SECRET_ACCESS_KEY:-}" ] && [ -z "${DATABASE_URL:-}" ] && [ -z "${DATABASE_URL_FILE:-}" ] && [ -z "${PGPASSFILE:-}" ] && [ "$(cat "$S3_SECRET_ACCESS_KEY_FILE")" = public-object-reader ]\'',
+    f.path,
+  );
+  expect(result.status, result.stderr).toBe(0);
+  expect(existsSync(f.path)).toBe(true);
+});
+
+it('requires the object reader file even if an inline fallback is present', () => {
+  const f = fixture('unused');
+  const result = sh(
+    'export S3_SECRET_ACCESS_KEY=public-inline; kf_preservation_object_child "" bash -c \'echo CHILD-RAN\'',
+    f.path,
+  );
+  expect(result.status).not.toBe(0);
+  expect(result.stdout).not.toContain('CHILD-RAN');
 });

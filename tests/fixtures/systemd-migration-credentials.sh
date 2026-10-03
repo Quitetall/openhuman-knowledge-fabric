@@ -9,7 +9,7 @@ ROOT="$release"
 . "$release/scripts/lib/preservation-secrets.sh"
 
 case "$plant" in
-  oversized-url|short-key|unknown-name|empty-b2|oversized-b2|empty-preservation|oversized-signer|oversized-recovery)
+  oversized-url|short-key|unknown-name|empty-b2|oversized-b2|empty-preservation|oversized-signer|oversized-recovery|empty-object-key|oversized-object-key)
     case "$plant" in
       oversized-url) name=database-url ;;
       short-key) name=rehearsal-receipt-key ;;
@@ -17,12 +17,22 @@ case "$plant" in
       empty-b2|oversized-b2) name=b2-key ;;
       empty-preservation|oversized-signer) name=preservation-signing-key ;;
       oversized-recovery) name=backup-decryption-key ;;
+      empty-object-key|oversized-object-key) name=s3-secret-access-key ;;
     esac
     if kf_validate_secret_file "$CREDENTIALS_DIRECTORY/$name"; then
       echo 'planted credential was incorrectly admitted' >&2
       exit 1
     fi
     printf '%s refused: PASS\n' "$plant"
+    exit 0
+    ;;
+  child-purpose-mismatch)
+    if kf_preservation_database_child "$CREDENTIALS_DIRECTORY/index-key" /usr/bin/true ||
+       kf_preservation_object_child "$CREDENTIALS_DIRECTORY/b2-key" /usr/bin/true ||
+       kf_preservation_database_child '' /usr/bin/true; then
+      echo 'child purpose or inline fallback was incorrectly admitted' >&2; exit 1
+    fi
+    echo 'database/object child purpose confusion and inline systemd fallback refused: PASS'
     exit 0
     ;;
   preservation-purpose-mismatch)
@@ -117,6 +127,73 @@ kf_resolve_database_url
 [ "$(stat -f -c '%t' "$PGPASSFILE")" = 1021994 ]
 [ "$(cat "$PGPASSFILE")" = '127.0.0.1:5433:*:fixture:public-fixture-password' ]
 echo 'password removed from connection argv and confined to tmpfs: PASS'
+
+database_child="$(kf_preservation_database_child "$CREDENTIALS_DIRECTORY/database-url" /usr/bin/node --input-type=module -e '
+  import { pathToFileURL } from "node:url";
+  import { statSync } from "node:fs";
+  const { loadSecret } = await import(pathToFileURL(process.argv[1] + "/packages/operations/dist/secrets.js"));
+  const path = process.env.DATABASE_URL_FILE;
+  if (process.env.DATABASE_URL || process.env.PGPASSFILE || process.env.KF_PGPASS_OWNED ||
+      loadSecret("DATABASE_URL") !== "postgres://fixture:public-fixture-password@127.0.0.1:5433/public_probe" ||
+      (statSync(path).mode & 0o777) !== 0o400 || statSync(path).uid !== process.getuid()) process.exit(1);
+  process.stdout.write(path);
+' "$release")"
+[ -n "$database_child" ] && [ ! -e "$database_child" ]
+echo 'actual ordinary secret loader admits volatile database child copy with no inline/password-file inheritance: PASS'
+
+if failed_child="$(kf_preservation_database_child "$CREDENTIALS_DIRECTORY/database-url" /usr/bin/bash -c \
+  'printf "%s" "$DATABASE_URL_FILE"; exit 23')"; then
+  echo 'planted database child failure unexpectedly succeeded' >&2; exit 1
+else
+  [ "$?" = 23 ]
+fi
+[ -n "$failed_child" ] && [ ! -e "$failed_child" ]
+echo 'database child failure status and owned copy cleanup: PASS'
+
+object_child="$(kf_preservation_object_child "$CREDENTIALS_DIRECTORY/s3-secret-access-key" /usr/bin/node --input-type=module -e '
+  import { pathToFileURL } from "node:url";
+  import { statSync } from "node:fs";
+  const { loadSecret } = await import(pathToFileURL(process.argv[1] + "/packages/operations/dist/secrets.js"));
+  const path = process.env.S3_SECRET_ACCESS_KEY_FILE;
+  if (process.env.S3_SECRET_ACCESS_KEY || process.env.DATABASE_URL || process.env.DATABASE_URL_FILE || process.env.PGPASSFILE ||
+      loadSecret("S3_SECRET_ACCESS_KEY") !== "public-object-reader-key" ||
+      (statSync(path).mode & 0o777) !== 0o400 || statSync(path).uid !== process.getuid()) process.exit(1);
+  process.stdout.write(path);
+' "$release")"
+[ -n "$object_child" ] && [ ! -e "$object_child" ]
+echo 'actual ordinary secret loader admits volatile object-reader copy without database credentials: PASS'
+
+install -d -m 0700 "$TMPDIR/target-work"
+printf '%s' 'postgresql:///scratch?host=/run/public-fixture&user=fixture' > "$TMPDIR/target-work/target-url"
+chmod 600 "$TMPDIR/target-work/target-url"
+[ "$(kf_read_restore_target_file "$TMPDIR/target-work/target-url")" = 'postgresql:///scratch?host=/run/public-fixture&user=fixture' ]
+if kf_read_restore_target_file "$CREDENTIALS_DIRECTORY/database-url" >/dev/null; then
+  echo 'native ledger file was incorrectly admitted as the scratch target' >&2; exit 1
+fi
+chmod 755 "$TMPDIR/target-work"
+if kf_read_restore_target_file "$TMPDIR/target-work/target-url" >/dev/null; then
+  echo 'widened target parent was incorrectly admitted' >&2; exit 1
+fi
+chmod 700 "$TMPDIR/target-work"
+ln "$TMPDIR/target-work/target-url" "$TMPDIR/target-work/linked"
+if kf_read_restore_target_file "$TMPDIR/target-work/target-url" >/dev/null; then
+  echo 'linked target was incorrectly admitted' >&2; exit 1
+fi
+rm -f "$TMPDIR/target-work/linked"
+
+parent_passwords="$PGPASSFILE"
+env -u PGPASSFILE -u KF_PGPASS_OWNED /usr/bin/bash -c '
+  set -euo pipefail
+  . "$1/scripts/lib/secret.sh"
+  . "$1/scripts/lib/preservation-secrets.sh"
+  [ "$PGPASSFILE" != "$2" ] && [ -e "$2" ]
+  ledger="$(kf_read_restore_ledger_file "$CREDENTIALS_DIRECTORY/database-url")"
+  ledger="$(kf_pgpass_url "$ledger")"
+  [[ "$ledger" != *public-fixture-password* ]]
+  [ "$(kf_read_restore_target_file "$TMPDIR/target-work/target-url")" = "postgresql:///scratch?host=/run/public-fixture&user=fixture" ]
+' fixture "$release" "$parent_passwords"
+[ -e "$parent_passwords" ]
+echo 'fresh child password lifecycle and strict runtime-target/native-ledger separation: PASS'
 
 # The actual cleanup dispatcher must remove a nested invocation's password file.
 cleaned="$(env -u PGPASSFILE -u KF_PGPASS_OWNED /usr/bin/bash -c \

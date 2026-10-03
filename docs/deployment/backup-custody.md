@@ -89,14 +89,49 @@ owner-only signing-copy metadata, success/failure cleanup, and refusal of a dril
 work root outside the runtime directory. It does not import a real recovery key,
 sign a backup, access a database or install a production credential.
 
+### Database and object-reader child handoff
+
+The same adapter now exposes `kf_preservation_database_child` and
+`kf_preservation_object_child`. Native `database-url` and
+`s3-secret-access-key` inputs are admitted by their exact purpose, then copied
+as raw bytes to service-owned mode `0400` files in the private, unswapped tmpfs
+runtime directory. Both are bounded to 1–8,192 bytes; the actual consumer still
+parses the contents. Children receive explicit file inputs, not inherited
+inline values or the parent's password file. The ordinary Node secret loader
+retains its owner-only contract. Owned copies are removed after success or
+failure, and the child exit status is preserved. Ordinary standalone database
+callers without a file retain their existing sanitized URL/password-file mode;
+explicit systemd custody never falls back to that mode.
+
+The restore verifier uses its scratch `target-url` for both re-export and
+checkpoint verification, even if its environment names a production database
+file. Under systemd that target must be a canonical, single-linked, owner-only
+file under the service's private runtime directory, with private intermediate
+directories. It is not admitted as a native ledger credential. Conversely,
+the ledger requires the named native `database-url`. The drill starts the
+verifier without the parent's password-file variables, so the verifier owns
+and cleans up a fresh password file. The built-in object reader gets its own
+admitted volatile input; the separately pinned external verifier is unchanged.
+
+The public PID 1 proof exposed another cleanup defect: registering an exit hook
+inside command substitution inherited the parent's hook list and deleted the
+parent's password file. Hook registration and owned-copy cleanup now track
+`BASHPID`, not `$$`, and refuse ownership of another shell process's resources.
+The direct regression failed before the fix. The corrected focused set passed
+71 tests across seven files; 14 real PostgreSQL backup/restore tests also passed,
+including exact re-export with an inherited production file. The extended
+native proof uses the actual built ordinary secret loader and checks copy
+metadata, failure cleanup, purpose/size refusals and fresh child password
+lifecycle. Its first failing run is retained. An initial real-database test run
+also refused a user-owned verifier fixture in production mode; the fixture now
+explicitly uses test mode, without weakening the production verifier guard.
+
 This is not complete consumer activation. The installed backup/offsite/drill
-units still require separate database/signing/recovery delivery, explicit
-`LoadCredential` and runtime-directory drop-ins. The nested restore verifier
-also needs an explicit password-file/ordinary working-file handoff, and its
-object-store read credential needs delivery that preserves its own file
-contract. Do not set systemd custody on those old units and infer that the
-whole drill can run. Preserve and demonstrate the 91-migration baseline recovery
-before using the candidate's 153-migration backup/export paths.
+units still require separate database/signing/recovery/object-reader delivery,
+explicit `LoadCredential` and runtime-directory drop-ins. Do not set systemd
+custody on those old units and infer that the whole drill can run. Preserve and
+demonstrate the 91-migration baseline recovery before using the candidate's
+153-migration backup/export paths.
 
 The separate-drive `/mnt/2tb/kf-preservation` is a replica on the same
 workstation. It remains useful but does not become off-site because B2 has now

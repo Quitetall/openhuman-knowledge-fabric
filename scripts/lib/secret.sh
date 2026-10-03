@@ -108,14 +108,23 @@ kf_resolve_database_url() {
 # One shared file for the whole script, so a script that connects to two databases — the
 # restore drill talks to production and to a scratch target — gets both.
 
-# One trap, many hooks.
+# One trap per Bash process, many hooks.
 #
 # `trap ... EXIT` REPLACES whatever was registered before it, so a script that sets its own
 # exit trap after sourcing this file would silently discard the one that removes the password
 # file. Hooks accumulate here instead, and every registration re-installs the same dispatcher.
 KF_EXIT_HOOKS=""
+KF_EXIT_OWNER_PID="$BASHPID"
 
 kf_at_exit() {
+  # A command substitution/pipeline inherits shell variables but not ownership
+  # of the parent's resources. Registering a child hook must not reinstall the
+  # parent's password/key cleanup in that child. $$ does not distinguish these
+  # shells; BASHPID does.
+  if [ "$KF_EXIT_OWNER_PID" != "$BASHPID" ]; then
+    KF_EXIT_HOOKS=""
+    KF_EXIT_OWNER_PID="$BASHPID"
+  fi
   KF_EXIT_HOOKS="${KF_EXIT_HOOKS}${KF_EXIT_HOOKS:+; }$1"
   # shellcheck disable=SC2064  # expanded now on purpose: the hook list is read at exit.
   trap 'eval "$KF_EXIT_HOOKS"' EXIT INT TERM

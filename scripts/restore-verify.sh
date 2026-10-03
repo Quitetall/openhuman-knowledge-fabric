@@ -32,6 +32,9 @@
 # KF_RESTORE_DRILL_NOTES      recorded in ops.restore_drill.notes — which copy was restored.
 
 set -euo pipefail
+set +x
+set +v
+ulimit -c 0
 
 RESTORE_STARTED_EPOCH="$(date +%s)"
 
@@ -43,11 +46,13 @@ LEDGER_URL_FILE="${3:-}"
 
 # shellcheck source=lib/secret.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/secret.sh"
+# shellcheck source=lib/preservation-secrets.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/preservation-secrets.sh"
 kf_configure_postgres_client
-TARGET="$(kf_read_secret_file "$TARGET_URL_FILE" TARGET_DATABASE_URL_FILE)"
+TARGET="$(kf_read_restore_target_file "$TARGET_URL_FILE")"
 LEDGER=""
 if [ -n "$LEDGER_URL_FILE" ]; then
-  LEDGER="$(kf_read_secret_file "$LEDGER_URL_FILE" LEDGER_DATABASE_URL_FILE)"
+  LEDGER="$(kf_read_restore_ledger_file "$LEDGER_URL_FILE")"
 fi
 
 # Both connection strings, so neither password reaches argv where every account on this host
@@ -141,7 +146,8 @@ if [ -d "$ARCHIVED_CHECKPOINT_KEYS" ]; then
   # The package signature was checked above, before these historical keys are trusted or used.
   REEXPORT_ARGS+=(--checkpoint-public-key-dir "$ARCHIVED_CHECKPOINT_KEYS")
 fi
-DATABASE_URL="$TARGET" node "$ROOT/packages/export/dist/cli.js" "${REEXPORT_ARGS[@]}"
+kf_preservation_database_child "$TARGET_URL_FILE" \
+  node "$ROOT/packages/export/dist/cli.js" "${REEXPORT_ARGS[@]}"
 node "$ROOT/packages/export/dist/cli.js" verify "$WORK/export" \
   --trust-store "$REEXPORT_TRUST_DIR"
 
@@ -172,23 +178,23 @@ CHECKPOINT_PROOF="$WORK/checkpoint-proof.txt"
 if [ -d "$ARCHIVED_CHECKPOINT_KEYS" ]; then
   # Authenticated archive wins over ambient host configuration: it is the exact historical
   # key set carried by this backup, and it was verified before the restore began.
-  DATABASE_URL="$TARGET" CHECKPOINT_PUBLIC_KEY_DIR="$ARCHIVED_CHECKPOINT_KEYS" \
+  CHECKPOINT_PUBLIC_KEY_DIR="$ARCHIVED_CHECKPOINT_KEYS" \
     CHECKPOINT_PUBLIC_KEY_PATH= CHECKPOINT_SIGNING_KEY_PATH= \
-    node "$ROOT/apps/checkpoint/dist/main.js" --verify 2>&1 | tee "$CHECKPOINT_PROOF"
+    kf_preservation_database_child "$TARGET_URL_FILE" node "$ROOT/apps/checkpoint/dist/main.js" --verify 2>&1 | tee "$CHECKPOINT_PROOF"
   find "$ARCHIVED_CHECKPOINT_KEYS" -type f -print0 | LC_ALL=C sort -z \
     | xargs -0 sha256sum >> "$CHECKPOINT_PROOF"
   CHECKPOINT_VERIFIED=true
   CHECKPOINT_PROOF_SHA256="$(sha256sum "$CHECKPOINT_PROOF" | cut -d' ' -f1)"
 elif [ -n "${CHECKPOINT_PUBLIC_KEY_DIR:-}" ]; then
-  DATABASE_URL="$TARGET" CHECKPOINT_SIGNING_KEY_PATH= \
-    node "$ROOT/apps/checkpoint/dist/main.js" --verify 2>&1 | tee "$CHECKPOINT_PROOF"
+  CHECKPOINT_SIGNING_KEY_PATH= \
+    kf_preservation_database_child "$TARGET_URL_FILE" node "$ROOT/apps/checkpoint/dist/main.js" --verify 2>&1 | tee "$CHECKPOINT_PROOF"
   find "$CHECKPOINT_PUBLIC_KEY_DIR" -type f -print0 | LC_ALL=C sort -z \
     | xargs -0 sha256sum >> "$CHECKPOINT_PROOF"
   CHECKPOINT_VERIFIED=true
   CHECKPOINT_PROOF_SHA256="$(sha256sum "$CHECKPOINT_PROOF" | cut -d' ' -f1)"
 elif [ -n "${CHECKPOINT_PUBLIC_KEY_PATH:-}" ]; then
-  DATABASE_URL="$TARGET" CHECKPOINT_SIGNING_KEY_PATH= \
-    node "$ROOT/apps/checkpoint/dist/main.js" --verify 2>&1 | tee "$CHECKPOINT_PROOF"
+  CHECKPOINT_SIGNING_KEY_PATH= \
+    kf_preservation_database_child "$TARGET_URL_FILE" node "$ROOT/apps/checkpoint/dist/main.js" --verify 2>&1 | tee "$CHECKPOINT_PROOF"
   sha256sum "$CHECKPOINT_PUBLIC_KEY_PATH" >> "$CHECKPOINT_PROOF"
   CHECKPOINT_VERIFIED=true
   CHECKPOINT_PROOF_SHA256="$(sha256sum "$CHECKPOINT_PROOF" | cut -d' ' -f1)"
@@ -209,6 +215,7 @@ OBJECT_STORE_PROOF="$WORK/object-store-proof.jsonl"
 # and digest-pin its own before a drill could come out `verified` — and one that had not
 # recorded every drill `partial`, forever, with nothing to say what was missing.
 VERIFY_COMMAND=()
+VERIFY_BUILTIN=false
 BUILTIN_VERIFIER="$ROOT/apps/kf-storage/dist/verify-object-store.js"
 if [ -n "${KF_OBJECT_STORE_VERIFY_PROGRAM:-}" ]; then
   if [[ "$KF_OBJECT_STORE_VERIFY_PROGRAM" != /* ]] ||
@@ -251,6 +258,7 @@ elif [ -n "${S3_ENDPOINT:-}" ]; then
     exit 1
   fi
   VERIFY_COMMAND=(node "$BUILTIN_VERIFIER")
+  VERIFY_BUILTIN=true
   PROOF_REF="${KF_OBJECT_STORE_PROOF_REF:-kf-builtin-verifier:${S3_BUCKET_ARTIFACTS:-}}"
 fi
 
@@ -270,7 +278,15 @@ if [ "${#VERIFY_COMMAND[@]}" -gt 0 ]; then
   # A nonzero exit never counts as verified, whatever the proof says; the proof is still
   # checked so the output names which objects could not be measured.
   VERIFIER_EXITED_CLEANLY=true
-  if ! "${VERIFY_COMMAND[@]}" "$OBJECT_STORE_REQUEST" "$OBJECT_STORE_PROOF"; then
+  run_object_verifier() {
+    if [ "$VERIFY_BUILTIN" = true ]; then
+      kf_preservation_object_child "${S3_SECRET_ACCESS_KEY_FILE:-}" \
+        "${VERIFY_COMMAND[@]}" "$OBJECT_STORE_REQUEST" "$OBJECT_STORE_PROOF"
+    else
+      "${VERIFY_COMMAND[@]}" "$OBJECT_STORE_REQUEST" "$OBJECT_STORE_PROOF"
+    fi
+  }
+  if ! run_object_verifier; then
     VERIFIER_EXITED_CLEANLY=false
     echo "object-store verifier exited nonzero; object bytes are NOT verified" >&2
   fi

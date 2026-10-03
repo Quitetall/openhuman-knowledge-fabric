@@ -217,8 +217,18 @@ printf '%s\n' "$DATABASE_URL" > "$RESTORE_LEDGER_URL_FILE"
 echo "==> restoring and verifying ($NOTES)"
 # The ledger knows this backup by the location backup.sh recorded, not by wherever the pulled
 # copy was unpacked, so that is what the drill row is filed under.
-KF_RESTORE_LEDGER_LOCATION="$LOCATION" KF_RESTORE_DRILL_NOTES="$NOTES" \
-  "$ROOT/scripts/restore-verify.sh" \
-  "$RESTORE_SOURCE" "$RESTORE_TARGET_URL_FILE" "$RESTORE_LEDGER_URL_FILE"
+restore_verifier() {
+  if [ "${KF_SECRET_CUSTODY:-}" = systemd ]; then
+    # The verifier owns a fresh password file. Its ledger credential is the
+    # original PID 1 input, not our password-free working URL or password file.
+    env -u PGPASSFILE -u KF_PGPASS_OWNED \
+      "$ROOT/scripts/restore-verify.sh" \
+      "$RESTORE_SOURCE" "$RESTORE_TARGET_URL_FILE" "$DATABASE_URL_FILE"
+  else
+    "$ROOT/scripts/restore-verify.sh" \
+      "$RESTORE_SOURCE" "$RESTORE_TARGET_URL_FILE" "$RESTORE_LEDGER_URL_FILE"
+  fi
+}
+KF_RESTORE_LEDGER_LOCATION="$LOCATION" KF_RESTORE_DRILL_NOTES="$NOTES" restore_verifier
 
 echo "==> drill complete from $BACKUP_ROOT ($NOTES)"
