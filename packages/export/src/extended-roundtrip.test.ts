@@ -1937,9 +1937,27 @@ describe('extended preservation coverage', () => {
 
       const restored = await startHarness();
       try {
+        // Canonical records may move across software releases. Keep the target's
+        // migration history rather than overwriting it with the source ledger.
+        const targetLedger = await withTransaction(restored.adminPool, async (tx) => {
+          await tx.query(
+            "insert into public.schema_migrations (version) values ('20990101000000')",
+          );
+          return tx.query<{ version: string }>(
+            'select version from public.schema_migrations order by version',
+          );
+        });
         await withTransaction(restored.adminPool, async (tx) =>
           importExport(tx, first, PRESERVATION_VERIFICATION),
         );
+        expect(
+          await withTransaction(restored.adminPool, (tx) =>
+            tx.query<{ version: string }>(
+              'select version from public.schema_migrations order by version',
+            ),
+          ),
+          'canonical import must preserve the target migration ledger',
+        ).toEqual(targetLedger);
         const holderCycle = await withTransaction(restored.adminPool, (tx) =>
           tx.one<{ subjects: number; exact_links: number }>(
             `select count(*)::integer as subjects,

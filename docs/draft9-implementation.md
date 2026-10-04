@@ -937,3 +937,63 @@ Production remains on `637677e2c5e1` at 91 migrations with its original running
 services. Fresh gating/sealing, candidate-schema recovery, independent copies,
 Bitwarden recovery, B2 access, guarded promotion, commissioning and final
 qualification remain open.
+
+## Real backup producer exposed a missing migration-ledger grant — 2026-10-04
+
+The sealed `8ffa16f5` candidate passed its retained-baseline upgrade, but its
+packaged backup producer did not pass. Under the actual `kf-backup` OS identity
+and an isolated non-superuser, non-BYPASSRLS backup login, `pg_dump` refused
+`public.schema_migrations`. The clone retained the original owner-only dbmate
+table; the previous test harness applied SQL without creating that table, so
+its all-table backup-access check never examined it.
+
+The harness now creates dbmate's migration ledger and records each applied
+version in the same transaction as its SQL. The backup test failed specifically
+on the missing `public.schema_migrations` privilege before the fix.
+Migration `20261004000100` grants only SELECT to `kf_backup`, with an explicit
+REVOKE in its down section. It changes no ownership, migration history or write
+permission. The test also requires the operational dump to retain the ledger,
+compares its restored version rows, and proves the backup login cannot DELETE.
+All fourteen real PostgreSQL backup/restore tests then passed.
+
+The complete suite then reported two related gaps (321 files passed, two failed):
+the separate fresh-install model also omitted dbmate's table, and the closed
+canonical preservation inventory had not classified it. The fresh-install model
+now records each version atomically, and a separate bare-container test invokes
+the actual dbmate executable with no application schema pre-created. The grant's
+down/up probe proves read access is reversible, while the real runner proves
+there is no backup write privilege and that a second install changes no history.
+
+Canonical export explicitly excludes only `public.schema_migrations`, not its
+whole schema: software versions belong to the already migrated import target.
+Operational dumps still retain the source ledger for same-release recovery.
+The extended round-trip test gives the target a distinct test-only version and
+proves canonical import leaves that ledger unchanged. All fifteen focused
+fresh-install, extended-preservation and transient-observation tests passed.
+
+The corrected complete suite passed 323 files and 3,315 tests, with four files
+and 25 tests skipped. The full gate then stopped at its generated-drift check:
+`measurements:build` correctly changed the migration count from 153 to 154.
+That generated output must accompany the migration; this stopped gate is not
+a successful sealed build. Fresh exact-commit gating and packaging remain required.
+
+The isolated producer attempts also measured a workspace issue: the VM's `/run`
+tmpfs was smaller than the backup's unchanged default free-space reserve.
+A private 2 GiB tmpfs nested under the service runtime exposed the required
+capacity; mounting it at the runtime root was hidden by systemd's directory
+binding. A public, key-free native probe demonstrated both layouts. The nested
+layout passed the space gate and exposed the actual table-permission failure.
+No reserve, custody guard or backup completeness requirement was relaxed.
+
+The VM has no checkpoint public-key set. Deployed-profile backup correctly
+refuses that absence; the producer exploration explicitly used development
+mode and establishes neither deployed backup commissioning nor a full restore.
+No replacement historical key, checkpoint, approval or production backup record
+was fabricated. All three owned clone attempts stopped, and their temporary
+credential copies were removed while shared generations were preserved.
+
+This new migration changes the candidate migration set. The earlier sealed
+153-migration release and receipt are retained evidence, not authority to promote
+these changed sources. Full repository verification, a fresh sealed release and
+authenticated rehearsal, the real-role producer/restore rerun, checkpoint trust,
+B2 delivery, independent key recovery, hosting and final qualification remain open.

@@ -157,6 +157,9 @@ export async function startHarness(options: HarnessOptions = {}): Promise<Harnes
 
   await withTransaction(adminPool, async (tx) => {
     await tx.query('create extension if not exists btree_gist');
+    // dbmate creates its owner-only ledger before applying SQL. Omitting it hid
+    // deployed backup failures on a table the test database never contained.
+    await tx.query('create table public.schema_migrations (version varchar primary key)');
   });
 
   for (const file of readdirSync(MIGRATIONS)
@@ -168,6 +171,9 @@ export async function startHarness(options: HarnessOptions = {}): Promise<Harnes
     // half-applied is far worse to diagnose than one that fails atomically.
     await withTransaction(adminPool, async (tx) => {
       await tx.query(sql);
+      await tx.query('insert into public.schema_migrations (version) values ($1)', [
+        file.split('_')[0]!,
+      ]);
     });
   }
 

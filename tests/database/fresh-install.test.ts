@@ -8,9 +8,11 @@
  *
  * A dependency satisfied by every harness except the real one is the kind that gets
  * discovered during an install, by whoever is least equipped to diagnose it. This test is a
- * bare container and the migration directory, and nothing else.
+ * bare container and the migration directory, with dbmate's bookkeeping modelled for the
+ * per-migration probes. A separate test invokes dbmate itself on a bare database.
  */
 
+import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
@@ -44,7 +46,7 @@ afterAll(async () => {
 });
 
 describe('a completely fresh database', () => {
-  it('applies every migration with NOTHING pre-created', async () => {
+  it('applies every migration with no application schema pre-created', async () => {
     container = await new PostgreSqlContainer('postgres:18-alpine')
       .withDatabase('fresh_install')
       .withUsername('kf_owner')
@@ -53,7 +55,11 @@ describe('a completely fresh database', () => {
       .start();
     pool = createPool({ connectionString: container.getConnectionUri(), maxConnections: 2 });
 
-    // No `create extension`, no seed, no fixtures. Exactly what an operator gets.
+    // No extensions, seed or application fixtures. Only dbmate's own bookkeeping,
+    // which the migration runner creates before executing the first migration.
+    await withTransaction(pool, (tx) =>
+      tx.query('create table public.schema_migrations (version varchar primary key)'),
+    );
     const applied: string[] = [];
     const legacyCompilerRegistrationId = '01900000-0000-7000-8000-000000000050';
     for (const file of readdirSync(MIGRATIONS)
@@ -199,6 +205,9 @@ describe('a completely fresh database', () => {
       }
       await withTransaction(pool, async (tx) => {
         await tx.query(sql);
+        await tx.query('insert into public.schema_migrations (version) values ($1)', [
+          file.split('_')[0]!,
+        ]);
       });
       if (file === '20260814000100_document_compiler.sql') {
         const migration = readFileSync(join(MIGRATIONS, file), 'utf8');
@@ -633,9 +642,29 @@ describe('a completely fresh database', () => {
         await withTransaction(pool, (tx) => tx.query(upSection(migration)));
         expect(await schemaContract()).toEqual(converged);
       }
+      if (file === '20261004000100_the_backup_reads_its_migration_ledger.sql') {
+        const migration = readFileSync(join(MIGRATIONS, file), 'utf8');
+        await withTransaction(pool, async (tx) => {
+          await tx.query(downSection(migration));
+          const revoked = await tx.one<{ reads: boolean }>(
+            "select has_table_privilege('kf_backup', 'public.schema_migrations', 'SELECT') as reads",
+          );
+          expect(revoked.reads).toBe(false);
+          await tx.query(upSection(migration));
+          const reapplied = await tx.one<{ reads: boolean }>(
+            "select has_table_privilege('kf_backup', 'public.schema_migrations', 'SELECT') as reads",
+          );
+          expect(reapplied.reads).toBe(true);
+        });
+      }
       applied.push(file);
     }
-    expect(applied.length).toBeGreaterThan(15);
+    const ledger = await withTransaction(pool, (tx) =>
+      tx.query<{ version: string }>(
+        'select version from public.schema_migrations order by version',
+      ),
+    );
+    expect(ledger.map((row) => row.version)).toEqual(applied.map((file) => file.split('_')[0]!));
   }, 300_000);
 
   it('uses the builtin C.UTF-8 locale contract', async () => {
@@ -962,4 +991,67 @@ describe('a completely fresh database', () => {
     );
     expect(bornEarlier.same).toBe(false);
   });
+});
+
+describe('the real migration runner', () => {
+  it('installs on a bare database with read-only backup access to its own ledger', async () => {
+    const database = await new PostgreSqlContainer('postgres:18-alpine')
+      .withDatabase('dbmate_install')
+      .withUsername('kf_owner')
+      .withPassword('test-only-not-a-secret')
+      .withEnvironment({ POSTGRES_INITDB_ARGS })
+      .start();
+    const adminPool = createPool({
+      connectionString: database.getConnectionUri(),
+      maxConnections: 2,
+    });
+    // Only this isolated container lacks TLS; never inherit a workstation database URL.
+    const databaseUrl = new URL(database.getConnectionUri());
+    databaseUrl.searchParams.set('sslmode', 'disable');
+    const runDbmate = (): void => {
+      execFileSync(
+        join(ROOT, 'node_modules', '.bin', 'dbmate'),
+        ['--env-file', '/dev/null', '--migrations-dir', MIGRATIONS, '--no-dump-schema', 'up'],
+        {
+          cwd: ROOT,
+          env: { PATH: process.env.PATH, DATABASE_URL: databaseUrl.toString() },
+          timeout: 60_000,
+          stdio: 'pipe',
+        },
+      );
+    };
+    const versions = readdirSync(MIGRATIONS)
+      .filter((file) => file.endsWith('.sql'))
+      .sort()
+      .map((file) => file.split('_')[0]!);
+    const ledgerState = () =>
+      withTransaction(adminPool, async (tx) => ({
+        versions: (
+          await tx.query<{ version: string }>(
+            'select version from public.schema_migrations order by version',
+          )
+        ).map((row) => row.version),
+        privileges: await tx.one<{ reads: boolean; writes: boolean }>(
+          `select has_table_privilege('kf_backup', 'public.schema_migrations', 'SELECT') as reads,
+                  has_table_privilege('kf_backup', 'public.schema_migrations',
+                    'INSERT, UPDATE, DELETE, TRUNCATE') as writes`,
+        ),
+      }));
+    try {
+      // Unlike the modelled per-migration probes above, dbmate creates everything here.
+      runDbmate();
+      expect(await ledgerState()).toEqual({
+        versions,
+        privileges: { reads: true, writes: false },
+      });
+      runDbmate();
+      expect(await ledgerState()).toEqual({
+        versions,
+        privileges: { reads: true, writes: false },
+      });
+    } finally {
+      await adminPool.end();
+      await database.stop();
+    }
+  }, 180_000);
 });

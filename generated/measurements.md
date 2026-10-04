@@ -12,7 +12,7 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 
 | Measure | Count | Derived from |
 | --- | ---: | --- |
-| migrations | 153 | files under `database/migrations/` |
+| migrations | 154 | files under `database/migrations/` |
 | forward-only migrations | 30 | migrations declaring `-- kf:forward-only <reason>` in their down-section |
 | schemas | 14 | distinct `create schema` names in migration up-sections |
 | tables created | 196 | in migration up-sections |

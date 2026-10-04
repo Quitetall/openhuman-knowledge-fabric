@@ -762,6 +762,7 @@ describe('backup as the backup login', () => {
     // The derived index is in it: nothing in the restore path rebuilds it.
     expect(listing).toMatch(/TABLE DATA search document/);
     expect(listing).toMatch(/TABLE DATA graphile_worker _private_jobs/);
+    expect(listing).toMatch(/TABLE DATA public schema_migrations/);
 
     const queueTarget = await emptyDatabase();
     const queueRestore = runRestore(destination, queueTarget);
@@ -776,6 +777,17 @@ describe('backup as the backup login', () => {
         ),
       );
       expect(restoredQueue).toEqual([{ payload: { reference: 'test-only' } }]);
+      const originalMigrations = await withTransaction(h.adminPool, (tx) =>
+        tx.query<{ version: string }>(
+          'select version from public.schema_migrations order by version',
+        ),
+      );
+      const restoredMigrations = await withTransaction(queueRestoredPool, (tx) =>
+        tx.query<{ version: string }>(
+          'select version from public.schema_migrations order by version',
+        ),
+      );
+      expect(restoredMigrations).toEqual(originalMigrations);
     } finally {
       await queueRestoredPool.end();
     }
@@ -785,6 +797,11 @@ describe('backup as the backup login', () => {
     // keep its rows past their window.
     const backupPool = createPool({ connectionString: url.toString(), maxConnections: 1 });
     try {
+      await expect(
+        withTransaction(backupPool, (tx) =>
+          tx.query('delete from public.schema_migrations where false'),
+        ),
+      ).rejects.toThrow(/permission denied/);
       for (const table of excluded) {
         await expect(
           withTransaction(backupPool, (tx) => tx.query(`select 1 from ${table} limit 1`)),

@@ -26,7 +26,7 @@ const ROOT = join(import.meta.dirname, '..', '..');
 const MIGRATIONS = join(ROOT, 'database', 'migrations');
 const SAS = join(ROOT, 'docs', 'sas', 'KF_Software_Architecture_Specification.md');
 
-/** Schemas PostgreSQL or its extensions own. `public` holds the extensions' functions only. */
+/** System schemas; `public` holds extension functions and dbmate's operational version ledger. */
 const SYSTEM_SCHEMA = `n.nspname not in ('pg_catalog', 'information_schema', 'public')
                        and n.nspname !~ '^pg_'`;
 

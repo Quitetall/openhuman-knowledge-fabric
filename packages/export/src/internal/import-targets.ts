@@ -170,6 +170,10 @@ export const IMPORT_TARGETS: Readonly<Record<string, string>> = PRESERVATION_IMP
 
 /** Tables intentionally reconstructed or discarded rather than imported as authority. */
 export const PRESERVATION_TABLE_EXCLUSIONS = {
+  'public.schema_migrations':
+    'deployment-local dbmate version ledger: canonical import targets an already migrated ' +
+    'database and retains its own software versions; the operational PostgreSQL dump carries ' +
+    'the source ledger for same-release recovery',
   'registry.*': 'deterministic ontology seed carried in ontology/registry.json',
   'search.document': 'derived search projection rebuilt from authoritative records',
   'retrieval.band_version':
