@@ -3,14 +3,27 @@ import { lstat, readdir, readFile, stat } from 'node:fs/promises';
 import type { CommissioningCheckFn, CommissioningInputs } from './contracts.js';
 import { readUnitCompositions, reviewedDropIns, type UnitFragment } from './unit-composition.js';
 import { commissioningDirectives } from './unit-directives.js';
+import { observeSecretFile, secretAccounts, secretFileVerdict } from './secret-files.js';
+import {
+  observePublicConfiguration,
+  publicConfigurationCatalog,
+  publicConfigurationRole,
+  publicConfigurationVerdict,
+} from './public-configuration.js';
 
 /** One systemd unit, reduced to the directives commissioning cares about. */
 export interface UnitFacts {
   readonly name: string;
   readonly user: string | null;
   readonly onFailure: string | null;
-  /** Absolute paths this unit names as `EnvironmentFile=` or as a `*_FILE=`/`*_PATH=` value. */
+  /** Secret candidates, excluding only enumerated public EnvironmentFiles and the API projection. */
   readonly secretPaths: readonly string[];
+  readonly secretSources: readonly {
+    readonly path: string;
+    readonly kind: 'direct' | 'pid1-source' | 'encrypted-pid1-source';
+    readonly credential?: string;
+  }[];
+  readonly publicConfigurationPaths: readonly string[];
   readonly digest: string;
   /** Exact base bytes and selected drop-ins, present when read from a declared directory. */
   readonly baseDigest?: string;
@@ -58,17 +71,43 @@ export function parseUnit(name: string, text: string): UnitFacts {
   let user: string | null = null;
   let onFailure: string | null = null;
   const secretPaths = new Set<string>();
+  const secretSources: UnitFacts['secretSources'][number][] = [];
+  const publicConfigurationPaths = new Set<string>();
+  const addSecret = (
+    path: string,
+    kind: UnitFacts['secretSources'][number]['kind'] = 'direct',
+    credential?: string,
+  ) => {
+    secretPaths.add(path);
+    if (
+      !secretSources.some(
+        (source) =>
+          source.path === path && source.kind === kind && source.credential === credential,
+      )
+    ) {
+      secretSources.push({ path, kind, ...(credential === undefined ? {} : { credential }) });
+    }
+  };
 
   for (const [key, value] of commissioningDirectives(text)) {
     if (key === 'User') user = value;
     else if (key === 'OnFailure') onFailure = [onFailure, value].filter(Boolean).join(' ');
-    else if (key === 'EnvironmentFile') secretPaths.add(value.replace(/^-/, ''));
+    else if (key === 'EnvironmentFile') {
+      const path = value.replace(/^-/, '');
+      if (publicConfigurationRole(name, path) !== null) publicConfigurationPaths.add(path);
+      else addSecret(path);
+    }
     // `LoadCredentialEncrypted=<id>:<path>` names a credential only its own unit receives —
     // the restore drill's backup-decryption key. Counted as a secret so that two units sharing
     // a uid, only one of which names it, show up as the surplus they are.
     else if (key === 'LoadCredentialEncrypted' || key === 'LoadCredential') {
       const path = value.slice(value.indexOf(':') + 1);
-      if (value.includes(':') && path.startsWith('/')) secretPaths.add(path);
+      if (value.includes(':') && path.startsWith('/'))
+        addSecret(
+          path,
+          key === 'LoadCredential' ? 'pid1-source' : 'encrypted-pid1-source',
+          value.slice(0, value.indexOf(':')),
+        );
     }
     // `Environment=`, `ExecStart=` and `ExecStartPre=` all carry `*_FILE=` assignments in the
     // shipped units, because the deployment passes secrets as paths rather than as values.
@@ -78,11 +117,18 @@ export function parseUnit(name: string, text: string): UnitFacts {
       const [, name, path] = match;
       if (name === undefined || path === undefined) continue;
       if (NOT_A_SECRET.test(name)) continue;
-      secretPaths.add(path);
+      addSecret(path);
     }
     for (const match of value.matchAll(SECRET_PRESENCE_TEST)) {
       const path = match[1];
-      if (path !== undefined) secretPaths.add(path);
+      if (
+        path !== undefined &&
+        !(
+          name === 'kf-api.service' &&
+          path === '/opt/kf/generated/projections/knowledge-fabric.projections.json'
+        )
+      )
+        addSecret(path);
     }
   }
 
@@ -91,6 +137,8 @@ export function parseUnit(name: string, text: string): UnitFacts {
     user,
     onFailure,
     secretPaths: [...secretPaths].sort(),
+    secretSources,
+    publicConfigurationPaths: [...publicConfigurationPaths].sort(),
     digest: createHash('sha256').update(text).digest('hex'),
   };
 }
@@ -336,7 +384,7 @@ async function readerIndex(
 }
 
 /**
- * Every secret a unit names is a file no identity but that unit's own can read.
+ * Point-in-time file metadata and local account-file posture, not consumer delivery.
  *
  * The deployment passes secrets as PATHS rather than values on purpose — an environment
  * variable is readable from `/proc/<pid>/environ` by anything running as the same user. That
@@ -354,8 +402,10 @@ async function readerIndex(
  * `0600 kf-api:kf-api`, because root owning it means the service cannot rewrite its own
  * configuration, and the group holds exactly the one identity that reads it.
  *
- * So group-read is permitted when every reader of that group is the unit's own `User=`, and
- * refused otherwise. World-read is still refused unconditionally — no argument reaches it.
+ * Ownership and effective numeric POSIX ACL access are checked too. Root is an explicit
+ * trusted host custodian; UID aliases are preserved. Unencrypted PID1 sources require root
+ * custody, not service ownership. Public native EnvironmentFiles have a separate closed
+ * content contract. This does not prove live credentials, NSS identities or future path custody.
  * Adding a second member to `kf-api` makes these files fail again, which is the property that
  * was actually wanted all along.
  */
@@ -376,6 +426,11 @@ export const secretPosture: CommissioningCheckFn = async (inputs: CommissioningI
   }
 
   const referenced = [...new Set(installed.flatMap((unit) => unit.secretPaths))].sort();
+  if (referenced.length > 256)
+    return {
+      status: 'unverifiable',
+      detail: 'Secret-source inventory exceeds the bounded commissioning scope.',
+    };
   if (referenced.length === 0) {
     return {
       status: 'unverifiable',
@@ -404,67 +459,89 @@ export const secretPosture: CommissioningCheckFn = async (inputs: CommissioningI
     }
   }
 
-  // Read /etc/group and /etc/passwd ONCE. Five of the eighteen secret paths on a real host are
-  // group-readable, so the previous shape re-read both files five times to answer five
-  // questions about the same unchanging tables.
-  const readersByGid = await readerIndex(inputs);
-
+  let accounts;
+  try {
+    accounts = await secretAccounts(inputs);
+  } catch {
+    return {
+      status: 'unverifiable',
+      detail: 'Local account identities could not be established; no file posture is claimed.',
+    };
+  }
   const absent: string[] = [];
   const exposed: string[] = [];
+  const observer = inputs.secretFileObservation ?? observeSecretFile;
   for (const path of referenced) {
     try {
-      const info = await stat(path);
-      if (!info.isFile()) {
-        absent.push(`${path} (not a regular file)`);
-        continue;
-      }
-      const mode = (info.mode & 0o777).toString(8).padStart(3, '0');
-      // World first, and unconditionally. Nothing about which service owns a file makes it
-      // acceptable for every account on the host to read it.
-      if ((info.mode & 0o007) !== 0) {
-        exposed.push(`${path} (mode ${mode}, world-readable)`);
-        continue;
-      }
-      if ((info.mode & 0o070) !== 0) {
-        const readers = readersByGid.get(info.gid) ?? [];
-        // A unit with no `User=` runs as root and contributes no entitled identity, so every
-        // group reader of its secrets reads as extra and the check fails. That is the right
-        // direction to be wrong in — a root service whose secret is group-readable is a real
-        // finding — and all eleven shipped units declare `User=`, so it is latent rather than
-        // live. Left fail-closed deliberately.
-        const allowed = entitled.get(path) ?? new Set<string>();
-        const extra = readers.filter((reader) => !allowed.has(reader));
-        if (extra.length > 0) {
-          exposed.push(`${path} (mode ${mode}, also readable by ${extra.join(', ')})`);
-        }
-      }
-    } catch (error: unknown) {
-      absent.push(`${path} (${message(error)})`);
+      // Unencrypted LoadCredential sources belong to the trusted PID1 custodian, not the
+      // service's volatile credential mount. Neither this nor mode 0400 proves delivery.
+      const pid1Only = installed
+        .flatMap((unit) => unit.secretSources)
+        .filter((source) => source.path === path)
+        .every((source) => source.kind === 'pid1-source');
+      const result = secretFileVerdict(
+        await observer(path),
+        accounts,
+        pid1Only ? new Set<string>() : (entitled.get(path) ?? new Set<string>()),
+      );
+      if (result.status === 'unverifiable') absent.push(`${path} (${result.reason})`);
+      else if (result.status === 'unsatisfied') exposed.push(`${path} (${result.reason})`);
+    } catch {
+      absent.push(`${path} (metadata observation unavailable)`);
     }
   }
-
+  const publicFiles = installed.flatMap((unit) =>
+    unit.publicConfigurationPaths.map((path) => ({ unit: unit.name, path })),
+  );
+  if (publicFiles.length) {
+    try {
+      const catalog = await publicConfigurationCatalog(inputs.shippedUnitDirectory);
+      for (const { unit, path } of publicFiles) {
+        const role = publicConfigurationRole(unit, path);
+        if (role === null) throw new Error('public contract unavailable');
+        try {
+          const result = publicConfigurationVerdict(
+            await (inputs.publicFileObservation ?? observePublicConfiguration)(path),
+            role,
+            catalog,
+          );
+          if (result.status === 'unverifiable') absent.push(`${path} (${result.reason})`);
+          else if (result.status === 'unsatisfied') exposed.push(`${path} (${result.reason})`);
+        } catch {
+          absent.push(`${path} (public configuration observation unavailable)`);
+        }
+      }
+    } catch {
+      absent.push('public configuration catalog unavailable');
+    }
+  }
   const observed = {
     secretPaths: referenced.length,
+    directSources: installed
+      .flatMap((unit) => unit.secretSources)
+      .filter((source) => source.kind === 'direct').length,
+    pid1Sources: installed
+      .flatMap((unit) => unit.secretSources)
+      .filter((source) => source.kind !== 'direct').length,
+    publicConfigurations: publicFiles.length,
     absent: absent.join('; ') || 'none',
     groupOrWorldReadable: exposed.join('; ') || 'none',
   };
-  if (absent.length > 0) {
+  if (absent.length > 0)
     return {
       status: 'unverifiable',
-      detail: `${absent.length} secret file(s) a unit depends on cannot be inspected, so their posture is unknown. ${PROVISION_HINT}`,
+      detail: `${absent.length} referenced file(s) cannot be verified, so their posture is unknown. ${PROVISION_HINT}`,
       observed,
     };
-  }
-  if (exposed.length > 0) {
+  if (exposed.length > 0)
     return {
       status: 'unsatisfied',
-      detail: `${exposed.length} secret file(s) are readable by an identity their unit does not name, which is the whole reason for passing paths instead of values.`,
+      detail: `${exposed.length} referenced file(s) have unsafe metadata or access by an identity their unit does not name (root is the trusted custodian).`,
       observed,
     };
-  }
   return {
     status: 'satisfied',
-    detail: `All ${referenced.length} unit-referenced secret files exist and are readable by no identity beyond the unit that names them.`,
+    detail: `All ${referenced.length} secret sources and ${publicFiles.length} closed public configurations passed metadata and local account-file checks; not live credential delivery, startup, rotation or reboot evidence.`,
     observed,
   };
 };
@@ -496,8 +573,8 @@ async function namesByUid(
  *     group it is open to holds kf-api and nobody but the two of them;
  *   - no secret the attestor unit names is readable by kf-api — as owner, group or world.
  *
- * `secret_posture` already refuses a secret readable beyond its own unit, but it reasons about
- * group and world bits only; this names the one reader that matters and includes ownership.
+ * `secret_posture` additionally checks ownership, aliases and effective ACL readers. This
+ * check binds the specific attestor/API socket relationship; it is not a substitute for it.
  */
 export const attestorSeparation: CommissioningCheckFn = async (inputs: CommissioningInputs) => {
   let installed: readonly UnitFacts[];

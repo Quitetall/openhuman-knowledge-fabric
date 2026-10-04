@@ -71,6 +71,7 @@ async function main() {
     self,
     join(root, 'scripts/deploy/workstation-credentials.mjs'),
     join(root, 'scripts/deploy/internal/application-consumer-plan.mjs'),
+    join(root, 'deploy/systemd/application-public-fields.json'),
     join(root, 'packages/operations/dist/internal/native-secret.js'),
     '/usr/bin/id',
     ...plan.commands.flatMap((command) => [command.executable, command.args[0]]),

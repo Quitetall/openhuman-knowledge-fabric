@@ -49,6 +49,10 @@ export interface CommissioningReport {
 export interface CommissioningInputs {
   /** Library test seam only. The CLI always observes the local system manager. */
   readonly systemdObservation?: SystemdObserver;
+  /** Library observation seam; the CLI uses local metadata, never secret contents. */
+  readonly secretFileObservation?: (path: string) => Promise<unknown>;
+  /** Library seam for the closed PUBLIC configuration files only; never used for secrets. */
+  readonly publicFileObservation?: (path: string) => Promise<unknown>;
   /** Installed systemd unit directory. Default matches `docs/deployment/private-host.md`. */
   readonly systemdDirectory: string;
   /** The unit files this release ships, to compare the installed ones against. */

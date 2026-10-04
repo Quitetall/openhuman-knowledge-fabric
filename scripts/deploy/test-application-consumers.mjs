@@ -64,6 +64,10 @@ try {
     'internal/application-consumer-plan.mjs',
   ])
     copy(join(source, name), join(root, 'scripts/deploy', name));
+  copy(
+    join(release, 'deploy/systemd/application-public-fields.json'),
+    join(root, 'deploy/systemd/application-public-fields.json'),
+  );
   for (const name of ['secrets.js', 'internal/native-secret.js'])
     copy(
       join(release, 'packages/operations/dist', name),
@@ -142,6 +146,7 @@ try {
   for (const file of [
     'scripts/deploy/application-consumer.mjs',
     'scripts/deploy/internal/application-consumer-plan.mjs',
+    'deploy/systemd/application-public-fields.json',
     'scripts/deploy/workstation-credentials.mjs',
     'tools/kf-credential-custody',
   ])

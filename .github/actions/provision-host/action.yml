@@ -100,6 +100,16 @@ runs:
         gpg --version | head -1
         rsync --version | head -1
 
+    # Commissioning inspects numeric POSIX ACLs on the already-open descriptor, never
+    # credential contents. Mode-only checks miss named readers. Missing getfacl refuses.
+    - name: Provision the credential metadata inspector
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo apt-get install --yes acl
+        test -x /usr/bin/getfacl
+        /usr/bin/getfacl --version
+
     # Relaxing the sysctl weakens the RUNNER, which is an ephemeral VM, not the product: the
     # sandbox still passes `--disable-userns`, so nothing nested inside it gains the ability.
     # Proven rather than assumed — the probe below creates the namespace the compiler needs

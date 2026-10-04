@@ -8,7 +8,7 @@
  */
 
 import { generateKeyPairSync, X509Certificate } from 'node:crypto';
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer, type Server } from 'node:net';
@@ -162,9 +162,13 @@ server {
   await writeFile(
     passwd,
     `kf-attestor:x:${uid}:${gid}::/nonexistent:/usr/sbin/nologin\n` +
-      `kf-api:x:${uid + 1}:${gid + 1}::/nonexistent:/usr/sbin/nologin\n`,
+      `kf-api:x:${uid + 1}:${gid + 1}::/nonexistent:/usr/sbin/nologin\n` +
+      `kf-checkpoint:x:${uid + 2}:${gid + 2}::/nonexistent:/usr/sbin/nologin\n`,
   );
-  await writeFile(group, `kf-attest:x:${gid}:kf-api\nkf-api:x:${gid + 1}:\n`);
+  await writeFile(
+    group,
+    `kf-attest:x:${gid}:kf-api\nkf-api:x:${gid + 1}:\nkf-checkpoint:x:${gid + 2}:\n`,
+  );
   const attestorSocket = join(root, 'attestor.sock');
   await listeningSocket(attestorSocket);
 
@@ -189,6 +193,28 @@ server {
     inputs: {
       shippedUnitDirectory: shipped,
       systemdDirectory: systemd,
+      // Fixed synthetic owners, not derived from mutated unit declarations. Real metadata
+      // still supplies every mode/link/type/size plant. This is not real ownership evidence.
+      secretFileObservation: async (path) => {
+        const info = await lstat(path);
+        const owner =
+          path === join(secrets, 'checkpoint-key')
+            ? uid + 2
+            : path === join(secrets, 'attestor-database-url')
+              ? uid
+              : uid + 1;
+        const permissions = (bits: number) =>
+          `${bits & 4 ? 'r' : '-'}${bits & 2 ? 'w' : '-'}${bits & 1 ? 'x' : '-'}`;
+        return {
+          uid: owner,
+          gid: info.gid,
+          mode: info.mode,
+          nlink: info.nlink,
+          size: info.size,
+          regular: info.isFile(),
+          acl: `user::${permissions((info.mode >> 6) & 7)}\ngroup::${permissions((info.mode >> 3) & 7)}\nother::${permissions(info.mode & 7)}\n`,
+        };
+      },
       // Controlled library observation, not PID1 evidence. The CLI has no fixture selector.
       systemdObservation: async () => ({
         unitPaths: [systemd],

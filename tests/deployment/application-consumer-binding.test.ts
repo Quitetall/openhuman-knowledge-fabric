@@ -4,6 +4,10 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import {
+  publicConfigurationCatalog,
+  publicConfigurationVerdict,
+} from '../../packages/operations/src/internal/commissioning/public-configuration.js';
 
 const ROOT = join(import.meta.dirname, '../..');
 const SCRIPT = join(ROOT, 'scripts/deploy/application-consumer.mjs');
@@ -32,6 +36,59 @@ function evaluate(body: string): void {
 }
 
 describe('closed native application consumer binding', () => {
+  it('shares the closed public field catalog and value rules with commissioning', async () => {
+    const catalog = await publicConfigurationCatalog(join(ROOT, 'deploy/systemd'));
+    const values = [
+      'https://public.example',
+      'http://127.0.0.1:9000',
+      'https://user:password@public.example',
+      'https://public.example?token=public',
+      'https://public.example#public',
+      'http://public.example',
+      '/public/../wrong',
+      '/public/compiler',
+      'public-value',
+    ];
+    for (const [role, fields] of Object.entries(catalog)) {
+      const baseline = Object.fromEntries(
+        fields.required.map((name) => [
+          name,
+          name.endsWith('_ENDPOINT') || name === 'OIDC_ISSUER' || name === 'OIDC_JWKS_URI'
+            ? 'https://public.example'
+            : name.endsWith('_KEY_DIR')
+              ? '/public/keys'
+              : 'public-value',
+        ]),
+      );
+      const cases = fields.public.map((name) => {
+        const outcomes = values.map((value) => {
+          const text = Object.entries({ ...baseline, [name]: value })
+            .map(([key, item]) => `${key}=${item}`)
+            .join('\n');
+          return (
+            publicConfigurationVerdict(
+              { text, uid: 0, mode: 0o644, size: Buffer.byteLength(text), nlink: 1, regular: true },
+              role as keyof typeof catalog,
+              catalog,
+            ).status === 'satisfied'
+          );
+        });
+        return { name, outcomes };
+      });
+      evaluate(`
+const baseline=${JSON.stringify(baseline)}, role=${JSON.stringify(role)}, cases=${JSON.stringify(cases)}, values=${JSON.stringify(values)};
+cases.forEach(({name,outcomes})=>values.forEach((value,i)=>{let accepted=true;try{applicationConsumerPlan(role,root,{...env,...baseline,[name]:value,RUNTIME_DIRECTORY:runtime(role)})}catch{accepted=false}assert.equal(accepted,outcomes[i]);}));
+`);
+    }
+    evaluate(`
+import fields from ${JSON.stringify(pathToFileURL(join(ROOT, 'deploy/systemd/application-public-fields.json')).href)} with {type:'json'};
+roles.forEach(role=>{const spec=fields[role], base=Object.fromEntries(spec.public.map(name=>[name,name.endsWith('_ENDPOINT')||name.endsWith('_URL')||name.endsWith('_ORIGIN')||name==='OIDC_ISSUER'||name==='OIDC_JWKS_URI'?'https://public.example':name.endsWith('_KEY_DIR')||name.endsWith('_PATH')||name.endsWith('_SOCKET')?'/public/path':'public-value']));
+ const own={...base,KF_SECRET_CUSTODY:'systemd',CREDENTIALS_DIRECTORY:env.CREDENTIALS_DIRECTORY,RUNTIME_DIRECTORY:runtime(role)};
+ let plan;assert.doesNotThrow(()=>{plan=applicationConsumerPlan(role,root,own)},role);spec.public.forEach(name=>assert.equal(plan.env[name],base[name]));
+ spec.required.forEach(name=>assert.throws(()=>applicationConsumerPlan(role,root,{...own,[name]:undefined})));
+});
+`);
+  });
   it('selects only fixed programs, role paths and a cleared child environment', () => {
     evaluate(`
 const entries=['apps/api/dist/server.js','apps/worker/dist/main.js','apps/attestor/dist/main.js','apps/checkpoint/dist/main.js','apps/kf-storage/dist/main.js','packages/operations/dist/cli.js'];

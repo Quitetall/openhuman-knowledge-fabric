@@ -25,6 +25,12 @@ are constructed afresh; inline secrets, legacy paths, loader options and
 unselected settings do not pass through. The fixed wrapper forwards termination
 signals and the child's exit result. A refusal names no supplied value.
 
+`deploy/systemd/application-public-fields.json` is the single data atom for the
+six roles' allowed and required public settings. The launcher imports it, the
+commissioning reader validates the same catalog, and the wrapper includes it
+in its root-protected release closure. A conformance test compares their URL
+and path decisions for every public field and checks every required field.
+
 | Role       | Fixed program                                                                                                       | Native work directory     |
 | ---------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------- |
 | api        | `apps/api/dist/server.js`                                                                                           | `/run/kf-api-work`        |
@@ -44,6 +50,29 @@ loader instruction in that file; root protection and public-field review are
 part of installation. `UnsetEnvironment` removes loader/shell injection
 controls before the wrapper and pre-start guards execute. The wrapper then
 selects only the declared public fields for its child.
+
+Commissioning separately validates these exact role-specific files: root-owned,
+single-link regular files, no non-root write permission, bounded UTF-8 and a
+closed `KEY=value` subset. Blank/comment lines and simple balanced quotes are
+allowed; unknown/duplicate keys, escapes, continuations, secret/loader keys,
+credential-bearing URLs and noncanonical paths refuse. Values are never echoed
+in refusal diagnostics. Unknown EnvironmentFiles remain secret candidates; this
+is not a directory-wide exemption.
+
+The API's exact ontology projection guard is public, not a private key. All
+unknown presence guards remain candidates. Direct secret files, encrypted PID1
+sources and unencrypted PID1 sources remain distinct in unit facts. Source
+metadata inspection is **not** proof of receipt in a running process, rotation,
+restart or reboot; inactive oneshot credential mounts must not be required to
+persist. Root remains the explicitly trusted host custodian. The local account
+file model does not prove remote NSS membership or future path custody.
+
+On Debian/Ubuntu, install `acl` for `/usr/bin/getfacl`. Commissioning opens the
+final component without following links and checks numeric ACLs through its
+inherited descriptor, without reading secret bytes. Missing inspection tools
+or incomplete identity/ACL data are `unverifiable`, never satisfaction. CI and
+release CI provision the same inspector. No tool is needed for a zero group
+mask, because named ACL entries then grant no effective access.
 
 Every binding sets `KF_SECRET_CUSTODY=systemd`, `ProcSubset=all`,
 `MemorySwapMax=0`, `LimitCORE=0` and native `LoadCredential` paths.
