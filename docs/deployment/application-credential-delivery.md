@@ -93,8 +93,9 @@ This proof does not contact the encrypted store, SSH target, database or object
 provider. It proves neither real credential ownership nor installed startup,
 effective grants, signing authority, backup recovery or qualification.
 
-Remaining work: fixed application consumer wrappers and native service
-drop-ins; public-only service configuration; verified role-specific database
+The [native application consumer bindings](application-consumer-binding.md)
+provide the fixed wrappers and optional service drop-ins in source. Remaining
+work: public-only service configuration; verified role-specific database
 and object grants; encrypted-store inputs; matching frozen receivers and
 selected-host timers; actual PID 1 delivery and consumer start/restart; then
 failure/reboot/rotation and end-to-end host commissioning checks. Keep all of
