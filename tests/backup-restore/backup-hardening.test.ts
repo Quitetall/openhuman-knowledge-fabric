@@ -65,6 +65,29 @@ describe('backups leave the host only as ciphertext', () => {
     expect(tools.sqlLog()).toContain('insert into ops.backup_run');
   });
 
+  it('routes the role dump to the admitted database returned by PostgreSQL', () => {
+    const tools = setup();
+    writeFileSync(join(tools.responses, 'database-name'), 'kf_backup_target\n');
+    const result = runScript(BACKUP, [join(tools.work, 'backups', 'routed')], tools.env);
+
+    expect(result.code, result.output).toBe(0);
+    expect(tools.sqlLog()).toContain('psql-c:select current_database()');
+    expect(tools.sqlLog()).toMatch(/^pg_dumpall:.* --database=kf_backup_target$/m);
+  });
+
+  it('refuses the role dump when PostgreSQL returns no admitted database identity', () => {
+    const tools = setup();
+    writeFileSync(join(tools.responses, 'database-name'), '');
+    const result = runScript(BACKUP, [join(tools.work, 'backups', 'unidentified')], tools.env);
+
+    expect(result.code).not.toBe(0);
+    expect(result.output).toContain(
+      'refusing to dump roles without the admitted database identity',
+    );
+    expect(tools.sqlLog()).toContain('psql-c:select current_database()');
+    expect(tools.sqlLog()).not.toContain('pg_dumpall:');
+  });
+
   it('refuses a recipient file that carries a private key, before reading the database', () => {
     const tools = setup();
     const keys = recipientKeys(tools.work);

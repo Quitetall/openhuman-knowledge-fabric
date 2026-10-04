@@ -36,15 +36,18 @@ set -euo pipefail
 if [ "\${1:-}" = --version ]; then echo 'psql (PostgreSQL) 18.0'; exit 0; fi
 log="$KF_FAKE_LOG"
 responses="$KF_FAKE_RESPONSES"
+respond() { if [ -f "$responses/$1" ]; then cat "$responses/$1"; fi; }
 command_sql=""
 previous=""
 for argument in "$@"; do
-  if [ "$previous" = -c ]; then command_sql="$argument"; fi
+  if [ "$previous" = -c ] || [ "$previous" = --command ]; then command_sql="$argument"; fi
+  case "$argument" in --command=*) command_sql="\${argument#--command=}" ;; esac
   previous="$argument"
 done
 printf 'psql-args:%s\\n' "$*" >> "$log"
 if [ -n "$command_sql" ]; then
   printf 'psql-c:%s\\n' "$command_sql" >> "$log"
+  case "$command_sql" in 'select current_database()') respond database-name ;; esac
   exit 0
 fi
 # The backup's snapshot coordinator is a coproc that speaks line by line.
@@ -60,7 +63,6 @@ if [[ " $* " == *" --tuples-only "* ]]; then
 fi
 sql="$(cat)"
 printf 'sql:%s\\n' "$(printf '%s' "$sql" | tr '\\n' ' ')" >> "$log"
-respond() { if [ -f "$responses/$1" ]; then cat "$responses/$1"; fi; }
 case "$sql" in
   *'select r.location'*) respond prunable ;;
   *'pg_database_size'*) respond estimate ;;
@@ -121,6 +123,7 @@ export function toolchain(prefix: string): Toolchain {
   const log = join(work, 'calls.log');
   mkdirSync(bin);
   mkdirSync(responses);
+  writeFileSync(join(responses, 'database-name'), 'kf\n');
   writeFileSync(log, '');
   executable(join(bin, 'psql'), FAKE_PSQL);
   executable(join(bin, 'node'), FAKE_NODE);
