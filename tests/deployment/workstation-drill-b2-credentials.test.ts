@@ -202,6 +202,7 @@ try {
     );
     expect(service).toContain('ExecStart=/usr/bin/node @SENDER@ drill-b2-sync @CONFIG@');
     expect(service).toContain('LimitCORE=0');
+    expect(service).toMatch(/^MemorySwapMax=0$/m);
     expect(service).toContain('UMask=0077');
     expect(service).not.toContain(' b2-sync ');
     expect(timer).toContain('Unit=kf-host-drill-b2-credentials.service');

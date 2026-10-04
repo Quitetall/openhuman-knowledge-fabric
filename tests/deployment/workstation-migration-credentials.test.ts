@@ -196,6 +196,7 @@ try {
     );
     expect(service).toContain('ExecStart=/usr/bin/node @SENDER@ migration-sync @CONFIG@');
     expect(service).toContain('LimitCORE=0');
+    expect(service).toMatch(/^MemorySwapMax=0$/m);
     expect(service).not.toContain('migrate-release');
     expect(timer).toContain('Unit=kf-host-migration-credentials.service');
     expect(timer).toContain('OnUnitActiveSec=30s');

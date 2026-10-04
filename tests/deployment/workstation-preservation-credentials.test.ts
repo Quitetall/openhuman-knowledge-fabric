@@ -225,6 +225,7 @@ try {
       );
       expect(service).toContain(`ExecStart=/usr/bin/node @SENDER@ ${role}-sync @CONFIG@`);
       expect(service).toContain('LimitCORE=0');
+      expect(service).toMatch(/^MemorySwapMax=0$/m);
       expect(service).not.toMatch(
         /^Exec[^=]*=.*(?:backup\.sh|backup-offsite\.sh|restore-drill\.sh|migrate-release\.sh)/m,
       );

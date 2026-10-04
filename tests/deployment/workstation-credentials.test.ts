@@ -203,6 +203,8 @@ try {
       'utf8',
     );
     expect(service).toContain('After=kf-host-1.service');
+    expect(service).toMatch(/^MemorySwapMax=0$/m);
+    expect(service).toMatch(/^LimitCORE=0$/m);
     const heartbeat = readFileSync(
       join(ROOT, 'deploy/systemd/alert-heartbeat-workstation-credentials.conf'),
       'utf8',

@@ -212,6 +212,7 @@ try {
     );
     expect(service).toContain('ExecStart=/usr/bin/node @SENDER@ b2-sync @CONFIG@');
     expect(service).toContain('LimitCORE=0');
+    expect(service).toMatch(/^MemorySwapMax=0$/m);
     expect(service).not.toMatch(/backup-offsite|restore-drill|migrate-release/);
     expect(timer).toContain('Unit=kf-host-b2-credentials.service');
     expect(timer).toContain('OnUnitActiveSec=30s');

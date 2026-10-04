@@ -159,9 +159,15 @@ both realms, exact permissions/receipt encoding, preserved generations and
 cross-realm, ownership, swap, boot and widened-access refusals. It does not
 connect to a database, import a real credential or qualify reboot recovery.
 
-For manual sender/import commands, disable core dumps in the invoking shell
-before unlocking secrets (`ulimit -c 0`). The workstation template sets both
-core limits to zero; the pinned remote transport disables them before `sudo`.
+For manual sender/import commands, enter a dedicated systemd cgroup with
+`MemorySwapMax=0` and both core limits zero before unlocking secrets. Verify
+the actual process cgroup's `memory.swap.max` and core limits; disabling core
+dumps alone does not keep decrypted credentials out of workstation swap.
+All workstation credential sender templates now set `MemorySwapMax=0` and
+`LimitCORE=0`, including startup, migration, application, preservation and B2
+profiles; installing source templates does not update existing units.
+The pinned remote transport disables core dumps before `sudo` and the receiver
+requires an empty guest swap table.
 Neither this contract nor buffer clearing promises erasure of every runtime
 string copy.
 
