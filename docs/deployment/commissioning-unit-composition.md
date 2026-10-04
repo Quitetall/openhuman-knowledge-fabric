@@ -20,8 +20,9 @@ lookup also follows the selected VM's [systemd 257 implementation](https://raw.g
 including template and instance variants of a truncated prefix. This follows the relevant
 [systemd unit-file rules](https://raw.githubusercontent.com/systemd/systemd/main/man/systemd.unit.xml).
 Only bases named by the release are inspected; unrelated host services are
-outside this check's contract. Template fallback without an explicit instance
-base is not implemented by this reader.
+outside this check's contract. The single-instance reader can now apply an
+explicitly supplied reviewed template base; the loaded-manager check uses it
+without approving arbitrary explicit instance bases.
 
 Fragments must be regular UTF-8 files, at most one MiB. Symlinks, masks,
 non-directory drop-in paths and files changing during inspection refuse.
@@ -72,14 +73,16 @@ template/instance and recursive prefix composition, reset/section behavior,
 symlink, oversize and invalid-UTF-8 refusal,
 unchanged-base requirements, all eleven native bindings together and a
 separate edited-template refusal for each binding. The earlier commissioning
-and provisioning batteries remain unchanged.
+and provisioning batteries still detect their original plants. The commissioning
+fixture now injects a controlled manager observation; it is not live PID1 evidence.
 
 These are local file-composition checks, not a commissioned host. Remaining
-work includes all effective systemd load paths, aliases and instantiated
-templates, transient properties, loaded fragment/drop-in agreement and
-daemon-reload state, actual credential-generation custody, distinguishing
+work includes actual credential-generation custody, distinguishing
 public configuration/projection files from secrets, service failure/startup
 and reboot recovery. The older secret-path heuristic is not a proof of full
 native credential posture. Real encrypted-store inputs, B2 transfer/read-back,
 independent recovery, qualification and human acceptance remain separate
-requirements. Do not promote the candidate or mark 1.0 complete on this result.
+requirements. [Loaded-manager commissioning](commissioning-manager.md) now checks
+the manager's fragment/drop-in agreement, reload/transient state and instantiated
+templates, with its narrower claim stated explicitly. Do not promote the candidate
+or mark 1.0 complete on these results.

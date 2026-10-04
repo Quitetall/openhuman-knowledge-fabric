@@ -14,6 +14,7 @@ import {
   tlsTermination,
 } from './host.js';
 import { attestorSeparation, secretPosture, unitProvenance } from './units.js';
+import { systemdLoadedUnits } from './loaded-units.js';
 
 /**
  * A check for most blockers in `docs/deployment/private-host.md`, in the order an operator
@@ -39,6 +40,12 @@ export const COMMISSIONING_CHECKS: readonly CommissioningCheckDefinition[] = [
       'no installed user/file ownership evidence, service start/restart/reboot evidence; ' +
       'no proof that units sharing an identity need the same secrets',
     run: unitProvenance,
+  },
+  {
+    id: 'systemd_loaded_units',
+    blocker:
+      'no proof that the system manager loaded reviewed fragments, identities and hardening without pending reloads or unreviewed overrides',
+    run: systemdLoadedUnits,
   },
   {
     id: 'secret_posture',

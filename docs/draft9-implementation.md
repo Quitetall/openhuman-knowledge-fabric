@@ -864,3 +864,34 @@ unchanged historical evidence and cannot attest the new bytes. A new exact
 release, repository gate, fresh rehearsal and real-role restored-baseline apply
 are required before considering guarded promotion; off-site recovery, key
 custody, commissioning, qualification and human authority remain open.
+
+## Loaded-system-manager commissioning (2026-10-04)
+
+The mandatory `systemd_loaded_units` check now supplements file provenance.
+It observes the local system manager through a fixed, bounded machine interface;
+the CLI cannot select a fixture or remote bus. It compares concrete and template
+instances against reviewed fragments, drop-ins, identities, alert targets,
+pending-reload/transient state and declared no-new-privileges/swap/core limits.
+See [the exact scope and limitations](deployment/commissioning-manager.md).
+
+The original twenty regressions failed on the filesystem-only verifier. All
+fourteen loaded-property plants also failed when the comparison was bypassed;
+restoring it restores detection. The original sixty-case battery still passes
+with a controlled library observation, alongside forty-five supplementary cases.
+Their paths and hashes are guarded, not merely cited in qualification prose.
+This is local candidate fault-detection evidence, not independent or human
+qualification.
+
+Three public PID1 cases passed on the existing VM: concrete/template/inactive
+instance agreement, refusal of an unreviewed instance override, and a pending
+reload despite matching installed/shipped bytes. The initial load-only reload
+plant was invalid because inactive metadata can be collected and loaded afresh;
+the corrected proof briefly activates a public `/usr/bin/true` oneshot with
+`RemainAfterExit`, then stops it. Exact fixture files/directories were removed.
+No production service, schema, credential, release link or manager reload changed.
+
+Loaded metadata is not startup/reboot or running-process custody evidence.
+Native secret posture, real encrypted-store delivery, owner B2 signup/key capture
+and Bitwarden recovery, preservation/recovery of the 91-migration baseline,
+fresh sealing/rehearsal, guarded promotion and final qualification/acceptance
+remain open. Do not cite this check or its local qualification as KF 1.0.

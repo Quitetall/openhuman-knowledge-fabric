@@ -26,6 +26,36 @@ function gateFiles(): readonly string[] {
   return readdirSync(GATES).filter((name) => name.endsWith('.yaml'));
 }
 
+function batteries(text: string): readonly { path: string; digest: string }[] {
+  // Supplementary references can precede the legacy primary note in the YAML.
+  const primary = text.replace(
+    /Supplementary battery: [A-Za-z0-9_./-]+; sha256:[0-9a-f]{64};/g,
+    '',
+  );
+  const digest = /sha256:([0-9a-f]{64})/.exec(primary)?.[1];
+  const qualifier = /qualification_qualifier:\s*"([^",]+)/.exec(text)?.[1]?.trim();
+  const result = digest && qualifier ? [{ path: qualifier, digest }] : [];
+  const supplementary = [
+    ...text.matchAll(/Supplementary battery: ([A-Za-z0-9_./-]+); sha256:([0-9a-f]{64});/g),
+  ];
+  if (supplementary.length !== (text.match(/Supplementary battery:/g) ?? []).length)
+    throw new Error('malformed supplementary qualification reference');
+  for (const match of supplementary) result.push({ path: match[1]!, digest: match[2]! });
+  for (const entry of result) {
+    if (entry.path.startsWith('/') || entry.path.split('/').includes('..'))
+      throw new Error('qualifier outside repository');
+  }
+  return result;
+}
+function staleBatteries(text: string, contents: (path: string) => Buffer): string[] {
+  return batteries(text).flatMap((entry) => {
+    const actual = createHash('sha256').update(contents(entry.path)).digest('hex');
+    return actual === entry.digest
+      ? []
+      : [`${entry.path}: records ${entry.digest.slice(0, 12)}, now ${actual.slice(0, 12)}`];
+  });
+}
+
 describe('a qualified gate still describes the battery that qualified it', () => {
   it('finds gate definitions at all, so the rest of this file is not vacuous', () => {
     expect(
@@ -40,22 +70,12 @@ describe('a qualified gate still describes the battery that qualified it', () =>
 
     for (const file of gateFiles()) {
       const text = readFileSync(join(GATES, file), 'utf8');
-      // A recorded digest looks like `sha256:<64 hex>` and is followed, in the same document, by
-      // the path of the artifact it digests. Both are read from the file rather than hardcoded
-      // here, so adding a second gate needs no change to this test.
-      const digest = /sha256:([0-9a-f]{64})/.exec(text)?.[1];
-      const qualifier = /qualification_qualifier:\s*"([^",]+)/.exec(text)?.[1]?.trim();
-      if (digest === undefined || qualifier === undefined) continue;
-
-      checked += 1;
-      const actual = createHash('sha256')
-        .update(readFileSync(join(ROOT, qualifier)))
-        .digest('hex');
-      if (actual !== digest) {
-        stale.push(
-          `${file}: records ${digest.slice(0, 12)} for ${qualifier}, which is now ${actual.slice(0, 12)}`,
-        );
-      }
+      checked += batteries(text).length;
+      stale.push(
+        ...staleBatteries(text, (path) => readFileSync(join(ROOT, path))).map(
+          (message) => `${file}: ${message}`,
+        ),
+      );
     }
 
     expect(
@@ -68,5 +88,25 @@ describe('a qualified gate still describes the battery that qualified it', () =>
         'Re-run the battery and confirm every declared fault class is still detected, THEN ' +
         'update the digest. Updating the digest alone re-states a claim nobody re-checked.',
     ).toEqual([]);
+  });
+  it('detects a changed supplementary battery even when the primary remains unchanged', () => {
+    const bytes = Buffer.from('public fixture');
+    const digest = createHash('sha256').update(bytes).digest('hex');
+    const text = `qualification_qualifier: "primary.ts, fixture"\nsha256:${digest}\nSupplementary battery: supplementary.ts; sha256:${digest}; fixture`;
+    expect(staleBatteries(text, () => bytes)).toEqual([]);
+    expect(
+      staleBatteries(
+        `Supplementary battery: supplementary.ts; sha256:${digest};\n` +
+          `qualification_qualifier: "primary.ts, fixture"\nsha256:${digest}`,
+        () => bytes,
+      ),
+    ).toEqual([]);
+    expect(
+      staleBatteries(text, (path) =>
+        path === 'supplementary.ts' ? Buffer.from('changed') : bytes,
+      ),
+    ).toHaveLength(1);
+    expect(() => batteries('Supplementary battery: missing digest')).toThrow();
+    expect(() => batteries(`Supplementary battery: ../outside; sha256:${digest};`)).toThrow();
   });
 });

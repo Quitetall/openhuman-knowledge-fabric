@@ -1050,17 +1050,18 @@ using it. The shipped
 
 What each check reads, and the blocker it closes:
 
-| check                       | reads                                                                                                                                                                                        | blocker                                                             |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `unit_provenance`           | installed units against the ones this release ships, byte for byte; `User=` on the API and checkpoint units; `OnFailure=` on each                                                            | units installed, identities separated, alerting wired               |
-| `secret_posture`            | every path a shipped unit names as `EnvironmentFile=` or `*_FILE=`/`*_KEY_PATH=`: exists, regular file, no group or other bits                                                               | checkpoint key isolation from the API                               |
-| `attestor_separation`       | `kf-attestor.service` runs as a user other than the API's; its socket (`KF_ATTESTOR_SOCKET`) is a socket it owns, closed to other, open to kf-api alone; kf-api can read none of its secrets | the API cannot vouch for a person itself                            |
-| `tls_termination`           | the certificate for the public hostname — SAN coverage, validity window, renewal margin — and the private key's mode                                                                         | site hostname, certificate, TLS termination                         |
-| `identity_provider_policy`  | issuer is https, client is named, the reviewed realm policy on disk still digests to what was reviewed, and that realm is not weak (see below)                                               | reviewed reproducible Keycloak realm/client policy                  |
-| `runtime_version`           | the Node version this process runs, against the tested one                                                                                                                                   | host uses the exact tested runtime                                  |
-| `reverse_proxy_posture`     | the installed nginx configuration: refuses a cleartext server that proxies, a non-loopback upstream, TLS 1.0/1.1, and a proxying block that drops the original scheme                        | installed nginx validation                                          |
-| `liminal_runtime_inventory` | the compiler and its runtime closure on this host, via the release's own `verify-liminal-runtime.sh`                                                                                         | reviewed compiler artifact and runtime-closure inventory            |
-| `evidence_receipts`         | release verification, rollback rehearsal and compiler qualification receipts: present, naming this release, ratified, recent enough                                                          | rollback receipt, migration result, ratified compiler qualification |
+| check                       | reads                                                                                                                                                                                          | blocker                                                              |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `unit_provenance`           | installed units against the ones this release ships, byte for byte; `User=` on the API and checkpoint units; `OnFailure=` on each                                                              | units installed, identities separated, alerting wired                |
+| `systemd_loaded_units`      | local system manager load paths, concrete/template-instance fragments and selected drop-ins, reload/transient state, identities, alert targets and declared no-new-privileges/swap/core limits | loaded metadata agrees with reviewed files; not startup/reboot proof |
+| `secret_posture`            | every path a shipped unit names as `EnvironmentFile=` or `*_FILE=`/`*_KEY_PATH=`: exists, regular file, no group or other bits                                                                 | checkpoint key isolation from the API                                |
+| `attestor_separation`       | `kf-attestor.service` runs as a user other than the API's; its socket (`KF_ATTESTOR_SOCKET`) is a socket it owns, closed to other, open to kf-api alone; kf-api can read none of its secrets   | the API cannot vouch for a person itself                             |
+| `tls_termination`           | the certificate for the public hostname — SAN coverage, validity window, renewal margin — and the private key's mode                                                                           | site hostname, certificate, TLS termination                          |
+| `identity_provider_policy`  | issuer is https, client is named, the reviewed realm policy on disk still digests to what was reviewed, and that realm is not weak (see below)                                                 | reviewed reproducible Keycloak realm/client policy                   |
+| `runtime_version`           | the Node version this process runs, against the tested one                                                                                                                                     | host uses the exact tested runtime                                   |
+| `reverse_proxy_posture`     | the installed nginx configuration: refuses a cleartext server that proxies, a non-loopback upstream, TLS 1.0/1.1, and a proxying block that drops the original scheme                          | installed nginx validation                                           |
+| `liminal_runtime_inventory` | the compiler and its runtime closure on this host, via the release's own `verify-liminal-runtime.sh`                                                                                           | reviewed compiler artifact and runtime-closure inventory             |
+| `evidence_receipts`         | release verification, rollback rehearsal and compiler qualification receipts: present, naming this release, ratified, recent enough                                                            | rollback receipt, migration result, ratified compiler qualification  |
 
 `unit_provenance` and `secret_posture` consider only the unit names this release ships.
 Everything else installed on the host is somebody else's contract, and an earlier version that
@@ -1106,7 +1107,10 @@ cannot quietly acquire the appearance of coverage.
   at the file that defines the server blocks. Firewall rules have **no check** and remain
   inspection by hand.
 - no installed user/file ownership evidence, service start/restart/reboot evidence —
-  `unit_provenance`; and no proof host uses exact tested Node/PostgreSQL versions —
+  `unit_provenance`. `systemd_loaded_units` separately inspects the manager's loaded
+  metadata; it does not establish running-process custody or successful startup/reboot.
+  See [loaded-manager commissioning](commissioning-manager.md).
+  And no proof host uses exact tested Node/PostgreSQL versions —
   `runtime_version`.
 - no host evidence that the API cannot attest to people itself — `attestor_separation`, which
   checks that `kf-attestor.service` runs as its own user, that its socket is owned by that user,

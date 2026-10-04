@@ -22,6 +22,8 @@ import {
   type CommissioningInputs,
   type CommissioningReport,
 } from './index.js';
+import { readUnitCompositions } from './internal/commissioning/unit-composition.js';
+import { commissioningDirectives } from './internal/commissioning/unit-directives.js';
 
 const SHIPPED_REALM = join(
   import.meta.dirname,
@@ -187,6 +189,31 @@ server {
     inputs: {
       shippedUnitDirectory: shipped,
       systemdDirectory: systemd,
+      // Controlled library observation, not PID1 evidence. The CLI has no fixture selector.
+      systemdObservation: async () => ({
+        unitPaths: [systemd],
+        units: (await readUnitCompositions(systemd)).map((unit) => {
+          const declarations = commissioningDirectives(unit.text);
+          const scalar = (key: string) => declarations.find(([name]) => name === key)?.[1] ?? '';
+          return {
+            Id: unit.name,
+            Names: unit.name,
+            LoadState: 'loaded',
+            Transient: 'no',
+            NeedDaemonReload: 'no',
+            FragmentPath: join(systemd, unit.name),
+            DropInPaths: '',
+            User: scalar('User'),
+            Group: scalar('Group'),
+            DynamicUser: 'no',
+            OnFailure: scalar('OnFailure').replaceAll('%n', unit.name),
+            NoNewPrivileges: 'no',
+            MemorySwapMax: 'infinity',
+            LimitCORE: 'infinity',
+            LimitCORESoft: 'infinity',
+          };
+        }),
+      }),
       publicHostname: 'fabric.example.org',
       tlsCertificatePath: certificatePath,
       tlsPrivateKeyPath: keyPath,

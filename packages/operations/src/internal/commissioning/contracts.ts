@@ -47,6 +47,8 @@ export interface CommissioningReport {
  * `/etc/kf` cannot be tested, and an untested verifier is a claim rather than a check.
  */
 export interface CommissioningInputs {
+  /** Library test seam only. The CLI always observes the local system manager. */
+  readonly systemdObservation?: SystemdObserver;
   /** Installed systemd unit directory. Default matches `docs/deployment/private-host.md`. */
   readonly systemdDirectory: string;
   /** The unit files this release ships, to compare the installed ones against. */
@@ -104,6 +106,12 @@ export interface CommissioningInputs {
   /** Days after which a rollback rehearsal no longer counts as evidence. */
   readonly rollbackRehearsalDays: number;
 }
+
+export interface SystemdObservationRequest {
+  readonly units: readonly string[];
+  readonly templates: readonly string[];
+}
+export type SystemdObserver = (request: SystemdObservationRequest) => Promise<unknown>;
 
 export const COMMISSIONING_DEFAULTS = {
   systemdDirectory: '/etc/systemd/system',
