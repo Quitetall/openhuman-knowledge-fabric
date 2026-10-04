@@ -86,6 +86,58 @@ it('accepts only the exact service UID ACL and refuses widened or malformed ACLs
 });
 
 const hasMusl = spawnSync('musl-gcc', ['--version'], { env, stdio: 'ignore' }).status === 0;
+it('matches the custody observer syscall layouts to the installed Linux UAPI', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'kf-custody-abi-'));
+  try {
+    const out = join(dir, 'abi-test');
+    const built = spawnSync(
+      'cc',
+      [
+        '-std=c11',
+        '-Wall',
+        '-Wextra',
+        '-Werror',
+        join(ROOT, 'tests/fixtures/credential-custody-abi.c'),
+        '-o',
+        out,
+      ],
+      { env, encoding: 'utf8' },
+    );
+    expect(built.status, built.stderr).toBe(0);
+    expect(spawnSync(out, [], { env }).status).toBe(0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+it.skipIf(!hasMusl)(
+  'builds the static custody atom and refuses unpinned inspection handles',
+  () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kf-custody-build-'));
+    try {
+      const out = join(dir, 'helper');
+      const built = spawnSync('bash', [SCRIPT, '--credential-custody', out], {
+        env: { ...env, CC: 'musl-gcc', KF_PEER_CREDENTIALS_STATIC: '1' },
+        encoding: 'utf8',
+      });
+      expect(built.status, built.stderr).toBe(0);
+      const elf = spawnSync('readelf', ['-l', out], { env, encoding: 'utf8' });
+      expect(elf.status).toBe(0);
+      expect(elf.stdout).not.toContain('INTERP');
+      for (const args of [
+        [dir],
+        ['--inspect', '1101', '1101', dir, 'index-key'],
+        ['--inspect', '0', '1101', dir, 'index-key'],
+      ]) {
+        const refused = spawnSync(out, args, { env, encoding: 'utf8' });
+        expect(refused.status).not.toBe(0);
+        expect(refused.stdout).toBe('');
+        expect(refused.stderr).toBe('credential custody unavailable\n');
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);
 it.skipIf(!hasMusl)('builds a static musl helper without the workstation dynamic loader', () => {
   const dir = mkdtempSync(join(tmpdir(), 'kf-peer-build-'));
   try {

@@ -11,6 +11,25 @@
 #include <sys/statfs.h>
 #include <sys/xattr.h>
 #include <unistd.h>
+#include <stdlib.h>
+#include <limits.h>
+#include <sched.h>
+#include <grp.h>
+#include <dirent.h>
+#include <sys/ioctl.h>
+#include <sys/prctl.h>
+#include <sys/syscall.h>
+#include <errno.h>
+
+/* Linux UAPI capability v3 and nsfs type query, from linux/capability.h and
+ * linux/nsfs.h. Keep the tiny syscall layouts independent of libc's kernel
+ * header installation (in particular musl). The native ABI fixture compares
+ * these constants, sizes and offsets against the installed Linux headers.
+ */
+#define KF_CAPABILITY_VERSION_3 0x20080522U
+#define KF_NS_GET_NSTYPE _IO(0xb7, 0x3)
+struct kf_cap_header { uint32_t version; int pid; };
+struct kf_cap_data { uint32_t effective, permitted, inheritable; };
 
 static uint16_t le16(const unsigned char *p) {
   return (uint16_t)p[0] | (uint16_t)((uint16_t)p[1] << 8);
@@ -113,7 +132,88 @@ static int custody(int fd, int is_directory) {
   return custody_size(fd, is_directory, 0, 65);
 }
 
+static int identity_number(const char *text, unsigned int *value) {
+  if (!*text || *text == '0') return 0;
+  for (const char *p = text; *p; ++p) if (*p < '0' || *p > '9') return 0;
+  char *end;
+  unsigned long parsed = strtoul(text, &end, 10);
+  if (*end || parsed == 0 || parsed >= UINT_MAX) return 0;
+  *value = (unsigned int)parsed;
+  return 1;
+}
+
+/* Root-only observer mode. FD 3 pins the target mount namespace, FD 4 its root.
+ * The already-running static checker enters them without executing namespace
+ * programs, drops groups/UID/capabilities, then performs the SAME custody checks.
+ * No secret bytes, external commands, caller diagnostics or lasting changes.
+ */
+static int inspect_current(int argc, char **argv) {
+  unsigned int uid, gid;
+  struct stat root;
+  struct kf_cap_header header = {KF_CAPABILITY_VERSION_3, 0};
+  struct kf_cap_data capabilities[2] = {{0}, {0}};
+  if (argc != 6 || getuid() != 0 || geteuid() != 0 ||
+      !identity_number(argv[2], &uid) || !identity_number(argv[3], &gid) ||
+      ioctl(3, KF_NS_GET_NSTYPE) != CLONE_NEWNS || fstat(4, &root) != 0 ||
+      !S_ISDIR(root.st_mode) || setns(3, CLONE_NEWNS) != 0 ||
+      fchdir(4) != 0 || chroot(".") != 0 || chdir("/") != 0 ||
+      prctl(PR_SET_KEEPCAPS, 0) != 0 ||
+      prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0) != 0 ||
+      setgroups(0, NULL) != 0 || setresgid(gid, gid, gid) != 0 ||
+      setresuid(uid, uid, uid) != 0 ||
+      syscall(SYS_capset, &header, capabilities) != 0 ||
+      prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) return 2;
+  close(3); close(4);
+  if (argv[4][0] != '/' || strlen(argv[5]) >= 1024) return 2;
+  char names[1024];
+  memcpy(names, argv[5], strlen(argv[5]) + 1);
+  const char *expected[17];
+  unsigned int count = 0;
+  char *cursor = names;
+  while (cursor && *cursor) {
+    char *next = strchr(cursor, ',');
+    if (next) *next++ = '\0';
+    off_t minimum, maximum;
+    if (count == 17 || !credential_policy(cursor, &minimum, &maximum)) return 2;
+    for (unsigned int i = 0; i < count; ++i)
+      if (strcmp(expected[i], cursor) == 0) return 2;
+    expected[count++] = cursor;
+    if (next && !*next) return 2;
+    cursor = next;
+  }
+  if (!count) return 2;
+  int fd = open(argv[4], O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+  if (fd < 0 || !custody(fd, 1)) { if (fd >= 0) close(fd); return 1; }
+  DIR *directory = fdopendir(fd);
+  if (!directory) { close(fd); return 2; }
+  unsigned int found = 0;
+  int accepted = 1;
+  struct dirent *entry;
+  while (1) {
+    errno = 0;
+    entry = readdir(directory);
+    if (!entry) { if (errno) accepted = 0; break; }
+    if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, "..")) continue;
+    unsigned int i;
+    for (i = 0; i < count; ++i) if (!strcmp(entry->d_name, expected[i])) break;
+    if (i == count || ++found > count) { accepted = 0; break; }
+    off_t minimum, maximum;
+    if (!credential_policy(expected[i], &minimum, &maximum)) { accepted = 0; break; }
+    int file = openat(fd, expected[i], O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
+    if (file < 0 || !custody_size(file, 0, minimum, maximum)) accepted = 0;
+    if (file >= 0) close(file);
+    if (!accepted) break;
+  }
+  closedir(directory);
+  return accepted && found == count ? 0 : 1;
+}
+
 int main(int argc, char **argv) {
+  if (argc > 1 && !strcmp(argv[1], "--inspect")) {
+    int status = inspect_current(argc, argv);
+    if (status) fputs("credential custody unavailable\n", stderr);
+    return status;
+  }
   int directory = -1;
   int file = -1;
   int accepted = 0;

@@ -1110,6 +1110,10 @@ cannot quietly acquire the appearance of coverage.
   `unit_provenance`. `systemd_loaded_units` separately inspects the manager's loaded
   metadata; it does not establish running-process custody or successful startup/reboot.
   See [loaded-manager commissioning](commissioning-manager.md).
+  [Current native consumer inspection](native-consumer-inspection.md) is a separate
+  read-only command for live main-process identity, memory/privilege controls and
+  namespace-visible credential metadata. It does not start inactive jobs or prove
+  application use, restart/reboot or release acceptance.
   And no proof host uses exact tested Node/PostgreSQL versions —
   `runtime_version`.
 - no host evidence that the API cannot attest to people itself — `attestor_separation`, which

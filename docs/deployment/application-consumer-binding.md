@@ -67,6 +67,11 @@ restart or reboot; inactive oneshot credential mounts must not be required to
 persist. Root remains the explicitly trusted host custodian. The local account
 file model does not prove remote NSS membership or future path custody.
 
+The separate [current native consumer inspection](native-consumer-inspection.md)
+command observes the running main process and its namespace-visible credential
+mount without reading values. It is supplementary evidence, not a source-posture
+substitute or a requirement that inactive oneshot mounts persist.
+
 On Debian/Ubuntu, install `acl` for `/usr/bin/getfacl`. Commissioning opens the
 final component without following links and checks numeric ACLs through its
 inherited descriptor, without reading secret bytes. Missing inspection tools
