@@ -11,9 +11,9 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { withTransaction } from '@kf/database';
-import { startHarness } from '../database/harness.js';
+import { startHarness, type Harness } from '../database/harness.js';
 import {
   recipientKeys,
   ROOT,
@@ -184,10 +184,18 @@ describe('the cloud caller preserves exact version identity and refuses misleadi
     }
     expect(result.output).toContain('Physical-domain approval and retention are separate');
   });
-  it('appends and retries through the shipped SQL against real PostgreSQL as the backup role', async () => {
-    const f = cloud();
-    const h = await startHarness();
-    try {
+  describe('the real SQL boundary', () => {
+    let h: Harness;
+    // Bootstrap has the existing 60-second hook budget; keep the 30-second
+    // test deadline for copy/retry assertions and close the database on failure.
+    beforeAll(async () => {
+      h = await startHarness();
+    });
+    afterAll(async () => {
+      await h?.stop();
+    });
+    it('appends and retries through the shipped SQL against real PostgreSQL as the backup role', async () => {
+      const f = cloud();
       await withTransaction(h.adminPool, async (tx) => {
         await tx.query(
           "create role kf_b2_fixture login password 'public-fixture-password' in role kf_backup",
@@ -218,9 +226,7 @@ describe('the cloud caller preserves exact version identity and refuses misleadi
       expect(rows).toEqual([{ provider_object: f.identity, offsite_basis: 'remote-object' }]);
       expect(f.tools.sqlLog()).toContain('b2:publish:new');
       expect(f.tools.sqlLog()).toContain('b2:pull:recorded-version-not-latest');
-    } finally {
-      await h.stop();
-    }
+    });
   });
   it('pulls and verifies the already recorded historical version on retry, without another PUT', () => {
     const f = cloud();

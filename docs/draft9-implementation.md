@@ -997,3 +997,23 @@ This new migration changes the candidate migration set. The earlier sealed
 these changed sources. Full repository verification, a fresh sealed release and
 authenticated rehearsal, the real-role producer/restore rerun, checkpoint trust,
 B2 delivery, independent key recovery, hosting and final qualification remain open.
+
+## Clean-build fixture boundary — 2026-10-04
+
+Commit `4a8098e0` retains the migration-ledger correction and its generated
+inventory. Its clean-worktree release build did not pass: 322 files and 3,314
+tests passed, but the off-site-copy SQL test reached its 30-second deadline;
+four files and 25 tests were skipped. The unchanged failed case passed alone
+in the same clean checkout in four seconds. Measured workstation I/O pressure
+was substantial during the failed run; that correlation does not establish
+which await consumed the deadline.
+
+That case charged a fresh container and all migrations to the same test budget
+as its copy/retry checks. The real SQL boundary now prepares the database in a
+scoped `beforeAll` and closes it in `afterAll`, like the other database suites.
+The existing 60-second hook and 30-second test limits, four-worker cap, actual
+backup-role SQL, immutable history, retry identity and refusal assertions are
+unchanged. All 37 focused off-site-copy, cloud-ledger and resource-budget tests
+passed. This is a fixture lifecycle correction, not a production latency result
+or a successful release gate. No source from that failed build was sealed or
+promoted; another exact-commit clean build remains required.
