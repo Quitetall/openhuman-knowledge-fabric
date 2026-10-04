@@ -657,6 +657,35 @@ describe('backup as the backup login', () => {
     url.password = 'test-only-not-a-secret';
     const destination = join(work, 'backup-as-kf-backup');
 
+    // A host may admit this login to KF only. pg_dumpall ignores the database
+    // component of --dbname and otherwise tries maintenance databases instead.
+    // Keep that boundary closed and require the shipped backup to select KF.
+    await withTransaction(h.adminPool, async (tx) => {
+      await tx.query('revoke connect on database postgres, template1 from public');
+      const maintenance = await tx.query<{ name: string; permitted: boolean }>(
+        `select datname as name,
+                has_database_privilege('kf_backup_drill', oid, 'connect') as permitted
+           from pg_database where datname in ('postgres', 'template1') order by datname`,
+      );
+      expect(maintenance).toEqual([
+        { name: 'postgres', permitted: false },
+        { name: 'template1', permitted: false },
+      ]);
+    });
+    const clientDir = process.env['KF_POSTGRES_CLIENT_DIR'];
+    const pgDumpAll = clientDir === undefined ? 'pg_dumpall' : join(clientDir, 'pg_dumpall');
+    const maintenanceRefusal = spawnSync(
+      pgDumpAll,
+      ['--roles-only', '--no-role-passwords', `--dbname=${url.toString()}`],
+      { encoding: 'utf8', timeout: 10_000 },
+    );
+    expect(maintenanceRefusal.error).toBeUndefined();
+    expect(maintenanceRefusal.signal).toBeNull();
+    expect(maintenanceRefusal.status).not.toBe(0);
+    expect(maintenanceRefusal.stderr).toMatch(
+      /permission denied for database "(?:postgres|template1)"/,
+    );
+
     const schemas = await withTransaction(h.adminPool, (tx) =>
       tx.query<{ schema: string }>(
         `select n.nspname as schema
@@ -729,6 +758,17 @@ describe('backup as the backup login', () => {
       KF_BACKUP_RETAIN_LOCAL: '50',
     });
     expect(r.code, r.output).toBe(0);
+    const maintenanceAfterBackup = await withTransaction(h.adminPool, (tx) =>
+      tx.query<{ name: string; permitted: boolean }>(
+        `select datname as name,
+                has_database_privilege('kf_backup_drill', oid, 'connect') as permitted
+           from pg_database where datname in ('postgres', 'template1') order by datname`,
+      ),
+    );
+    expect(maintenanceAfterBackup).toEqual([
+      { name: 'postgres', permitted: false },
+      { name: 'template1', permitted: false },
+    ]);
     expect(existsSync(join(destination, 'dump.pgcustom'))).toBe(true);
     expect(existsSync(join(destination, 'export', 'manifest.json'))).toBe(true);
 
@@ -750,7 +790,6 @@ describe('backup as the backup login', () => {
     // scripts/lib/secret.sh), not whichever one PATH offers: an archive is a versioned format,
     // and hosted CI's ambient pg_restore is PostgreSQL 16, which refused this PostgreSQL 18
     // dump with "unsupported version (1.16) in file header" while the drill itself passed.
-    const clientDir = process.env['KF_POSTGRES_CLIENT_DIR'];
     const pgRestore = clientDir === undefined ? 'pg_restore' : join(clientDir, 'pg_restore');
     const listing = execFileSync(pgRestore, ['--list', join(destination, 'dump.pgcustom')], {
       encoding: 'utf8',

@@ -39,6 +39,16 @@ policy on `core.object`, so a backup as that login failed outright, and an expor
 held no records. The drill ran as the superuser and passed. It now also runs the whole script as
 a `kf_backup` login (`tests/backup-restore/drill.test.ts`, "backup as the backup login").
 
+The role dump uses that same admitted database explicitly. PostgreSQL's
+`pg_dumpall --dbname` carries connection parameters but ignores the database
+name inside them; its separate `--database` option selects the initial database.
+The producer reads `current_database()` through the admitted connection and
+passes that name to `--database`. The backup login therefore needs no access to
+`postgres` or `template1`. The real-role drill denies CONNECT to both maintenance
+databases, proves the unqualified role dump refuses, and requires the shipped
+backup and restore to succeed without changing that denial. See the
+[PostgreSQL 18 connection options](https://www.postgresql.org/docs/18/app-pg-dumpall.html).
+
 The separately worker-owned Graphile queue is included, not exempted from backup.
 Its ordinary owner commissions read-only access through the
 [queue-owner handoff](../deployment/worker-queue-backup.md); the KF migrator verifies

@@ -315,8 +315,17 @@ echo "==> cluster roles"
 # row-level security policies DO name them (`... to kf_app`). Restoring into a fresh cluster
 # without these fails on the first policy, which is a confusing way to discover that half the
 # security model was never in the backup.
+# pg_dumpall ignores the database component of --dbname. Select the already
+# admitted database explicitly instead of requiring CONNECT to postgres or
+# template1, which the backup principal need not hold.
+BACKUP_DATABASE="$("$KF_PSQL" "$DATABASE_URL" --no-psqlrc --tuples-only --no-align --quiet \
+  --set ON_ERROR_STOP=1 --command='select current_database()')"
+if [ -z "$BACKUP_DATABASE" ]; then
+  echo "refusing to dump roles without the admitted database identity" >&2
+  exit 1
+fi
 "$KF_PG_DUMPALL" --roles-only --no-role-passwords --file="$DEST/roles.sql" \
-  --dbname="$DATABASE_URL"
+  --dbname="$DATABASE_URL" --database="$BACKUP_DATABASE"
 
 echo "==> PostgreSQL client identity"
 {
