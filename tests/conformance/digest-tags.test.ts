@@ -34,6 +34,12 @@ interface Allowed {
 
 const ALLOWED: readonly Allowed[] = [
   {
+    path: 'packages/operations/src/internal/commissioning/unit-composition.ts',
+    line: "const digest = (text: string): string => createHash('sha256').update(text).digest('hex');",
+    reason:
+      'raw bytes: SHA-256 of regular UTF-8 systemd fragments for exact release-file comparison; not a structured record or authority digest',
+  },
+  {
     path: 'apps/api/src/admin/bootstrap-organization.ts',
     line: "createHash('sha256').update(`bootstrap-organization\\u0000${reason}`).digest('hex'),",
     reason:

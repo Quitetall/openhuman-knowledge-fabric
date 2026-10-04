@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { lstat, readdir, readFile, stat } from 'node:fs/promises';
-import { join } from 'node:path';
 import type { CommissioningCheckFn, CommissioningInputs } from './contracts.js';
+import { readUnitCompositions, reviewedDropIns, type UnitFragment } from './unit-composition.js';
+import { commissioningDirectives } from './unit-directives.js';
 
 /** One systemd unit, reduced to the directives commissioning cares about. */
 export interface UnitFacts {
@@ -11,9 +12,11 @@ export interface UnitFacts {
   /** Absolute paths this unit names as `EnvironmentFile=` or as a `*_FILE=`/`*_PATH=` value. */
   readonly secretPaths: readonly string[];
   readonly digest: string;
+  /** Exact base bytes and selected drop-ins, present when read from a declared directory. */
+  readonly baseDigest?: string;
+  readonly dropIns?: readonly UnitFragment[];
 }
 
-const DIRECTIVE = /^\s*([A-Za-z]+)\s*=\s*(.*)$/;
 const SECRET_ASSIGNMENT = /\b([A-Z0-9_]*(?:_FILE|_KEY_PATH))=(\/[^\s'"]+)/g;
 /**
  * `test -s <path>` — the idiom every unit uses to refuse an empty secret placeholder.
@@ -56,14 +59,9 @@ export function parseUnit(name: string, text: string): UnitFacts {
   let onFailure: string | null = null;
   const secretPaths = new Set<string>();
 
-  for (const line of text.split('\n')) {
-    if (line.trimStart().startsWith('#')) continue;
-    const directive = DIRECTIVE.exec(line);
-    if (directive === null) continue;
-    const [, key, rawValue] = directive as unknown as [string, string, string];
-    const value = rawValue.trim();
+  for (const [key, value] of commissioningDirectives(text)) {
     if (key === 'User') user = value;
-    else if (key === 'OnFailure') onFailure = value;
+    else if (key === 'OnFailure') onFailure = [onFailure, value].filter(Boolean).join(' ');
     else if (key === 'EnvironmentFile') secretPaths.add(value.replace(/^-/, ''));
     // `LoadCredentialEncrypted=<id>:<path>` names a credential only its own unit receives —
     // the restore drill's backup-decryption key. Counted as a secret so that two units sharing
@@ -110,13 +108,11 @@ export async function readUnits(
   directory: string,
   only?: ReadonlySet<string>,
 ): Promise<readonly UnitFacts[]> {
-  const entries = await readdir(directory);
-  const units: UnitFacts[] = [];
-  for (const entry of entries.filter((e) => e.endsWith('.service')).sort()) {
-    if (only !== undefined && !only.has(entry)) continue;
-    units.push(parseUnit(entry, await readFile(join(directory, entry), 'utf8')));
-  }
-  return units;
+  return (await readUnitCompositions(directory, only)).map((composition) => ({
+    ...parseUnit(composition.name, composition.text),
+    baseDigest: composition.baseDigest,
+    dropIns: composition.dropIns,
+  }));
 }
 
 /**
@@ -136,11 +132,8 @@ async function shippedNames(directory: string): Promise<ReadonlySet<string>> {
 }
 
 /**
- * The host runs the units this release ships, and the identities are separated.
- *
- * Two questions in one check because they have one answer: an installed unit that differs
- * from the shipped one makes every other statement about identity, hardening and alerting a
- * statement about a file nobody is running.
+ * Compare declared installed base files and selected drop-ins with this release.
+ * This filesystem check does not establish loaded PID1 state, other load paths or startup.
  */
 export const unitProvenance: CommissioningCheckFn = async (inputs: CommissioningInputs) => {
   let shipped: readonly UnitFacts[];
@@ -164,10 +157,17 @@ export const unitProvenance: CommissioningCheckFn = async (inputs: Commissioning
 
   const byName = new Map(installed.map((unit) => [unit.name, unit]));
   const missing = shipped.filter((unit) => !byName.has(unit.name)).map((unit) => unit.name);
-  const altered = shipped
-    .filter((unit) => byName.get(unit.name)?.digest !== undefined)
-    .filter((unit) => byName.get(unit.name)?.digest !== unit.digest)
-    .map((unit) => unit.name);
+  const altered: string[] = [];
+  for (const unit of shipped) {
+    const actual = byName.get(unit.name);
+    if (actual === undefined) continue;
+    if (
+      actual.baseDigest !== unit.baseDigest ||
+      !(await reviewedDropIns(unit.name, actual.dropIns ?? [], inputs.shippedUnitDirectory))
+    ) {
+      altered.push(unit.name);
+    }
+  }
 
   const api = byName.get('kf-api.service');
   const checkpoint = byName.get('kf-checkpoint.service');
@@ -243,8 +243,8 @@ export const unitProvenance: CommissioningCheckFn = async (inputs: Commissioning
     return {
       status: 'unsatisfied',
       detail:
-        `The host is not running this release's units: ${missing.length} missing, ${altered.length} altered. ` +
-        'Every hardening, identity and alerting statement below describes a file that is not in force. ' +
+        `Installed unit file composition is not this release's reviewed configuration: ${missing.length} missing, ${altered.length} altered. ` +
+        'Identity and alerting claims cannot rely on an unreviewed file composition. ' +
         PROVISION_HINT,
       observed,
     };
@@ -287,9 +287,10 @@ export const unitProvenance: CommissioningCheckFn = async (inputs: Commissioning
   return {
     status: 'satisfied',
     detail:
-      `All ${shipped.length} shipped units are installed byte-identically, the API (${observed.apiUser}) and ` +
-      `checkpoint signer (${observed.checkpointUser}) are separate identities, no identity reaches a secret ` +
-      `its unit does not name, and every unit routes failure to an alert.`,
+      `All ${shipped.length} installed base files match this release byte-identically, with only exact role-specific reviewed drop-ins. ` +
+      `The composed files declare separate API (${observed.apiUser}) and checkpoint (${observed.checkpointUser}) identities, ` +
+      'no surplus named secret paths for shared identities, and failure routing outside the alert path. ' +
+      'This is file-composition evidence, not proof of loaded PID1 state or successful startup.',
     observed,
   };
 };

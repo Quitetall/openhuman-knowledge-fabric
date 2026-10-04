@@ -957,6 +957,11 @@ Before any shared user is admitted:
 
 ## Commissioning: run it, do not read it
 
+The [unit-file composition check](commissioning-unit-composition.md) now includes
+selected drop-ins and refuses unreviewed overrides. Its success describes files
+in the declared directory, not proof that PID 1 loaded them. Loaded-manager,
+native credential and reboot evidence remain required for host commissioning.
+
 Everything below used to be a prose list of things nobody had done — a checklist a reader can
 agree with and move past. It is now a program.
 
