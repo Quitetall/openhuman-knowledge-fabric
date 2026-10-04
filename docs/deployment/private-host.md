@@ -621,6 +621,10 @@ ordinary owner-only file rule unchanged. Its public PID1 proof is not installed
 consumer commissioning; selected startup delivery and exact service bindings
 must still be demonstrated independently.
 
+The [closed application credential delivery](application-credential-delivery.md)
+profiles cover API, worker, attestor, checkpoint, storage and readiness separately.
+Their delivery templates do not install consumer bindings or commission startup.
+
 `apply` (and `kf-migrate.service`) recompute the MAC with the same key and refuse a receipt that
 does not verify, a v2 receipt, and a v1 receipt, each by name — and each refusal prints the exact
 `rehearse-rollback` command, with this release's path, manifest digest and dbmate version filled

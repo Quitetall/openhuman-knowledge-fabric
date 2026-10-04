@@ -91,6 +91,75 @@ const DRILL_B2 = {
   decode: decodeDrillB2Bundle,
   validate: b2KeyPair,
 };
+// Fixed role contracts stay in this standalone sender: frozen receivers ship one file.
+const APPLICATION_FIELDS = new Map([
+  [
+    'api',
+    [
+      ['DATABASE_URL_FILE', 'database-url', 'DATABASE_URL'],
+      ['S3_SECRET_ACCESS_KEY_FILE', 's3-secret-access-key', 'S3_SECRET_ACCESS_KEY'],
+      [
+        'S3_DURABLE_SECRET_ACCESS_KEY_FILE',
+        's3-durable-secret-access-key',
+        'S3_DURABLE_SECRET_ACCESS_KEY',
+      ],
+      ['KF_READINESS_TOKEN_FILE', 'readiness-token', 'READINESS_TOKEN'],
+      [
+        'KF_MASTER_RECORD_LINK_SECRET_FILE',
+        'master-record-link-secret',
+        'MASTER_RECORD_LINK_SECRET',
+      ],
+    ],
+  ],
+  [
+    'worker',
+    [
+      ['WORKER_DATABASE_URL_FILE', 'database-url', 'DATABASE_URL'],
+      ['S3_SECRET_ACCESS_KEY_FILE', 's3-secret-access-key', 'S3_SECRET_ACCESS_KEY'],
+    ],
+  ],
+  ['attestor', [['DATABASE_URL_FILE', 'database-url', 'DATABASE_URL']]],
+  [
+    'checkpoint',
+    [
+      ['DATABASE_URL_FILE', 'database-url', 'DATABASE_URL'],
+      ['CHECKPOINT_SIGNING_KEY_PATH', 'checkpoint-signing-key', 'SIGNING_KEY_BASE64'],
+      ['CHECKPOINT_S3_SECRET_ACCESS_KEY_FILE', 's3-secret-access-key', 'S3_SECRET_ACCESS_KEY'],
+    ],
+  ],
+  [
+    'storage',
+    [
+      ['DATABASE_URL_FILE', 'database-url', 'DATABASE_URL'],
+      ['S3_SECRET_ACCESS_KEY_FILE', 's3-secret-access-key', 'S3_SECRET_ACCESS_KEY'],
+      [
+        'S3_DURABLE_SECRET_ACCESS_KEY_FILE',
+        's3-durable-secret-access-key',
+        'S3_DURABLE_SECRET_ACCESS_KEY',
+      ],
+    ],
+  ],
+  ['readiness', [['DATABASE_URL_FILE', 'database-url', 'DATABASE_URL']]],
+]);
+const APPLICATIONS = new Map(
+  [...APPLICATION_FIELDS].map(([role, fields]) => {
+    const limits = fields.map(([, name]) => (name === 'checkpoint-signing-key' ? 4096 : 8192));
+    return [
+      role,
+      {
+        protocol: `kf-workstation-application-${role}-credentials-v1`,
+        root: `kf-workstation-application-${role}-credentials`,
+        names: fields.map(([, name]) => name),
+        limits,
+        byteLimit: limits.reduce((total, limit) => total + 4 * Math.ceil(limit / 3), 2048),
+        exactNames: true,
+        encode: (env) => encodeApplicationBundle(role, env),
+        decode: (bytes) => decodeApplicationBundle(role, bytes),
+        validate: (values) => applicationValues(role, values),
+      },
+    ];
+  }),
+);
 const BOOT_ID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 const GENERATION = /^generation-[A-Za-z0-9]{6}$/;
 
@@ -336,6 +405,73 @@ function decodePreservation(bytes, profile) {
   return profile.validate(
     lines.slice(1, -1).map((value, i) => canonicalBase64(value, profile.limits[i])),
   );
+}
+
+function applicationProfile(role) {
+  const profile = APPLICATIONS.get(role);
+  if (!profile) refuse();
+  return profile;
+}
+
+function applicationValues(role, values) {
+  const profile = applicationProfile(role);
+  if (values.length !== profile.names.length) refuse();
+  migrationDatabase(values[0], 0);
+  profile.names.slice(1).forEach((name, index) => {
+    const value = values[index + 1];
+    if (name === 'checkpoint-signing-key') {
+      const pem = boundedText(value, 4096);
+      try {
+        if (
+          !/^-----BEGIN PRIVATE KEY-----\n[A-Za-z0-9+/=\n]+\n-----END PRIVATE KEY-----\n?$/.test(
+            pem,
+          ) ||
+          createPrivateKey(pem).asymmetricKeyType !== 'ed25519'
+        )
+          refuse();
+      } catch {
+        refuse();
+      }
+    } else {
+      const minimum = name === 'readiness-token' || name === 'master-record-link-secret' ? 32 : 1;
+      if (
+        typeof value !== 'string' ||
+        value.length < minimum ||
+        value.length > 8192 ||
+        /[^\x21-\x7e]/.test(value)
+      )
+        refuse();
+    }
+  });
+  return values;
+}
+
+/** Closed consumer paths only; callers cannot mutate the selected profile. */
+export function applicationCredentialBindings(role) {
+  applicationProfile(role);
+  return APPLICATION_FIELDS.get(role).map(([binding, name]) => [binding, name]);
+}
+
+/** No fallback to another role's encrypted inputs, signing keys or transport realm. */
+export function encodeApplicationBundle(role, env) {
+  const profile = applicationProfile(role);
+  const values = APPLICATION_FIELDS.get(role).map(([, name, suffix]) => {
+    const value = env[`KF_${role.toUpperCase()}_${suffix}`];
+    return name === 'checkpoint-signing-key' ? canonicalBase64(value, 4096) : value;
+  });
+  return encodePreservation(values, profile);
+}
+
+export function decodeApplicationBundle(role, bytes) {
+  return decodePreservation(bytes, applicationProfile(role));
+}
+
+export function applicationRuntimeStatus(role, parent, uid, bootId, swaps) {
+  return statusForProfile(parent, uid, bootId, swaps, applicationProfile(role));
+}
+
+export function receiveApplicationBundle(role, bytes, parent, uid, bootId, swaps) {
+  return receiveForProfile(bytes, parent, uid, bootId, swaps, applicationProfile(role));
 }
 
 export function encodeBackupBundle(env) {
@@ -640,6 +776,7 @@ async function main() {
     ['offsite-', OFFSITE],
     ['drill-', DRILL],
     ['drill-b2-', DRILL_B2],
+    ...[...APPLICATIONS].map(([role, profile]) => [`application-${role}-`, profile]),
   ];
   const selected = prefixes.find(([prefix]) =>
     ['receive', 'status', 'send', 'sync'].some((verb) => action === `${prefix}${verb}`),
