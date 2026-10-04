@@ -614,6 +614,13 @@ PostgreSQL password files to unswapped tmpfs. Its selected-host checkpoints reco
 the actual encrypted-store handoff and freshly authenticated rehearsal separately
 from the earlier public native proof. Neither is production migration or commissioning.
 
+The [TypeScript native credential reader](native-credential-reader.md) supplies
+the same explicit custody choice for `loadSecret` and direct signing-key paths.
+It invokes the release's root-protected C checker before reading and keeps the
+ordinary owner-only file rule unchanged. Its public PID1 proof is not installed
+consumer commissioning; selected startup delivery and exact service bindings
+must still be demonstrated independently.
+
 `apply` (and `kf-migrate.service`) recompute the MAC with the same key and refuse a receipt that
 does not verify, a v2 receipt, and a v1 receipt, each by name — and each refusal prints the exact
 `rehearse-rollback` command, with this release's path, manifest digest and dbmate version filled

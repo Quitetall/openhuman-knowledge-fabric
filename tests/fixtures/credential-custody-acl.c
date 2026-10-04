@@ -125,18 +125,20 @@ int main(void) {
     }
   }
   /* The named interface must preserve the old index limit and admit only the
-   * bounded migration, B2, preservation and alert credentials. Unknown names and traversal have no policy.
+   * bounded application, migration, B2, preservation and alert credentials.
+   * Unknown names and traversal have no policy.
    */
-  const char *names[13] = {"index-key", "database-url", "rehearsal-database-url",
+  const char *names[17] = {"index-key", "database-url", "rehearsal-database-url",
                           "rehearsal-receipt-key", "b2-endpoint", "b2-bucket",
                           "b2-key-id", "b2-key", "preservation-signing-key",
                           "backup-decryption-key", "s3-secret-access-key",
-                          "ntfy-url", "heartbeat-url"};
-  const off_t minimum[13] = {0, 1, 1, 32, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-  const off_t maximum[13] = {65, 8192, 8192, 4096, 514, 514, 514, 514, 4096, 65536, 8192, 4097, 4097};
+                          "ntfy-url", "heartbeat-url", "checkpoint-signing-key",
+                          "s3-durable-secret-access-key", "readiness-token", "master-record-link-secret"};
+  const off_t minimum[17] = {0, 1, 1, 32, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 32, 32};
+  const off_t maximum[17] = {65, 8192, 8192, 4096, 514, 514, 514, 514, 4096, 65536, 8192, 4097, 4097, 4096, 8192, 8192, 8192};
   fixture_stat.st_mode = S_IFREG | 0440;
   valid(fixture_acl, 4);
-  for (unsigned int i = 0; i < 13; ++i) {
+  for (unsigned int i = 0; i < 17; ++i) {
     off_t lower = -1, upper = -1;
     if (!credential_policy(names[i], &lower, &upper) ||
         lower != minimum[i] || upper != maximum[i]) return 1;

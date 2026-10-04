@@ -63,13 +63,21 @@ static int credential_policy(const char *name, off_t *minimum, off_t *maximum) {
     return 1;
   }
   if (strcmp(name, "preservation-signing-key") == 0 ||
+      strcmp(name, "checkpoint-signing-key") == 0 ||
       strcmp(name, "backup-decryption-key") == 0) {
     *minimum = 1;
-    *maximum = strcmp(name, "preservation-signing-key") == 0 ? 4096 : 65536;
+    *maximum = strcmp(name, "backup-decryption-key") == 0 ? 65536 : 4096;
     return 1;
   }
-  if (strcmp(name, "s3-secret-access-key") == 0) {
+  if (strcmp(name, "s3-secret-access-key") == 0 ||
+      strcmp(name, "s3-durable-secret-access-key") == 0) {
     *minimum = 1;
+    *maximum = 8192;
+    return 1;
+  }
+  if (strcmp(name, "readiness-token") == 0 ||
+      strcmp(name, "master-record-link-secret") == 0) {
+    *minimum = 32;
     *maximum = 8192;
     return 1;
   }

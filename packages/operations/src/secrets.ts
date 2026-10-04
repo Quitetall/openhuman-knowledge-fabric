@@ -16,9 +16,11 @@
  */
 
 import { readFileSync, statSync } from 'node:fs';
+import { verifyNativeSecret } from './internal/native-secret.js';
 
 export class SecretRejected extends Error {
-  readonly reason: 'missing' | 'too_permissive' | 'empty' | 'inline_in_production';
+  readonly reason:
+    'missing' | 'too_permissive' | 'empty' | 'inline_in_production' | 'custody_unavailable';
 
   constructor(reason: SecretRejected['reason'], message: string) {
     super(message);
@@ -39,14 +41,42 @@ export interface SecretOptions {
 
 const GROUP_AND_OTHER = 0o077;
 
+function nativeCustody(env: NodeJS.ProcessEnv): boolean {
+  const custody = env['KF_SECRET_CUSTODY'];
+  if (custody === undefined || custody === '') return false;
+  if (custody === 'systemd') return true;
+  throw new SecretRejected('custody_unavailable', 'unsupported secret custody');
+}
+
 /**
  * Read a secret from a path that was supplied directly.
  *
  * For variables that name a file by design rather than by the `_FILE` convention — the
  * checkpoint signing key, which has always been a path because a private key in an
  * environment variable was never acceptable. Same permission rule, same refusal.
+ * Explicit `KF_SECRET_CUSTODY=systemd` instead requires the release's native checker;
+ * it never relaxes ordinary-file modes, allows inline fallback or accepts a mode override.
+ * The supplied environment defaults to this process for direct path-valued callers.
  */
-export function readSecretFile(path: string, label: string, forbiddenMode?: number): string {
+export function readSecretFile(
+  path: string,
+  label: string,
+  forbiddenMode?: number,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  if (nativeCustody(env)) {
+    try {
+      if (forbiddenMode !== undefined) throw new Error('ordinary mode override in native custody');
+      verifyNativeSecret(path, env);
+    } catch {
+      // Checker output and thrown diagnostics can contain untrusted text. None
+      // of it reaches callers or logs, and no value is read after refusal.
+      throw new SecretRejected('custody_unavailable', 'systemd secret custody unavailable');
+    }
+    const value = readFileSync(path, 'utf8').replace(/\s+$/, '');
+    if (value === '') throw new SecretRejected('empty', `${path} is empty`);
+    return value;
+  }
   let mode: number;
   try {
     mode = statSync(path).mode;
@@ -78,11 +108,15 @@ export function loadSecret(
   env: NodeJS.ProcessEnv = process.env,
   options: SecretOptions = {},
 ): string {
+  const native = nativeCustody(env);
   const path = env[`${name}_FILE`];
 
   if (path !== undefined && path !== '') {
-    return readSecretFile(path, `${name}_FILE`, options.forbiddenMode);
+    return readSecretFile(path, `${name}_FILE`, options.forbiddenMode, env);
   }
+
+  if (native)
+    throw new SecretRejected('custody_unavailable', 'systemd secret custody requires a named file');
 
   const inline = env[name];
   if (inline === undefined || inline === '') {
