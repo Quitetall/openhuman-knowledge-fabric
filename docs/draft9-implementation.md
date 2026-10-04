@@ -895,3 +895,45 @@ Native secret posture, real encrypted-store delivery, owner B2 signup/key captur
 and Bitwarden recovery, preservation/recovery of the 91-migration baseline,
 fresh sealing/rehearsal, guarded promotion and final qualification/acceptance
 remain open. Do not cite this check or its local qualification as KF 1.0.
+
+## Actual drill identity: retained baseline recovery (2026-10-04)
+
+The actual `kf-drill` account (UID 978) decrypted the retained signed
+91-migration baseline, authenticated its backup root and export, restored it
+into a private socket-only PostgreSQL 18 cluster, and re-exported it byte for
+byte using the matching historical `637677e2c5e1` exporter. Its separate
+read-only working-store credential measured and matched all fifteen requested
+objects. The recovery key, GnuPG keyring, decrypted bundle, database and
+temporary re-export key remained in private unswapped guest tmpfs. The owned
+cluster stopped and its runtime and PID 1 credential mount disappeared. No
+production ledger credential or preservation signing key was delivered.
+
+The first real invocation exposed an operational caller defect: the adapter
+staged owner-only child inputs but inherited `KF_SECRET_CUSTODY=systemd`, so
+the actual child loader correctly rejected them as non-PID-1 files. The
+[caller adapter](deployment/backup-custody.md#database-and-object-reader-child-handoff)
+now switches only validated ordinary-file children to their existing contract,
+without relaxing native parent admission. Root-manifest signing uses the same
+explicit boundary with no database binding. The current built native-reader
+fixture now includes its internal dependency and proves the real default
+child environment, parent custody retention, cleanup and refusal cases.
+
+The corrected probe is an **unsealed diagnostic overlay**, not a promoted or
+qualified release. The `bc7084b3` exporter cannot re-export that older schema:
+its additional columns require the candidate migrations. Historical recovery
+therefore uses the historical exporter, while candidate backup/restore still
+needs a new exact-release proof on its 153-migration schema. A diagnostic
+symlink prevented the object-verifier CLI entrypoint from running; using its
+actual compiled main file corrected the fixture and yielded fifteen measured
+objects, rather than credit for an empty proof.
+
+The retained backup carries no historical checkpoint verification keys. The
+shipped verifier therefore correctly reports `partial` and exits nonzero:
+database and object recovery pass, checkpoint trust is not verified. No
+checkpoint key, checkpoint record, off-site copy, restore ledger row, human
+approval or acceptance was fabricated. This is local retained-baseline
+recovery evidence, not a fresh scheduled backup or a B2-downloaded restore.
+Production remains on `637677e2c5e1` at 91 migrations with its original running
+services. Fresh gating/sealing, candidate-schema recovery, independent copies,
+Bitwarden recovery, B2 access, guarded promotion, commissioning and final
+qualification remain open.

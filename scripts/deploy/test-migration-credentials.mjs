@@ -52,7 +52,12 @@ try {
   chmodSync(executableParent, 0o755);
   volatileParent = mkdtempSync('/run/kf-migration-credential-fixture-');
   chmodSync(volatileParent, 0o700);
-  for (const path of ['scripts/lib', 'tools', 'tests/fixtures', 'packages/operations/dist'])
+  for (const path of [
+    'scripts/lib',
+    'tools',
+    'tests/fixtures',
+    'packages/operations/dist/internal',
+  ])
     mkdirSync(join(executableParent, path), { recursive: true, mode: 0o755 });
   for (const path of [
     'scripts/lib/secret.sh',
@@ -61,6 +66,7 @@ try {
     'tests/fixtures/systemd-migration-credentials.sh',
     'packages/operations/package.json',
     'packages/operations/dist/secrets.js',
+    'packages/operations/dist/internal/native-secret.js',
   ]) {
     copyFileSync(join(ROOT, path), join(executableParent, path));
     chownSync(join(executableParent, path), 0, 0);

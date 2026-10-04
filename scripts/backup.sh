@@ -387,7 +387,7 @@ echo "==> digests"
     | xargs -0 sha256sum > SHA256SUMS )
 
 echo "==> signing complete backup bundle"
-node "$ROOT/packages/export/dist/cli.js" sign-backup "$DEST" \
+kf_preservation_signing_child node "$ROOT/packages/export/dist/cli.js" sign-backup "$DEST" \
   --signing-key "$PRESERVATION_SIGNING_KEY_PATH" \
   --key-id "$PRESERVATION_SIGNING_KEY_ID" \
   --trust-store "$PRESERVATION_TRUST_STORE_DIR"

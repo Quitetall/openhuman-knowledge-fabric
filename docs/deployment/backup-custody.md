@@ -110,6 +110,21 @@ failure, and the child exit status is preserved. Ordinary standalone database
 callers without a file retain their existing sanitized URL/password-file mode;
 explicit systemd custody never falls back to that mode.
 
+The adapter removes `KF_SECRET_CUSTODY` and `CREDENTIALS_DIRECTORY` only from
+these ordinary-file children, after parent admission and staging. The parent
+retains native custody. Passing those native-routing variables to a child
+would ask its loader to validate a staged file as a PID 1 credential mount,
+which correctly refuses. This also applies to the restore verifier's private
+target connection and ephemeral re-export signing key; neither is a native
+credential. The native public fixture must exercise the actual built loader
+with the child's default environment, including its current internal module
+dependencies, rather than substitute an empty environment or a fake reader.
+Root-manifest signing uses `kf_preservation_signing_child`: it admits only the
+already prepared native signing copy (or a validated ordinary standalone key),
+switches only that child to the owner-only contract, and supplies no database
+connection or password-file binding. The prepared copy remains owned by the
+parent's cleanup dispatcher; the signer does not create a new persistent key.
+
 The restore verifier uses its scratch `target-url` for both re-export and
 checkpoint verification, even if its environment names a production database
 file. Under systemd that target must be a canonical, single-linked, owner-only

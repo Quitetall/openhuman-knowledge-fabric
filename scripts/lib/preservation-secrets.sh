@@ -45,6 +45,32 @@ kf_validate_backup_decryption_key() {
   kf_validate_preservation_key "$1" backup-decryption-key
 }
 
+# Root-manifest signing has no database input. Admit only the already prepared
+# native signing copy (or the existing ordinary file), then bind its owner-only
+# contract to the signer without changing the parent's native custody mode.
+kf_preservation_signing_child() {
+  local source="${PRESERVATION_SIGNING_KEY_PATH:-}" size
+  [ "$#" -gt 0 ] || return 1
+  if [ "${KF_SECRET_CUSTODY:-}" = systemd ]; then
+    kf_validate_private_tmpfs || return 1
+    [ -n "${KF_PRESERVATION_STAGED_KEY:-}" ] &&
+      [ "$source" = "$KF_PRESERVATION_STAGED_KEY" ] &&
+      [ "$(dirname -- "$source")" = "$TMPDIR" ] &&
+      [ "$(readlink -e -- "$source")" = "$source" ] &&
+      [ -f "$source" ] && [ ! -L "$source" ] &&
+      [ "$(stat -c '%u:%a:%h' "$source")" = "$EUID:400:1" ] || {
+        echo 'preservation signer requires its prepared private runtime input' >&2; return 1;
+      }
+    size="$(stat -c '%s' "$source")" || return 1
+    [ "$size" -ge 1 ] && [ "$size" -le 4096 ] || return 1
+  else
+    kf_validate_preservation_key "$source" preservation-signing-key || return 1
+  fi
+  env -u KF_SECRET_CUSTODY -u CREDENTIALS_DIRECTORY \
+    -u DATABASE_URL -u DATABASE_URL_FILE -u PGPASSFILE -u KF_PGPASS_OWNED \
+    PRESERVATION_SIGNING_KEY_PATH="$source" "$@"
+}
+
 kf_validate_drill_workspace() {
   [ "${KF_SECRET_CUSTODY:-}" = systemd ] || return 0
   kf_validate_private_tmpfs || return 1
@@ -150,7 +176,11 @@ kf_preservation_database_child() {
   _kf_prepare_preservation_child_file "$source" database-url || return 1
   child_source="$KF_PRESERVATION_CHILD_INPUT"
   owned="$KF_PRESERVATION_CHILD_OWNED"
-  if env -u DATABASE_URL -u PGPASSFILE -u KF_PGPASS_OWNED DATABASE_URL_FILE="$child_source" "$@"; then
+  # Parent admission is still native and fail-closed. The validated scratch
+  # target or owned copy is an ordinary owner-only file, not a PID 1 credential
+  # mount. Do not ask the child's native reader to admit that different path.
+  if env -u KF_SECRET_CUSTODY -u CREDENTIALS_DIRECTORY \
+    -u DATABASE_URL -u PGPASSFILE -u KF_PGPASS_OWNED DATABASE_URL_FILE="$child_source" "$@"; then
     status=0
   else
     status=$?
@@ -166,7 +196,8 @@ kf_preservation_object_child() {
   _kf_prepare_preservation_child_file "$source" s3-secret-access-key || return 1
   child_source="$KF_PRESERVATION_CHILD_INPUT"
   owned="$KF_PRESERVATION_CHILD_OWNED"
-  if env -u S3_SECRET_ACCESS_KEY -u DATABASE_URL -u DATABASE_URL_FILE -u PGPASSFILE -u KF_PGPASS_OWNED \
+  if env -u KF_SECRET_CUSTODY -u CREDENTIALS_DIRECTORY \
+    -u S3_SECRET_ACCESS_KEY -u DATABASE_URL -u DATABASE_URL_FILE -u PGPASSFILE -u KF_PGPASS_OWNED \
     S3_SECRET_ACCESS_KEY_FILE="$child_source" "$@"; then
     status=0
   else

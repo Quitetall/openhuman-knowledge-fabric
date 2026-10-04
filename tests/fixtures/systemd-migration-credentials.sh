@@ -29,7 +29,9 @@ case "$plant" in
   child-purpose-mismatch)
     if kf_preservation_database_child "$CREDENTIALS_DIRECTORY/index-key" /usr/bin/true ||
        kf_preservation_object_child "$CREDENTIALS_DIRECTORY/b2-key" /usr/bin/true ||
-       kf_preservation_database_child '' /usr/bin/true; then
+       kf_preservation_database_child '' /usr/bin/true ||
+       PRESERVATION_SIGNING_KEY_PATH="$CREDENTIALS_DIRECTORY/preservation-signing-key" \
+         kf_preservation_signing_child /usr/bin/true; then
       echo 'child purpose or inline fallback was incorrectly admitted' >&2; exit 1
     fi
     echo 'database/object child purpose confusion and inline systemd fallback refused: PASS'
@@ -109,6 +111,19 @@ if kf_prepare_preservation_signing_key; then
 fi
 echo 'bounded preservation credentials and owner-only volatile signing input: PASS'
 
+export PRESERVATION_SIGNING_KEY_PATH
+signing_child="$(kf_preservation_signing_child /usr/bin/node --input-type=module -e '
+  import { pathToFileURL } from "node:url";
+  const { readSecretFile } = await import(pathToFileURL(process.argv[1] + "/packages/operations/dist/secrets.js"));
+  if (process.env.KF_SECRET_CUSTODY || process.env.CREDENTIALS_DIRECTORY || process.env.DATABASE_URL ||
+      process.env.DATABASE_URL_FILE || process.env.PGPASSFILE ||
+      readSecretFile(process.env.PRESERVATION_SIGNING_KEY_PATH, "PRESERVATION_SIGNING_KEY_PATH") !== "public-fixture-preservation-signer") process.exit(1);
+  process.stdout.write("PASS");
+' "$release")"
+[ "$signing_child" = PASS ] && [ -f "$PRESERVATION_SIGNING_KEY_PATH" ]
+[ "$KF_SECRET_CUSTODY" = systemd ] && [ -n "$CREDENTIALS_DIRECTORY" ]
+echo 'actual signer secret loader admits only its prepared input without native routing or database authority: PASS'
+
 staged="$(env -u PGPASSFILE -u KF_PGPASS_OWNED /usr/bin/bash -c \
   '. "$1/scripts/lib/secret.sh"; . "$1/scripts/lib/preservation-secrets.sh"; PRESERVATION_SIGNING_KEY_PATH="$CREDENTIALS_DIRECTORY/preservation-signing-key"; kf_prepare_preservation_signing_key; printf "%s" "$PRESERVATION_SIGNING_KEY_PATH"' fixture "$release")"
 [ -n "$staged" ] && [ ! -e "$staged" ]
@@ -133,12 +148,14 @@ database_child="$(kf_preservation_database_child "$CREDENTIALS_DIRECTORY/databas
   import { statSync } from "node:fs";
   const { loadSecret } = await import(pathToFileURL(process.argv[1] + "/packages/operations/dist/secrets.js"));
   const path = process.env.DATABASE_URL_FILE;
-  if (process.env.DATABASE_URL || process.env.PGPASSFILE || process.env.KF_PGPASS_OWNED ||
+  if (process.env.KF_SECRET_CUSTODY || process.env.CREDENTIALS_DIRECTORY ||
+      process.env.DATABASE_URL || process.env.PGPASSFILE || process.env.KF_PGPASS_OWNED ||
       loadSecret("DATABASE_URL") !== "postgres://fixture:public-fixture-password@127.0.0.1:5433/public_probe" ||
       (statSync(path).mode & 0o777) !== 0o400 || statSync(path).uid !== process.getuid()) process.exit(1);
   process.stdout.write(path);
 ' "$release")"
 [ -n "$database_child" ] && [ ! -e "$database_child" ]
+[ "$KF_SECRET_CUSTODY" = systemd ] && [ -n "$CREDENTIALS_DIRECTORY" ]
 echo 'actual ordinary secret loader admits volatile database child copy with no inline/password-file inheritance: PASS'
 
 if failed_child="$(kf_preservation_database_child "$CREDENTIALS_DIRECTORY/database-url" /usr/bin/bash -c \
@@ -155,12 +172,14 @@ object_child="$(kf_preservation_object_child "$CREDENTIALS_DIRECTORY/s3-secret-a
   import { statSync } from "node:fs";
   const { loadSecret } = await import(pathToFileURL(process.argv[1] + "/packages/operations/dist/secrets.js"));
   const path = process.env.S3_SECRET_ACCESS_KEY_FILE;
-  if (process.env.S3_SECRET_ACCESS_KEY || process.env.DATABASE_URL || process.env.DATABASE_URL_FILE || process.env.PGPASSFILE ||
+  if (process.env.KF_SECRET_CUSTODY || process.env.CREDENTIALS_DIRECTORY ||
+      process.env.S3_SECRET_ACCESS_KEY || process.env.DATABASE_URL || process.env.DATABASE_URL_FILE || process.env.PGPASSFILE ||
       loadSecret("S3_SECRET_ACCESS_KEY") !== "public-object-reader-key" ||
       (statSync(path).mode & 0o777) !== 0o400 || statSync(path).uid !== process.getuid()) process.exit(1);
   process.stdout.write(path);
 ' "$release")"
 [ -n "$object_child" ] && [ ! -e "$object_child" ]
+[ "$KF_SECRET_CUSTODY" = systemd ] && [ -n "$CREDENTIALS_DIRECTORY" ]
 echo 'actual ordinary secret loader admits volatile object-reader copy without database credentials: PASS'
 
 install -d -m 0700 "$TMPDIR/target-work"

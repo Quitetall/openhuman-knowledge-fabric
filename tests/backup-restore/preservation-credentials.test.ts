@@ -64,6 +64,27 @@ it('keeps an ordinary owner-only recovery file admissible without copying it', (
   expect(result.stdout).toBe('');
 });
 
+it('hands an ordinary signing input to its child without native routing or database authority', () => {
+  const f = fixture('signing-key');
+  const result = sh(
+    'PRESERVATION_SIGNING_KEY_PATH="$2"; export CREDENTIALS_DIRECTORY=/native DATABASE_URL=wrong DATABASE_URL_FILE=/wrong; kf_preservation_signing_child bash -c \'[ -z "${KF_SECRET_CUSTODY:-}" ] && [ -z "${CREDENTIALS_DIRECTORY:-}" ] && [ -z "${DATABASE_URL:-}" ] && [ -z "${DATABASE_URL_FILE:-}" ] && [ "$(cat "$PRESERVATION_SIGNING_KEY_PATH")" = public-key-fixture ]\'',
+    f.path,
+  );
+  expect(result.status, result.stderr).toBe(0);
+  expect(existsSync(f.path)).toBe(true);
+});
+
+it('refuses a permissive signing child input instead of running the signer', () => {
+  const f = fixture('signing-key');
+  chmodSync(f.path, 0o644);
+  const result = sh(
+    'PRESERVATION_SIGNING_KEY_PATH="$2"; kf_preservation_signing_child bash -c \'echo CHILD-RAN\'',
+    f.path,
+  );
+  expect(result.status).not.toBe(0);
+  expect(result.stdout).not.toContain('CHILD-RAN');
+});
+
 it('refuses group-readable signing and recovery keys without printing their bytes', () => {
   for (const operation of ['signing', 'recovery']) {
     const f = fixture(operation);
@@ -155,6 +176,20 @@ it('returns a database child failure without deleting the supplied ordinary inpu
   const result = sh('kf_preservation_database_child "$2" bash -c \'exit 23\'', f.path);
   expect(result.status).toBe(23);
   expect(existsSync(f.path)).toBe(true);
+});
+
+it('confines native credential-directory routing to the admitting parent for ordinary file children', () => {
+  for (const kind of ['database', 'object']) {
+    const f = fixture(`${kind}-file`, 'public-child-input');
+    const operation =
+      kind === 'database' ? 'kf_preservation_database_child' : 'kf_preservation_object_child';
+    const result = sh(
+      `export CREDENTIALS_DIRECTORY=/inherited/native-only; ${operation} "$2" bash -c '[ -z "\${KF_SECRET_CUSTODY:-}" ] && [ -z "\${CREDENTIALS_DIRECTORY:-}" ]'; [ "$CREDENTIALS_DIRECTORY" = /inherited/native-only ]`,
+      f.path,
+    );
+    expect(result.status, result.stderr).toBe(0);
+    expect(existsSync(f.path)).toBe(true);
+  }
 });
 
 it('refuses unreadable-purpose ordinary child files instead of falling back inline', () => {
