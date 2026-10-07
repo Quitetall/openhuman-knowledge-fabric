@@ -14,6 +14,9 @@ cannot carry: a walked, first-person account of what actually broke on the way, 
 someone who ran each step rather than read it. Where the two disagree about how far along
 anything is, the specification is right and this page is a snapshot of 2026-08-27.
 
+For the successor task after the Draft.9 source integration, use the
+[current source and operator handoff](handoff-draft9-main.md), not the old host state below.
+
 ## Read this first, because it is not obvious
 
 **The engine is far ahead of the product.** As of 2026-08-27: 79 migrations, 106 registered

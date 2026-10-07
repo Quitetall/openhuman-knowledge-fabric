@@ -65,6 +65,10 @@ The single source of truth for program state is the
 §98 lists the phases, §99 the acceptance criteria and §100 every known gap. Where this README
 and that document disagree, that document is right.
 
+Continuing the Draft.9 implementation? Start with the
+[source and operator handoff](docs/handoff-draft9-main.md). It separates the code available
+on `main` from the older live VM and the owner-controlled commissioning steps.
+
 ## Getting started
 
 ```sh
