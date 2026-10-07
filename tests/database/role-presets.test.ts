@@ -572,4 +572,43 @@ describe('a role is a preset of scope', () => {
         ?.templates.map((t) => t.scopeObjectId),
     ).toEqual([docA]);
   });
+  it('keeps one row per person, capability and scope however many roles reach it (KF-SAS-RQ-040)', async () => {
+    // Two assignments, two roles, both reaching the executive and engineer presets.
+    const director = await person('Director', 'internal', 'm3_ceo', undefined, 'public');
+    const second = await createObject(h.adminPool, f, {
+      type: 'role_assignment',
+      domain: 'organization',
+      state: 'active',
+      title: 'm3_executive assignment of Director',
+      createdBy: f.reviewerId,
+    });
+    await withTransaction(h.adminPool, async (tx) => {
+      await bindContext(tx, f, f.reviewerId);
+      await tx.query(
+        `insert into org.role_assignment
+           (id, subject_id, role_id, scope_id, valid_to, classification_ceiling)
+         values ($1, $2, 'm3_executive', $3, now() + interval '200 days', 'public')`,
+        [second, director.id, f.organizationId],
+      );
+    });
+    const rows = await withTransaction(h.pool, async (tx) => {
+      await bindReader(tx, f, f.reviewerId);
+      return tx.query<{
+        principal_id: string;
+        capability: string;
+        scope_object_id: string;
+        n: string;
+      }>(
+        `select principal_id, capability, scope_object_id, count(*)::text as n
+           from org.effective_access_grant
+          where source = 'role_preset'
+          group by principal_id, capability, scope_object_id`,
+      );
+    });
+    expect(rows.filter((row) => row.principal_id === director.id).length).toBeGreaterThan(0);
+    expect(rows.filter((row) => row.n !== '1')).toEqual([]);
+    // And the one row kept is the shortest path: executive's own template, from the executive role.
+    const coverage = await coverageOf(director.id);
+    expect(coverage.byObject.get(docStaff)?.map((g) => g.rolePath)).toEqual([['m3_executive']]);
+  });
 });

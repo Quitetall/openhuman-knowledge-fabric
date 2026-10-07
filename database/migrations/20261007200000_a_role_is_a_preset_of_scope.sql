@@ -437,33 +437,54 @@ union all
 -- A preset reaches a person through a live, active assignment scoped to the organization, for as
 -- long as that assignment is valid (the window is the assignment's: ADR 0036's review date bounds
 -- every preset grant it carries).
-select 'role_preset'::text,
-       preset.id,
-       envelope.organization_id,
-       'person'::text,
-       ra.subject_id,
-       preset.capability,
-       preset.scope_object_id,
-       null::text,
-       preset.classification_ceiling,
-       ra.valid_from,
-       ra.valid_to,
-       preset.defined_by,
-       preset.defined_by_action,
-       'role ' || array_to_string(reach.path, ' includes ') || ': ' || preset.reason,
-       reach.path
-  from org.role_assignment ra
-  join core.object envelope
-    on envelope.id = ra.id
-   and envelope.lifecycle_state = 'active'
-   and ra.scope_id = envelope.organization_id
-  join role_reach reach
-    on reach.organization_id = envelope.organization_id
-   and reach.root_role = ra.role_id
-  join org.role_preset_grant preset
-    on preset.organization_id = reach.organization_id
-   and preset.role_id = reach.role_id
-   and preset.retired_at is null;
+--
+-- ONE ROW PER PERSON, CAPABILITY AND SCOPE (KF-SAS-RQ-040). Two roles a person holds may reach the
+-- same scope — `ceo` and `quality_director` both include `staff` — and two templates may name the
+-- same object. Each would be a row, and two live rows for one principal, scope and capability are
+-- exactly what `access_grant_no_overlap` refuses for grants. So the source keeps one: the widest
+-- ceiling (none, then the highest), then the shortest role path, then the lowest template id, so
+-- the answer is deterministic. Only live assignments are considered, so the row kept is one that
+-- holds now; when that assignment ends, the next reading keeps another. A future assignment's
+-- start is still a boundary of the `role_assignment` source, which is what currency watches.
+select source, source_id, organization_id, principal_kind, principal_id, capability,
+       scope_object_id, scope_external_ref, classification_ceiling, valid_from, valid_to,
+       granted_by, granted_by_action, reason, role_path
+  from (
+    select distinct on (ra.subject_id, preset.capability, preset.scope_object_id)
+           'role_preset'::text as source,
+           preset.id as source_id,
+           envelope.organization_id,
+           'person'::text as principal_kind,
+           ra.subject_id as principal_id,
+           preset.capability,
+           preset.scope_object_id,
+           null::text as scope_external_ref,
+           preset.classification_ceiling,
+           ra.valid_from,
+           ra.valid_to,
+           preset.defined_by as granted_by,
+           preset.defined_by_action as granted_by_action,
+           'role ' || array_to_string(reach.path, ' includes ') || ': ' || preset.reason as reason,
+           reach.path as role_path
+      from org.role_assignment ra
+      join core.object envelope
+        on envelope.id = ra.id
+       and envelope.lifecycle_state = 'active'
+       and ra.scope_id = envelope.organization_id
+      join role_reach reach
+        on reach.organization_id = envelope.organization_id
+       and reach.root_role = ra.role_id
+      join org.role_preset_grant preset
+        on preset.organization_id = reach.organization_id
+       and preset.role_id = reach.role_id
+       and preset.retired_at is null
+      left join registry.classification ceiling on ceiling.id = preset.classification_ceiling
+     where ra.valid_from <= now()
+       and (ra.valid_to is null or ra.valid_to > now())
+     order by ra.subject_id, preset.capability, preset.scope_object_id,
+              preset.classification_ceiling is null desc, ceiling.rank desc,
+              cardinality(reach.path), reach.path, preset.id, ra.valid_to desc nulls first
+  ) as preset_grant;
 
 comment on view org.effective_access_grant is
   'Every live source of access in one shape (ADR 0016): direct grants, role assignments, project '
