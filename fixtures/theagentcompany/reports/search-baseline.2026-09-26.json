@@ -1,0 +1,107 @@
+{
+  "date": "2026-09-26",
+  "commit": "e9efa0ec",
+  "note": "reciprocal rank fusion with every word match voting fully (kf.fused.rrf.v1), on the owner's fixture stack; summary taken from the report committed in that commit.",
+  "summary": {
+    "k": 10,
+    "lists": [
+      "lexical",
+      "semantic",
+      "fused"
+    ],
+    "overall": {
+      "questions": 44,
+      "ceiling": 1,
+      "verbatim_lexical": 0.0227,
+      "keywords_lexical": 0.0455,
+      "verbatim_semantic": 0.8182,
+      "keywords_semantic": 0.5038,
+      "verbatim_fused": 0.5265,
+      "keywords_fused": 0.2917
+    },
+    "byType": [
+      {
+        "type": "admin",
+        "questions": 8,
+        "verbatim_lexical": 0,
+        "keywords_lexical": 0,
+        "verbatim_semantic": 0.8125,
+        "keywords_semantic": 0.5625,
+        "verbatim_fused": 0.625,
+        "keywords_fused": 0.0625
+      },
+      {
+        "type": "bm",
+        "questions": 1,
+        "verbatim_lexical": 0,
+        "keywords_lexical": 0,
+        "verbatim_semantic": 1,
+        "keywords_semantic": 1,
+        "verbatim_fused": 1,
+        "keywords_fused": 0
+      },
+      {
+        "type": "ds",
+        "questions": 9,
+        "verbatim_lexical": 0,
+        "keywords_lexical": 0,
+        "verbatim_semantic": 0.8889,
+        "keywords_semantic": 0.4444,
+        "verbatim_fused": 0.4444,
+        "keywords_fused": 0.2222
+      },
+      {
+        "type": "finance",
+        "questions": 7,
+        "verbatim_lexical": 0,
+        "keywords_lexical": 0,
+        "verbatim_semantic": 0.7143,
+        "keywords_semantic": 0.4524,
+        "verbatim_fused": 0.4524,
+        "keywords_fused": 0.2619
+      },
+      {
+        "type": "hr",
+        "questions": 10,
+        "verbatim_lexical": 0,
+        "keywords_lexical": 0,
+        "verbatim_semantic": 0.85,
+        "keywords_semantic": 0.65,
+        "verbatim_fused": 0.5,
+        "keywords_fused": 0.5
+      },
+      {
+        "type": "pm",
+        "questions": 2,
+        "verbatim_lexical": 0,
+        "keywords_lexical": 0,
+        "verbatim_semantic": 1,
+        "keywords_semantic": 0.5,
+        "verbatim_fused": 0.5,
+        "keywords_fused": 0.25
+      },
+      {
+        "type": "research",
+        "questions": 2,
+        "verbatim_lexical": 0,
+        "keywords_lexical": 0,
+        "verbatim_semantic": 1,
+        "keywords_semantic": 0,
+        "verbatim_fused": 0.5,
+        "keywords_fused": 0.5
+      },
+      {
+        "type": "sde",
+        "questions": 5,
+        "verbatim_lexical": 0.2,
+        "keywords_lexical": 0.4,
+        "verbatim_semantic": 0.6,
+        "keywords_semantic": 0.4,
+        "verbatim_fused": 0.6,
+        "keywords_fused": 0.4
+      }
+    ],
+    "semantic": "present",
+    "fusedRanking": "kf.fused.rrf.v1(k=60; kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2; lamu.kf.masked-cosine.v1)"
+  }
+}

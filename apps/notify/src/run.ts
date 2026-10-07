@@ -88,6 +88,37 @@ export interface UrgentOptions {
 
 const WATERMARK = 'urgent-since';
 
+/**
+ * The last item a run saw, as (instant, item): the instant as the database's own text at
+ * microseconds, so nothing is rounded on the way round (20261007500100).
+ */
+interface Boundary {
+  readonly at: string;
+  readonly item: string | null;
+}
+
+const MICROSECOND_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?Z$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** The boundary file, or undefined. The earlier format, one ISO instant, reads as (it, none). */
+export function parseBoundary(text: string): Boundary | undefined {
+  const trimmed = text.trim();
+  if (MICROSECOND_INSTANT.test(trimmed)) return { at: trimmed, item: null };
+  try {
+    const parsed = JSON.parse(trimmed) as { at?: unknown; item?: unknown };
+    if (typeof parsed.at !== 'string' || !MICROSECOND_INSTANT.test(parsed.at)) return undefined;
+    if (parsed.item !== null && (typeof parsed.item !== 'string' || !UUID.test(parsed.item))) {
+      return undefined;
+    }
+    return { at: parsed.at, item: parsed.item };
+  } catch {
+    return undefined;
+  }
+}
+
+/** An instant as the database writes it at microseconds, UTC. */
+const INSTANT_SQL = `to_char(%s at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
+
 export async function runUrgent(
   pool: Pool,
   options: UrgentOptions,
@@ -95,28 +126,31 @@ export async function runUrgent(
   const log = options.log ?? stderrLog;
   await mkdir(options.stateDir, { recursive: true, mode: 0o700 });
   const file = join(options.stateDir, WATERMARK);
-  let since: string | undefined;
+  let since: Boundary | undefined;
   try {
-    since = (await readFile(file, 'utf8')).trim();
-    if (Number.isNaN(Date.parse(since))) since = undefined;
+    since = parseBoundary(await readFile(file, 'utf8'));
   } catch {
     since = undefined;
   }
-  const save = async (instant: string) => {
-    await writeFile(`${file}.tmp`, `${instant}\n`, { mode: 0o600 });
+  const save = async (boundary: Boundary) => {
+    await writeFile(`${file}.tmp`, `${JSON.stringify(boundary)}\n`, { mode: 0o600 });
     await rename(`${file}.tmp`, file);
   };
   if (since === undefined) {
     // First run: start from now. What arose before the notifier existed is in the digest.
-    const now = await withTransaction(pool, (tx) => tx.one<{ now: Date }>('select now() as now'));
-    await save(now.now.toISOString());
+    const now = await withTransaction(pool, (tx) =>
+      tx.one<{ now: string }>(`select ${INSTANT_SQL.replace('%s', 'now()')} as now`),
+    );
+    await save({ at: now.now, item: null });
     log({ run: 'urgent', started: true, urgent: 0, pushed: false });
     return { pushed: false, urgent: 0 };
   }
+  // Ordered by (arose_at, item_id): the last row is the new boundary.
   const rows = await withTransaction(pool, (tx) =>
-    tx.query<{ person_id: string; kind: string; arose_at: Date }>(
-      'select person_id, kind, arose_at from core.urgent_notifications($1)',
-      [since],
+    tx.query<{ person_id: string; kind: string; arose_at: string; item_id: string }>(
+      `select person_id, kind, ${INSTANT_SQL.replace('%s', 'arose_at')} as arose_at, item_id
+         from core.urgent_notifications($1::timestamptz, $2::uuid)`,
+      [since.at, since.item],
     ),
   );
   const mine = rows.filter((row) => row.person_id === options.pushPerson);
@@ -128,11 +162,8 @@ export async function runUrgent(
     await options.push();
     pushed = true;
   }
-  const latest = rows.reduce(
-    (max, row) => (row.arose_at.getTime() > max ? row.arose_at.getTime() : max),
-    Date.parse(since),
-  );
-  await save(new Date(latest).toISOString());
+  const last = rows.at(-1);
+  if (last !== undefined) await save({ at: last.arose_at, item: last.item_id });
   log({
     run: 'urgent',
     urgent: rows.length,

@@ -20,7 +20,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server, type Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -345,6 +345,54 @@ describe('the push fires only for urgent items', () => {
     expect(await urgentNow()).toMatchObject({ pushed: true, urgent: 1 });
     expect(pushes).toHaveLength(1);
     // The same item never pushes twice.
+    expect(await urgentNow()).toMatchObject({ pushed: false });
+    expect(pushes).toHaveLength(1);
+  });
+
+  it('a later item in the millisecond a run already reached still pushes, and a seen one never does', async () => {
+    pushes.length = 0;
+    expect(await urgentNow()).toMatchObject({ pushed: false });
+    const decision = await as('performer', undefined, {
+      actionType: 'propose_decision',
+      targetIds: [],
+      payload: { title: 'Requalify the reflow profile' },
+      idempotencyKey: `decision-${randomUUID()}`,
+    });
+    await as('performer', AGENT, {
+      actionType: 'propose_act',
+      targetIds: [decision.objectIds[0]!],
+      payload: {
+        action_type: 'accept_decision',
+        target_ids: [decision.objectIds[0]!],
+        payload: {},
+        reason: 'the profile drifted',
+      },
+      reason: 'proposed by an agent for its person: accept_decision',
+      idempotencyKey: `propose-${randomUUID()}`,
+    });
+    const item = await withTransaction(h.adminPool, (tx) =>
+      tx.one<{ id: string; exact: string; millisecond: string; sub_millisecond: number }>(
+        `select id,
+                to_char(proposed_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as exact,
+                to_char(date_trunc('milliseconds', proposed_at) at time zone 'UTC',
+                        'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as millisecond,
+                extract(microseconds from proposed_at)::int % 1000 as sub_millisecond
+           from core.act_proposal order by proposed_at desc, id desc limit 1`,
+      ),
+    );
+    // The run before reached this millisecond through an earlier item in it (a boundary at the
+    // millisecond, as a JavaScript instant would have kept it). The new item is later within it.
+    expect(item.sub_millisecond, 'the item fell exactly on a millisecond; rerun').toBeGreaterThan(
+      0,
+    );
+    writeFileSync(join(stateDir, 'urgent-since'), `${item.millisecond}\n`);
+    expect(await urgentNow()).toMatchObject({ pushed: true, urgent: 1 });
+    expect(pushes).toHaveLength(1);
+    // The boundary is now the item itself, to the microsecond and by id: it is never pushed again.
+    writeFileSync(
+      join(stateDir, 'urgent-since'),
+      JSON.stringify({ at: item.exact, item: item.id }),
+    );
     expect(await urgentNow()).toMatchObject({ pushed: false });
     expect(pushes).toHaveLength(1);
   });

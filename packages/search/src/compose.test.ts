@@ -110,7 +110,9 @@ describe('composeSearch', () => {
     ]);
     expect(answer.withheldCount).toBe(1);
     // With no engine the fused list is the lexical page, and its name says it fused nothing else.
-    expect(answer.ranked.ranking).toBe(`kf.fused.rrf.v1(k=60; ${LEXICAL_RANKING})`);
+    expect(answer.ranked.ranking).toBe(
+      `kf.fused.rrf.v2(k=60; lexical vote=(coverage-0.5)/0.5; ${LEXICAL_RANKING})`,
+    );
     expect(answer.ranked.hits.map((hit) => hit.objectId)).toEqual(['a', 'b']);
   });
 
@@ -122,7 +124,9 @@ describe('composeSearch', () => {
       { text: 'valve' },
       { grants: GRANTED_A_AND_B, semantic: engine(RANKED(['b', 'a'])) },
     );
-    expect(answer.ranked.ranking).toBe(`kf.fused.rrf.v1(k=60; ${LEXICAL_RANKING}; stub.cosine.v1)`);
+    expect(answer.ranked.ranking).toBe(
+      `kf.fused.rrf.v2(k=60; lexical vote=(coverage-0.5)/0.5; ${LEXICAL_RANKING}; stub.cosine.v1)`,
+    );
     expect(answer.ranked.hits).toHaveLength(2);
     // Each record is first on one list and second on the other: equal scores, and the tie goes to
     // the lexical place.
@@ -227,15 +231,20 @@ describe('composeSearch', () => {
 
 describe('fuse (reciprocal rank fusion)', () => {
   const verification = { verified: false, label: UNVERIFIED_LABEL } as const;
-  const hit = (objectId: string) => ({
+  // A lexical hit's `rank` is its coverage: the share of the query it holds. 1 votes fully.
+  const hit = (
+    objectId: string,
+    coverage = 1,
+    matchedBy: 'full_text' | 'partial_identifier' = 'full_text',
+  ) => ({
     objectId,
     objectType: 'artifact',
     title: objectId.toUpperCase(),
     lifecycleState: 'draft',
     classification: 'internal',
-    rank: 0,
+    rank: coverage,
     score: 0,
-    matchedBy: 'full_text' as const,
+    matchedBy,
     verification,
   });
 
@@ -244,6 +253,21 @@ describe('fuse (reciprocal rank fusion)', () => {
     expect(fused[0]!.objectId).toBe('both');
     expect(fused[0]!.score).toBeCloseTo(1 / (FUSION_K + 3) + 1 / (FUSION_K + 1), 12);
     expect(fused.map((h) => h.rank)).toEqual([1, 2, 3, 4]);
+  });
+
+  it('weighs a word match by its share of the query above the floor (SAS §100.45)', () => {
+    // Half the question, first by its words: it votes nothing, and the semantic list's first
+    // record leads. Plain RRF would have tied them and put the word match first.
+    const half = fuse([hit('half', 0.5), hit('most', 0.9)], [hit('meaning'), hit('most')], 10);
+    expect(half.map((h) => h.objectId)).toEqual(['most', 'meaning', 'half']);
+    expect(half[0]!.score).toBeCloseTo(0.8 / (FUSION_K + 2) + 1 / (FUSION_K + 2), 12);
+    expect(half[2]!.score).toBe(0);
+    // A partial identifier votes fully: it is what an identifier's fragment is looked for by.
+    const identifier = fuse([hit('cnb', 0.2, 'partial_identifier')], [hit('other')], 10);
+    expect(identifier[0]!.score).toBeCloseTo(1 / (FUSION_K + 1), 12);
+    // Nothing to fuse with: the lexical page keeps its own order, whatever the votes.
+    const alone = fuse([hit('a', 0.5), hit('b', 0.9), hit('c', 0.2, 'partial_identifier')], [], 10);
+    expect(alone.map((h) => h.objectId)).toEqual(['a', 'b', 'c']);
   });
 
   it('is a function of the two lists alone, cuts at k, and adds no record', () => {

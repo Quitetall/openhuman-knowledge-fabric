@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "KF MCP server — an agent reads and writes the Fabric for its person over a delegated token, through the API",
+  "description": "KF MCP server \u2014 an agent reads and writes the Fabric for its person over a delegated token, through the API",
   "main": "./dist/main.js",
   "bin": {
     "kf-mcp": "./dist/main.js"
@@ -14,6 +14,7 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
+    "@kf/agent": "workspace:*",
     "@kf/domain": "workspace:*",
     "@modelcontextprotocol/node": "2.1.1",
     "@modelcontextprotocol/server": "2.3.1",

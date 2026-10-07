@@ -10,9 +10,22 @@
  *
  * So the answer leads with `ranked`: the two rankings fused by reciprocal rank fusion (Cormack,
  * Clarke and Büttcher, SIGIR 2009) with its published constant k = 60, not a value fitted here.
- * A record's fused score is the sum over the lists it appears in of 1 / (60 + its rank there),
- * which needs no comparison between the lexical score and the engine's, and every fused hit says
- * which list placed it where. The two source lists are still returned beside it: `lexical` is the
+ * A record's fused score is the sum over the lists it appears in of its vote / (60 + its rank
+ * there), which needs no comparison between the lexical score and the engine's, and every fused
+ * hit says which list placed it where.
+ *
+ * A semantic place votes 1. A word match votes for how far above the matching floor its share of
+ * the query lies: (coverage − 0.5) / 0.5, so a record holding all of the question votes 1 and one
+ * holding exactly half votes 0 (SAS §100.45). Plain RRF gave every word match a full vote, and
+ * where the question's words and the records' words barely overlap (Véracier's French documents
+ * asked in English; TheAgentCompany's whole task statements) the records holding half a question
+ * took fused places the semantic list would have given to better ones, so the fused list fell
+ * below the semantic list alone. The weight has no constant of its own: it is the lexical
+ * ranking's own score, measured from the floor that ranking states (`idf_coverage(floor=0.5)`).
+ * A partial-identifier match (a fragment of an identifier, CNB-22) votes 1: it is looked for only
+ * when the words cannot answer, and it is what an auditor typing an identifier is looking for.
+ * The cost is measured, not hidden: on corpora whose word matches are strong, EnterpriseRAG-Bench
+ * and DRBench, the fused list gives up some of what plain RRF had (the four fixture baselines). The two source lists are still returned beside it: `lexical` is the
  * exhaustive answer (its `total`, and the page), `semantic` the engine's, each under the name of
  * its ranking; a merged order never replaces the exhaustive one, it is offered first.
  *
@@ -100,11 +113,25 @@ export const LEXICAL_RANKING =
 /** Reciprocal rank fusion's constant, as published (Cormack, Clarke and Büttcher, 2009). */
 export const FUSION_K = 60;
 
-/** The fused ranking's name: the method, its constant, and the rankings it fused (RQ-224). */
+/**
+ * The share of the query a lexical match must hold to match at all — the floor the lexical ranking
+ * states in its name (`idf_coverage(floor=0.5)`, search.lexical_matches, 20260926100000).
+ */
+export const LEXICAL_FLOOR = 0.5;
+
+/**
+ * A word match's vote in the fusion: how far above the floor its share of the query lies, from 0
+ * at the floor to 1 for all of it. A partial-identifier match votes 1 (see the header).
+ */
+export function lexicalVote(hit: Pick<SearchHit, 'rank' | 'matchedBy'>): number {
+  if (hit.matchedBy !== 'full_text') return 1;
+  return Math.min(1, Math.max(0, (hit.rank - LEXICAL_FLOOR) / (1 - LEXICAL_FLOOR)));
+}
+
+/** The fused ranking's name: the method, its constant, its weights and the rankings it fused (RQ-224). */
 export function fusedRankingName(lexical: string, semantic?: string): string {
-  return semantic === undefined
-    ? `kf.fused.rrf.v1(k=${FUSION_K}; ${lexical})`
-    : `kf.fused.rrf.v1(k=${FUSION_K}; ${lexical}; ${semantic})`;
+  const method = `kf.fused.rrf.v2(k=${FUSION_K}; lexical vote=(coverage-${LEXICAL_FLOOR})/${1 - LEXICAL_FLOOR}`;
+  return semantic === undefined ? `${method}; ${lexical})` : `${method}; ${lexical}; ${semantic})`;
 }
 
 /** A record in the fused list, saying where each ranking placed it. */
@@ -116,7 +143,7 @@ export interface FusedHit {
   readonly classification: string;
   /** Place in the fused list, from 1. */
   readonly rank: number;
-  /** Σ 1 / (FUSION_K + rank) over the lists the record is in. */
+  /** Σ vote / (FUSION_K + rank) over the lists the record is in (`lexicalVote`; a semantic place votes 1). */
   readonly score: number;
   /** Its place in the lexical page, when it is there, and how it matched. */
   readonly lexical?: { readonly rank: number; readonly matchedBy: SearchHit['matchedBy'] };
@@ -271,7 +298,8 @@ export async function composeSearch(
 }
 
 /**
- * Reciprocal rank fusion of the lexical page and the re-checked semantic list, first `k`.
+ * Reciprocal rank fusion of the lexical page and the re-checked semantic list, first `k`, each word
+ * match's vote weighted by its share of the query above the floor (`lexicalVote`).
  *
  * Ranks are places in each list as served, from 1. Ties (equal score) go to the better single
  * place, then to the lexical place, then to the record id, so the order is a function of the two
@@ -286,6 +314,7 @@ export function fuse(
   interface Entry {
     base: Omit<FusedHit, 'rank' | 'score' | 'lexical' | 'semantic'>;
     lexical?: { rank: number; matchedBy: SearchHit['matchedBy'] };
+    lexicalVote?: number;
     semantic?: { rank: number };
   }
   const entries = new Map<string, Entry>();
@@ -299,7 +328,11 @@ export function fuse(
   });
   lexical.forEach((hit, index) => {
     const entry = entries.get(hit.objectId) ?? { base: baseOf(hit) };
-    entry.lexical ??= { rank: index + 1, matchedBy: hit.matchedBy };
+    if (entry.lexical === undefined) {
+      entry.lexical = { rank: index + 1, matchedBy: hit.matchedBy };
+      // With nothing to fuse with, the lexical page keeps its own order: every vote is 1.
+      entry.lexicalVote = semantic.length === 0 ? 1 : lexicalVote(hit);
+    }
     entries.set(hit.objectId, entry);
   });
   semantic.forEach((hit, index) => {
@@ -311,11 +344,12 @@ export function fuse(
     const places = [entry.lexical?.rank, entry.semantic?.rank].filter(
       (rank): rank is number => rank !== undefined,
     );
-    return {
-      entry,
-      score: places.reduce((sum, rank) => sum + 1 / (FUSION_K + rank), 0),
-      best: Math.min(...places),
-    };
+    const score =
+      (entry.lexical === undefined
+        ? 0
+        : (entry.lexicalVote ?? 1) / (FUSION_K + entry.lexical.rank)) +
+      (entry.semantic === undefined ? 0 : 1 / (FUSION_K + entry.semantic.rank));
+    return { entry, score, best: Math.min(...places) };
   });
   scored.sort(
     (a, b) =>

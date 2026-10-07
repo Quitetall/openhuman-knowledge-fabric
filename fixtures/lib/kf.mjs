@@ -82,7 +82,7 @@ export class PersonaSession {
     return this.#token.accessToken;
   }
 
-  async request(method, route, body, { classification, attempts = 4 } = {}) {
+  async request(method, route, body, { classification, attempts = 6 } = {}) {
     for (let attempt = 1; ; attempt += 1) {
       const response = await fetch(`${this.apiOrigin}${route}`, {
         method,
@@ -102,14 +102,16 @@ export class PersonaSession {
       } catch {
         parsed = { raw: text.slice(0, 300) };
       }
-      // An expired token or an attestor blip is retried; a refusal is not.
+      // An expired token, an attestor blip or a search the database timed out is retried; a
+      // refusal is not. (A loaded host times a search's statement out; the next one answers.)
       const transient =
         response.status === 503 ||
         response.status === 502 ||
+        (response.status === 500 && parsed?.error === 'search_unavailable') ||
         (response.status === 401 && parsed?.error === 'invalid_token');
       if (transient && attempt < attempts) {
         if (response.status === 401) this.#token = undefined;
-        await new Promise((r) => setTimeout(r, 250 * attempt));
+        await new Promise((r) => setTimeout(r, 1000 * attempt));
         continue;
       }
       if (response.status >= 400) throw new ApiError(response.status, parsed, `${method} ${route}`);
