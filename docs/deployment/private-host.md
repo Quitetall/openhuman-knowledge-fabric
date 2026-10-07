@@ -743,11 +743,14 @@ It generates the rollback-receipt HMAC key, the web session key, the readiness t
 the checkpoint signing key — whose id is its own fingerprint, published in
 `/etc/kf/checkpoint-public-keys/` before `CHECKPOINT_SIGNING_KEY_ID` is written — each `0600`,
 owned by the one identity that reads it, never printed and never on a command line. It creates
-the thirteen service identities (including `kf-audit-verify`, `kf-drill` and `kf-attestor`) and
+the fifteen service identities (including `kf-audit-verify`, `kf-drill`, `kf-attestor`, and `kf-objects` and `kf-objects-init` for the object store) and
 the `kf-archive` and `kf-attest` groups, installs the units
-and the environment templates, applies the storage key's orphan-collection policy when `mc` has
-an admin alias (`KF_MC_ALIAS`), and asks the object store whether that key really may list and
-delete versions. It ends by listing only what a person must supply, each with the exact file it
+and the environment templates, installs the pinned SeaweedFS binary for this host's own object
+store (`kf-objects`, ADR 0039; refused unless both pinned sha256 digests match), generates each
+service's object-store secret and renders the store's identities from them — the storage key
+granted the orphan-collection policy in SeaweedFS's form, the drill's key read-only — prints that
+policy instead for a store that is not this host's own, and asks the object store whether the
+storage key really may list and delete versions. It ends by listing only what a person must supply, each with the exact file it
 goes in: database logins, object-store secrets and routing, the off-site destination, the alert
 webhook, the OIDC issuer, the preservation key (external custody by design), and the backup
 recovery key — for which `--generate-recovery-key <file>` or `--seal-drill-key <file>` does the

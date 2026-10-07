@@ -1,0 +1,20 @@
+# The embedding server's own environment (embed-server.py), installed by stack.sh into a virtualenv
+# of its own on first use. Exact versions; embed-requirements.txt is this file resolved, with the
+# sha256 of every wheel, and the environment is installed from that with --require-hashes.
+#
+# WHY ITS OWN. Until 2026-10-06 the server imported torch and transformers from the user's shared
+# site-packages, and another project's pip activity broke it: an OS upgrade left boto3 without
+# s3transfer, which broke accelerate, which broke transformers, and the embedder refused to start.
+#
+# torch is the CUDA 13.0 build, so the GPU is used where there is one; on a machine without a GPU
+# it runs on the CPU (embed-server.py picks the device).
+#
+# Regenerate after changing a pin (and say why in the commit):
+#   uv pip compile embed-requirements.in --python-version 3.14 \
+#     --python-platform x86_64-manylinux_2_28 --generate-hashes \
+#     --index-url https://download.pytorch.org/whl/cu130 --extra-index-url https://pypi.org/simple \
+#     --index-strategy unsafe-best-match --emit-index-url -o embed-requirements.txt
+torch==2.11.0
+transformers==5.5.3
+safetensors==0.7.0
+tokenizers==0.22.2

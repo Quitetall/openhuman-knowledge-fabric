@@ -65,22 +65,30 @@ describe('a store is bound to its address', () => {
     expect(await row('working')).toMatchObject({ endpoint: null, bucket: null, bound_at: null });
 
     await withTransaction(h.pool, (tx) =>
-      StoreRegistry.fromDatabase(tx, { working: s3('http://minio:9000', 'kf-artifacts') }, memory),
+      StoreRegistry.fromDatabase(
+        tx,
+        { working: s3('http://seaweedfs:8333', 'kf-artifacts') },
+        memory,
+      ),
     );
     expect(await row('working')).toMatchObject({
       kind: 'object_store',
-      endpoint: 'http://minio:9000',
+      endpoint: 'http://seaweedfs:8333',
       bucket: 'kf-artifacts',
     });
     expect((await row('working'))?.['bound_at']).toBeInstanceOf(Date);
 
     await withTransaction(h.pool, (tx) =>
-      StoreRegistry.fromDatabase(tx, { working: s3('HTTP://MINIO:9000/', 'kf-artifacts') }, memory),
+      StoreRegistry.fromDatabase(
+        tx,
+        { working: s3('HTTP://SEAWEEDFS:8333/', 'kf-artifacts') },
+        memory,
+      ),
     );
 
     await expect(
       withTransaction(h.pool, (tx) =>
-        StoreRegistry.fromDatabase(tx, { working: s3('http://minio:9000', 'other') }, memory),
+        StoreRegistry.fromDatabase(tx, { working: s3('http://seaweedfs:8333', 'other') }, memory),
       ),
     ).rejects.toBeInstanceOf(StoreAddressMismatch);
     await expect(
@@ -99,7 +107,7 @@ describe('a store is bound to its address', () => {
     await expect(
       withTransaction(h.pool, (tx) =>
         tx.query(
-          `select content.bind_artifact_store('working', 'x', 'http://minio:9000', 'other')`,
+          `select content.bind_artifact_store('working', 'x', 'http://seaweedfs:8333', 'other')`,
         ),
       ),
     ).rejects.toThrow(/artifact_store_address_mismatch/);
@@ -111,7 +119,7 @@ describe('a store is bound to its address', () => {
       StoreRegistry.fromDatabase(
         tx,
         {
-          working: s3('http://minio:9000', 'kf-artifacts'),
+          working: s3('http://seaweedfs:8333', 'kf-artifacts'),
           durable: s3('https://storage.googleapis.com', 'kf-durable'),
         },
         memory,
@@ -153,12 +161,14 @@ describe('a store is bound to its address', () => {
     );
     await expect(
       withTransaction(h.pool, (tx) =>
-        StoreRegistry.fromDatabase(tx, { mem: s3('http://minio:9000', 'kf-mem') }, memory),
+        StoreRegistry.fromDatabase(tx, { mem: s3('http://seaweedfs:8333', 'kf-mem') }, memory),
       ),
     ).rejects.toBeInstanceOf(StoreAddressMismatch);
     await expect(
       withTransaction(h.pool, (tx) =>
-        tx.query(`select content.bind_artifact_store('mem', 'x', 'http://minio:9000', 'kf-mem')`),
+        tx.query(
+          `select content.bind_artifact_store('mem', 'x', 'http://seaweedfs:8333', 'kf-mem')`,
+        ),
       ),
     ).rejects.toThrow(/not an object store/);
   });
@@ -195,10 +205,10 @@ describe('the API resolves its stores through the registry', () => {
   }
 
   it('refuses to serve when configured with a bucket the ledger does not call working', async () => {
-    const app = await buildApp(config(s3('http://minio:9000', 'yesterdays-bucket')));
+    const app = await buildApp(config(s3('http://seaweedfs:8333', 'yesterdays-bucket')));
     try {
       await expect(app.ready()).rejects.toThrow(
-        /refusing to serve: store working is registered at http:\/\/minio:9000 bucket kf-artifacts/,
+        /refusing to serve: store working is registered at http:\/\/seaweedfs:8333 bucket kf-artifacts/,
       );
     } finally {
       await app.close().catch(() => undefined);
@@ -206,7 +216,7 @@ describe('the API resolves its stores through the registry', () => {
   });
 
   it('serves when configured with the registered address', async () => {
-    const app = await buildApp(config(s3('http://minio:9000/', 'kf-artifacts')));
+    const app = await buildApp(config(s3('http://seaweedfs:8333/', 'kf-artifacts')));
     try {
       await app.ready();
     } finally {

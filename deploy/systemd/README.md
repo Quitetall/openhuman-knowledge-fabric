@@ -144,8 +144,16 @@ credential, two identities, an object-store policy. It:
   which the API's login must never be — object-store secrets, the alert webhook, the preservation
   key), so the only remaining step is writing its value;
 - installs every shipped unit into `/etc/systemd/system` byte for byte and reloads systemd;
-- applies the orphan-collection policy to the storage key when `mc` has an admin alias
-  (`KF_MC_ALIAS=<alias>`), and otherwise prints it; then asks the store, as `kf-storage`,
+- for this host's own object store, `kf-objects` (SeaweedFS on loopback, ADR 0039): installs
+  the pinned binary at `/usr/local/lib/kf-objects/weed` after checking the tarball's and the
+  binary's sha256 (`deploy/object-store/seaweedfs.release`), generates the secret of each
+  service routed at it (API, worker, storage sweep, drill) and of the store's administrator
+  (`/etc/kf/objects-init/admin-secret`, held by `kf-objects-init` alone), and
+  renders `/etc/kf/objects/identities.json` (0600 `kf-objects`) from those files — the storage
+  key granted exactly the orphan-collection policy's prefixes, the drill's key read-only.
+  `kf-objects.service` runs the store; `kf-objects-init.service` creates the buckets and fails
+  unless each reads back versioning `Enabled`. For a store that is not this host's own it prints
+  the orphan-collection policy to apply there; then asks the store, as `kf-storage`,
   whether the key really may list and delete versions (every key the sweep then deletes is
   recorded in `content.orphan_collection` in the same run; a deletion it cannot record fails it);
 - ends with the inputs only a person can supply, each with the exact file it goes in.

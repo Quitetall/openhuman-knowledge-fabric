@@ -32,7 +32,7 @@ export interface S3Config {
   readonly accessKeyId: string;
   readonly secretAccessKey: string;
   readonly bucket: string;
-  /** MinIO and most self-hosted stores need path style; AWS does not. */
+  /** SeaweedFS and most self-hosted stores need path style; AWS does not. */
   readonly forcePathStyle?: boolean;
 }
 

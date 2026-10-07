@@ -50,7 +50,7 @@ long-lived credential is stored on disk.
 ## Why a private docker daemon, not the host socket
 
 The usual recipe mounts `/var/run/docker.sock` so Testcontainers can start PostgreSQL. That
-hands every CI job control of the **host's** docker — and this host runs MinIO, Keycloak and a
+hands every CI job control of the **host's** docker — and this host runs SeaweedFS, Keycloak and a
 development PostgreSQL. One `docker system prune` in a job and they are gone.
 
 Instead a sibling `docker:29-dind` container runs an isolated daemon on the `kf-ci` network.

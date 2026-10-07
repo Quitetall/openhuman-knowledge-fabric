@@ -11,7 +11,7 @@
 # the Véracier stack (kf-veracier, 3100/4100/18080) or the default one:
 #
 #   web      http://localhost:3200          API  http://127.0.0.1:4200
-#   Keycloak http://localhost:18180         PostgreSQL 127.0.0.1:15532   MinIO 127.0.0.1:19100
+#   Keycloak http://localhost:18180         PostgreSQL 127.0.0.1:15532   S3 (SeaweedFS) 127.0.0.1:19100
 #   state    ~/.local/state/kf-multi        (0700; credentials 0600, never printed)
 #
 # The web application's context picker lists every live assignment the signed-in person holds, in
@@ -28,8 +28,7 @@ export KF_STACK_WEB_PORT="${KF_STACK_WEB_PORT:-3200}"
 export KF_STACK_API_PORT="${KF_STACK_API_PORT:-4200}"
 export KF_STACK_KEYCLOAK_PORT="${KF_STACK_KEYCLOAK_PORT:-18180}"
 export KF_STACK_PG_PORT="${KF_STACK_PG_PORT:-15532}"
-export KF_STACK_MINIO_PORT="${KF_STACK_MINIO_PORT:-19100}"
-export KF_STACK_MINIO_CONSOLE_PORT="${KF_STACK_MINIO_CONSOLE_PORT:-19101}"
+export KF_STACK_OBJECTS_PORT="${KF_STACK_OBJECTS_PORT:-19100}"
 export KF_STACK_EMBED_PORT="${KF_STACK_EMBED_PORT:-8022}"
 export KF_STACK_FIXTURE="${KF_STACK_FIXTURE:-all}"
 export KF_STACK_ORGANIZATION="${KF_STACK_ORGANIZATION:-Redwood Inference, Inc.}"

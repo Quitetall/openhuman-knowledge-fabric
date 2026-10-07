@@ -156,3 +156,22 @@ describe('conditional object creation', () => {
     expect(putRequests).toBe(2);
   });
 });
+
+describe('presigned uploads', () => {
+  it('signs no checksum into the URL, since the body does not exist yet', async () => {
+    const store = new S3ObjectStore({
+      endpoint: 'http://127.0.0.1:9',
+      region: 'us-east-1',
+      accessKeyId: 'presign-test',
+      secretAccessKey: 'presign-test-not-a-secret',
+      bucket: 'kf-artifacts',
+    });
+    const url = new URL(await store.presignPut('ingest/org/a.pdf', 'application/pdf', 60));
+
+    // The SDK default would sign x-amz-checksum-crc32=AAAAAA== (the CRC of an empty body), which
+    // a store that enforces it answers with BadDigest for every real upload.
+    const names = [...url.searchParams.keys()].map((name) => name.toLowerCase());
+    expect(names.filter((name) => name.includes('checksum'))).toEqual([]);
+    expect(url.searchParams.get('X-Amz-Signature')).toMatch(/^[0-9a-f]{64}$/);
+  });
+});
