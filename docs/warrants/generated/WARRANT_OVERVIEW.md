@@ -5,36 +5,100 @@ Source: the Warrants under the configured warrants path.
 
 # Warrant Overview
 
-1 Warrant(s) in this repository.
+9 Warrant(s) in this repository.
 
 ## Summary
 
 | Warrant | Title | Phase | Currency | Standing | Assurance | Milestones |
 |---|---|---|---|---|---|---|
-| [KF-WAR-0001](docs/warrants/KF-WAR-0001/manifest.toml) | Commission the dogfood host: KF serves records from a machine that is not the workstation | `draft` | `current` | `valid` | `controlled` | 5M / 7S |
+| [KF-WAR-0001](docs/warrants/KF-WAR-0001/manifest.toml) | Commission the dogfood host: KF serves records from a machine that is not the workstation | `draft` | `current` | `valid` | `controlled` | 6M / 9S |
+| [KF-WAR-0002](docs/warrants/KF-WAR-0002/manifest.toml) | Close out the work in flight: land the host branches, pin the engine, re-propose the SAS | `draft` | `current` | `valid` | `basic` | 4M / 8S |
+| [KF-WAR-0003](docs/warrants/KF-WAR-0003/manifest.toml) | Specify the experience: ADR 0040 and the SAS section that makes the UX decisions checkable | `draft` | `current` | `valid` | `basic` | 3M / 5S |
+| [KF-WAR-0004](docs/warrants/KF-WAR-0004/manifest.toml) | Agents as colleagues: the KF MCP server, the verification policy and the Needs-you queue | `draft` | `current` | `valid` | `controlled` | 3M / 6S |
+| [KF-WAR-0005](docs/warrants/KF-WAR-0005/manifest.toml) | Scope is the product: roles as composable scope presets, the master document and the dashboard | `draft` | `current` | `valid` | `controlled` | 3M / 7S |
+| [KF-WAR-0006](docs/warrants/KF-WAR-0006/manifest.toml) | The agent at home: in-app chat over the context source, routed by classification, and notifications | `draft` | `current` | `valid` | `controlled` | 4M / 7S |
+| [KF-WAR-0007](docs/warrants/KF-WAR-0007/manifest.toml) | Joining: build qualification (ADR 0038), Start Here, the invite and the first warrant | `draft` | `current` | `valid` | `controlled` | 4M / 8S |
+| [KF-WAR-0008](docs/warrants/KF-WAR-0008/manifest.toml) | The owner's correctness and user pass on the hosted instance, and the fixes it finds | `draft` | `current` | `valid` | `basic` | 2M / 4S |
+| [KF-WAR-0009](docs/warrants/KF-WAR-0009/manifest.toml) | v1.0: meet every ADR 0004 criterion and cut the tag | `draft` | `current` | `valid` | `controlled` | 3M / 7S |
 
 ## Claimed SAS requirement coverage
 
-12 distinct requirement(s) are claimed by at least one Warrant.
+60 distinct requirement(s) are claimed by at least one Warrant.
 
 > **Claimed, not verified.** A Warrant declaring `[[implements]]` is an assertion by its author. §34.3 treats requirement status as a separate record; nothing here checks that the requirement is actually met.
 
-- `KF-SAS-RQ-049` — KF-WAR-0001
-- `KF-SAS-RQ-095` — KF-WAR-0001
+- `KF-SAS-RQ-016` — KF-WAR-0009
+- `KF-SAS-RQ-018` — KF-WAR-0003
+- `KF-SAS-RQ-022` — KF-WAR-0007
+- `KF-SAS-RQ-038` — KF-WAR-0009
+- `KF-SAS-RQ-039` — KF-WAR-0005
+- `KF-SAS-RQ-040` — KF-WAR-0005
+- `KF-SAS-RQ-041` — KF-WAR-0005
+- `KF-SAS-RQ-042` — KF-WAR-0005
+- `KF-SAS-RQ-046` — KF-WAR-0004
+- `KF-SAS-RQ-047` — KF-WAR-0007
+- `KF-SAS-RQ-049` — KF-WAR-0001, KF-WAR-0008
+- `KF-SAS-RQ-078` — KF-WAR-0009
+- `KF-SAS-RQ-095` — KF-WAR-0001, KF-WAR-0002
 - `KF-SAS-RQ-097` — KF-WAR-0001
-- `KF-SAS-RQ-161` — KF-WAR-0001
+- `KF-SAS-RQ-102` — KF-WAR-0009
+- `KF-SAS-RQ-104` — KF-WAR-0009
+- `KF-SAS-RQ-110` — KF-WAR-0005
+- `KF-SAS-RQ-112` — KF-WAR-0005
+- `KF-SAS-RQ-113` — KF-WAR-0005
+- `KF-SAS-RQ-115` — KF-WAR-0004, KF-WAR-0006
+- `KF-SAS-RQ-117` — KF-WAR-0009
+- `KF-SAS-RQ-120` — KF-WAR-0006
+- `KF-SAS-RQ-139` — KF-WAR-0009
+- `KF-SAS-RQ-150` — KF-WAR-0004
+- `KF-SAS-RQ-152` — KF-WAR-0009
+- `KF-SAS-RQ-157` — KF-WAR-0005
+- `KF-SAS-RQ-161` — KF-WAR-0001, KF-WAR-0002
 - `KF-SAS-RQ-162` — KF-WAR-0001
 - `KF-SAS-RQ-163` — KF-WAR-0001
-- `KF-SAS-RQ-164` — KF-WAR-0001
-- `KF-SAS-RQ-165` — KF-WAR-0001
+- `KF-SAS-RQ-164` — KF-WAR-0001, KF-WAR-0006
+- `KF-SAS-RQ-165` — KF-WAR-0001, KF-WAR-0002
 - `KF-SAS-RQ-167` — KF-WAR-0001
-- `KF-SAS-RQ-168` — KF-WAR-0001
+- `KF-SAS-RQ-168` — KF-WAR-0001, KF-WAR-0009
 - `KF-SAS-RQ-169` — KF-WAR-0001
-- `KF-SAS-RQ-171` — KF-WAR-0001
+- `KF-SAS-RQ-171` — KF-WAR-0001, KF-WAR-0008
+- `KF-SAS-RQ-181` — KF-WAR-0009
+- `KF-SAS-RQ-182` — KF-WAR-0003
+- `KF-SAS-RQ-183` — KF-WAR-0003
+- `KF-SAS-RQ-201` — KF-WAR-0005, KF-WAR-0006, KF-WAR-0008
+- `KF-SAS-RQ-202` — KF-WAR-0006
+- `KF-SAS-RQ-203` — KF-WAR-0004
+- `KF-SAS-RQ-204` — KF-WAR-0004
+- `KF-SAS-RQ-213` — KF-WAR-0002
+- `KF-SAS-RQ-216` — KF-WAR-0006
+- `KF-SAS-RQ-218` — KF-WAR-0001, KF-WAR-0002, KF-WAR-0006
+- `KF-SAS-RQ-224` — KF-WAR-0006
+- `KF-SAS-RQ-227` — KF-WAR-0004
+- `KF-SAS-RQ-229` — KF-WAR-0004
+- `KF-SAS-RQ-231` — KF-WAR-0004
+- `KF-SAS-RQ-246` — KF-WAR-0005
+- `KF-SAS-RQ-248` — KF-WAR-0009
+- `KF-SAS-RQ-250` — KF-WAR-0006
+- `KF-SAS-RQ-254` — KF-WAR-0007
+- `KF-SAS-RQ-255` — KF-WAR-0007
+- `KF-SAS-RQ-256` — KF-WAR-0007
+- `KF-SAS-RQ-257` — KF-WAR-0007
+- `KF-SAS-RQ-258` — KF-WAR-0007
+- `KF-SAS-RQ-259` — KF-WAR-0007
+- `KF-SAS-RQ-260` — KF-WAR-0007
+- `KF-SAS-RQ-261` — KF-WAR-0007
 
 ## Relations
 
 - **KF-WAR-0001** · roadmap: roadmap://KF-PHASE-9/exit
+- **KF-WAR-0002** · roadmap: roadmap://KF-PHASE-9/m0-close-out
+- **KF-WAR-0003** · roadmap: roadmap://KF-PHASE-10/m1-experience-spec
+- **KF-WAR-0004** · roadmap: roadmap://KF-PHASE-10/m2-agents-as-colleagues
+- **KF-WAR-0005** · roadmap: roadmap://KF-PHASE-10/m3-scope-is-the-product
+- **KF-WAR-0006** · roadmap: roadmap://KF-PHASE-10/m4-agent-at-home
+- **KF-WAR-0007** · roadmap: roadmap://KF-PHASE-10/m5-joining
+- **KF-WAR-0008** · roadmap: roadmap://KF-PHASE-10/m7-owner-pass
+- **KF-WAR-0009** · roadmap: roadmap://KF-PHASE-10/exit
 
 ## Not reported here
 

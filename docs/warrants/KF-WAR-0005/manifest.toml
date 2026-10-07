@@ -1,0 +1,99 @@
+# A Warrant is the contract for ONE bounded intervention inside a program,
+# and it traces to that program's SAS through [[implements]] and [[roadmap]].
+# Starting a program? Write its SAS instead (SAS §6.10; docs/DEFINITIONS.md).
+schema = "oh.war/manifest/v1"
+uuid = "01a114e0-33a0-76f3-97a5-dc84fe99ad07"
+local_alias = "KF-WAR-0005"
+
+# Allocated only by Knowledge Fabric (SAS §12.4). Leave empty.
+enterprise_id = ""
+
+title = "Scope is the product: roles as composable scope presets, the master document and the dashboard"
+profile = "delivery"
+assurance_level = "controlled"
+
+# Milestone M3 of docs/ROADMAP.md. The UX requirements it builds (roles as composable scope
+# presets, master record = compile(scope), one dashboard scoped by grants) are added to
+# [[implements]] when KF-WAR-0003 lands them in §106.
+[[roadmap]]
+ref = "roadmap://KF-PHASE-10/m3-scope-is-the-product"
+
+# A role preset reaches a reader only as grants in the one grant view.
+[[implements]]
+ref = "sas://KF-SAS-RQ-039"
+contribution = "partial"
+
+# Read and write paths still consult the same grant view after role projection.
+[[implements]]
+ref = "sas://KF-SAS-RQ-041"
+contribution = "validation"
+
+# Role projection never produces overlapping live grants.
+[[implements]]
+ref = "sas://KF-SAS-RQ-040"
+contribution = "validation"
+
+# An access explanation names the role path that produced a grant.
+[[implements]]
+ref = "sas://KF-SAS-RQ-042"
+contribution = "partial"
+
+# Role inclusion is not delegation: one level, and assignments still expire.
+[[implements]]
+ref = "sas://KF-SAS-RQ-246"
+contribution = "validation"
+
+# The master document is the reader's scope compiled.
+[[implements]]
+ref = "sas://KF-SAS-RQ-110"
+contribution = "partial"
+
+# The living org overview is a declared projection, its members a subset of the corpus.
+[[implements]]
+ref = "sas://KF-SAS-RQ-113"
+contribution = "partial"
+
+# SAS §100.42: an Object View stops recounting after any write in the organization.
+[[implements]]
+ref = "sas://KF-SAS-RQ-112"
+contribution = "partial"
+
+# SAS §100.42 and §100.43 are latency bars at scale.
+[[implements]]
+ref = "sas://KF-SAS-RQ-201"
+contribution = "partial"
+
+# Dashboard panels carry no authority decision.
+[[implements]]
+ref = "sas://KF-SAS-RQ-157"
+contribution = "validation"
+
+[[atoms]]
+ordinal = 10
+role = "intent"
+path = "atoms/10-intent.md"
+required = true
+
+[[atoms]]
+ordinal = 20
+role = "basis"
+path = "atoms/20-basis.md"
+required = true
+
+[[atoms]]
+ordinal = 40
+role = "work_order"
+path = "atoms/40-work-order.md"
+required = true
+
+[[atoms]]
+ordinal = 45
+role = "milestones"
+path = "atoms/45-milestones.yaml"
+required = true
+
+[[atoms]]
+ordinal = 60
+role = "assurance"
+path = "atoms/60-assurance.md"
+required = true

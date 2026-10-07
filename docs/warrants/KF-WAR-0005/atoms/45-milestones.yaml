@@ -1,0 +1,55 @@
+schema: "oh.war/milestones/v1"
+
+milestones:
+  - id: "M1"
+    title: "A role is a composable scope preset that reaches a person only through the one grant view"
+    stage_refs: ["STAGE-001", "STAGE-002", "STAGE-003"]
+    obligation_refs: ["OBL-001", "OBL-002", "OBL-003"]
+
+  - id: "M2"
+    title: "The master document is the reader's scope compiled, with the overview in it only by grant"
+    depends_on: ["M1"]
+    stage_refs: ["STAGE-004", "STAGE-005"]
+    obligation_refs: ["OBL-004", "OBL-005"]
+
+  - id: "M3"
+    title: "One dashboard for everyone, calm or compact, usable on a phone"
+    depends_on: ["M2"]
+    stage_refs: ["STAGE-006", "STAGE-007"]
+    obligation_refs: ["OBL-006"]
+
+stages:
+  - id: "STAGE-001"
+    title: "Measure grant-view expansion against materialized grants on the multi fixture, and choose"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-002"
+    title: "Add role presets and acyclic role inclusion, projected into org.effective_access_grant"
+    executor_kind: "agent"
+    responsibility_tier: "T3"
+
+  - id: "STAGE-003"
+    title: "Show the role path in the access explanation"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-004"
+    title: "Generate the living org overview as a record, per reader, every statement sourced"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-005"
+    title: "Build the master-document page and close the read costs of SAS 100.42 and 100.43"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-006"
+    title: "Build the dashboard panels, typography, density switch and phone layouts"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-007"
+    title: "Owner accepts the grant-view change and defines the real organization's first roles"
+    executor_kind: "human"
+    responsibility_tier: "T3"

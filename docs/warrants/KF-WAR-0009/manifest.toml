@@ -1,0 +1,103 @@
+# A Warrant is the contract for ONE bounded intervention inside a program,
+# and it traces to that program's SAS through [[implements]] and [[roadmap]].
+# Starting a program? Write its SAS instead (SAS §6.10; docs/DEFINITIONS.md).
+schema = "oh.war/manifest/v1"
+uuid = "01a114e0-33a7-7583-b041-90230e3158dc"
+local_alias = "KF-WAR-0009"
+
+# Allocated only by Knowledge Fabric (SAS §12.4). Leave empty.
+enterprise_id = ""
+
+title = "v1.0: meet every ADR 0004 criterion and cut the tag"
+profile = "delivery"
+assurance_level = "controlled"
+
+# Milestone M8 of docs/ROADMAP.md: the exit of Phase 10. Every criterion of ADR 0004 (as
+# amended by ADR 0032) met, every open §100 entry closed or accepted, and the tag cut.
+[[roadmap]]
+ref = "roadmap://KF-PHASE-10/exit"
+
+# The round trip holds on the tagged commit.
+[[implements]]
+ref = "sas://KF-SAS-RQ-104"
+contribution = "validation"
+
+# The re-cut schema pack carries its gaps and the owner's approval commits to them.
+[[implements]]
+ref = "sas://KF-SAS-RQ-152"
+contribution = "partial"
+
+# The tagged SAS revision is accepted and its record matches its bytes.
+[[implements]]
+ref = "sas://KF-SAS-RQ-181"
+contribution = "validation"
+
+# SAS §100.27: the remaining untagged digests get format tags.
+[[implements]]
+ref = "sas://KF-SAS-RQ-016"
+contribution = "partial"
+
+# SAS §100.35: a scheduled determinism re-run of the compiler.
+[[implements]]
+ref = "sas://KF-SAS-RQ-102"
+contribution = "partial"
+
+# SAS §100.36: a history read measured on the host.
+[[implements]]
+ref = "sas://KF-SAS-RQ-117"
+contribution = "partial"
+
+# SAS §100.32: old archives with reverted columns.
+[[implements]]
+ref = "sas://KF-SAS-RQ-248"
+contribution = "partial"
+
+# SAS §100.1: the frozen validator, by pack re-cut.
+[[implements]]
+ref = "sas://KF-SAS-RQ-078"
+contribution = "partial"
+
+# SAS §100.3: the damm.ts coupling.
+[[implements]]
+ref = "sas://KF-SAS-RQ-139"
+contribution = "partial"
+
+# SAS §100.28: the owner confirms the reading.
+[[implements]]
+ref = "sas://KF-SAS-RQ-038"
+contribution = "validation"
+
+# Criterion 3 rests on KF-WAR-0001's host evidence.
+[[implements]]
+ref = "sas://KF-SAS-RQ-168"
+contribution = "validation"
+
+[[atoms]]
+ordinal = 10
+role = "intent"
+path = "atoms/10-intent.md"
+required = true
+
+[[atoms]]
+ordinal = 20
+role = "basis"
+path = "atoms/20-basis.md"
+required = true
+
+[[atoms]]
+ordinal = 40
+role = "work_order"
+path = "atoms/40-work-order.md"
+required = true
+
+[[atoms]]
+ordinal = 45
+role = "milestones"
+path = "atoms/45-milestones.yaml"
+required = true
+
+[[atoms]]
+ordinal = 60
+role = "assurance"
+path = "atoms/60-assurance.md"
+required = true
