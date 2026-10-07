@@ -1,0 +1,90 @@
+# A Warrant is the contract for ONE bounded intervention inside a program,
+# and it traces to that program's SAS through [[implements]] and [[roadmap]].
+# Starting a program? Write its SAS instead (SAS §6.10; docs/DEFINITIONS.md).
+schema = "oh.war/manifest/v1"
+uuid = "01a114e0-339e-7463-afe2-e09d9261e893"
+local_alias = "KF-WAR-0004"
+
+# Allocated only by Knowledge Fabric (SAS §12.4). Leave empty.
+enterprise_id = ""
+
+title = "Agents as colleagues: the KF MCP server, the verification policy and the Needs-you queue"
+profile = "delivery"
+assurance_level = "controlled"
+
+# Milestone M2 of docs/ROADMAP.md. The new UX requirements (agent submissions unverified until
+# verified, institutional acts never auto-verified) do not exist until KF-WAR-0003 lands them, and
+# `war check` refuses a requirement §106 does not hold. They are added here when M1 lands; until
+# then this manifest names only the existing requirements the work must keep or extend.
+[[roadmap]]
+ref = "roadmap://KF-PHASE-10/m2-agents-as-colleagues"
+
+# The MCP server is a new way for an agent to act for a named human (ADR 0035).
+[[implements]]
+ref = "sas://KF-SAS-RQ-204"
+contribution = "partial"
+
+# MCP capture dispatches the same acts through the same seam as every other surface.
+[[implements]]
+ref = "sas://KF-SAS-RQ-203"
+contribution = "partial"
+
+# What an MCP agent reads is a projection under the same invariants as a human reading.
+[[implements]]
+ref = "sas://KF-SAS-RQ-115"
+contribution = "partial"
+
+# Every MCP read and the Needs-you panel label an unverified member.
+[[implements]]
+ref = "sas://KF-SAS-RQ-229"
+contribution = "partial"
+
+# One-click and bulk verification record individual or bulk review truthfully.
+[[implements]]
+ref = "sas://KF-SAS-RQ-231"
+contribution = "partial"
+
+# A bulk verify dispatches one act per item.
+[[implements]]
+ref = "sas://KF-SAS-RQ-227"
+contribution = "partial"
+
+# No policy setting lets a service actor or an agent perform an institutional act.
+[[implements]]
+ref = "sas://KF-SAS-RQ-046"
+contribution = "validation"
+
+# The MCP server holds no authority, like the HTTP layer.
+[[implements]]
+ref = "sas://KF-SAS-RQ-150"
+contribution = "validation"
+
+[[atoms]]
+ordinal = 10
+role = "intent"
+path = "atoms/10-intent.md"
+required = true
+
+[[atoms]]
+ordinal = 20
+role = "basis"
+path = "atoms/20-basis.md"
+required = true
+
+[[atoms]]
+ordinal = 40
+role = "work_order"
+path = "atoms/40-work-order.md"
+required = true
+
+[[atoms]]
+ordinal = 45
+role = "milestones"
+path = "atoms/45-milestones.yaml"
+required = true
+
+[[atoms]]
+ordinal = 60
+role = "assurance"
+path = "atoms/60-assurance.md"
+required = true

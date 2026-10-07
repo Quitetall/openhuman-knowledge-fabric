@@ -1,0 +1,98 @@
+# A Warrant is the contract for ONE bounded intervention inside a program,
+# and it traces to that program's SAS through [[implements]] and [[roadmap]].
+# Starting a program? Write its SAS instead (SAS §6.10; docs/DEFINITIONS.md).
+schema = "oh.war/manifest/v1"
+uuid = "01a114e0-33a4-7fc0-8849-5349ef95a2f0"
+local_alias = "KF-WAR-0007"
+
+# Allocated only by Knowledge Fabric (SAS §12.4). Leave empty.
+enterprise_id = ""
+
+title = "Joining: build qualification (ADR 0038), Start Here, the invite and the first warrant"
+profile = "delivery"
+assurance_level = "controlled"
+
+# Milestone M5 of docs/ROADMAP.md: build what ADR 0038 and SAS §24A specify. These requirements
+# exist in the proposed 0.1.0-draft.9; KF-WAR-0003 adds the invite and Start Here requirements.
+[[roadmap]]
+ref = "roadmap://KF-PHASE-10/m5-joining"
+
+# One protocol; roles differ only in their pack.
+[[implements]]
+ref = "sas://KF-SAS-RQ-254"
+contribution = "complete"
+
+# A requirement states an outcome and the evidence that counts.
+[[implements]]
+ref = "sas://KF-SAS-RQ-255"
+contribution = "complete"
+
+# Acknowledged, located, demonstrated; never upgraded.
+[[implements]]
+ref = "sas://KF-SAS-RQ-256"
+contribution = "complete"
+
+# The accepting reviewer credits evidence in the same act.
+[[implements]]
+ref = "sas://KF-SAS-RQ-257"
+contribution = "complete"
+
+# Qualification grants nothing; the database enforces it only where declared.
+[[implements]]
+ref = "sas://KF-SAS-RQ-258"
+contribution = "complete"
+
+# Only a behavioural revision creates a gap, for the scope it touches.
+[[implements]]
+ref = "sas://KF-SAS-RQ-259"
+contribution = "complete"
+
+# A mandatory requirement names what becomes unsafe without it.
+[[implements]]
+ref = "sas://KF-SAS-RQ-260"
+contribution = "complete"
+
+# An unavailable resource or reviewer is the organization's blocker.
+[[implements]]
+ref = "sas://KF-SAS-RQ-261"
+contribution = "complete"
+
+# A reviewer cannot credit their own work.
+[[implements]]
+ref = "sas://KF-SAS-RQ-047"
+contribution = "validation"
+
+# The two new types are declared additions to the R01 pack.
+[[implements]]
+ref = "sas://KF-SAS-RQ-022"
+contribution = "partial"
+
+[[atoms]]
+ordinal = 10
+role = "intent"
+path = "atoms/10-intent.md"
+required = true
+
+[[atoms]]
+ordinal = 20
+role = "basis"
+path = "atoms/20-basis.md"
+required = true
+
+[[atoms]]
+ordinal = 40
+role = "work_order"
+path = "atoms/40-work-order.md"
+required = true
+
+[[atoms]]
+ordinal = 45
+role = "milestones"
+path = "atoms/45-milestones.yaml"
+required = true
+
+[[atoms]]
+ordinal = 60
+role = "assurance"
+path = "atoms/60-assurance.md"
+required = true

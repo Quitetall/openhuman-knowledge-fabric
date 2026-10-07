@@ -65,6 +65,10 @@ The single source of truth for program state is the
 §98 lists the phases, §99 the acceptance criteria and §100 every known gap. Where this README
 and that document disagree, that document is right.
 
+**Continuing development? Start with the [roadmap](docs/ROADMAP.md).** It is the single entry
+point: what KF is for, the milestones to v1.0 as one Warrant each, which one is next, and what only
+the owner can do.
+
 Continuing the Draft.9 implementation? Start with the
 [source and operator handoff](docs/handoff-draft9-main.md). It separates the code available
 on `main` from the older live VM and the owner-controlled commissioning steps.
@@ -171,14 +175,15 @@ the common and correct case.
 
 ## Documentation
 
-| Document                                                            | Answers                                  |
-| ------------------------------------------------------------------- | ---------------------------------------- |
-| [Specification](docs/sas/KF_Software_Architecture_Specification.md) | What it is, every requirement, every gap |
-| [Decisions](docs/decisions/)                                        | Why it is this way                       |
-| [Onboarding](docs/onboarding.md)                                    | How to run it, with the traps            |
-| [Private host](docs/deployment/private-host.md)                     | How to deploy it properly                |
-| [Identity and login](docs/deployment/identity-and-login.md)         | How a person gets an account             |
-| [Threat model](docs/threat-model/)                                  | What it defends against, and what not    |
+| Document                                                            | Answers                                            |
+| ------------------------------------------------------------------- | -------------------------------------------------- |
+| [Roadmap](docs/ROADMAP.md)                                          | What is left, in order, and whose act each step is |
+| [Specification](docs/sas/KF_Software_Architecture_Specification.md) | What it is, every requirement, every gap           |
+| [Decisions](docs/decisions/)                                        | Why it is this way                                 |
+| [Onboarding](docs/onboarding.md)                                    | How to run it, with the traps                      |
+| [Private host](docs/deployment/private-host.md)                     | How to deploy it properly                          |
+| [Identity and login](docs/deployment/identity-and-login.md)         | How a person gets an account                       |
+| [Threat model](docs/threat-model/)                                  | What it defends against, and what not              |
 
 ## Why the durable record is a file
 

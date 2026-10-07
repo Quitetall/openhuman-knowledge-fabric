@@ -1,0 +1,18 @@
+schema = "oh.war/rationale/v1"
+
+# The residual risks named in atoms/60-assurance.md, typed so the authorization request puts
+# them in front of the person signing (see KF-WAR-0001/rationale.toml for why this file exists).
+
+[[assumption]]
+id = "A-001"
+statement = "One person may approve the release, accept cutover and cut the tag."
+epistemic_status = "accepted_residual_risk"
+consequence_if_false = "A mistaken approval has no second reader, as ADR 0004 records; it should end when a second engineer exists."
+judgment_ref = ""
+
+[[assumption]]
+id = "A-002"
+statement = "Accepted §100 limits may ship in v1.0."
+epistemic_status = "accepted_residual_risk"
+consequence_if_false = "A reader takes the tag as saying the limits were fixed. The tag says they were accepted, and the SAS lists each."
+judgment_ref = ""

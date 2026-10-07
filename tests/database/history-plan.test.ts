@@ -64,6 +64,10 @@ async function growLedger(count: number): Promise<void> {
     // Owner fixture rows: the chain, triggers and guards are not what is measured here, and ten
     // thousand dispatched acts would take minutes. Every row is shaped from a real one.
     await tx.query('set local session_replication_role = replica');
+    // The harness's statement budget bounds the queries under test, not this fixture: one
+    // statement inserting ten thousand rows outlasts it on a slow hosted runner, which failed
+    // CI on main while the workstation passed. The measured read below keeps the budget.
+    await tx.query("set local statement_timeout = '10min'");
     const template = await tx.one<{ action_id: string }>(
       'select action_id from core.audit_event where object_id = $1 order by seq limit 1',
       [other],

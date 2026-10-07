@@ -1,0 +1,69 @@
+schema: "oh.war/milestones/v1"
+
+# M0's own checkpoints. The engine pin (STAGE-005) is verified already; installing it into the
+# running stacks waits for their restart, which STAGE-002 does.
+
+milestones:
+  - id: "M1"
+    title: "SeaweedFS is the working store on main and in both fixture stacks, every version id kept"
+    stage_refs: ["STAGE-001", "STAGE-002"]
+    obligation_refs: ["OBL-001"]
+
+  - id: "M2"
+    title: "Off-site and tailnet work lands on Codex's B2 schema, with no second migration for one fact"
+    depends_on: ["M1"]
+    stage_refs: ["STAGE-003", "STAGE-004"]
+    obligation_refs: ["OBL-002"]
+
+  - id: "M3"
+    title: "The engine pinned at LAMU 26923afb serves the fixture stacks"
+    depends_on: ["M1"]
+    stage_refs: ["STAGE-005"]
+    obligation_refs: ["OBL-003"]
+
+  - id: "M4"
+    title: "The SAS says what landed, is re-proposed, and every gate is green but owner items"
+    depends_on: ["M2", "M3"]
+    stage_refs: ["STAGE-006", "STAGE-007", "STAGE-008"]
+    obligation_refs: ["OBL-004", "OBL-005"]
+
+stages:
+  - id: "STAGE-001"
+    title: "Check whether host/seaweedfs is on main; if not, and its integrating session is gone, merge it with migrate-objects.mjs"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-002"
+    title: "Copy and verify both fixture stacks' objects into SeaweedFS, then restart them onto it"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-003"
+    title: "Port host/offsite-tailnet onto main's B2 schema, dropping its duplicate migration"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-004"
+    title: "Land ADR 0039 as proposed and regenerate the ADR overview"
+    executor_kind: "agent"
+    responsibility_tier: "T1"
+
+  - id: "STAGE-005"
+    title: "Install the verified 26923afb engine into the stacks and the host provisioning pin"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-006"
+    title: "Write the draft.9 additions and re-propose the SAS"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-007"
+    title: "Run pnpm gate, the serial suite and the sas job's check; open one PR"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-008"
+    title: "Owner signs draft.8, accepts draft.9 and ADRs 0038-0039, merges OW PR 133, decides key custody"
+    executor_kind: "human"
+    responsibility_tier: "T3"

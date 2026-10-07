@@ -1,0 +1,11 @@
+schema = "oh.war/rationale/v1"
+
+# The residual risks named in atoms/60-assurance.md, typed so the authorization request puts
+# them in front of the person signing (see KF-WAR-0001/rationale.toml for why this file exists).
+
+[[assumption]]
+id = "A-001"
+statement = "The technical authority may approve the packs that later judge other people."
+epistemic_status = "accepted_residual_risk"
+consequence_if_false = "Founding authority is self-attested (ADR 0038, decision 13); a mistaken pack has no second reader until a second authority exists."
+judgment_ref = ""

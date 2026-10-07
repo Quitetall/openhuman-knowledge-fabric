@@ -1,0 +1,34 @@
+schema: "oh.war/milestones/v1"
+
+milestones:
+  - id: "M1"
+    title: "The owner has used the hosted product for real work and recorded what he found"
+    stage_refs: ["STAGE-001", "STAGE-002"]
+    obligation_refs: ["OBL-001", "OBL-002"]
+
+  - id: "M2"
+    title: "Every finding is fixed with a test, moved to a named Warrant, or recorded as decided"
+    depends_on: ["M1"]
+    stage_refs: ["STAGE-003", "STAGE-004"]
+    obligation_refs: ["OBL-003"]
+
+stages:
+  - id: "STAGE-001"
+    title: "Owner signs in, works, receives an alert and a push, and times the person-included bars"
+    executor_kind: "human"
+    responsibility_tier: "T3"
+
+  - id: "STAGE-002"
+    title: "Run the scripted latency bars on the host and record them"
+    executor_kind: "agent"
+    responsibility_tier: "T1"
+
+  - id: "STAGE-003"
+    title: "Turn each finding into a fix and test, a named Warrant, or a recorded decision"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-004"
+    title: "Owner judges the pass complete"
+    executor_kind: "human"
+    responsibility_tier: "T3"
