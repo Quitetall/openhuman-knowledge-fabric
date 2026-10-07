@@ -4,9 +4,11 @@ import type { ProjectionDefinition } from '@kf/ontology-compiler';
 import {
   bindParameters,
   isNeighbourhoodReading,
+  isTypeScopedReading,
   neighbourhoodScope,
   project,
   projectNeighbourhood,
+  projectTypeScoped,
   ProjectionRefused,
 } from './engine.js';
 import { renderProjection } from './render.js';
@@ -491,6 +493,101 @@ describe('object-anchored readings', () => {
       });
       expect(fits.measurements.corpusMemberCount).toBe(50_000);
     });
+  });
+});
+
+describe('type-scoped readings (the organization overview, ADR 0040)', () => {
+  const overview: ProjectionDefinition = {
+    id: 'organization_overview',
+    title: 'Organization overview',
+    version: 1,
+    anchor: 'person',
+    parameters: [],
+    filter: { objectTypes: ['initiative_project', 'decision_record'] },
+    sections: [
+      {
+        id: 'projects',
+        title: 'Projects',
+        select: 'all',
+        filter: { objectTypes: ['initiative_project'] },
+      },
+    ],
+    remainder: { id: 'other', title: 'Other records' },
+    sort: ['object_type', 'title', 'object_id'],
+    budgets: { maxMembers: 1000, maxRuntimeMs: 5000 },
+  };
+  const whole: ProjectionCorpus = {
+    personId: 'person',
+    organizationId: 'org-a',
+    corpusDigest: 'c'.repeat(64),
+    members: [
+      member('p1', { objectType: 'initiative_project', title: 'AV-3000' }),
+      member('d1', { title: 'Choose the supplier' }),
+      member('x1', { objectType: 'artifact', title: 'A PDF' }),
+      member('x2', { objectType: 'artifact', title: 'Another PDF' }),
+    ],
+  };
+  const declared = new Set(overview.filter!.objectTypes!);
+
+  it('is recognised by its declared types, and only a person reading that walks nothing is one', () => {
+    expect(isTypeScopedReading(overview)).toBe(true);
+    expect(isTypeScopedReading(definition)).toBe(false);
+    const { filter: _filter, ...unfiltered } = overview;
+    expect(isTypeScopedReading(unfiltered)).toBe(false);
+  });
+
+  it('gives the Result the whole corpus gives, byte for byte, counting what it never loaded', () => {
+    const full = project({ definition: overview, parameters: {}, corpus: whole, graph });
+    const scoped = projectTypeScoped({
+      definition: overview,
+      parameters: {},
+      corpus: {
+        ...whole,
+        members: whole.members.filter((m) => declared.has(m.objectType)),
+        corpusMemberCount: whole.members.length,
+      },
+      graph,
+    });
+    expect(scoped).toEqual(full);
+    expect(scoped.measurements.excludedByFilter).toBe(2);
+    expect(scoped.sections.map((s) => [s.id, s.members.map((m) => m.objectId)])).toEqual([
+      ['projects', ['p1']],
+      ['other', ['d1']],
+    ]);
+  });
+
+  it('refuses a member of a type it does not read, and a count smaller than what it was given', () => {
+    expect(() =>
+      projectTypeScoped({
+        definition: overview,
+        parameters: {},
+        corpus: { ...whole, corpusMemberCount: whole.members.length },
+        graph,
+      }),
+    ).toThrow(ProjectionRefused);
+    expect(() =>
+      projectTypeScoped({
+        definition: overview,
+        parameters: {},
+        corpus: {
+          ...whole,
+          members: whole.members.filter((m) => declared.has(m.objectType)),
+          corpusMemberCount: 1,
+        },
+        graph,
+      }),
+    ).toThrow(/told has 1/);
+  });
+
+  it('refuses a definition that does not declare its types', () => {
+    expect(() =>
+      projectTypeScoped({
+        definition: definition,
+        parameters: {},
+        corpus: { ...whole, members: [], corpusMemberCount: 0 },
+        graph,
+      }),
+    ).toThrow(/does not declare the object types/);
   });
 });
 

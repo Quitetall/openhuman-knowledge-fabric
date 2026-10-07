@@ -1,11 +1,11 @@
 // GENERATED from ontology/ — do not edit.
 // ontology_version: 1.2.0-draft.1
-// source_digest: acea0b4f8ca21738e4b6de0bf1e7382b76f39d11cc8ac745ab6a25e9e3166e94
+// source_digest: 60ec226ec640f38a4ae0d59b3833a062ccebe0f64f975b301709882e187d9e2b
 
 /* eslint-disable */
 
 export const SCHEMA_VERSION = '1.2.0-draft.1' as const;
-export const ONTOLOGY_SOURCE_DIGEST = 'acea0b4f8ca21738e4b6de0bf1e7382b76f39d11cc8ac745ab6a25e9e3166e94' as const;
+export const ONTOLOGY_SOURCE_DIGEST = '60ec226ec640f38a4ae0d59b3833a062ccebe0f64f975b301709882e187d9e2b' as const;
 
 export const CLASSIFICATIONS = ['public', 'internal', 'confidential', 'restricted'] as const;
 export type Classifications = (typeof CLASSIFICATIONS)[number];
@@ -16,13 +16,13 @@ export type SourceAuthorities = (typeof SOURCE_AUTHORITIES)[number];
 export const AUTHORITY_DOMAINS = ['artifact', 'commercial', 'configuration', 'engineering', 'finance', 'organization', 'project', 'qms'] as const;
 export type AuthorityDomains = (typeof AUTHORITY_DOMAINS)[number];
 
-export const OBJECT_TYPES = ['organization', 'person', 'role_assignment', 'engagement', 'product_system', 'initiative_project', 'work_package', 'work_order', 'work_execution', 'decision_record', 'change_record', 'deliverable', 'artifact', 'acceptance_record', 'invoice', 'payment', 'requirement', 'risk', 'test', 'release', 'baseline', 'configuration_item', 'interface_contract', 'physical_binding', 'controlled_document', 'authored_fragment', 'document_composition', 'ml_promotion_decision', 'nonconformity', 'capa', 'supplier', 'equipment', 'complaint', 'risk_control', 'test_definition', 'test_execution', 'milestone', 'work_order_amendment', 'warrant', 'observation'] as const;
+export const OBJECT_TYPES = ['organization', 'person', 'role_assignment', 'engagement', 'product_system', 'initiative_project', 'work_package', 'work_order', 'work_execution', 'decision_record', 'change_record', 'deliverable', 'artifact', 'acceptance_record', 'invoice', 'payment', 'requirement', 'risk', 'test', 'release', 'baseline', 'configuration_item', 'interface_contract', 'physical_binding', 'controlled_document', 'authored_fragment', 'document_composition', 'ml_promotion_decision', 'nonconformity', 'capa', 'supplier', 'equipment', 'complaint', 'risk_control', 'test_definition', 'test_execution', 'milestone', 'work_order_amendment', 'warrant', 'observation', 'organization_overview'] as const;
 export type ObjectTypes = (typeof OBJECT_TYPES)[number];
 
 export const RELATION_TYPES = ['contains', 'decomposes_into', 'affects', 'authorizes', 'executes', 'produces', 'consumes', 'proposes', 'governs', 'implements', 'satisfies', 'verifies', 'mitigates', 'accepts', 'bills', 'settles', 'allocates_to', 'originated_from', 'supersedes', 'derived_from', 'evidences', 'assigned_to', 'scoped_to', 'depends_on', 'blocks', 'released_by', 'baseline_contains', 'performed_by', 'owned_by', 'linked_to', 'amends', 'extends', 'generated_by', 'used', 'was_associated_with', 'conforms_to', 'bound_to', 'supplied_by', 'calibrated_with', 'raised_against', 'remediated_by', 'concerns'] as const;
 export type RelationTypes = (typeof RELATION_TYPES)[number];
 
-export const ACTION_TYPES = ['create_initiative', 'triage_initiative', 'authorize_project', 'activate_project', 'create_work_package', 'start_work_package', 'accept_work_package', 'issue_work_order', 'accept_work_order', 'amend_work_order', 'submit_work_execution', 'review_work_execution', 'issue_acceptance', 'propose_decision', 'accept_decision', 'reject_decision', 'supersede_decision', 'open_change', 'approve_change', 'verify_change', 'make_change_effective', 'submit_invoice', 'approve_invoice', 'authorize_payment', 'record_payment_settlement', 'reconcile_payment', 'complete_project_technical', 'close_project_administrative', 'attach_evidence', 'register_external_artifact', 'correct_record', 'promote_configuration_item', 'supersede_configuration_item', 'retire_configuration_item', 'publish_interface_contract', 'deprecate_interface_contract', 'withdraw_interface_contract', 'record_physical_binding', 'remove_physical_binding', 'add_controlled_document', 'submit_document_for_review', 'approve_controlled_document', 'make_document_effective', 'supersede_controlled_document', 'withdraw_controlled_document', 'add_authored_fragment', 'revise_authored_fragment', 'retire_authored_fragment', 'add_document_composition', 'revise_document_composition', 'change_document_source_holder', 'request_document_compilation', 'compile_master_record', 'accept_document_compilation', 'publish_document_view', 'record_document_proposal', 'apply_document_proposal', 'release_person_entitlement_exclusion', 'verify_record', 'deactivate_organization', 'reactivate_organization', 'retire_organization', 'deactivate_person', 'reactivate_person', 'bootstrap_organization', 'grant_person_clearance', 'revoke_external_identity', 'grant_access', 'revoke_access', 'replicate_artifact_version', 'verify_artifact_location', 'allocate_enterprise_identifier', 'request_secure_object_access', 'issue_secure_object_capability', 'revoke_secure_object_capability', 'consume_secure_object_capability', 'request_secure_object_erasure', 'record_secure_object_erasure', 'register_secure_object_authority_key', 'revoke_secure_object_authority_key', 'register_ml_aggregate_reference', 'register_ml_run_lineage', 'register_ml_metric_definition', 'register_ml_metric_segment', 'authorize_ml_metric_stream', 'append_ml_metric_event', 'authorize_ml_promotion', 'raise_nonconformity', 'contain_nonconformity', 'investigate_nonconformity', 'disposition_nonconformity', 'close_nonconformity', 'open_capa', 'approve_capa_plan', 'implement_capa', 'check_capa_effectiveness', 'close_capa', 'register_supplier', 'qualify_supplier', 'restrict_supplier', 'disqualify_supplier', 'register_equipment', 'place_equipment_in_service', 'remove_equipment_from_service', 'quarantine_equipment', 'retire_equipment', 'receive_complaint', 'triage_complaint', 'investigate_complaint', 'close_complaint', 'propose_risk_control', 'implement_risk_control', 'verify_risk_control', 'retire_risk_control', 'define_test', 'approve_test_definition', 'supersede_test_definition', 'plan_test_execution', 'execute_test', 'record_test_result', 'invalidate_test_execution', 'record_observation', 'promote_observation', 'withdraw_observation', 'register_product_system', 'define_requirement', 'identify_risk', 'register_test', 'define_baseline', 'define_release', 'record_engagement', 'plan_milestone', 'define_deliverable', 'activate_engagement', 'suspend_engagement', 'resume_engagement', 'close_engagement', 'terminate_engagement', 'create_warrant_draft', 'revise_warrant_draft', 'submit_warrant', 'authorize_warrant_contract', 'withdraw_warrant_proposal', 'propose_warrant_amendment', 'authorize_warrant_amendment', 'reject_warrant_amendment', 'record_warrant_preflight', 'authorize_warrant_dispatch', 'attach_warrant_runtime_receipt', 'register_warrant_submission', 'open_warrant_blocker', 'resolve_warrant_blocker', 'pause_warrant', 'resume_warrant', 'propose_warrant_deviation', 'approve_warrant_deviation', 'reject_warrant_deviation', 'record_warrant_discovered_gap', 'register_warrant_artifact', 'register_warrant_evidence', 'attach_warrant_gate_run', 'record_warrant_inference', 'record_warrant_judgment', 'request_warrant_resolution', 'resolve_warrant', 'dispute_warrant_resolution', 'resolve_warrant_dispute', 'annul_warrant_resolution', 'supersede_warrant', 'deprecate_warrant'] as const;
+export const ACTION_TYPES = ['create_initiative', 'triage_initiative', 'authorize_project', 'activate_project', 'create_work_package', 'start_work_package', 'accept_work_package', 'issue_work_order', 'accept_work_order', 'amend_work_order', 'submit_work_execution', 'review_work_execution', 'issue_acceptance', 'propose_decision', 'accept_decision', 'reject_decision', 'supersede_decision', 'open_change', 'approve_change', 'verify_change', 'make_change_effective', 'submit_invoice', 'approve_invoice', 'authorize_payment', 'record_payment_settlement', 'reconcile_payment', 'complete_project_technical', 'close_project_administrative', 'attach_evidence', 'register_external_artifact', 'correct_record', 'promote_configuration_item', 'supersede_configuration_item', 'retire_configuration_item', 'publish_interface_contract', 'deprecate_interface_contract', 'withdraw_interface_contract', 'record_physical_binding', 'remove_physical_binding', 'add_controlled_document', 'submit_document_for_review', 'approve_controlled_document', 'make_document_effective', 'supersede_controlled_document', 'withdraw_controlled_document', 'add_authored_fragment', 'revise_authored_fragment', 'retire_authored_fragment', 'add_document_composition', 'revise_document_composition', 'change_document_source_holder', 'request_document_compilation', 'compile_master_record', 'accept_document_compilation', 'publish_document_view', 'record_document_proposal', 'apply_document_proposal', 'release_person_entitlement_exclusion', 'verify_record', 'deactivate_organization', 'reactivate_organization', 'retire_organization', 'deactivate_person', 'reactivate_person', 'bootstrap_organization', 'grant_person_clearance', 'revoke_external_identity', 'grant_access', 'revoke_access', 'replicate_artifact_version', 'verify_artifact_location', 'allocate_enterprise_identifier', 'request_secure_object_access', 'issue_secure_object_capability', 'revoke_secure_object_capability', 'consume_secure_object_capability', 'request_secure_object_erasure', 'record_secure_object_erasure', 'register_secure_object_authority_key', 'revoke_secure_object_authority_key', 'register_ml_aggregate_reference', 'register_ml_run_lineage', 'register_ml_metric_definition', 'register_ml_metric_segment', 'authorize_ml_metric_stream', 'append_ml_metric_event', 'authorize_ml_promotion', 'raise_nonconformity', 'contain_nonconformity', 'investigate_nonconformity', 'disposition_nonconformity', 'close_nonconformity', 'open_capa', 'approve_capa_plan', 'implement_capa', 'check_capa_effectiveness', 'close_capa', 'register_supplier', 'qualify_supplier', 'restrict_supplier', 'disqualify_supplier', 'register_equipment', 'place_equipment_in_service', 'remove_equipment_from_service', 'quarantine_equipment', 'retire_equipment', 'receive_complaint', 'triage_complaint', 'investigate_complaint', 'close_complaint', 'propose_risk_control', 'implement_risk_control', 'verify_risk_control', 'retire_risk_control', 'define_test', 'approve_test_definition', 'supersede_test_definition', 'plan_test_execution', 'execute_test', 'record_test_result', 'invalidate_test_execution', 'record_observation', 'promote_observation', 'withdraw_observation', 'register_product_system', 'define_requirement', 'identify_risk', 'register_test', 'define_baseline', 'define_release', 'record_engagement', 'plan_milestone', 'define_deliverable', 'activate_engagement', 'suspend_engagement', 'resume_engagement', 'close_engagement', 'terminate_engagement', 'create_warrant_draft', 'revise_warrant_draft', 'submit_warrant', 'authorize_warrant_contract', 'withdraw_warrant_proposal', 'propose_warrant_amendment', 'authorize_warrant_amendment', 'reject_warrant_amendment', 'record_warrant_preflight', 'authorize_warrant_dispatch', 'attach_warrant_runtime_receipt', 'register_warrant_submission', 'open_warrant_blocker', 'resolve_warrant_blocker', 'pause_warrant', 'resume_warrant', 'propose_warrant_deviation', 'approve_warrant_deviation', 'reject_warrant_deviation', 'record_warrant_discovered_gap', 'register_warrant_artifact', 'register_warrant_evidence', 'attach_warrant_gate_run', 'record_warrant_inference', 'record_warrant_judgment', 'request_warrant_resolution', 'resolve_warrant', 'dispute_warrant_resolution', 'resolve_warrant_dispute', 'annul_warrant_resolution', 'supersede_warrant', 'deprecate_warrant', 'grant_role_scope', 'revoke_role_scope', 'include_role', 'exclude_role', 'declare_organization_overview', 'retire_organization_overview'] as const;
 export type ActionTypes = (typeof ACTION_TYPES)[number];
 
 export interface Money {
@@ -468,6 +468,11 @@ export interface ObservationAttributes {
   readonly observed_at: string;
 }
 
+/** Organization overview — authority: organization */
+export type OrganizationOverviewState = 'active' | 'retired';
+export interface OrganizationOverviewAttributes {
+}
+
 /** State machines, keyed by object type. */
 export const STATE_MACHINES = {
   initiative_project: {
@@ -779,6 +784,13 @@ export const STATE_MACHINES = {
       { from: 'suspended', to: 'terminated', action: 'terminate_engagement' },
     ],
   },
+  organization_overview: {
+    initial: 'active',
+    terminal: ['retired'],
+    transitions: [
+      { from: 'active', to: 'retired', action: 'retire_organization_overview' },
+    ],
+  },
 } as const;
 
 /** Machine-enforceable invariants and where each is enforced. */
@@ -957,6 +969,150 @@ export const PROJECTION_DEFINITIONS = [
     "budgets": {
       "maxMembers": 5000,
       "maxRuntimeMs": 1000
+    }
+  },
+  {
+    "id": "organization_overview",
+    "title": "Organization overview",
+    "version": 1,
+    "anchor": "person",
+    "parameters": [],
+    "filter": {
+      "objectTypes": [
+        "organization",
+        "organization_overview",
+        "initiative_project",
+        "engagement",
+        "work_package",
+        "work_order",
+        "milestone",
+        "deliverable",
+        "decision_record",
+        "change_record",
+        "risk",
+        "nonconformity",
+        "capa",
+        "complaint",
+        "product_system",
+        "requirement",
+        "release",
+        "baseline",
+        "supplier",
+        "configuration_item",
+        "controlled_document",
+        "person",
+        "role_assignment"
+      ]
+    },
+    "sections": [
+      {
+        "id": "organization",
+        "title": "The organization",
+        "select": "all",
+        "filter": {
+          "objectTypes": [
+            "organization",
+            "organization_overview"
+          ]
+        }
+      },
+      {
+        "id": "projects",
+        "title": "Projects and engagements",
+        "select": "all",
+        "filter": {
+          "objectTypes": [
+            "initiative_project",
+            "engagement"
+          ]
+        }
+      },
+      {
+        "id": "work",
+        "title": "Work under way",
+        "select": "all",
+        "filter": {
+          "objectTypes": [
+            "work_package",
+            "work_order",
+            "milestone",
+            "deliverable"
+          ]
+        }
+      },
+      {
+        "id": "decisions",
+        "title": "Decisions and changes",
+        "select": "all",
+        "filter": {
+          "objectTypes": [
+            "decision_record",
+            "change_record"
+          ]
+        }
+      },
+      {
+        "id": "risks",
+        "title": "Risks and quality",
+        "select": "all",
+        "filter": {
+          "objectTypes": [
+            "risk",
+            "nonconformity",
+            "capa",
+            "complaint"
+          ]
+        }
+      },
+      {
+        "id": "products",
+        "title": "Products",
+        "select": "all",
+        "filter": {
+          "objectTypes": [
+            "product_system",
+            "requirement",
+            "release",
+            "baseline",
+            "supplier",
+            "configuration_item"
+          ]
+        }
+      },
+      {
+        "id": "documents",
+        "title": "Controlled documents",
+        "select": "all",
+        "filter": {
+          "objectTypes": [
+            "controlled_document"
+          ]
+        }
+      },
+      {
+        "id": "people",
+        "title": "Who does what",
+        "select": "all",
+        "filter": {
+          "objectTypes": [
+            "person",
+            "role_assignment"
+          ]
+        }
+      }
+    ],
+    "remainder": {
+      "id": "other",
+      "title": "Other records"
+    },
+    "sort": [
+      "object_type",
+      "title",
+      "object_id"
+    ],
+    "budgets": {
+      "maxMembers": 20000,
+      "maxRuntimeMs": 2000
     }
   }
 ] as const;

@@ -64,6 +64,7 @@ import { registerIdentifierRoutes } from './routes/identifiers.js';
 import { registerVerificationRoutes } from './routes/verifications.js';
 import { registerCaptureRoutes } from './routes/capture.js';
 import { registerSessionRoutes } from './routes/session.js';
+import { registerExperienceRoutes } from './routes/experience.js';
 import { requestLogSerializers } from './request-log.js';
 import { hasRequiredSchema } from './schema-contract.js';
 
@@ -591,6 +592,14 @@ export async function buildApp(
       ...(semantic === undefined ? {} : { semantic }),
     });
     await registerIdentifierRoutes(app, { pool, identify });
+    // The experience's reads (ADR 0040): the dashboard, the overview, the master document, roles.
+    registerExperienceRoutes(app, {
+      pool,
+      identify,
+      ...(config.projectionsArtifact === undefined
+        ? {}
+        : { projections: loadProjectionDefinitions(config.projectionsArtifact) }),
+    });
   }
 
   return app;

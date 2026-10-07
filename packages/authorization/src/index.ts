@@ -97,6 +97,17 @@ export {
   type AccessStepOutcome,
 } from './access-grants.js';
 export {
+  ROLE_PRESET_ACTION_IDS,
+  ROLE_PRESET_EFFECTS,
+  excludeRoleEffect,
+  grantRoleScopeEffect,
+  includeRoleEffect,
+  listRolePresets,
+  revokeRoleScopeEffect,
+  type RolePreset,
+  type RolePresetTemplate,
+} from './role-presets.js';
+export {
   ORGANIZATION_LIFECYCLE_ACTION_IDS,
   activePeopleOf,
   createOrganizationLifecycleAtoms,

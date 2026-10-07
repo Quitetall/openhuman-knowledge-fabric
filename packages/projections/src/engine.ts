@@ -319,6 +319,64 @@ export function projectNeighbourhood(
   return evaluate(input, options, { corpusMemberCount });
 }
 
+/**
+ * Whether a definition can be evaluated over only the corpus members of the object types it
+ * declares, with the same Result as over the whole corpus: a person reading that walks nothing and
+ * whose declared filter names its object types. Every member of another type is then excluded by
+ * that filter — counted, never placed — so it needs to be counted and nothing more. The living
+ * organization overview is such a reading (ADR 0040): it reads an organization's records, not its
+ * tens of thousands of documents, and costs what the records cost.
+ */
+export function isTypeScopedReading(definition: ProjectionDefinition): boolean {
+  return (
+    definition.anchor === 'person' &&
+    definition.traverse === undefined &&
+    definition.filter?.reachability === undefined &&
+    (definition.filter?.objectTypes?.length ?? 0) > 0
+  );
+}
+
+/** The object types a type-scoped reading places; refuses any other definition. */
+export function typeScope(definition: ProjectionDefinition): readonly string[] {
+  if (!isTypeScopedReading(definition)) {
+    throw new ProjectionRefused(
+      'coverage',
+      `projection ${definition.id} does not declare the object types it reads; ` +
+        'it must be evaluated over the whole corpus',
+    );
+  }
+  return definition.filter!.objectTypes!;
+}
+
+/**
+ * `project` over the corpus members of the declared types only (see `isTypeScopedReading`).
+ * Refuses a definition that could place a member of another type, and a member of another type —
+ * a caller that loaded it has loaded something the reading is not about.
+ */
+export function projectTypeScoped(
+  input: ProjectionInput & { readonly corpus: NeighbourhoodCorpus },
+  options: ProjectOptions = {},
+): ProjectionResult {
+  const types = new Set(typeScope(input.definition));
+  const { corpusMemberCount } = input.corpus;
+  if (!Number.isSafeInteger(corpusMemberCount) || corpusMemberCount < input.corpus.members.length) {
+    throw new ProjectionRefused(
+      'coverage',
+      `projection ${input.definition.id} was given ${String(input.corpus.members.length)} members ` +
+        `of a corpus it was told has ${String(corpusMemberCount)}`,
+    );
+  }
+  const outside = input.corpus.members.find((member) => !types.has(member.objectType));
+  if (outside !== undefined) {
+    throw new ProjectionRefused(
+      'coverage',
+      `member ${outside.objectId} is a ${outside.objectType}, which ${input.definition.id} does ` +
+        'not read; a type-scoped reading is given only the types it declares',
+    );
+  }
+  return evaluate(input, options, { corpusMemberCount });
+}
+
 function walkFromObject(
   definition: ProjectionDefinition,
   anchorId: string,

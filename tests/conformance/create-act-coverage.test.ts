@@ -60,6 +60,8 @@ const CREATED_BY: Readonly<Record<string, readonly string[]>> = {
   release: ['define_release'],
   // ADR 0034 (proposed).
   observation: ['record_observation'],
+  // ADR 0040: the living organization overview, declared by an institutional act.
+  organization_overview: ['declare_organization_overview'],
   // KF-SAS-RQ-142, draft.8: the work-control records that had none.
   engagement: ['record_engagement'],
   milestone: ['plan_milestone'],

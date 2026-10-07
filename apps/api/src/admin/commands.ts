@@ -28,6 +28,12 @@ import {
   runDeclareAgent,
 } from './declare-agent.js';
 import {
+  defineRoleUsage,
+  parseDefineRoleArgs,
+  planDefineRole,
+  runDefineRole,
+} from './define-role.js';
+import {
   parseDeclareServiceActorArgs,
   planDeclareServiceActor,
   runDeclareServiceActor,
@@ -372,6 +378,46 @@ export async function runDeclareServiceActorCommand(
         null,
         2,
       )}\n`,
+    );
+    return 0;
+  } catch (error: unknown) {
+    err.write(`${message(error)}\n`);
+    return 1;
+  } finally {
+    await owner.end();
+  }
+}
+
+/** `kf define-role` (ADR 0040): a role name in the vocabulary; it grants nothing by itself. */
+export async function runDefineRoleCommand(
+  argv: readonly string[],
+  env: NodeJS.ProcessEnv = process.env,
+  out: Out = process.stdout,
+  err: Out = process.stderr,
+): Promise<number> {
+  const url = ownerUrl(env, err);
+  if (url === undefined) return 1;
+  let request;
+  try {
+    request = parseDefineRoleArgs(argv);
+  } catch (error: unknown) {
+    err.write(`${message(error)}\n\n${defineRoleUsage()}\n`);
+    return 2;
+  }
+  const plan = planDefineRole(request);
+  if (!plan.ok) {
+    err.write('refusing to define a role:\n');
+    for (const refusal of plan.refusals) err.write(`  - ${refusal}\n`);
+    err.write(`\n${defineRoleUsage()}\n`);
+    return 2;
+  }
+  const owner = createPool({ connectionString: url, maxConnections: 1 });
+  try {
+    const result = await runDefineRole(owner, plan.decision);
+    out.write(
+      result.created
+        ? `role ${result.id} defined; it grants nothing until an organization gives it a preset\n`
+        : `role ${result.id} already defined; nothing to change\n`,
     );
     return 0;
   } catch (error: unknown) {

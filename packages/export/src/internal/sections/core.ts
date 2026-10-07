@@ -262,6 +262,21 @@ export const CORE_SECTIONS = [
             from org.access_grant order by id`,
   },
   {
+    // A role's preset and its inclusions (ADR 0040), ordered by id (uuidv7, time-ordered) so an
+    // inclusion is restored after every inclusion it was checked against for a cycle.
+    name: 'role-preset-grants',
+    sql: `select id, organization_id, role_id, capability, scope_object_id, classification_ceiling,
+                 reason, defined_by, defined_at, defined_by_action, retired_at, retired_by,
+                 retired_by_action, retirement_reason
+            from org.role_preset_grant order by id`,
+  },
+  {
+    name: 'role-inclusions',
+    sql: `select id, organization_id, role_id, included_role_id, reason, defined_by, defined_at,
+                 defined_by_action, retired_at, retired_by, retired_by_action, retirement_reason
+            from org.role_inclusion order by id`,
+  },
+  {
     name: 'recovery-objectives',
     sql: `select id, rpo_seconds, restore_drill_days, requires_pitr, declared_by,
                  declared_at, rationale, rto_seconds

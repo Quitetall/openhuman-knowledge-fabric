@@ -103,3 +103,101 @@ projection_definitions:
     remainder: { id: other, title: Other }
     sort: [object_type, title, object_id]
     budgets: { max_members: 5000, max_runtime_ms: 1000 }
+
+  # The living organization overview (ADR 0040 decision 3; KF-SAS-RQ-267, RQ-268). Generated, not
+  # written: it reads the records that say what the organization is and is doing, as each reader
+  # may read them. A statement is a member, so it links to its source by construction and cannot
+  # be about a record outside the reader's corpus. The declared filter is the narrowing: documents,
+  # messages and other artifacts are not statements about the organization, and are counted as
+  # excluded rather than placed. Evaluated over only the members of these types (the engine's
+  # type-scoped reading), so its cost follows the organization's records, not its documents.
+  - id: organization_overview
+    title: Organization overview
+    version: 1
+    anchor: person
+    parameters: []
+    filter:
+      {
+        object_types:
+          [
+            organization,
+            organization_overview,
+            initiative_project,
+            engagement,
+            work_package,
+            work_order,
+            milestone,
+            deliverable,
+            decision_record,
+            change_record,
+            risk,
+            nonconformity,
+            capa,
+            complaint,
+            product_system,
+            requirement,
+            release,
+            baseline,
+            supplier,
+            configuration_item,
+            controlled_document,
+            person,
+            role_assignment,
+          ],
+      }
+    sections:
+      - {
+          id: organization,
+          title: The organization,
+          select: all,
+          filter: { object_types: [organization, organization_overview] },
+        }
+      - {
+          id: projects,
+          title: Projects and engagements,
+          select: all,
+          filter: { object_types: [initiative_project, engagement] },
+        }
+      - {
+          id: work,
+          title: Work under way,
+          select: all,
+          filter: { object_types: [work_package, work_order, milestone, deliverable] },
+        }
+      - {
+          id: decisions,
+          title: Decisions and changes,
+          select: all,
+          filter: { object_types: [decision_record, change_record] },
+        }
+      - {
+          id: risks,
+          title: Risks and quality,
+          select: all,
+          filter: { object_types: [risk, nonconformity, capa, complaint] },
+        }
+      - {
+          id: products,
+          title: Products,
+          select: all,
+          filter:
+            {
+              object_types:
+                [product_system, requirement, release, baseline, supplier, configuration_item],
+            },
+        }
+      - {
+          id: documents,
+          title: Controlled documents,
+          select: all,
+          filter: { object_types: [controlled_document] },
+        }
+      - {
+          id: people,
+          title: Who does what,
+          select: all,
+          filter: { object_types: [person, role_assignment] },
+        }
+    remainder: { id: other, title: Other records }
+    sort: [object_type, title, object_id]
+    budgets: { max_members: 20000, max_runtime_ms: 2000 }

@@ -196,6 +196,12 @@ export interface AccessGrantRef {
   readonly scopeObjectId: string;
   readonly classificationCeiling: string | null;
   readonly reason: string;
+  /**
+   * For a grant that arrived through a role (KF-SAS-RQ-270): every role from the one the person
+   * holds to the one whose preset carries it — `[engineer]` for the engineer role's own template,
+   * `[ceo, executive, staff]` for one ceo receives through two inclusions. Absent otherwise.
+   */
+  readonly rolePath?: readonly string[];
 }
 
 export interface AccessCoverage {
@@ -211,6 +217,7 @@ interface CoverageRow extends Record<string, unknown> {
   readonly scope_object_id: string;
   readonly classification_ceiling: string | null;
   readonly reason: string;
+  readonly role_path: readonly string[] | null;
 }
 
 const CLASSIFICATION_RANK: Readonly<Record<string, number>> = {
@@ -234,7 +241,8 @@ export async function enumerateAccessCoverage(
 ): Promise<AccessCoverage> {
   const rows = await tx.query<CoverageRow>(
     `select /* access-grants.coverage */
-            g.source, g.source_id, g.scope_object_id, g.classification_ceiling, g.reason
+            g.source, g.source_id, g.scope_object_id, g.classification_ceiling, g.reason,
+            g.role_path
        from org.effective_access_grant g
       where g.organization_id = $2
         and g.capability = $3
@@ -264,6 +272,7 @@ export async function enumerateAccessCoverage(
       scopeObjectId: row.scope_object_id,
       classificationCeiling: row.classification_ceiling,
       reason: row.reason,
+      ...(row.role_path === null ? {} : { rolePath: [...row.role_path] }),
     };
     if (row.scope_object_id === organizationId) {
       organizationWide.push(ref);
@@ -481,6 +490,9 @@ export async function explainAccess(
         scope: grant.scopeObjectId === input.organizationId ? 'organization' : 'object',
         classificationCeiling: grant.classificationCeiling,
         reason: grant.reason,
+        // The role path by which a role's grant arrived (KF-SAS-RQ-270): the role held, then
+        // every role it includes on the way to the one whose preset carries the grant.
+        ...(grant.rolePath === undefined ? {} : { rolePath: grant.rolePath }),
       })),
     },
   });

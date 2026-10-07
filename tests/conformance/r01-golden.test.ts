@@ -210,6 +210,8 @@ const DECLARED_ADDITIONS = {
     'nonconformity',
     // ADR 0034 (proposed): an observation is captured, then promoted.
     'observation',
+    // The living organization overview (ADR 0040): an ordinary record, its statements generated.
+    'organization_overview',
     'physical_binding',
     'risk_control',
     'supplier',
@@ -277,6 +279,8 @@ const DECLARED_ADDITIONS = {
     // `state_machine: null`, so an organization could be created and never retired.
     'deactivate_organization',
     'deactivate_person',
+    // The living organization overview (ADR 0040): an ordinary record, its statements generated.
+    'declare_organization_overview',
     // KF-SAS-RQ-143: create acts for the R01 product and quality records, which had none.
     'define_baseline',
     // KF-SAS-RQ-142: create acts for the work-control records that had none.
@@ -289,6 +293,8 @@ const DECLARED_ADDITIONS = {
     'disposition_nonconformity',
     'dispute_warrant_resolution',
     'disqualify_supplier',
+    // Roles as composable presets of scope (ADR 0040): what holding a role grants, and inclusion.
+    'exclude_role',
     'execute_test',
     // Access grants (ADR 0016): the recorded act behind `org.access_grant.granted_by_action`.
     'grant_access',
@@ -303,9 +309,13 @@ const DECLARED_ADDITIONS = {
     // effects run and there is none yet to bind; that one is an owner-credential bootstrap act
     // recording this same type.
     'grant_person_clearance',
+    // Roles as composable presets of scope (ADR 0040): what holding a role grants, and inclusion.
+    'grant_role_scope',
     'identify_risk',
     'implement_capa',
     'implement_risk_control',
+    // Roles as composable presets of scope (ADR 0040): what holding a role grants, and inclusion.
+    'include_role',
     'invalidate_test_execution',
     'investigate_complaint',
     'investigate_nonconformity',
@@ -386,6 +396,8 @@ const DECLARED_ADDITIONS = {
     'retire_configuration_item',
     'retire_equipment',
     'retire_organization',
+    // The living organization overview (ADR 0040): an ordinary record, its statements generated.
+    'retire_organization_overview',
     'retire_risk_control',
     'revise_authored_fragment',
     'revise_document_composition',
@@ -395,6 +407,8 @@ const DECLARED_ADDITIONS = {
     // Bootstrap tier, as `bootstrap_organization`: an identity link is made and withdrawn only
     // over the owner credential, and the withdrawal is recorded as this act (`kf revoke-identity`).
     'revoke_external_identity',
+    // Roles as composable presets of scope (ADR 0040): what holding a role grants, and inclusion.
+    'revoke_role_scope',
     'revoke_secure_object_authority_key',
     'revoke_secure_object_capability',
     'submit_document_for_review',
