@@ -548,6 +548,25 @@ EOF
     ln -- "$receipt_temp" "$receipt_path" || fail 'rehearsal receipt appeared concurrently'
     rm -f -- "$receipt_temp"
     echo "rollback rehearsal passed; receipt written: $receipt_path"
+    # And the commissioning receipt kf-commissioning's evidence_receipts reads (KF_EVIDENCE_DIR):
+    # which release was rehearsed, when, and which authenticated receipt says so. Until
+    # 2026-10-07 nothing wrote it, so no host could satisfy that check (KF-WAR-0001 rehearsal).
+    # The v3 receipt above stays the authority `apply` verifies; this one only points at it.
+    if [ -n "${KF_COMMISSIONING_EVIDENCE_DIR:-}" ]; then
+      evidence_receipt="$KF_COMMISSIONING_EVIDENCE_DIR/rollback-rehearsal.json"
+      evidence_temp="$KF_COMMISSIONING_EVIDENCE_DIR/.rollback-rehearsal.json.$$"
+      release_name="$(basename -- "$(readlink -f -- "$release_root")")"
+      if printf '{"release":"%s","recordedAt":"%s","receipt":"%s","receiptSha256":"%s","manifestSha256":"%s","forwardOnlyFloor":"%s","migrationsReverted":%s}\n' \
+          "${release_name#knowledge-fabric-}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$receipt_path" \
+          "$(sha256sum -- "$receipt_path" | cut -d' ' -f1)" "$actual_manifest_digest" \
+          "${forward_only_floor:-none}" "$reversible_count" > "$evidence_temp" &&
+        chmod 0644 "$evidence_temp" && mv -T -- "$evidence_temp" "$evidence_receipt"; then
+        echo "commissioning receipt written: $evidence_receipt"
+      else
+        rm -f -- "$evidence_temp"
+        echo "warning: could not write $evidence_receipt; kf-commissioning's evidence_receipts will report it missing" >&2
+      fi
+    fi
     ;;
 
   apply)

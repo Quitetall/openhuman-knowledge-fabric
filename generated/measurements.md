@@ -12,11 +12,11 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 
 | Measure | Count | Derived from |
 | --- | ---: | --- |
-| migrations | 161 | files under `database/migrations/` |
+| migrations | 162 | files under `database/migrations/` |
 | forward-only migrations | 30 | migrations declaring `-- kf:forward-only <reason>` in their down-section |
 | schemas | 14 | distinct `create schema` names in migration up-sections |
 | tables created | 211 | in migration up-sections |
-| row-security policies | 548 | in migration up-sections |
+| row-security policies | 549 | in migration up-sections |
 | triggers created | 231 | literal `create trigger` statements in migration up-sections |
 | security definer declarations | 232 | in migration up-sections; a function redefined is declared again |
 | views | 13 | distinct view names in migration up-sections |
@@ -32,7 +32,7 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 | relation types | 42 | declared in `ontology/relation-types.yaml` |
 | decision records | 40 | atoms under `docs/decisions/atoms/` — 35 accepted, 3 proposed, 2 superseded |
 | architecture requirements | 207 | distinct identifiers in §106 |
-| test files | 357 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
+| test files | 359 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
 
 ## Runtime measurements, cited rather than derived
 

@@ -438,6 +438,14 @@ if [ -n "$ENCRYPTION_KEYIDS" ]; then
   sync -f "$CIPHERTEXT_STAGING"
 fi
 
+# The off-site copier reads both: it re-verifies this bundle before it sends anything, then ships
+# the ciphertext — as kf-offsite, through the kf-archive group the setgid parent directory gives
+# every entry here. mktemp made both owner-only and kf-backup.service runs with UMask=0077, so on
+# the first host kf-offsite could not even enter the directory (KF-WAR-0001 rehearsal,
+# 2026-10-07). Group read, never group write, never other.
+chmod -R g+rX,g-w,o-rwx -- "$STAGING_DEST"
+if [ -n "$CIPHERTEXT_STAGING" ]; then chmod 0640 -- "$CIPHERTEXT_STAGING"; fi
+
 echo "==> durably publishing complete backup"
 # GNU sync -f issues syncfs(2) for filesystem containing staging tree: payload data, signed
 # sidecars, nested directory entries, and metadata are durable before rename. Parent flush then

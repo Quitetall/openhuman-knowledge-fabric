@@ -197,3 +197,75 @@ describe('every service runs as its own unprivileged account (KF-SAS-RQ-163)', (
     expect(shared).toEqual(declared);
   });
 });
+
+describe('a credential PID 1 hands over is read under systemd custody (KF-WAR-0001 rehearsal)', () => {
+  // systemd makes a LoadCredential*= file root:root 0440 with an ACL for the service uid. The
+  // owner-only FILE rule (scripts/lib/secret.sh) refuses that as group-readable, so a unit that
+  // points a script at `%d/<name>` without naming systemd custody hands it a key it must refuse.
+  // kf-restore-drill.service did exactly that: on the first host the drill pulled the off-site
+  // copy back and then refused its own decryption key ("mode 440 ... chmod 600 it").
+  it('names the custody of every %d credential it passes to a script', () => {
+    const offenders: string[] = [];
+    let seen = 0;
+    for (const unit of units('.service')) {
+      const environment = unit.sections.get('Service')?.get('Environment') ?? [];
+      const custody = environment.some((value) =>
+        /(^|\s)KF_SECRET_CUSTODY=systemd(\s|$)/.test(value),
+      );
+      for (const value of environment) {
+        const credential = /^(KF_[A-Z_]+)_FILE=%d\//.exec(value);
+        if (credential === null) continue;
+        seen += 1;
+        const specific = environment.includes(`${credential[1]}_CUSTODY=systemd`);
+        if (!custody && !specific) offenders.push(`${unit.name}: ${value}`);
+      }
+    }
+    expect(seen, 'no unit passes a %d credential: the check is vacuous').toBeGreaterThan(0);
+    expect(offenders).toEqual([]);
+  });
+
+  it('and the drill honours it for its decryption key', () => {
+    const drill = readFileSync(join(ROOT, 'scripts', 'restore-drill.sh'), 'utf8');
+    expect(drill).toMatch(
+      /if \[ "\$\{KF_DRILL_DECRYPTION_KEY_CUSTODY:-\}" = systemd \]; then\n\s+KF_SECRET_CUSTODY=systemd kf_validate_backup_decryption_key/,
+    );
+  });
+});
+
+describe('boot order and clean stops (KF-WAR-0001 rehearsal)', () => {
+  it('every long-running service that opens the database at start is ordered after a local PostgreSQL', () => {
+    // At the rehearsal host's first reboot kf-attestor started before the cluster, died on "the
+    // database system is starting up", and OnFailure= alerted. Ordering only: After= on a unit a
+    // host does not run is a no-op, so a remote database is unaffected.
+    const offenders: string[] = [];
+    for (const name of ['kf-attestor.service', 'kf-api.service', 'kf-worker.service']) {
+      const after = (
+        parseSections(readFileSync(join(UNITS, name), 'utf8'))
+          .get('Unit')
+          ?.get('After') ?? []
+      )
+        .join(' ')
+        .split(/\s+/);
+      if (!after.includes('postgresql.service'))
+        offenders.push(`${name}: not After=postgresql.service`);
+      if (name !== 'kf-attestor.service' && !after.includes('kf-objects.service')) {
+        offenders.push(`${name}: not After=kf-objects.service`);
+      }
+      const wants =
+        parseSections(readFileSync(join(UNITS, name), 'utf8'))
+          .get('Unit')
+          ?.get('Wants') ?? [];
+      // Never a dependency: either may be on another host.
+      for (const value of wants) {
+        if (/postgresql|kf-objects/.test(value)) offenders.push(`${name}: Wants=${value}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('a stopped web is not a failed web', () => {
+    // Next.js exits 143 on SIGTERM; without this, every upgrade's `systemctl stop kf-web` alerted.
+    const web = parseSections(readFileSync(join(UNITS, 'kf-web.service'), 'utf8'));
+    expect(web.get('Service')?.get('SuccessExitStatus') ?? []).toContain('143');
+  });
+});

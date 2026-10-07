@@ -127,10 +127,10 @@ executable. Until 2026-09-23 it was forty hand-typed lines here, and the hardeni
 added a dozen more — a receipt key, a readiness token, a pinned checkpoint key id, a sealed drill
 credential, two identities, an object-store policy. It:
 
-- creates the seventeen service identities (`kf-api`, `kf-web`, `kf-worker`, `kf-migrator`,
+- creates the twenty service identities (`kf-api`, `kf-web`, `kf-worker`, `kf-migrator`,
   `kf-checkpoint`, `kf-backup`, `kf-offsite`, `kf-readiness`, `kf-storage`, `kf-audit-verify`,
   `kf-alert`, `kf-drill`, `kf-attestor`, `kf-retrieval-key`, `kf-embedding`, `kf-retrieval`,
-  `kf-tls`), each with no home and no shell, the `kf-archive` group
+  `kf-tls`, `kf-objects`, `kf-objects-init`, `kf-notify`), each with no home and no shell, the `kf-archive` group
   (`kf-backup` writes the archive, `kf-offsite` reads it to ship it) and the `kf-attest` group
   (`kf-attestor` serves its socket in it, `kf-api` alone may connect);
 - creates `/etc/kf` traversable and every service subdirectory `0750 root:<identity>` except
@@ -149,8 +149,20 @@ credential, two identities, an object-store policy. It:
   printed and never on a command line. The checkpoint key's id is its fingerprint
   (`ckpt-<16 hex>`), its public half is published in `/etc/kf/checkpoint-public-keys/` before
   the id is written to `checkpoint.env`, so a new key always has a new id;
+- on a host whose PostgreSQL 18 is local (`/etc/kf/database.env`, `KF_DATABASE=local`, the
+  default): creates the `kf` database and its extensions, the group roles the release's migrations
+  name, the migrator login (not a superuser; `CREATEROLE`, `BYPASSRLS`, every group role with
+  `ADMIN OPTION`), and one login per service holding exactly its group roles — API and readiness
+  `kf_app`; worker `kf_worker` (with `CREATE`, `TEMP`); attestor `kf_attestor`; checkpoint and
+  audit verifier `kf_checkpoint`; backup, off-site copier and drill `kf_backup`; storage sweep
+  `kf_app` and `kf_service_actor`; notifier `kf_notifier` — each with a generated password whose
+  connection string goes into that service's `0600` `database-url` and nowhere else (the SCRAM
+  verifier is computed in-process, so the password is never in SQL, argv or a log). It installs
+  [`../postgres/planner.conf`](../postgres/planner.conf) into the cluster's `conf.d` and creates
+  the disposable cluster `18/rehearsal` the rollback rehearsal runs in. Until 2026-10-07 each of
+  these eleven connection strings was a person's to make (KF-WAR-0001 rehearsal);
 - creates an empty `0600` file, owned correctly, for every secret only a person can supply
-  (database logins — among them `/etc/kf/attestor/database-url`, a login in `kf_attestor` only,
+  (database logins on a host whose database is elsewhere — among them `/etc/kf/attestor/database-url`, a login in `kf_attestor` only,
   which the API's login must never be — object-store secrets, the alert webhook, the preservation
   key), so the only remaining step is writing its value;
 - installs every shipped unit into `/etc/systemd/system` byte for byte and reloads systemd;
@@ -253,10 +265,17 @@ Run migration procedure in private-host guide. Only after it and real-provider p
 ```sh
 sudo systemctl enable --now kf-attestor.service kf-api.service kf-worker.service kf-web.service
 sudo systemctl enable --now kf-checkpoint.timer kf-backup.timer kf-storage.timer \
-  kf-audit-verify.timer kf-restore-drill.timer kf-readiness.timer kf-alert-heartbeat.timer
+  kf-audit-verify.timer kf-restore-drill.timer kf-readiness.timer kf-alert-heartbeat.timer \
+  kf-notify-digest.timer kf-notify-urgent.timer
 # A tailnet host (ADR 0039) also renews its certificate:
 sudo systemctl enable --now kf-tls-renew.timer
 ```
+
+The two notify timers were missing from this list until 2026-10-07, while
+`scripts/timer-liveness.sh` — which `kf-readiness.service` runs first — names every shipped timer:
+a host enabled exactly as written here had readiness failing on "kf-notify-digest.timer:
+inactive" from its first run (KF-WAR-0001 rehearsal). Their unit needs the SMTP relay
+(`/etc/kf/notify/smtp.json`), which `provision-host.sh --check` lists.
 
 Do not enable `kf-migrate.service`; start it once per reviewed release. Do not start nginx until
 example hostnames/certificate paths are replaced and `nginx -t` passes.
@@ -303,7 +322,10 @@ deployment's part.
 
 The long-running services (`kf-attestor`, `kf-api`, `kf-web`, `kf-worker`) restart on failure, and restart
 alone never reaches `failed`: the unit loops in `activating (auto-restart)` and `OnFailure=`
-never fires. Each therefore sets `StartLimitIntervalSec=30min` / `StartLimitBurst=5` in `[Unit]`,
+never fires. (On systemd 257, the Debian 13 host's, that is not what was observed: a
+`kf-attestor` start that died on "the database system is starting up" logged "Triggering
+OnFailure= dependencies" before restarting, and `kf-alert@kf-attestor.service` ran — KF-WAR-0001
+rehearsal, 2026-10-07. Each crash alerts there; the limit below still stops the loop.) Each therefore sets `StartLimitIntervalSec=30min` / `StartLimitBurst=5` in `[Unit]`,
 so a sixth start inside half an hour stops the loop, fails the unit and alerts. After fixing the
 cause, `systemctl reset-failed <unit>` re-arms it. `tests/deployment/systemd-units.test.ts`
 refuses any unit with `Restart=` that lacks either.

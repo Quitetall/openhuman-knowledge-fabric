@@ -23,6 +23,10 @@ ExecStartPre=/usr/bin/test -s /etc/kf/web/session-key
 # next receives loopback host and port as arguments, so an EnvironmentFile cannot expose it.
 ExecStart=/usr/bin/env NODE_ENV=production KF_DEPLOYMENT_PROFILE=dogfood KF_API_URL=http://127.0.0.1:4000 KF_WEB_SESSION_SECRET_FILE=/etc/kf/web/session-key /usr/bin/node /opt/kf/apps/web/node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3000
 Restart=on-failure
+# Next.js answers SIGTERM by exiting 143, which systemd counts as a failure: every
+# `systemctl stop kf-web` — every upgrade — reached kf-alert@ as if the web had crashed
+# (KF-WAR-0001 rehearsal, 2026-10-07). A stop is not a failure.
+SuccessExitStatus=143
 RestartSec=5s
 TimeoutStopSec=30s
 KillSignal=SIGTERM

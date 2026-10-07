@@ -35,6 +35,9 @@ ExecStartPre=/usr/bin/test -d /etc/kf/preservation-trust.d
 # same there.
 LoadCredentialEncrypted=backup-decryption-key:/etc/kf/credstore.encrypted/backup-decryption-key
 Environment=KF_DRILL_DECRYPTION_KEY_FILE=%d/backup-decryption-key
+# ...and so its custody is systemd's, checked by the release's native helper, not the owner-only
+# file rule (scripts/restore-drill.sh says why).
+Environment=KF_DRILL_DECRYPTION_KEY_CUSTODY=systemd
 # The throwaway PostgreSQL cluster lives here, one private subdirectory per run, deleted on exit.
 StateDirectory=kf-restore-drill
 StateDirectoryMode=0700

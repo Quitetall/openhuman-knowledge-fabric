@@ -258,16 +258,40 @@ export const evidenceReceipts: CommissioningCheckFn = async (inputs: Commissioni
     };
   }
 
+  // A ratified qualification of the Liminal compiler is owed only by a release that carries one.
+  // A release that declares `liminal=none` (ADR 0010: the ordinary release) ships no compiler,
+  // so there is nothing anybody could qualify, and requiring the receipt made this check
+  // impossible to satisfy on every host running the ordinary release — found by the first
+  // rehearsal of the VPS install (KF-WAR-0001, 2026-10-07). Only an explicit, sealed
+  // `liminal=none` waives it: no release directory, no metadata or no declaration still
+  // requires the receipt, so this fails closed exactly as before.
+  const declaration =
+    inputs.releaseDirectory === undefined
+      ? undefined
+      : (await liminalDeclaration(inputs.releaseDirectory)).value;
   const required = [
     { file: 'release-verification.json', what: 'release manifest verification' },
     { file: 'rollback-rehearsal.json', what: 'disposable-cluster rollback rehearsal' },
-    { file: 'compiler-qualification.json', what: 'ratified Liminal compiler qualification' },
+    ...(declaration === 'none'
+      ? []
+      : [
+          {
+            file: 'compiler-qualification.json',
+            what: 'ratified Liminal compiler qualification',
+          } as const,
+        ]),
   ] as const;
 
   const missing: string[] = [];
   const wrongRelease: string[] = [];
   const stale: string[] = [];
-  const observed: Record<string, string | number | boolean | null> = { releaseId };
+  const observed: Record<string, string | number | boolean | null> = {
+    releaseId,
+    compilerQualification:
+      declaration === 'none'
+        ? 'not owed: the release declares liminal=none and ships no compiler (ADR 0010)'
+        : 'required',
+  };
 
   for (const { file, what } of required) {
     let receipt: { release?: unknown; recordedAt?: unknown; ratified?: unknown };
@@ -317,7 +341,10 @@ export const evidenceReceipts: CommissioningCheckFn = async (inputs: Commissioni
   }
   return {
     status: 'satisfied',
-    detail: `Release verification, rollback rehearsal and ratified compiler qualification all exist for ${releaseId}.`,
+    detail:
+      declaration === 'none'
+        ? `Release verification and rollback rehearsal exist for ${releaseId}; it declares no Liminal compiler, so no compiler qualification is owed.`
+        : `Release verification, rollback rehearsal and ratified compiler qualification all exist for ${releaseId}.`,
     observed,
   };
 };

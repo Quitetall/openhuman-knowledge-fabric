@@ -726,6 +726,58 @@ describe('planted violations — commissioning must refuse', () => {
     expect(entry.detail).toMatch(/kf-1\.0\.0.*kf-2\.0\.0|kf-2\.0\.0/);
   });
 
+  // KF-WAR-0001 rehearsal, 2026-10-07: the ordinary release (liminal=none) ships no compiler,
+  // so no qualification of one can exist, and this check could not be satisfied on any host.
+  // The waiver is the sealed declaration and nothing else; these three hold both directions.
+  async function releaseDeclaring(metadata: string | undefined): Promise<string> {
+    const directory = await mkdtemp(join(tmpdir(), 'kf-receipts-release-'));
+    if (metadata !== undefined) await writeFile(join(directory, 'BUILD-METADATA'), metadata);
+    return directory;
+  }
+
+  it('no compiler qualification is owed by a release that declares no compiler', async () => {
+    const { inputs, evidence } = await commissionedHost();
+    await rm(join(evidence, 'compiler-qualification.json'));
+    const entry = check(
+      await assessCommissioning({
+        ...inputs,
+        releaseDirectory: await releaseDeclaring('git_commit=deadbeef\nliminal=none\n'),
+      }),
+      'evidence_receipts',
+    );
+    expect(entry.status).toBe('satisfied');
+    expect(entry.observed?.['compilerQualification']).toMatch(/not owed/);
+  });
+
+  it('a release that seals a compiler still owes its ratified qualification', async () => {
+    const { inputs, evidence } = await commissionedHost();
+    await rm(join(evidence, 'compiler-qualification.json'));
+    const entry = check(
+      await assessCommissioning({
+        ...inputs,
+        releaseDirectory: await releaseDeclaring('git_commit=deadbeef\nliminal=sealed\n'),
+      }),
+      'evidence_receipts',
+    );
+    expect(entry.status).toBe('unverifiable');
+    expect(String(entry.observed?.['missing'])).toMatch(/compiler qualification/);
+  });
+
+  it('a release that does not say, or cannot be read, still owes it — the waiver fails closed', async () => {
+    const { inputs, evidence } = await commissionedHost();
+    await rm(join(evidence, 'compiler-qualification.json'));
+    for (const metadata of ['git_commit=deadbeef\n', undefined]) {
+      const entry = check(
+        await assessCommissioning({
+          ...inputs,
+          releaseDirectory: await releaseDeclaring(metadata),
+        }),
+        'evidence_receipts',
+      );
+      expect(entry.status, String(metadata)).toBe('unverifiable');
+    }
+  });
+
   it('a missing receipt, as unverifiable rather than as satisfied', async () => {
     const { inputs, evidence } = await commissionedHost();
     await rm(join(evidence, 'release-verification.json'));

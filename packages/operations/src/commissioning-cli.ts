@@ -138,10 +138,15 @@ async function main(): Promise<number> {
   };
 
   const report = await assessCommissioning(inputs);
+  // The report is the program's output, so it goes to stdout. It went to stderr (console.warn)
+  // until 2026-10-07, so `kf-commissioning --json > evidence.json` — what the deployment contract
+  // means by "an evidence record" — wrote an empty file while the JSON scrolled past on the
+  // terminal (KF-WAR-0001 rehearsal). Diagnostics stay on stderr. (process.stdout.write, not
+  // console.log, which the lint rule reserves; the reason the report had been console.warn.)
   if (args.includes('--json')) {
-    console.warn(JSON.stringify(report, null, 2));
+    process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   } else {
-    console.warn(formatCommissioning(report));
+    process.stdout.write(`${formatCommissioning(report)}\n`);
   }
   return report.commissioned ? 0 : 1;
 }

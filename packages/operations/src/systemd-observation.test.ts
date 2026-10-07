@@ -2,6 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { validServiceName } from './internal/commissioning/unit-composition.js';
 import {
   absolutePath,
   configuredInstances,
@@ -18,6 +19,24 @@ afterEach(async () => {
 const complete = () =>
   SYSTEMD_PROPERTIES.map((key) => `${key}=${key === 'Id' ? 'kf-api.service' : ''}`).join('\n') +
   '\n';
+describe('the alert instance of a failed template instance (KF-WAR-0001 rehearsal)', () => {
+  it('is a service name: OnFailure=kf-alert@%n.service of kf-notify@digest.service', () => {
+    expect(validServiceName('kf-alert@kf-notify@digest.service.service')).toBe(true);
+    expect(templateFor('kf-alert@kf-notify@digest.service.service', ['kf-alert@.service'])).toBe(
+      'kf-alert@.service',
+    );
+  });
+  it('and still refuses what is not one', () => {
+    for (const name of [
+      'kf-alert@bad name.service',
+      '@x.service',
+      'kf-alert@x.socket',
+      'a/b.service',
+    ]) {
+      expect(validServiceName(name), name).toBe(false);
+    }
+  });
+});
 describe('bounded systemd observation parsing and template discovery', () => {
   it('parses complete machine records and no command/credential properties', () => {
     expect(parseSystemdProperties(complete() + '\n' + complete())).toHaveLength(2);
