@@ -12,9 +12,7 @@ title = "Scope is the product: roles as composable scope presets, the master doc
 profile = "delivery"
 assurance_level = "controlled"
 
-# Milestone M3 of docs/ROADMAP.md. The UX requirements it builds (roles as composable scope
-# presets, master record = compile(scope), one dashboard scoped by grants) are added to
-# [[implements]] when KF-WAR-0003 lands them in §106.
+# Milestone M3 of docs/ROADMAP.md. Its §24B requirements (ADR 0040) are cited below.
 [[roadmap]]
 ref = "roadmap://KF-PHASE-10/m3-scope-is-the-product"
 
@@ -67,6 +65,35 @@ contribution = "partial"
 [[implements]]
 ref = "sas://KF-SAS-RQ-157"
 contribution = "validation"
+
+# SAS §24B (ADR 0040), landed by KF-WAR-0003.
+[[implements]]
+ref = "sas://KF-SAS-RQ-262"
+contribution = "complete"
+
+[[implements]]
+ref = "sas://KF-SAS-RQ-267"
+contribution = "complete"
+
+[[implements]]
+ref = "sas://KF-SAS-RQ-268"
+contribution = "complete"
+
+[[implements]]
+ref = "sas://KF-SAS-RQ-269"
+contribution = "complete"
+
+[[implements]]
+ref = "sas://KF-SAS-RQ-270"
+contribution = "complete"
+
+[[implements]]
+ref = "sas://KF-SAS-RQ-273"
+contribution = "partial"
+
+[[implements]]
+ref = "sas://KF-SAS-RQ-276"
+contribution = "complete"
 
 [[atoms]]
 ordinal = 10

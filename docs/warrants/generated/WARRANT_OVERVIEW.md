@@ -23,7 +23,7 @@ Source: the Warrants under the configured warrants path.
 
 ## Claimed SAS requirement coverage
 
-60 distinct requirement(s) are claimed by at least one Warrant.
+75 distinct requirement(s) are claimed by at least one Warrant.
 
 > **Claimed, not verified.** A Warrant declaring `[[implements]]` is an assertion by its author. §34.3 treats requirement status as a separate record; nothing here checks that the requirement is actually met.
 
@@ -87,6 +87,21 @@ Source: the Warrants under the configured warrants path.
 - `KF-SAS-RQ-259` — KF-WAR-0007
 - `KF-SAS-RQ-260` — KF-WAR-0007
 - `KF-SAS-RQ-261` — KF-WAR-0007
+- `KF-SAS-RQ-262` — KF-WAR-0005
+- `KF-SAS-RQ-263` — KF-WAR-0004
+- `KF-SAS-RQ-264` — KF-WAR-0004
+- `KF-SAS-RQ-265` — KF-WAR-0004
+- `KF-SAS-RQ-266` — KF-WAR-0004, KF-WAR-0006
+- `KF-SAS-RQ-267` — KF-WAR-0005
+- `KF-SAS-RQ-268` — KF-WAR-0005
+- `KF-SAS-RQ-269` — KF-WAR-0005
+- `KF-SAS-RQ-270` — KF-WAR-0005
+- `KF-SAS-RQ-271` — KF-WAR-0006
+- `KF-SAS-RQ-272` — KF-WAR-0006
+- `KF-SAS-RQ-273` — KF-WAR-0005, KF-WAR-0006
+- `KF-SAS-RQ-274` — KF-WAR-0006
+- `KF-SAS-RQ-275` — KF-WAR-0007
+- `KF-SAS-RQ-276` — KF-WAR-0005
 
 ## Relations
 

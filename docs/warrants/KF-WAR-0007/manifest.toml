@@ -67,6 +67,11 @@ contribution = "validation"
 ref = "sas://KF-SAS-RQ-022"
 contribution = "partial"
 
+# SAS §24B (ADR 0040), landed by KF-WAR-0003.
+[[implements]]
+ref = "sas://KF-SAS-RQ-275"
+contribution = "complete"
+
 [[atoms]]
 ordinal = 10
 role = "intent"

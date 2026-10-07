@@ -12,8 +12,7 @@ title = "The agent at home: in-app chat over the context source, routed by class
 profile = "delivery"
 assurance_level = "controlled"
 
-# Milestone M4 of docs/ROADMAP.md. The UX requirement that restricted content never reaches a
-# provider model is added to [[implements]] when KF-WAR-0003 lands it in §106.
+# Milestone M4 of docs/ROADMAP.md. Its §24B requirements (ADR 0040) are cited below.
 [[roadmap]]
 ref = "roadmap://KF-PHASE-10/m4-agent-at-home"
 
@@ -61,6 +60,27 @@ contribution = "validation"
 [[implements]]
 ref = "sas://KF-SAS-RQ-164"
 contribution = "partial"
+
+# SAS §24B (ADR 0040), landed by KF-WAR-0003.
+[[implements]]
+ref = "sas://KF-SAS-RQ-266"
+contribution = "partial"
+
+[[implements]]
+ref = "sas://KF-SAS-RQ-271"
+contribution = "complete"
+
+[[implements]]
+ref = "sas://KF-SAS-RQ-272"
+contribution = "complete"
+
+[[implements]]
+ref = "sas://KF-SAS-RQ-273"
+contribution = "partial"
+
+[[implements]]
+ref = "sas://KF-SAS-RQ-274"
+contribution = "complete"
 
 [[atoms]]
 ordinal = 10

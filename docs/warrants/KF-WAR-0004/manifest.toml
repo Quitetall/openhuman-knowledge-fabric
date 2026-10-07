@@ -12,10 +12,7 @@ title = "Agents as colleagues: the KF MCP server, the verification policy and th
 profile = "delivery"
 assurance_level = "controlled"
 
-# Milestone M2 of docs/ROADMAP.md. The new UX requirements (agent submissions unverified until
-# verified, institutional acts never auto-verified) do not exist until KF-WAR-0003 lands them, and
-# `war check` refuses a requirement §106 does not hold. They are added here when M1 lands; until
-# then this manifest names only the existing requirements the work must keep or extend.
+# Milestone M2 of docs/ROADMAP.md. Its §24B requirements (ADR 0040) are cited below.
 [[roadmap]]
 ref = "roadmap://KF-PHASE-10/m2-agents-as-colleagues"
 
@@ -58,6 +55,23 @@ contribution = "validation"
 [[implements]]
 ref = "sas://KF-SAS-RQ-150"
 contribution = "validation"
+
+# SAS §24B (ADR 0040), landed by KF-WAR-0003.
+[[implements]]
+ref = "sas://KF-SAS-RQ-263"
+contribution = "complete"
+
+[[implements]]
+ref = "sas://KF-SAS-RQ-264"
+contribution = "complete"
+
+[[implements]]
+ref = "sas://KF-SAS-RQ-265"
+contribution = "complete"
+
+[[implements]]
+ref = "sas://KF-SAS-RQ-266"
+contribution = "partial"
 
 [[atoms]]
 ordinal = 10

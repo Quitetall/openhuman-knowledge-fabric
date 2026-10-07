@@ -17,11 +17,11 @@ Source: every Warrant under the configured warrants path, its sidecar records, a
 - **digest:** `sha256:b7cfdf1f0eea15625b61ba00c43beb9466171280d08e77bd3d8911415b2c23ea`
 - Revision 0.1.0-draft.8 is ACCEPTED (§101.2) and normative. A Warrant compiles against the revision its authorization recorded (§14), so a later revision does not move an authorized contract: 9 against 0.1.0-draft.8.
 
-**Requirements (192 in §106)** — strictest rung first:
+**Requirements (207 in §106)** — strictest rung first:
 
 | satisfied | in_progress | claimed | unaddressed | superseded |
 |---|---|---|---|---|
-| **0** | 0 | 60 | 132 | 0 |
+| **0** | 0 | 75 | 132 | 0 |
 
 ## Objectives (SAS §98 phases)
 
@@ -407,6 +407,21 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 | `KF-SAS-RQ-259` | claimed | 0 | KF-WAR-0007 (complete) |
 | `KF-SAS-RQ-260` | claimed | 0 | KF-WAR-0007 (complete) |
 | `KF-SAS-RQ-261` | claimed | 0 | KF-WAR-0007 (complete) |
+| `KF-SAS-RQ-262` | claimed | 0 | KF-WAR-0005 (complete) |
+| `KF-SAS-RQ-263` | claimed | 0 | KF-WAR-0004 (complete) |
+| `KF-SAS-RQ-264` | claimed | 0 | KF-WAR-0004 (complete) |
+| `KF-SAS-RQ-265` | claimed | 0 | KF-WAR-0004 (complete) |
+| `KF-SAS-RQ-266` | claimed | 0 | KF-WAR-0004 (partial), KF-WAR-0006 (partial) |
+| `KF-SAS-RQ-267` | claimed | 0 | KF-WAR-0005 (complete) |
+| `KF-SAS-RQ-268` | claimed | 0 | KF-WAR-0005 (complete) |
+| `KF-SAS-RQ-269` | claimed | 0 | KF-WAR-0005 (complete) |
+| `KF-SAS-RQ-270` | claimed | 0 | KF-WAR-0005 (complete) |
+| `KF-SAS-RQ-271` | claimed | 0 | KF-WAR-0006 (complete) |
+| `KF-SAS-RQ-272` | claimed | 0 | KF-WAR-0006 (complete) |
+| `KF-SAS-RQ-273` | claimed | 0 | KF-WAR-0005 (partial), KF-WAR-0006 (partial) |
+| `KF-SAS-RQ-274` | claimed | 0 | KF-WAR-0006 (complete) |
+| `KF-SAS-RQ-275` | claimed | 0 | KF-WAR-0007 (complete) |
+| `KF-SAS-RQ-276` | claimed | 0 | KF-WAR-0005 (complete) |
 
 ## Warrants (9) — invalid 0 · draft 9 · ready_to_resolve 0 · would_satisfy 0 · resolved **0**
 
