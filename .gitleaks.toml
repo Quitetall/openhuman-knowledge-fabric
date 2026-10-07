@@ -48,6 +48,19 @@ useDefault = true
 
 [[allowlists]]
 description = """
+The exact historical validation-code span in workstation-credentials.mjs at 4eb92e1c.
+The private-key rule crosses an escaped PEM terminator and stops at the PGP validator's
+header eighteen lines later. This is executable format checking, not key material.
+Anchor the whole matched span, including every intervening statement and comment:
+no wildcard body and no file exclusion. A changed span or an actual adjacent key
+must remain reportable. Validated against full history and generated private-key
+probes beside the validators, with a changed-span negative control.
+"""
+regexes = ['''^-----BEGIN PRIVATE KEY-----\\n\[A-Za-z0-9\+/=\\n\]\+\\n-----END PRIVATE KEY-----\\n\?\$/\.test\(pem\) \|\|\n    createPrivateKey\(pem\)\.asymmetricKeyType !== 'ed25519'\n  \)\n    refuse\(\);\n  return values;\n\}\n\nfunction offsiteValues\(values\) \{\n  migrationDatabase\(values\[0\], 0\);\n  return values;\n\}\n\nfunction drillValues\(values\) \{\n  migrationDatabase\(values\[0\], 0\);\n  const armor = boundedText\(values\[1\], 65536\);\n  // Transport admission is not a GnuPG import/decryption or recovery-custody proof\.\n  if \(\n    !/\^-----BEGIN PGP PRIVATE KEY BLOCK-----$''']
+regexTarget = "match"
+
+[[allowlists]]
+description = """
 Idempotency keys in tests. These are request-deduplication identifiers, not credentials: they are
 chosen to be READABLE so a failing assertion says which attempt it was, which is precisely why the
 generic-api-key rule's entropy heuristic reaches for them. Scoped to the assignment shape and to
