@@ -44,6 +44,8 @@ const KEY = generateKeyPairSync('ed25519');
 const VERIFICATION = { trustedManifestKeys: new Map([[KEY_ID, KEY.publicKey]]) };
 
 const RETIRED_SECTION = 'deliverable-retired-attributes';
+/** Sections that arrived after the retired attributes (ee9e0696, ADR 0040's role presets). */
+const AFTER_RETIRED = ['role-preset-grants', 'role-inclusions'];
 
 /**
  * Sections whose rows 20260902000200 derived rather than created empty: the `working` store it
@@ -152,7 +154,7 @@ function repack(
       files,
       new Set(
         Object.keys(base.manifest.counts)
-          .concat(RETIRED_SECTION)
+          .concat(RETIRED_SECTION, ...AFTER_RETIRED)
           .filter((name) => !files.some((file) => file.path === `${name}.json`)),
       ),
     ),
@@ -188,6 +190,8 @@ function asArchiveBeforeTheMigration(current: ExportPackage): ExportPackage {
     new Map<string, unknown>([
       ['deliverables.json', old],
       [`${RETIRED_SECTION}.json`, null],
+      // Written after 20260925130100, so an archive from before it has none of them either.
+      ...AFTER_RETIRED.map((name): [string, unknown] => [`${name}.json`, null]),
     ]),
   );
 }
@@ -422,7 +426,7 @@ describe('an archive written before deliverables had their ontology fields', () 
       expect(restored.locations).toEqual([{ version_id: addressed.id }]);
       // And this test covers every section the list names.
       expect(new Set(SECTIONS_ADDED_WITHOUT_FORMAT_BUMP)).toEqual(
-        new Set([...later, RETIRED_SECTION]),
+        new Set([...later, RETIRED_SECTION, ...AFTER_RETIRED]),
       );
     } finally {
       await fresh.stop();
@@ -582,12 +586,24 @@ describe('an archive written before deliverables had their ontology fields', () 
         'tests',
         'observations',
         RETIRED_SECTION,
+        ...AFTER_RETIRED,
       ),
     ).toEqual([]);
-    expect(drop('access-demand', RETIRED_SECTION)).toEqual([]);
+    expect(drop('access-demand', RETIRED_SECTION, ...AFTER_RETIRED)).toEqual([]);
+    // An archive between the retired attributes and the role presets is an era of its own; one
+    // without the retired attributes but with the role presets is no exporter's.
+    expect(drop(...AFTER_RETIRED)).toEqual([]);
+    expect(drop(RETIRED_SECTION)).toEqual([
+      expect.stringMatching(
+        /predates deliverable-retired-attributes \(b8886185\) but carries role-preset-grants, role-inclusions/,
+      ),
+    ]);
     expect(drop('access-demand')).toEqual([
       expect.stringMatching(
         /predates access-demand \(de59c226\) but carries deliverable-retired-attributes/,
+      ),
+      expect.stringMatching(
+        /predates access-demand \(de59c226\) but carries role-preset-grants, role-inclusions/,
       ),
     ]);
   });
@@ -610,7 +626,11 @@ describe('an archive written before deliverables had their ontology fields', () 
   }, 240_000);
 
   it('refuses a current package that lost its retired-attributes section', async () => {
-    const truncated = repack(pkg, new Map([[`${RETIRED_SECTION}.json`, null]]));
+    // The sections that arrived after it go too, or the era check refuses the package first.
+    const truncated = repack(
+      pkg,
+      new Map([RETIRED_SECTION, ...AFTER_RETIRED].map((name) => [`${name}.json`, null])),
+    );
     const fresh = await startHarness();
     try {
       await expect(

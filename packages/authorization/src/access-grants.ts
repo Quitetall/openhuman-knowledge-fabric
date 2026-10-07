@@ -272,7 +272,7 @@ export async function enumerateAccessCoverage(
       scopeObjectId: row.scope_object_id,
       classificationCeiling: row.classification_ceiling,
       reason: row.reason,
-      ...(row.role_path === null ? {} : { rolePath: [...row.role_path] }),
+      ...(Array.isArray(row.role_path) ? { rolePath: [...row.role_path] } : {}),
     };
     if (row.scope_object_id === organizationId) {
       organizationWide.push(ref);
