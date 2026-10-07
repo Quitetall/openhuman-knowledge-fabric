@@ -28,9 +28,10 @@ const INIT = join(REPO, 'deploy/object-store/init-buckets.sh');
 const READY = join(REPO, 'deploy/object-store/ready.sh');
 const S3_PORT = '8333';
 // Public fixture credentials, isolated from user services and used only in these containers.
-const ACCESS = 'ow111-fixture';
+// At least 16 characters: the B2 adapter refuses a shorter application key id, as B2 issues none.
+const ACCESS = 'kf-object-store-fixture';
 const SECRET = 'ow111-disposable-not-a-secret';
-const REGION = 'us-east-1';
+const DEFAULT_REGION = 'us-east-1';
 
 export interface StoreService {
   /** The `seaweedfs` service's image, exactly as docker-compose.yml pins it. */
@@ -99,10 +100,12 @@ export class PreservationObjectStore {
    * `buckets` undefined: init-buckets.sh's own default list, as the development stack gets.
    * `identities`: more SeaweedFS identities beside the fixture's own administrator, e.g. the ones
    * deploy/object-store/render-identities.mjs makes for a host.
+   * `region`: the region every client here signs for (SeaweedFS answers for any).
    */
   constructor(
     private readonly buckets?: readonly string[],
     private readonly identities: readonly unknown[] = [],
+    readonly region: string = DEFAULT_REGION,
   ) {}
 
   /** Start a store and create the buckets with versioning on, through init-buckets.sh. */
@@ -195,7 +198,7 @@ export class PreservationObjectStore {
     accessKeyId: string;
     secretAccessKey: string;
   } {
-    return { endpoint, region: REGION, accessKeyId: ACCESS, secretAccessKey: SECRET };
+    return { endpoint, region: this.region, accessKeyId: ACCESS, secretAccessKey: SECRET };
   }
 
   /** Run deploy/object-store/init-buckets.sh against the store, in the store's own image. */
@@ -216,6 +219,8 @@ export class PreservationObjectStore {
       `KF_OBJECTS_ACCESS_KEY_ID=${ACCESS}`,
       '--env',
       'KF_OBJECTS_SECRET_ACCESS_KEY_FILE=/kf/secret',
+      '--env',
+      `KF_OBJECTS_REGION=${this.region}`,
       ...(buckets === undefined ? [] : ['--env', `KF_OBJECTS_BUCKETS=${buckets.join(' ')}`]),
       '--entrypoint',
       '/bin/sh',
@@ -233,12 +238,21 @@ export class PreservationObjectStore {
     method: string,
     target: string,
     body?: string,
+    headers: Readonly<Record<string, string>> = {},
   ): Promise<{ status: number; body: string }> {
     if (this.service === undefined) throw new Error('not started');
+    for (const [name, value] of Object.entries(headers)) {
+      if (!/^[A-Za-z0-9-]+$/.test(name) || /["\\\r\n]/.test(value)) {
+        throw new Error(`header ${name} cannot be passed through curl's config`);
+      }
+    }
+    const extra = Object.entries(headers)
+      .map(([name, value]) => `header = "${name}: ${value}"\n`)
+      .join('');
     // curl's config syntax: a double-quoted value, with \" for a quote inside it.
     const data = body === undefined ? '' : `data-binary = "${body.replaceAll('"', '\\"')}"\n`;
     const answer = await dockerWithInput(
-      `user = "${ACCESS}:${SECRET}"\n${data}`,
+      `user = "${ACCESS}:${SECRET}"\n${data}${extra}`,
       'run',
       '--rm',
       '--interactive',
@@ -252,7 +266,7 @@ export class PreservationObjectStore {
       '-K',
       '-',
       '--aws-sigv4',
-      `aws:amz:${REGION}:s3`,
+      `aws:amz:${this.region}:s3`,
       '-X',
       method,
       '--write-out',
@@ -261,6 +275,17 @@ export class PreservationObjectStore {
     );
     const split = answer.lastIndexOf('\n');
     return { status: Number(answer.slice(split + 1)), body: answer.slice(0, Math.max(split, 0)) };
+  }
+
+  /** The container's own address on its Docker network: not an address of this host. */
+  async containerEndpoint(id: string): Promise<string> {
+    const address = await docker(
+      'inspect',
+      '--format',
+      '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}',
+      id,
+    );
+    return `http://${address}:${S3_PORT}`;
   }
 
   /** Suspend versioning on `bucket`, as an operator (or a mistake) could. */

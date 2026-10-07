@@ -103,7 +103,7 @@ human() { HUMAN+=("$1|$2"); }
 
 USERS=(kf-api kf-web kf-worker kf-migrator kf-checkpoint kf-backup kf-offsite kf-readiness
   kf-storage kf-audit-verify kf-alert kf-drill kf-attestor kf-retrieval-key kf-embedding kf-retrieval
-  kf-objects kf-objects-init)
+  kf-tls kf-objects kf-objects-init)
 
 # Numeric ids from the account database, root included, so ownership is compared as the kernel
 # records it.
@@ -191,6 +191,7 @@ DIRECTORIES=(
   "0700 root root /etc/kf/credstore.encrypted"
   "0755 root root /etc/kf/preservation-trust.d"
   "0755 root root /etc/kf/checkpoint-public-keys"
+  "0750 kf-tls kf-tls /etc/kf/tls"
   "0700 kf-worker kf-worker /var/lib/kf-worker"
   "0700 kf-migrator kf-migrator /var/lib/kf-migrator"
   "2750 kf-backup kf-archive /srv/kf-backups"
@@ -334,6 +335,7 @@ ENV_FILES=(
   "offsite.env.example /etc/kf/offsite.env 0640 root kf-offsite"
   "drill.env.example /etc/kf/drill.env 0640 root kf-drill"
   "attestor.env.example /etc/kf/attestor.env 0640 root kf-attestor"
+  "tailnet.env.example /etc/kf/tailnet.env 0640 root kf-tls"
   "storage.env.example /etc/kf/storage/storage.env 0600 kf-storage kf-storage"
   "objects.env.example /etc/kf/objects-init/objects.env 0600 kf-objects-init kf-objects-init"
 )
@@ -745,6 +747,123 @@ ensure_local_objects() {
 }
 
 # ---------------------------------------------------------------------------------------------
+# How people reach the host: the tailnet, its certificate and nginx (ADR 0039)
+# ---------------------------------------------------------------------------------------------
+
+NGINX_TEMPLATE="$RELEASE/deploy/nginx/knowledge-fabric-tailnet.conf"
+NGINX_SITE=/etc/nginx/sites-available/knowledge-fabric.conf
+
+# The tailnet's view of this host, as `tailscale status --json` reports it: state, DNS name
+# without its trailing dot, first IPv4 address. Tab-separated; empty when tailscale cannot say.
+tailnet_self() {
+  "$(p /usr/bin/tailscale)" status --json 2>/dev/null | "$NODE" -e '
+    let text = "";
+    process.stdin.on("data", (chunk) => (text += chunk));
+    process.stdin.on("end", () => {
+      try {
+        const status = JSON.parse(text);
+        const self = status.Self ?? {};
+        const v4 = (self.TailscaleIPs ?? []).find((ip) => /^\d+\.\d+\.\d+\.\d+$/.test(ip)) ?? "";
+        process.stdout.write([status.BackendState ?? "", (self.DNSName ?? "").replace(/\.$/, ""), v4].join("\t"));
+      } catch { process.stdout.write("unreadable\t\t"); }
+    });' || true
+}
+
+render_nginx_site() {
+  sed -e "s/KF_TAILNET_ADDRESS/$2/g" -e "s/KF_TAILNET_HOSTNAME/$1/g" "$NGINX_TEMPLATE"
+}
+
+ensure_tailnet() {
+  local env access hostname address state seen_name seen_address rendered target enabled
+  env="$(p /etc/kf/tailnet.env)"
+  [ -f "$env" ] || return 0
+  access="$(env_value "$env" KF_HOST_ACCESS)"
+  case "${access:-tailnet}" in
+    tailnet) ;;
+    private-ca) return 0 ;;
+    *) human /etc/kf/tailnet.env "KF_HOST_ACCESS=$access is neither tailnet nor private-ca"; return 0 ;;
+  esac
+
+  # Host requirements this access model adds (SAS §85).
+  if [ ! -x "$(p /usr/bin/tailscale)" ]; then
+    human "tailscale (/usr/bin/tailscale)" "install it from pkgs.tailscale.com, then \`sudo tailscale up\` to join this host to the tailnet"
+  fi
+  if [ ! -x "$(p /usr/sbin/nginx)" ]; then
+    human "nginx (/usr/sbin/nginx)" "install it (Debian: apt install nginx-light); it terminates TLS on the tailnet address"
+  fi
+
+  hostname="$(env_value "$env" KF_TAILNET_HOSTNAME)"
+  address="$(env_value "$env" KF_TAILNET_ADDRESS)"
+  if [ -x "$(p /usr/bin/tailscale)" ]; then
+    IFS=$'\t' read -r state seen_name seen_address <<< "$(tailnet_self)" || true
+    if [ "${state:-}" != Running ]; then
+      human "tailscale status" "this host is not up on the tailnet (state: ${state:-unknown}); run \`sudo tailscale up\` and approve it in the tailnet's admin console"
+    else
+      # Filled from what tailscale reports, never over a value somebody set. A value that
+      # disagrees with it is reported, because the certificate is issued for the name tailscale
+      # knows and nginx can only listen on the address tailscale assigned.
+      for pair in "KF_TAILNET_HOSTNAME:$seen_name" "KF_TAILNET_ADDRESS:$seen_address"; do
+        local name="${pair%%:*}" seen="${pair#*:}" current
+        current="$(env_value "$env" "$name")"
+        [ -n "$seen" ] || continue
+        if [ -z "$current" ]; then
+          if [ "$MODE" = check ]; then pending "/etc/kf/tailnet.env: $name=$seen, from tailscale status"
+          else set_env_value "$env" "$name" "$seen"; fi
+        elif [ "$current" != "$seen" ]; then
+          human /etc/kf/tailnet.env "$name=$current, but tailscale reports $seen for this host"
+        fi
+      done
+      # In --check, what would be filled counts as filled.
+      hostname="$(env_value "$env" KF_TAILNET_HOSTNAME)"
+      address="$(env_value "$env" KF_TAILNET_ADDRESS)"
+      hostname="${hostname:-$seen_name}"
+      address="${address:-$seen_address}"
+    fi
+  fi
+  if [[ ! "$hostname" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*\.ts\.net$ ]]; then
+    human /etc/kf/tailnet.env "KF_TAILNET_HOSTNAME: this host's tailnet name, <host>.<tailnet>.ts.net (tailscale status --json: Self.DNSName)"
+    hostname=""
+  fi
+  if [[ ! "$address" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then
+    human /etc/kf/tailnet.env "KF_TAILNET_ADDRESS: this host's tailnet IPv4 address (tailscale ip -4)"
+    address=""
+  fi
+
+  # The certificate is fetched by kf-tls-renew as kf-tls, which tailscaled permits only when told.
+  if ! grep -qE '^TS_PERMIT_CERT_UID="?kf-tls"?$' "$(p /etc/default/tailscaled)" 2>/dev/null; then
+    human /etc/default/tailscaled "TS_PERMIT_CERT_UID=kf-tls, then systemctl restart tailscaled: lets kf-tls-renew.service fetch the certificate without operator rights"
+  fi
+  if [ ! -s "$(p /etc/kf/tls/tailnet.crt)" ]; then
+    human /etc/kf/tls/tailnet.crt "the tailnet certificate: once the above is done, systemctl enable --now kf-tls-renew.timer && systemctl start kf-tls-renew.service (enable HTTPS certificates in the tailnet's DNS settings first)"
+  fi
+
+  # nginx's site, rendered from this release's template for this host. Replaced only when the
+  # rendering differs, which is how a release that changes the template reaches the host.
+  [ -n "$hostname" ] && [ -n "$address" ] && [ -d "$(p /etc/nginx/sites-available)" ] || return 0
+  rendered="$(render_nginx_site "$hostname" "$address")"
+  target="$(p "$NGINX_SITE")"
+  if [ ! -f "$target" ] || [ "$(cat "$target")" != "$rendered" ]; then
+    if [ "$MODE" = check ]; then
+      pending "$NGINX_SITE rendered for $hostname on $address"
+    else
+      printf '%s\n' "$rendered" > "$target"
+      chmod 644 "$target"
+      created "$NGINX_SITE for $hostname on $address"
+    fi
+  fi
+  enabled="$(p /etc/nginx/sites-enabled)/knowledge-fabric.conf"
+  if [ -d "$(p /etc/nginx/sites-enabled)" ] && [ ! -L "$enabled" ]; then
+    if [ "$MODE" = check ]; then pending "/etc/nginx/sites-enabled/knowledge-fabric.conf -> $NGINX_SITE"
+    else ln -s "$NGINX_SITE" "$enabled"; created "/etc/nginx/sites-enabled/knowledge-fabric.conf"; fi
+  fi
+  # Debian's own default site listens on every interface. It is not removed here — it is the
+  # distribution's file — but nothing is commissioned while it is enabled.
+  if [ -e "$(p /etc/nginx/sites-enabled/default)" ]; then
+    human /etc/nginx/sites-enabled/default "remove it (rm /etc/nginx/sites-enabled/default): Debian's default site listens on 0.0.0.0:80, the public interface"
+  fi
+}
+
+# ---------------------------------------------------------------------------------------------
 # Units
 # ---------------------------------------------------------------------------------------------
 
@@ -848,6 +967,7 @@ if [ -d "$(p /etc/kf/preservation-trust.d)" ] &&
 fi
 install_units
 report_env_placeholders
+ensure_tailnet
 check_verifier_override
 POLICY_TO_PRINT=""
 if [ -f "$(p /etc/kf/storage/storage.env)" ]; then ensure_storage_policy; fi

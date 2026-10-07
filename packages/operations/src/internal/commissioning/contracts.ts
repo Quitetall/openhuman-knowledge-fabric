@@ -105,6 +105,21 @@ export interface CommissioningInputs {
    */
   readonly passwdPath: string;
   readonly groupPath: string;
+  /**
+   * The private addresses people reach this host through, comma-separated: on an ADR 0039 host
+   * the tailnet addresses `tailscale ip` prints. `public_exposure` clears a listener on one of
+   * them, and `reverse_proxy_posture` requires nginx to listen on nothing else.
+   */
+  readonly privateListenAddresses?: string;
+  /** The interface those addresses are on. A socket bound to it is private. */
+  readonly privateInterface: string;
+  /**
+   * `proto:port` entries allowed to listen on every address, comma-separated: the private
+   * network's own transport (tailscaled's WireGuard port) and nothing else unless named.
+   */
+  readonly publicListenAllowed: string;
+  /** `ss`, which lists the listening sockets. */
+  readonly socketStatisticsPath: string;
   /** Days before certificate expiry at which renewal is already overdue. */
   readonly certificateRenewalDays: number;
   /** Days after which a rollback rehearsal no longer counts as evidence. */
@@ -123,6 +138,9 @@ export const COMMISSIONING_DEFAULTS = {
   attestorSocketPath: '/run/kf-attestor/attestor.sock',
   passwdPath: '/etc/passwd',
   groupPath: '/etc/group',
+  privateInterface: 'tailscale0',
+  publicListenAllowed: 'udp:41641',
+  socketStatisticsPath: '/usr/bin/ss',
   certificateRenewalDays: 21,
   rollbackRehearsalDays: 180,
 } as const satisfies Partial<CommissioningInputs>;

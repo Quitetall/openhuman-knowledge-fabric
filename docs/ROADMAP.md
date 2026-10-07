@@ -126,8 +126,8 @@ already implements KF-SAS-RQ-254 to 261 (qualification, in the proposed draft.9)
 ## 4. The experience
 
 Decided by the owner on 2026-10-06 in answer to seventeen questions; summarised here as twelve
-decisions. **Not yet normative:** M1 makes them ADR 0040 and a SAS section, and from then those
-are the authority.
+decisions. **Normative since M1:** [ADR 0040](decisions/0040-the-experience-scope-is-the-product.md)
+and SAS §24B (RQ-262 to RQ-276) are the authority; this summary is not.
 
 1. **Who it is for, in order.** The owner first, then engineers, then friends and others being
    onboarded so they can join. Agents are first-class from the start.
@@ -167,8 +167,8 @@ Two answers set scope rather than design: what must exist before friends join is
 the dashboard with Needs you and verify, in-app chat, Start Here and qualification, search and
 semantic search, role-scoped views and the master document (that is M2 to M5); and the spec's home
 is an ADR plus a SAS section for now, until OpenWarrant has a native UX document type. The
-resequencing of qualification ahead of hosting departs from ADR 0038's "last", and ADR 0040 must
-say so.
+resequencing of qualification ahead of hosting departs from ADR 0038's "last", and ADR 0040
+says so.
 
 ## 5. Open gaps: where each goes
 
