@@ -41,7 +41,7 @@ selected KF authority context is validated by the API before it is retained in t
 | ------- | ---------------------------- | -------------------------------------------------------------------- |
 | Node.js | 24.18.1 (current active LTS) | Pinned in `package.json` `engines`, enforced by `engine-strict=true` |
 | pnpm    | 11.x                         | Workspace protocol and isolated `node_modules`                       |
-| Docker  | with Compose v2              | PostgreSQL 18, MinIO, Keycloak                                       |
+| Docker  | with Compose v2              | PostgreSQL 18, SeaweedFS, Keycloak                                   |
 
 `corepack` is not bundled on every distribution. If `pnpm` is missing:
 `npm install -g pnpm@latest`.
@@ -87,7 +87,7 @@ when the database holds acts a different loader made does it stop, printing
 - API — <http://localhost:4000/health> and `/ready`
 - Web — <http://localhost:3000>
 - Document library — <http://localhost:3000/documents>
-- MinIO console — <http://localhost:9001>
+- Object store (S3, SeaweedFS) — <http://localhost:9000>
 - Keycloak — <http://localhost:8080>
 
 The loader refuses to run on a provisioned host (one where `/etc/kf` exists). It creates the
@@ -225,7 +225,7 @@ documents from the EDiTh benchmark (Apache-2.0) in six languages, 56 people with
 and need-to-know grants, and about seventy governed records — loaded through the real paths:
 `kf bootstrap-organization` and `kf grant-authority` for the bootstrap tier, then every act as a
 request to the API by the person who performs it. It brings its own stack in the dogfood profile
-(PostgreSQL, MinIO and Keycloak under the compose project `kf-veracier`, plus kf-attestor, the
+(PostgreSQL, SeaweedFS and Keycloak under the compose project `kf-veracier`, plus kf-attestor, the
 API, the worker and the web application on ports 4100 and 3100), so it runs beside the default
 stack without touching it:
 
@@ -332,10 +332,22 @@ be accepted.
 
 ## Object storage
 
-`minio-init` creates four buckets — `kf-artifacts`, `kf-snapshots`, `kf-checkpoints`,
-`kf-exports` — and enables versioning on each. **Versioning must be on before the first
-object is written**; enabling it later does not retroactively protect anything already
-stored.
+The object store is SeaweedFS (ADR 0039), the `seaweedfs` service: one `weed server -s3` process,
+pinned by release and digest, its S3 API on `127.0.0.1:9000`, every byte and filer record in the
+`seaweedfs-data` volume. Its development identity is
+[`deploy/object-store/development-identities.json`](../../deploy/object-store/development-identities.json)
+(the public values in `.env.example`). `seaweedfs-init` runs
+[`deploy/object-store/init-buckets.sh`](../../deploy/object-store/init-buckets.sh), which creates
+four buckets — `kf-artifacts`, `kf-snapshots`, `kf-checkpoints`, `kf-exports` — enables
+versioning on each through the S3 API, then reads every bucket back and **fails, naming the
+bucket, unless it answers `Enabled`**. **Versioning must be on before the first object is
+written**; enabling it later does not retroactively protect anything already stored. The
+container is healthy only once it can serve what it holds
+([`ready.sh`](../../deploy/object-store/ready.sh)): for a few seconds after a restart the S3 port
+answers while reads still fail.
+
+MinIO, which this replaced, was archived and its images deleted from every registry in 2026-09.
+A machine that still has a `minio-data` volume from it can delete it once nothing needs the data.
 
 ## Credentials
 

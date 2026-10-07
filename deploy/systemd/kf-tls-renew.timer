@@ -1,0 +1,14 @@
+[Unit]
+Description=Daily tailnet certificate renewal
+
+[Timer]
+# How long this may go without firing before scripts/timer-liveness.sh reports it (systemd
+# ignores X- keys). Daily plus spread: 26 hours silent means a day was missed. A certificate has
+# 90 days, so a stopped timer is noticed with weeks to spare rather than at expiry.
+X-KF-MaxSilenceSec=93600
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=600
+Persistent=true
+
+[Install]
+WantedBy=timers.target

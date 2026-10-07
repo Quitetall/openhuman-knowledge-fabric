@@ -21,18 +21,18 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 | security definer declarations | 219 | in migration up-sections; a function redefined is declared again |
 | views | 13 | distinct view names in migration up-sections |
 | indexes created | 114 | explicit `create index` statements in migration up-sections |
-| foreign-key references | 575 | `references` clauses in migration up-sections |
+| foreign-key references | 577 | `references` clauses in migration up-sections |
 | check constraints | 881 | `check (` clauses in migration up-sections |
 | group roles | 11 | distinct `NOLOGIN` roles created in migration up-sections |
 | workspace packages | 33 | 26 libraries under `packages/`, 7 executables under `apps/` |
-| systemd services | 17 | `*.service` units under `deploy/systemd/`, the `kf-alert@` template counted once |
-| systemd timers | 7 | `*.timer` units under `deploy/systemd/` |
+| systemd services | 20 | `*.service` units under `deploy/systemd/`, the `kf-alert@` template counted once |
+| systemd timers | 8 | `*.timer` units under `deploy/systemd/` |
 | action types | 190 | declared in `ontology/action-types.yaml` |
 | object types | 43 | declared in `ontology/object-types.yaml` |
 | relation types | 42 | declared in `ontology/relation-types.yaml` |
 | decision records | 40 | atoms under `docs/decisions/atoms/` — 35 accepted, 3 proposed, 2 superseded |
 | architecture requirements | 207 | distinct identifiers in §106 |
-| test files | 339 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
+| test files | 349 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
 
 ## Runtime measurements, cited rather than derived
 

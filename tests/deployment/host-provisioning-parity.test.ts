@@ -64,12 +64,23 @@ describe('every workflow that runs the gate provisions the same host contract', 
       // restore-drill-source).
       'gnupg',
       'rsync',
-      // The MinIO images the preservation drill runs, built from source because no registry
-      // serves them (tests/fixtures/minio-image/build.sh).
-      'tests/fixtures/minio-image/build.sh',
+      // The object store the preservation and versioning tests run (ADR 0039), pulled by the
+      // digest docker-compose.yml pins.
+      'docker pull --quiet "${image}"',
     ]) {
       expect(action, `${ACTION} no longer provisions ${required}`).toContain(required);
     }
+  });
+
+  it('the object store CI pulls is the one docker-compose.yml pins, read from there', () => {
+    const action = readFileSync(join(ROOT, ACTION, 'action.yml'), 'utf8');
+    // Read from the compose file, not restated: a second copy of the pin is how CI ends up
+    // testing one store while the stack runs another.
+    expect(action).toContain('/^  seaweedfs:$/');
+    expect(action).toContain('docker-compose.yml');
+    expect(action, `${ACTION} names an object-store image of its own`).not.toMatch(
+      /chrislusf\/seaweedfs|minio/i,
+    );
   });
 
   it('every gate workflow can be pointed at the self-hosted runner', () => {

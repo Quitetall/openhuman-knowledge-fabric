@@ -10,13 +10,12 @@ services:
     container_name: ${KF_STACK_PROJECT:-kf-veracier}-postgres
     ports: !override
       - '127.0.0.1:${KF_STACK_PG_PORT:-15432}:5432'
-  minio:
-    container_name: ${KF_STACK_PROJECT:-kf-veracier}-minio
+  seaweedfs:
+    container_name: ${KF_STACK_PROJECT:-kf-veracier}-seaweedfs
     ports: !override
-      - '127.0.0.1:${KF_STACK_MINIO_PORT:-19000}:9000'
-      - '127.0.0.1:${KF_STACK_MINIO_CONSOLE_PORT:-19001}:9001'
-  minio-init:
-    container_name: ${KF_STACK_PROJECT:-kf-veracier}-minio-init
+      - '127.0.0.1:${KF_STACK_OBJECTS_PORT:-19000}:8333'
+  seaweedfs-init:
+    container_name: ${KF_STACK_PROJECT:-kf-veracier}-seaweedfs-init
   keycloak:
     container_name: ${KF_STACK_PROJECT:-kf-veracier}-keycloak
     ports: !override

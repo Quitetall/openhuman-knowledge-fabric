@@ -1,0 +1,46 @@
+#!/usr/sbin/nft -f
+#
+# The first host's firewall (ADR 0039): nothing from the public interface but the tailnet's own
+# transport. People reach the host through tailscale0; the public address answers only
+# tailscaled's WireGuard port, and the replies the host needs to keep its address.
+#
+# Install: copy to /etc/nftables.d/knowledge-fabric-tailnet.nft, include it from
+# /etc/nftables.conf, `nft -c -f /etc/nftables.conf` and then `systemctl enable --now nftables`.
+# ONLY AFTER confirming you can reach the host over the tailnet (`ssh <host>.<tailnet>.ts.net`):
+# this drops SSH on the public address, and the provider's console is then the other way in
+# (docs/deployment/private-host.md, "First host").
+#
+# Defence in depth, not the evidence: kf-commissioning's public_exposure check lists what is
+# listening on the host itself, and a port scan of the public address from outside is the proof
+# ADR 0039 names.
+
+table inet kf_host
+delete table inet kf_host
+
+table inet kf_host {
+    chain input {
+        type filter hook input priority filter; policy drop;
+
+        ct state established,related accept
+        ct state invalid drop
+        iifname "lo" accept
+
+        # Everything people and the operator use arrives over the tailnet.
+        iifname "tailscale0" accept
+
+        # Tailscale's WireGuard transport on the public interface. Its default port; if
+        # tailscaled is started with --port, change this and KF_PUBLIC_LISTEN_ALLOWED together.
+        udp dport 41641 accept
+
+        # What IPv4 and IPv6 need to keep working: path MTU, unreachables, neighbour discovery,
+        # and DHCP replies on providers that assign the public address by DHCP.
+        meta l4proto icmp icmp type { destination-unreachable, time-exceeded, parameter-problem } accept
+        meta l4proto ipv6-icmp icmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert } accept
+        udp sport 67 udp dport 68 accept
+        udp sport 547 udp dport 546 accept
+    }
+
+    chain forward {
+        type filter hook forward priority filter; policy drop;
+    }
+}

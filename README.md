@@ -79,7 +79,7 @@ on `main` from the older live VM and the owner-controlled commissioning steps.
 pnpm install
 cp .env.example .env                                  # then set KF_ORGANIZATION_LEGAL_NAME in it
 set -a; . ./.env; set +a
-docker compose up -d                                  # PostgreSQL 18, MinIO, Keycloak
+docker compose up -d                                  # PostgreSQL 18, SeaweedFS, Keycloak
 DATABASE_URL="$DATABASE_OWNER_URL" pnpm db:migrate
 pnpm dogfood:load -- --source-dir /path/to/documents   # prints three KF_DEV_* values and DATABASE_URL_FILE for .env
 pnpm dev                                              # api :4000, web :3000, worker

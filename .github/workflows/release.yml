@@ -86,7 +86,7 @@ jobs:
       # the script, with no warning. That was written here once and the mistake is worth the
       # sentence.
       #
-      # WHAT THE BILL DOES NOT COVER: non-npm dependencies. PostgreSQL, MinIO, Keycloak,
+      # WHAT THE BILL DOES NOT COVER: non-npm dependencies. PostgreSQL, SeaweedFS, Keycloak,
       # bubblewrap and the Node runtime are all part of what gets deployed and none of them
       # appear in it; `docs/deployment/private-host.md` is the inventory for those.
       - name: Generate CycloneDX SBOM

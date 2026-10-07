@@ -1,0 +1,38 @@
+[Unit]
+Description=Create the object store's buckets with versioning on, and refuse unless it reads back Enabled
+Documentation=file:///opt/kf/docs/decisions/0039-the-first-host-is-a-vps-on-a-tailnet-with-seaweedfs-and-b2.md
+# Runs after every start of the store (PartOf), so versioning is re-checked each time.
+Requires=kf-objects.service
+After=kf-objects.service
+PartOf=kf-objects.service
+OnFailure=kf-alert@%n.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Its own identity: it holds the store's administrator secret, which the store itself only ever
+# sees inside its identities file, and nothing else on this host holds.
+User=kf-objects-init
+Group=kf-objects-init
+EnvironmentFile=/etc/kf/objects-init/objects.env
+ExecStartPre=/usr/bin/test -s /etc/kf/objects-init/admin-secret
+# Idempotent: a bucket that exists is kept, and versioning already on stays on. Exits non-zero,
+# naming the bucket, if any bucket does not then answer GetBucketVersioning with Enabled.
+ExecStart=/bin/sh /opt/kf/deploy/object-store/init-buckets.sh
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+SystemCallArchitectures=native
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

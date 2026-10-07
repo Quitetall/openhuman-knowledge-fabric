@@ -81,6 +81,7 @@ These things have to happen on a schedule, and until they are scheduled they are
 | `kf-readiness.timer`        | every 15 min      | Nothing notices when any of the above stops running.                                        |
 | `kf-alert-heartbeat.timer`  | daily             | Nothing notices when the thing that notices stops working.                                  |
 | `kf-storage.timer`          | daily 03:30       | Every artifact version has one copy, and nothing has re-hashed the copies that exist.       |
+| `kf-tls-renew.timer`        | daily 03:30       | Tailnet hosts (ADR 0039): the `tailscale cert` certificate lapses after 90 days.            |
 
 The readiness and heartbeat timers are what make the others real. A backup timer that silently stops is
 indistinguishable from a backup timer that is working, right up until the restore — unless
@@ -118,9 +119,10 @@ executable. Until 2026-09-23 it was forty hand-typed lines here, and the hardeni
 added a dozen more — a receipt key, a readiness token, a pinned checkpoint key id, a sealed drill
 credential, two identities, an object-store policy. It:
 
-- creates the thirteen service identities (`kf-api`, `kf-web`, `kf-worker`, `kf-migrator`,
+- creates the seventeen service identities (`kf-api`, `kf-web`, `kf-worker`, `kf-migrator`,
   `kf-checkpoint`, `kf-backup`, `kf-offsite`, `kf-readiness`, `kf-storage`, `kf-audit-verify`,
-  `kf-alert`, `kf-drill`, `kf-attestor`), each with no home and no shell, the `kf-archive` group
+  `kf-alert`, `kf-drill`, `kf-attestor`, `kf-retrieval-key`, `kf-embedding`, `kf-retrieval`,
+  `kf-tls`), each with no home and no shell, the `kf-archive` group
   (`kf-backup` writes the archive, `kf-offsite` reads it to ship it) and the `kf-attest` group
   (`kf-attestor` serves its socket in it, `kf-api` alone may connect);
 - creates `/etc/kf` traversable and every service subdirectory `0750 root:<identity>` except
@@ -144,8 +146,16 @@ credential, two identities, an object-store policy. It:
   which the API's login must never be — object-store secrets, the alert webhook, the preservation
   key), so the only remaining step is writing its value;
 - installs every shipped unit into `/etc/systemd/system` byte for byte and reloads systemd;
-- applies the orphan-collection policy to the storage key when `mc` has an admin alias
-  (`KF_MC_ALIAS=<alias>`), and otherwise prints it; then asks the store, as `kf-storage`,
+- for this host's own object store, `kf-objects` (SeaweedFS on loopback, ADR 0039): installs
+  the pinned binary at `/usr/local/lib/kf-objects/weed` after checking the tarball's and the
+  binary's sha256 (`deploy/object-store/seaweedfs.release`), generates the secret of each
+  service routed at it (API, worker, storage sweep, drill) and of the store's administrator
+  (`/etc/kf/objects-init/admin-secret`, held by `kf-objects-init` alone), and
+  renders `/etc/kf/objects/identities.json` (0600 `kf-objects`) from those files — the storage
+  key granted exactly the orphan-collection policy's prefixes, the drill's key read-only.
+  `kf-objects.service` runs the store; `kf-objects-init.service` creates the buckets and fails
+  unless each reads back versioning `Enabled`. For a store that is not this host's own it prints
+  the orphan-collection policy to apply there; then asks the store, as `kf-storage`,
   whether the key really may list and delete versions (every key the sweep then deletes is
   recorded in `content.orphan_collection` in the same run; a deletion it cannot record fails it);
 - ends with the inputs only a person can supply, each with the exact file it goes in.
@@ -236,6 +246,8 @@ Run migration procedure in private-host guide. Only after it and real-provider p
 sudo systemctl enable --now kf-attestor.service kf-api.service kf-worker.service kf-web.service
 sudo systemctl enable --now kf-checkpoint.timer kf-backup.timer kf-storage.timer \
   kf-audit-verify.timer kf-restore-drill.timer kf-readiness.timer kf-alert-heartbeat.timer
+# A tailnet host (ADR 0039) also renews its certificate:
+sudo systemctl enable --now kf-tls-renew.timer
 ```
 
 Do not enable `kf-migrate.service`; start it once per reviewed release. Do not start nginx until

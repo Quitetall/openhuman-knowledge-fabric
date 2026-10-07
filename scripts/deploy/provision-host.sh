@@ -32,8 +32,9 @@
 #   KF_PROVISION_ROOT   prefix every host path with this directory (a fake root; tests)
 #   KF_RELEASE_DIR      the release whose templates and units to install (default: this one)
 #   KF_PROVISION_NODE   the Node.js executable (default /usr/bin/node)
-#   KF_MC_ALIAS         an `mc` alias with admin rights on the object store; when set and `mc`
-#                       is installed, the orphan-collection policy is applied, not just printed
+#   KF_OBJECTS_RELEASE_URL   where to fetch the pinned SeaweedFS tarball from (tests; default the
+#                            upstream release URL in deploy/object-store/seaweedfs.release). The
+#                            pinned digests are checked whatever the source.
 
 set -euo pipefail
 umask 077
@@ -75,6 +76,9 @@ NODE="${KF_PROVISION_NODE:-/usr/bin/node}"
 TEMPLATES="$RELEASE/deploy/systemd"
 POLICY_TEMPLATE="$RELEASE/deploy/object-store/kf-storage-orphan-collection.policy.json"
 POLICY_NAME=kf-storage-orphan-collection
+# This host's own object store, kf-objects (ADR 0039): the endpoint the env templates default to.
+LOCAL_OBJECTS=http://127.0.0.1:8333
+WEED=/usr/local/lib/kf-objects/weed
 SELF=/opt/kf/scripts/deploy/provision-host.sh
 
 if [ "$MODE" = apply ] && [ -z "$PREFIX" ] && [ "$(id -u)" -ne 0 ]; then
@@ -98,7 +102,8 @@ human() { HUMAN+=("$1|$2"); }
 # ---------------------------------------------------------------------------------------------
 
 USERS=(kf-api kf-web kf-worker kf-migrator kf-checkpoint kf-backup kf-offsite kf-readiness
-  kf-storage kf-audit-verify kf-alert kf-drill kf-attestor kf-retrieval-key kf-embedding kf-retrieval)
+  kf-storage kf-audit-verify kf-alert kf-drill kf-attestor kf-retrieval-key kf-embedding kf-retrieval
+  kf-tls kf-objects kf-objects-init)
 
 # Numeric ids from the account database, root included, so ownership is compared as the kernel
 # records it.
@@ -180,9 +185,13 @@ DIRECTORIES=(
   "0750 root kf-alert /etc/kf/alert"
   "0750 root kf-drill /etc/kf/drill"
   "0700 kf-attestor kf-attestor /etc/kf/attestor"
+  "0700 kf-objects kf-objects /etc/kf/objects"
+  "0700 kf-objects-init kf-objects-init /etc/kf/objects-init"
+  "0700 kf-objects kf-objects /var/lib/kf-objects"
   "0700 root root /etc/kf/credstore.encrypted"
   "0755 root root /etc/kf/preservation-trust.d"
   "0755 root root /etc/kf/checkpoint-public-keys"
+  "0750 kf-tls kf-tls /etc/kf/tls"
   "0700 kf-worker kf-worker /var/lib/kf-worker"
   "0700 kf-migrator kf-migrator /var/lib/kf-migrator"
   "2750 kf-backup kf-archive /srv/kf-backups"
@@ -326,7 +335,9 @@ ENV_FILES=(
   "offsite.env.example /etc/kf/offsite.env 0640 root kf-offsite"
   "drill.env.example /etc/kf/drill.env 0640 root kf-drill"
   "attestor.env.example /etc/kf/attestor.env 0640 root kf-attestor"
+  "tailnet.env.example /etc/kf/tailnet.env 0640 root kf-tls"
   "storage.env.example /etc/kf/storage/storage.env 0600 kf-storage kf-storage"
+  "objects.env.example /etc/kf/objects-init/objects.env 0600 kf-objects-init kf-objects-init"
 )
 
 # Keys whose empty value is an unconfigured deployment rather than an opted-out feature.
@@ -367,8 +378,11 @@ inherit_store_routing() {
   [ -f "$source" ] && [ -f "$(p "$dest")" ] || return 0
   value="$(env_value "$source" S3_ENDPOINT)"
   [ -n "$value" ] && ! is_placeholder "$value" || return 0
+  [ "$value" != "$LOCAL_OBJECTS" ] || return 0
   value="$(env_value "$(p "$dest")" S3_ENDPOINT)"
-  [ -z "$value" ] || is_placeholder "$value" || return 0
+  # The template's own default (this host's kf-objects) gives way to the store api.env names;
+  # anything else in the file is an operator's choice and is kept.
+  [ -z "$value" ] || is_placeholder "$value" || [ "$value" = "$LOCAL_OBJECTS" ] || return 0
   if [ "$MODE" = check ]; then pending "$dest: S3 routing, copied from /etc/kf/api.env"; return 0; fi
   for name in S3_ENDPOINT S3_REGION S3_BUCKET_ARTIFACTS S3_FORCE_PATH_STYLE; do
     value="$(env_value "$source" "$name")"
@@ -596,29 +610,17 @@ render_policy() {
 }
 
 ensure_storage_policy() {
-  local env bucket key policy_file output applied=0
+  local env bucket key endpoint
   env="$(p /etc/kf/storage/storage.env)"
   bucket="$(env_value "$env" S3_BUCKET_ARTIFACTS)"
   key="$(env_value "$env" S3_ACCESS_KEY_ID)"
+  endpoint="$(env_value "$env" S3_ENDPOINT)"
   if [ -z "$bucket" ] || is_placeholder "$bucket"; then bucket='<artifacts bucket>'; fi
   if [ -z "$key" ] || is_placeholder "$key"; then key='<S3_ACCESS_KEY_ID in /etc/kf/storage/storage.env>'; fi
-  if [ "$MODE" = apply ] && storage_ready && [ -n "${KF_MC_ALIAS:-}" ] &&
-     command -v mc >/dev/null 2>&1; then
-    policy_file="$(mktemp)"
-    render_policy "$bucket" > "$policy_file"
-    mc admin policy create "$KF_MC_ALIAS" "$POLICY_NAME" "$policy_file" >/dev/null
-    if ! output="$(mc admin policy attach "$KF_MC_ALIAS" "$POLICY_NAME" --user "$key" 2>&1)"; then
-      case "$output" in
-        *already*) ;;
-        *) rm -f -- "$policy_file"; echo "$output" >&2; exit 1 ;;
-      esac
-    fi
-    rm -f -- "$policy_file"
-    applied=1
-    created "object-store policy $POLICY_NAME attached to $key (bucket $bucket)"
-  fi
-  if [ "$MODE" = apply ] && [ "$applied" = 0 ]; then POLICY_TO_PRINT="$bucket|$key"; fi
-  # Whether it was applied here or by hand, ask the store — as kf-storage, with its own files.
+  # This host's own store grants the policy in its identities (ensure_local_objects); any other
+  # store is administered elsewhere, so the policy is printed for whoever administers it.
+  if [ "$MODE" = apply ] && [ "$endpoint" != "$LOCAL_OBJECTS" ]; then POLICY_TO_PRINT="$bucket|$key"; fi
+  # Whether granted here or by hand, ask the store — as kf-storage, with its own files.
   if storage_ready; then probe_storage_permissions "$bucket" "$key"; fi
 }
 
@@ -635,8 +637,229 @@ probe_storage_permissions() {
     return 0
   fi
   human "object-store policy for $key" "$(printf '%s' "$output" | grep -m1 'refused' || printf 'the permission probe failed: %s' "$output" | head -c 400)"
-  if [ -z "${KF_MC_ALIAS:-}" ] || ! command -v mc >/dev/null 2>&1; then
+  if [ "$(env_value "$(p /etc/kf/storage/storage.env)" S3_ENDPOINT)" != "$LOCAL_OBJECTS" ]; then
     POLICY_TO_PRINT="$bucket|$key"
+  fi
+}
+
+# ---------------------------------------------------------------------------------------------
+# This host's object store: kf-objects, SeaweedFS on loopback (ADR 0039)
+# ---------------------------------------------------------------------------------------------
+
+# The pinned SeaweedFS binary, fetched and checked twice: the tarball's sha256, then the `weed`
+# inside it. Either differing refuses the binary; nothing unverified is ever installed.
+ensure_weed() {
+  local pins arch url tarball_sha weed_sha actual work
+  pins="$RELEASE/deploy/object-store/seaweedfs.release"
+  case "$(uname -m)" in
+    x86_64) arch=amd64 ;;
+    aarch64 | arm64) arch=arm64 ;;
+    *) human "$WEED" "no pinned SeaweedFS build for $(uname -m) in deploy/object-store/seaweedfs.release"; return 0 ;;
+  esac
+  # KEY=value lines only; read, never sourced.
+  url="$(env_value "$pins" "SEAWEEDFS_URL_$arch")"
+  tarball_sha="$(env_value "$pins" "SEAWEEDFS_TARBALL_SHA256_$arch")"
+  weed_sha="$(env_value "$pins" "SEAWEEDFS_WEED_SHA256_$arch")"
+  actual="$(p "$WEED")"
+  if [ -f "$actual" ] && [ "$(sha256sum "$actual" | cut -d' ' -f1)" = "$weed_sha" ]; then return 0; fi
+  if [ "$MODE" = check ]; then
+    # Applying fetches it, which needs the network; until then it is listed with what to place.
+    human "$WEED" "SeaweedFS $(env_value "$pins" SEAWEEDFS_VERSION) is missing or not the pinned binary: $SELF fetches it from $url (tarball sha256 $tarball_sha, weed sha256 $weed_sha)"
+    return 0
+  fi
+  url="${KF_OBJECTS_RELEASE_URL:-$url}"
+  work="$(mktemp -d)"
+  if ! curl --silent --show-error --fail --location --proto '=https,file' --max-time 600 \
+      --output "$work/seaweedfs.tar.gz" "$url" 2>"$work/error"; then
+    human "$WEED" "SeaweedFS could not be fetched from $url ($(head -c 200 "$work/error")); fetch it, check sha256 $tarball_sha, and place its weed (sha256 $weed_sha) here"
+    rm -rf -- "$work"
+    return 0
+  fi
+  if [ "$(sha256sum "$work/seaweedfs.tar.gz" | cut -d' ' -f1)" != "$tarball_sha" ]; then
+    human "$WEED" "REFUSED: the SeaweedFS tarball from $url is not the pinned one (sha256 $tarball_sha)"
+    rm -rf -- "$work"
+    return 0
+  fi
+  if ! tar -xzf "$work/seaweedfs.tar.gz" -C "$work" weed 2>/dev/null ||
+     [ "$(sha256sum "$work/weed" | cut -d' ' -f1)" != "$weed_sha" ]; then
+    human "$WEED" "REFUSED: the weed in the pinned SeaweedFS tarball is not the pinned binary (sha256 $weed_sha)"
+    rm -rf -- "$work"
+    return 0
+  fi
+  mkdir -p -- "$(dirname -- "$actual")"
+  chmod 755 "$(dirname -- "$actual")"
+  install -m 0755 "$work/weed" "$actual"
+  chown root:root "$actual"
+  rm -rf -- "$work"
+  created "SeaweedFS $(env_value "$pins" SEAWEEDFS_VERSION) at $WEED (sha256 $weed_sha)"
+}
+
+# name|env file|secret file|owner|role: each service that may use this host's store, and how.
+OBJECT_IDENTITIES=(
+  "kf-api|/etc/kf/api.env|/etc/kf/api/s3-secret-access-key|kf-api|app"
+  "kf-worker|/etc/kf/worker.env|/etc/kf/worker/s3-secret-access-key|kf-worker|app"
+  "kf-storage|/etc/kf/storage/storage.env|/etc/kf/storage/s3-secret|kf-storage|storage"
+  "kf-drill|/etc/kf/drill.env|/etc/kf/drill/s3-secret-access-key|kf-drill|readonly"
+)
+
+# For every service routed at this host's store: generate its secret (a person would only have to
+# invent one), give it the key id its identity is named by, and render the store's identities
+# file from those secrets. A service routed at another store is left to its human secret.
+ensure_local_objects() {
+  local entry name env secret owner role lines bucket output identities
+  [ -d "$(p /etc/kf/objects)" ] && [ -d "$(p /etc/kf/objects-init)" ] || return 0
+  generate_secret kf-objects-init /etc/kf/objects-init/admin-secret token
+  lines="kf-objects-admin|$(p /etc/kf/objects-init/admin-secret)|admin"
+  bucket=''
+  for entry in "${OBJECT_IDENTITIES[@]}"; do
+    IFS='|' read -r name env secret owner role <<< "$entry"
+    [ -f "$(p "$env")" ] || continue
+    [ "$(env_value "$(p "$env")" S3_ENDPOINT)" = "$LOCAL_OBJECTS" ] || continue
+    generate_secret "$owner" "$secret" token
+    if [ "$MODE" = apply ]; then set_env_value "$(p "$env")" S3_ACCESS_KEY_ID "$name"; fi
+    [ -n "$bucket" ] || bucket="$(env_value "$(p "$env")" S3_BUCKET_ARTIFACTS)"
+    lines="$lines"$'\n'"$name|$(p "$secret")|$role"
+  done
+  [ -n "$bucket" ] || bucket=kf-artifacts
+  if [ "$MODE" = apply ]; then
+    set_env_value "$(p /etc/kf/objects-init/objects.env)" KF_OBJECTS_BUCKETS "$bucket"
+  fi
+  identities="$(p /etc/kf/objects/identities.json)"
+  if [ "$MODE" = check ]; then
+    [ -s "$identities" ] || pending "object-store identities /etc/kf/objects/identities.json"
+    return 0
+  fi
+  # Secrets are read by the renderer from their files; only paths cross this boundary.
+  if ! output="$(KF_OBJECTS_IDENTITIES="$lines" "$NODE" \
+      "$RELEASE/deploy/object-store/render-identities.mjs" "$identities" "$POLICY_TEMPLATE" \
+      "$bucket" 2>&1)"; then
+    human /etc/kf/objects/identities.json "could not be rendered: $output"
+    return 0
+  fi
+  chown kf-objects:kf-objects "$identities"
+  if [ "$output" = changed ]; then
+    created "object-store identities /etc/kf/objects/identities.json"
+    # The store reads its identities at start; a running one is restarted to take new ones.
+    if [ -z "$PREFIX" ] && command -v systemctl >/dev/null 2>&1; then
+      systemctl try-restart kf-objects.service || true
+    fi
+  fi
+}
+
+# ---------------------------------------------------------------------------------------------
+# How people reach the host: the tailnet, its certificate and nginx (ADR 0039)
+# ---------------------------------------------------------------------------------------------
+
+NGINX_TEMPLATE="$RELEASE/deploy/nginx/knowledge-fabric-tailnet.conf"
+NGINX_SITE=/etc/nginx/sites-available/knowledge-fabric.conf
+
+# The tailnet's view of this host, as `tailscale status --json` reports it: state, DNS name
+# without its trailing dot, first IPv4 address. Tab-separated; empty when tailscale cannot say.
+tailnet_self() {
+  "$(p /usr/bin/tailscale)" status --json 2>/dev/null | "$NODE" -e '
+    let text = "";
+    process.stdin.on("data", (chunk) => (text += chunk));
+    process.stdin.on("end", () => {
+      try {
+        const status = JSON.parse(text);
+        const self = status.Self ?? {};
+        const v4 = (self.TailscaleIPs ?? []).find((ip) => /^\d+\.\d+\.\d+\.\d+$/.test(ip)) ?? "";
+        process.stdout.write([status.BackendState ?? "", (self.DNSName ?? "").replace(/\.$/, ""), v4].join("\t"));
+      } catch { process.stdout.write("unreadable\t\t"); }
+    });' || true
+}
+
+render_nginx_site() {
+  sed -e "s/KF_TAILNET_ADDRESS/$2/g" -e "s/KF_TAILNET_HOSTNAME/$1/g" "$NGINX_TEMPLATE"
+}
+
+ensure_tailnet() {
+  local env access hostname address state seen_name seen_address rendered target enabled
+  env="$(p /etc/kf/tailnet.env)"
+  [ -f "$env" ] || return 0
+  access="$(env_value "$env" KF_HOST_ACCESS)"
+  case "${access:-tailnet}" in
+    tailnet) ;;
+    private-ca) return 0 ;;
+    *) human /etc/kf/tailnet.env "KF_HOST_ACCESS=$access is neither tailnet nor private-ca"; return 0 ;;
+  esac
+
+  # Host requirements this access model adds (SAS §85).
+  if [ ! -x "$(p /usr/bin/tailscale)" ]; then
+    human "tailscale (/usr/bin/tailscale)" "install it from pkgs.tailscale.com, then \`sudo tailscale up\` to join this host to the tailnet"
+  fi
+  if [ ! -x "$(p /usr/sbin/nginx)" ]; then
+    human "nginx (/usr/sbin/nginx)" "install it (Debian: apt install nginx-light); it terminates TLS on the tailnet address"
+  fi
+
+  hostname="$(env_value "$env" KF_TAILNET_HOSTNAME)"
+  address="$(env_value "$env" KF_TAILNET_ADDRESS)"
+  if [ -x "$(p /usr/bin/tailscale)" ]; then
+    IFS=$'\t' read -r state seen_name seen_address <<< "$(tailnet_self)" || true
+    if [ "${state:-}" != Running ]; then
+      human "tailscale status" "this host is not up on the tailnet (state: ${state:-unknown}); run \`sudo tailscale up\` and approve it in the tailnet's admin console"
+    else
+      # Filled from what tailscale reports, never over a value somebody set. A value that
+      # disagrees with it is reported, because the certificate is issued for the name tailscale
+      # knows and nginx can only listen on the address tailscale assigned.
+      for pair in "KF_TAILNET_HOSTNAME:$seen_name" "KF_TAILNET_ADDRESS:$seen_address"; do
+        local name="${pair%%:*}" seen="${pair#*:}" current
+        current="$(env_value "$env" "$name")"
+        [ -n "$seen" ] || continue
+        if [ -z "$current" ]; then
+          if [ "$MODE" = check ]; then pending "/etc/kf/tailnet.env: $name=$seen, from tailscale status"
+          else set_env_value "$env" "$name" "$seen"; fi
+        elif [ "$current" != "$seen" ]; then
+          human /etc/kf/tailnet.env "$name=$current, but tailscale reports $seen for this host"
+        fi
+      done
+      # In --check, what would be filled counts as filled.
+      hostname="$(env_value "$env" KF_TAILNET_HOSTNAME)"
+      address="$(env_value "$env" KF_TAILNET_ADDRESS)"
+      hostname="${hostname:-$seen_name}"
+      address="${address:-$seen_address}"
+    fi
+  fi
+  if [[ ! "$hostname" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*\.ts\.net$ ]]; then
+    human /etc/kf/tailnet.env "KF_TAILNET_HOSTNAME: this host's tailnet name, <host>.<tailnet>.ts.net (tailscale status --json: Self.DNSName)"
+    hostname=""
+  fi
+  if [[ ! "$address" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then
+    human /etc/kf/tailnet.env "KF_TAILNET_ADDRESS: this host's tailnet IPv4 address (tailscale ip -4)"
+    address=""
+  fi
+
+  # The certificate is fetched by kf-tls-renew as kf-tls, which tailscaled permits only when told.
+  if ! grep -qE '^TS_PERMIT_CERT_UID="?kf-tls"?$' "$(p /etc/default/tailscaled)" 2>/dev/null; then
+    human /etc/default/tailscaled "TS_PERMIT_CERT_UID=kf-tls, then systemctl restart tailscaled: lets kf-tls-renew.service fetch the certificate without operator rights"
+  fi
+  if [ ! -s "$(p /etc/kf/tls/tailnet.crt)" ]; then
+    human /etc/kf/tls/tailnet.crt "the tailnet certificate: once the above is done, systemctl enable --now kf-tls-renew.timer && systemctl start kf-tls-renew.service (enable HTTPS certificates in the tailnet's DNS settings first)"
+  fi
+
+  # nginx's site, rendered from this release's template for this host. Replaced only when the
+  # rendering differs, which is how a release that changes the template reaches the host.
+  [ -n "$hostname" ] && [ -n "$address" ] && [ -d "$(p /etc/nginx/sites-available)" ] || return 0
+  rendered="$(render_nginx_site "$hostname" "$address")"
+  target="$(p "$NGINX_SITE")"
+  if [ ! -f "$target" ] || [ "$(cat "$target")" != "$rendered" ]; then
+    if [ "$MODE" = check ]; then
+      pending "$NGINX_SITE rendered for $hostname on $address"
+    else
+      printf '%s\n' "$rendered" > "$target"
+      chmod 644 "$target"
+      created "$NGINX_SITE for $hostname on $address"
+    fi
+  fi
+  enabled="$(p /etc/nginx/sites-enabled)/knowledge-fabric.conf"
+  if [ -d "$(p /etc/nginx/sites-enabled)" ] && [ ! -L "$enabled" ]; then
+    if [ "$MODE" = check ]; then pending "/etc/nginx/sites-enabled/knowledge-fabric.conf -> $NGINX_SITE"
+    else ln -s "$NGINX_SITE" "$enabled"; created "/etc/nginx/sites-enabled/knowledge-fabric.conf"; fi
+  fi
+  # Debian's own default site listens on every interface. It is not removed here — it is the
+  # distribution's file — but nothing is commissioned while it is enabled.
+  if [ -e "$(p /etc/nginx/sites-enabled/default)" ]; then
+    human /etc/nginx/sites-enabled/default "remove it (rm /etc/nginx/sites-enabled/default): Debian's default site listens on 0.0.0.0:80, the public interface"
   fi
 }
 
@@ -710,6 +933,10 @@ if [ -d "$(p /etc/kf/migrator)" ]; then
   fi
   ensure_checkpoint_key
   complete_env_files
+  # Before the human secrets below: a service routed at this host's own store gets a generated
+  # secret, so its placeholder is never created empty.
+  ensure_weed
+  ensure_local_objects
 
   ensure_human_secret kf-api /etc/kf/api/database-url "connection string for the API's login (a member of kf_app; never the migrator's)"
   ensure_human_secret kf-api /etc/kf/api/s3-secret-access-key "secret for S3_ACCESS_KEY_ID in /etc/kf/api.env"
@@ -740,6 +967,7 @@ if [ -d "$(p /etc/kf/preservation-trust.d)" ] &&
 fi
 install_units
 report_env_placeholders
+ensure_tailnet
 check_verifier_override
 POLICY_TO_PRINT=""
 if [ -f "$(p /etc/kf/storage/storage.env)" ]; then ensure_storage_policy; fi
@@ -760,10 +988,7 @@ if [ -n "$POLICY_TO_PRINT" ]; then
   IFS='|' read -r bucket key <<< "$POLICY_TO_PRINT"
   echo "== object-store policy $POLICY_NAME for key $key (apply with admin rights on the store)"
   render_policy "$bucket" | sed 's/^/  /'
-  echo "  with MinIO's client:"
-  echo "    mc admin policy create <alias> $POLICY_NAME <the JSON above in a file>"
-  echo "    mc admin policy attach <alias> $POLICY_NAME --user $key"
-  echo "  or set KF_MC_ALIAS=<alias> and re-run $SELF"
+  echo "  (this host's own kf-objects store is granted it automatically; this store is not that one)"
 fi
 if [ "${#HUMAN[@]}" -gt 0 ]; then
   echo "== inputs only a person can supply"
