@@ -53,6 +53,8 @@ import type { ExportPackage } from './types.js';
  * - de59c226 (2026-09-24, on a branch without beb2a9d3 and 79124c0a): `access-demand`.
  * - b535bb14 (2026-10-07) — `20261007100000`: `verification-policies`, `act-proposals`,
  *   `act-proposal-resolutions`. Created empty; only the acts ADR 0040 adds write them.
+ * - 1501e386 (2026-10-07) — `20261007300000`: `model-routing-policies`, `notification-preferences`.
+ *   Created empty; only set_model_routing_policy and set_notification_preference write them.
  *
  * Absence does NOT mean none, and the importer restores what the migration derived:
  *
@@ -146,6 +148,11 @@ export const SECTION_ARRIVALS: readonly SectionArrival[] = [
     commit: 'b535bb14',
     after: ['b8886185'],
     sections: ['verification-policies', 'act-proposals', 'act-proposal-resolutions'],
+  },
+  {
+    commit: '1501e386',
+    after: ['b535bb14'],
+    sections: ['model-routing-policies', 'notification-preferences'],
   },
 ];
 

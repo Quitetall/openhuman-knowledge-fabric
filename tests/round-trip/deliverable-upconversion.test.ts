@@ -48,7 +48,14 @@ const RETIRED_SECTION = 'deliverable-retired-attributes';
  * The arrival after the retired attributes (b535bb14, ADR 0040): an archive written before the
  * retired attributes was written before these too, so every archive of that era lacks them.
  */
-const AFTER_RETIRED = ['verification-policies', 'act-proposals', 'act-proposal-resolutions'];
+const AFTER_RETIRED = [
+  'verification-policies',
+  'act-proposals',
+  'act-proposal-resolutions',
+  // 20261007300000 (ADR 0040, M4), after those.
+  'model-routing-policies',
+  'notification-preferences',
+];
 
 /**
  * Sections whose rows 20260902000200 derived rather than created empty: the `working` store it
@@ -110,6 +117,9 @@ const FROM_STORAGE_ON = [
   'verification-policies',
   'act-proposals',
   'act-proposal-resolutions',
+  // ADR 0040 (20261007300000), after those.
+  'model-routing-policies',
+  'notification-preferences',
 ];
 /** Every section added without a format bump but the retired attributes, dropped separately. */
 const LATER = [...BEFORE_STORAGE, ...FROM_STORAGE_ON];
@@ -603,6 +613,9 @@ describe('an archive written before deliverables had their ontology fields', () 
       ),
       expect.stringMatching(
         /predates access-demand \(de59c226\) but carries verification-policies, act-proposals, act-proposal-resolutions/,
+      ),
+      expect.stringMatching(
+        /predates access-demand \(de59c226\) but carries model-routing-policies, notification-preferences/,
       ),
     ]);
   });
