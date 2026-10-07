@@ -6,6 +6,9 @@ remains the authority for scope, ordering and readiness. The
 [implementation log](draft9-implementation.md) records the source work and earlier
 failures; its last stopped build is superseded by the dated evidence below.
 
+For older branch work and the hosting branches intentionally left separate, use
+the [inactive-branch consolidation record](inactive-branch-consolidation.md).
+
 ## Boundaries first
 
 - Do not sign the R01 approval, allocate an identifier, or decide

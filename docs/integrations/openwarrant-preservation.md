@@ -269,3 +269,20 @@ transport is exercised separately by `warrant-native-runtime.test.ts`.
 When retaining optional outputs, select exactly one fixture with
 `-t "preserves local-runtime"` or `-t "preserves kf-source"`. Each output path must
 be new; running both fixtures against one exclusive output path will refuse.
+
+## Reconstructed historical stage bindings
+
+Producer stage declarations may carry `contract_binding`: exact revision and
+contract digest, retained IR source/digest, and `reconstructed: true`. The producer
+re-lowers the snapshot's manifest and source bytes before emitting this binding.
+The provider validates its shape and snapshot location, then requires both revision
+and digest to match the dispatch. Stage and milestone membership must also match.
+A null binding is explicitly unresolved and cannot fall back to legacy current
+matching. Older inventories without the field retain their current-only behavior.
+
+Equivalent declarations repeated across distinct snapshots produce one match with
+all source pointers. Different graph/source content or duplicate declarations in
+one snapshot refuse as ambiguous. The output reports the binding used. These are
+comparisons of caller-supplied producer claims; source authentication and execution
+qualification remain separate. Missing historical IR cannot be replaced by a
+newer graph or inferred from a revision number alone.

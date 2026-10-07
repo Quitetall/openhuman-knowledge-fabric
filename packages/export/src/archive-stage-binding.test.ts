@@ -87,3 +87,80 @@ it('does not substitute historical graphs or absent inventories and refuses ambi
     bindArchiveStages({ ...inventory, execution_coverage_established: true }, 1, []),
   ).toThrow(/Invalid archive stage inventory/);
 });
+
+it('binds historical membership only to its reconstructed contract and exact snapshot', () => {
+  const historical = {
+    ...declaration,
+    source: '__ow_archive__/history/old/docs/warrants/W1/atoms/stages.yaml',
+    manifest_source: '__ow_archive__/history/old/docs/warrants/W1/manifest.toml',
+    contract_binding: {
+      revision: 1,
+      digest: 'c'.repeat(64),
+      reconstructed: true,
+      ir_source: '__ow_archive__/history/old/docs/warrants/W1/generated/WAR.json',
+      ir_source_digest: `sha256:${'b'.repeat(64)}`,
+    },
+  };
+  const source = { ...inventory, declarations: [historical] };
+  const dispatch = { ...packet, contract_digest: 'c'.repeat(64) };
+  expect(bindArchiveStages(source, 2, [dispatch]).matches[0]).toMatchObject({
+    source: historical.source,
+    manifestSource: historical.manifest_source,
+  });
+  for (const wrong of [
+    { ...dispatch, contract_digest: 'e'.repeat(64) },
+    { ...dispatch, contract_revision: 3 },
+    { ...dispatch, milestone_id: 'M2' },
+  ])
+    expect(bindArchiveStages(source, 2, [wrong]).matches).toEqual([]);
+  expect(
+    bindArchiveStages(
+      { ...inventory, declarations: [{ ...declaration, contract_binding: null }] },
+      1,
+      [dispatch],
+    ).matches,
+  ).toEqual([]);
+  expect(() =>
+    bindArchiveStages(
+      {
+        ...source,
+        declarations: [
+          {
+            ...historical,
+            contract_binding: {
+              ...historical.contract_binding,
+              ir_source: '__ow_archive__/WAR.json',
+            },
+          },
+        ],
+      },
+      2,
+      [dispatch],
+    ),
+  ).toThrow(/Invalid archive stage contract binding/);
+  const repeated = {
+    ...historical,
+    source: historical.source.replace('/old/', '/other/'),
+    manifest_source: historical.manifest_source.replace('/old/', '/other/'),
+    contract_binding: {
+      ...historical.contract_binding,
+      ir_source: historical.contract_binding.ir_source.replace('/old/', '/other/'),
+    },
+  };
+  const result = bindArchiveStages({ ...inventory, declarations: [repeated, historical] }, 2, [
+    dispatch,
+  ]);
+  expect(result.matches).toHaveLength(1);
+  expect(result.matches[0]?.['equivalentSources']).toHaveLength(2);
+  expect(() =>
+    bindArchiveStages(
+      {
+        ...inventory,
+        declarations: [historical, { ...repeated, source_digest: `sha256:${'f'.repeat(64)}` }],
+      },
+      2,
+      [dispatch],
+    ),
+  ).toThrow(/Ambiguous/);
+  expect(result.executionCoverageEstablished).toBe(false);
+});
