@@ -23,8 +23,9 @@ import type { ExportPackage } from './types.js';
  * Each arrival is one commit, and its sections arrived together: an archive has all of them or
  * none. An exporter that wrote an arrival wrote every arrival its commit descends from, so an
  * archive that predates one arrival predates every arrival after it (`after` names the arrivals
- * a commit directly descends from; history forked once, on 2026-09-24). `sectionEraProblems`
- * checks both, so that forty optional names do not let an archive drop `warrants.json` alone.
+ * a commit directly descends from; history forked on 2026-09-24 and again on 2026-10-07).
+ * `sectionEraProblems` checks both, so that forty optional names do not let an archive drop
+ * `warrants.json` alone.
  *
  * Absence means none — the migration created the table empty and nothing seeded it:
  *
@@ -51,10 +52,14 @@ import type { ExportPackage } from './types.js';
  *   `requirements`, `risks`, `tests`.
  * - 79124c0a (2026-09-24) — `20260925030200`: `observations`.
  * - de59c226 (2026-09-24, on a branch without beb2a9d3 and 79124c0a): `access-demand`.
- * - b535bb14 (2026-10-07) — `20261007100000`: `verification-policies`, `act-proposals`,
- *   `act-proposal-resolutions`. Created empty; only the acts ADR 0040 adds write them.
- * - 1501e386 (2026-10-07) — `20261007300000`: `model-routing-policies`, `notification-preferences`.
- *   Created empty; only set_model_routing_policy and set_notification_preference write them.
+ * - ee9e0696 (2026-10-07) — `20261007200000`: `role-preset-grants`, `role-inclusions` (ADR 0040).
+ * - b535bb14 (2026-10-07, on a branch without ee9e0696) — `20261007100000`:
+ *   `verification-policies`, `act-proposals`, `act-proposal-resolutions`. Created empty; only the
+ *   acts ADR 0040 adds write them. The two arrivals are siblings: each descends from b8886185 and
+ *   neither from the other, so an archive may carry either without the other.
+ * - 1501e386 (2026-10-07, after b535bb14 and on a branch without ee9e0696) — `20261007300000`:
+ *   `model-routing-policies`, `notification-preferences`. Created empty; only
+ *   set_model_routing_policy and set_notification_preference write them.
  *
  * Absence does NOT mean none, and the importer restores what the migration derived:
  *
@@ -144,6 +149,7 @@ export const SECTION_ARRIVALS: readonly SectionArrival[] = [
     after: ['79124c0a', 'de59c226'],
     sections: ['deliverable-retired-attributes'],
   },
+  { commit: 'ee9e0696', after: ['b8886185'], sections: ['role-preset-grants', 'role-inclusions'] },
   {
     commit: 'b535bb14',
     after: ['b8886185'],

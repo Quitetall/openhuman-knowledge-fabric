@@ -91,6 +91,8 @@
     "ml.run_seal_signing_key",
     "ml.run_seal_signing_key_revocation",
     "org.access_grant",
+    "org.role_preset_grant",
+    "org.role_inclusion",
     "org.engagement",
     "org.external_identity",
     "org.organization",

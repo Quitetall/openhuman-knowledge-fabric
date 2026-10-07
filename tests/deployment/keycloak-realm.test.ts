@@ -205,6 +205,6 @@ describe('compose actually imports that realm', () => {
     const section = keycloakService();
     expect(section).toContain('kf-keycloak');
     expect(section).not.toContain('kf-postgres');
-    expect(section).not.toContain('kf-minio');
+    expect(section).not.toContain('kf-seaweedfs');
   });
 });

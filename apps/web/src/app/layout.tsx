@@ -1,8 +1,11 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import { cookies } from 'next/headers';
 import { Suspense } from 'react';
+import { DENSITY_COOKIE, parseDensity, type Density } from '../lib/density';
 import { SessionStatus } from './components/session-status';
+import { setDensity } from './density/actions';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -17,48 +20,57 @@ export const metadata: Metadata = {
 // configuration while producing a static build artifact.
 export const dynamic = 'force-dynamic';
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+/** The density switch (KF-SAS-RQ-276): a form, so it works without script. */
+function DensitySwitch({ density }: { readonly density: Density }) {
+  const other: Density = density === 'compact' ? 'comfortable' : 'compact';
   return (
-    <html lang="en">
-      <body
-        style={{
-          margin: 0,
-          fontFamily: 'ui-sans-serif, system-ui, -apple-system, sans-serif',
-          lineHeight: 1.5,
-        }}
+    <form action={setDensity} className="kf-density">
+      <input type="hidden" name="density" value={other} />
+      <button
+        type="submit"
+        className="kf-density-button"
+        aria-label={`Density is ${density}. Switch to ${other}.`}
+        data-density-switch={other}
       >
-        <header style={{ borderBottom: '1px solid #e5e7eb', background: '#fff' }}>
-          <nav
-            aria-label="Primary"
-            className="kf-primary-nav"
-            style={{
-              maxWidth: '72rem',
-              margin: '0 auto',
-              padding: '0.9rem 1.5rem',
-              display: 'flex',
-              gap: '1.25rem',
-              alignItems: 'center',
-            }}
-          >
-            <Link href="/" style={{ color: '#111827', fontWeight: 700, textDecoration: 'none' }}>
+        {density === 'compact' ? 'Comfortable view' : 'Compact view'}
+      </button>
+    </form>
+  );
+}
+
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const density = parseDensity((await cookies()).get(DENSITY_COOKIE)?.value);
+  return (
+    <html lang="en" data-density={density}>
+      <body>
+        <header className="kf-masthead">
+          <nav aria-label="Primary" className="kf-primary-nav">
+            <Link href="/" className="kf-wordmark">
               OpenHuman Knowledge Fabric
             </Link>
-            <Link href="/documents" style={{ color: '#334155', textDecoration: 'none' }}>
+            <Link href="/master-document" className="kf-nav-link">
+              Master document
+            </Link>
+            <Link href="/documents" className="kf-nav-link">
               Documents
             </Link>
-            <Link href="/search" style={{ color: '#334155', textDecoration: 'none' }}>
+            <Link href="/search" className="kf-nav-link">
               Search
             </Link>
-            <Link href="/capture" style={{ color: '#334155', textDecoration: 'none' }}>
+            <Link href="/capture" className="kf-nav-link">
               Capture
             </Link>
-            <Link href="/agent" style={{ color: '#334155', textDecoration: 'none' }}>
+            <Link href="/agent" className="kf-nav-link">
               Agent
             </Link>
-            <Link href="/ml/runs" style={{ color: '#334155', textDecoration: 'none' }}>
+            <Link href="/ml/runs" className="kf-nav-link">
               ML runs
             </Link>
-            <Suspense fallback={<span style={{ marginLeft: 'auto' }}>Identity…</span>}>
+            <Link href="/status" className="kf-nav-link">
+              Status
+            </Link>
+            <DensitySwitch density={density} />
+            <Suspense fallback={<span className="kf-session-status">Identity…</span>}>
               <SessionStatus />
             </Suspense>
           </nav>

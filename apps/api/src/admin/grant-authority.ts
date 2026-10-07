@@ -253,6 +253,19 @@ function idempotencyKey(grant: GrantAuthorityGrant, generation: number): string 
   return `grant-clearance:${grant.personId}:${grant.organizationId}:${grant.classification}:g${String(generation)}`;
 }
 
+/**
+ * A grant that only ADDS A ROLE to a person whose clearance already holds (ADR 0040: a person holds
+ * as many preset roles as their work needs) grants no clearance, so the clearance generation does
+ * not move and keying on it collided with the person's first grant — the second role was refused
+ * as an idempotency conflict. It is keyed on the role instead: which role, at which scope, and the
+ * how-many-th assignment of it this person has ever had there, ended ones included, so a role
+ * granted again after it ended is a new key. A first grant, which also grants the clearance, keeps
+ * the clearance key above, so every recorded act replays as it always did.
+ */
+function roleIdempotencyKey(grant: GrantAuthorityGrant, generation: number): string {
+  return `grant-role:${grant.personId}:${grant.organizationId}:${grant.roleId}:g${String(generation)}`;
+}
+
 export async function runGrantAuthority(
   owner: Pool,
   grant: GrantAuthorityGrant,
@@ -376,6 +389,16 @@ export async function runGrantAuthority(
         )
       ).n,
     );
+    const roleOnly = existing.clearanceId !== undefined && existing.roleAssignment === undefined;
+    const roleGeneration = Number(
+      (
+        await tx.one<{ n: string }>(
+          `select count(*)::text as n from org.role_assignment
+            where subject_id = $1 and role_id = $2 and scope_id = $3`,
+          [grant.personId, grant.roleId, grant.organizationId],
+        )
+      ).n,
+    );
 
     await setTransactionContext(tx, {
       actorId: grant.grantedBy,
@@ -456,7 +479,11 @@ export async function runGrantAuthority(
         }),
         // A renewal grants no clearance, so the clearance generation does not move; the renewed
         // assignment keys it instead. Each assignment is renewed at most once: renewing ends it.
-        renewing === undefined ? idempotencyKey(grant, generation) : `grant-renewal:${renewing.id}`,
+        renewing !== undefined
+          ? `grant-renewal:${renewing.id}`
+          : roleOnly
+            ? roleIdempotencyKey(grant, roleGeneration)
+            : idempotencyKey(grant, generation),
         effectiveAt.toISOString(),
         grant.reason,
         // The role EXERCISED. The first version wrote the grantor's person id here — the very

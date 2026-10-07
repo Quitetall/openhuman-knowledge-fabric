@@ -1,9 +1,9 @@
 <!-- GENERATED from ontology/ — do not edit. -->
-<!-- ontology_version: 1.2.0-draft.1 · source_digest: d70bcc6393476d52bbd81f3956681055db55b7d67aeed11e2a976b0f77762a08 -->
+<!-- ontology_version: 1.2.0-draft.1 · source_digest: 81d24eb15220c34620e7ac44cb6783a7c8332f337efeedf2eedfe8fbc82eb611 -->
 
 # Ontology reference
 
-Compiled from `ontology/`. 40 object types, 42 relation types, 175 action types, 26 state machines, 16 invariants, 4 corpus projections.
+Compiled from `ontology/`. 41 object types, 42 relation types, 181 action types, 27 state machines, 16 invariants, 5 corpus projections.
 
 ## Object types
 
@@ -49,6 +49,7 @@ Compiled from `ontology/`. 40 object types, 42 relation types, 175 action types,
 | `work_order_amendment` | commercial | AMD | — | 3 |
 | `warrant` | project | WAR | warrant | 7 |
 | `observation` | project | — | observation | 3 |
+| `organization_overview` | organization | — | organization_overview | 2 |
 
 ## Relation types
 
@@ -276,6 +277,12 @@ Compiled from `ontology/`. 40 object types, 42 relation types, 175 action types,
 | `annul_warrant_resolution` | — | act |
 | `supersede_warrant` | — | act |
 | `deprecate_warrant` | — | act |
+| `grant_role_scope` | — | act |
+| `revoke_role_scope` | — | act |
+| `include_role` | — | act |
+| `exclude_role` | — | act |
+| `declare_organization_overview` | — | act |
+| `retire_organization_overview` | organization_overview | act |
 
 ## Lifecycles
 
@@ -708,6 +715,17 @@ stateDiagram-v2
     terminated --> [*]
 ```
 
+### `organization_overview`
+
+Initial: `active` · Terminal: `retired`
+
+```mermaid
+stateDiagram-v2
+    [*] --> active
+    active --> retired: retire_organization_overview
+    retired --> [*]
+```
+
 ## Invariants
 
 | Rule | Enforced at | Statement |
@@ -737,3 +755,4 @@ stateDiagram-v2
 | `raw_corpus` | 1 | — | — | `raw_corpus` |
 | `agent_context` | 1 | person anchors ≤ 8 | `relevant` (reached), `organization` (unreached) | `raw_corpus` |
 | `object_view` | 1 | all relations ≤ 1 | `subject` (anchor), `relationships` (reached) | `other` |
+| `organization_overview` | 1 | — | `organization` (all), `projects` (all), `work` (all), `decisions` (all), `risks` (all), `products` (all), `documents` (all), `people` (all) | `other` |

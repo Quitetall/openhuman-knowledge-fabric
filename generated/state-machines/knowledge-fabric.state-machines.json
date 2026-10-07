@@ -2,7 +2,7 @@
   "schema_version": "1.2.0-draft.1",
   "x-generated-from": {
     "ontology_version": "1.2.0-draft.1",
-    "source_digest": "d70bcc6393476d52bbd81f3956681055db55b7d67aeed11e2a976b0f77762a08"
+    "source_digest": "81d24eb15220c34620e7ac44cb6783a7c8332f337efeedf2eedfe8fbc82eb611"
   },
   "machines": {
     "initiative_project": {
@@ -990,6 +990,19 @@
           "suspended",
           "terminated",
           "terminate_engagement"
+        ]
+      ]
+    },
+    "organization_overview": {
+      "initial": "active",
+      "terminal": [
+        "retired"
+      ],
+      "transitions": [
+        [
+          "active",
+          "retired",
+          "retire_organization_overview"
         ]
       ]
     }

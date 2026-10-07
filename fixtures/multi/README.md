@@ -21,7 +21,7 @@ how to fetch and extract its own. The samples of the three new corpora are commi
 
 ```sh
 pnpm install --frozen-lockfile
-fixtures/multi/stack.sh up                 # PostgreSQL, MinIO, Keycloak; migrations; logins; build; apps
+fixtures/multi/stack.sh up                 # PostgreSQL, SeaweedFS, Keycloak; migrations; logins; build; apps
 fixtures/multi/stack.sh load --sample      # every corpus's sample, each its own organization
 fixtures/multi/stack.sh load               # or: every corpus in full (hours: ERB's 50 000 documents)
 ```
@@ -34,16 +34,16 @@ machine. Every load is idempotent: a second run replays every act and says `noth
 The stack is the Véracier stack script (`fixtures/veracier/stack/stack.sh`) under its own compose
 project and ports, so it runs beside the Véracier stack without touching it:
 
-| what              | where                                |
-| ----------------- | ------------------------------------ |
-| web application   | <http://localhost:3200>              |
-| API               | <http://127.0.0.1:4200>              |
-| Keycloak          | <http://localhost:18180>             |
-| PostgreSQL, MinIO | `127.0.0.1:15532`, `127.0.0.1:19100` |
-| state             | `~/.local/state/kf-multi` (0700)     |
+| what                       | where                                |
+| -------------------------- | ------------------------------------ |
+| web application            | <http://localhost:3200>              |
+| API                        | <http://127.0.0.1:4200>              |
+| Keycloak                   | <http://localhost:18180>             |
+| PostgreSQL, S3 (SeaweedFS) | `127.0.0.1:15532`, `127.0.0.1:19100` |
+| state                      | `~/.local/state/kf-multi` (0700)     |
 
 Any `KF_STACK_*` (`PROJECT`, `STATE`, `WEB_PORT`, `API_PORT`, `KEYCLOAK_PORT`, `PG_PORT`,
-`MINIO_PORT`, `MINIO_CONSOLE_PORT`, `FIXTURE`, `ORGANIZATION`, `SKIP_BUILD`) overrides a default,
+`OBJECTS_PORT`, `FIXTURE`, `ORGANIZATION`, `SKIP_BUILD`) overrides a default,
 so a second, throw-away instance (for the tests below) runs beside the first.
 
 ## Personas

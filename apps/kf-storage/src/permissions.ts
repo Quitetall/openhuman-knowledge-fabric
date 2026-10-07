@@ -65,7 +65,8 @@ export function orphanPermissionRefusal(
     `orphan collection refused: the working-store key ${store.accessKeyId} lacks ` +
     `${missing.join(' and ')} on bucket ${store.bucket}. Grant it the policy ` +
     `${ORPHAN_POLICY_NAME} (${ORPHAN_POLICY_FILE}, with ${BUCKET_PLACEHOLDER} replaced by ` +
-    `${store.bucket}). \`${PROVISION_COMMAND}\` applies it when \`mc\` has an admin alias for ` +
-    `the store and prints it otherwise; \`${PROVISION_COMMAND} --check\` confirms it took.`
+    `${store.bucket}). \`${PROVISION_COMMAND}\` grants it in the identities of this host's own ` +
+    `store (kf-objects) and prints it for any other store; \`${PROVISION_COMMAND} --check\` ` +
+    `confirms it took.`
   );
 }

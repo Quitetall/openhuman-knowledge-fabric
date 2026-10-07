@@ -1,0 +1,14 @@
+{
+  "identities": [
+    {
+      "name": "kf-development",
+      "credentials": [
+        {
+          "accessKey": "kf-dev-access-key",
+          "secretKey": "dev-only-not-a-secret"
+        }
+      ],
+      "actions": ["Admin", "Read", "List", "Tagging", "Write"]
+    }
+  ]
+}

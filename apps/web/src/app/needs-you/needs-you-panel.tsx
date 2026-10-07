@@ -106,11 +106,15 @@ function ProposalItem({ item, returnTo }: { item: NeedsYouProposal; returnTo: st
 export function NeedsYouPanel({
   data,
   returnTo = '/needs-you',
+  headingLevel = 2,
 }: {
   readonly data: NeedsYou;
   readonly returnTo?: string;
+  /** 2 on its own page; 3 inside the dashboard, whose panel heading is the h2. */
+  readonly headingLevel?: 2 | 3;
 }) {
   const { toVerify, awaitingOthers, proposals } = data;
+  const H = headingLevel === 3 ? 'h3' : 'h2';
   if (toVerify.total + awaitingOthers.total + proposals.total === 0) {
     return (
       <section aria-label="Needs you">
@@ -122,7 +126,7 @@ export function NeedsYouPanel({
     <section aria-label="Needs you" style={{ maxWidth: '52rem' }}>
       {proposals.total === 0 ? null : (
         <>
-          <h2>Proposed for you to perform ({proposals.total})</h2>
+          <H>Proposed for you to perform ({proposals.total})</H>
           {proposals.items.map((item) => (
             <ProposalItem key={item.id} item={item} returnTo={returnTo} />
           ))}
@@ -130,7 +134,7 @@ export function NeedsYouPanel({
       )}
       {toVerify.total === 0 ? null : (
         <>
-          <h2>Agent submissions to verify ({toVerify.total})</h2>
+          <H>Agent submissions to verify ({toVerify.total})</H>
           <p style={{ color: '#475569' }}>
             Unverified until someone with authority checks them. Open one to verify it as read; or
             select several and verify them together, which is recorded as a bulk promotion.
@@ -159,7 +163,7 @@ export function NeedsYouPanel({
       )}
       {awaitingOthers.total === 0 ? null : (
         <>
-          <h2>Your agents’ submissions, awaiting someone else ({awaitingOthers.total})</h2>
+          <H>Your agents’ submissions, awaiting someone else ({awaitingOthers.total})</H>
           <p style={{ color: '#475569' }}>
             You cannot verify what was written for you; another person with authority does.
           </p>

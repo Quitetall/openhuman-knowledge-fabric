@@ -15,6 +15,11 @@
 //   5. records: projects, engagements, requirements, NCRs … each a dispatched act by the person
 //      the overlay names, followed by the grants that let its team read it.
 //   6. observations: `POST /capture/observation` as the person who noticed.
+//   7. roles as presets of scope (ADR 0040, fixtures/veracier/roles.mjs): the role names
+//      (`kf define-role`), each person's preset roles (`kf grant-authority`), and the presets —
+//      inclusions, organization-wide reading, each team's documents and records — and the living
+//      organization overview, each an act by the CEO. A document or record read by exactly one
+//      team reaches its readers through the team's preset instead of one grant per reader.
 //
 // Idempotent by replay: every act carries a deterministic idempotency key, so a second run
 // changes nothing and reports each act as replayed ("0 new"). The bootstrap commands reuse what
@@ -40,6 +45,14 @@ import {
   reindex,
 } from '../lib/loader.mjs';
 import { personasFile, stackSettings } from '../lib/stack.mjs';
+import {
+  INCLUSIONS,
+  ORGANIZATION_WIDE,
+  ROLE_DEFINITIONS,
+  TEAMS,
+  holders,
+  teamOf,
+} from './roles.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -186,6 +199,8 @@ async function needToKnow(opts, overlay, sessions, boot, ids) {
   for (const doc of overlay.documents) {
     const entry = ids.documents[doc.doc_id];
     if (entry === undefined) continue;
+    // Read by exactly one team: the team's preset grants it (presets(), below).
+    if (teamOf(doc.readers) !== undefined) continue;
     for (const reader of doc.readers) {
       for (const [target, kind] of [
         [entry.artifactId, 'pdf'],
@@ -316,7 +331,8 @@ async function governedRecords(opts, owner, overlay, sessions, boot, ids) {
       ids.records[`${record.ref}#evidence`] = res.body.observationId;
       tally('evidence link (observation)', res.body.replayed === true);
     }
-    for (const reader of record.readers ?? []) {
+    // Read by exactly one team: the team's preset grants it (presets(), below).
+    for (const reader of teamOf(record.readers) === undefined ? (record.readers ?? []) : []) {
       if (recordId === undefined) continue;
       await grant(
         office,
@@ -329,6 +345,138 @@ async function governedRecords(opts, owner, overlay, sessions, boot, ids) {
   }
   if (skipped.length > 0)
     log(`  left out (their documents are not in this run): ${skipped.join('; ')}`);
+}
+
+/**
+ * The preset roles: their names (`kf define-role`, owner credential, idempotent) and each person's
+ * assignments of them (`kf grant-authority`, granted by the CEO, ending within a year). An
+ * assignment of a preset role carries the person's matrix ceiling, so the organization-wide
+ * reading every assignment confers is no wider than the one they already held.
+ */
+async function presetRoles(owner, overlay, boot) {
+  log('== roles (kf define-role; kf grant-authority for each preset role a person holds)');
+  for (const [id, description] of ROLE_DEFINITIONS) {
+    await owner.kf(['define-role', '--id', id, '--description', description]);
+  }
+  const held = holders(overlay.people);
+  let changed = 0;
+  for (const p of overlay.people) {
+    for (const role of [...held.get(p.key)].sort()) {
+      const args = [
+        'grant-authority',
+        '--person',
+        boot.personIds[p.key],
+        '--organization',
+        boot.organizationId,
+        '--role',
+        role,
+        '--clearance',
+        p.clearance,
+        '--granted-by',
+        boot.personIds[boot.ceo.key],
+        '--reason',
+        `Véracier role presets (ADR 0040): ${p.name}, ${p.title}, holds ${role}`,
+      ];
+      if (p.ceiling !== p.clearance) args.push('--role-ceiling', p.ceiling);
+      const out = await owner.kf(args);
+      if (!/already held|nothing to change|unchanged/i.test(out)) changed += 1;
+    }
+  }
+  log(`  ${ROLE_DEFINITIONS.length} roles; ${changed} preset-role assignments made`);
+}
+
+/**
+ * The presets, each an institutional act by the CEO under the authority matrix: inclusions, the
+ * organization-wide reading, each team's documents and records, and the living organization
+ * overview, which every person reaches through `staff`.
+ */
+async function presets(opts, overlay, sessions, boot, ids) {
+  const ceo = sessions.get(boot.ceo.key);
+  const org = boot.organizationId;
+  const act = async (type, targetIds, payload, key, reason) => {
+    try {
+      const res = await ceo.act(type, { targetIds, idempotencyKey: key, reason, payload });
+      tally(type, res.status === 200);
+    } catch (error) {
+      // Already part of the preset under another key (an earlier run): the same decision.
+      if (
+        error instanceof Error &&
+        /already part of the preset|already has an active/.test(error.message)
+      ) {
+        tally(type, true);
+        return;
+      }
+      throw error;
+    }
+  };
+  log('== presets (include_role, grant_role_scope, declare_organization_overview, by the CEO)');
+  for (const [role, included] of INCLUSIONS) {
+    await act(
+      'include_role',
+      [org],
+      { role_id: role, included_role_id: included },
+      `veracier-v1:include:${role}:${included}`,
+      `Véracier authority matrix VER-GOV-2026-01: ${role} includes ${included}`,
+    );
+  }
+  for (const [role, ceiling] of ORGANIZATION_WIDE) {
+    await act(
+      'grant_role_scope',
+      [org],
+      { role_id: role, capability: 'read', classification_ceiling: ceiling },
+      `veracier-v1:preset:${role}:read:organization`,
+      `Véracier authority matrix VER-GOV-2026-01: ${role} reads the group up to ${ceiling}`,
+    );
+  }
+  // The overview: one record, declared once, read by everyone through staff.
+  if (ids.overviewId === undefined) {
+    const res = await ceo.act('declare_organization_overview', {
+      targetIds: [org],
+      idempotencyKey: 'veracier-v1:overview',
+      reason: 'The living overview of Véracier Industries, generated for each reader',
+      payload: { title: 'Véracier Industries — vue d’ensemble', classification: 'internal' },
+    });
+    ids.overviewId = res.body.objectIds?.find((id) => id !== org);
+    tally('declare_organization_overview', res.status === 200);
+  }
+  if (ids.overviewId !== undefined) {
+    await act(
+      'grant_role_scope',
+      [org, ids.overviewId],
+      { role_id: 'staff', capability: 'read' },
+      `veracier-v1:preset:staff:read:overview`,
+      'Everyone at Véracier reads the living organization overview',
+    );
+  }
+  const work = [];
+  for (const doc of overlay.documents) {
+    const team = teamOf(doc.readers);
+    const entry = ids.documents[doc.doc_id];
+    if (team === undefined || entry === undefined) continue;
+    for (const [target, kind] of [
+      [entry.artifactId, 'pdf'],
+      [entry.textArtifactId, 'text'],
+    ]) {
+      if (target !== undefined) work.push({ team, target, what: `${kind}:${doc.doc_id}` });
+    }
+  }
+  for (const record of overlay.records.records) {
+    const team = teamOf(record.readers);
+    const target = ids.records[record.ref];
+    if (team !== undefined && target !== undefined) {
+      work.push({ team, target, what: `record:${record.ref}` });
+    }
+  }
+  log(`  ${work.length} team templates (${Object.keys(TEAMS).length} teams)`);
+  await mapLimit(work, opts.jobs, async ({ team, target, what }) =>
+    act(
+      'grant_role_scope',
+      [org, target],
+      { role_id: team, capability: 'read' },
+      `veracier-v1:preset:${team}:read:${what}`,
+      `Need-to-know matrix VER-GOV-RIM-001: ${team} reads ${what}`,
+    ),
+  );
 }
 
 /**
@@ -438,6 +586,7 @@ async function main() {
     const boot = await bootstrap(opts, owner, overlay);
     const { subjects, passwords } = await accounts(opts, overlay);
     const assignments = await authority(opts, owner, overlay, boot, subjects);
+    await presetRoles(owner, overlay, boot);
 
     const sessions = personaSessions(
       opts.stack,
@@ -464,13 +613,21 @@ async function main() {
       await save();
       await needToKnow(opts, overlay, sessions, boot, ids);
       await governedRecords(opts, owner, overlay, sessions, boot, ids);
+      await presets(opts, overlay, sessions, boot, ids);
       if (refused.length > 0)
         log(`  ${refused.length} ingest refusal(s) above; they are reported, not retried`);
+      // Every assignment the bootstrap tier wrote, the preset roles' included.
+      const held = await owner.scoped(
+        boot.organizationId,
+        `select id from core.object where organization_id = $1 and object_type = 'role_assignment'`,
+        [boot.organizationId],
+      );
       await reindex(opts.state, [
         boot.organizationId,
         ...Object.values(boot.personIds),
         ...Object.values(boot.counterparties),
         ...Object.values(assignments),
+        ...held.map((row) => row.id),
       ]);
     } finally {
       await save();

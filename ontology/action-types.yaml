@@ -937,3 +937,51 @@ action_types:
     transactional: true
     drives: []
     requires: act
+
+  # ── Roles as composable presets of scope (ADR 0040 decision 4; KF-SAS-RQ-269, RQ-270) ────
+  # A role's preset is what holding it in an organization grants; inclusion makes one role's
+  # preset part of another's. All four are institutional: a preset change changes what every
+  # holder may read, so each needs a live `act` grant reaching the organization, which is always
+  # among its targets (migration 20261007200000). Retirement is a state on the row, never a delete.
+  #   grant_role_scope     targets the organization and the scope object; payload role_id,
+  #                        capability (read | act), optional classification_ceiling
+  #   revoke_role_scope    targets the organization; payload preset_grant_id
+  #   include_role         targets the organization; payload role_id, included_role_id. The
+  #                        database refuses an inclusion that would close a cycle.
+  #   exclude_role         targets the organization; payload inclusion_id
+  - id: grant_role_scope
+    audited: true
+    transactional: true
+    drives: []
+    requires: act
+  - id: revoke_role_scope
+    audited: true
+    transactional: true
+    drives: []
+    requires: act
+  - id: include_role
+    audited: true
+    transactional: true
+    drives: []
+    requires: act
+  - id: exclude_role
+    audited: true
+    transactional: true
+    drives: []
+    requires: act
+
+  # ── The living organization overview (ADR 0040 decision 3; KF-SAS-RQ-267, RQ-268) ────────
+  # The overview is an ordinary record, granted like any other; its statements are not stored
+  # but generated, per reader, by the `organization_overview` projection over that reader's own
+  # corpus, so it can say nothing the reader could not read. Declaring one and retiring it are
+  # institutional: the record is what the organization says about itself.
+  - id: declare_organization_overview
+    audited: true
+    transactional: true
+    drives: []
+    requires: act
+  - id: retire_organization_overview
+    audited: true
+    transactional: true
+    drives: [organization_overview]
+    requires: act

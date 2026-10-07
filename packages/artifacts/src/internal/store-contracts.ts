@@ -32,8 +32,16 @@ export interface S3Config {
   readonly accessKeyId: string;
   readonly secretAccessKey: string;
   readonly bucket: string;
-  /** MinIO and most self-hosted stores need path style; AWS does not. */
+  /** SeaweedFS and most self-hosted stores need path style; AWS does not. */
   readonly forcePathStyle?: boolean;
+  /**
+   * Whether `putIfAbsent` asks the store to refuse an existing key (`If-None-Match: *`). True by
+   * default. False for a store that does not implement conditional writes — Backblaze B2 does
+   * not document them — where it checks for the key first and then writes: not atomic, so two
+   * writers racing the same key can both write, which for a content-addressed copy of the same
+   * verified bytes leaves two identical versions and keeps the first one recorded.
+   */
+  readonly conditionalCreate?: boolean;
 }
 
 export function requireReadLimit(maxBytes: number | undefined): void {

@@ -7,7 +7,8 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Needs you' };
 
 /**
- * `/needs-you` — the Needs-you panel on a page of its own, until the dashboard (M3) hosts it.
+ * `/needs-you` — the Needs-you panel on a page of its own. The dashboard hosts the same panel in
+ * its Needs-you slot (`components/needs-you-slot.tsx`); this page is its full-width reading.
  */
 export default async function NeedsYouPage({
   searchParams,

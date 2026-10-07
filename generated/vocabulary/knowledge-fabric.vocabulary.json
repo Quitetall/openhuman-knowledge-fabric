@@ -2,7 +2,7 @@
   "schema_version": "1.2.0-draft.1",
   "x-generated-from": {
     "ontology_version": "1.2.0-draft.1",
-    "source_digest": "d70bcc6393476d52bbd81f3956681055db55b7d67aeed11e2a976b0f77762a08"
+    "source_digest": "81d24eb15220c34620e7ac44cb6783a7c8332f337efeedf2eedfe8fbc82eb611"
   },
   "node_types": {
     "organization": {
@@ -164,6 +164,10 @@
     },
     "observation": {
       "authority_domain": "project",
+      "enterprise_namespace": null
+    },
+    "organization_overview": {
+      "authority_domain": "organization",
       "enterprise_namespace": null
     }
   },
@@ -2908,6 +2912,30 @@
       "transactional": true
     },
     "deprecate_warrant": {
+      "audited": true,
+      "transactional": true
+    },
+    "grant_role_scope": {
+      "audited": true,
+      "transactional": true
+    },
+    "revoke_role_scope": {
+      "audited": true,
+      "transactional": true
+    },
+    "include_role": {
+      "audited": true,
+      "transactional": true
+    },
+    "exclude_role": {
+      "audited": true,
+      "transactional": true
+    },
+    "declare_organization_overview": {
+      "audited": true,
+      "transactional": true
+    },
+    "retire_organization_overview": {
       "audited": true,
       "transactional": true
     }

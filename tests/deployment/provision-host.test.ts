@@ -94,6 +94,9 @@ function host(): Host {
           HOME: work,
           KF_PROVISION_ROOT: root,
           KF_PROVISION_NODE: process.execPath,
+          // Never the network: the pinned SeaweedFS tarball is "fetched" from a path that does
+          // not exist unless a test supplies one.
+          KF_OBJECTS_RELEASE_URL: `file://${work}/no-seaweedfs-here.tar.gz`,
           ...env,
         },
       });
@@ -284,7 +287,8 @@ describe('provision-host.sh', () => {
       '/etc/kf/offsite.env',
       '/etc/kf/api/database-url',
       '/etc/kf/drill/database-url',
-      '/etc/kf/drill/s3-secret-access-key',
+      // The SeaweedFS binary could not be fetched here, so a person is told where it goes.
+      '/usr/local/lib/kf-objects/weed',
       '/etc/kf/checkpoint/anchor-secret-access-key',
       '/etc/kf/migrator/rehearsal-database-url',
       '/etc/kf/alert/webhook-url',
@@ -392,8 +396,8 @@ describe('object-store permissions for orphan collection', () => {
     writeFileSync(
       h.path('/etc/kf/storage/storage.env'),
       readFileSync(h.path('/etc/kf/storage/storage.env'), 'utf8')
-        .replace('https://objects.example.internal', 'https://objects.fabric.org')
-        .replace('replace-with-storage-access-key-id', key)
+        .replace('http://127.0.0.1:8333', 'https://objects.fabric.org')
+        .replace('S3_ACCESS_KEY_ID=kf-storage', `S3_ACCESS_KEY_ID=${key}`)
         .replace('replace-with-organization-uuid', '22222222-2222-4222-8222-222222222222'),
     );
     writeFileSync(h.path('/etc/kf/storage/s3-secret'), 'storage-secret\n', { mode: 0o600 });
@@ -433,38 +437,102 @@ describe('object-store permissions for orphan collection', () => {
     const run = h.run([], { KF_RELEASE_DIR: release(h, false) });
     expect(run.code, run.output).toBe(0);
     expect(run.output).toContain(
-      'mc admin policy attach <alias> kf-storage-orphan-collection --user kf-storage-key',
+      '== object-store policy kf-storage-orphan-collection for key kf-storage-key',
     );
     expect(run.output).toContain('"arn:aws:s3:::kf-artifacts/ingest/*"');
     expect(run.output).not.toContain('KF_ARTIFACTS_BUCKET');
   });
+});
 
-  it('applies it with mc when an admin alias is configured', () => {
+describe("this host's own object store, kf-objects (ADR 0039)", () => {
+  const SERVICE_SECRETS = {
+    'kf-api': '/etc/kf/api/s3-secret-access-key',
+    'kf-worker': '/etc/kf/worker/s3-secret-access-key',
+    'kf-storage': '/etc/kf/storage/s3-secret',
+    'kf-drill': '/etc/kf/drill/s3-secret-access-key',
+  } as const;
+
+  it('generates each service secret, and renders the identities the store reads from them', () => {
     const h = host();
-    withStorage(h);
-    const policyCopy = join(h.root, '..', 'applied-policy.json');
-    writeFileSync(
-      join(h.bin, 'mc'),
-      `#!/usr/bin/env bash\nprintf 'mc %s\\n' "$*" >> ${JSON.stringify(h.log)}\nif [ "$3" = create ]; then cp "$6" ${JSON.stringify(policyCopy)}; fi\n`,
-      { mode: 0o755 },
-    );
-    const run = h.run([], { KF_RELEASE_DIR: release(h, false), KF_MC_ALIAS: 'store-admin' });
+    const run = h.run();
     expect(run.code, run.output).toBe(0);
-    expect(h.calls()).toMatch(
-      /^mc admin policy create store-admin kf-storage-orphan-collection \S+$/m,
+    const identities = JSON.parse(readFileSync(h.path('/etc/kf/objects/identities.json'), 'utf8'))
+      .identities as {
+      name: string;
+      credentials: { accessKey: string; secretKey: string }[];
+      actions: string[];
+    }[];
+    expect(mode(h.path('/etc/kf/objects/identities.json'))).toBe('600');
+    expect(identities.map((identity) => identity.name)).toEqual([
+      'kf-objects-admin',
+      'kf-api',
+      'kf-worker',
+      'kf-storage',
+      'kf-drill',
+    ]);
+    for (const [name, path] of Object.entries(SERVICE_SECRETS)) {
+      expect(mode(h.path(path)), path).toBe('600');
+      const secret = readFileSync(h.path(path), 'utf8');
+      expect(secret.length, path).toBeGreaterThanOrEqual(32);
+      const identity = identities.find((candidate) => candidate.name === name);
+      expect(identity?.credentials).toEqual([{ accessKey: name, secretKey: secret }]);
+    }
+    expect(identities.find((identity) => identity.name === 'kf-storage')?.actions).toEqual([
+      'Read:kf-artifacts',
+      'List:kf-artifacts',
+      'Write:kf-artifacts/ingest/*',
+      'Write:kf-artifacts/document-imports/*',
+    ]);
+    expect(identities.find((identity) => identity.name === 'kf-drill')?.actions).toEqual([
+      'Read:kf-artifacts',
+      'List:kf-artifacts',
+    ]);
+    expect(readFileSync(h.path('/etc/kf/objects-init/objects.env'), 'utf8')).toMatch(
+      /^KF_OBJECTS_BUCKETS=kf-artifacts$/m,
     );
-    expect(h.calls()).toContain(
-      'mc admin policy attach store-admin kf-storage-orphan-collection --user kf-storage-key',
+    // No secret in the output or any command line, and no policy to print: the store has it.
+    const everything = `${run.output}\n${h.calls()}`;
+    for (const identity of identities) {
+      expect(everything).not.toContain(identity.credentials[0]?.secretKey);
+    }
+    expect(run.output).not.toContain('== object-store policy');
+    // Re-running changes nothing.
+    const before = readFileSync(h.path('/etc/kf/objects/identities.json'), 'utf8');
+    expect(h.run().output).not.toContain('identities.json');
+    expect(readFileSync(h.path('/etc/kf/objects/identities.json'), 'utf8')).toBe(before);
+  });
+
+  it('leaves a service routed at another store to its own key, and out of the identities', () => {
+    const h = host();
+    expect(h.run().code).toBe(0);
+    const env = h.path('/etc/kf/drill.env');
+    writeFileSync(
+      env,
+      readFileSync(env, 'utf8').replace('http://127.0.0.1:8333', 'https://replica.fabric.org'),
     );
-    expect(JSON.parse(readFileSync(policyCopy, 'utf8'))).toEqual(
-      JSON.parse(
-        readFileSync(
-          join(ROOT, 'deploy', 'object-store', 'kf-storage-orphan-collection.policy.json'),
-          'utf8',
-        ).replaceAll('KF_ARTIFACTS_BUCKET', 'kf-artifacts'),
-      ),
-    );
-    expect(run.output).not.toContain('mc admin policy attach <alias>');
+    rmSync(h.path('/etc/kf/drill/s3-secret-access-key'));
+    expect(h.run().code).toBe(0);
+    const names = (
+      JSON.parse(readFileSync(h.path('/etc/kf/objects/identities.json'), 'utf8')).identities as {
+        name: string;
+      }[]
+    ).map((identity) => identity.name);
+    expect(names).not.toContain('kf-drill');
+    // Its secret is a person's to supply again, as an empty owner-only placeholder.
+    expect(statSync(h.path('/etc/kf/drill/s3-secret-access-key')).size).toBe(0);
+  });
+
+  it('refuses a SeaweedFS tarball that is not the pinned one', () => {
+    const h = host();
+    const fake = join(h.root, '..', 'fake.tar.gz');
+    const staging = join(h.root, '..', 'staging');
+    mkdirSync(staging);
+    writeFileSync(join(staging, 'weed'), '#!/bin/sh\necho not seaweedfs\n', { mode: 0o755 });
+    expect(spawnSync('tar', ['-czf', fake, '-C', staging, 'weed']).status).toBe(0);
+    const run = h.run([], { KF_OBJECTS_RELEASE_URL: `file://${fake}` });
+    expect(run.code, run.output).toBe(0);
+    expect(run.output).toContain('REFUSED: the SeaweedFS tarball');
+    expect(existsSync(h.path('/usr/local/lib/kf-objects/weed'))).toBe(false);
   });
 });
 
@@ -488,5 +556,121 @@ describe('provisioning covers every secret a shipped unit names', () => {
       }
     }
     expect(missing, 'a unit reads a secret provisioning never creates').toEqual([]);
+  });
+});
+
+describe('the tailnet host (ADR 0039)', () => {
+  const NAME = 'kf-host-1.example-tailnet.ts.net';
+  const ADDRESS = '100.101.102.103';
+
+  function tailnetHost(state = 'Running'): Host {
+    const h = host();
+    for (const dir of [
+      '/usr/bin',
+      '/usr/sbin',
+      '/etc/nginx/sites-available',
+      '/etc/nginx/sites-enabled',
+      '/etc/default',
+    ]) {
+      mkdirSync(h.path(dir), { recursive: true });
+    }
+    writeFileSync(
+      h.path('/usr/bin/tailscale'),
+      `#!/usr/bin/env bash\n[ "$1 $2" = "status --json" ] || exit 2\ncat <<'JSON'\n${JSON.stringify(
+        {
+          BackendState: state,
+          Self: { DNSName: `${NAME}.`, TailscaleIPs: [ADDRESS, 'fd7a:115c:a1e0::1'] },
+        },
+      )}\nJSON\n`,
+      { mode: 0o755 },
+    );
+    writeFileSync(h.path('/usr/sbin/nginx'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+    writeFileSync(h.path('/etc/nginx/sites-enabled/default'), 'server { listen 80; }\n');
+    return h;
+  }
+
+  it('lists the host requirements and the tailnet inputs on a bare host', () => {
+    const h = host();
+    expect(h.run().code).toBe(0);
+    const output = h.run(['--check']).output;
+    expect(output).toContain('tailscale (/usr/bin/tailscale)');
+    expect(output).toContain('nginx (/usr/sbin/nginx)');
+    expect(output).toContain('KF_TAILNET_HOSTNAME');
+    expect(output).toContain('KF_TAILNET_ADDRESS');
+    expect(output).toContain('TS_PERMIT_CERT_UID=kf-tls');
+    expect(output).toContain('/etc/kf/tls/tailnet.crt');
+    expect(mode(h.path('/etc/kf/tls'))).toBe('750');
+    expect(mode(h.path('/etc/kf/tailnet.env'))).toBe('640');
+  });
+
+  it('fills the name and address from tailscale, renders nginx for them, and says what is left', () => {
+    const h = tailnetHost();
+    expect(h.run().code).toBe(0);
+    const env = readFileSync(h.path('/etc/kf/tailnet.env'), 'utf8');
+    expect(env).toMatch(new RegExp(`^KF_TAILNET_HOSTNAME=${NAME.replaceAll('.', '\\.')}$`, 'm'));
+    expect(env).toMatch(new RegExp(`^KF_TAILNET_ADDRESS=${ADDRESS.replaceAll('.', '\\.')}$`, 'm'));
+
+    const site = readFileSync(h.path('/etc/nginx/sites-available/knowledge-fabric.conf'), 'utf8');
+    expect(site).not.toMatch(/KF_TAILNET_(ADDRESS|HOSTNAME)/);
+    const listens = [...site.matchAll(/^\s*listen\s+([^;]+);/gm)].map((m) => m[1]!);
+    expect(listens.length).toBeGreaterThan(3);
+    for (const listen of listens) expect(listen.startsWith(`${ADDRESS}:`), listen).toBe(true);
+    expect(site).toContain(`server_name ${NAME};`);
+
+    const left = h.run(['--check']).output;
+    expect(left).toContain('/etc/nginx/sites-enabled/default');
+    expect(left).toContain('TS_PERMIT_CERT_UID=kf-tls');
+    expect(left).toContain('/etc/kf/tls/tailnet.crt');
+    expect(left).not.toContain('tailscale (/usr/bin/tailscale)');
+    expect(left).not.toContain('KF_TAILNET_HOSTNAME');
+
+    rmSync(h.path('/etc/nginx/sites-enabled/default'));
+    writeFileSync(h.path('/etc/default/tailscaled'), 'PORT="41641"\nTS_PERMIT_CERT_UID=kf-tls\n');
+    writeFileSync(h.path('/etc/kf/tls/tailnet.crt'), 'certificate\n');
+    const done = h.run(['--check']).output;
+    for (const item of ['sites-enabled/default', 'TS_PERMIT_CERT_UID', 'tailnet.crt', 'nginx (']) {
+      expect(done).not.toContain(item);
+    }
+  });
+
+  it('says so when the host is not up on the tailnet, and fills nothing', () => {
+    const h = tailnetHost('NeedsLogin');
+    expect(h.run().code).toBe(0);
+    expect(h.run(['--check']).output).toContain('not up on the tailnet (state: NeedsLogin)');
+    expect(readFileSync(h.path('/etc/kf/tailnet.env'), 'utf8')).toMatch(/^KF_TAILNET_HOSTNAME=$/m);
+    expect(existsSync(h.path('/etc/nginx/sites-available/knowledge-fabric.conf'))).toBe(false);
+  });
+
+  it('reports a configured name that is not the one tailscale knows', () => {
+    const h = tailnetHost();
+    expect(h.run().code).toBe(0);
+    const env = h.path('/etc/kf/tailnet.env');
+    writeFileSync(
+      env,
+      readFileSync(env, 'utf8').replace(
+        /^KF_TAILNET_HOSTNAME=.*$/m,
+        'KF_TAILNET_HOSTNAME=old.example-tailnet.ts.net',
+      ),
+    );
+    expect(h.run(['--check']).output).toContain(`but tailscale reports ${NAME}`);
+  });
+
+  it('checks none of it on a private-CA host', () => {
+    const h = host();
+    expect(h.run().code).toBe(0);
+    const env = h.path('/etc/kf/tailnet.env');
+    writeFileSync(
+      env,
+      readFileSync(env, 'utf8').replace(/^KF_HOST_ACCESS=tailnet$/m, 'KF_HOST_ACCESS=private-ca'),
+    );
+    const output = h.run(['--check']).output;
+    for (const item of [
+      'tailscale (',
+      'KF_TAILNET_HOSTNAME',
+      'TS_PERMIT_CERT_UID',
+      'tailnet.crt',
+    ]) {
+      expect(output).not.toContain(item);
+    }
   });
 });
