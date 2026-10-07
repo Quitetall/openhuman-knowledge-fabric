@@ -62,7 +62,11 @@ function Panel({ panel }: { readonly panel: DashboardPanel }) {
   }
 }
 
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const identity = loadWebIdentityConfig();
   if (identity.profile === 'dogfood' && (await currentWebSession()) === undefined) {
     return (
@@ -84,9 +88,23 @@ export default async function Home() {
     );
   }
   const dashboard = await getDashboard(await webCaller('/'));
+  // The outcome of a Needs-you gesture, which returns here (`returnTo="/"`).
+  const params = await searchParams;
+  const done = typeof params['done'] === 'string' ? params['done'] : undefined;
+  const refused = typeof params['refused'] === 'string' ? params['refused'] : undefined;
   return (
     <main className="kf-page kf-dashboard" data-layout={dashboard.layout.join(' ')}>
       <h1 className="kf-sr-only">Dashboard</h1>
+      {done === undefined ? null : (
+        <p role="status" className="kf-notice kf-outcome">
+          {done}
+        </p>
+      )}
+      {refused === undefined ? null : (
+        <p role="alert" className="kf-notice kf-outcome">
+          Refused: {refused}
+        </p>
+      )}
       {dashboard.panels.map((panel) => (
         <Panel key={panel.id} panel={panel} />
       ))}

@@ -330,6 +330,8 @@ const DECLARED_ADDITIONS = {
     'promote_configuration_item',
     // ADR 0034 (proposed): capture is not institutional; promotion is.
     'promote_observation',
+    // ADR 0040: an agent proposes an institutional act; only its person performs it.
+    'propose_act',
     'propose_risk_control',
     'propose_warrant_amendment',
     'propose_warrant_deviation',
@@ -386,6 +388,7 @@ const DECLARED_ADDITIONS = {
     'request_secure_object_access',
     'request_secure_object_erasure',
     'request_warrant_resolution',
+    'resolve_act_proposal',
     'resolve_warrant',
     'resolve_warrant_blocker',
     'resolve_warrant_dispute',
@@ -411,6 +414,8 @@ const DECLARED_ADDITIONS = {
     'revoke_role_scope',
     'revoke_secure_object_authority_key',
     'revoke_secure_object_capability',
+    // ADR 0040: whether an agent's records of a kind are verified on arrival (institutional).
+    'set_verification_policy',
     'submit_document_for_review',
     'submit_warrant',
     'supersede_configuration_item',

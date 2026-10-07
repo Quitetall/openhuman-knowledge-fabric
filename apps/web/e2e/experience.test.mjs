@@ -9,7 +9,8 @@
 //       record and statement is identical at both densities;
 //   (d) at phone width (390 × 844) the dashboard, the master document, an object page and the
 //       capture form scroll vertically only;
-//   (e) Needs you is a separated slot element in its place in the layout.
+//   (e) Needs you is a separated slot element in its place in the layout, holding M2's panel
+//       filled from the reader's own Needs-you answer, and empty when nothing waits.
 //
 // Run with the other browser tests: `pnpm --filter @kf/web test:browser`.
 
@@ -281,6 +282,31 @@ const READERS = {
   },
 };
 
+// What waits on each reader (`GET /needs-you`, M2). Only the CEO has something: an agent's
+// submission to verify. The others' slots stay empty and collapse.
+const NEEDS_YOU_RECORD = {
+  id: '01900000-0000-7000-8000-0000000000e5',
+  objectType: 'observation',
+  title: 'Agent capture: torque spec drift on AV-3000 bench 2',
+  classification: 'internal',
+  lifecycleState: 'captured',
+  rowVersion: 1,
+  agentClientId: 'claude-code',
+  writtenFor: '01900000-0000-7000-8000-0000000000e6',
+  writtenAt: '2026-10-07T07:30:00.000Z',
+  verification: unverified,
+};
+const nothing = { items: [], total: 0 };
+const NEEDS_YOU = {
+  ceo: {
+    toVerify: { items: [NEEDS_YOU_RECORD], total: 1 },
+    awaitingOthers: nothing,
+    proposals: nothing,
+  },
+  engineer: { toVerify: nothing, awaitingOthers: nothing, proposals: nothing },
+  narrow: { toVerify: nothing, awaitingOthers: nothing, proposals: nothing },
+};
+
 function masterDocument(reader) {
   const panels = READERS[reader].panels;
   const ov = panels[0].empty ? null : panels[0].overview;
@@ -497,6 +523,7 @@ test(
             panels: READERS[reader].panels,
           });
         }
+        if (url.pathname === '/api/needs-you') return json(response, 200, NEEDS_YOU[reader]);
         if (url.pathname === '/api/master-document') {
           return json(response, 200, masterDocument(reader));
         }
@@ -620,6 +647,19 @@ test(
       const slot = page.locator('main > [data-slot="needs-you"]');
       assert.equal(await slot.count(), 1);
       assert.equal(await slot.getAttribute('data-panel'), 'needs_you');
+      // ...and it holds M2's panel, filled from the reader's own Needs-you answer.
+      reader = 'ceo';
+      await page.goto(`${webOrigin}/`);
+      await slot.getByRole('heading', { name: 'Needs you', level: 2 }).waitFor();
+      assert.equal(
+        await slot.locator(`[data-record="${NEEDS_YOU_RECORD.id}"]`).count(),
+        1,
+        "the CEO's agent submission waits in the dashboard's Needs-you slot",
+      );
+      assert.match(await slot.innerText(), /One item waits on you/);
+      reader = 'engineer';
+      await page.goto(`${webOrigin}/`);
+      assert.equal(await slot.innerHTML(), '', 'nothing needs the engineer: the slot is empty');
 
       // (a) empty panels collapse, and what remains keeps the layout's order.
       reader = 'narrow';

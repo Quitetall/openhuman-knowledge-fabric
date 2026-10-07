@@ -36,6 +36,7 @@ interface ObjectRow extends Record<string, unknown> {
   readonly verified_at: string | null;
   readonly verified_by: string | null;
   readonly verified_basis: string | null;
+  readonly verified_policy_id?: string | null;
 }
 
 interface RelationRow extends Record<string, unknown> {
@@ -131,7 +132,8 @@ export async function enumeratePermissionSet(
               -- Left join, because absence IS the unverified state (KF-SAS-RQ-228). An inner join
               -- would drop every unchecked record from the corpus, which is the silent omission
               -- RQ-229 forbids, arriving as a query shape rather than as a decision.
-              v.verified_at, v.verified_by, v.basis as verified_basis
+              v.verified_at, v.verified_by, v.basis as verified_basis,
+              v.policy_id as verified_policy_id
          from core.object o
          left join core.object_verification v on v.object_id = o.id
         where o.organization_id = $1${only === undefined ? '' : ' and o.id = any($3::uuid[])'}
@@ -161,7 +163,11 @@ export async function enumeratePermissionSet(
           verified: {
             at: new Date(row.verified_at).toISOString(),
             by: row.verified_by as string,
-            basis: row.verified_basis as 'reviewed_individually' | 'promoted_in_bulk',
+            basis: row.verified_basis as
+              'reviewed_individually' | 'promoted_in_bulk' | 'verified_by_policy',
+            ...(typeof row.verified_policy_id === 'string'
+              ? { policyId: row.verified_policy_id }
+              : {}),
           },
         }),
     // Verification is NOT in this digest. It is a fact about the member, not about which records

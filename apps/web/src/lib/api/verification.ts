@@ -12,13 +12,14 @@ import { record } from './validation';
 export interface Verification {
   readonly verified: boolean;
   readonly label: string;
-  readonly basis?: 'reviewed_individually' | 'promoted_in_bulk';
+  readonly basis?: 'reviewed_individually' | 'promoted_in_bulk' | 'verified_by_policy';
 }
 
 /** Restated from `@kf/domain` so the web bundle stays free of it; a test holds the two equal. */
 export const UNVERIFIED_LABEL = 'UNVERIFIED — nobody has checked this record';
 
-const BASES = new Set(['reviewed_individually', 'promoted_in_bulk']);
+// `verified_by_policy` (ADR 0040): verified on arrival under a verification policy the label names.
+const BASES = new Set(['reviewed_individually', 'promoted_in_bulk', 'verified_by_policy']);
 
 export function parseVerification(value: unknown): Verification {
   const v = record(value);

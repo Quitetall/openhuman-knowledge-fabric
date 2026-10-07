@@ -467,6 +467,9 @@ describe('what the record of writes covers', () => {
       'content.master_record_link_access',
       'content.master_record_link_revocation',
       'content.master_record_withholding',
+      // ADR 0040 (20261007100000): decisions about trust and proposals, read by no permitted set.
+      'core.act_proposal',
+      'core.act_proposal_resolution',
       'core.action',
       'core.action_migration019_legacy',
       'core.approval',
@@ -480,6 +483,7 @@ describe('what the record of writes covers', () => {
       'core.principal_attestation',
       'core.relation',
       'core.snapshot',
+      'core.verification_policy',
       'core.write_guard_exemption',
       'registry.identifier_allocation',
       'registry.identifier_sequence',

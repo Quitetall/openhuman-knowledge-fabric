@@ -363,11 +363,12 @@ async function recheck(
     verified_at: Date | null;
     verified_by: string | null;
     verification_basis: string | null;
+    verification_policy_id?: string | null;
   }>(
     `select /* search.semantic-recheck */
             d.object_id, d.object_type, d.title, d.lifecycle_state, o.classification,
             o.id is not null as record_visible,
-            v.verified_at, v.verified_by, v.basis as verification_basis
+            v.verified_at, v.verified_by, v.basis as verification_basis, v.policy_id as verification_policy_id
        from search.document d
        join core.object o on o.id = d.object_id
        join registry.classification c on c.id = o.classification

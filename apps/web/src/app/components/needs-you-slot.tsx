@@ -1,13 +1,33 @@
+import { getNeedsYou } from '../../lib/api/needs-you';
+import { webCaller } from '../../lib/session';
+import { NeedsYouPanel } from '../needs-you/needs-you-panel';
+
 /**
- * THE NEEDS-YOU SLOT. KF-WAR-0004 (milestone M2) supplies this panel's component and its data:
- * what an agent submitted and is waiting on a person, and the one-click verify. The dashboard
- * (KF-WAR-0005, M3) owns only its PLACE — third in the one layout, after the overview and the
- * master document — and renders whatever this returns there, inside its own separated section.
+ * THE NEEDS-YOU SLOT, filled. KF-WAR-0004 (M2) supplies the panel and its data — what an agent
+ * submitted and waits on a person, what an agent proposed for them to perform, and the one-click
+ * verify — and the dashboard (KF-WAR-0005, M3) owns only its PLACE: third in the one layout,
+ * inside its own separated element (`NeedsYouPlace`).
  *
- * Until M2 lands it returns nothing, and the slot collapses like any empty panel. M2 replaces the
- * body of this function (or re-exports its own component as `NeedsYouSlot`); nothing else in the
- * dashboard needs to change, and nothing here may branch on who the reader is.
+ * The data is the API's answer for this reader (`GET /needs-you`), which lists only what their
+ * grants reach. Nothing here branches on who the reader is. When nothing needs them the slot
+ * renders nothing, and its element collapses like any empty panel (`.kf-slot:empty`). Each
+ * gesture returns to the dashboard (`returnTo="/"`), whose page shows the outcome.
  */
-export function NeedsYouSlot(): React.ReactNode {
-  return null;
+export async function NeedsYouSlot(): Promise<React.ReactNode> {
+  const data = await getNeedsYou(await webCaller('/'));
+  const waiting = data.toVerify.total + data.awaitingOthers.total + data.proposals.total;
+  if (waiting === 0) return null;
+  return (
+    <section className="kf-panel" aria-labelledby="p-needs_you">
+      <header className="kf-panel-header">
+        <h2 id="p-needs_you" className="kf-panel-title">
+          Needs you
+        </h2>
+        <p className="kf-panel-note">
+          {waiting === 1 ? 'One item waits on you.' : `${String(waiting)} items wait on you.`}
+        </p>
+      </header>
+      <NeedsYouPanel data={data} returnTo="/" headingLevel={3} />
+    </section>
+  );
 }

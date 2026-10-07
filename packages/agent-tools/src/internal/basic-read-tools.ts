@@ -49,12 +49,13 @@ export async function readRecord(
       verified_at: Date | null;
       verified_by: string | null;
       verification_basis: string | null;
+      verification_policy_id?: string | null;
     }>(
       // Left join: absence IS the unverified state. Under the caller's row security the
       // verification row is visible exactly when the record is (`object_verification_read`).
       `select o.id, o.enterprise_id, o.object_type, o.title, o.lifecycle_state, o.classification,
               o.row_version, o.created_at,
-              v.verified_at, v.verified_by, v.basis as verification_basis
+              v.verified_at, v.verified_by, v.basis as verification_basis, v.policy_id as verification_policy_id
          from core.object o
          left join core.object_verification v on v.object_id = o.id
         where o.id = $1`,
@@ -126,11 +127,12 @@ export function verificationOfRow(row: {
   readonly verified_at: Date | null;
   readonly verified_by: string | null;
   readonly verification_basis: string | null;
+  readonly verification_policy_id?: string | null;
 }) {
   const { verified_at: at, verified_by: by, verification_basis: basis } = row;
   return recordVerification(
     at === null || by === null || basis === null
       ? undefined
-      : { basis, verifiedAt: at, verifiedBy: by },
+      : { basis, verifiedAt: at, verifiedBy: by, policyId: row.verification_policy_id ?? null },
   );
 }

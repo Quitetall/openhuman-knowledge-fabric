@@ -44,8 +44,15 @@ const KEY = generateKeyPairSync('ed25519');
 const VERIFICATION = { trustedManifestKeys: new Map([[KEY_ID, KEY.publicKey]]) };
 
 const RETIRED_SECTION = 'deliverable-retired-attributes';
-/** Sections that arrived after the retired attributes (ee9e0696, ADR 0040's role presets). */
-const AFTER_RETIRED = ['role-preset-grants', 'role-inclusions'];
+/**
+ * The arrivals after the retired attributes, both descending from it and neither from the other:
+ * ee9e0696 (ADR 0040's role presets) and b535bb14 (ADR 0040's verification policy). An archive
+ * written before the retired attributes was written before both, so every archive of that era
+ * lacks them.
+ */
+const PRESET_SECTIONS = ['role-preset-grants', 'role-inclusions'];
+const POLICY_SECTIONS = ['verification-policies', 'act-proposals', 'act-proposal-resolutions'];
+const AFTER_RETIRED = [...PRESET_SECTIONS, ...POLICY_SECTIONS];
 
 /**
  * Sections whose rows 20260902000200 derived rather than created empty: the `working` store it
@@ -102,6 +109,11 @@ const FROM_STORAGE_ON = [
   'tests',
   'observations',
   'access-demand',
+  // ADR 0040 (20261007100000), after the retired attributes: an archive older than those is
+  // older than these.
+  'verification-policies',
+  'act-proposals',
+  'act-proposal-resolutions',
 ];
 /** Every section added without a format bump but the retired attributes, dropped separately. */
 const LATER = [...BEFORE_STORAGE, ...FROM_STORAGE_ON];
@@ -590,12 +602,18 @@ describe('an archive written before deliverables had their ontology fields', () 
       ),
     ).toEqual([]);
     expect(drop('access-demand', RETIRED_SECTION, ...AFTER_RETIRED)).toEqual([]);
-    // An archive between the retired attributes and the role presets is an era of its own; one
-    // without the retired attributes but with the role presets is no exporter's.
+    // An archive between the retired attributes and both later arrivals is an era of its own, and
+    // so is one that carries either sibling without the other; one without the retired
+    // attributes but with either sibling is no exporter's.
     expect(drop(...AFTER_RETIRED)).toEqual([]);
+    expect(drop(...PRESET_SECTIONS)).toEqual([]);
+    expect(drop(...POLICY_SECTIONS)).toEqual([]);
     expect(drop(RETIRED_SECTION)).toEqual([
       expect.stringMatching(
         /predates deliverable-retired-attributes \(b8886185\) but carries role-preset-grants, role-inclusions/,
+      ),
+      expect.stringMatching(
+        /predates deliverable-retired-attributes \(b8886185\) but carries verification-policies, act-proposals, act-proposal-resolutions/,
       ),
     ]);
     expect(drop('access-demand')).toEqual([
@@ -604,6 +622,9 @@ describe('an archive written before deliverables had their ontology fields', () 
       ),
       expect.stringMatching(
         /predates access-demand \(de59c226\) but carries role-preset-grants, role-inclusions/,
+      ),
+      expect.stringMatching(
+        /predates access-demand \(de59c226\) but carries verification-policies, act-proposals, act-proposal-resolutions/,
       ),
     ]);
   });

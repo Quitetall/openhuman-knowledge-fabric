@@ -62,6 +62,7 @@ import { registerContextSourceRoutes } from './routes/context-source.js';
 import { RetrievalClient, SemanticRetrieval } from '@kf/retrieval';
 import { registerIdentifierRoutes } from './routes/identifiers.js';
 import { registerVerificationRoutes } from './routes/verifications.js';
+import { registerNeedsYouRoutes } from './routes/needs-you.js';
 import { registerCaptureRoutes } from './routes/capture.js';
 import { registerSessionRoutes } from './routes/session.js';
 import { registerExperienceRoutes } from './routes/experience.js';
@@ -543,6 +544,8 @@ export async function buildApp(
     });
     // The bulk verification gesture: stamps promoted_in_bulk itself, one act per record.
     registerVerificationRoutes(app, { execute, identify });
+    // What waits on the bound person, and the one gesture that answers each (ADR 0040).
+    registerNeedsYouRoutes(app, { pool, execute, identify, bearer: tokens !== undefined });
     // One gesture, one observation (ADR 0034): the seam `kf note`, the web form and agents share.
     registerCaptureRoutes(app, { pool, execute, identify });
     // What a signed-in person may choose between when they pick their context.

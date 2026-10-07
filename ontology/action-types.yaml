@@ -291,6 +291,31 @@ action_types:
     audited: true
     transactional: true
     drives: []
+  # Agents submit; authority verifies (ADR 0040 decisions 5 and 6, KF-SAS-RQ-263 to RQ-266).
+  #
+  # `set_verification_policy` targets the organization and records, per record kind, the act that
+  # writes it and a declared agent, whether such records are verified on arrival
+  # (`verified_on_submit`) or wait for a person (`required`, also what no policy means).
+  # Institutional: deciding to trust an agent is an organization's act, and so no agent can set
+  # its own policy. The database refuses `verified_on_submit` for an institutional act type.
+  - id: set_verification_policy
+    audited: true
+    transactional: true
+    drives: []
+    requires: act
+  # `propose_act` records an institutional act an agent asks its person to perform, and performs
+  # nothing; only under an agent's attestation, only for an institutional type. Targets the
+  # proposed act's targets (or the organization).
+  - id: propose_act
+    audited: true
+    transactional: true
+    drives: []
+  # `resolve_act_proposal` is the person's answer, once: `declined`, or `confirmed` naming the act
+  # they performed — theirs, with no agent, exactly as proposed. Never an agent's.
+  - id: resolve_act_proposal
+    audited: true
+    transactional: true
+    drives: []
   # Grants a person an organization-scoped, effective-dated clearance (ADR 0011).
   #
   # This type exists because `org.person_clearance.granted_by_action` is a NOT NULL foreign key

@@ -229,6 +229,7 @@ export async function pageOf(
     verified_at: Date | null;
     verified_by: string | null;
     verification_basis: string | null;
+    verification_policy_id?: string | null;
   }>(
     `with q as (
        select search.tsquery_or(variants) as any_term, count(*) as terms
@@ -245,7 +246,7 @@ export async function pageOf(
             -- joins run under the caller's row security, and an index row whose record the
             -- caller cannot see reads as "no verification visible" rather than as "unchecked".
             o.id is not null as record_visible,
-            v.verified_at, v.verified_by, v.basis as verification_basis
+            v.verified_at, v.verified_by, v.basis as verification_basis, v.policy_id as verification_policy_id
        from search.document d
       cross join q
        left join core.object o on o.id = d.object_id
@@ -300,6 +301,7 @@ export function verificationOf(r: {
   readonly verified_at: Date | null;
   readonly verified_by: string | null;
   readonly verification_basis: string | null;
+  readonly verification_policy_id?: string | null;
 }): RecordVerification {
   return recordVerification(
     [r.verified_at, r.verified_by, r.verification_basis].some((v) => v === null || v === undefined)
@@ -308,6 +310,7 @@ export function verificationOf(r: {
           basis: r.verification_basis as string,
           verifiedAt: r.verified_at as Date,
           verifiedBy: r.verified_by as string,
+          policyId: r.verification_policy_id ?? null,
         },
     { visible: r.record_visible === true },
   );

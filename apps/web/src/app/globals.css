@@ -379,6 +379,7 @@ pre {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .kf-dashboard > .kf-panel-reading,
+  .kf-dashboard > .kf-outcome,
   .kf-dashboard > .kf-footnote {
     grid-column: 1 / -1;
   }

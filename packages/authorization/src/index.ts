@@ -123,3 +123,18 @@ export {
   type Classified,
   type ReadIdentity,
 } from './read-grant.js';
+export {
+  AGENT_ACT_ACTION_IDS,
+  AGENT_ACT_EFFECTS,
+  AGENT_ACT_PRECONDITIONS,
+  AGENT_ACT_RECEIPTS,
+  PROPOSAL_RESOLUTIONS,
+  VERIFICATION_POLICY_MODES,
+  proposalRequest,
+  proposedActOf,
+  readProposal,
+  type PendingProposal,
+  type ProposalResolution,
+  type ProposedAct,
+  type VerificationPolicyMode,
+} from './agent-acts.js';

@@ -14,7 +14,13 @@
  * weaker one.
  */
 
-export const VERIFICATION_BASES = ['reviewed_individually', 'promoted_in_bulk'] as const;
+export const VERIFICATION_BASES = [
+  'reviewed_individually',
+  'promoted_in_bulk',
+  // ADR 0040 (20261007100000): a record an agent's act wrote, verified on arrival because a
+  // verification policy in force for its kind, act and agent said so. Never an institutional act.
+  'verified_by_policy',
+] as const;
 
 export type VerificationBasis = (typeof VERIFICATION_BASES)[number];
 
@@ -40,8 +46,13 @@ export type RecordVerification =
       readonly basis: VerificationBasis;
       /** ISO-8601, the database's clock (`20260924000300`). */
       readonly verifiedAt: string;
-      /** The person who verified it. Never the record's creator (`object_verification_write`). */
+      /**
+       * The person who verified it, never the record's creator (`object_verification_write`); for
+       * `verified_by_policy`, the person who set the policy that verified it.
+       */
       readonly verifiedBy: string;
+      /** The policy that verified it, for `verified_by_policy` and for no other basis. */
+      readonly policyId?: string;
       readonly label: string;
     };
 
@@ -50,13 +61,24 @@ export interface VerificationFacts {
   readonly basis: string;
   readonly verifiedAt: string | Date;
   readonly verifiedBy: string;
+  /** `core.object_verification.policy_id`: set exactly when the basis is `verified_by_policy`. */
+  readonly policyId?: string | null;
 }
 
 function isBasis(value: unknown): value is VerificationBasis {
   return (VERIFICATION_BASES as readonly unknown[]).includes(value);
 }
 
-function verifiedLabel(basis: VerificationBasis, verifiedBy: string, verifiedAt: string): string {
+function verifiedLabel(
+  basis: VerificationBasis,
+  verifiedBy: string,
+  verifiedAt: string,
+  policyId: string | undefined,
+): string {
+  if (basis === 'verified_by_policy') {
+    // A policy is not a person reading the record, and the words say so: whose policy, which one.
+    return `verified by policy ${policyId ?? '(unnamed)'} set by ${verifiedBy}, at ${verifiedAt}`;
+  }
   const how = basis === 'reviewed_individually' ? 'reviewed individually' : 'promoted in bulk';
   return `verified ${how} by ${verifiedBy} at ${verifiedAt}`;
 }
@@ -79,12 +101,17 @@ export function recordVerification(
   }
   const verifiedAt =
     facts.verifiedAt instanceof Date ? facts.verifiedAt.toISOString() : facts.verifiedAt;
+  const policyId =
+    facts.basis === 'verified_by_policy' && typeof facts.policyId === 'string'
+      ? facts.policyId
+      : undefined;
   return {
     verified: true,
     basis: facts.basis,
     verifiedAt,
     verifiedBy: facts.verifiedBy,
-    label: verifiedLabel(facts.basis, facts.verifiedBy, verifiedAt),
+    ...(policyId === undefined ? {} : { policyId }),
+    label: verifiedLabel(facts.basis, facts.verifiedBy, verifiedAt, policyId),
   };
 }
 
@@ -100,11 +127,14 @@ export function isRecordVerification(value: unknown): value is RecordVerificatio
     return v['label'] === UNVERIFIED_LABEL || v['label'] === VERIFICATION_NOT_VISIBLE_LABEL;
   }
   if (v['verified'] !== true) return false;
-  const { basis, verifiedAt, verifiedBy, label } = v;
+  const { basis, verifiedAt, verifiedBy, label, policyId } = v;
+  if (policyId !== undefined && (typeof policyId !== 'string' || basis !== 'verified_by_policy')) {
+    return false;
+  }
   return (
     isBasis(basis) &&
     typeof verifiedAt === 'string' &&
     typeof verifiedBy === 'string' &&
-    label === verifiedLabel(basis, verifiedBy, verifiedAt)
+    label === verifiedLabel(basis, verifiedBy, verifiedAt, policyId)
   );
 }

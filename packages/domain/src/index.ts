@@ -63,3 +63,15 @@ export const PACKAGE: PackageManifest = {
   role: 'Typed domain entities and the rules that govern them',
   owns: [],
 };
+export {
+  AGENT_ACT_NAMES,
+  AGENT_ACTS,
+  agentAct,
+  draftAgentAct,
+  type AgentAct,
+  type AgentActDisposition,
+  type AgentDraft,
+  type AgentDraftField,
+  type AgentField,
+  type AgentFieldKind,
+} from './agent-acts.js';

@@ -148,7 +148,9 @@ available.
 - `/` is the dashboard for a signed-in person: the panels of `GET /dashboard`, in its declared
   layout order, each scoped by the reader's grants; a panel the API marks empty is not rendered.
   Nothing in the page branches on a role or title. Needs you is a separated slot
-  (`src/app/components/needs-you-slot.tsx`) whose component and data KF-WAR-0004 (M2) supplies.
+  (`src/app/components/needs-you-slot.tsx`) holding KF-WAR-0004's (M2) panel, filled from
+  `GET /needs-you`; it renders nothing, and collapses, when nothing waits on the reader. A
+  gesture there returns to `/`, which shows its outcome. `/needs-you` is the same panel alone.
   A signed-out visitor sees how to sign in and the status report, which is also at `/status`.
 - `/master-document` reads `GET /master-document`: the compiled claim by record type, paged with
   the `next` cursor, the living organization overview first when the reader's grants reach it.

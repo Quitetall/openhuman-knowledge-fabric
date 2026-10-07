@@ -58,11 +58,12 @@ async function verifications(
   const rows = await tx.query<{
     id: string;
     classification: string;
-    basis: 'reviewed_individually' | 'promoted_in_bulk' | null;
+    basis: 'reviewed_individually' | 'promoted_in_bulk' | 'verified_by_policy' | null;
     verified_at: Date | null;
     verified_by: string | null;
+    policy_id: string | null;
   }>(
-    `select /* master-record.live-verification */ o.id, o.classification, v.basis, v.verified_at, v.verified_by
+    `select /* master-record.live-verification */ o.id, o.classification, v.basis, v.verified_at, v.verified_by, v.policy_id
        from core.object o left join core.object_verification v on v.object_id = o.id
       where o.organization_id = $1 and o.id = any($2::uuid[])`,
     [reader.organizationId, [...ids]],
@@ -79,6 +80,7 @@ async function verifications(
                 basis: row.basis,
                 verifiedAt: new Date(row.verified_at).toISOString(),
                 verifiedBy: row.verified_by,
+                policyId: row.policy_id,
               },
         ),
       ]),
