@@ -118,10 +118,21 @@ export function AgentChat({
   );
 }
 
-function CitationLink({ citation }: { readonly citation: ChatCitation }) {
+function CitationLink({
+  citation,
+  guideRecordId,
+}: {
+  readonly citation: ChatCitation;
+  /** The guide's record: its source is the person's Start Here, so it links there. */
+  readonly guideRecordId?: string | undefined;
+}) {
+  const href =
+    citation.recordId === guideRecordId
+      ? `/qualification/${encodeURIComponent(citation.recordId)}`
+      : `/objects/${encodeURIComponent(citation.recordId)}`;
   return (
     <>
-      <Link href={`/objects/${encodeURIComponent(citation.recordId)}`}>
+      <Link href={href}>
         [{citation.n}] {citation.title}
       </Link>{' '}
       <span
@@ -164,13 +175,20 @@ function Answer({ entry }: { readonly entry: AnswerEntry }) {
           ? 'no model (nothing was sent to one)'
           : `${entry.backend.name}${entry.backend.kind === 'on_host' ? ' — on this host' : ' — a provider’s model'}`}
       </p>
+      {entry.guide === null ? null : (
+        <p style={{ margin: 0, fontSize: '0.9rem', color: '#334155' }} data-testid="guided">
+          <strong>Guided by:</strong> <Link href="/start-here">your Start Here</Link> (digest{' '}
+          {entry.guide.digest.slice(0, 12)}). The guide explains and helps you submit evidence; it
+          never credits or accepts anything.
+        </p>
+      )}
       {entry.citations.length === 0 ? null : (
         <div>
           <strong style={{ fontSize: '0.9rem' }}>Sources</strong>
           <ul aria-label="Sources" style={{ margin: '0.2rem 0 0', paddingLeft: '1.2rem' }}>
             {entry.citations.map((citation) => (
               <li key={citation.n}>
-                <CitationLink citation={citation} />
+                <CitationLink citation={citation} guideRecordId={entry.guide?.recordId} />
               </li>
             ))}
           </ul>
@@ -184,7 +202,7 @@ function Answer({ entry }: { readonly entry: AnswerEntry }) {
           <ul style={{ margin: '0.2rem 0 0', paddingLeft: '1.2rem' }}>
             {entry.consulted.map((citation) => (
               <li key={citation.n}>
-                <CitationLink citation={citation} />
+                <CitationLink citation={citation} guideRecordId={entry.guide?.recordId} />
               </li>
             ))}
           </ul>

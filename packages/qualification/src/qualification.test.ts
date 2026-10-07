@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { agentGuideContext, GUIDE_ACTS } from './agent-guide.js';
+import { agentGuideContext, GUIDE_ACTS, GUIDE_RULES } from './agent-guide.js';
 import {
   evaluateRecord,
   gapsForAct,
@@ -436,10 +436,28 @@ describe('Start Here and the guide', () => {
   });
 
   it('gives the guide the page, the next requirement first and a closed list of acts', () => {
-    const guide = agentGuideContext(startHere(evaluation));
+    const guide = agentGuideContext(startHere(evaluation), 'internal');
     expect(guide.next.map((n) => n.key)).toEqual(['org.read-in', 'org.first']);
     expect(guide.acts).toEqual(GUIDE_ACTS);
     expect(guide.instructions).toMatch(/never credit evidence/);
     expect(guide.instructions).toMatch(/Audrey/);
+  });
+
+  it('labels the guide at the record’s level: never below confidential, unknown is restricted', () => {
+    const page = startHere(evaluation);
+    expect(agentGuideContext(page, 'public').classification).toBe('confidential');
+    expect(agentGuideContext(page, 'internal').classification).toBe('confidential');
+    expect(agentGuideContext(page, 'confidential').classification).toBe('confidential');
+    expect(agentGuideContext(page, 'restricted').classification).toBe('restricted');
+    expect(agentGuideContext(page, undefined).classification).toBe('restricted');
+    expect(agentGuideContext(page, 'secret-ish').classification).toBe('restricted');
+    expect(agentGuideContext(page, 'toString').classification).toBe('restricted');
+  });
+
+  it('keeps every record out of the rules a system prompt may carry', () => {
+    const page = startHere(evaluation);
+    expect(GUIDE_RULES).not.toMatch(/Audrey/);
+    expect(GUIDE_RULES).not.toContain(page.pack.title);
+    expect(GUIDE_RULES).toMatch(/never credit evidence/);
   });
 });

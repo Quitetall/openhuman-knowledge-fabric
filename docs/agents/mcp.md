@@ -35,6 +35,10 @@ so anything else is refused before a request is sent (KF-SAS-RQ-020).
   participation**, and **UNVERIFIED** until a person with authority verifies it from Needs you —
   or a verification policy in force for that record kind, act and agent verifies it on arrival, in
   which case the answer names the policy.
+- **Submitted, credits nothing** — `submit_qualification_evidence`: names a record as evidence for
+  a requirement of the person's own qualification record (the database refuses anyone else's,
+  KF-QUAL-031). A reviewer decides from Needs you. Crediting and accepting are on no agent's list,
+  and the database refuses an agent that tries (KF-QUAL-011).
 - **Proposed** — `promote_observation`, `accept_decision`, `reject_decision` (institutional, ADR
   0016 `requires: act`): recorded as a proposal and **not performed**. It waits in the person's
   Needs you; only they perform it, on their own token, with every check run at that moment.

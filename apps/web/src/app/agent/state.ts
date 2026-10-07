@@ -31,6 +31,8 @@ export interface AnswerEntry {
   readonly semanticRanking: boolean;
   readonly notes: readonly string[];
   readonly classification: string;
+  /** The Start Here the answer was guided by, while the person's qualification is open. */
+  readonly guide: { readonly recordId: string; readonly digest: string } | null;
   readonly seal: string;
 }
 

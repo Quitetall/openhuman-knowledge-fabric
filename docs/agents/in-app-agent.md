@@ -124,6 +124,31 @@ embedder the default is one: the same model on four pinned cores embedded 60 rec
 with one in flight and 10 to 11 with two or four, where long records also outran the timeout and
 were embedded again.
 
+## The agent as the joining guide (KF-WAR-0007)
+
+While the reader's own qualification record is open, every turn also reads `GET /start-here/guide`
+(`packages/agent/src/guide.ts`). The guide — their pack, next requirements in order, named contact
+and the closed lists of what a guide may and may not do — rides as **one more numbered source**,
+labelled like any record, and only its record-free rules (`GUIDE_RULES`) go into the system
+prompt. When the route answers 404 (no open record), the turn is exactly what it was without it.
+
+**Its label is the record's level.** A qualification record is confidential (ADR 0038 decision 12),
+but `assign_qualification` creates its envelope at the kind's default, `internal`, because the
+envelope says only the scope. What the guide carries is the confidential part, so the API serves
+the envelope's label raised to `confidential` (`guideClassification`), and the agent raises it
+again (`guideLabel`; absent or unknown is `restricted`). Under any ceiling a guided turn is
+answered on the host or refused (KF-ROUTE-004), and its sealed answer keeps the rest of the
+conversation on the host. A deployment without LAMU therefore cannot answer a qualifying person's
+questions in chat; their Start Here page is unaffected.
+
+**What it may do.** "Record that …" offers the guide's one act, `submit_qualification_evidence`, on
+the person's own record only (the draft's target is the guide's record, whatever the model says),
+filled only by the host's model. It names evidence and credits nothing. Crediting and accepting
+are on no agent's list, `submitDraft` refuses them before any call, the route refuses an agent's
+credit, and the database refuses it again (KF-QUAL-011). The model's prose is not checked against
+the may-not list; the rules tell it never to claim a requirement is satisfied, and the record is
+what says whether one is.
+
 ## The KF MCP server lands drafts the same way
 
 `submit_act` in the KF MCP server (`apps/mcp/src/server.ts`) calls the same `submitDraft` the chat

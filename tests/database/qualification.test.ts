@@ -355,7 +355,8 @@ describe('a persona walks from assignment to qualified, through the five stages'
     expect(startHereIsGenerated(page)).toBe(true);
     expect(startHere((await evaluate(P.lucie, lucieAero))!).digest).toBe(page.digest);
     // The guide is given the page and the closed list of what it may do; it starts at Read-In.
-    const guide = agentGuideContext(page);
+    const guide = agentGuideContext(page, 'internal');
+    expect(guide.classification).toBe('confidential');
     expect(guide.next[0]?.key).toBe(KEYS.readIn);
     expect(guide.acts).toEqual(['submit_qualification_evidence']);
     expect(guide.mayNot).toContain('credit_evidence');

@@ -20,6 +20,18 @@
  *
  * `AgentGuide` is the interface M4 implements against; `GET /start-here/guide` serves the
  * context for the bound reader's open record, and `agentGuideContext` builds it from a Start Here.
+ *
+ * THE CONTEXT IS CLASSIFIED AT THE RECORD'S LEVEL. A qualification record is confidential (ADR 0038
+ * decision 12, SAS §24A), but its envelope is created at its kind's default, `internal`, because
+ * the envelope deliberately says only the scope (`assign_qualification`): what is confidential is
+ * the typed row — whose record it is, its evidence, its contact — and that is what this context
+ * carries. So `classification` is the envelope's own label raised to `confidential`, never lower,
+ * and an unknown label is `restricted`. The in-app agent routes by it (KF-SAS-RQ-271): content at
+ * `confidential` is answered on the host or not at all, whatever an organization's ceiling says.
+ *
+ * `GUIDE_RULES` is the same rules as `guideInstructions` with nothing from any record in them, so a
+ * chat can place them in a system prompt, which carries no classification label, while the
+ * record-specific part travels as labelled context.
  */
 
 import type { StartHere, StartHereItem } from './start-here.js';
@@ -48,6 +60,31 @@ export const GUIDE_MAY_NOT = [
 /** The acts a guide may dispatch for its person. Closed. */
 export const GUIDE_ACTS = ['submit_qualification_evidence'] as const;
 
+/** The lowest label the guide's context carries (ADR 0038 decision 12). */
+export const GUIDE_CLASSIFICATION_FLOOR = 'confidential' as const;
+
+const RANK: Readonly<Record<string, number>> = {
+  public: 0,
+  internal: 1,
+  confidential: 2,
+  restricted: 3,
+};
+
+/**
+ * The label the guide's context carries: the record envelope's own classification, raised to
+ * `confidential`; `restricted` when the envelope's label is unknown or absent. Fail closed.
+ */
+export function guideClassification(
+  recordClassification: string | null | undefined,
+): 'confidential' | 'restricted' {
+  const rank =
+    typeof recordClassification === 'string' && Object.hasOwn(RANK, recordClassification)
+      ? RANK[recordClassification]
+      : undefined;
+  if (rank === undefined) return 'restricted';
+  return rank > RANK[GUIDE_CLASSIFICATION_FLOOR]! ? 'restricted' : GUIDE_CLASSIFICATION_FLOOR;
+}
+
 export interface AgentGuideNext {
   readonly key: string;
   readonly stage: Stage;
@@ -73,6 +110,11 @@ export interface AgentGuideContext {
   readonly may: typeof GUIDE_MAY;
   readonly mayNot: typeof GUIDE_MAY_NOT;
   readonly acts: typeof GUIDE_ACTS;
+  /**
+   * The classification everything in this context carries (`guideClassification`): never below
+   * `confidential`. A chat routes the context by it, as it routes a record of that label.
+   */
+  readonly classification: 'confidential' | 'restricted';
   /** The rules as text, for the chat's system prompt, verbatim. */
   readonly instructions: string;
 }
@@ -89,21 +131,41 @@ export interface AgentGuide {
   }): Promise<AgentGuideContext | undefined>;
 }
 
+/** The rules, naming the person's contact as `contact`. Nothing else in them is from a record. */
+function rules(contact: string): string[] {
+  return [
+    'The five stages are the same for everyone: Read-In, Role Read-In, References, Execution, First Contribution.',
+    'You may explain any stage or requirement, answer from the record citing what you used, point at references and say whether each is normative, reference or learning, and help assemble a submission of evidence and check its fields.',
+    'You never infer competence, never credit evidence, never accept a qualification, never grant access and never mark anything read for the person. A reviewer holding the authority a requirement names credits it from Needs you; the database refuses an agent that tries.',
+    'Never say a requirement is satisfied, credited or accepted unless the record shows it satisfied. Submitting evidence credits nothing: it waits for a reviewer.',
+    'Opening a document establishes nothing unless the requirement says acknowledgement is the outcome. Acknowledged is never demonstrated.',
+    `Anything blocked on the organization — a resource the person cannot read, or nobody to accept the evidence — is the organization's to fix, never the person's failure: say so, and point them at ${contact}.`,
+    'The test is real work: the First Contribution is a small, bounded Warrant the person finishes with your help, and its acceptance credits the requirements it evidences.',
+  ];
+}
+
+/** The rules with nothing from any record in them: for a system prompt, which carries no label. */
+export const GUIDE_RULES: string = [
+  'You are guiding a person through "Start Here", their qualification record.',
+  ...rules('the named contact their Start Here gives'),
+].join('\n');
+
 export function guideInstructions(page: StartHere): string {
   const contact = page.contact.name ?? 'your named contact';
   return [
     `You are guiding a person through "Start Here" for ${page.pack.title} (revision ${String(page.pack.revision)}).`,
-    'The five stages are the same for everyone: Read-In, Role Read-In, References, Execution, First Contribution.',
-    'You may explain any stage or requirement, answer from the record citing what you used, point at references and say whether each is normative, reference or learning, and help assemble a submission of evidence and check its fields.',
-    'You never infer competence, never credit evidence, never accept a qualification, never grant access and never mark anything read for the person. A reviewer holding the authority a requirement names credits it from Needs you; the database refuses an agent that tries.',
-    'Opening a document establishes nothing unless the requirement says acknowledgement is the outcome. Acknowledged is never demonstrated.',
-    `Anything blocked on the organization — a resource the person cannot read, or nobody to accept the evidence — is the organization's to fix, never the person's failure: say so, and point them at ${contact}.`,
-    'The test is real work: the First Contribution is a small, bounded Warrant the person finishes with your help, and its acceptance credits the requirements it evidences.',
+    ...rules(contact),
   ].join('\n');
 }
 
-/** Build the guide's context from a Start Here. Pure. */
-export function agentGuideContext(page: StartHere): AgentGuideContext {
+/**
+ * Build the guide's context from a Start Here and its record envelope's classification (as
+ * `core.object` labels it; `guideClassification` raises it to the record's level). Pure.
+ */
+export function agentGuideContext(
+  page: StartHere,
+  recordClassification: string | null | undefined,
+): AgentGuideContext {
   const order = new Map(STAGES.map((stage, i) => [stage, i]));
   const open = page.stages
     .flatMap((stage) => stage.items.map((item) => ({ stage: stage.id, item })))
@@ -133,6 +195,7 @@ export function agentGuideContext(page: StartHere): AgentGuideContext {
     may: GUIDE_MAY,
     mayNot: GUIDE_MAY_NOT,
     acts: GUIDE_ACTS,
+    classification: guideClassification(recordClassification),
     instructions: guideInstructions(page),
   };
 }

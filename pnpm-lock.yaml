@@ -427,6 +427,9 @@ importers:
       '@kf/domain':
         specifier: workspace:*
         version: link:../domain
+      '@kf/qualification':
+        specifier: workspace:*
+        version: link:../qualification
     devDependencies:
       '@types/node':
         specifier: ^24.13.3

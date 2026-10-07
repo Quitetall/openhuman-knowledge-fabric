@@ -10,6 +10,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./agent-guide": {
+      "types": "./dist/agent-guide.d.ts",
+      "default": "./dist/agent-guide.js"
     }
   },
   "scripts": {

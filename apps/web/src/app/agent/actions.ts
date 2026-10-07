@@ -6,6 +6,7 @@ import {
   asksToRecord,
   draftFromRequest,
   providerCeiling,
+  readGuide,
   submitDraft,
   type FabricClient,
 } from '@kf/agent';
@@ -77,7 +78,14 @@ async function ask(previous: ChatState, form: FormData): Promise<ChatState> {
   const backends = backendsFor(config, ceiling);
 
   if (asksToRecord(question)) {
-    const outcome = await draftFromRequest(backends, await ceiling(), question);
+    // While the person's own qualification is open, the drafter is given their guide (guide.ts).
+    const guide = await readGuide(fabric);
+    const outcome = await draftFromRequest(
+      backends,
+      await ceiling(),
+      question,
+      guide.kind === 'guide' ? guide.guide : undefined,
+    );
     const draft: DraftEntry = {
       kind: 'draft',
       act: outcome.act.act,
@@ -146,6 +154,7 @@ async function ask(previous: ChatState, form: FormData): Promise<ChatState> {
       semanticRanking: answer.semanticRanking,
       notes: delegated ? answer.notes : [...answer.notes, `Read as you: ${why ?? ''}`.trim()],
       classification: answer.classification,
+      guide: answer.guide,
       seal: answer.seal,
     },
   );
