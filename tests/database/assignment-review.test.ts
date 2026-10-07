@@ -326,6 +326,54 @@ describe('kf:grant-authority ends what it grants, and renews by making a new ass
       expect(action.parameters.valid_to).toBe(renewedTo.toISOString());
     });
   });
+
+  it('adds a second role to a person already cleared, as its own act (ADR 0040)', async () => {
+    // A person holds as many preset roles as their work needs. Adding one grants no clearance,
+    // and it was refused as an idempotency conflict with the person's first grant, keyed on the
+    // clearance generation that does not move.
+    const created = await runBootstrap(h.adminPool, {
+      legalName: `Second Role Co (${randomUUID()})`,
+      personName: 'Founder Sam',
+      organizationKind: 'company',
+      organizationId: '',
+    });
+    const base = {
+      personId: created.personId,
+      organizationId: created.organizationId,
+      classification: 'restricted',
+      grantedBy: created.personId,
+      validTo: new Date(Date.now() + 100 * DAY_MS),
+    };
+    const first = await runGrantAuthority(h.adminPool, {
+      ...base,
+      roleId: 'project_owner',
+      reason: 'founding grant',
+    });
+    const second = await runGrantAuthority(h.adminPool, {
+      ...base,
+      roleId: 'technical_authority',
+      reason: 'also the technical authority',
+    });
+    expect(second.changed).toBe(true);
+    expect(second.clearanceReused).toBe(true);
+    expect(second.roleAssignmentId).not.toBe(first.roleAssignmentId);
+    // The third is where the clearance-keyed act collided: the generation had not moved since
+    // the second.
+    const third = await runGrantAuthority(h.adminPool, {
+      ...base,
+      roleId: 'design_authority',
+      reason: 'and the design authority',
+    });
+    expect(third.changed).toBe(true);
+    expect(new Set([first, second, third].map((g) => g.roleAssignmentId)).size).toBe(3);
+    const again = await runGrantAuthority(h.adminPool, {
+      ...base,
+      roleId: 'technical_authority',
+      reason: 'also the technical authority',
+    });
+    expect(again.changed).toBe(false);
+    expect(again.roleAssignmentId).toBe(second.roleAssignmentId);
+  });
 });
 
 describe('readiness reports grandfathered assignments as "no review date"', () => {
