@@ -1,0 +1,11 @@
+schema = "oh.war/rationale/v1"
+
+# The residual risks named in atoms/60-assurance.md, typed so the authorization request puts
+# them in front of the person signing (see KF-WAR-0001/rationale.toml for why this file exists).
+
+[[assumption]]
+id = "A-001"
+statement = "A role preset is exactly as wide as its author made it, and someone reviews it."
+epistemic_status = "accepted_residual_risk"
+consequence_if_false = "A broad preset grants broadly to everyone holding the role; the system shows the path but does not judge the breadth."
+judgment_ref = ""

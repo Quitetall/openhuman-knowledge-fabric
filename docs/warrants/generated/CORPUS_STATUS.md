@@ -15,13 +15,13 @@ Source: every Warrant under the configured warrants path, its sidecar records, a
 
 - **SAS revision:** 0.1.0-draft.8
 - **digest:** `sha256:b7cfdf1f0eea15625b61ba00c43beb9466171280d08e77bd3d8911415b2c23ea`
-- Revision 0.1.0-draft.8 is ACCEPTED (§101.2) and normative. A Warrant compiles against the revision its authorization recorded (§14), so a later revision does not move an authorized contract: 1 against 0.1.0-draft.8.
+- Revision 0.1.0-draft.8 is ACCEPTED (§101.2) and normative. A Warrant compiles against the revision its authorization recorded (§14), so a later revision does not move an authorized contract: 9 against 0.1.0-draft.8.
 
 **Requirements (207 in §106)** — strictest rung first:
 
 | satisfied | in_progress | claimed | unaddressed | superseded |
 |---|---|---|---|---|
-| **0** | 0 | 12 | 195 | 0 |
+| **0** | 0 | 75 | 132 | 0 |
 
 ## Objectives (SAS §98 phases)
 
@@ -36,8 +36,8 @@ Source: every Warrant under the configured warrants path, its sidecar records, a
 | roadmap://KF-PHASE-6: Operational hardening | — | not derivable — no Warrant names this phase | 0 | 0 | 0 | 0 | 0 |
 | roadmap://KF-PHASE-7: The corpus platform | — | not derivable — no Warrant names this phase | 0 | 0 | 0 | 0 | 0 |
 | roadmap://KF-PHASE-8: Institutional acts and external sources | — | not derivable — no Warrant names this phase | 0 | 0 | 0 | 0 | 0 |
-| roadmap://KF-PHASE-9: A commissioned host and its operating evidence | KF-WAR-0001 | blocked by KF-WAR-0001 | 0 | 1 | 0 | 0 | 0 |
-| roadmap://KF-PHASE-10: v1.0 | — | not derivable — no Warrant names this phase | 0 | 0 | 0 | 0 | 0 |
+| roadmap://KF-PHASE-9: A commissioned host and its operating evidence | KF-WAR-0001 | blocked by KF-WAR-0001, KF-WAR-0002 | 0 | 2 | 0 | 0 | 0 |
+| roadmap://KF-PHASE-10: v1.0 | KF-WAR-0009 | blocked by KF-WAR-0003, KF-WAR-0004, KF-WAR-0005, KF-WAR-0006, KF-WAR-0007, KF-WAR-0008, KF-WAR-0009 | 0 | 7 | 0 | 0 | 0 |
 | *unassigned — declares no [[roadmap]]* | — | not derivable — a Warrant naming no phase belongs to no Objective | 0 | 0 | 0 | 0 | 0 |
 
 - **roadmap://KF-PHASE-0** exit: a fresh clone reaches a running local stack and a green gate.
@@ -54,13 +54,10 @@ Source: every Warrant under the configured warrants path, its sidecar records, a
 
 ## Next actionable
 
-- `KF-WAR-0001` / `M1` / `STAGE-001` (roadmap://KF-PHASE-9) — M1 is declared with no dependencies; KF-WAR-0001 is draft; roadmap://KF-PHASE-9 is the lowest unachieved Objective
-- `KF-WAR-0001` / `M1` / `STAGE-002` (roadmap://KF-PHASE-9) — M1 is declared with no dependencies; KF-WAR-0001 is draft; roadmap://KF-PHASE-9 is the lowest unachieved Objective
-- `KF-WAR-0001` / `M2` / `STAGE-003` (roadmap://KF-PHASE-9) — M2 is declared with no dependencies; KF-WAR-0001 is draft; roadmap://KF-PHASE-9 is the lowest unachieved Objective
-- `KF-WAR-0001` / `M3` / `STAGE-004` (roadmap://KF-PHASE-9) — M3 is declared with no dependencies; KF-WAR-0001 is draft; roadmap://KF-PHASE-9 is the lowest unachieved Objective
-- `KF-WAR-0001` / `M4` / `STAGE-005` (roadmap://KF-PHASE-9) — M4 is declared with no dependencies; KF-WAR-0001 is draft; roadmap://KF-PHASE-9 is the lowest unachieved Objective
-- `KF-WAR-0001` / `M5` / `STAGE-006` (roadmap://KF-PHASE-9) — M5 is declared with no dependencies; KF-WAR-0001 is draft; roadmap://KF-PHASE-9 is the lowest unachieved Objective
-- `KF-WAR-0001` / `M5` / `STAGE-007` (roadmap://KF-PHASE-9) — M5 is declared with no dependencies; KF-WAR-0001 is draft; roadmap://KF-PHASE-9 is the lowest unachieved Objective
+- `KF-WAR-0001` / `M0` / `STAGE-008` (roadmap://KF-PHASE-9) — M0 is unblocked; KF-WAR-0001 is draft; roadmap://KF-PHASE-9 is the lowest unachieved Objective
+- `KF-WAR-0001` / `M0` / `STAGE-009` (roadmap://KF-PHASE-9) — M0 is unblocked; KF-WAR-0001 is draft; roadmap://KF-PHASE-9 is the lowest unachieved Objective
+- `KF-WAR-0002` / `M1` / `STAGE-001` (roadmap://KF-PHASE-9) — M1 is unblocked; KF-WAR-0002 is draft; roadmap://KF-PHASE-9 is the lowest unachieved Objective
+- `KF-WAR-0002` / `M1` / `STAGE-002` (roadmap://KF-PHASE-9) — M1 is unblocked; KF-WAR-0002 is draft; roadmap://KF-PHASE-9 is the lowest unachieved Objective
 
 ## What blocks resolution, by §56.1 requirement
 
@@ -68,18 +65,20 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 
 | requirement | Warrants blocked |
 |---|---|
-| artifact digests verify | 1 |
-| every required gate has admissible result | 1 |
-| every required obligation is dispositioned | 1 |
-| exact authorized Contract Revision | 1 |
-| independence requirements are met | 1 |
-| required deliverables exist | 1 |
-| required judgments exist | 1 |
-| residual risks have sufficient authority | 1 |
+| artifact digests verify | 9 |
+| every required gate has admissible result | 9 |
+| every required obligation is dispositioned | 9 |
+| exact authorized Contract Revision | 9 |
+| independence requirements are met | 9 |
+| required deliverables exist | 9 |
+| required judgments exist | 9 |
+| residual risks have sufficient authority | 9 |
+| no blocker remains | 3 |
+| no required unknown remains | 3 |
 
 ## Requirements (SAS §106, §34.3)
 
-**Unaddressed (195)** — no Warrant names these. Several may be built; the gap is bookkeeping, and it is listed rather than hidden:
+**Unaddressed (132)** — no Warrant names these. Several may be built; the gap is bookkeeping, and it is listed rather than hidden:
 
 - `KF-SAS-RQ-001` — One coherent typed graph over records whose authorities remain distinct
 - `KF-SAS-RQ-002` — Visibility, immutability and integrity enforced in the database
@@ -90,13 +89,10 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 - `KF-SAS-RQ-013` — Where a check cannot be performed, refuse; a gate that compared nothing fails
 - `KF-SAS-RQ-014` — An allocated identifier is never reissued; a retired namespace stays resolvable
 - `KF-SAS-RQ-015` — Withdrawal, supersession, revocation and unpublication are state changes, not deletes
-- `KF-SAS-RQ-016` — Every digest is over an RFC 8785 canonical form under a named format tag
 - `KF-SAS-RQ-017` — A generated artifact is reproducible, and a difference fails the build
-- `KF-SAS-RQ-018` — A known gap is recorded somewhere enumerable, never as an inline marker
 - `KF-SAS-RQ-019` — The human-only acts are refused to a service actor by name
 - `KF-SAS-RQ-020` — No generic authenticated write path accepting a caller-supplied action type
 - `KF-SAS-RQ-021` — External content is admitted one named item at a time, never by container sync
-- `KF-SAS-RQ-022` — The ontology preserves every approved R01 definition and declares every addition
 - `KF-SAS-RQ-023` — One package opens connections; one package provides the controlled write path
 - `KF-SAS-RQ-030` — Every governed record has exactly one object row carrying its governed fields
 - `KF-SAS-RQ-031` — Event time and record time are separate, and record time is server-assigned
@@ -106,16 +102,9 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 - `KF-SAS-RQ-035` — Only a human person carries an external authentication identity
 - `KF-SAS-RQ-036` — Classification is a closed, totally ordered set compared by rank
 - `KF-SAS-RQ-037` — A requested ceiling is resolved against recorded clearance before it is bound
-- `KF-SAS-RQ-038` — Clearance is organization-scoped and effective-dated; the session ceiling is at most the clearance, and an assignment ceiling caps only its role's grant
-- `KF-SAS-RQ-039` — Read authorization is row visibility intersected with live grant coverage
-- `KF-SAS-RQ-040` — Live grants for one principal, scope and capability do not overlap in time
-- `KF-SAS-RQ-041` — The read path and the write path consult the same grant view
-- `KF-SAS-RQ-042` — Any access decision is explainable as a path to the deciding grant, exclusion, principal-kind bar or separation-of-duty rule
 - `KF-SAS-RQ-043` — An institutional act requires an act grant reaching every locked target
 - `KF-SAS-RQ-044` — Which actions are institutional is declared in the ontology and consulted by the database, not encoded in control flow
 - `KF-SAS-RQ-045` — Automated work acts as a declared service actor through the same write path
-- `KF-SAS-RQ-046` — A service actor is refused every institutional act, whatever grants reach it
-- `KF-SAS-RQ-047` — An act that judges another act is refused to the actor who performed it
 - `KF-SAS-RQ-048` — Authentication establishes only the subject; authorization comes from the database
 - `KF-SAS-RQ-050` — All controlled writes pass one dispatcher, one transaction per act
 - `KF-SAS-RQ-051` — Authority resolves before materialization; coverage is asserted after locking
@@ -138,7 +127,6 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 - `KF-SAS-RQ-075` — A predicate refactored for plan shape preserves visibility and uses invoker rights
 - `KF-SAS-RQ-076` — Load-bearing planner settings are identical across environments, and gated
 - `KF-SAS-RQ-077` — A record asserting an event is immutable but for later verification fields
-- `KF-SAS-RQ-078` — Every declared invariant is enforced, and the mapping is asserted by a test
 - `KF-SAS-RQ-079` — Schema changes are ordered and applied from one declared sequence
 - `KF-SAS-RQ-080` — An irreversible migration is identified as such and offers no false safe path
 - `KF-SAS-RQ-081` — A fresh install verifies the seeded ontology by digest and refuses a mismatch
@@ -152,21 +140,13 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 - `KF-SAS-RQ-099` — A cross-host golden is frozen only over measured agreement
 - `KF-SAS-RQ-100` — Conversion loss is enumerated and recorded with the parse
 - `KF-SAS-RQ-101` — A controlled document's effective state changes only by institutional act
-- `KF-SAS-RQ-102` — Compilation is deterministic and addressed by digest
 - `KF-SAS-RQ-103` — The preservation inventory is closed; an omitted governed table fails a gate
-- `KF-SAS-RQ-104` — An export imported into an empty database re-exports byte-identically
 - `KF-SAS-RQ-105` — Restore is exercised on a schedule using the shipped scripts
-- `KF-SAS-RQ-110` — A person can obtain the complete set of records about them they may see
 - `KF-SAS-RQ-111` — A master record's identity is its corpus; an unchanged corpus replays
-- `KF-SAS-RQ-112` — Staleness is computed by comparing the corpus, or shown absent by the database's record of input writes since the compilation's snapshot, never asserted by the writer
-- `KF-SAS-RQ-113` — Every reading is a declared projection whose members subset the corpus
 - `KF-SAS-RQ-114` — Projection sections cover the corpus with an explicit remainder
-- `KF-SAS-RQ-115` — Agent context is a projection under the same invariants as a human reading
 - `KF-SAS-RQ-116` — The projection grammar is closed, non-executable and statically bounded
-- `KF-SAS-RQ-117` — Every object type has a read view derived from ontology metadata
 - `KF-SAS-RQ-118` — Every governed table carries a boundary classification; unclassified fails
 - `KF-SAS-RQ-119` — No external system is resolved live into a master record
-- `KF-SAS-RQ-120` — A compiled record enumerates what was withheld and on what basis
 - `KF-SAS-RQ-121` — One search index for all audiences, filtered by the same context at read time
 - `KF-SAS-RQ-130` — Allocation is atomic with its act, skips occupied numbers, refuses unknown namespaces
 - `KF-SAS-RQ-131` — An act can return a computed value read back from durable state, stable on replay
@@ -177,27 +157,20 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 - `KF-SAS-RQ-136` — An external copy records the source, the exact revision, and any converter
 - `KF-SAS-RQ-137` — A conversion impossible at the cited revision is refused, not relabelled
 - `KF-SAS-RQ-138` — A federation adapter creates no writable local copy that could diverge
-- `KF-SAS-RQ-139` — The product is separable from one deployment's registry; couplings are recorded
 - `KF-SAS-RQ-140` — Model lineage is append-only and holds measurements, not underlying data
 - `KF-SAS-RQ-141` — Secure-object access is by issued, recorded capability with a declared purpose
 - `KF-SAS-RQ-142` — The work-control path is reachable through declared actions alone
 - `KF-SAS-RQ-143` — Product, quality and engineering records use the same model, with no privileged path
-- `KF-SAS-RQ-150` — The HTTP layer holds no authority and permits nothing the write path refuses; its own refusals are admission checks that grant nothing
 - `KF-SAS-RQ-151` — Operator commands take secrets by file only, refusing an inline secret by name
-- `KF-SAS-RQ-152` — A release package carries its gaps, and an approval commits to them
 - `KF-SAS-RQ-153` — A manifest does not contain its own digest; verifying it is a distinct act
 - `KF-SAS-RQ-154` — Approved definitions preserved, additions declared, divergences exhaustive
 - `KF-SAS-RQ-155` — A rule that cannot be machine-enforced is recorded as such
 - `KF-SAS-RQ-156` — Generated artifacts contain nothing non-deterministic and are verified by rebuild
-- `KF-SAS-RQ-157` — The presentation layer contains no authority decision or business rule
 - `KF-SAS-RQ-158` — Every canonical format carries a version tag inside its digest preimage
 - `KF-SAS-RQ-160` — One declared platform contract, stated rather than implied
 - `KF-SAS-RQ-166` — An archiving command fails on a write it did not perform
 - `KF-SAS-RQ-170` — Every documented control cites an artifact, and a gate verifies the path resolves
 - `KF-SAS-RQ-180` — This specification is governed by digest; accepted revisions are immutable
-- `KF-SAS-RQ-181` — Every copy states the revision and digest it reproduces, and presents no revision as accepted that its record does not
-- `KF-SAS-RQ-182` — Decisions record measurement and rejected options; superseded records are retained
-- `KF-SAS-RQ-183` — Requirement identifiers are append-only; status is derived from evidence
 - `KF-SAS-RQ-184` — A cross-repository requirement citation is unverified until a tool resolves it
 - `KF-SAS-RQ-185` — KF duplicates no neighbouring program's authority and records who owns each fact
 - `KF-SAS-RQ-186` — The forced-RLS set is derivable from migrations and reconciled with the database
@@ -205,32 +178,21 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 - `KF-SAS-RQ-191` — Dataset, transform and lineage capability, if built, is a core primitive
 - `KF-SAS-RQ-192` — The deploying organization's identity is configuration, not compiled in
 - `KF-SAS-RQ-200` — Recording an observation asks the actor for no authority, concurrency or idempotency detail
-- `KF-SAS-RQ-201` — Capture and retrieval latency are stated as bars, measured, and architectural
-- `KF-SAS-RQ-202` — An observation is recordable as a draft, attributed from the first moment; promotion is a separate act
-- `KF-SAS-RQ-203` — Every capture surface dispatches the same acts through the same seam
-- `KF-SAS-RQ-204` — An agent can act on behalf of a named human, attributed to them, with its participation recorded
 - `KF-SAS-RQ-210` — A kernel holds the rules, consumers project, callers reach records only through acts; no layer above the kernel can widen what a reader sees
 - `KF-SAS-RQ-211` — A layer above the kernel writes only as an attributed act, never to storage directly
 - `KF-SAS-RQ-212` — Each layer reads only what the layer below authorised, and is replaceable without changing the layers below
-- `KF-SAS-RQ-213` — The retrieval index holds a vector and an identifier, no authorization input, and every hit passes the same grant check as every other read
 - `KF-SAS-RQ-214` — Retrieval authorization is computed from live records and applied during scoring; no derived copy of an authorization input is stored
 - `KF-SAS-RQ-215` — A short mask excludes the unaddressed slots; a long mask is refused
-- `KF-SAS-RQ-216` — A retrieval engine that cannot serve refuses, and a result without semantic ranking says so in the withholding ledger
 - `KF-SAS-RQ-217` — Near misses are returned only on request, separately labelled, naming the scoring function
-- `KF-SAS-RQ-218` — Controlled content never leaves the host to be embedded; a non-local provider is refused, and the embedder binding is registered once
 - `KF-SAS-RQ-219` — The retrieval trace is derived and disposable; the kernel holds the record of what was disclosed as its digest
 - `KF-SAS-RQ-220` — A stored thing that is neither authoritative nor rebuildable is a transient observation with a stated expiry, excluded from the export, the boundary, checkpoints and long backups
 - `KF-SAS-RQ-221` — Recorded queries are transient observations; the durable demand aggregate names records and counts of distinct persons, never which persons
 - `KF-SAS-RQ-222` — What a query withheld is computed on demand at the asking person's ceiling, never persisted, and disclosed to them only as one count within their ceiling
 - `KF-SAS-RQ-223` — A band bitmap or derived scope tag lives only for the life of its process and never reaches durable storage
-- `KF-SAS-RQ-224` — One list fused from the lexical and semantic rankings by a named, stated method, served beside the exhaustive lexical ranking and the semantic one, each fused result naming where each ranking placed it
 - `KF-SAS-RQ-225` — Text may transit to an on-host embedder and is never persisted there; a controlled record offered to a persisting path is refused
 - `KF-SAS-RQ-226` — A derived index never decides visibility from a denormalised copy; the decision is taken against the record in the same statement
-- `KF-SAS-RQ-227` — One gesture may dispatch many acts; at least one per item, never one covering several
 - `KF-SAS-RQ-228` — An unverified record is a record under Law 6, attributed from the first moment, exported marked unverified
-- `KF-SAS-RQ-229` — A projection labels an unverified member and never omits it silently
 - `KF-SAS-RQ-230` — An unverified record is not citable as evidence
-- `KF-SAS-RQ-231` — A promotion act records whether the item was reviewed individually or in bulk
 - `KF-SAS-RQ-232` — Verification is recorded independently of lifecycle state, never inferred from it
 - `KF-SAS-RQ-233` — The transaction context is written only by the database's binding functions, sealed, and readable only as sealed
 - `KF-SAS-RQ-234` — The application binds only a principal derived from a live assignment and recorded clearance, and may then only narrow
@@ -245,37 +207,11 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 - `KF-SAS-RQ-243` — A closed record's identity-bearing fields are immutable for every session, the owner's included
 - `KF-SAS-RQ-244` — Every relation declares its endpoint types, and the database refuses an edge of an undeclared shape
 - `KF-SAS-RQ-245` — A backup is taken by a backup-only login, holds every row it claims, and its restore is proven from that login's backup
-- `KF-SAS-RQ-246` — Delegation goes one level deep, and every new role assignment and project membership ends within 366 days
 - `KF-SAS-RQ-247` — A recorded query is disclosed only to its asker; another person's replay returns only the aggregate
-- `KF-SAS-RQ-248` — An export from an earlier exporter of the same format imports, converted as its migrations converted
 - `KF-SAS-RQ-249` — A process addresses a store only at its declared, bound address, which never changes and carries no credential
-- `KF-SAS-RQ-250` — A context read is recorded as a disclosure bound to the corpus of the master record that included it at the revision served, or it is not made
 - `KF-SAS-RQ-251` — Every refusal of a context read is recorded, and one for a record the reader was never shown names no record
 - `KF-SAS-RQ-252` — "No longer permitted" only for a record the reader's own master record included; every other refusal is one identical not-found
 - `KF-SAS-RQ-253` — A context source re-checks current authority on every call, refuses a moved record, and serves only a direct loopback caller
-- `KF-SAS-RQ-254` — One qualification protocol for every person; roles differ only in their pack, and nothing branches on a role or title
-- `KF-SAS-RQ-255` — A requirement states an outcome and the evidence that counts; opening a document establishes nothing unless acknowledgement is the outcome
-- `KF-SAS-RQ-256` — Evidence is acknowledged, located or demonstrated, and a mode is never upgraded
-- `KF-SAS-RQ-257` — The reviewer who accepts the work credits its evidence in the same act; no duplicate approval
-- `KF-SAS-RQ-258` — Qualification grants nothing and a permission implies none; the database enforces one only where an action declares it
-- `KF-SAS-RQ-259` — Only a behavioural revision of a requirement creates a gap, and only for the scope it touches
-- `KF-SAS-RQ-260` — A mandatory requirement names what becomes unsafe, unauthorized or unreliable without it
-- `KF-SAS-RQ-261` — An unavailable resource or reviewer is the organization's blocker, never the person's failure
-- `KF-SAS-RQ-262` — One dashboard layout for everyone, each panel scoped by the viewer's grants; nothing branches on a role or title
-- `KF-SAS-RQ-263` — A record written with an agent's participation is the person's act and is unverified until authority or a policy in force verifies it
-- `KF-SAS-RQ-264` — Verification policy is per organization, kind and agent, set by an attributed act, requires a person by default, and is named on what it verifies
-- `KF-SAS-RQ-265` — An agent performs no institutional act without the authority holder's explicit confirmation, and no policy verifies one
-- `KF-SAS-RQ-266` — An agent's draft shows the fields a person would fill and is written only by that person's gesture or setting, never for an institutional act
-- `KF-SAS-RQ-267` — A master document is scope compiled; an overview or handbook reaches it only as an ordinary record through grants
-- `KF-SAS-RQ-268` — A generated overview links every statement to its source and is evaluated over its reader's corpus, withholding and counting the rest
-- `KF-SAS-RQ-269` — A role is a preset of scope that may include roles, acyclic by the database, projected into the one effective grant view
-- `KF-SAS-RQ-270` — An explanation of access names the role path by which a grant arrived
-- `KF-SAS-RQ-271` — Confidential and restricted content is never sent to a model off the host; with no on-host model the request is refused
-- `KF-SAS-RQ-272` — Every agent answer names its backend, cites its records and counts what was withheld
-- `KF-SAS-RQ-273` — Reading, verifying from Needs you and capturing work at phone width
-- `KF-SAS-RQ-274` — Notifications are a digest plus an urgent-only push, carrying no content a provider model may not receive
-- `KF-SAS-RQ-275` — An invited person reaches Start Here from their qualification record; joining needs nothing beyond grants and qualification
-- `KF-SAS-RQ-276` — Density changes presentation only, and every view is usable at its most compact
 
 | requirement | status | would_satisfy | implementers |
 |---|---|---|---|
@@ -288,13 +224,13 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 | `KF-SAS-RQ-013` | unaddressed | 0 | — |
 | `KF-SAS-RQ-014` | unaddressed | 0 | — |
 | `KF-SAS-RQ-015` | unaddressed | 0 | — |
-| `KF-SAS-RQ-016` | unaddressed | 0 | — |
+| `KF-SAS-RQ-016` | claimed | 0 | KF-WAR-0009 (partial) |
 | `KF-SAS-RQ-017` | unaddressed | 0 | — |
-| `KF-SAS-RQ-018` | unaddressed | 0 | — |
+| `KF-SAS-RQ-018` | claimed | 0 | KF-WAR-0003 (partial) |
 | `KF-SAS-RQ-019` | unaddressed | 0 | — |
 | `KF-SAS-RQ-020` | unaddressed | 0 | — |
 | `KF-SAS-RQ-021` | unaddressed | 0 | — |
-| `KF-SAS-RQ-022` | unaddressed | 0 | — |
+| `KF-SAS-RQ-022` | claimed | 0 | KF-WAR-0007 (partial) |
 | `KF-SAS-RQ-023` | unaddressed | 0 | — |
 | `KF-SAS-RQ-030` | unaddressed | 0 | — |
 | `KF-SAS-RQ-031` | unaddressed | 0 | — |
@@ -304,18 +240,18 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 | `KF-SAS-RQ-035` | unaddressed | 0 | — |
 | `KF-SAS-RQ-036` | unaddressed | 0 | — |
 | `KF-SAS-RQ-037` | unaddressed | 0 | — |
-| `KF-SAS-RQ-038` | unaddressed | 0 | — |
-| `KF-SAS-RQ-039` | unaddressed | 0 | — |
-| `KF-SAS-RQ-040` | unaddressed | 0 | — |
-| `KF-SAS-RQ-041` | unaddressed | 0 | — |
-| `KF-SAS-RQ-042` | unaddressed | 0 | — |
+| `KF-SAS-RQ-038` | claimed | 0 | KF-WAR-0009 (validation) |
+| `KF-SAS-RQ-039` | claimed | 0 | KF-WAR-0005 (partial) |
+| `KF-SAS-RQ-040` | claimed | 0 | KF-WAR-0005 (validation) |
+| `KF-SAS-RQ-041` | claimed | 0 | KF-WAR-0005 (validation) |
+| `KF-SAS-RQ-042` | claimed | 0 | KF-WAR-0005 (partial) |
 | `KF-SAS-RQ-043` | unaddressed | 0 | — |
 | `KF-SAS-RQ-044` | unaddressed | 0 | — |
 | `KF-SAS-RQ-045` | unaddressed | 0 | — |
-| `KF-SAS-RQ-046` | unaddressed | 0 | — |
-| `KF-SAS-RQ-047` | unaddressed | 0 | — |
+| `KF-SAS-RQ-046` | claimed | 0 | KF-WAR-0004 (validation) |
+| `KF-SAS-RQ-047` | claimed | 0 | KF-WAR-0007 (validation) |
 | `KF-SAS-RQ-048` | unaddressed | 0 | — |
-| `KF-SAS-RQ-049` | claimed | 0 | KF-WAR-0001 (complete) |
+| `KF-SAS-RQ-049` | claimed | 0 | KF-WAR-0001 (complete), KF-WAR-0008 (validation) |
 | `KF-SAS-RQ-050` | unaddressed | 0 | — |
 | `KF-SAS-RQ-051` | unaddressed | 0 | — |
 | `KF-SAS-RQ-052` | unaddressed | 0 | — |
@@ -337,7 +273,7 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 | `KF-SAS-RQ-075` | unaddressed | 0 | — |
 | `KF-SAS-RQ-076` | unaddressed | 0 | — |
 | `KF-SAS-RQ-077` | unaddressed | 0 | — |
-| `KF-SAS-RQ-078` | unaddressed | 0 | — |
+| `KF-SAS-RQ-078` | claimed | 0 | KF-WAR-0009 (partial) |
 | `KF-SAS-RQ-079` | unaddressed | 0 | — |
 | `KF-SAS-RQ-080` | unaddressed | 0 | — |
 | `KF-SAS-RQ-081` | unaddressed | 0 | — |
@@ -346,28 +282,28 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 | `KF-SAS-RQ-092` | unaddressed | 0 | — |
 | `KF-SAS-RQ-093` | unaddressed | 0 | — |
 | `KF-SAS-RQ-094` | unaddressed | 0 | — |
-| `KF-SAS-RQ-095` | claimed | 0 | KF-WAR-0001 (complete) |
+| `KF-SAS-RQ-095` | claimed | 0 | KF-WAR-0001 (complete), KF-WAR-0002 (partial) |
 | `KF-SAS-RQ-096` | unaddressed | 0 | — |
 | `KF-SAS-RQ-097` | claimed | 0 | KF-WAR-0001 (complete) |
 | `KF-SAS-RQ-098` | unaddressed | 0 | — |
 | `KF-SAS-RQ-099` | unaddressed | 0 | — |
 | `KF-SAS-RQ-100` | unaddressed | 0 | — |
 | `KF-SAS-RQ-101` | unaddressed | 0 | — |
-| `KF-SAS-RQ-102` | unaddressed | 0 | — |
+| `KF-SAS-RQ-102` | claimed | 0 | KF-WAR-0009 (partial) |
 | `KF-SAS-RQ-103` | unaddressed | 0 | — |
-| `KF-SAS-RQ-104` | unaddressed | 0 | — |
+| `KF-SAS-RQ-104` | claimed | 0 | KF-WAR-0009 (validation) |
 | `KF-SAS-RQ-105` | unaddressed | 0 | — |
-| `KF-SAS-RQ-110` | unaddressed | 0 | — |
+| `KF-SAS-RQ-110` | claimed | 0 | KF-WAR-0005 (partial) |
 | `KF-SAS-RQ-111` | unaddressed | 0 | — |
-| `KF-SAS-RQ-112` | unaddressed | 0 | — |
-| `KF-SAS-RQ-113` | unaddressed | 0 | — |
+| `KF-SAS-RQ-112` | claimed | 0 | KF-WAR-0005 (partial) |
+| `KF-SAS-RQ-113` | claimed | 0 | KF-WAR-0005 (partial) |
 | `KF-SAS-RQ-114` | unaddressed | 0 | — |
-| `KF-SAS-RQ-115` | unaddressed | 0 | — |
+| `KF-SAS-RQ-115` | claimed | 0 | KF-WAR-0004 (partial), KF-WAR-0006 (partial) |
 | `KF-SAS-RQ-116` | unaddressed | 0 | — |
-| `KF-SAS-RQ-117` | unaddressed | 0 | — |
+| `KF-SAS-RQ-117` | claimed | 0 | KF-WAR-0009 (partial) |
 | `KF-SAS-RQ-118` | unaddressed | 0 | — |
 | `KF-SAS-RQ-119` | unaddressed | 0 | — |
-| `KF-SAS-RQ-120` | unaddressed | 0 | — |
+| `KF-SAS-RQ-120` | claimed | 0 | KF-WAR-0006 (partial) |
 | `KF-SAS-RQ-121` | unaddressed | 0 | — |
 | `KF-SAS-RQ-130` | unaddressed | 0 | — |
 | `KF-SAS-RQ-131` | unaddressed | 0 | — |
@@ -378,36 +314,36 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 | `KF-SAS-RQ-136` | unaddressed | 0 | — |
 | `KF-SAS-RQ-137` | unaddressed | 0 | — |
 | `KF-SAS-RQ-138` | unaddressed | 0 | — |
-| `KF-SAS-RQ-139` | unaddressed | 0 | — |
+| `KF-SAS-RQ-139` | claimed | 0 | KF-WAR-0009 (partial) |
 | `KF-SAS-RQ-140` | unaddressed | 0 | — |
 | `KF-SAS-RQ-141` | unaddressed | 0 | — |
 | `KF-SAS-RQ-142` | unaddressed | 0 | — |
 | `KF-SAS-RQ-143` | unaddressed | 0 | — |
-| `KF-SAS-RQ-150` | unaddressed | 0 | — |
+| `KF-SAS-RQ-150` | claimed | 0 | KF-WAR-0004 (validation) |
 | `KF-SAS-RQ-151` | unaddressed | 0 | — |
-| `KF-SAS-RQ-152` | unaddressed | 0 | — |
+| `KF-SAS-RQ-152` | claimed | 0 | KF-WAR-0009 (partial) |
 | `KF-SAS-RQ-153` | unaddressed | 0 | — |
 | `KF-SAS-RQ-154` | unaddressed | 0 | — |
 | `KF-SAS-RQ-155` | unaddressed | 0 | — |
 | `KF-SAS-RQ-156` | unaddressed | 0 | — |
-| `KF-SAS-RQ-157` | unaddressed | 0 | — |
+| `KF-SAS-RQ-157` | claimed | 0 | KF-WAR-0005 (validation) |
 | `KF-SAS-RQ-158` | unaddressed | 0 | — |
 | `KF-SAS-RQ-160` | unaddressed | 0 | — |
-| `KF-SAS-RQ-161` | claimed | 0 | KF-WAR-0001 (complete) |
+| `KF-SAS-RQ-161` | claimed | 0 | KF-WAR-0001 (complete), KF-WAR-0002 (partial) |
 | `KF-SAS-RQ-162` | claimed | 0 | KF-WAR-0001 (complete) |
 | `KF-SAS-RQ-163` | claimed | 0 | KF-WAR-0001 (complete) |
-| `KF-SAS-RQ-164` | claimed | 0 | KF-WAR-0001 (partial) |
-| `KF-SAS-RQ-165` | claimed | 0 | KF-WAR-0001 (partial) |
+| `KF-SAS-RQ-164` | claimed | 0 | KF-WAR-0001 (partial), KF-WAR-0006 (partial) |
+| `KF-SAS-RQ-165` | claimed | 0 | KF-WAR-0001 (partial), KF-WAR-0002 (partial) |
 | `KF-SAS-RQ-166` | unaddressed | 0 | — |
 | `KF-SAS-RQ-167` | claimed | 0 | KF-WAR-0001 (complete) |
-| `KF-SAS-RQ-168` | claimed | 0 | KF-WAR-0001 (complete) |
+| `KF-SAS-RQ-168` | claimed | 0 | KF-WAR-0001 (complete), KF-WAR-0009 (validation) |
 | `KF-SAS-RQ-169` | claimed | 0 | KF-WAR-0001 (complete) |
 | `KF-SAS-RQ-170` | unaddressed | 0 | — |
-| `KF-SAS-RQ-171` | claimed | 0 | KF-WAR-0001 (validation) |
+| `KF-SAS-RQ-171` | claimed | 0 | KF-WAR-0001 (validation), KF-WAR-0008 (validation) |
 | `KF-SAS-RQ-180` | unaddressed | 0 | — |
-| `KF-SAS-RQ-181` | unaddressed | 0 | — |
-| `KF-SAS-RQ-182` | unaddressed | 0 | — |
-| `KF-SAS-RQ-183` | unaddressed | 0 | — |
+| `KF-SAS-RQ-181` | claimed | 0 | KF-WAR-0009 (validation) |
+| `KF-SAS-RQ-182` | claimed | 0 | KF-WAR-0003 (partial) |
+| `KF-SAS-RQ-183` | claimed | 0 | KF-WAR-0003 (partial) |
 | `KF-SAS-RQ-184` | unaddressed | 0 | — |
 | `KF-SAS-RQ-185` | unaddressed | 0 | — |
 | `KF-SAS-RQ-186` | unaddressed | 0 | — |
@@ -415,32 +351,32 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 | `KF-SAS-RQ-191` | unaddressed | 0 | — |
 | `KF-SAS-RQ-192` | unaddressed | 0 | — |
 | `KF-SAS-RQ-200` | unaddressed | 0 | — |
-| `KF-SAS-RQ-201` | unaddressed | 0 | — |
-| `KF-SAS-RQ-202` | unaddressed | 0 | — |
-| `KF-SAS-RQ-203` | unaddressed | 0 | — |
-| `KF-SAS-RQ-204` | unaddressed | 0 | — |
+| `KF-SAS-RQ-201` | claimed | 0 | KF-WAR-0005 (partial), KF-WAR-0006 (partial), KF-WAR-0008 (partial) |
+| `KF-SAS-RQ-202` | claimed | 0 | KF-WAR-0006 (partial) |
+| `KF-SAS-RQ-203` | claimed | 0 | KF-WAR-0004 (partial) |
+| `KF-SAS-RQ-204` | claimed | 0 | KF-WAR-0004 (partial) |
 | `KF-SAS-RQ-210` | unaddressed | 0 | — |
 | `KF-SAS-RQ-211` | unaddressed | 0 | — |
 | `KF-SAS-RQ-212` | unaddressed | 0 | — |
-| `KF-SAS-RQ-213` | unaddressed | 0 | — |
+| `KF-SAS-RQ-213` | claimed | 0 | KF-WAR-0002 (validation) |
 | `KF-SAS-RQ-214` | unaddressed | 0 | — |
 | `KF-SAS-RQ-215` | unaddressed | 0 | — |
-| `KF-SAS-RQ-216` | unaddressed | 0 | — |
+| `KF-SAS-RQ-216` | claimed | 0 | KF-WAR-0006 (validation) |
 | `KF-SAS-RQ-217` | unaddressed | 0 | — |
-| `KF-SAS-RQ-218` | unaddressed | 0 | — |
+| `KF-SAS-RQ-218` | claimed | 0 | KF-WAR-0001 (validation), KF-WAR-0002 (validation), KF-WAR-0006 (partial) |
 | `KF-SAS-RQ-219` | unaddressed | 0 | — |
 | `KF-SAS-RQ-220` | unaddressed | 0 | — |
 | `KF-SAS-RQ-221` | unaddressed | 0 | — |
 | `KF-SAS-RQ-222` | unaddressed | 0 | — |
 | `KF-SAS-RQ-223` | unaddressed | 0 | — |
-| `KF-SAS-RQ-224` | unaddressed | 0 | — |
+| `KF-SAS-RQ-224` | claimed | 0 | KF-WAR-0006 (partial) |
 | `KF-SAS-RQ-225` | unaddressed | 0 | — |
 | `KF-SAS-RQ-226` | unaddressed | 0 | — |
-| `KF-SAS-RQ-227` | unaddressed | 0 | — |
+| `KF-SAS-RQ-227` | claimed | 0 | KF-WAR-0004 (partial) |
 | `KF-SAS-RQ-228` | unaddressed | 0 | — |
-| `KF-SAS-RQ-229` | unaddressed | 0 | — |
+| `KF-SAS-RQ-229` | claimed | 0 | KF-WAR-0004 (partial) |
 | `KF-SAS-RQ-230` | unaddressed | 0 | — |
-| `KF-SAS-RQ-231` | unaddressed | 0 | — |
+| `KF-SAS-RQ-231` | claimed | 0 | KF-WAR-0004 (partial) |
 | `KF-SAS-RQ-232` | unaddressed | 0 | — |
 | `KF-SAS-RQ-233` | unaddressed | 0 | — |
 | `KF-SAS-RQ-234` | unaddressed | 0 | — |
@@ -455,43 +391,51 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 | `KF-SAS-RQ-243` | unaddressed | 0 | — |
 | `KF-SAS-RQ-244` | unaddressed | 0 | — |
 | `KF-SAS-RQ-245` | unaddressed | 0 | — |
-| `KF-SAS-RQ-246` | unaddressed | 0 | — |
+| `KF-SAS-RQ-246` | claimed | 0 | KF-WAR-0005 (validation) |
 | `KF-SAS-RQ-247` | unaddressed | 0 | — |
-| `KF-SAS-RQ-248` | unaddressed | 0 | — |
+| `KF-SAS-RQ-248` | claimed | 0 | KF-WAR-0009 (partial) |
 | `KF-SAS-RQ-249` | unaddressed | 0 | — |
-| `KF-SAS-RQ-250` | unaddressed | 0 | — |
+| `KF-SAS-RQ-250` | claimed | 0 | KF-WAR-0006 (validation) |
 | `KF-SAS-RQ-251` | unaddressed | 0 | — |
 | `KF-SAS-RQ-252` | unaddressed | 0 | — |
 | `KF-SAS-RQ-253` | unaddressed | 0 | — |
-| `KF-SAS-RQ-254` | unaddressed | 0 | — |
-| `KF-SAS-RQ-255` | unaddressed | 0 | — |
-| `KF-SAS-RQ-256` | unaddressed | 0 | — |
-| `KF-SAS-RQ-257` | unaddressed | 0 | — |
-| `KF-SAS-RQ-258` | unaddressed | 0 | — |
-| `KF-SAS-RQ-259` | unaddressed | 0 | — |
-| `KF-SAS-RQ-260` | unaddressed | 0 | — |
-| `KF-SAS-RQ-261` | unaddressed | 0 | — |
-| `KF-SAS-RQ-262` | unaddressed | 0 | — |
-| `KF-SAS-RQ-263` | unaddressed | 0 | — |
-| `KF-SAS-RQ-264` | unaddressed | 0 | — |
-| `KF-SAS-RQ-265` | unaddressed | 0 | — |
-| `KF-SAS-RQ-266` | unaddressed | 0 | — |
-| `KF-SAS-RQ-267` | unaddressed | 0 | — |
-| `KF-SAS-RQ-268` | unaddressed | 0 | — |
-| `KF-SAS-RQ-269` | unaddressed | 0 | — |
-| `KF-SAS-RQ-270` | unaddressed | 0 | — |
-| `KF-SAS-RQ-271` | unaddressed | 0 | — |
-| `KF-SAS-RQ-272` | unaddressed | 0 | — |
-| `KF-SAS-RQ-273` | unaddressed | 0 | — |
-| `KF-SAS-RQ-274` | unaddressed | 0 | — |
-| `KF-SAS-RQ-275` | unaddressed | 0 | — |
-| `KF-SAS-RQ-276` | unaddressed | 0 | — |
+| `KF-SAS-RQ-254` | claimed | 0 | KF-WAR-0007 (complete) |
+| `KF-SAS-RQ-255` | claimed | 0 | KF-WAR-0007 (complete) |
+| `KF-SAS-RQ-256` | claimed | 0 | KF-WAR-0007 (complete) |
+| `KF-SAS-RQ-257` | claimed | 0 | KF-WAR-0007 (complete) |
+| `KF-SAS-RQ-258` | claimed | 0 | KF-WAR-0007 (complete) |
+| `KF-SAS-RQ-259` | claimed | 0 | KF-WAR-0007 (complete) |
+| `KF-SAS-RQ-260` | claimed | 0 | KF-WAR-0007 (complete) |
+| `KF-SAS-RQ-261` | claimed | 0 | KF-WAR-0007 (complete) |
+| `KF-SAS-RQ-262` | claimed | 0 | KF-WAR-0005 (complete) |
+| `KF-SAS-RQ-263` | claimed | 0 | KF-WAR-0004 (complete) |
+| `KF-SAS-RQ-264` | claimed | 0 | KF-WAR-0004 (complete) |
+| `KF-SAS-RQ-265` | claimed | 0 | KF-WAR-0004 (complete) |
+| `KF-SAS-RQ-266` | claimed | 0 | KF-WAR-0004 (partial), KF-WAR-0006 (partial) |
+| `KF-SAS-RQ-267` | claimed | 0 | KF-WAR-0005 (complete) |
+| `KF-SAS-RQ-268` | claimed | 0 | KF-WAR-0005 (complete) |
+| `KF-SAS-RQ-269` | claimed | 0 | KF-WAR-0005 (complete) |
+| `KF-SAS-RQ-270` | claimed | 0 | KF-WAR-0005 (complete) |
+| `KF-SAS-RQ-271` | claimed | 0 | KF-WAR-0006 (complete) |
+| `KF-SAS-RQ-272` | claimed | 0 | KF-WAR-0006 (complete) |
+| `KF-SAS-RQ-273` | claimed | 0 | KF-WAR-0005 (partial), KF-WAR-0006 (partial) |
+| `KF-SAS-RQ-274` | claimed | 0 | KF-WAR-0006 (complete) |
+| `KF-SAS-RQ-275` | claimed | 0 | KF-WAR-0007 (complete) |
+| `KF-SAS-RQ-276` | claimed | 0 | KF-WAR-0005 (complete) |
 
-## Warrants (1) — invalid 0 · draft 1 · ready_to_resolve 0 · would_satisfy 0 · resolved **0**
+## Warrants (9) — invalid 0 · draft 9 · ready_to_resolve 0 · would_satisfy 0 · resolved **0**
 
 | Warrant | rung | §38.6 | blocking unknowns | milestones evidenced | first unmet |
 |---|---|---|---|---|---|
-| `KF-WAR-0001` Commission the dogfood host: KF serves records from a machine that is not the workstation | draft | unknown | 0 | 0 of 5 | exact authorized Contract Revision |
+| `KF-WAR-0001` Commission the dogfood host: KF serves records from a machine that is not the workstation | draft | unknown | 0 | 0 of 6 | exact authorized Contract Revision |
+| `KF-WAR-0002` Close out the work in flight: land the host branches, pin the engine, re-propose the SAS | draft | unknown | 0 | 0 of 4 | exact authorized Contract Revision |
+| `KF-WAR-0003` Specify the experience: ADR 0040 and the SAS section that makes the UX decisions checkable | draft | unknown | 0 | 0 of 3 | exact authorized Contract Revision |
+| `KF-WAR-0004` Agents as colleagues: the KF MCP server, the verification policy and the Needs-you queue | draft | unknown | 0 | 0 of 3 | exact authorized Contract Revision |
+| `KF-WAR-0005` Scope is the product: roles as composable scope presets, the master document and the dashboard | draft | unknown | 0 | 0 of 3 | exact authorized Contract Revision |
+| `KF-WAR-0006` The agent at home: in-app chat over the context source, routed by classification, and notifications | draft | unknown | 0 | 0 of 4 | exact authorized Contract Revision |
+| `KF-WAR-0007` Joining: build qualification (ADR 0038), Start Here, the invite and the first warrant | draft | unknown | 0 | 0 of 4 | exact authorized Contract Revision |
+| `KF-WAR-0008` The owner's correctness and user pass on the hosted instance, and the fixes it finds | draft | unknown | 0 | 0 of 2 | exact authorized Contract Revision |
+| `KF-WAR-0009` v1.0: meet every ADR 0004 criterion and cut the tag | draft | unknown | 0 | 0 of 3 | exact authorized Contract Revision |
 
 ## Not reported here
 

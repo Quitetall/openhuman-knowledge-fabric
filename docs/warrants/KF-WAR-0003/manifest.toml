@@ -1,0 +1,64 @@
+# A Warrant is the contract for ONE bounded intervention inside a program,
+# and it traces to that program's SAS through [[implements]] and [[roadmap]].
+# Starting a program? Write its SAS instead (SAS §6.10; docs/DEFINITIONS.md).
+schema = "oh.war/manifest/v1"
+uuid = "01a114e0-339c-7c52-b3e9-0fe9773b6c63"
+local_alias = "KF-WAR-0003"
+
+# Allocated only by Knowledge Fabric (SAS §12.4). Leave empty.
+enterprise_id = ""
+
+title = "Specify the experience: ADR 0040 and the SAS section that makes the UX decisions checkable"
+profile = "delivery"
+assurance_level = "basic"
+
+# Milestone M1 of docs/ROADMAP.md: write the experience down as a decision and as requirements,
+# so M2-M5 have something to implement and a gate has something to check. Phase 10 is v1.0, and
+# everything before v1.0 that the §98 ladder has no number for is a slug under it (SAS §100.24).
+[[roadmap]]
+ref = "roadmap://KF-PHASE-10/m1-experience-spec"
+
+# ADR 0040 records the decisions with options rejected and how we will know.
+[[implements]]
+ref = "sas://KF-SAS-RQ-182"
+contribution = "partial"
+
+# The UX requirements are appended to §106; nothing is renumbered.
+[[implements]]
+ref = "sas://KF-SAS-RQ-183"
+contribution = "partial"
+
+# Every unbuilt part of the experience is recorded in §100, not marked inline.
+[[implements]]
+ref = "sas://KF-SAS-RQ-018"
+contribution = "partial"
+
+[[atoms]]
+ordinal = 10
+role = "intent"
+path = "atoms/10-intent.md"
+required = true
+
+[[atoms]]
+ordinal = 20
+role = "basis"
+path = "atoms/20-basis.md"
+required = true
+
+[[atoms]]
+ordinal = 40
+role = "work_order"
+path = "atoms/40-work-order.md"
+required = true
+
+[[atoms]]
+ordinal = 45
+role = "milestones"
+path = "atoms/45-milestones.yaml"
+required = true
+
+[[atoms]]
+ordinal = 60
+role = "assurance"
+path = "atoms/60-assurance.md"
+required = true

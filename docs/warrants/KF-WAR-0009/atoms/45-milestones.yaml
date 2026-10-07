@@ -1,0 +1,54 @@
+schema: "oh.war/milestones/v1"
+
+milestones:
+  - id: "M1"
+    title: "Parity holds on the host and the owner has accepted cutover"
+    stage_refs: ["STAGE-001", "STAGE-002"]
+    obligation_refs: ["OBL-001"]
+
+  - id: "M2"
+    title: "The schema pack is current and signed, and every open gap is closed or accepted"
+    stage_refs: ["STAGE-003", "STAGE-004", "STAGE-005"]
+    obligation_refs: ["OBL-002", "OBL-003"]
+
+  - id: "M3"
+    title: "The host is commissioned and CI is green on the tagged commit"
+    depends_on: ["M1", "M2"]
+    stage_refs: ["STAGE-006", "STAGE-007"]
+    obligation_refs: ["OBL-004", "OBL-005"]
+
+stages:
+  - id: "STAGE-001"
+    title: "Compile the constitution twice and exercise the five lifecycle paths on the host"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-002"
+    title: "Owner accepts cutover"
+    executor_kind: "human"
+    responsibility_tier: "T4"
+
+  - id: "STAGE-003"
+    title: "Close the section 100 entries that are work, each with a test"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-004"
+    title: "Re-cut the schema pack and propose the SAS revision with every disposition"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-005"
+    title: "Owner signs the pack, accepts the revision, and settles independent verification"
+    executor_kind: "human"
+    responsibility_tier: "T4"
+
+  - id: "STAGE-006"
+    title: "Run the release commit through CI and confirm every job executed and passed"
+    executor_kind: "service"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-007"
+    title: "Owner cuts the tag and resolves the Phase 10 exit"
+    executor_kind: "human"
+    responsibility_tier: "T4"
