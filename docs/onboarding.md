@@ -37,7 +37,7 @@ independently. It is not a wiki and not a document store — it refuses writes i
 pnpm install
 cp .env.example .env
 set -a; . ./.env; set +a
-docker compose up -d          # PostgreSQL 18, MinIO, Keycloak
+docker compose up -d          # PostgreSQL 18, SeaweedFS, Keycloak
 DATABASE_URL="$DATABASE_OWNER_URL" pnpm db:migrate
 ```
 

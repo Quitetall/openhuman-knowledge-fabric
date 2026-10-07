@@ -1,0 +1,16 @@
+# The SeaweedFS release a host's kf-objects service runs (ADR 0039): the same release
+# docker-compose.yml pins by image digest (chrislusf/seaweedfs:4.48@sha256:4e61d15f…d4872d), as
+# the upstream release binary, pinned by the sha256 of the tarball AND of the `weed` inside it.
+# scripts/deploy/provision-host.sh downloads it, refuses either digest that differs, and installs
+# the binary root-owned at /usr/local/lib/kf-objects/weed. Sourced by that script: KEY=value only.
+#
+# Changing release: change docker-compose.yml's image and these together, from the release page's
+# own digests (https://github.com/seaweedfs/seaweedfs/releases/tag/<version>), and check the
+# binary's sha256 after extracting it.
+SEAWEEDFS_VERSION=4.48
+SEAWEEDFS_URL_amd64=https://github.com/seaweedfs/seaweedfs/releases/download/4.48/linux_amd64.tar.gz
+SEAWEEDFS_TARBALL_SHA256_amd64=4a7d108384d044d95212d1342cdda9533fa55842c1c9b41f606ca3c8a9561124
+SEAWEEDFS_WEED_SHA256_amd64=8c07a1ccc4ec058cd90989ac0533c30436832e41c63de2b26f37253d9f744c4d
+SEAWEEDFS_URL_arm64=https://github.com/seaweedfs/seaweedfs/releases/download/4.48/linux_arm64.tar.gz
+SEAWEEDFS_TARBALL_SHA256_arm64=557e92c38c5c7d180748eb8e2b2b45e426f8e5282a4caca8e098a90d09f03a07
+SEAWEEDFS_WEED_SHA256_arm64=d74fca27004ae3d29e5d77ef53b915043652ebd5b4605ac3c08510c1fb7696b5

@@ -33,6 +33,14 @@ export { InMemoryObjectStore } from './internal/memory-store.js';
 
 export class S3ObjectStore implements ObjectStore {
   readonly #client: S3Client;
+  /**
+   * Signs upload URLs only. Since @aws-sdk/client-s3 3.729 a client computes a CRC32 of every
+   * request body by default, and for a PRESIGNED PutObject there is no body yet: it signs the
+   * checksum of nothing (`x-amz-checksum-crc32=AAAAAA==`) into the URL, and a store that checks
+   * it refuses every real upload with BadDigest. MinIO ignored the parameter; SeaweedFS, like AWS,
+   * enforces it. Checksums stay on for the requests this process sends with their bodies.
+   */
+  readonly #presigner: S3Client;
   readonly #bucket: string;
   readonly #conditionalCreate: boolean;
 
@@ -47,13 +55,14 @@ export class S3ObjectStore implements ObjectStore {
       forcePathStyle: config.forcePathStyle ?? true,
     };
     this.#client = new S3Client(options);
+    this.#presigner = new S3Client({ ...options, requestChecksumCalculation: 'WHEN_REQUIRED' });
     this.#bucket = config.bucket;
     this.#conditionalCreate = config.conditionalCreate ?? true;
   }
 
   async presignPut(key: string, mediaType: string, expiresInSeconds: number): Promise<string> {
     return getSignedUrl(
-      this.#client,
+      this.#presigner,
       new PutObjectCommand({ Bucket: this.#bucket, Key: key, ContentType: mediaType }),
       { expiresIn: expiresInSeconds },
     );

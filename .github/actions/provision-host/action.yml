@@ -185,39 +185,27 @@ runs:
           esac
         done
 
-    # THE OBJECT STORE THE PRESERVATION DRILL RESTORES INTO, which no registry serves any more.
-    # tests/database/warrant-preservation.test.ts stops a real MinIO, copies its /data, and
-    # reconnects the restored records to a new one. It pinned MinIO's upstream images by digest,
-    # and MinIO has archived its community edition: Docker Hub answers 404, Quay has no such
-    # manifest and dl.min.io answers 410. A workstation that had pulled them kept passing; a
-    # clean runner failed both tests with "unauthorized: access to the requested resource is
-    # not authorized" (run 36081852155). tests/fixtures/minio-image/build.sh builds the same
-    # releases from their pinned source commits; the saved images are cached by the hash of
-    # that directory, so the ~2 minute build is paid once per change to it.
-    - name: Restore the fixture object-store images
-      id: fixture-images
-      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-      with:
-        path: ~/.cache/kf-fixture-images
-        key: kf-fixture-images-${{ runner.os }}-${{ hashFiles('tests/fixtures/minio-image/**') }}
-
-    - name: Build the fixture object-store images from source
+    # THE OBJECT STORE: SeaweedFS (ADR 0039), the image docker-compose.yml pins by release and
+    # digest. tests/database/warrant-preservation.test.ts stops a real store, copies its /data and
+    # reconnects restored records to a new one, and tests/database/object-store-versioning.test.ts
+    # checks versioning against it; both run the compose service's image and arguments
+    # (tests/database/preservation-object-store.ts). Read from docker-compose.yml, never copied
+    # here, so CI cannot test one store while the stack runs another. Until 2026-10 this step
+    # built the previous store from source, because its images had been deleted from every
+    # registry.
+    - name: Pull the pinned object store
       shell: bash
-      env:
-        CACHED: ${{ steps.fixture-images.outputs.cache-hit }}
       run: |
         set -euo pipefail
-        archive="${HOME}/.cache/kf-fixture-images/minio-images.tar"
-        if [ "${CACHED}" = 'true' ]; then
-          docker load --input "${archive}"
-        fi
-        # Builds only what is missing, so a cache hit builds nothing and a miss builds both,
-        # then saves them for the cache to keep. The script owns the image tags.
-        if [ "${CACHED}" = 'true' ]; then
-          tests/fixtures/minio-image/build.sh
-        else
-          tests/fixtures/minio-image/build.sh --save "${archive}"
-        fi
+        image="$(awk '/^  seaweedfs:$/ { found = 1; next }
+          found && /^    image: / { print $2; exit }
+          found && /^  [^ ]/ { exit }' docker-compose.yml)"
+        case "${image}" in
+          *@sha256:*) ;;
+          *) echo "::error::docker-compose.yml's seaweedfs image is not pinned by digest: '${image}'"; exit 1 ;;
+        esac
+        docker pull --quiet "${image}"
+        docker run --rm --entrypoint weed "${image}" version
 
     # THE FOURTH THING THE HOST CONTRACT ASKS FOR, and the last one this runner was missing.
     # `docs/deployment/private-host.md`: "Install a Node.js version allowed by package.json

@@ -1,0 +1,45 @@
+[Unit]
+Description=The working object store: SeaweedFS's S3 gateway on loopback (ADR 0039)
+Documentation=file:///opt/kf/docs/decisions/0039-the-first-host-is-a-vps-on-a-tailnet-with-seaweedfs-and-b2.md
+After=network-online.target local-fs.target
+# A store that keeps failing to start stops being restarted, and its failure reaches a person.
+StartLimitIntervalSec=30min
+StartLimitBurst=5
+OnFailure=kf-alert@%n.service
+
+[Service]
+Type=simple
+# Its own identity, which owns the store's data and nothing else. Every byte and every filer
+# record is under /var/lib/kf-objects, which is what a backup or a restore of the store copies.
+User=kf-objects
+Group=kf-objects
+# The binary provision-host.sh installed after checking its sha256
+# (/opt/kf/deploy/object-store/seaweedfs.release). Master, volume server, filer and S3 gateway in
+# one process, all on loopback: only the S3 port is meant to be reached, by the services on this
+# host. Identities come from the file (-s3.config) and nothing else (-s3.iam=false).
+ExecStartPre=/usr/bin/test -s /etc/kf/objects/identities.json
+ExecStart=/usr/local/lib/kf-objects/weed -logtostderr=true server -dir=/var/lib/kf-objects -ip=127.0.0.1 -ip.bind=127.0.0.1 -volume.max=0 -master.volumeSizeLimitMB=1024 -s3 -s3.port=8333 -s3.config=/etc/kf/objects/identities.json -s3.iam=false
+# Started means able to serve what it holds: the master must know every volume on disk, or reads
+# answer InternalError for the first seconds after a start.
+ExecStartPost=/opt/kf/deploy/object-store/ready.sh --wait 120 /var/lib/kf-objects
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=180
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/kf-objects
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+SystemCallArchitectures=native
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

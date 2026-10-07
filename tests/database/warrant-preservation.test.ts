@@ -15,13 +15,13 @@ import {
   PRESERVATION_IMPORT_TARGETS,
 } from '@kf/export';
 import { bindContext, createObject, seedFixtures, startHarness, type Harness } from './harness.js';
-import { PreservationMinio } from './preservation-minio.js';
+import { PreservationObjectStore } from './preservation-object-store.js';
 
 // Shared scope: OpenWarrant OW-WAR-0111. These are disposable fixture identities,
 // never signatures or assurance claims over an actual project Warrant.
 async function preservesArchive(fixture: string) {
   const source = await startHarness();
-  const storage = new PreservationMinio();
+  const storage = new PreservationObjectStore(['preserved']);
   let sourceStopped = false;
   let restored: Harness | undefined;
   try {
@@ -316,7 +316,7 @@ async function preservesArchive(fixture: string) {
       producing_attempt: 'preservation-1',
       contract_digest: sourceContractDigest,
       input_digests: [contentDigest],
-      tool_identity: 'OW111 real MinIO fixture',
+      tool_identity: 'OW111 real object-store fixture',
       creation_method: 'generated',
       content_digest: contentDigest,
       media_type: 'application/octet-stream',
@@ -470,13 +470,7 @@ async function preservesArchive(fixture: string) {
     await expect(verifyRecordedVersion(objectRestored.store, version)).resolves.toEqual({
       ok: true,
     });
-    await storage.client(
-      objectRestored.id,
-      'rm',
-      '--version-id',
-      stored.versionId ?? '',
-      `fixture/preserved/${key}`,
-    );
+    await storage.deleteVersion(objectRestored.id, 'preserved', key, stored.versionId ?? '');
     await expect(verifyRecordedVersion(objectRestored.store, version)).resolves.toMatchObject({
       ok: false,
       failure: 'not_uploaded',

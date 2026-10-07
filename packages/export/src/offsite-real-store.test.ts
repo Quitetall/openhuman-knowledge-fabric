@@ -19,18 +19,17 @@
  * exposes for tests points the SDK at the local server instead. Everything above the HTTP
  * client is the code a host runs.
  *
- * ONE ANSWER IS SUBSTITUTED, and only one. The adapter refuses a bucket whose ACL is not a single
- * FULL_CONTROL grant to its owner, and the MinIO test double answers GetBucketAcl with an empty
- * owner id: a stub, not a policy. So GetBucketAcl alone is answered here as an owner-only bucket
- * answers it; every other request, versioning included, reaches the real store. When the
- * SeaweedFS endpoint replaces MinIO (ADR 0039), check whether this substitution is still needed.
+ * NOTHING IS SUBSTITUTED. The adapter refuses a bucket whose ACL is not a single FULL_CONTROL
+ * grant to its owner. The MinIO this once ran answered GetBucketAcl with an empty owner id, so
+ * that one answer was substituted here; SeaweedFS (ADR 0039) answers with the real owner-only ACL,
+ * so every request, the ACL check included, now reaches the real store.
  */
 
 import { createHash, randomBytes } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { GetBucketAclCommand, S3Client } from '@aws-sdk/client-s3';
+import { S3Client } from '@aws-sdk/client-s3';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   BUCKETS,
@@ -73,15 +72,6 @@ function adapter(bucket: string, endpoint = s3.remoteEndpoint): B2ArchiveAdapter
         ...rest: unknown[]
       ) => {
         sent.push((command as object).constructor.name);
-        if (command instanceof GetBucketAclCommand) {
-          return {
-            $metadata: {},
-            Owner: { ID: 'owner' },
-            Grants: [
-              { Grantee: { Type: 'CanonicalUser', ID: 'owner' }, Permission: 'FULL_CONTROL' },
-            ],
-          };
-        }
         return send(command, ...rest);
       };
       return client;
@@ -129,6 +119,8 @@ async function pull(copy: OffsiteArchiveCopy, root: string): Promise<Buffer> {
 describe('the B2 transport against a real versioned store', () => {
   it('restores the recorded version after the key is overwritten and hidden by a delete marker', async () => {
     const { copy, bytes, root } = await publish();
+    // The owner-only ACL check ran against the real store, unsubstituted, and passed.
+    expect(sent).toContain('GetBucketAclCommand');
     expect(copy.sha256).toBe(sha256(bytes));
     await s3.overwrite(copy.bucket, copy.key, 'replaced by somebody holding the bucket key');
     await s3.deleteMarker(copy.bucket, copy.key);

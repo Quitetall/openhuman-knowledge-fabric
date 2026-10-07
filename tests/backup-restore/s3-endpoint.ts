@@ -2,11 +2,12 @@
  * A throwaway S3-compatible endpoint, with versioning and object lock, for the off-site copy and
  * the durable store tests (ADR 0039).
  *
- * It runs the locally built MinIO fixture image the preservation tests already use
- * (tests/fixtures/minio-image/build.sh), because that is the S3 test double this repository has
- * today. ADR 0039 replaces MinIO with SeaweedFS; when that lands, this file is the one place to
- * point at the new image — the tests above it speak S3 only, and need of the endpoint exactly
- * three things: versioned buckets, a bucket with object lock, and a bucket without.
+ * It is the working object store the stack runs, SeaweedFS, started exactly as docker-compose.yml
+ * starts it (tests/database/preservation-object-store.ts reads the image digest and arguments
+ * from there), with its buckets made by deploy/object-store/init-buckets.sh, which refuses to
+ * finish unless each reads back versioning Enabled. Until 2026-10 this ran MinIO images built
+ * from source. The tests above it speak S3 only, and need of the endpoint exactly three things:
+ * versioned buckets, a bucket with object lock, and a bucket without versioning.
  *
  * Two addresses are offered, because "is this endpoint this host?" is a property under test:
  *   `remoteEndpoint`   the container's own address on its Docker network — not an address of any
@@ -18,23 +19,13 @@
  * served by GetObject: a destination that answers with bytes other than the ones it was given.
  */
 
-import { execFile } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { createServer, request, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { randomUUID } from 'node:crypto';
+import { chmodSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setTimeout as sleep } from 'node:timers/promises';
-import { promisify } from 'node:util';
+import { PreservationObjectStore } from '../database/preservation-object-store.js';
 
-const exec = promisify(execFile);
-const IMAGE = 'kf-fixture/minio:RELEASE.2025-09-07T16-13-09Z';
-const CLIENT = 'kf-fixture/mc:RELEASE.2025-08-13T08-35-41Z';
-const BUILD = 'tests/fixtures/minio-image/build.sh';
-// Public fixture credentials, used only inside this throwaway container.
-const ACCESS = 'kf-offsite-fixture';
-const SECRET = 'kf-offsite-disposable-not-a-secret';
 export const REGION = 'us-west-004';
 
 /** Buckets every endpoint starts with. */
@@ -49,10 +40,6 @@ export const BUCKETS = {
   working: 'kf-artifacts',
   durable: 'kf-artifacts-durable',
 } as const;
-
-async function docker(...args: string[]): Promise<string> {
-  return (await exec('docker', args, { timeout: 120_000, maxBuffer: 1024 * 1024 })).stdout.trim();
-}
 
 export interface S3Endpoint {
   readonly remoteEndpoint: string;
@@ -73,83 +60,47 @@ export interface S3Endpoint {
 }
 
 export async function startS3Endpoint(): Promise<S3Endpoint> {
-  for (const image of [IMAGE, CLIENT]) {
-    await docker('image', 'inspect', '--format', '{{.Id}}', image).catch(() => {
-      throw new Error(`fixture image ${image} is not built on this host; run ${BUILD}`);
-    });
-  }
-  const id = await docker(
-    'run',
-    '--detach',
-    '--rm',
-    '--name',
-    `kf-offsite-${randomUUID()}`,
-    '--publish',
-    '127.0.0.1::9000',
-    '--env',
-    `MINIO_ROOT_USER=${ACCESS}`,
-    '--env',
-    `MINIO_ROOT_PASSWORD=${SECRET}`,
-    '--env',
-    `MINIO_REGION=${REGION}`,
-    IMAGE,
-    'server',
-    '/data',
+  // Versioned through init-buckets.sh, which reads each one back as Enabled.
+  const fixture = new PreservationObjectStore(
+    [BUCKETS.plain, BUCKETS.working, BUCKETS.durable],
+    [],
+    REGION,
   );
   const proxies: Server[] = [];
   try {
-    const address = await docker(
-      'inspect',
-      '--format',
-      '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}',
-      id,
-    );
-    const remoteEndpoint = `http://${address}:9000`;
-    const loopbackEndpoint = `http://${await docker('port', id, '9000/tcp')}`;
-    const deadline = Date.now() + 45_000;
-    for (;;) {
-      try {
-        const response = await fetch(`${remoteEndpoint}/minio/health/live`, {
-          signal: AbortSignal.timeout(1000),
-        });
-        await response.body?.cancel();
-        if (response.ok) break;
-      } catch {
-        /* not listening yet */
+    const { id, endpoint: loopbackEndpoint } = await fixture.start();
+    const remoteEndpoint = await fixture.containerEndpoint(id);
+    const { accessKeyId, secretAccessKey } = fixture.credentials(remoteEndpoint);
+    // The store tampered with directly, as somebody holding its keys would, not through the code
+    // under test: signed requests from inside the store's network.
+    const s3 = async (
+      what: string,
+      expected: number,
+      ...args: Parameters<PreservationObjectStore['request']> extends [string, ...infer Rest]
+        ? Rest
+        : never
+    ): Promise<void> => {
+      const answer = await fixture.request(id, ...args);
+      if (answer.status !== expected) {
+        throw new Error(`${what}: HTTP ${String(answer.status)} ${answer.body.slice(0, 300)}`);
       }
-      if (Date.now() >= deadline) throw new Error('fixture S3 endpoint did not become ready');
-      await sleep(200);
-    }
-    // The store's own client, inside the container's network namespace: the test tampers with
-    // the store directly, as somebody holding its keys would, and not through the code under test.
-    const mc = async (...args: string[]): Promise<string> =>
-      docker(
-        'run',
-        '--rm',
-        '--network',
-        `container:${id}`,
-        '--env',
-        `MC_HOST_fixture=http://${ACCESS}:${SECRET}@127.0.0.1:9000`,
-        CLIENT,
-        ...args,
-      );
-    await mc('mb', '--region', REGION, '--with-lock', `fixture/${BUCKETS.locked}`);
-    for (const bucket of [BUCKETS.plain, BUCKETS.working, BUCKETS.durable]) {
-      await mc('mb', '--region', REGION, `fixture/${bucket}`);
-      await mc('version', 'enable', `fixture/${bucket}`);
-    }
-    await mc('mb', '--region', REGION, `fixture/${BUCKETS.unversioned}`);
+    };
+    // Object lock is a property of a bucket at creation, and turns versioning on with it.
+    await s3(`create ${BUCKETS.locked}`, 200, 'PUT', BUCKETS.locked, undefined, {
+      'x-amz-bucket-object-lock-enabled': 'true',
+    });
+    await s3(`create ${BUCKETS.unversioned}`, 200, 'PUT', BUCKETS.unversioned);
 
     return {
       remoteEndpoint,
       loopbackEndpoint,
-      accessKeyId: ACCESS,
-      secretAccessKey: SECRET,
+      accessKeyId,
+      secretAccessKey,
       credentialFiles(directory) {
         const keyId = join(directory, `key-id-${randomUUID()}`);
         const secret = join(directory, `application-key-${randomUUID()}`);
-        writeFileSync(keyId, `${ACCESS}\n`, { mode: 0o600 });
-        writeFileSync(secret, `${SECRET}\n`, { mode: 0o600 });
+        writeFileSync(keyId, `${accessKeyId}\n`, { mode: 0o600 });
+        writeFileSync(secret, `${secretAccessKey}\n`, { mode: 0o600 });
         chmodSync(keyId, 0o600);
         chmodSync(secret, 0o600);
         return { keyId, secret };
@@ -196,43 +147,21 @@ export async function startS3Endpoint(): Promise<S3Endpoint> {
         };
       },
       async overwrite(bucket, key, body) {
-        // The client image has no shell, so the new body goes in as a mounted file.
-        const directory = mkdtempSync(join(tmpdir(), 'kf-s3-overwrite-'));
-        const file = join(directory, 'body');
-        writeFileSync(file, body, { mode: 0o644 });
-        try {
-          await docker(
-            'run',
-            '--rm',
-            '--network',
-            `container:${id}`,
-            '--volume',
-            `${file}:/body:ro`,
-            '--env',
-            `MC_HOST_fixture=http://${ACCESS}:${SECRET}@127.0.0.1:9000`,
-            CLIENT,
-            'cp',
-            '--quiet',
-            '/body',
-            `fixture/${bucket}/${key}`,
-          );
-        } finally {
-          rmSync(directory, { recursive: true, force: true });
-        }
+        await s3(`overwrite ${bucket}/${key}`, 200, 'PUT', `${bucket}/${key}`, body);
       },
       async deleteVersion(bucket, key, versionId) {
-        await mc('rm', '--version-id', versionId, `fixture/${bucket}/${key}`);
+        await fixture.deleteVersion(id, bucket, key, versionId);
       },
       async deleteMarker(bucket, key) {
-        await mc('rm', `fixture/${bucket}/${key}`);
+        await s3(`delete marker on ${bucket}/${key}`, 204, 'DELETE', `${bucket}/${key}`);
       },
       async stop() {
         for (const server of proxies) server.close();
-        await docker('rm', '--force', id);
+        await fixture.stop();
       },
     };
   } catch (error: unknown) {
-    await docker('rm', '--force', id).catch(() => undefined);
+    await fixture.stop().catch(() => undefined);
     throw error;
   }
 }
