@@ -1,0 +1,1 @@
+atoms/KF-ADR-0039-the-first-host-is-a-vps-on-a-tailnet-with-seaweedfs-and-b2.md

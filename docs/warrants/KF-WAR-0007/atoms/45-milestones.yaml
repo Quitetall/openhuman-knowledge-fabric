@@ -1,0 +1,65 @@
+schema: "oh.war/milestones/v1"
+
+milestones:
+  - id: "M1"
+    title: "Packs and records exist as types, with acts, a validator and computed currency"
+    stage_refs: ["STAGE-001", "STAGE-002", "STAGE-003"]
+    obligation_refs: ["OBL-001", "OBL-002"]
+
+  - id: "M2"
+    title: "An action can require a qualification, and the database refuses naming what is missing"
+    depends_on: ["M1"]
+    stage_refs: ["STAGE-004"]
+    obligation_refs: ["OBL-003"]
+
+  - id: "M3"
+    title: "A Veracier persona goes from invite to an accepted first contribution, guided"
+    depends_on: ["M2"]
+    stage_refs: ["STAGE-005", "STAGE-006", "STAGE-007"]
+    obligation_refs: ["OBL-004", "OBL-005"]
+
+  - id: "M4"
+    title: "The owner has approved the packs and signed the re-cut schema pack"
+    depends_on: ["M3"]
+    stage_refs: ["STAGE-008"]
+
+stages:
+  - id: "STAGE-001"
+    title: "Declare qualification_pack, qualification_record, their machine and five acts in the ontology"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-002"
+    title: "Migrate the types with evidence modes, same-act crediting and confidentiality"
+    executor_kind: "agent"
+    responsibility_tier: "T3"
+
+  - id: "STAGE-003"
+    title: "Build the pack validator and computed currency"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-004"
+    title: "Add requires_qualification as a database-checked action precondition"
+    executor_kind: "agent"
+    responsibility_tier: "T3"
+
+  - id: "STAGE-005"
+    title: "Build Start Here as a projection, the invite flow and the agent guide"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-006"
+    title: "Write the Veracier CEO and aero-engineer packs and the first warrant"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-007"
+    title: "Turn ADR 0038's test table into planted tests and run them"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-008"
+    title: "Owner approves packs, signs the schema pack, creates the first real invitees"
+    executor_kind: "human"
+    responsibility_tier: "T4"

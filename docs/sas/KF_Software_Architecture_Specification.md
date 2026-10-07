@@ -4224,7 +4224,7 @@ product.
 tooling that reads them caps a phase number at 10. A twelfth objective — a data-primitives phase,
 for instance — cannot be added without restructuring the ladder. Recorded rather than worked
 around, because renumbering objectives would break every reference to them. Since
-`0.1.0-draft.9` the work after the ladder is scheduled by the roadmap, docs/ROADMAP.md, and the
+`0.1.0-draft.9` the work after the ladder is scheduled by the roadmap, `docs/ROADMAP.md`, and the
 Warrant it names for each milestone, not by a phase; §100.24 says why that is the workaround and
 not a fix.
 
@@ -4316,7 +4316,7 @@ ladder is not merely full: nothing after v1.0 has a number, including the retrie
 Renumbering would cost every existing reference and buy one slot. Supersedes the narrower reading in
 §100.17, which described this as a twelfth objective being unaddable. Accepted as a limit in
 `0.1.0-draft.9`: work after v1.0, and the milestones that lead to it, is scheduled by the roadmap,
-docs/ROADMAP.md, and its Warrants (KF-WAR-0002 onward), each Warrant's obligations citing the
+`docs/ROADMAP.md`, and its Warrants (KF-WAR-0002 onward), each Warrant's obligations citing the
 requirements here. A Warrant needs no phase number, so nothing waits on the cap; what the ladder
 loses is only a phase-level objective for that work, and the roadmap states the order instead.
 

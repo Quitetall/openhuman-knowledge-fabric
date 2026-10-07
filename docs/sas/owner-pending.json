@@ -37,6 +37,15 @@
       "review_by": "2026-10-31",
       "pending_on": "Brian Lam",
       "reason": "0.1.0-draft.7 is recorded as accepted in its revision file, and no signed oh.war/sas-acceptance-response/v1 exists under docs/authority/responses/. Signing is the owner's act (`war sign SAS-0.1.0-draft.7 --ssh-sign`); no agent performs it, so the finding stays visible here until the owner signs or withdraws the acceptance."
+    },
+    {
+      "subject": "SAS-0.1.0-draft.8",
+      "rule": "authority.actor-not-human",
+      "file": "docs/sas/revisions/0.1.0-draft.8.toml",
+      "recorded": "2026-10-07",
+      "review_by": "2026-10-31",
+      "pending_on": "Brian Lam",
+      "reason": "0.1.0-draft.8 was accepted by the owner with `war sign` at a terminal on 2026-09-27, but docs/authority/roles.toml gives Brian Lam no `ssh_principal`, so the signature cannot be tied to a human actor. Adding ssh_principal and a matching docs/authority/allowed_signers line, and re-signing with `war sign 0.1.0-draft.8 --ssh-sign`, are the owner's acts; both files are human-written by policy, so no agent performs them, and the finding stays visible here until he does."
     }
   ]
 }

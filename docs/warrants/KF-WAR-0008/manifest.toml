@@ -1,0 +1,63 @@
+# A Warrant is the contract for ONE bounded intervention inside a program,
+# and it traces to that program's SAS through [[implements]] and [[roadmap]].
+# Starting a program? Write its SAS instead (SAS §6.10; docs/DEFINITIONS.md).
+schema = "oh.war/manifest/v1"
+uuid = "01a114e0-33a5-7322-8054-141d19584829"
+local_alias = "KF-WAR-0008"
+
+# Allocated only by Knowledge Fabric (SAS §12.4). Leave empty.
+enterprise_id = ""
+
+title = "The owner's correctness and user pass on the hosted instance, and the fixes it finds"
+profile = "delivery"
+assurance_level = "basic"
+
+# Milestone M7 of docs/ROADMAP.md. Run by the owner on the commissioned host; agents turn what
+# he finds into fixes recorded here.
+[[roadmap]]
+ref = "roadmap://KF-PHASE-10/m7-owner-pass"
+
+# Human and provider evidence is produced by a person on the host.
+[[implements]]
+ref = "sas://KF-SAS-RQ-171"
+contribution = "validation"
+
+# SAS §100.18: the two unmeasured latency bars include a person; measured on the host.
+[[implements]]
+ref = "sas://KF-SAS-RQ-201"
+contribution = "partial"
+
+# A real login against the real realm, by a person.
+[[implements]]
+ref = "sas://KF-SAS-RQ-049"
+contribution = "validation"
+
+[[atoms]]
+ordinal = 10
+role = "intent"
+path = "atoms/10-intent.md"
+required = true
+
+[[atoms]]
+ordinal = 20
+role = "basis"
+path = "atoms/20-basis.md"
+required = true
+
+[[atoms]]
+ordinal = 40
+role = "work_order"
+path = "atoms/40-work-order.md"
+required = true
+
+[[atoms]]
+ordinal = 45
+role = "milestones"
+path = "atoms/45-milestones.yaml"
+required = true
+
+[[atoms]]
+ordinal = 60
+role = "assurance"
+path = "atoms/60-assurance.md"
+required = true

@@ -1,35 +1,60 @@
 schema: "oh.war/milestones/v1"
 
-# Ordered by dependency, not by convenience. M5 is reached only after a reboot, because a
-# service that works in the install shell is not deployed.
+# Ordered by dependency, not by convenience. M6 is reached only after a reboot, because a
+# service that works in the install shell is not deployed. M0 was added when ADR 0039 chose a VPS:
+# the host has to exist, on the tailnet, before anything is commissioned on it.
 
 milestones:
+  - id: "M0"
+    title: "The VPS exists on the tailnet with SeaweedFS, tailnet TLS and the pinned engine, nothing public"
+    stage_refs: ["STAGE-008", "STAGE-009"]
+    obligation_refs: ["OBL-007", "OBL-008"]
+
   - id: "M1"
-    title: "Bytes survive a device failure: a second store on independent hardware, replicating and verifying on a timer"
+    title: "Bytes survive a device failure: a durable store in B2, replicating and verifying on a timer"
+    depends_on: ["M0"]
     stage_refs: ["STAGE-001", "STAGE-002"]
+    obligation_refs: ["OBL-001"]
 
   - id: "M2"
     title: "Every shipped unit and timer runs on the host under its own unprivileged account"
+    depends_on: ["M0"]
     stage_refs: ["STAGE-003"]
+    obligation_refs: ["OBL-002"]
 
   - id: "M3"
     title: "The audit chain is checkpointed by a process the API cannot reach the key of, evidenced on the host"
+    depends_on: ["M2"]
     stage_refs: ["STAGE-004"]
+    obligation_refs: ["OBL-003"]
 
   - id: "M4"
-    title: "A backup is verified where it landed, and a restore is proven with the shipped scripts"
+    title: "A backup is verified where it landed in B2, and a restore is proven with the shipped scripts"
+    depends_on: ["M2"]
     stage_refs: ["STAGE-005"]
+    obligation_refs: ["OBL-004"]
 
   - id: "M5"
     title: "kf-commissioning exits zero with nothing unverifiable, after a reboot"
+    depends_on: ["M1", "M3", "M4"]
     stage_refs: ["STAGE-006", "STAGE-007"]
+    obligation_refs: ["OBL-005", "OBL-006"]
 
 stages:
-  - id: "STAGE-001"
-    title: "Declare the durable store on /mnt/2tb and give the host a path to it"
+  - id: "STAGE-008"
+    title: "Owner rents the VPS, joins it to the tailnet, creates the B2 buckets and keys, grants SSH"
+    executor_kind: "human"
+    responsibility_tier: "T3"
+
+  - id: "STAGE-009"
+    title: "Provision the VPS: preflight, tailnet TLS, firewall, kf-objects, the pinned engine and CPU embedder"
     executor_kind: "service"
     responsibility_tier: "T2"
 
+  - id: "STAGE-001"
+    title: "Declare the durable store bound to its B2 bucket and give the host its credentials"
+    executor_kind: "service"
+    responsibility_tier: "T2"
   - id: "STAGE-002"
     title: "Schedule replication and verification as recorded acts, and prove a copy verifies"
     executor_kind: "service"

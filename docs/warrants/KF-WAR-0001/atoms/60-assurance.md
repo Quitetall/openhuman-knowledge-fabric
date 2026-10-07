@@ -18,8 +18,9 @@ produced on the workstation satisfies none of them.
 ### OBL-001 — bytes survive the loss of one device
 - **scope:** SAS KF-SAS-RQ-095, KF-SAS-RQ-097; SAS §100.4.
 - **gate:** `gate://kf.host.commissioning@1.0.0`
-- **evidence:** one artifact version with two `content.artifact_location` rows on different
-  physical devices, each carrying its own verified digest, written by recorded
+- **evidence:** one artifact version with two `content.artifact_location` rows, one in the
+  host's SeaweedFS working store and one in the B2 durable store, each carrying its own verified
+  digest, written by recorded
   `replicate_artifact_version` and `verify_artifact_location` acts. Then: remove the working
   copy and serve the bytes from the durable one. A location row that was never verified is not
   evidence, which is why the digest and not the row is the artifact.
@@ -61,6 +62,21 @@ produced on the workstation satisfies none of them.
   check can cover it. An earlier revision of the deployment contract claimed blanket coverage
   that was untrue of four items, which is the specific failure this obligation exists to prevent.
 
+### OBL-007 — nothing is published; people reach the host only over the tailnet
+- **scope:** ADR 0039 decision 2; KF-SAS-RQ-161, KF-SAS-RQ-168.
+- **gate:** `gate://kf.host.commissioning@1.0.0`
+- **evidence:** `reverse_proxy_posture` satisfied against nginx bound to the tailnet interface with
+  the `tailscale cert` certificate; and, outside the gate, a port scan of the VPS's public address
+  from off the tailnet showing nothing but the tailnet transport. The scan is the obligation; a
+  firewall rule only says what was intended.
+
+### OBL-008 — the working store keeps versions, and semantic search stays on the host
+- **scope:** ADR 0039 decisions 3 and 5; KF-SAS-RQ-090, KF-SAS-RQ-218.
+- **gate:** `gate://kf.host.commissioning@1.0.0`
+- **evidence:** every KF bucket in `kf-objects` reads back versioning `Enabled`; the running engine
+  reports the `26923afb` build and the pinned embedder identity; and the host's outbound traffic
+  during an ingest shows no embedding request leaving it.
+
 ## Gate Adequacy
 
 Required at `controlled` (§39.4).
@@ -74,7 +90,10 @@ so first, before its fault model. Every check can go green on a machine that die
 builder. Nothing visibly breaks. The Warrant resolves, criterion 3 of ADR 0004 is marked met, and
 the property that died is one nobody looks at until the workstation fails.
 
-That is why RR-001 is recorded as accepted residual risk rather than closed, and why OBL-001 is
+ADR 0039 moves the host to a rented VPS, so that blind spot no longer decides the outcome: the
+host does not share the builder's hardware. The gate still cannot tell, so the evidence must name
+the machine (the provider and instance), not only the checks. RR-001 is restated for the VPS, and
+OBL-001 is
 written as *serve the bytes from the durable copy after removing the working one* rather than
 *two location rows exist*. A row is a claim about storage; a served byte is storage.
 
@@ -105,11 +124,13 @@ properties, and claim nothing about the two that no gate can reach.
 
 ## Residual risk
 
-**RR-001 — this host runs on the workstation's hardware.** It is a separate operating system,
-kernel, service set and credential set, and it found five missing host requirements the first
-time it was qualified. It shares a power supply and a motherboard, so it cannot evidence
-availability under a hardware failure of the machine it runs on. Accepted for dogfood; it must
-not be cited as evidence of an availability property.
+**RR-001 — one rented machine, and two outside services.** This read "this host runs on the
+workstation's hardware" until ADR 0039 moved it to a VPS. The VPS is one machine at one provider:
+it evidences configuration properties and survives the workstation failing, not the provider's
+host failing. Reaching it depends on Tailscale and the off-site copies on Backblaze; ADR 0039
+records that losing the first loses access (the provider's console remains a way in) and losing
+the second loses the off-site copies, never the working data. Accepted for dogfood; it must not be
+cited as evidence of an availability property beyond one machine.
 
 **RR-002 — one person is technical authority, quality authority and accepting party.** ADR 0004
 records this and its consequence: a mistaken approval has no second reader. Unchanged by this
