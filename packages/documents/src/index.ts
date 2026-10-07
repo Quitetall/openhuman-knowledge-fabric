@@ -39,6 +39,20 @@ export {
 } from './master-record-reading.js';
 
 export { createDocumentActionAtoms } from './internal/action-atoms.js';
+export {
+  ORGANIZATION_OVERVIEW_ACTION_IDS,
+  ORGANIZATION_OVERVIEW_EFFECTS,
+  ORGANIZATION_OVERVIEW_FORMAT,
+  ORGANIZATION_OVERVIEW_MATERIALIZERS,
+  countPermitted,
+  overviewStatementText,
+  readOrganizationOverview,
+  type OrganizationOverviewReading,
+  type OverviewAnswer,
+  type OverviewReader,
+  type OverviewSection,
+  type OverviewStatement,
+} from './organization-overview.js';
 export { DOCUMENT_ACTION_IDS, type DocumentActionAtoms } from './internal/action-types.js';
 export {
   EVIDENCE_KEY_NAMESPACES,

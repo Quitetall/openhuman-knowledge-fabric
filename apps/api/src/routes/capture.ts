@@ -237,8 +237,10 @@ export function registerCaptureRoutes(app: FastifyInstance, options: CaptureRout
           basis: string | null;
           verified_at: Date | null;
           verified_by: string | null;
+          policy_id: string | null;
         }>(
-          `select o.lifecycle_state, v.basis, v.verified_at, v.verified_by::text as verified_by
+          `select o.lifecycle_state, v.basis, v.verified_at, v.verified_by::text as verified_by,
+                  v.policy_id::text as policy_id
              from core.object o
              left join core.object_verification v on v.object_id = o.id
             where o.id = $1`,
@@ -252,6 +254,7 @@ export function registerCaptureRoutes(app: FastifyInstance, options: CaptureRout
               basis: state.basis,
               verifiedAt: state.verified_at!,
               verifiedBy: state.verified_by!,
+              policyId: state.policy_id,
             };
       return reply.code(result.replayed ? 200 : 201).send({
         observationId,

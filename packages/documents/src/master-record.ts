@@ -25,7 +25,9 @@ export interface PermissionMember {
   readonly verified?: {
     readonly at: string;
     readonly by: string;
-    readonly basis: 'reviewed_individually' | 'promoted_in_bulk';
+    readonly basis: 'reviewed_individually' | 'promoted_in_bulk' | 'verified_by_policy';
+    /** The verification policy that verified it (basis `verified_by_policy` only; ADR 0040). */
+    readonly policyId?: string;
   };
   /** Present only for members carried forward from a prior compilation after withdrawal. */
   readonly withdrawnAt?: string;

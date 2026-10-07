@@ -142,3 +142,19 @@ to exercise redirects, PKCE, encrypted session, context validation, access denia
 boundaries. That is browser proof of web behavior, not proof against real Keycloak. Real-provider
 qualification remains blocked until those operator-owned records exist and TLS hostnames are
 available.
+
+## The experience (ADR 0040, milestone M3)
+
+- `/` is the dashboard for a signed-in person: the panels of `GET /dashboard`, in its declared
+  layout order, each scoped by the reader's grants; a panel the API marks empty is not rendered.
+  Nothing in the page branches on a role or title. Needs you is a separated slot
+  (`src/app/components/needs-you-slot.tsx`) holding KF-WAR-0004's (M2) panel, filled from
+  `GET /needs-you`; it renders nothing, and collapses, when nothing waits on the reader. A
+  gesture there returns to `/`, which shows its outcome. `/needs-you` is the same panel alone.
+  A signed-out visitor sees how to sign in and the status report, which is also at `/status`.
+- `/master-document` reads `GET /master-document`: the compiled claim by record type, paged with
+  the `next` cursor, the living organization overview first when the reader's grants reach it.
+  "Compile now" is the act `POST /master-record/compile`, with one idempotency key per render.
+- The density switch (`kf_density` cookie, `data-density` on `<html>`) is presentation only.
+- `e2e/experience.test.mjs` holds the layout, the collapse of empty panels, presentation-only
+  density and phone width (390 px) in a real browser.

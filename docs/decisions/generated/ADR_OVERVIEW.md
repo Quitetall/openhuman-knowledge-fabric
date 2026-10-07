@@ -2935,6 +2935,33 @@ answered
 > rule covers that action and the object's type, and fails when the person created the record
 > (`deniedBy: 'separation_of_duty'`). For `read` the principal-kind step passes: a service actor
 > reads like anyone.
+>
+> **UPDATED 2026-10-07 — proposed; the owner's acceptance is owed (KF-WAR-0005 STAGE-007).** The
+> view has a fifth source. A role is a composable preset of scope ([ADR 0040](KF-ADR-0040-the-experience-scope-is-the-product.md)
+> decision 4, KF-SAS-RQ-269): `org.role_preset_grant` holds what holding a role in an organization
+> grants — a capability at a scope object, the scope an access grant has, with an optional ceiling
+> — and `org.role_inclusion` lets one role include another, a directed acyclic graph the database
+> keeps acyclic (`20261007200000`). `org.effective_access_grant` presents, as source `role_preset`,
+> every template of every role reachable from each live, active, organization-scoped assignment,
+> one row per person, capability and scope (KF-SAS-RQ-040), with the role path in a new last
+> column `role_path`; the permitted set, every read surface and `org.act_grant_reaches` read it
+> unchanged, and the explanation's grant-coverage step names the path (KF-SAS-RQ-270). The four
+> acts that change a preset are institutional and must target the organization. Inclusion composes
+> scope only: it confers no authority (`org.holds_role` is unchanged) and no delegation (ADR 0036),
+> and the session ceiling stays the clearance.
+>
+> The preset is **recomputed on read, not materialized** into `org.access_grant`. Measured on a
+> workstation against the multi fixture's EnterpriseRAG-Bench organization (50 311 records),
+> through the real paths (`scripts/scope-preset-cost.mjs`), 2 000 templates at the end of a
+> three-role inclusion chain against the same 2 000 documents granted directly: the coverage read
+> costs 14.5 ms (recomputed) and 14.6 ms (materialized) at the median; `GET /dashboard` and
+> `GET /master-document` answer in 150–260 ms and 125–180 ms at the median either way. The write
+> decides it: a template is one act for every holder (9.6 ms each), where materializing costs one
+> act per holder per template (3.9 ms each) on every preset change, and a materialized grant to a
+> person who already holds a direct grant on the same scope collides on `access_grant_no_overlap`.
+> One finding: right after a bulk change, before `org.role_preset_grant` has statistics, the
+> planner joined every assignment envelope to every template (80 ms per read); autovacuum's analyze
+> restores the 14 ms plan.
 
 ## The problem, measured
 

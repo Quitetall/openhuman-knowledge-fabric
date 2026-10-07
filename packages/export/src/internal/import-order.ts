@@ -22,7 +22,11 @@ export const IMPORT_ORDER = [
   'legacy-action-provenance',
   'relations',
   'approvals',
+  // A policy verification names its policy by foreign key; a resolution names its proposal.
+  'verification-policies',
   'object-verifications',
+  'act-proposals',
+  'act-proposal-resolutions',
   'access-demand',
   'snapshots',
   'audit-events',
@@ -31,6 +35,9 @@ export const IMPORT_ORDER = [
   'retention-holds',
   'person-entitlement-exclusions',
   'access-grants',
+  // After the roles they name and the acts that defined them (ADR 0040).
+  'role-preset-grants',
+  'role-inclusions',
   'artifacts',
   'artifact-versions',
   'artifact-stores',

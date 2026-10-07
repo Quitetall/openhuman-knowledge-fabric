@@ -2,7 +2,7 @@
   "schema_version": "1.2.0-draft.1",
   "x-generated-from": {
     "ontology_version": "1.2.0-draft.1",
-    "source_digest": "acea0b4f8ca21738e4b6de0bf1e7382b76f39d11cc8ac745ab6a25e9e3166e94"
+    "source_digest": "2207b744b57d3c9fc6174f50762c0d854824e14ec8cfd9fe0f6f408887706e5a"
   },
   "projection_definitions": [
     {
@@ -159,6 +159,150 @@
       "budgets": {
         "maxMembers": 5000,
         "maxRuntimeMs": 1000
+      }
+    },
+    {
+      "id": "organization_overview",
+      "title": "Organization overview",
+      "version": 1,
+      "anchor": "person",
+      "parameters": [],
+      "filter": {
+        "objectTypes": [
+          "organization",
+          "organization_overview",
+          "initiative_project",
+          "engagement",
+          "work_package",
+          "work_order",
+          "milestone",
+          "deliverable",
+          "decision_record",
+          "change_record",
+          "risk",
+          "nonconformity",
+          "capa",
+          "complaint",
+          "product_system",
+          "requirement",
+          "release",
+          "baseline",
+          "supplier",
+          "configuration_item",
+          "controlled_document",
+          "person",
+          "role_assignment"
+        ]
+      },
+      "sections": [
+        {
+          "id": "organization",
+          "title": "The organization",
+          "select": "all",
+          "filter": {
+            "objectTypes": [
+              "organization",
+              "organization_overview"
+            ]
+          }
+        },
+        {
+          "id": "projects",
+          "title": "Projects and engagements",
+          "select": "all",
+          "filter": {
+            "objectTypes": [
+              "initiative_project",
+              "engagement"
+            ]
+          }
+        },
+        {
+          "id": "work",
+          "title": "Work under way",
+          "select": "all",
+          "filter": {
+            "objectTypes": [
+              "work_package",
+              "work_order",
+              "milestone",
+              "deliverable"
+            ]
+          }
+        },
+        {
+          "id": "decisions",
+          "title": "Decisions and changes",
+          "select": "all",
+          "filter": {
+            "objectTypes": [
+              "decision_record",
+              "change_record"
+            ]
+          }
+        },
+        {
+          "id": "risks",
+          "title": "Risks and quality",
+          "select": "all",
+          "filter": {
+            "objectTypes": [
+              "risk",
+              "nonconformity",
+              "capa",
+              "complaint"
+            ]
+          }
+        },
+        {
+          "id": "products",
+          "title": "Products",
+          "select": "all",
+          "filter": {
+            "objectTypes": [
+              "product_system",
+              "requirement",
+              "release",
+              "baseline",
+              "supplier",
+              "configuration_item"
+            ]
+          }
+        },
+        {
+          "id": "documents",
+          "title": "Controlled documents",
+          "select": "all",
+          "filter": {
+            "objectTypes": [
+              "controlled_document"
+            ]
+          }
+        },
+        {
+          "id": "people",
+          "title": "Who does what",
+          "select": "all",
+          "filter": {
+            "objectTypes": [
+              "person",
+              "role_assignment"
+            ]
+          }
+        }
+      ],
+      "remainder": {
+        "id": "other",
+        "title": "Other records"
+      },
+      "sort": [
+        "object_type",
+        "title",
+        "object_id"
+      ],
+      "budgets": {
+        "maxMembers": 20000,
+        "maxRuntimeMs": 2000
       }
     }
   ]

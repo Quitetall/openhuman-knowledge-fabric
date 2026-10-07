@@ -104,6 +104,7 @@ beforeAll(async () => {
     objectType: string,
     actionType: string,
     payload: Readonly<Record<string, unknown>>,
+    targetIds: readonly string[] = [],
   ): Promise<string> => {
     const result = await execute({
       actionType,
@@ -111,7 +112,7 @@ beforeAll(async () => {
       actingRoleId: fixtures.reviewerRoleId,
       organizationId: fixtures.organizationId,
       maxClassification: 'restricted',
-      targetIds: [],
+      targetIds,
       idempotencyKey: `browse-${actionType}-${randomUUID()}`,
       payload: payload as never,
     });
@@ -298,6 +299,13 @@ beforeAll(async () => {
     body: 'Every type should be browsable.',
     subjects: [product],
   });
+  // ADR 0040: the overview is declared against the organization it describes.
+  await create(
+    'organization_overview',
+    'declare_organization_overview',
+    { title: 'What this organization is doing' },
+    [fixtures.organizationId],
+  );
 
   // The rest, by admin fixture (FIXTURE says where each act is proven).
   for (const [type, spec] of Object.entries(FIXTURE)) {

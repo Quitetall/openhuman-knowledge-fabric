@@ -125,6 +125,16 @@ assignment and the idempotency key (`formObservationRequest` in `@kf/work-contro
 observation is about is `concerns` relations from it, and a record it was promoted into is
 `derived_from` it.
 
+Three acts carry ADR 0040's rule that agents submit and authority verifies (KF-SAS-RQ-263 to
+RQ-266; migration `20261007100000`). `set_verification_policy` (institutional) records, for the
+organization it targets, whether records of one kind written by one act with one declared agent's
+participation are verified on arrival or wait for a person; `propose_act` records an institutional
+act an agent asks its person to perform and performs nothing; `resolve_act_proposal` is the
+person's answer, `declined` or `confirmed` naming the act they performed. None creates an object
+type, so `create-act-coverage` is unchanged. The database refuses every institutional act, every
+`verify_record` and every resolution under an agent's attestation, and any policy that would verify
+an institutional act on submit.
+
 ## Where each rule is enforced
 
 `rules.yaml` says where each invariant is enforced; `tests/database/rule-ledger.test.ts` is the

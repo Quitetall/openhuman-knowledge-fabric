@@ -10,7 +10,9 @@
 import { createHash, generateKeyPairSync } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDispatcher } from '@kf/actions';
-import { withTransaction } from '@kf/database';
+import { issueAttestation, withTransaction } from '@kf/database';
+import { formObservationRequest } from '@kf/work-control';
+import { runDeclareAgent } from '../../apps/api/src/admin/declare-agent.js';
 import { createDocumentActionAtoms } from '@kf/documents';
 import { createFabricDispatcher } from '@kf/orchestrator';
 import {
@@ -58,6 +60,9 @@ let f: Fixtures;
 let store: InMemoryObjectStore;
 /** KF-SAS-RQ-228: one record somebody verified and one nobody has, both in the export. */
 let verifiedId: string;
+/** ADR 0040: an observation an agent captured, verified on arrival by a policy. */
+let policyVerifiedId: string;
+const EXPORT_AGENT = 'export-colleague-agent';
 let unverifiedId: string;
 
 const PRESERVATION_KEY_ID = 'round-trip-preservation-key';
@@ -204,6 +209,75 @@ beforeAll(async () => {
     payload: { basis: 'promoted_in_bulk' },
   });
   expect(verified.status).toBe('applied');
+
+  // ADR 0040 (20261007100000): a policy, a record it verified on arrival, and an agent's proposal,
+  // so the three sections and `object-verifications.policy_id` are round-tripped over rows.
+  const colleagues = createFabricDispatcher(h.pool);
+  await runDeclareAgent(h.adminPool, {
+    clientId: EXPORT_AGENT,
+    declaredBy: f.reviewerId,
+    reason: 'an agent whose work the export carries',
+    withdraw: false,
+  });
+  const policy = await colleagues({
+    actionType: 'set_verification_policy',
+    actorId: f.reviewerId,
+    actingRoleId: f.reviewerRoleId,
+    targetIds: [f.organizationId],
+    organizationId: f.organizationId,
+    maxClassification: 'restricted',
+    idempotencyKey: 'export-policy-0001',
+    reason: 'the bench agent is trusted for observations',
+    payload: {
+      object_type: 'observation',
+      action_type: 'record_observation',
+      agent_client_id: EXPORT_AGENT,
+      mode: 'verified_on_submit',
+    },
+  });
+  expect(policy.status).toBe('applied');
+  const asAgent = async () =>
+    withTransaction(h.attestorPool, (tx) =>
+      issueAttestation(
+        tx,
+        {
+          actorId: f.performerId,
+          actingRoleId: f.performerRoleId,
+          organizationId: f.organizationId,
+          maxClassification: 'restricted',
+        },
+        undefined,
+        { agentClientId: EXPORT_AGENT, authorizedParty: EXPORT_AGENT },
+      ),
+    );
+  const captured = await colleagues({
+    ...formObservationRequest({
+      organizationId: f.organizationId,
+      actorId: f.performerId,
+      liveAssignmentIds: [f.performerRoleId],
+      gestureId: 'export-agent-capture-0001',
+      body: 'Bench 4 reads 3.29 V under load',
+      maxClassification: 'restricted',
+    }),
+    attestation: await asAgent(),
+  });
+  policyVerifiedId = captured.objectIds[0]!;
+  await colleagues({
+    actionType: 'propose_act',
+    actorId: f.performerId,
+    actingRoleId: f.performerRoleId,
+    targetIds: [policyVerifiedId],
+    organizationId: f.organizationId,
+    maxClassification: 'restricted',
+    attestation: await asAgent(),
+    idempotencyKey: 'export-agent-proposal-0001',
+    payload: {
+      action_type: 'promote_observation',
+      target_ids: [policyVerifiedId],
+      payload: {},
+      reason: 'the reading matches the log',
+    },
+  });
 }, 180_000);
 
 afterAll(async () => {
@@ -557,13 +631,19 @@ describe('preservation export', () => {
       $kf_type: 'postgres.jsonb',
       text: `{"precise": ${PRECISE_JSON_INTEGER}}`,
     });
-    // ADR 0035: the participation travels with the act, and a direct act says null.
+    // ADR 0035: the participation travels with the act, and a direct act says null. The two acts
+    // the export's agent performed (ADR 0040: its capture and its proposal) say the agent.
     expect(precise['agent_participation']).toBe(PRECISE_AGENT);
+    const others = actions.filter((row) => row['id'] !== PRECISE_ACTION_ID);
     expect(
-      actions
-        .filter((row) => row['id'] !== PRECISE_ACTION_ID)
-        .map((row) => row['agent_participation']),
-    ).toEqual(actions.filter((row) => row['id'] !== PRECISE_ACTION_ID).map(() => null));
+      others
+        .filter((row) => row['agent_participation'] !== null)
+        .map((row) => [row['action_type'], row['agent_participation']])
+        .sort(),
+    ).toEqual([
+      ['propose_act', EXPORT_AGENT],
+      ['record_observation', EXPORT_AGENT],
+    ]);
 
     const auditRows = JSON.parse(
       pkg.files.find((entry) => entry.path === 'audit-events.json')!.content,
@@ -716,6 +796,20 @@ describe('preservation export', () => {
           [unverifiedId, false],
         ]),
       );
+
+      // ADR 0040: the policy, the record it verified naming it, and the proposal, restored as rows.
+      for (const section of ['verification-policies', 'act-proposals']) {
+        expect(pkg.manifest.counts[section], section).toBeGreaterThan(0);
+      }
+      const byPolicy = await withTransaction(fresh.adminPool, (tx) =>
+        tx.one<{ basis: string; named: boolean }>(
+          `select v.basis, exists (select 1 from core.verification_policy p where p.id = v.policy_id)
+                    as named
+             from core.object_verification v where v.object_id = $1`,
+          [policyVerifiedId],
+        ),
+      );
+      expect(byPolicy).toEqual({ basis: 'verified_by_policy', named: true });
 
       const again = authenticate(
         await withTransaction(fresh.adminPool, async (tx) => createExport(tx)),

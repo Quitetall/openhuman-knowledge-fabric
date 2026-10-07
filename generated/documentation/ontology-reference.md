@@ -1,9 +1,9 @@
 <!-- GENERATED from ontology/ — do not edit. -->
-<!-- ontology_version: 1.2.0-draft.1 · source_digest: acea0b4f8ca21738e4b6de0bf1e7382b76f39d11cc8ac745ab6a25e9e3166e94 -->
+<!-- ontology_version: 1.2.0-draft.1 · source_digest: 2207b744b57d3c9fc6174f50762c0d854824e14ec8cfd9fe0f6f408887706e5a -->
 
 # Ontology reference
 
-Compiled from `ontology/`. 40 object types, 42 relation types, 170 action types, 26 state machines, 16 invariants, 4 corpus projections.
+Compiled from `ontology/`. 41 object types, 42 relation types, 179 action types, 27 state machines, 16 invariants, 5 corpus projections.
 
 ## Object types
 
@@ -49,6 +49,7 @@ Compiled from `ontology/`. 40 object types, 42 relation types, 170 action types,
 | `work_order_amendment` | commercial | AMD | — | 3 |
 | `warrant` | project | WAR | warrant | 7 |
 | `observation` | project | — | observation | 3 |
+| `organization_overview` | organization | — | organization_overview | 2 |
 
 ## Relation types
 
@@ -160,6 +161,9 @@ Compiled from `ontology/`. 40 object types, 42 relation types, 170 action types,
 | `apply_document_proposal` | — | role only |
 | `release_person_entitlement_exclusion` | — | role only |
 | `verify_record` | — | role only |
+| `set_verification_policy` | — | act |
+| `propose_act` | — | role only |
+| `resolve_act_proposal` | — | role only |
 | `deactivate_organization` | organization | act |
 | `reactivate_organization` | organization | act |
 | `retire_organization` | organization, person | act |
@@ -271,6 +275,12 @@ Compiled from `ontology/`. 40 object types, 42 relation types, 170 action types,
 | `annul_warrant_resolution` | — | act |
 | `supersede_warrant` | — | act |
 | `deprecate_warrant` | — | act |
+| `grant_role_scope` | — | act |
+| `revoke_role_scope` | — | act |
+| `include_role` | — | act |
+| `exclude_role` | — | act |
+| `declare_organization_overview` | — | act |
+| `retire_organization_overview` | organization_overview | act |
 
 ## Lifecycles
 
@@ -703,6 +713,17 @@ stateDiagram-v2
     terminated --> [*]
 ```
 
+### `organization_overview`
+
+Initial: `active` · Terminal: `retired`
+
+```mermaid
+stateDiagram-v2
+    [*] --> active
+    active --> retired: retire_organization_overview
+    retired --> [*]
+```
+
 ## Invariants
 
 | Rule | Enforced at | Statement |
@@ -732,3 +753,4 @@ stateDiagram-v2
 | `raw_corpus` | 1 | — | — | `raw_corpus` |
 | `agent_context` | 1 | person anchors ≤ 8 | `relevant` (reached), `organization` (unreached) | `raw_corpus` |
 | `object_view` | 1 | all relations ≤ 1 | `subject` (anchor), `relationships` (reached) | `other` |
+| `organization_overview` | 1 | — | `organization` (all), `projects` (all), `work` (all), `decisions` (all), `risks` (all), `products` (all), `documents` (all), `people` (all) | `other` |

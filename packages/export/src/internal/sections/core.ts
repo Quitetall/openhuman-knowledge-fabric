@@ -46,8 +46,34 @@ export const CORE_SECTIONS = [
     // Exporting the verifications means an imported corpus knows exactly which of its records
     // somebody checked, and the round-trip test proves the two sets are identical.
     name: 'object-verifications',
-    sql: `select object_id, verified_at, verified_by, basis, recorded_by_action
+    // `policy_id` (ADR 0040, 20261007100000) is last, so an archive written before it existed
+    // differs only by the missing key and restores every verification with none — which is what
+    // each was: no policy verified anything before the column.
+    sql: `select object_id, verified_at, verified_by, basis, recorded_by_action, policy_id
             from core.object_verification order by object_id`,
+  },
+  {
+    // ADR 0040 (20261007100000): who decided to trust which declared agent for which kind of
+    // record, by which act. Every row, superseded ones included: a verification by policy names
+    // the row that applied, and the history of trust is the evidence for it (KF-SAS-RQ-264).
+    name: 'verification-policies',
+    sql: `select id, revision, organization_id, object_type, action_type, agent_client_id, mode,
+                 reason, set_by, set_by_action, set_at
+            from core.verification_policy order by revision`,
+  },
+  {
+    // Institutional acts an agent proposed for its person, and each person's answer
+    // (KF-SAS-RQ-265). A pending proposal restores pending: it never becomes an act by restore.
+    name: 'act-proposals',
+    sql: `select id, organization_id, proposed_for, acting_role_id, agent_client_id, action_type,
+                 target_ids, payload, reason, request_digest, proposed_by_action, proposed_at
+            from core.act_proposal order by id`,
+  },
+  {
+    name: 'act-proposal-resolutions',
+    sql: `select proposal_id, organization_id, resolution, performed_action, resolved_by,
+                 resolved_by_action, resolved_at
+            from core.act_proposal_resolution order by proposal_id`,
   },
   {
     // KF-SAS-RQ-221: the demand aggregate is a record — which records people could not reach,
@@ -260,6 +286,21 @@ export const CORE_SECTIONS = [
                  granted_by_action, delegated_from, reason, revoked_at, revoked_by,
                  revoked_by_action, revocation_reason
             from org.access_grant order by id`,
+  },
+  {
+    // A role's preset and its inclusions (ADR 0040), ordered by id (uuidv7, time-ordered) so an
+    // inclusion is restored after every inclusion it was checked against for a cycle.
+    name: 'role-preset-grants',
+    sql: `select id, organization_id, role_id, capability, scope_object_id, classification_ceiling,
+                 reason, defined_by, defined_at, defined_by_action, retired_at, retired_by,
+                 retired_by_action, retirement_reason
+            from org.role_preset_grant order by id`,
+  },
+  {
+    name: 'role-inclusions',
+    sql: `select id, organization_id, role_id, included_role_id, reason, defined_by, defined_at,
+                 defined_by_action, retired_at, retired_by, retired_by_action, retirement_reason
+            from org.role_inclusion order by id`,
   },
   {
     name: 'recovery-objectives',
