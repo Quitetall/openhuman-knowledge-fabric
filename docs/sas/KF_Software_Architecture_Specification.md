@@ -1009,11 +1009,12 @@ realm-wide or for any client, exceeds the attestation replay bound.
 
 ## 24A. Qualification
 
-**Specified, and not built.** Nothing in this section exists in the ontology, the database or
-the code at this revision. It states the design [ADR 0038](../decisions/atoms/KF-ADR-0038-qualification-is-evidence-against-a-versioned-pack.md)
-proposes, so that the design is reviewed before it is built, and its requirements are appended now
-for the same reason. The owner's sequence puts the build last: after hosting and the correctness
-pass. §100.41 records the gap.
+**Built for milestone M5, and the decision is still proposed.** This section states the design
+[ADR 0038](../decisions/atoms/KF-ADR-0038-qualification-is-evidence-against-a-versioned-pack.md)
+proposes. It was specified before it was built so that the design could be reviewed first, and it
+was then built ahead of hosting, as ADR 0040 resequenced it: two record types and their acts in the
+ontology, `20261007400000` in the database, and `@kf/qualification` (§100.41, closed). ADR 0038
+awaits the owner's acceptance.
 
 The Fabric can say what a person *may* do — engagements, role assignments, grants, clearance. It
 cannot say what a person has shown they are *ready* to do, against which requirements, on what
@@ -1080,8 +1081,10 @@ missing evidence into demonstrated competence. Time on a page, forced watch dura
 monitoring are not evidence. An assistant may explain, assemble and check that fields are present;
 it never infers competence and never grants anything.
 
-The person's "Start Here" view is a projection over the record, the pack and the evidence (§59),
-never edited separately. A qualification record is confidential: the person, their named contact
+The person's "Start Here" view is generated from the record, the pack and the evidence, never
+edited separately. As built it is not a projection of §59's closed grammar: it is a generated,
+digest-bound view of its own kind, `kf-start-here-v1`, whose digest covers everything it shows
+(`packages/qualification/src/start-here.ts`). A qualification record is confidential: the person, their named contact
 and the crediting reviewers read it, and others learn only the applicable scope and current
 eligibility, through the ordinary grant path.
 
@@ -1116,11 +1119,30 @@ organization, and SHALL NOT be recorded as the person's failure.
 
 ## 24B. The experience
 
-**Specified, and not built.** This section states what a person and an agent experience, as
+**Built, milestone by milestone, and the decision is still proposed.** This section states what
+a person and an agent experience, as
 [ADR 0040](../decisions/atoms/KF-ADR-0040-the-experience-scope-is-the-product.md) records the
-owner's decisions of 2026-10-06. Almost none of it exists at this revision. It is specified now so
-that the application can be checked against something, and §100.46 to §100.53 record each unbuilt
-part against the milestone that builds it.
+owner's decisions of 2026-10-06. It was specified before it was built, so that the application
+could be checked against something, and §100.46 to §100.53 recorded each part against the
+milestone that would build it. Each is now closed:
+
+- **Built for agent submission, the verification policy and Needs you (M2,
+  `20261007100000`):** the KF MCP server, `kf-mcp`; the closed list of acts an agent may write;
+  `core.verification_policy` and its third basis, `verified_by_policy` (§48A); proposals of
+  institutional acts; and `GET /needs-you` (§100.46, §100.47).
+- **Built for scope as the product (M3, `20261007200000` and `20261007200100`):** roles as
+  composable presets projected into `org.effective_access_grant` with their role path; the
+  organization overview as a record; the master-document page; one dashboard layout; the density
+  setting; and phone width (§100.48 to §100.50).
+- **Built for the agent at home (M4, `20261007300000`):** the in-app agent, routed by the
+  classification of its context under `core.model_routing_policy`; the daily digest and the
+  urgent push, `kf-notify@` (§100.51, §100.52).
+- **Built for joining (M5, `20261007400000`):** qualification (§24A), `kf invite` and Start Here,
+  which is the first panel of the dashboard while a person's qualification is open (§100.41,
+  §100.53).
+
+What each milestone left open is a §100 entry of its own (§100.45 and §100.54 onward), and ADR
+0040 awaits the owner's acceptance.
 
 **Scope is the product.** The Fabric gives every person and every agent exactly the knowledge
 their grants entitle them to, as one living document, and every contribution flows back into the
@@ -1154,8 +1176,8 @@ A role may include other roles, and inclusion is a directed acyclic graph the da
 acyclic. Assigning a role projects its scope, and the scope of every role it includes, into
 `org.effective_access_grant`, the one view every read and write consults (§18). A role is
 therefore not a second access mechanism, and an explanation of access (§19) names the role path
-by which a grant arrived. Today `org.role` is a flat list of names with no preset and no
-inclusion, and this is a model change (§100.48).
+by which a grant arrived. Until M3 `org.role` was a flat list of names with no preset and no
+inclusion; the model change is `20261007200000` (§100.48, closed).
 
 **Agents submit; authority verifies.** Anything an agent writes, from the in-app agent or over MCP,
 is the named person's act with the agent's participation recorded (§24, KF-SAS-RQ-204). It enters
@@ -1196,7 +1218,7 @@ scans them. Verified, unverified and withheld are shown by form, not by colour a
 setting makes any view extremely compact, and changes presentation and nothing else (§81).
 
 **Joining is being granted scope, then qualifying.** An invitation leads to sign-in and then to
-Start Here, the projection of the person's qualification record that §24A and
+Start Here, the view generated from the person's qualification record that §24A and
 [ADR 0038](../decisions/atoms/KF-ADR-0038-qualification-is-evidence-against-a-versioned-pack.md)
 specify. The in-app agent is the guide, under §24A's rule that an assistant explains and assembles
 and never infers competence or grants anything. The fifth stage is a small real Warrant. The
@@ -2071,6 +2093,12 @@ the word carry no information, and an auditor asking whether a person looked at 
 no answer available. Recording the basis costs the fast path nothing and stops it misrepresenting
 itself.
 
+A third basis, `verified_by_policy`, names the verification policy that applied (§24B,
+`20261007100000`). The database writes it itself, at commit, for a record an agent's act created
+while the policy in force for its organization, kind, act and agent says `verified_on_submit`,
+and records as verifier the person who set that policy; a row claiming it otherwise is refused
+(`KF-VPOL-003`). It is never written for an institutional act.
+
 **KF-SAS-RQ-227.** A single caller gesture MAY dispatch many acts, SHALL dispatch at least one per
 item it admits, and SHALL NOT dispatch one act covering several items.
 
@@ -2773,9 +2801,13 @@ So the lexical index stays here (§64), the semantic ranking comes from the engi
 serves three lists (`composeSearch`, `packages/search/src/compose.ts`). First, `ranked`: one list
 fused from the lexical page and the re-checked semantic list by reciprocal rank fusion (Cormack,
 Clarke and Büttcher, SIGIR 2009) with its published constant, k = 60 — each record's score is the
-sum, over the lists it is in, of 1 / (60 + its place there), which needs no comparison between the
-lexical score and the engine's. It is named `kf.fused.rrf.v1(k=60; …)`, the method, its constant and
-the names of the rankings it fused, and every fused result names where each ranking placed it — the
+sum, over the lists it is in, of its vote there divided by (60 + its place there), which needs no
+comparison between the lexical score and the engine's. A semantic place and a partial-identifier
+match vote 1; a word match votes for how far its share of the query lies above the lexical floor,
+(coverage − 0.5) / 0.5, so a record holding half of the question barely votes (§100.45). It is
+named `kf.fused.rrf.v2(k=60; lexical vote=(coverage-0.5)/0.5; …)`, which replaced `v1`, under which
+every word match voted 1: the method, its constant, its weights and the names of the rankings it
+fused. Every fused result names where each ranking placed it — the
 web shows "Word match #3 · Related by meaning #1" — so a merely similar record never reads as a match on the
 words. Fusion adds no record and drops none it has room for; ties go to the better single place,
 then the lexical place, then the identifier. Beside it, the two source lists, each under its own
@@ -3463,10 +3495,15 @@ Eight reads and one rehearsal (§32). Stated as an interface because the shape i
 there is no general write tool, and adding one would be an authority change.
 
 [ADR 0040](../decisions/atoms/KF-ADR-0040-the-experience-scope-is-the-product.md) is that change,
-proposed and not built (§24B, §100.46). The KF MCP server it specifies adds writes as a closed list
-of typed acts — capture, draft, submit, propose — each dispatched on the person's delegated token
-(§24). No tool accepts a caller-supplied action type (KF-SAS-RQ-020), and none performs an
-institutional act (KF-SAS-RQ-265).
+proposed, and built for milestone M2 (§24B, §100.46). The KF MCP server, `kf-mcp`
+(`apps/mcp`), supersedes the paragraph above for an agent: nine tools — `search`, `read_record`,
+`master_record`, `context_retrieve`, `context_read`, `list_needs_you`, `list_actions`, `draft_act`
+and `submit_act` — over the HTTP API on the person's delegated token (§24), with no database
+login of its own. Writes are the closed list `AGENT_ACTS` (`packages/domain/src/agent-acts.ts`),
+each entry stating the fields a person would fill. No tool accepts a caller-supplied action type
+(KF-SAS-RQ-020), and none performs an institutional act (KF-SAS-RQ-265): an institutional act is
+only proposed, and the database refuses an agent performing one (`KF-AGENT-001`) or verifying
+anything or answering a proposal (`KF-AGENT-002`).
 
 ## 83. Versioning and compatibility
 
@@ -3528,9 +3565,24 @@ The 2026-09-23 hardening added three, and these were written down before a host 
 
 7. **gnupg**, because a backup is encrypted to a public key before it leaves the process that
    took it, and the drill decrypts it.
-8. **rsync**, which ships the ciphertext off the host.
+8. **rsync**, which ships the ciphertext off the host to an rsync destination; a Backblaze B2
+   destination (§88) is reached without it.
 9. **The PostgreSQL 18 server binaries** `initdb` and `pg_ctl`, at `KF_POSTGRES_SERVER_DIR`, for the
    drill's throwaway cluster.
+
+[ADR 0039](../decisions/atoms/KF-ADR-0039-the-first-host-is-a-vps-on-a-tailnet-with-seaweedfs-and-b2.md),
+proposed, added two for the first host, written down before it exists:
+
+10. **tailscale** at `/usr/bin/tailscale`, with the host up on the tailnet and
+    `TS_PERMIT_CERT_UID=kf-tls` in `/etc/default/tailscaled`, and **nginx** at `/usr/sbin/nginx`, on
+    a host reached over a tailnet; `provision-host.sh --check` probes both. A host reached through a
+    private CA instead (`KF_HOST_ACCESS=private-ca`) needs neither.
+11. **SeaweedFS 4.48**, as `kf-objects`, the working object store. `provision-host.sh` installs it
+    only from the pinned release tarball and only when both the tarball's and the `weed` binary's
+    sha256 match `deploy/object-store/seaweedfs.release`, and refuses either that differs; and
+    **curl**, which the store's readiness probe and bucket initialisation use
+    (`deploy/object-store/ready.sh`, `init-buckets.sh`) and with which provisioning fetches the
+    release.
 
 `scripts/deploy/provision-host.sh` creates the accounts, directories and generated secrets a
 machine can create, and `--check` changes nothing and lists what only a person can supply, each
@@ -3582,14 +3634,19 @@ Each service has an unprivileged account (§37); the units are counted in
 | `kf-audit-verify` | verifies the audit log against every signed checkpoint, holding no signing key |
 | `kf-storage` | replicates and re-verifies artifact copies, and collects and records orphaned evidence bytes (§49), as the storage service actor |
 | `kf-backup` | takes and records a backup |
-| `kf-backup-offsite` | ships the newest backup's ciphertext off the host and verifies it there |
-| `kf-restore-drill` | as `kf-drill`, pulls the newest off-site ciphertext back, decrypts it, restores it into a throwaway PostgreSQL 18 cluster and proves it |
+| `kf-backup-offsite` | ships the newest backup's ciphertext off the host — to an rsync destination or, with the `b2` selector, a versioned Backblaze B2 bucket — and verifies it there, for B2 by reading back the version the bucket returned |
+| `kf-restore-drill` | as `kf-drill`, pulls the newest off-site ciphertext back (from B2, exactly the recorded object version), decrypts it, restores it into a throwaway PostgreSQL 18 cluster and proves it |
 | `kf-readiness` | checks the system is in the state it is supposed to be in |
 | `kf-alert-heartbeat` | proves the alert path still reaches a person |
 | `kf-alert@` | reports that a named unit failed, to a person |
+| `kf-objects` | the working object store: SeaweedFS's S3 gateway on loopback, every byte under `/var/lib/kf-objects`, identities from a file ([ADR 0039](../decisions/atoms/KF-ADR-0039-the-first-host-is-a-vps-on-a-tailnet-with-seaweedfs-and-b2.md)) |
+| `kf-objects-init` | creates the buckets with versioning on after every start of the store, and fails unless each reads back `Enabled` |
+| `kf-tls-renew` | as `kf-tls`, renews the tailnet certificate with `tailscale cert` and, after `nginx -t`, reloads nginx |
+| `kf-notify@` | `kf-notify@digest` e-mails each person what needs them, and `kf-notify@urgent` pushes, through the operational alert path, that something urgent does (§24B); as `kf-notify`, whose login executes two functions and reads no table |
 
-Timers: checkpoint hourly, readiness every fifteen minutes, backup, storage sweep, checkpoint
-verification and alert heartbeat daily, restore drill monthly. A timer that stops firing is
+Timers: checkpoint hourly, readiness every fifteen minutes, urgent notification every five
+minutes, backup, storage sweep, checkpoint verification, alert heartbeat, certificate renewal and
+notification digest daily, restore drill monthly. A timer that stops firing is
 noticed: each declares how long it may be silent, and `scripts/timer-liveness.sh` reports one
 that has been silent longer.
 
@@ -3615,12 +3672,18 @@ Three rules added on 2026-09-23, each closing a way a backup could exist without
 
 - **Encrypted before it leaves.** The archive is encrypted to a recovery public key before
   anything ships, and only ciphertext goes off the host; the off-site copy records its digest,
-  re-measured at the destination, and the drill pulls back that exact object.
+  re-measured at the destination — for Backblaze B2 by reading back in full the version the bucket
+  returned, whose identity is recorded in `ops.backup_copy.provider_object` (`20261002000100`) —
+  and the drill pulls back that exact version, refusing any other.
 - **Local copies are pruned only once an off-site copy exists.** A backup whose only copy is on
   this host is never pruned, however old; free space is checked before one is taken.
 - **A local path is not off-site** unless a person attested it as a separate physical failure
   domain. `ops.backup_copy.offsite_basis` records why a copy counts, from what the script did
-  rather than what an operator typed.
+  rather than what an operator typed: a remote host, an attested domain, or, for B2, a remote
+  object (`remote-object`), which counts only with the provider's object identity recorded.
+
+B2 credentials reach the host only through the volatile per-consumer delivery
+(`docs/deployment/b2-credential-custody.md`, `docs/deployment/drill-b2-credential-delivery.md`).
 
 And one found on 2026-09-24 that made every deployed backup fail, which is why it is stated as a
 requirement below. **The backup is taken by a login holding only `kf_backup`**, as
@@ -3701,13 +3764,24 @@ ignored; the API account cannot read the checkpoint key; the API refuses to serv
 row-level security cannot bind, or one holding `kf_attestor` or `kf_service_actor`; and stopping
 the attestor turns bearer requests into 503 `attestor_unavailable` — not 401, which would tell the
 caller their token was refused, and not a request served by the API vouching for them itself
-(§24). And then: **reboot the host and re-run them.** A
-service that works only in the install shell is not deployed.
+(§24); nothing listens on the public interface but the private network's transport
+(`public_exposure`), and nginx listens only on the private addresses (`reverse_proxy_posture`).
+And then: **reboot the host and re-run them.** A service that works only in the install shell is
+not deployed.
+
+People reach the first host over a tailnet ([ADR 0039](../decisions/atoms/KF-ADR-0039-the-first-host-is-a-vps-on-a-tailnet-with-seaweedfs-and-b2.md),
+proposed). Its name is its tailnet name, `<host>.<tailnet>.ts.net`; its certificate is the
+publicly trusted one `tailscale cert` issues for that name, renewed daily by `kf-tls-renew.timer`
+(§87); and nginx terminates TLS on the tailnet address alone. A host reached through a private
+network with a certificate from a CA its operator runs remains the alternative
+(`KF_HOST_ACCESS=private-ca`, `docs/deployment/private-host.md`).
 
 **91.4 What no check covers.** Recorded explicitly, because an earlier revision claimed blanket
 coverage that was untrue of four items. Real-provider browser evidence has no check. Firewall
-rules have no check. Filesystem denial of key access remains host evidence. And no person has yet
-received an alert — there is no check for that, and none is possible from the repository.
+rules have no check: `public_exposure` reads what listens on the host, and what the firewall
+admits is a port scan of the public address made by a person. Filesystem denial of key access
+remains host evidence. And no person has yet received an alert — there is no check for that, and
+none is possible from the repository.
 
 **KF-SAS-RQ-168.** Commissioning SHALL require evidence produced on the host being commissioned,
 and service availability SHALL NOT be accepted as evidence of authorisation.
@@ -3820,6 +3894,12 @@ does not; reciprocal rank fusion places those among its first ten. Véracier's r
 reason; TheAgentCompany's records only the query design behind it. §100.45 carries it as a gap.
 Nothing was tuned to move these numbers (§64).
 
+That paragraph describes the `kf.fused.rrf.v1` runs. Each report now also carries a run under
+`kf.fused.rrf.v2`, whose word matches vote by their share of the question above the floor (§64A),
+and keeps the `v1` run beside it. The vote was chosen by a rule stated before the held-out half
+of the questions was read, not fitted to them (`packages/search/AUTHORITY.md`), and the trade it
+makes is §100.45's.
+
 The corpora have already paid for themselves in defects, each surfaced by loading a company
 rather than a test's handful of records: a NUL in a source answered 500 (§52.1); scanned PDFs exceeded the ingest body limit and
 every file's parsed text was unsearchable (§48, §52.4); an observation naming another
@@ -3898,7 +3978,7 @@ The supersession graph, which nothing else in the repository states in one place
 | builds on | 0014→0013; 0015→0014; 0016→{0008, 0011, 0013}; 0017→{0004, 0006}; 0018→{0006, 0016}; 0019→0018; 0020→{0016, 0017}; 0021→{0006, 0016}; 0022→0009; 0027→{0011, 0016, 0025, 0026}; 0028→{0010, 0016, 0023, 0027}; 0029→{0016, 0024}; 0030→{0002, 0010, 0013, 0023, 0028}; 0034→{0024, 0031}; 0035→{0020, 0033}; 0036→{0016, 0020}; 0037→{0027, 0029} |
 | supersedes a rationale rather than a record | 0028 supersedes the "no `pgvector`" reasoning in `database/migrations/20260811001800_search.sql`, on the condition that reasoning set |
 | accepted by the owner on 2026-09-24 | 0034, 0035, 0036 and 0037, all implemented; until `0.1.0-draft.9` this row read "proposed, awaiting the owner" |
-| proposed, awaiting the owner | 0038→{0016, 0019, 0020, 0027, 0033, 0036}, specified and not built (§24A); 0040→{0014, 0016, 0024, 0028, 0031, 0034, 0035, 0038}, specified and not built (§24B) |
+| proposed, awaiting the owner | 0038→{0016, 0019, 0020, 0027, 0033, 0036}, built (§24A); 0039→{0004, 0017, 0028}, built except the host it chooses (§85, §87, §88, §91); 0040→{0014, 0016, 0024, 0028, 0031, 0034, 0035, 0038}, built (§24B) |
 
 A superseded record is kept in full. ADR 0008 remains as the measured problem and the options
 history even though its recommendation no longer applies, because deleting it would leave ADR
@@ -4163,7 +4243,11 @@ with reasons, and one registry pack is in the same state. Each is an admission t
 a fresh human signature are owed. The `0.1.0-draft.8` ontology changes — observations, relation
 endpoints, the product, quality and work-control create acts, the engagement lifecycle — widen the
 first of those gaps; the re-cut is `pnpm ontology:pack 1.0.0-draft.5`, and the signature
-(`pnpm ontology:approve release/knowledge-fabric-1.0.0-draft.5`) is the owner's.
+(`pnpm ontology:approve release/knowledge-fabric-1.0.0-draft.5`) is the owner's. Milestones M2 to
+M5 widen it again: the verification-policy, proposal, role-preset, overview, routing,
+notification-preference, qualification and invitation acts; the `organization_overview`,
+`qualification_pack` and `qualification_record` types; and the `requires_qualification`
+declaration on an action type. The same re-cut and signature carry them.
 
 **100.7 Three ML policy predicates are unmeasured — closed.** Closed in `0.1.0-draft.8`: measured
 with rows by `tests/database/rls-read-cost.test.ts`, the figures in ADR 0007's dated section, none
@@ -4357,7 +4441,7 @@ each report's named askers' own clearances and grants (§93A,
 [`drbench`](../../fixtures/drbench/reports/search-baseline.md),
 [`theagentcompany`](../../fixtures/theagentcompany/reports/search-baseline.md)). What remains is
 that four public corpora are not an organization's records, that each baseline is one run with no
-variance stated, and that on two of them fusion falls below the semantic list alone (§100.45).
+variance stated, and that no fusion yet measured beats both of its sources everywhere (§100.45).
 Bears on KF-SAS-RQ-224.
 
 **100.27 Some digests are still not domain-separated as KF-SAS-RQ-016 requires.** Found while
@@ -4492,21 +4576,26 @@ controls the key. Whether custody should move to the Fabric, as ADR 0028 decided
 record the engine's own custody, is the owner's decision (§22, item 8). Bears on KF-SAS-RQ-213 and
 §100.22.
 
-**100.40 A clean machine cannot start the object store.** MinIO archived its community edition,
-and the images `docker-compose.yml` pins cannot be pulled from anywhere: Docker Hub answers 404 and
-`dl.min.io` answers 410 for the archived binaries. A machine that pulled them before still has them,
-which is why this was found on a hosted runner. The preservation tests no longer depend on them:
-`tests/fixtures/minio-image/` builds the same pinned releases from their public source, refusing a
-tag that does not name the pinned commit or a binary whose version string differs, and CI builds or
-restores those images. The development stack and the fixture stacks (§93A) still name the dead
-images, so on a clean machine they do not start. What replaces them is the owner's hosting decision.
-Bears on KF-SAS-RQ-161.
+**100.40 A clean machine cannot start the object store — closed.** Opened and closed in
+`0.1.0-draft.9`. MinIO archived its community edition and every registry deleted its images, so
+the development stack and the fixture stacks named images nothing could pull. Closed by
+[ADR 0039](../decisions/atoms/KF-ADR-0039-the-first-host-is-a-vps-on-a-tailnet-with-seaweedfs-and-b2.md),
+proposed 2026-10-03: the development stack, both fixture stacks, CI and the host run SeaweedFS
+4.48, pinned by image digest in `docker-compose.yml` and by tarball and binary sha256 in
+`deploy/object-store/seaweedfs.release` (§85, §87), and nothing builds or runs MinIO. What
+remains is §100.54. Bears on KF-SAS-RQ-161.
 
-**100.41 Qualification is specified and not built.** §24A and KF-SAS-RQ-254 through RQ-261 state the
-design ADR 0038 proposes. Nothing of it is in the ontology, the database or the code: no pack, no
-record, no act, no qualification an action can declare. The owner's sequence places it last, after
-hosting and the correctness pass, and ADR 0038 awaits the owner's acceptance. Scheduled for
-milestone M5 (KF-WAR-0007), with Start Here (§100.53).
+**100.41 Qualification is specified and not built — closed.** Opened and closed in
+`0.1.0-draft.9`. Qualification is built as §24A specifies (migration `20261007400000`,
+`@kf/qualification`). Packs and records are typed records with their acts. A credit carries its
+requirement's mode, needs the authority the requirement names, and is never an agent's or
+self-made. A record closes only complete, by the act that credits its last requirement. An action
+that declares `requires_qualification` is refused at the moment of the act, after act-grant
+coverage, naming the missing requirement (`KF-QUAL-001`). Start Here is generated from the record
+with its own digest. Each row of ADR 0038's "How we will know" table is a planted case in
+`tests/database/qualification.test.ts`, and each guard is falsified there by dropping it. ADR 0038 itself awaits the owner's acceptance, the pack
+re-cut is §100.6's, and what the web does not yet offer is §100.61 and §100.62. Bears on
+KF-SAS-RQ-254 to RQ-261.
 
 **100.42 After any write in an organization, an Object View falls back to recounting.** The record
 of input writes (§58, `20260926110100`) is per organization and per transaction, not per reader:
@@ -4525,63 +4614,169 @@ take without detoasting the whole value — and the first two still enumerate th
 to compare, so each costs what one Object View cost before `0.1.0-draft.9`. Bears on KF-SAS-RQ-110
 and RQ-201.
 
-**100.44 The embedding pump sends one request at a time.** The worker claims a batch of the
-embedding queue and hands each record's text to the engine in turn (`apps/worker/src/embedding.ts`),
-so a large ingest becomes findable by meaning at the speed of one embedding after another. Nothing
-is lost or disclosed by the delay — an unembedded record is padded closed (§64A) and still found by
-its words — but nothing bounds it either. Bears on KF-SAS-RQ-201.
+**100.44 The embedding pump sends one request at a time — closed.** Opened and closed in
+`0.1.0-draft.9`. The worker claimed a batch of the embedding queue and handed each record's text to
+the engine in turn, so a large ingest became findable by meaning at the speed of one embedding
+after another. The pump now keeps up to `KF_EMBEDDING_CONCURRENCY` engine requests in flight (1 to
+16; default 1, the size of the host this ships to), each consumer claiming one record, and drains
+the queue to empty before it sleeps (`apps/worker/src/embedding.ts`, `20261007500000`). A claim is
+a lease of at least twice the engine timeout; a record edited while it is being embedded is
+embedded again after the first answer, never beside it; a failure waits 15 s · 2^(n−1), capped at
+an hour, and after eight attempts is recorded as given up, not retried forever. On the Véracier
+fixture's GPU embedder the drain went from 877 and 604 records a minute to 2 911 and 2 811 at four
+in flight; on four CPU cores more than one in flight did not go faster
+(`docs/agents/in-app-agent.md`, "The embedding pump"). Bears on KF-SAS-RQ-201.
 
-**100.45 Weak word matches pull the fused list below the semantic list alone.** Reciprocal rank
-fusion trusts both lists' places equally, so where the query's words and the records' words overlap
-poorly the few word matches that remain — records holding half of the question, not the ones it
-is about — take places in the fused list that semantic ranking alone would have given to better
-records. The fixture baselines show it on Véracier and TheAgentCompany (§93A). Nothing here is
-tuned to hide it (§64): the floor and the fusion constant are stated defaults. Bears on
-KF-SAS-RQ-224 and RQ-201.
+**100.45 Weak word matches pull the fused list below its sources — narrowed.** Retitled and
+narrowed in `0.1.0-draft.9`, which first titled it "Weak word matches pull the fused list below the
+semantic list alone". Reciprocal rank fusion trusted both lists' places equally, so where the
+query's words and the records' words overlap poorly the few word matches that remained — records
+holding half of the question, not the ones it is about — took places that semantic ranking alone
+would have given to better records. A word match now votes for how far its share of the question
+lies above the lexical floor, (coverage − 0.5) / 0.5, as `kf.fused.rrf.v2` (§64A), a rule chosen
+on one half of the questions by a criterion fixed before the other half was read
+(`packages/search/AUTHORITY.md`). Under it the fused list is at or above the semantic list on
+Véracier in both query forms and on TheAgentCompany's questions as written, and below it on
+TheAgentCompany's keyword form; and it loses recall that `v1` had on EnterpriseRAG-Bench and
+DRBench, where EnterpriseRAG-Bench's keyword form falls below the lexical list alone. The four
+reports carry both runs (§93A). No fusion measured beats both of its sources on all four corpora.
+Whether to serve `v1`, which is better where word matches are strong, or `v2`, which is better
+where they are weak, is the owner's choice and stays open. Bears on KF-SAS-RQ-224 and RQ-201.
 
-**100.46 No agent can write through the Fabric except over the HTTP API.** §24B and ADR 0040
-specify a KF MCP server: search, read, the master record and the context source, and a closed list
-of typed acts to capture, draft, submit and propose, each on the person's delegated token through
-the attestor (§24). None of it exists, and §82 still describes reads and one rehearsal. Scheduled
-for milestone M2 (KF-WAR-0004). Bears on KF-SAS-RQ-263 and RQ-265.
+**100.46 No agent can write through the Fabric except over the HTTP API — closed.** Opened and
+closed in `0.1.0-draft.9`. The KF MCP server, `kf-mcp` (`apps/mcp`), serves nine tools over the
+HTTP API on the person's delegated token, through the attestor (§24), with no database login and
+no authority of its own (§82). Writes are the closed list `AGENT_ACTS` in `@kf/domain`, each entry
+the fields a person would fill: a `submit` act is performed for the person and lands unverified;
+an institutional act is only proposed, and waits in the person's Needs you. The database refuses
+an agent performing an institutional act (`KF-AGENT-001`) and an agent verifying a record or
+answering a proposal (`KF-AGENT-002`), whatever grants reach its person, by a trigger on
+`core.action`, so the refusal holds around the API too (`20261007100000`). §82's earlier description, eight reads and one rehearsal, is superseded for an
+agent. Bears on KF-SAS-RQ-263 and RQ-265; what M2 decided without the owner is §100.56.
 
-**100.47 Verification has no policy and no queue.** Every verification is a person's
-`verify_record`, singly or by `POST /verifications/bulk` (§48A). There is no verification policy
-per kind and agent, no basis for a record verified by policy, and no Needs you list from which a
-person verifies an agent's submission or confirms an act it proposed. Scheduled for M2
-(KF-WAR-0004). Bears on KF-SAS-RQ-263 to RQ-266.
+**100.47 Verification has no policy and no queue — closed.** Opened and closed in
+`0.1.0-draft.9`. `core.verification_policy` holds, per organization, record kind, writing act and
+declared agent, `required` — the default, and what no row means — or `verified_on_submit`,
+written only by the institutional act `set_verification_policy`; the database refuses
+`verified_on_submit` for an institutional act type (`KF-VPOL-001`) and for an agent that is not a
+live declared one (`KF-VPOL-002`), and a policy row written any other way (`KF-VPOL-004`). A record
+verified under a policy carries the third basis, `verified_by_policy`, naming the policy (§48A).
+`GET /needs-you` lists what an agent wrote that the caller may verify, what the caller's own agents
+wrote and is waiting for someone else, and the institutional acts those agents proposed; a proposal
+becomes an act only by its person performing exactly the act proposed (`KF-AGENT-005`). Bears on
+KF-SAS-RQ-263 to RQ-266.
 
-**100.48 Roles are a flat list of names.** `org.role` holds ten seeded names; a role carries no
-preset of scope and includes no other role, and an explanation of access names the grant, not a
-role path. Making roles composable presets projected into `org.effective_access_grant` is a model
-change: a migration, the preservation inventory, the export and the import. Scheduled for M3
-(KF-WAR-0005). Bears on KF-SAS-RQ-269 and RQ-270.
+**100.48 Roles are a flat list of names — closed.** Opened and closed in `0.1.0-draft.9`. A role
+is a composable preset of scope (`20261007200000`): `org.role_preset_grant` holds what holding a
+role in an organization grants, and `org.role_inclusion` what other roles it includes, a graph the
+database keeps acyclic by refusing the inclusion that would close a cycle, naming it. Both reach
+nothing but `org.effective_access_grant`, as its fifth source, `role_preset`, with the `role_path`
+by which a grant arrived, recomputed on read rather than materialized (ADR 0016's dated note of
+2026-10-07, which the owner has not accepted); an explanation of access names that path. Defining
+and retiring a template and including and excluding a role are four institutional acts. What
+remains: a role's name is added to the vocabulary on the owner credential (`kf define-role`), and
+that records no decider. Bears on KF-SAS-RQ-269 and RQ-270.
 
-**100.49 There is no organization overview and no master-document page.** `kf overview`
-generates the development control record from this specification; it is not the living
-organization overview §24B describes, which is a generated record, granted like any other and
-evaluated over each reader's corpus. A person's master record is compiled and served (§57) but has
-no reading page of its own in the web application. Scheduled for M3 (KF-WAR-0005). Bears on
-KF-SAS-RQ-267 and RQ-268.
+**100.49 There is no organization overview and no master-document page — closed.** Opened and
+closed in `0.1.0-draft.9`. The living organization overview is an ordinary record,
+`organization_overview`, one active per organization (`20261007200100`), granted like any other;
+what it says is generated per reader by its projection over that reader's corpus, and never
+stored. `GET /master-document` and its page serve the reader's scope compiled, the overview first
+when it is in scope. Bears on KF-SAS-RQ-267 and RQ-268.
 
-**100.50 There is no dashboard, no density setting, and no designed phone layout.** The web
-application's home states which gates are implemented and which are open, and its other pages grew
-out of the API one at a time. None of the six panels exists, no
-view has a compact setting, and nothing has been checked at phone width. Scheduled for M3
-(KF-WAR-0005). Bears on KF-SAS-RQ-262, RQ-273 and RQ-276.
+**100.50 There is no dashboard, no density setting, and no designed phone layout — closed.**
+Opened and closed in `0.1.0-draft.9`. `GET /dashboard` serves the six panels §24B names in one
+layout, a constant, each evaluated under the reader's grants, with Needs you as a slot its own
+route fills; since M5 a seventh, Start Here, comes first and is empty, and collapses, for anyone
+whose qualification is not open. `tests/conformance/no-role-branch.test.ts` refuses a role or title
+literal in the dashboard's code. The density setting is a cookie read into presentation and nothing
+else, and `apps/web/e2e/experience.test.mjs` reads the dashboard, the master document and a record
+and captures at phone width (390 × 844). What remains is §100.60. Bears on KF-SAS-RQ-262, RQ-273
+and RQ-276.
 
-**100.51 There is no in-app agent and no backend chosen by classification.** The web application
-holds no agent, so nothing answers from the record with citations, drafts a form, or chooses
-between LAMU and a provider by the classification of its context. Scheduled for M4 (KF-WAR-0006).
-Bears on KF-SAS-RQ-266, RQ-271 and RQ-272.
+**100.51 There is no in-app agent and no backend chosen by classification — closed.** Opened and
+closed in `0.1.0-draft.9`. The web application's agent (`/agent`, and a dock on the home page) acts on
+the person's token exchanged for its declared web-agent client, so everything it writes is the
+person's act with its participation (§24). It answers from the record, citing what it drew on,
+counting what was withheld and naming its backend (KF-SAS-RQ-272). It drafts a form from
+`AGENT_ACTS` that the person commits with one gesture, and an institutional act it can only
+propose (KF-SAS-RQ-266). `core.model_routing_policy`, written only by the institutional act
+`set_model_routing_policy` (`KF-ROUTE-002`), names per organization the highest classification
+that may leave the host, and the database refuses `confidential` or `restricted` in every session
+(`KF-ROUTE-001`). A turn whose context is above that ceiling is answered only by LAMU on the host,
+and refused when there is none (`KF-ROUTE-004`); a turn with no model configured is refused
+(`KF-ROUTE-005`); and the provider adapter re-checks every record it is about to send and refuses
+controlled content by name (`KF-ROUTE-003`). Nothing of a conversation is stored
+(`20261007300000`). What remains is §100.58 and §100.59. Bears on KF-SAS-RQ-266, RQ-271 and
+RQ-272.
 
-**100.52 Nothing notifies a person that something needs them.** The operational alert path
-reaches a person (§87); nothing sends a digest of what needs a person or an urgent push for one.
-Scheduled for M4 (KF-WAR-0006). Bears on KF-SAS-RQ-274.
+**100.52 Nothing notifies a person that something needs them — closed.** Opened and closed in
+`0.1.0-draft.9`. `kf-notify@digest` e-mails each person their Needs you daily, from
+`core.needs_you_digest()`, which applies that person's grants and clearance and gives a title only
+for an item at or below its organization's provider ceiling; everything else is a count and a
+link. `kf-notify@urgent` pushes one fixed line, naming nothing, through the operational alert path
+(`scripts/alert-dispatch.sh`, with the event `urgent`, §87) when something urgent waits. Its login executes those two
+functions and reads no table. A person's notification setting is their own and never an agent's
+(`KF-NOTIFY-001`). The urgent boundary is a time and an item, at the database's microsecond
+precision (`20261007500100`); an item whose transaction began before a run and committed after it
+is still behind that run's boundary, and the digest lists it. What remains is §100.57. Bears on
+KF-SAS-RQ-274.
 
-**100.53 There is no invitation and no Start Here.** Joining today is an administrator's
-bootstrap and grant (§33); there is no invitation link, and Start Here waits on qualification
-(§100.41). Scheduled for M5 (KF-WAR-0007). Bears on KF-SAS-RQ-275.
+**100.53 There is no invitation and no Start Here — closed.** Opened and closed in
+`0.1.0-draft.9`. Joining is `kf invite`, an owner-credential run (KF-SAS-RQ-236) that creates the
+person, with `--keycloak` their identity-provider account, the identity link, a role assignment
+ending within 366 days, the clearance, with `--pack` the qualification record, and an invitation
+holding only its token's digest (`KF-QUAL-040` refuses one written any other way). The link leads
+through sign-in to Start Here, the dashboard's first panel while the person's qualification is
+open. `tests/database/joining.test.ts` and `apps/web/e2e/joining.test.mjs` walk it to a qualified
+record. What remains is §100.61 and §100.62. Bears on KF-SAS-RQ-275.
+
+**100.54 The object store's identities are a file of secrets on disk.** `kf-objects` reads its
+identities from `/etc/kf/objects/identities.json`, which `provision-host.sh` renders from each
+identity's own secret file, owned by `kf-objects` and readable by nobody else
+(`deploy/object-store/render-identities.mjs`). Rendering it at each start from secrets the service
+manager delivers (`LoadCredential=`), so that no assembled copy stays on disk, is not built.
+
+**100.55 Nothing sets or checks object-lock retention on the backup copy.** ADR 0039 decision 4
+sends the encrypted backup to "a B2 bucket with object lock". The off-site transport writes and
+reads back a version of a versioned bucket and sets no retention on it, and nothing checks that the
+bucket carries a default retention (`packages/export/src/internal/offsite/b2.ts`). Whether to add
+retention to the transport, to require and check it as the bucket's default, or to amend ADR 0039's
+wording, is the owner's decision. Bears on KF-SAS-RQ-165.
+
+**100.56 Four readings M2 made the owner has not confirmed.** Each is what the code does, and each
+is a decision rather than a correction. A person cannot verify a record their own agent wrote for
+them, because an act that judges another is refused to the actor who performed it (KF-SAS-RQ-047),
+so it waits for another verifier or a policy. A proposal goes only to the agent's own person. Over MCP the gesture RQ-266 requires is
+the client's approval of the `submit_act` call, which the Fabric cannot see. And a verification is
+of the record, not of a revision, so an edit after verification keeps it. Bears on KF-SAS-RQ-263,
+RQ-265 and RQ-266.
+
+**100.57 The urgent push has one destination.** It reaches the one person the deployment's alert
+topic belongs to (`KF_NOTIFY_PUSH_PERSON`); everyone else learns of urgent items from their digest
+until per-person destinations exist. Bears on KF-SAS-RQ-274.
+
+**100.58 What a person types is not classified.** The router classifies what the Fabric put in a
+turn's context; text a person types or pastes into a question can reach a provider when that
+context allows one (KF-WAR-0006 RR-001). Drafting prefers LAMU for that reason. Bears on
+KF-SAS-RQ-271.
+
+**100.59 LAMU's own forwarding is outside the Fabric's sight.** LAMU can be configured to forward
+to a cloud gateway (`LAMU_GATEWAY_URL`). The Fabric cannot see that from outside, so "answered on
+the host" holds only while the host keeps it unset, which commissioning must check. Bears on
+KF-SAS-RQ-218 and RQ-271.
+
+**100.60 A phone cannot capture a photo or a voice note.** At phone width a person reads, verifies
+and captures text (§100.50); §24B's photo and voice capture is not built. Bears on KF-SAS-RQ-273.
+
+**100.61 The in-app agent is not yet the Start Here guide.** `GET /start-here/guide` serves the
+guide's context for the reader's open record (`kf-agent-guide-context-v1`), and the in-app agent
+does not read it yet. Bears on KF-SAS-RQ-275.
+
+**100.62 Some qualification acts have no web gesture.** No page drafts a pack, and withdrawing or
+superseding a record has no gesture in the web application; each is dispatched only as an act
+through the API (`POST /actions/:actionType`).
+Bears on KF-SAS-RQ-254 and RQ-275.
 
 **KF-SAS-RQ-186.** The set of tables forced under row-level security SHALL be derivable from the
 migrations, and any difference between that set and the running database SHALL be reconciled.
@@ -4618,6 +4813,12 @@ answerable in one place. The dispatcher's thirteen codes are in §28. Beyond the
 | an unstated ingestion mode | the ingestion planner, before any side effect |
 | an undeclared ontology addition | R01 preservation |
 | a removed requirement identifier | this document's revision check |
+| `KF-AGENT-001` to `KF-AGENT-006` | the database, on an agent's act (`20261007100000`, §24B): an institutional act performed by an agent (`-001`); a verification, or a proposal's answer, by an agent (`-002`); a proposal of an act that is not institutional, said first by the authorization package (`-003`); a proposal made without an agent (`-004`); a resolution that is not the person's own, agent-free act of the proposed type and request digest (`-005`); a proposal or resolution written other than by its act (`-006`) |
+| `KF-VPOL-001` to `KF-VPOL-004` | the database, on a verification policy (§48A): `verified_on_submit` for an institutional act type (`-001`) or for an agent that is not a live declared one (`-002`); a `verified_by_policy` row no policy in force wrote (`-003`); a policy written other than by `set_verification_policy` (`-004`) |
+| `KF-ROUTE-001` to `KF-ROUTE-005` | a provider ceiling of `confidential` or `restricted`, by the database in every session (`-001`); a routing policy written other than by `set_model_routing_policy` (`-002`); controlled content about to leave the host, by the provider adapter, naming the records (`-003`); a turn above the ceiling with no model on the host (`-004`); a turn with no model configured (`-005`) — the last three by the in-app agent (§24B) |
+| `KF-NOTIFY-001`, `KF-NOTIFY-002` | the database, on a notification preference: set by an agent for its person (`-001`), or written other than by `set_notification_preference` (`-002`) |
+| `KF-QUAL-001` | the database, at the moment of an act whose type declares `requires_qualification`, after act-grant coverage, naming the requirement the actor lacks a current credit for (§24A) |
+| `KF-QUAL-002` to `KF-QUAL-050` | qualification's other rules (`20261007400000`, `@kf/qualification`): pack and record rows written only by their acts, gaps answered only for the bound actor, a requirement revision defined once, and pack rows retired or approved only by their acts (`-002` to `-004`); a credit written only by its act, never by an agent, which also never accepts a record, on a record the creditor may read, against a requirement of the record's pack in force, by the authority it names, never of the creditor's own work or record, on evidence the creditor can see that is accepted work (`-010` to `-017`); a record closed while mandatory requirements lack current evidence, or accepted by someone who may not (`-020`, `-021`); a record assigned an unapproved pack or a non-member, and evidence submitted by anyone but the record's own person or their agent (`-030`, `-031`); an invitation written other than by the owner credential (`-040`); a pack document that does not validate (`-050`) |
 
 ## 102. Digest and canonicalization conventions
 
@@ -4643,7 +4844,12 @@ rather than reinterpreting it, and a chain or sequence never moves back to an ol
   `kf-backup-manifest-signature-v1`, `kf-overview-v1`, `kf-context-source-references-v1` (the
   reference list a context retrieval served, as `search.context_disclosure` records it, §64C),
   `kf-warrant-runtime-manifest-v1` (the manifest of the export Warrant runtime evidence is read
-  from, `packages/export/src/warrant-runtime-evidence.ts`), and this document's revision schema
+  from, `packages/export/src/warrant-runtime-evidence.ts`); since milestones M3 to M5,
+  `kf-organization-overview-scope-v1` (the reader's corpus an overview reading read),
+  `kf-qualification-pack-v1` and `kf-qualification-requirement-v1` (a pack revision's document and
+  a requirement's definition), `kf-start-here-v1` (a generated Start Here),
+  `kf-invitation-token-v1` (the only form of an invitation's token the database holds) and
+  `kf-invite-request-v1` (a `kf invite` run's request); and this document's revision schema
   `oh.war/sas-revision/v1`.
 - **Recorded labels for formats that carried no tag, kept so what was recorded still verifies:**
   `kf-audit-link-v1` (every link before `20260924001100`), `kf-document-parse-v1` (every parse
@@ -4653,7 +4859,9 @@ rather than reinterpreting it, and a chain or sequence never moves back to an ol
 - **Tags versioning a protocol or envelope, not a digest:** `kf-document-v1` (the compiler
   protocol), `kf-liminal-runtime-closure-v1`, `kf-migration-rollback-rehearsal-v3`,
   `kf-migration-028-state-v1`, and the web's cookie envelopes `kf-web-session-v1`,
-  `kf-oidc-transaction-v1` and `kf-id-token-hint-v1`.
+  `kf-oidc-transaction-v1` and `kf-id-token-hint-v1`; and `kf-agent-turn-seal-v1`, the domain of
+  the HMAC the in-app agent seals each answer's text and classification with, under a key the
+  browser never sees.
 - **Schema names of what the context source serves (§64C), not digest tags:**
   `kf.context-source-record/v1`, the record a read returns; and `kf.context-facts/v2`, the canonical
   facts served as a non-text record's text, whose SHA-256 is the reference's digest, so the name is
@@ -4662,8 +4870,10 @@ rather than reinterpreting it, and a chain or sequence never moves back to an ol
 - **Names of rankings, not digest tags** (§64A; each is returned with the list it names, and none
   is in a digest's preimage): `kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2`, the
   lexical ranking since `20260926100000`, which replaces `kf.lexical.full_text+partial_identifier.v1`;
-  `kf.fused.rrf.v1(k=60; …)`, the fused list, whose parentheses carry its constant and the names of
-  the rankings it fused; and `kf.near-miss.rank-window.v1(…)`, the near-miss window's scoring
+  `kf.fused.rrf.v2(k=60; lexical vote=(coverage-0.5)/0.5; …)`, the fused list, whose parentheses
+  carry its constant, its word-match vote and the names of the rankings it fused, and which replaces
+  `kf.fused.rrf.v1(k=60; …)`, under which every word match voted fully (§100.45); and
+  `kf.near-miss.rank-window.v1(…)`, the near-miss window's scoring
   function (RQ-217). The engine's own ranking names itself (`lamu.kf.masked-cosine.v1`).
 - **Listed before, and not digest tags:** `kf:audit-chain:v1` and `kf-action-idempotency-lock-v1`
   key advisory locks; `kf-master-record-boundary-v1` labels
@@ -4747,7 +4957,7 @@ record which program owns each federated fact.
 
 | Revision | Date | Change |
 |---|---|---|
-| `0.1.0-draft.9` | 2026-09-26 | Records the owner's decisions since `draft.8` and what was built under them, and corrects one statement `draft.8` got wrong. ADRs 0034 to 0037 were accepted on 2026-09-24, and every place this document called them proposed now says so (§8A, §18, §24, §64B, §96, §100); every ADR is now an OpenWarrant atom, its old path a link to it (§96). The correction: §17 and ADR 0033 said a requested ceiling above the person's clearance is clamped to it, and it is refused — `org.resolve_effective_classification` raises and the attestor answers 401 `classification_not_granted` — so both now say so, ADR 0033 with a dated note, the decision unchanged. §64C states the context source LAMU's compiler reads — retrieve, read and revision, loopback only, current authority on every call, refusals `KF-CTX-001` to `-007` with one byte-identical not-found, and every answer and decision's refusal recorded in `search.context_disclosure`, bound to the reader's master-record corpus — and INT-07, the source-policy proof over it, which the owner accepted on 2026-09-26; a non-text record is served as its content alone, `kf.context-facts/v2`. §64B records identification refusals made before anyone is bound, the owner's 2026-09-25 decision that a retrieval's query text is kept as every search's is, and that `draft.8`'s retention claim was incomplete because the API's request log kept query URLs. §52 records a NUL as conversion loss and indexes a file's parsed text; §48 refuses a title outside 1 to 240 characters, takes a file up to its download limit, and lets a derived text name its source; §8A answers an observation about an unseen record 404; §64A states the client's stale-bitmap fix. §93A states the fixture corpora, their licences, the ordered-pair isolation test and where their baselines live. §24A specifies qualification as [ADR 0038](../decisions/atoms/KF-ADR-0038-qualification-is-evidence-against-a-versioned-pack.md) proposes it, marked specified and not built. §102 gains the context source's digest tag and schema names and the Warrant runtime manifest's tag. Amended before acceptance with the search-and-scale work merged on 2026-09-26. Search serves one list fused from the lexical and semantic rankings by reciprocal rank fusion, `kf.fused.rrf.v1(k=60; …)`, beside the exhaustive lexical list and the semantic list, every fused result naming where each ranking placed it (§64A); `draft.8`'s requirement that the rankings be composed rather than merged is superseded, because the composed answer the web showed lexical first lost to the semantic list alone. Lexical search matches a record holding at least half of the query's IDF-weighted information, ranked by that share, then phrase, then `ts_rank`, as `kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2`; each record is indexed in its detected languages (English, French, German, Italian, Spanish, Portuguese, Dutch, a second kept when strong), and a query term matches every language's stem and its simple form; quotes, `-term` and `or` are no longer operators, a behaviour change; the floor, IDF, language rule and fusion constant are stated defaults, not tuned (§64, `20260926100000`, `20260926100300`). `search.rebuild()` runs in batches, resumably, deleting nothing first (§36, `20260926100100`). The band version moves once per transaction, at its commit, by a deferred trigger, in both organizations of an organization change (§64A, `20260926100200`). The context picker lists every live assignment the token's own person holds, in every organization, under its legal name (§24, `20260926120000`). An Object View reads one neighbourhood with its claim's size and yields the whole claim's Result, its member budget bounding what it evaluates, so a reader of more than 5 000 records is served rather than refused 413; its claim's currency is shown from the database's record of input writes since the compilation's snapshot — `content.master_record_input_write`, `content.master_record_currency`, a statement trigger on every governed input table — before any recount; and a claim's items are checked against its manifest once per statement (§58, §61, `20260926110000` to `110200`). §93A's baselines are fused and keep the numbers they replace; §102 lists the ranking names. §100 narrows and retitles .21 — the retrieval engine is built in LAMU and unverified by anyone independent — and .25, the fused ranking now measured on four corpora, and appends .37–.45: an unlinked token's identification refusals (opened and closed in this draft, `20260927000100`), a moved record answered 403, the engine's key not released by the Fabric, object-store images that no longer exist, qualification unbuilt, an Object View recounting after any write in its organization, the other master-record reads still reading the whole manifest, an embedding pump one request at a time, and weak word matches pulling the fused list below the semantic list alone. Amended again before acceptance on 2026-10-07 with the experience the owner decided on 2026-10-06: §24B states it as [ADR 0040](../decisions/atoms/KF-ADR-0040-the-experience-scope-is-the-product.md) proposes it, marked specified and not built — one dashboard layout scoped by grants; a master record that is scope compiled, the organization overview and handbooks being ordinary records; roles as composable presets of scope, acyclic and projected into the one grant view; agent submissions recorded on the person's behalf and unverified until a person with authority, or a configurable policy that defaults to requiring one, verifies them, institutional acts never; `confidential` and `restricted` content never sent to a provider's model, every answer naming its backend; a phone that reads, verifies and captures; a digest and an urgent push, quiet by default; joining through Start Here and qualification. §82 records the KF MCP server as the authority change it said a write tool would be; §96 adds ADR 0040's relations; §100 appends .46–.53, each unbuilt part named against its milestone (M2 to M5), schedules .41 for M5, and records under .17 and .24 that the work after the ladder is scheduled by the roadmap and its Warrants. Twenty-seven requirements appended (KF-SAS-RQ-250 to RQ-276: four for the context source, eight for qualification, fifteen for the experience); two retitled in place, each keeping its identifier — RQ-224 from composing to fusing, and RQ-112 to admit the database's record of writes beside comparison as a way of showing a claim current, never asserted by the writer; none removed. Architecture-changing under §94.3, carrying ADRs 0038 and 0040, both proposed. |
+| `0.1.0-draft.9` | 2026-09-26 | Records the owner's decisions since `draft.8` and what was built under them, and corrects one statement `draft.8` got wrong. ADRs 0034 to 0037 were accepted on 2026-09-24, and every place this document called them proposed now says so (§8A, §18, §24, §64B, §96, §100); every ADR is now an OpenWarrant atom, its old path a link to it (§96). The correction: §17 and ADR 0033 said a requested ceiling above the person's clearance is clamped to it, and it is refused — `org.resolve_effective_classification` raises and the attestor answers 401 `classification_not_granted` — so both now say so, ADR 0033 with a dated note, the decision unchanged. §64C states the context source LAMU's compiler reads — retrieve, read and revision, loopback only, current authority on every call, refusals `KF-CTX-001` to `-007` with one byte-identical not-found, and every answer and decision's refusal recorded in `search.context_disclosure`, bound to the reader's master-record corpus — and INT-07, the source-policy proof over it, which the owner accepted on 2026-09-26; a non-text record is served as its content alone, `kf.context-facts/v2`. §64B records identification refusals made before anyone is bound, the owner's 2026-09-25 decision that a retrieval's query text is kept as every search's is, and that `draft.8`'s retention claim was incomplete because the API's request log kept query URLs. §52 records a NUL as conversion loss and indexes a file's parsed text; §48 refuses a title outside 1 to 240 characters, takes a file up to its download limit, and lets a derived text name its source; §8A answers an observation about an unseen record 404; §64A states the client's stale-bitmap fix. §93A states the fixture corpora, their licences, the ordered-pair isolation test and where their baselines live. §24A specifies qualification as [ADR 0038](../decisions/atoms/KF-ADR-0038-qualification-is-evidence-against-a-versioned-pack.md) proposes it, marked specified and not built. §102 gains the context source's digest tag and schema names and the Warrant runtime manifest's tag. Amended before acceptance with the search-and-scale work merged on 2026-09-26. Search serves one list fused from the lexical and semantic rankings by reciprocal rank fusion, `kf.fused.rrf.v1(k=60; …)`, beside the exhaustive lexical list and the semantic list, every fused result naming where each ranking placed it (§64A); `draft.8`'s requirement that the rankings be composed rather than merged is superseded, because the composed answer the web showed lexical first lost to the semantic list alone. Lexical search matches a record holding at least half of the query's IDF-weighted information, ranked by that share, then phrase, then `ts_rank`, as `kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2`; each record is indexed in its detected languages (English, French, German, Italian, Spanish, Portuguese, Dutch, a second kept when strong), and a query term matches every language's stem and its simple form; quotes, `-term` and `or` are no longer operators, a behaviour change; the floor, IDF, language rule and fusion constant are stated defaults, not tuned (§64, `20260926100000`, `20260926100300`). `search.rebuild()` runs in batches, resumably, deleting nothing first (§36, `20260926100100`). The band version moves once per transaction, at its commit, by a deferred trigger, in both organizations of an organization change (§64A, `20260926100200`). The context picker lists every live assignment the token's own person holds, in every organization, under its legal name (§24, `20260926120000`). An Object View reads one neighbourhood with its claim's size and yields the whole claim's Result, its member budget bounding what it evaluates, so a reader of more than 5 000 records is served rather than refused 413; its claim's currency is shown from the database's record of input writes since the compilation's snapshot — `content.master_record_input_write`, `content.master_record_currency`, a statement trigger on every governed input table — before any recount; and a claim's items are checked against its manifest once per statement (§58, §61, `20260926110000` to `110200`). §93A's baselines are fused and keep the numbers they replace; §102 lists the ranking names. §100 narrows and retitles .21 — the retrieval engine is built in LAMU and unverified by anyone independent — and .25, the fused ranking now measured on four corpora, and appends .37–.45: an unlinked token's identification refusals (opened and closed in this draft, `20260927000100`), a moved record answered 403, the engine's key not released by the Fabric, object-store images that no longer exist, qualification unbuilt, an Object View recounting after any write in its organization, the other master-record reads still reading the whole manifest, an embedding pump one request at a time, and weak word matches pulling the fused list below the semantic list alone. Amended again before acceptance on 2026-10-07 with the experience the owner decided on 2026-10-06: §24B states it as [ADR 0040](../decisions/atoms/KF-ADR-0040-the-experience-scope-is-the-product.md) proposes it, marked specified and not built — one dashboard layout scoped by grants; a master record that is scope compiled, the organization overview and handbooks being ordinary records; roles as composable presets of scope, acyclic and projected into the one grant view; agent submissions recorded on the person's behalf and unverified until a person with authority, or a configurable policy that defaults to requiring one, verifies them, institutional acts never; `confidential` and `restricted` content never sent to a provider's model, every answer naming its backend; a phone that reads, verifies and captures; a digest and an urgent push, quiet by default; joining through Start Here and qualification. §82 records the KF MCP server as the authority change it said a write tool would be; §96 adds ADR 0040's relations; §100 appends .46–.53, each unbuilt part named against its milestone (M2 to M5), schedules .41 for M5, and records under .17 and .24 that the work after the ladder is scheduled by the roadmap and its Warrants. Twenty-seven requirements appended (KF-SAS-RQ-250 to RQ-276: four for the context source, eight for qualification, fifteen for the experience); two retitled in place, each keeping its identifier — RQ-224 from composing to fusing, and RQ-112 to admit the database's record of writes beside comparison as a way of showing a claim current, never asserted by the writer; none removed. Amended a third time before acceptance on 2026-10-07, closing milestones M0 to M5 as built: §24A, §24B and §82 say what was built and where (the KF MCP server, the verification policy and Needs you; role presets, the organization overview, the master-document page and the dashboard; the in-app agent routed by classification and the notifications; qualification, `kf invite` and Start Here); §48A gains the third verification basis, `verified_by_policy`; §64A, §93A and §102 record the fused ranking's `v2`, whose word matches vote by their share of the question above the floor; §85, §87, §88 and §91 record ADR 0039's SeaweedFS store, tailnet certificate and Backblaze B2 off-site copy, and the notification units; §96 adds ADR 0039; §101 adds the `KF-AGENT`, `KF-VPOL`, `KF-ROUTE`, `KF-NOTIFY` and `KF-QUAL` refusals; §102 adds the new digest tags. §100 closes .40, .41, .44 and .46–.53, narrows .45 (the choice of fusion is the owner's), widens .6 by the ontology changes the pack re-cut must carry, and appends .54–.62: the object store's identities file, object-lock retention on the backup copy (the owner's decision), four readings of M2 the owner has not confirmed, one urgent-push destination, typed text unclassified, LAMU's own forwarding, photo and voice capture, the Start Here guide, and the qualification acts with no web gesture. No requirement added, retitled or removed. Architecture-changing under §94.3, carrying ADRs 0038, 0039 and 0040, all proposed. |
 | `0.1.0-draft.8` | 2026-09-24 | Brings this document in line with the security hardening of 2026-09-23/24 and with everything built on it before acceptance. The hardening began with a red-team pass run as `kf_app`, which showed that row-level security held against a buggy API and not a hostile one: every `kf.*` setting the policies read was the application's to write, and the ledger, the audit chain, role assignments, identity links and verifications all accepted rows no act had made. §17 now states that the database binds the principal — a sealed context, `core.bind_principal` deriving organization and ceiling from a live assignment and clearance, the application only narrowing — and §24 the attestation boundary: `kf-attestor` verifies RS256 and the database binds a person for the API's login only on its current attestation, the replay window being the token's life, which commissioning now caps at 300 s, and an attestor that cannot be asked is a 503 outage with no fallback. The database also recomputes audit digests (§30), checks act authority on the ledger row (§20), forces row security on every table that enables it and reconciles a running database against the migrations' declared set (§38), so KF-SAS-RQ-073 is met and §100.15 is closed; refuses a domain write that belongs to no recorded act (§25); fixes a closed record's identity and a decided decision's words (§41); and refuses an edge whose endpoint types its relation does not declare (§35). Authority rows are minted only by the owner credential, and an identity link is withdrawn only there, as `kf:revoke-identity`'s recorded act (§33, §76). An agent acts for a named person on an exchanged token, its participation written into the ledger by the database (§24, ADR 0035). An observation is captured in one gesture on three surfaces (§8A, ADR 0034); three of ADR 0024's five latency bars are measured (§8A). Every projection, Object View, agent read and search hit labels an unverified record (§59, `kf-projection-result-v2`); agent reads and the AI planner ask the read grant and consume the reader's `agent_context` projection (§32, §59); the projection grammar is closed and bounded in depth, size and runtime (§60). The retrieval index's Fabric half is built — per-query masks, a band version that never repeats, embed-on-ingest, composed rankings, a withheld count within the asker's ceiling (§64A, §64B, ADR 0037) — and queries are recorded under an expiring pseudonym and replayable by their asker. §43, §45 and §86 state the install and migration scripts, correcting a false claim that a test pinned the seeded ontology's digest; §88 the backup login that until then could not take a backup. §13 and §29 state the database clock and the caller's `effectiveAt` bounds; §48–§49 the ingest order and the recorded orphan sweep; §61 ADR 0033's amendment of ADR 0015. §28 gains `not_attested`, HTTP 401, as a thirteenth code. Every remaining source count is removed in favour of [`generated/measurements.md`](../../generated/measurements.md), which gains schemas, triggers, views, indexes, foreign keys, checks, group roles, forward-only migrations, packages and systemd units, and excludes SQL comments. §102's format tags are reconciled with the code, and §100.27's two untagged digests are resolved in the same draft, the remaining untagged ones enumerated by a gate. Delegation is one level deep and every new assignment ends within a year (§18, ADR 0036); every process resolves its stores against their declared, bound address (§50); a requalified compiler must reproduce the run before it (§54); an archive from an earlier exporter imports (§56); another person's recorded queries are replayed only as the aggregate (§64B); an object's history is read by index (§61); and an engagement cannot close over live work (§73). §100 closes .2, .7, .8, .9, .12, .15, .16, .19, .31 and .34 and the labelling half of .26; narrows .1, .3, .5, .18, .21, .23, .27 and .32; and appends .28–.36, the first of which records that the owner has not confirmed KF-SAS-RQ-038's clarified reading. Seventeen requirements appended (KF-SAS-RQ-233 to RQ-249); six retitled in place (RQ-038 to ADR 0027's session ceiling, RQ-042, RQ-044, RQ-150, RQ-181 and RQ-222), because the earlier wording was wrong about the design or narrower than what was built, and each keeps its identifier; none removed. Architecture-changing under §94.3, carrying [ADR 0033](../decisions/0033-the-database-binds-the-principal.md), and citing ADRs 0034 to 0037, which are proposed and await the owner. |
 | `0.1.0-draft.7` | 2026-09-20 | Records the owner's waiver of ADR 0004's seven-day floor on compiler cutover ([ADR 0032](../decisions/0032-the-seven-day-floor-is-waived.md)). The other three conditions stand: twice-compiled byte-identical output, five action paths exercised, zero unexplained drift. §93.1 restated, because it asserted a floor that no longer applies. No requirement added, removed or retitled; not architecture-changing under §94.3 — the waived condition was a procedural floor rather than an architectural rule, and what it gave up is recorded in the ADR rather than in a requirement. |
 | `0.1.0-draft.6` | 2026-09-18 | Corrects a conflation in `draft.5`. §48A used "draft" and "unverified" interchangeably, and they are not the same: `draft` is the initial state of 8 of the 24 state machines in `ontology/state-machines.yaml`, while the rest begin at `planned`, `proposed`, `active`, `open`, `captured`, `prospective`, `in_service` or `received`. A work order that begins at `planned` was never a draft, so the previous wording's rules did not reach it — and "any initial state" is wrong in the other direction, since equipment beginning at `in_service` is not unverified. Verification is therefore orthogonal to lifecycle: a record may be `active` and unverified, or `draft` and verified. KF-SAS-RQ-228 is retitled from "a draft" to "an unverified record", RQ-232 is appended stating the orthogonality, §48A's prose and title are corrected, and §100.26 is restated — it had recorded the same error. One requirement appended, one retitled, none removed; architecture-changing under §94.3, carrying [ADR 0031](../decisions/0031-a-draft-is-a-record-that-says-so.md), corrected in place while proposed. |
@@ -5046,7 +5256,7 @@ from evidence, never recorded here (§97.3).
 | KF-SAS-RQ-252 | "No longer permitted" only for a record the reader's own master record included; every other refusal is one identical not-found |
 | KF-SAS-RQ-253 | A context source re-checks current authority on every call, refuses a moved record, and serves only a direct loopback caller |
 
-### Qualification, 2026-09-26 (ADR 0038, specified and not built)
+### Qualification, 2026-09-26 (ADR 0038, built for M5)
 
 | ID | Requirement |
 |---|---|
@@ -5059,7 +5269,7 @@ from evidence, never recorded here (§97.3).
 | KF-SAS-RQ-260 | A mandatory requirement names what becomes unsafe, unauthorized or unreliable without it |
 | KF-SAS-RQ-261 | An unavailable resource or reviewer is the organization's blocker, never the person's failure |
 
-### The experience, 2026-10-07 (ADR 0040, specified and not built)
+### The experience, 2026-10-07 (ADR 0040, built for M2 to M5)
 
 | ID | Requirement |
 |---|---|
