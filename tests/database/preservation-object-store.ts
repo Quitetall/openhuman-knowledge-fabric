@@ -95,8 +95,15 @@ export class PreservationObjectStore {
   private config: string | undefined;
   private service: StoreService | undefined;
 
-  /** `buckets` undefined: init-buckets.sh's own default list, as the development stack gets. */
-  constructor(private readonly buckets?: readonly string[]) {}
+  /**
+   * `buckets` undefined: init-buckets.sh's own default list, as the development stack gets.
+   * `identities`: more SeaweedFS identities beside the fixture's own administrator, e.g. the ones
+   * deploy/object-store/render-identities.mjs makes for a host.
+   */
+  constructor(
+    private readonly buckets?: readonly string[],
+    private readonly identities: readonly unknown[] = [],
+  ) {}
 
   /** Start a store and create the buckets with versioning on, through init-buckets.sh. */
   async start(): Promise<StartedStore> {
@@ -119,6 +126,7 @@ export class PreservationObjectStore {
             credentials: [{ accessKey: ACCESS, secretKey: SECRET }],
             actions: ['Admin', 'Read', 'List', 'Tagging', 'Write'],
           },
+          ...this.identities,
         ],
       }),
     );

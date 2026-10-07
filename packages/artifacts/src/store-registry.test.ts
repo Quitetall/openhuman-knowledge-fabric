@@ -59,7 +59,7 @@ function counting(): { construct: (config: S3Config) => InMemoryObjectStore; bui
 const BOUND: Row = {
   id: 'working',
   kind: 'object_store',
-  endpoint: 'http://minio:9000',
+  endpoint: 'http://seaweedfs:8333',
   bucket: 'kf-artifacts',
 };
 
@@ -69,15 +69,15 @@ describe('StoreRegistry.fromDatabase', () => {
     const { construct, built } = counting();
     const refused = StoreRegistry.fromDatabase(
       tx,
-      { working: config('http://minio:9000', 'yesterdays-bucket') },
+      { working: config('http://seaweedfs:8333', 'yesterdays-bucket') },
       { construct },
     );
     await expect(refused).rejects.toBeInstanceOf(StoreAddressMismatch);
     await expect(refused).rejects.toMatchObject({
       code: 'artifact_store_address_mismatch',
       storeId: 'working',
-      registered: { endpoint: 'http://minio:9000', bucket: 'kf-artifacts' },
-      configured: { endpoint: 'http://minio:9000', bucket: 'yesterdays-bucket' },
+      registered: { endpoint: 'http://seaweedfs:8333', bucket: 'kf-artifacts' },
+      configured: { endpoint: 'http://seaweedfs:8333', bucket: 'yesterdays-bucket' },
     });
     expect(built).toEqual([]);
     expect(binds).toEqual([]);
@@ -93,7 +93,7 @@ describe('StoreRegistry.fromDatabase', () => {
   it('refuses to put an object-store address on a store declared as memory', async () => {
     const { tx } = fakeTx([{ id: 'durable', kind: 'memory', endpoint: null, bucket: null }]);
     await expect(
-      StoreRegistry.fromDatabase(tx, { durable: config('http://minio:9000', 'kf-durable') }),
+      StoreRegistry.fromDatabase(tx, { durable: config('http://seaweedfs:8333', 'kf-durable') }),
     ).rejects.toThrow(/declared memory, not an object store/);
   });
 
@@ -102,13 +102,13 @@ describe('StoreRegistry.fromDatabase', () => {
     const { construct, built } = counting();
     const registry = await StoreRegistry.fromDatabase(
       tx,
-      { working: config('HTTP://MinIO:9000/', 'kf-artifacts') },
+      { working: config('HTTP://SeaweedFS:8333/', 'kf-artifacts') },
       { construct },
     );
     expect(registry.ids()).toEqual(['working']);
     expect(built).toHaveLength(1);
     expect(binds).toEqual([
-      ['working', 'working object store (kf-artifacts)', 'http://minio:9000', 'kf-artifacts'],
+      ['working', 'working object store (kf-artifacts)', 'http://seaweedfs:8333', 'kf-artifacts'],
     ]);
   });
 
@@ -118,7 +118,7 @@ describe('StoreRegistry.fromDatabase', () => {
     const registry = await StoreRegistry.fromDatabase(
       tx,
       {
-        working: config('http://minio:9000', 'kf-artifacts'),
+        working: config('http://seaweedfs:8333', 'kf-artifacts'),
         durable: config('https://storage.googleapis.com', 'kf-durable'),
       },
       { construct },
@@ -133,7 +133,7 @@ describe('StoreRegistry.fromDatabase', () => {
       new Error('artifact_store_address_mismatch: store working is registered at …'),
     );
     await expect(
-      StoreRegistry.fromDatabase(tx, { working: config('http://minio:9000', 'kf-artifacts') }),
+      StoreRegistry.fromDatabase(tx, { working: config('http://seaweedfs:8333', 'kf-artifacts') }),
     ).rejects.toBeInstanceOf(StoreAddressMismatch);
   });
 });
@@ -178,7 +178,7 @@ describe('the deferred registry (the API)', () => {
     await inner.put('k', Buffer.from('bytes'), 'text/plain');
     const registry = StoreRegistry.deferredFromDatabase(
       pool as never,
-      { working: config('http://minio:9000', 'another-bucket') },
+      { working: config('http://seaweedfs:8333', 'another-bucket') },
       { construct: () => inner },
     );
     const store = registry.get('working')!;

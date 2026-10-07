@@ -25,7 +25,7 @@ pnpm exec tsc -p tsconfig.test.json
 pnpm exec eslint tests/database/warrant-preservation.test.ts
 ```
 
-The same test stores source-archive bytes in a real, versioned MinIO service and links
+The same test stores source-archive bytes in a real, versioned object store (SeaweedFS, ADR 0039; MinIO until 2026-10) and links
 its immutable content version to a Warrant artifact through the public dispatcher.
 It stops the object store, copies its data into a separate Docker volume, removes
 the source container and starts a new service from that retained copy. The shipped
@@ -35,7 +35,7 @@ the pinned version; deleting that exact version yields a missing-object refusal
 and no served bytes. The fixture uses pinned images matching Compose and cleans
 up only the containers, volumes and backup directory it created.
 
-This proves the stated provider database and local MinIO recovery scenario. It
+This proves the stated provider database and local object-store recovery scenario. It
 covers all 15 current Warrant section families but does not exhaust their field
 values, historical combinations or complete OW-WAR-0111. Provider
 database preservation and the experimental OpenWarrant byte archive remain
@@ -117,7 +117,7 @@ semantics, complete stage coverage or Warrant assurance. The current provider
 dispatch table does not supply a general stage mapping. OpenWarrant archive
 integration must keep that unresolved binding visible rather than infer it.
 
-Validation uses the real PostgreSQL/MinIO preservation fixture after source
+Validation uses the real PostgreSQL/object-store preservation fixture after source
 shutdown, plus signed-package negative tests for broken contract/dispatch links
 and duplicate receipts. Shared scope: OpenWarrant OW-WAR-0111.
 
@@ -252,7 +252,7 @@ authorization. Original output bytes remain in the retained OpenWarrant archive.
 
 ## Populated local service archive
 
-The same PostgreSQL and MinIO restore test now runs against a second producer
+The same PostgreSQL and object-store restore test now runs against a second producer
 fixture, `local-runtime`. This archive contains two actual local service attempts,
 including their dispatches, submissions, run records, receipts and stdout/stderr.
 OpenWarrant producer b223fc24 reported runtime retention, then its temporary source

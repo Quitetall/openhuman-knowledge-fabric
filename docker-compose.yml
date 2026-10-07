@@ -74,7 +74,7 @@ services:
     # in one process, which is the simplest durable shape on one machine — every byte and every
     # filer record is under /data. Pinned by release AND digest, like postgres and keycloak: a
     # floating tag means a clean checkout can stop working because an upstream release changed,
-    # with nothing in this repo to explain it. (MinIO, which this replaced, is the example: its
+    # with nothing in this repo to explain it. (The store this replaced is the example: its
     # pinned images were deleted from every registry in 2026-09.)
     image: chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
     container_name: kf-seaweedfs
