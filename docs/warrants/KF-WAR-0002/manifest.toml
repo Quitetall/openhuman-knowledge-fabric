@@ -1,0 +1,76 @@
+# A Warrant is the contract for ONE bounded intervention inside a program,
+# and it traces to that program's SAS through [[implements]] and [[roadmap]].
+# Starting a program? Write its SAS instead (SAS §6.10; docs/DEFINITIONS.md).
+schema = "oh.war/manifest/v1"
+uuid = "01a114df-fbc0-7b81-a04a-9c99fc062cab"
+local_alias = "KF-WAR-0002"
+
+# Allocated only by Knowledge Fabric (SAS §12.4). Leave empty.
+enterprise_id = ""
+
+title = "Close out the work in flight: land the host branches, pin the engine, re-propose the SAS"
+profile = "delivery"
+assurance_level = "basic"
+
+# Milestone M0 of docs/ROADMAP.md: land everything in flight before new work starts.
+# It sits on Phase 9 because what it lands (SeaweedFS, B2 off-site, tailnet TLS, the engine pin) is
+# what the Phase 9 host runs. It is not the phase's exit: KF-WAR-0001 is.
+[[roadmap]]
+ref = "roadmap://KF-PHASE-9/m0-close-out"
+
+# A clean machine can start the object store again (SAS §100.40): SeaweedFS replaces the
+# archived MinIO images. Host evidence of the requirement stays with KF-WAR-0001.
+[[implements]]
+ref = "sas://KF-SAS-RQ-161"
+contribution = "partial"
+
+# The durable store can be a Backblaze B2 bucket bound like any other store (ADR 0039).
+[[implements]]
+ref = "sas://KF-SAS-RQ-095"
+contribution = "partial"
+
+# The off-site copy goes to a versioned bucket and is read back by version; the schedule
+# and the host evidence are KF-WAR-0001's.
+[[implements]]
+ref = "sas://KF-SAS-RQ-165"
+contribution = "partial"
+
+# The real-engine suite run against the LAMU engine pinned at 26923afb.
+[[implements]]
+ref = "sas://KF-SAS-RQ-213"
+contribution = "validation"
+
+# The pinned engine embeds on the host only; validated, not newly built here.
+[[implements]]
+ref = "sas://KF-SAS-RQ-218"
+contribution = "validation"
+
+[[atoms]]
+ordinal = 10
+role = "intent"
+path = "atoms/10-intent.md"
+required = true
+
+[[atoms]]
+ordinal = 20
+role = "basis"
+path = "atoms/20-basis.md"
+required = true
+
+[[atoms]]
+ordinal = 40
+role = "work_order"
+path = "atoms/40-work-order.md"
+required = true
+
+[[atoms]]
+ordinal = 45
+role = "milestones"
+path = "atoms/45-milestones.yaml"
+required = true
+
+[[atoms]]
+ordinal = 60
+role = "assurance"
+path = "atoms/60-assurance.md"
+required = true

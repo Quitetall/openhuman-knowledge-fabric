@@ -1,0 +1,45 @@
+schema: "oh.war/milestones/v1"
+
+milestones:
+  - id: "M1"
+    title: "ADR 0040 records the twelve decisions, what was rejected, and how we will know"
+    stage_refs: ["STAGE-001"]
+    obligation_refs: ["OBL-001"]
+
+  - id: "M2"
+    title: "The SAS states them as requirements, with a gap entry for every unbuilt part"
+    depends_on: ["M1"]
+    stage_refs: ["STAGE-002", "STAGE-003"]
+    obligation_refs: ["OBL-002", "OBL-003"]
+
+  - id: "M3"
+    title: "The dependent Warrants implement the new requirements, and the owner has accepted them"
+    depends_on: ["M2"]
+    stage_refs: ["STAGE-004", "STAGE-005"]
+    obligation_refs: ["OBL-004"]
+
+stages:
+  - id: "STAGE-001"
+    title: "Write ADR 0040 with options rejected and how we will know"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-002"
+    title: "Write the SAS experience section and its requirements"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-003"
+    title: "Record each unbuilt part in section 100 and propose the revision"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-004"
+    title: "Add the new requirements to KF-WAR-0004 to KF-WAR-0007 and recompile"
+    executor_kind: "agent"
+    responsibility_tier: "T1"
+
+  - id: "STAGE-005"
+    title: "Owner accepts ADR 0040 and the revision, and decides the open choices"
+    executor_kind: "human"
+    responsibility_tier: "T3"

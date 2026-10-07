@@ -18,8 +18,20 @@ says so — from that host, not from the machine that built the software.
 Phase 9 is the only objective in the §98 ladder that no amount of engineering in this repository
 can discharge. Nine phases were delivered by writing code and running gates. This one is
 discharged by a machine existing, being configured against a contract, and being observed. ADR
-0004 makes four of the five v1.0 criteria queue behind it, and one of those carries a seven-day
-floor that cannot begin counting until the host exists.
+0004 makes four of the five v1.0 criteria queue behind it. One of those carried a seven-day floor
+that could not begin counting until the host existed; ADR 0032 has since waived the floor, and the
+parity evidence it guarded is still owed.
+
+## Which host
+
+ADR 0039 (`docs/decisions/0039-the-first-host-is-a-vps-on-a-tailnet-with-seaweedfs-and-b2.md`,
+proposed 2026-10-03, every option chosen by the owner) settles it: **a rented KVM VPS**, about 4
+vCPU and 8 GB, Debian 13, reached only over a **Tailscale** tailnet with a certificate from
+`tailscale cert`; **SeaweedFS** as the working store; **Backblaze B2** for durable artifact copies
+and object-locked off-site backups; semantic search on the host's **CPU**, with the LAMU engine
+pinned at `26923afb` and the bge-m3 embedder local. The VM on the workstation, `kf-host-1`, stays a
+rehearsal host. This is milestone **M6** of `docs/ROADMAP.md`, after KF-WAR-0002 (M0) lands the
+code it runs.
 
 It is also the objective most likely to be quietly overclaimed. A host that answers a request has
 proven it is running; whether it may hold records is a different question, and the deployment

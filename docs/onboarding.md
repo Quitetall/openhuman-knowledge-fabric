@@ -9,7 +9,8 @@ which is stated in place rather than implied by silence. An onboarding document 
 followed is the same failure as a test that has never failed.
 
 If you only want to build on the code, read [`CONTRIBUTING.md`](../CONTRIBUTING.md) instead. This
-document is about _using_ the thing.
+document is about _using_ the thing. If you are here to continue developing it, the
+[roadmap](ROADMAP.md) says what is next and whose act each step is.
 
 ---
 

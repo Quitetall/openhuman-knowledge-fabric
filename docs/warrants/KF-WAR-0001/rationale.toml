@@ -10,9 +10,9 @@ schema = "oh.war/rationale/v1"
 
 [[assumption]]
 id = "A-001"
-statement = "A virtual machine on the build workstation can produce commissioning evidence that means something."
+statement = "One rented VPS, reached over Tailscale with off-site copies in Backblaze B2, is an acceptable first host (ADR 0039). This replaced 'a virtual machine on the build workstation can produce commissioning evidence that means something' when ADR 0039 moved the host off the workstation."
 epistemic_status = "accepted_residual_risk"
-consequence_if_false = "Every check passes on a host whose failure domain is shared with its builder, criterion 3 of ADR 0004 reads met, and the property nobody looks at until the workstation fails is the one that died. The gate's own first blind spot is that it cannot tell the difference."
+consequence_if_false = "Every check passes on one machine at one provider, criterion 3 of ADR 0004 reads met, and a failure of the provider's host, the tailnet or B2 is read as covered. ADR 0039 bounds each: the tailnet loses access not data, B2 loses off-site copies not working data, and the provider console is a second way in."
 judgment_ref = ""
 
 [[assumption]]
