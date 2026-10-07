@@ -3642,11 +3642,12 @@ Each service has an unprivileged account (§37); the units are counted in
 | `kf-objects` | the working object store: SeaweedFS's S3 gateway on loopback, every byte under `/var/lib/kf-objects`, identities from a file ([ADR 0039](../decisions/atoms/KF-ADR-0039-the-first-host-is-a-vps-on-a-tailnet-with-seaweedfs-and-b2.md)) |
 | `kf-objects-init` | creates the buckets with versioning on after every start of the store, and fails unless each reads back `Enabled` |
 | `kf-tls-renew` | as `kf-tls`, renews the tailnet certificate with `tailscale cert` and, after `nginx -t`, reloads nginx |
+| `kf-compiler-determinism` | as `kf-worker`, under the worker's sandbox, re-runs the newest recorded compilation successes and fails to an alert when one does not reproduce; records nothing (§100.35) |
 | `kf-notify@` | `kf-notify@digest` e-mails each person what needs them, and `kf-notify@urgent` pushes, through the operational alert path, that something urgent does (§24B); as `kf-notify`, whose login executes two functions and reads no table |
 
 Timers: checkpoint hourly, readiness every fifteen minutes, urgent notification every five
 minutes, backup, storage sweep, checkpoint verification, alert heartbeat, certificate renewal and
-notification digest daily, restore drill monthly. A timer that stops firing is
+notification digest daily, compiler determinism re-run weekly, restore drill monthly. A timer that stops firing is
 noticed: each declares how long it may be silent, and `scripts/timer-liveness.sh` reports one
 that has been silent longer.
 
@@ -4222,7 +4223,13 @@ KF-SAS-RQ-070.
 the database accepts its identifiers once its namespaces are seeded; `registry-check` refuses it,
 because `ontology/meta.yaml` pins `OH-` in an approved pack. The remaining pins are that file, the
 two generated artifacts compiled from it, and `packages/ontology-compiler/src/damm.ts` — the last a
-code coupling that can be fixed without the pack owner, the others not. Bears on KF-SAS-RQ-139,
+code coupling that can be fixed without the pack owner, the others not. Narrowed again in
+`0.1.0-draft.9` (2026-10-07): `damm.ts` names no prefix and no namespace; `identifierGrammar`
+compiles the validator from the registry's own `grammars.yaml`, and registry-check's reject-vector
+gate is checked against the registry under test, so it is no longer vacuous for a second one
+(`tests/ontology/registry-separability.test.ts` plants a valid second-registry identifier among its
+reject vectors and requires the gate to name it). The remaining pins are `ontology/meta.yaml` and
+the two artifacts compiled from it — the governance act of §70.2. Bears on KF-SAS-RQ-139,
 and §70.2 explains why un-pinning `meta.yaml` is a governance act.
 
 **100.4 Replication and verification are not scheduled anywhere.** The service and timer exist;
@@ -4464,8 +4471,20 @@ exchanged with the Liminal compiler and need a `kf-document-v1` protocol bump ag
 master record's corpus and permission line digests, reproduced in SQL; the master-record link
 payload digest, over `JSON.stringify`; the ML registry's sub-digests inside its
 `schemaVersion`-tagged receipts; and the ontology and registry source digests in the generated
-packs. Each is a format change with a new tag where rows already record the old one. Bears on
-KF-SAS-RQ-016 and RQ-158.
+packs. Each is a format change with a new tag where rows already record the old one.
+
+Narrowed in `0.1.0-draft.9` (2026-10-07). The owner-credential administrative acts' request
+digests, the master-record link payload digest and the ontology source digest are tagged
+(`kf-<act>-request-v1` for the five acts, `kf-master-record-link-payload-v1`,
+`kf-ontology-source-v1`); rows and artifacts recorded before keep their untagged values, which
+nothing recomputes. The gate scanned only TypeScript, so its claim to find every other way a
+SHA-256 is taken was false for the database, where §5 puts the authority: it now also scans
+`database/migrations`, and both `UNTAGGED` lists are ratcheted (TypeScript 28, SQL 11). What remains
+is enumerated there, and each needs a format version: the document-compiler protocol (agreed with
+Liminal), the ML registry's sub-digests and the master-record corpus and permission digests (with
+their SQL), the AI planner's item and instruction digests, the LamQuant manifest identity, the
+ingest idempotency key, and the registry pack's source digest (with the registry pack's re-cut).
+The three that need the owner are §100.65. Bears on KF-SAS-RQ-016 and RQ-158.
 
 **100.28 The owner has not confirmed KF-SAS-RQ-038's reading.** `0.1.0-draft.8` clarifies it in
 place from ADR 0011's rule — the effective ceiling is the minimum of the clearance and any
@@ -4499,7 +4518,7 @@ counts, never a query or its asker. Listing another person's queries is delibera
 and ADR 0029's "its own act requiring its own grant" for an attributed read is met only by the
 owner credential. Bears on KF-SAS-RQ-221, RQ-222 and RQ-247.
 
-**100.32 An archive exported before `20260925130100` is not shown to restore — narrowed.**
+**100.32 An archive exported before `20260925130100` is not shown to restore — closed.**
 Narrowed in `0.1.0-draft.8`: an archive carrying `work.deliverable`'s old columns is converted on
 import as the migration converted it, and a format-2 archive written before any of the forty-one
 sections `section-eras.ts` names — every section added since the format went to 2 (bffc6739,
@@ -4520,7 +4539,15 @@ format-1 path runs (`tests/round-trip/export.test.ts`). A role a later migration
 when the archive predates it — `20260911000100`'s `customer_contact` and `partner_contact` — because
 the restore adds back any seeded role the archive's roles lack. What remains: the tests cut an old
 archive from a current one by removing sections and rewriting `deliverables`; they do not revert the
-columns later migrations added to sections that already existed. Bears on KF-SAS-RQ-104 and RQ-248.
+columns later migrations added to sections that already existed. Closed in `0.1.0-draft.9`
+(2026-10-07): `tests/round-trip/reverted-columns.test.ts` enumerates every column a migration added
+to an exported section since the format went to 2, requires each classified by what an archive
+without it restores as, and restores an archive with them removed. It found that an archive
+predating `master-records.corpus_digest` failed to restore (the importer now derives it as
+`20260901000100` did) and that `people.person_kind`, `organizations.retired_at` and `succeeded_by`
+were never exported. They are now; an archive written before restores them as `human`, null and
+null and cannot say otherwise (`docs/backup-and-restore/README.md`). Bears on KF-SAS-RQ-104 and
+RQ-248.
 
 **100.33 Agent declarations do not travel in the export.** `org.declared_agent` is left out of
 the canonical export by design — a restore target has its own realm and its owner declares its own
@@ -4536,12 +4563,16 @@ references it, and no work order is issued under an ended engagement — a preco
 database trigger behind it (§73, `20260925142100`). The domain decision the entry named is the
 author's and is the owner's to confirm with this revision. Bears on KF-SAS-RQ-142.
 
-**100.35 Compilation is checked for reproduction, not proven deterministic.** A requalified
+**100.35 Compilation is checked for reproduction, not proven deterministic — closed.** A requalified
 compiler's run that fails to reproduce an earlier run over the same sources is refused (§54), but
 nothing re-runs the compiler on a schedule to test determinism, so a nondeterministic compiler is
 caught only when something happens to compile the same sources again; and the views a refused run
-materialized stay in the store, unreferenced.
-Bears on KF-SAS-RQ-102.
+materialized stay in the store, unreferenced. Closed in `0.1.0-draft.9` (2026-10-07):
+`kf-compiler-determinism.timer` re-runs the newest recorded successes weekly, read-only, under the
+worker's sandbox, and fails to an alert when a run digest differs
+(`apps/worker/src/compiler-runtime/determinism.ts`, `20261007600000`). It samples, so a compiler
+nondeterministic only on unsampled sources is still caught only when they are compiled again. The
+unreferenced views are §100.64. Bears on KF-SAS-RQ-102.
 
 **100.36 A history read still pays the audit policy per event.** The ledger lookup is by index
 (§61, `20260925142200`); the audit events it leads to are read under `core.audit_event`'s row
@@ -4794,6 +4825,21 @@ leaks. Raising the envelope would hide scope and eligibility from people ADR 003
 whether to raise it is the owner's decision. A deployment without an on-host model answers a
 qualifying person's chat with nothing; their Start Here page is unaffected. Bears on
 KF-SAS-RQ-254 and RQ-271.
+
+**100.64 The views a refused compilation materialized stay in the store, unreferenced.** Opened in
+`0.1.0-draft.9` (2026-10-07), split from §100.35 when that entry closed. A run the database refuses
+as not reproducing (KF-DOC-DETERMINISM-001) is recorded as failed with no views, but the bytes the
+worker wrote before the refusal stay in the working store, referenced by no receipt. Nothing
+collects them; they cost space, not truth, since no receipt or publication can name them. Bears on
+KF-SAS-RQ-102.
+
+**100.65 Three digest formats wait on the owner.** Opened in `0.1.0-draft.9` (2026-10-07) by the
+closing pass on §100.27. The registry pack's `policy_source_digest` is not tagged, because the
+signed `openhuman-registry-1.0.0-draft.2` still matches its source and tagging it would break that;
+it is tagged with a registry re-cut the owner signs. The document compiler's protocol digests need
+a `kf-document-v1` protocol bump agreed with the Liminal compiler. The ML registry's sub-digests and
+the master record's corpus and permission digests need a format bump with migrations, or the owner
+accepts each as a limit with its reason. Bears on KF-SAS-RQ-016 and RQ-158.
 
 **KF-SAS-RQ-186.** The set of tables forced under row-level security SHALL be derivable from the
 migrations, and any difference between that set and the running database SHALL be reconciled.
