@@ -137,12 +137,12 @@ async function commissionedHost(): Promise<{
   await writeFile(
     reverseProxy,
     `server {
-    listen 80;
+    listen 100.101.102.103:80;
     server_name fabric.example.org;
     return 308 https://$host$request_uri;
 }
 server {
-    listen 443 ssl;
+    listen 100.101.102.103:443 ssl;
     server_name fabric.example.org;
     ssl_protocols TLSv1.2 TLSv1.3;
     location / {
@@ -152,6 +152,28 @@ server {
 }
 `,
   );
+
+  // What a correctly closed host lists as listening: loopback services, nginx on the private
+  // address, and tailscaled's transport on every address. A stand-in for ss, because this
+  // workstation's own sockets are not the host under test.
+  const ss = join(root, 'ss');
+  await writeFile(
+    ss,
+    `#!/bin/sh
+cat <<'SOCKETS'
+udp   UNCONN 0      0            127.0.0.53%lo:53         0.0.0.0:*
+udp   UNCONN 0      0                  0.0.0.0:41641      0.0.0.0:*
+udp   UNCONN 0      0                     [::]:41641         [::]:*
+tcp   LISTEN 0      511        100.101.102.103:443        0.0.0.0:*
+tcp   LISTEN 0      511        100.101.102.103:80         0.0.0.0:*
+tcp   LISTEN 0      511              127.0.0.1:4000       0.0.0.0:*
+tcp   LISTEN 0      200              127.0.0.1:5432       0.0.0.0:*
+tcp   LISTEN 0      4096   [fd7a:115c:a1e0::1]:41821         [::]:*
+tcp   LISTEN 0      200                  [::1]:5432          [::]:*
+SOCKETS
+`,
+  );
+  await chmod(ss, 0o755);
 
   // The accounts, described rather than created: this process's uid plays kf-attestor, which
   // owns every file written here, and its gid plays kf-attest, which kf-api is a member of.
@@ -248,6 +270,10 @@ server {
       identityPolicyPath: policy,
       identityPolicyDigest: await digestOf(policy),
       reverseProxyConfigPath: reverseProxy,
+      privateListenAddresses: '100.101.102.103, fd7a:115c:a1e0::1',
+      privateInterface: 'tailscale0',
+      publicListenAllowed: 'udp:41641',
+      socketStatisticsPath: ss,
       attestorSocketPath: attestorSocket,
       passwdPath: passwd,
       groupPath: group,
@@ -1003,6 +1029,155 @@ ${TLS_BLOCK}`);
 
   it('is unverifiable when no configuration is supplied at all', async () => {
     expect((await assess(undefined)).status).toBe('unverifiable');
+  });
+
+  describe('on a tailnet host (ADR 0039)', () => {
+    const ADDRESS = '100.101.102.103';
+    const onTailnet = async (path: string) => {
+      const { reverseProxyPosture } = await import('./internal/commissioning/host.js');
+      return reverseProxyPosture({
+        ...COMMISSIONING_DEFAULTS,
+        systemdDirectory: '/etc/systemd/system',
+        reverseProxyConfigPath: path,
+        privateListenAddresses: `${ADDRESS}, fd7a:115c:a1e0::1`,
+      });
+    };
+    const rendered = async (): Promise<string> =>
+      (await readFile('deploy/nginx/knowledge-fabric-tailnet.conf', 'utf8'))
+        .replaceAll('KF_TAILNET_ADDRESS', ADDRESS)
+        .replaceAll('KF_TAILNET_HOSTNAME', 'kf-host-1.example-tailnet.ts.net');
+
+    it('accepts the shipped tailnet template, rendered as provisioning renders it', async () => {
+      const result = await onTailnet(await configured(await rendered()));
+      expect(result.status, result.detail).toBe('satisfied');
+      expect(result.observed?.['listenersOffPrivateAddresses']).toBe('none');
+    });
+
+    it.each([
+      ['a bare port', 'listen 443 ssl;'],
+      ['the IPv4 wildcard', 'listen 0.0.0.0:443 ssl;'],
+      ['the IPv6 wildcard', 'listen [::]:443 ssl;'],
+      ['a public address', 'listen 203.0.113.7:443 ssl;'],
+    ])('refuses a listener on %s', async (_label, listen) => {
+      const body = (await rendered()).replace(
+        `listen ${ADDRESS}:8443 ssl;\n    server_name kf-host-1`,
+        `${listen}\n    server_name kf-host-1`,
+      );
+      expect(body).toContain(listen);
+      const result = await onTailnet(await configured(body));
+      expect(result.status).toBe('unsatisfied');
+      expect(result.detail).toContain('not bound to a private address');
+      expect(String(result.observed?.['listenersOffPrivateAddresses'])).toContain(
+        listen.replace(/;$/, '').replace(/^listen /, ''),
+      );
+    });
+
+    it('keeps its other refusals: a cleartext tailnet server that proxies is still refused', async () => {
+      const body = (await rendered()).replace(
+        'return 308 https://kf-host-1.example-tailnet.ts.net$request_uri;',
+        'location / { proxy_pass http://127.0.0.1:3000; proxy_set_header X-Forwarded-Proto https; }',
+      );
+      expect((await onTailnet(await configured(body))).detail).toContain('cleartext');
+    });
+
+    it('does not accept the private-CA template, whose listeners are wildcards', async () => {
+      expect((await onTailnet('deploy/nginx/knowledge-fabric.conf')).status).toBe('unsatisfied');
+    });
+  });
+});
+
+describe('public exposure', () => {
+  const policy = {
+    privateAddresses: ['100.101.102.103', 'fd7a:115c:a1e0::1'],
+    privateInterface: 'tailscale0',
+    allowed: ['udp:41641'],
+  };
+
+  it('reads every shape of address ss prints', async () => {
+    const { parseSocketList } = await import('./internal/commissioning/exposure.js');
+    const { sockets, unreadable } = parseSocketList(
+      [
+        'udp UNCONN 0 0 127.0.0.53%lo:53 0.0.0.0:*',
+        'udp UNCONN 0 0 0.0.0.0%eth0:68 0.0.0.0:*',
+        'udp UNCONN 0 0 *:41641 *:*',
+        'tcp LISTEN 0 511 [::]:22 [::]:*',
+        'tcp LISTEN 0 511 [fe80::1%eth0]:546 [::]:*',
+        'tcp LISTEN 0 511 100.101.102.103:443 0.0.0.0:*',
+        'garbage',
+      ].join('\n'),
+    );
+    expect(unreadable).toEqual(['garbage']);
+    expect(sockets.map((s) => [s.protocol, s.address, s.device, s.port])).toEqual([
+      ['udp', '127.0.0.53', 'lo', 53],
+      ['udp', '0.0.0.0', 'eth0', 68],
+      ['udp', '0.0.0.0', null, 41641],
+      ['tcp', '::', null, 22],
+      ['tcp', 'fe80::1', 'eth0', 546],
+      ['tcp', '100.101.102.103', null, 443],
+    ]);
+  });
+
+  it('clears loopback, the private addresses and interface, and the transport; names the rest', async () => {
+    const { exposedSockets, parseSocketList } =
+      await import('./internal/commissioning/exposure.js');
+    const { sockets } = parseSocketList(
+      [
+        'tcp LISTEN 0 511 127.0.0.1:4000 0.0.0.0:*',
+        'tcp LISTEN 0 511 [::1]:5432 [::]:*',
+        'tcp LISTEN 0 511 100.101.102.103:443 0.0.0.0:*',
+        'tcp LISTEN 0 511 [fd7a:115c:a1e0::1]:8443 [::]:*',
+        'tcp LISTEN 0 511 0.0.0.0%tailscale0:9000 0.0.0.0:*',
+        'udp UNCONN 0 0 0.0.0.0:41641 0.0.0.0:*',
+        'tcp LISTEN 0 511 0.0.0.0:22 0.0.0.0:*',
+        'tcp LISTEN 0 511 [::]:80 [::]:*',
+        'udp UNCONN 0 0 0.0.0.0%eth0:68 0.0.0.0:*',
+        'tcp LISTEN 0 511 203.0.113.7:443 0.0.0.0:*',
+        'tcp LISTEN 0 511 0.0.0.0:41641 0.0.0.0:*',
+      ].join('\n'),
+    );
+    expect(exposedSockets(sockets, policy).map((s) => `${s.protocol} ${s.raw}`)).toEqual([
+      'tcp 0.0.0.0:22',
+      'tcp [::]:80',
+      'udp 0.0.0.0%eth0:68',
+      'tcp 203.0.113.7:443',
+      // The transport is UDP: the same port over TCP is not the tailnet's.
+      'tcp 0.0.0.0:41641',
+    ]);
+  });
+
+  it('finds a listener planted on 0.0.0.0, with the real ss, and not one on loopback', async () => {
+    const { publicExposure } = await import('./internal/commissioning/exposure.js');
+    const planted = createServer();
+    const loopback = createServer();
+    sockets.push(planted, loopback);
+    await new Promise<void>((resolve) => planted.listen(0, '0.0.0.0', resolve));
+    await new Promise<void>((resolve) => loopback.listen(0, '127.0.0.1', resolve));
+    const plantedPort = (planted.address() as { port: number }).port;
+    const loopbackPort = (loopback.address() as { port: number }).port;
+    const result = await publicExposure({
+      ...COMMISSIONING_DEFAULTS,
+      systemdDirectory: '/etc/systemd/system',
+      privateListenAddresses: policy.privateAddresses.join(','),
+    });
+    // This workstation listens on other things too; what matters is that the planted socket is
+    // named and the loopback one is not.
+    expect(result.status).toBe('unsatisfied');
+    const exposed = String(result.observed?.['exposed']);
+    expect(exposed).toContain(`tcp 0.0.0.0:${String(plantedPort)}`);
+    expect(exposed).not.toContain(`:${String(loopbackPort)}`);
+  });
+
+  it('is unverifiable without the private addresses, or with a malformed allowance', async () => {
+    const { publicExposure } = await import('./internal/commissioning/exposure.js');
+    const base = { ...COMMISSIONING_DEFAULTS, systemdDirectory: '/etc/systemd/system' };
+    expect((await publicExposure(base)).status).toBe('unverifiable');
+    const malformed = await publicExposure({
+      ...base,
+      privateListenAddresses: '100.101.102.103',
+      publicListenAllowed: '41641',
+    });
+    expect(malformed.status).toBe('unverifiable');
+    expect(malformed.detail).toContain('tcp:<port> or udp:<port>');
   });
 });
 

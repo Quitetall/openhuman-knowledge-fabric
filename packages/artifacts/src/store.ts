@@ -34,6 +34,7 @@ export { InMemoryObjectStore } from './internal/memory-store.js';
 export class S3ObjectStore implements ObjectStore {
   readonly #client: S3Client;
   readonly #bucket: string;
+  readonly #conditionalCreate: boolean;
 
   constructor(config: S3Config) {
     const options: S3ClientConfig = {
@@ -47,6 +48,7 @@ export class S3ObjectStore implements ObjectStore {
     };
     this.#client = new S3Client(options);
     this.#bucket = config.bucket;
+    this.#conditionalCreate = config.conditionalCreate ?? true;
   }
 
   async presignPut(key: string, mediaType: string, expiresInSeconds: number): Promise<string> {
@@ -119,6 +121,11 @@ export class S3ObjectStore implements ObjectStore {
   }
 
   async putIfAbsent(key: string, body: Buffer, mediaType: string): Promise<StoredObject> {
+    if (!this.#conditionalCreate) {
+      // Check, then write (S3Config.conditionalCreate says why and what it costs).
+      const existing = await this.head(key);
+      return existing ?? this.put(key, body, mediaType);
+    }
     const maxAttempts = 3;
     let lastConflict: unknown;
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {

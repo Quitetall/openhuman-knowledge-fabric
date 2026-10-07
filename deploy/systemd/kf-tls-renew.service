@@ -1,0 +1,36 @@
+[Unit]
+Description=Renew the tailnet TLS certificate and reload nginx when it changes
+Documentation=file:///opt/kf/docs/deployment/private-host.md
+# ADR 0039: the host's certificate is the publicly trusted one `tailscale cert` issues for its
+# tailnet name. It lasts 90 days; `tailscale cert` returns the cached one until it is due and
+# fetches a new one then, so running daily costs nothing and never lets it lapse.
+After=tailscaled.service network-online.target
+Wants=network-online.target
+OnFailure=kf-alert@%n.service
+
+[Service]
+Type=oneshot
+# Not root. tailscaled lets exactly this account fetch certificates when /etc/default/tailscaled
+# carries TS_PERMIT_CERT_UID=kf-tls (provision-host.sh --check asks for it), which is narrower
+# than `tailscale set --operator`, which would also let it take the host off the tailnet.
+User=kf-tls
+Group=kf-tls
+# KF_TAILNET_HOSTNAME: <host>.<tailnet>.ts.net.
+EnvironmentFile=/etc/kf/tailnet.env
+ExecStartPre=/bin/sh -c 'case "$${KF_TAILNET_HOSTNAME:-}" in *.ts.net) ;; *) echo "kf-tls-renew: KF_TAILNET_HOSTNAME in /etc/kf/tailnet.env is not a tailnet name (<host>.<tailnet>.ts.net)." >&2; exit 1 ;; esac'
+# The two paths deploy/nginx/knowledge-fabric-tailnet.conf names, written by tailscale itself:
+# the key 0600 and owned by this account, read by nginx's master process as root.
+ExecStart=/bin/sh -c 'exec /usr/bin/tailscale cert --cert-file /etc/kf/tls/tailnet.crt --key-file /etc/kf/tls/tailnet.key "$$KF_TAILNET_HOSTNAME"'
+# `+`: these two, and only these, run with full privileges, because reloading nginx is root's.
+# A configuration nginx refuses is not reloaded: the old certificate keeps serving, and this
+# unit fails, which alerts.
+ExecStartPost=+/usr/sbin/nginx -t -q
+ExecStartPost=+/usr/bin/systemctl reload nginx.service
+TimeoutStartSec=5min
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/etc/kf/tls
+ProtectHome=true
+UMask=0077
