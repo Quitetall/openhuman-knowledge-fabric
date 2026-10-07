@@ -4594,7 +4594,7 @@ that declares `requires_qualification` is refused at the moment of the act, afte
 coverage, naming the missing requirement (`KF-QUAL-001`). Start Here is generated from the record
 with its own digest. Each row of ADR 0038's "How we will know" table is a planted case in
 `tests/database/qualification.test.ts`, and each guard is falsified there by dropping it. ADR 0038 itself awaits the owner's acceptance, the pack
-re-cut is §100.6's, and what the web does not yet offer is §100.61 and §100.62. Bears on
+re-cut is §100.6's, and what the web does not yet offer is §100.62, and the envelope is §100.63. Bears on
 KF-SAS-RQ-254 to RQ-261.
 
 **100.42 After any write in an organization, an Object View falls back to recounting.** The record
@@ -4729,7 +4729,7 @@ ending within 366 days, the clearance, with `--pack` the qualification record, a
 holding only its token's digest (`KF-QUAL-040` refuses one written any other way). The link leads
 through sign-in to Start Here, the dashboard's first panel while the person's qualification is
 open. `tests/database/joining.test.ts` and `apps/web/e2e/joining.test.mjs` walk it to a qualified
-record. What remains is §100.61 and §100.62. Bears on KF-SAS-RQ-275.
+record. What remains is §100.62 and §100.63. Bears on KF-SAS-RQ-275.
 
 **100.54 The object store's identities are a file of secrets on disk.** `kf-objects` reads its
 identities from `/etc/kf/objects/identities.json`, which `provision-host.sh` renders from each
@@ -4769,14 +4769,31 @@ KF-SAS-RQ-218 and RQ-271.
 **100.60 A phone cannot capture a photo or a voice note.** At phone width a person reads, verifies
 and captures text (§100.50); §24B's photo and voice capture is not built. Bears on KF-SAS-RQ-273.
 
-**100.61 The in-app agent is not yet the Start Here guide.** `GET /start-here/guide` serves the
-guide's context for the reader's open record (`kf-agent-guide-context-v1`), and the in-app agent
-does not read it yet. Bears on KF-SAS-RQ-275.
+**100.61 The in-app agent is not yet the Start Here guide — closed.** Opened and closed in
+`0.1.0-draft.9`. While a person's own qualification record is open, every turn and every draft of
+the in-app agent reads `GET /start-here/guide` (`kf-agent-guide-context-v1`) as one cited context
+item, classified no lower than `confidential` whatever the record envelope's classification
+(`guideClassification` in `packages/qualification/src/agent-guide.ts`, and again `guideLabel` in
+`packages/agent/src/guide.ts`), so it is answered only by a model on the host or refused
+(`KF-ROUTE-004`, KF-SAS-RQ-271). The guide drafts nothing but `submit_qualification_evidence` for
+that person's own record; crediting, accepting, assigning, withdrawing and superseding stay off
+`AGENT_ACTS`. With no open record the turn is unchanged. `packages/agent/src/guide.test.ts` and
+`tests/database/joining.test.ts` test each rule, and each floor is falsified by removing it. What
+remains is §100.63. Bears on KF-SAS-RQ-275.
 
 **100.62 Some qualification acts have no web gesture.** No page drafts a pack, and withdrawing or
 superseding a record has no gesture in the web application; each is dispatched only as an act
 through the API (`POST /actions/:actionType`).
 Bears on KF-SAS-RQ-254 and RQ-275.
+
+**100.63 A qualification record's envelope is `internal`.** ADR 0038 decision 12 and §24A call a
+qualification record confidential, but `assign_qualification` and `kf invite` create its envelope at
+the kind's default, `internal` (`tests/database/joining.test.ts` asserts it). Record visibility is
+enforced by its own policy, and the agent's guide is floored at `confidential` (§100.61), so neither
+leaks. Raising the envelope would hide scope and eligibility from people ADR 0038 lets see them;
+whether to raise it is the owner's decision. A deployment without an on-host model answers a
+qualifying person's chat with nothing; their Start Here page is unaffected. Bears on
+KF-SAS-RQ-254 and RQ-271.
 
 **KF-SAS-RQ-186.** The set of tables forced under row-level security SHALL be derivable from the
 migrations, and any difference between that set and the running database SHALL be reconciled.

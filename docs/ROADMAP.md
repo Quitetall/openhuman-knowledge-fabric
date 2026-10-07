@@ -205,7 +205,7 @@ EOF
 
 Measured when this page was written: **44 entries, 10 closed, 34 open; 34 cited, none missing,
 none duplicated, none closed.** Measured again after the closing pass of M0 to M5 (2026-10-07):
-**61 entries, 21 closed, 40 open; 40 cited, none missing, none duplicated, none closed.** "Open" means the entry's title does not end "— closed". §100.20
+**61 entries, 21 closed, 40 open; 40 cited, none missing, none duplicated, none closed.** After the agent guide (§100.61 closed, §100.63 added): **62 entries, 22 closed, 40 open; 40 cited, none missing, none duplicated, none closed.** "Open" means the entry's title does not end "— closed". §100.20
 does not exist.
 
 <!-- gap-table:start -->
@@ -216,7 +216,7 @@ does not exist.
 | M2, KF-WAR-0004                    | §100.26 (verification's basis is paced; the one-click path must record it truthfully, and the remainder becomes an accepted limit), §100.56 (four readings of M2 for the owner to confirm)                                         |
 | M3, KF-WAR-0005                    | §100.42 (Object View recounts after any write), §100.43 (master-record reads take the whole manifest), §100.60 (photo and voice capture at phone width)                                                                            |
 | M4, KF-WAR-0006                    | §100.45 (narrowed: the choice between the two fusions is the owner's), §100.57 (one urgent-push destination), §100.58 (typed text is not classified)                                                                               |
-| M5, KF-WAR-0007                    | §100.61 (the in-app agent is not yet the Start Here guide), §100.62 (qualification acts with no web gesture)                                                                                                                       |
+| M5, KF-WAR-0007                    | §100.62 (qualification acts with no web gesture), §100.63 (the record envelope is `internal`, the owner's decision)                                                                                                                |
 | M6, KF-WAR-0001                    | §100.4 (replication scheduled nowhere), §100.10 (no host commissioned), §100.54 (the object store's identities file), §100.55 (object-lock retention, the owner's decision), §100.59 (LAMU's forwarding must stay off on the host) |
 | M7, KF-WAR-0008                    | §100.18 (two latency bars include a person; every run is a workstation's; chat integration)                                                                                                                                        |
 | M8, KF-WAR-0009                    | §100.1, §100.3, §100.6, §100.11, §100.13, §100.14, §100.25, §100.27, §100.28, §100.32, §100.35, §100.36                                                                                                                            |
@@ -272,6 +272,7 @@ list the signing acts live; this is the whole list, including what no tool track
   presets (KF-WAR-0005).
 - Decide the digest's send time and recipients and each organization's provider ceiling, and put a
   provider key in the secrets store or decide on none (ADR 0040's open items).
+- Decide whether a qualification record's envelope is raised to `confidential` (§100.63).
 
 **For M6 to M8**
 
