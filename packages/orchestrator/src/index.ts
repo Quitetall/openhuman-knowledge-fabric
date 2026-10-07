@@ -18,6 +18,10 @@ import {
 import {
   ACCESS_ACTION_IDS,
   ACCESS_EFFECTS,
+  AGENT_ACT_ACTION_IDS,
+  AGENT_ACT_EFFECTS,
+  AGENT_ACT_PRECONDITIONS,
+  AGENT_ACT_RECEIPTS,
   AUTHORITY_ACTION_IDS,
   AUTHORITY_EFFECTS,
 } from '@kf/authorization';
@@ -131,6 +135,16 @@ const BUILT_IN_ATOMS: readonly ActionAtoms[] = [
     name: 'authority',
     ownedActions: [...AUTHORITY_ACTION_IDS, ...ACCESS_ACTION_IDS],
     effects: { ...AUTHORITY_EFFECTS, ...ACCESS_EFFECTS },
+  },
+  {
+    // Agents submit; authority verifies (ADR 0040, 20261007100000): the verification policy, an
+    // agent's proposal of an institutional act, and its person's answer. Built in: a deployment
+    // without them would have agents whose institutional proposals had nowhere to wait.
+    name: 'agents-as-colleagues',
+    ownedActions: AGENT_ACT_ACTION_IDS,
+    effects: AGENT_ACT_EFFECTS,
+    preconditions: AGENT_ACT_PRECONDITIONS,
+    receipts: AGENT_ACT_RECEIPTS,
   },
   {
     // R6 allocation (ADR 0018). The receipt reader is what puts the allocated identifier in

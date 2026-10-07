@@ -22,7 +22,11 @@ export const IMPORT_ORDER = [
   'legacy-action-provenance',
   'relations',
   'approvals',
+  // A policy verification names its policy by foreign key; a resolution names its proposal.
+  'verification-policies',
   'object-verifications',
+  'act-proposals',
+  'act-proposal-resolutions',
   'access-demand',
   'snapshots',
   'audit-events',

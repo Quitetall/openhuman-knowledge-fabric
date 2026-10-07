@@ -100,6 +100,11 @@ const FROM_STORAGE_ON = [
   'tests',
   'observations',
   'access-demand',
+  // ADR 0040 (20261007100000), after the retired attributes: an archive older than those is
+  // older than these.
+  'verification-policies',
+  'act-proposals',
+  'act-proposal-resolutions',
 ];
 /** Every section added without a format bump but the retired attributes, dropped separately. */
 const LATER = [...BEFORE_STORAGE, ...FROM_STORAGE_ON];

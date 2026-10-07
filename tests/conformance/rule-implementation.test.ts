@@ -92,6 +92,15 @@ const LOCAL_FAMILIES: readonly string[] = [
   // record stale or absent, no semantic ranking, no servable text. Read authorization is enforced
   // by row security and grants, which rules.yaml does not declare as one of its invariants.
   'KF-CTX',
+  // Agents submit; authority verifies (ADR 0040, 20261007100000). KF-AGENT: an agent acting for a
+  // person performs no institutional act, records no verification and resolves no proposal; a
+  // proposal is an agent's, for an institutional act, confirmed only by its person performing
+  // exactly that act. KF-VPOL: a verification policy never verifies an institutional act, trusts
+  // only a declared agent, and a verified_by_policy row is the database's to write. Both enforce
+  // KF-SAS-RQ-263 to RQ-265 in the database; rules.yaml declares no invariant for authority over
+  // agents, so they are local by the same reasoning as KF-CTX.
+  'KF-AGENT',
+  'KF-VPOL',
 ];
 
 function declaredRules(): ReadonlyMap<string, string> {

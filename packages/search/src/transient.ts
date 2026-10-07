@@ -231,12 +231,13 @@ export async function replayOrganizationDemand(
           verified_at: Date | null;
           verified_by: string | null;
           verification_basis: string | null;
+          verification_policy_id?: string | null;
         }>(
           // Under the caller's row security: a record they cannot see is not listed, and its
           // verification is read through the record, as a search hit's is.
           `select d.object_id, o.object_type, o.title, o.classification, d.distinct_person_count,
                   true as record_visible,
-                  v.verified_at, v.verified_by, v.basis as verification_basis
+                  v.verified_at, v.verified_by, v.basis as verification_basis, v.policy_id as verification_policy_id
              from org.access_demand d
              join core.object o on o.id = d.object_id
              left join core.object_verification v on v.object_id = o.id

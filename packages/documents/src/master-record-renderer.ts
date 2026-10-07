@@ -98,6 +98,7 @@ function verificationNote(member: PermissionMember): string {
           basis: member.verified.basis,
           verifiedAt: member.verified.at,
           verifiedBy: member.verified.by,
+          policyId: member.verified.policyId ?? null,
         },
   ).label;
 }
