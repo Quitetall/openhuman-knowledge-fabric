@@ -649,6 +649,8 @@ test(
         'every panel of a full dashboard, in layout order',
       );
       assert.deepEqual(engineerPanels, ceoPanels, 'one layout for everyone');
+      // The in-app agent (M4) is a dock after the layout, not a panel of it.
+      assert.equal(await page.locator('main > [data-dock="agent"]').count(), 1);
       assert.notDeepEqual(engineerTexts, ceoTexts, 'different grants, different contents');
       assert.match(
         await page.locator('[data-withheld]').textContent(),

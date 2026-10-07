@@ -115,8 +115,9 @@ export default async function Home({
       {dashboard.panels.map((panel) => (
         <Panel key={panel.id} panel={panel} />
       ))}
-      {/* The in-app agent (ADR 0040 decision 7): the same chat as /agent, folded until opened. */}
-      <section className="kf-panel" data-panel="agent" aria-label="Agent">
+      {/* The in-app agent (ADR 0040 decision 7): the same chat as /agent, folded until opened. A
+          dock, not one of the layout's panels (DASHBOARD_LAYOUT), so it is not marked as one. */}
+      <section className="kf-panel" data-dock="agent" aria-label="Agent">
         <AgentDock returnTo="/" />
       </section>
       <p className="kf-footnote">
