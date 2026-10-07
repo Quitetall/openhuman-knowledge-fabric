@@ -1,0 +1,93 @@
+# A Warrant is the contract for ONE bounded intervention inside a program,
+# and it traces to that program's SAS through [[implements]] and [[roadmap]].
+# Starting a program? Write its SAS instead (SAS §6.10; docs/DEFINITIONS.md).
+schema = "oh.war/manifest/v1"
+uuid = "01a114e0-33a2-73d3-9dc7-10e81c41b4a3"
+local_alias = "KF-WAR-0006"
+
+# Allocated only by Knowledge Fabric (SAS §12.4). Leave empty.
+enterprise_id = ""
+
+title = "The agent at home: in-app chat over the context source, routed by classification, and notifications"
+profile = "delivery"
+assurance_level = "controlled"
+
+# Milestone M4 of docs/ROADMAP.md. The UX requirement that restricted content never reaches a
+# provider model is added to [[implements]] when KF-WAR-0003 lands it in §106.
+[[roadmap]]
+ref = "roadmap://KF-PHASE-10/m4-agent-at-home"
+
+# Chat context is a projection under the reader's grants.
+[[implements]]
+ref = "sas://KF-SAS-RQ-115"
+contribution = "partial"
+
+# An answer enumerates what was withheld and on what basis.
+[[implements]]
+ref = "sas://KF-SAS-RQ-120"
+contribution = "partial"
+
+# A chat answer without semantic ranking says so.
+[[implements]]
+ref = "sas://KF-SAS-RQ-216"
+contribution = "validation"
+
+# Classification routing extends "nothing leaves the host" from embeddings to answers.
+[[implements]]
+ref = "sas://KF-SAS-RQ-218"
+contribution = "partial"
+
+# SAS §100.45: fusion weights so weak word matches stop pulling the list down.
+[[implements]]
+ref = "sas://KF-SAS-RQ-224"
+contribution = "partial"
+
+# SAS §100.44: the embedding pump stops sending one request at a time.
+[[implements]]
+ref = "sas://KF-SAS-RQ-201"
+contribution = "partial"
+
+# A form the agent fills is a draft, attributed from the first moment.
+[[implements]]
+ref = "sas://KF-SAS-RQ-202"
+contribution = "partial"
+
+# Every context read behind an answer is recorded as a disclosure.
+[[implements]]
+ref = "sas://KF-SAS-RQ-250"
+contribution = "validation"
+
+# The urgent push shares the alert path, and is exercised with it.
+[[implements]]
+ref = "sas://KF-SAS-RQ-164"
+contribution = "partial"
+
+[[atoms]]
+ordinal = 10
+role = "intent"
+path = "atoms/10-intent.md"
+required = true
+
+[[atoms]]
+ordinal = 20
+role = "basis"
+path = "atoms/20-basis.md"
+required = true
+
+[[atoms]]
+ordinal = 40
+role = "work_order"
+path = "atoms/40-work-order.md"
+required = true
+
+[[atoms]]
+ordinal = 45
+role = "milestones"
+path = "atoms/45-milestones.yaml"
+required = true
+
+[[atoms]]
+ordinal = 60
+role = "assurance"
+path = "atoms/60-assurance.md"
+required = true
