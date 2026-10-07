@@ -17,7 +17,7 @@
 # never touches the default `openhuman-knowledge-fabric` stack or its database:
 #
 #   web      http://localhost:3100          API  http://127.0.0.1:4100
-#   Keycloak http://localhost:18080         PostgreSQL 127.0.0.1:15432   MinIO 127.0.0.1:19000
+#   Keycloak http://localhost:18080         PostgreSQL 127.0.0.1:15432   S3 (SeaweedFS) 127.0.0.1:19000
 #   state    ~/.local/state/kf-veracier     (0700; credentials 0600, never printed)
 #
 # The processes are the ones a dogfood host runs, built from this checkout: kf-attestor (its dev
@@ -32,7 +32,7 @@
 #   KF_STACK_PROJECT        compose project, container prefix, default state dir   kf-veracier
 #   KF_STACK_STATE          state directory                                       ~/.local/state/<project>
 #   KF_STACK_WEB_PORT / KF_STACK_API_PORT / KF_STACK_KEYCLOAK_PORT                3100 / 4100 / 18080
-#   KF_STACK_PG_PORT / KF_STACK_MINIO_PORT / KF_STACK_MINIO_CONSOLE_PORT          15432 / 19000 / 19001
+#   KF_STACK_PG_PORT / KF_STACK_OBJECTS_PORT (the object store's S3 port)       15432 / 19000
 #   KF_STACK_FIXTURE        what `load` loads (`node fixtures/cli.mjs <it>`)      veracier
 #   KF_STACK_ORGANIZATION   legal name the web app's context picker lists first   Véracier Industries S.A.
 #   KF_STACK_SKIP_BUILD     1 skips the build (KF_VERACIER_SKIP_BUILD also works)
@@ -50,8 +50,8 @@
 # the applications start WITHOUT KF_RETRIEVAL_SOCKET and say so: search is then lexical, and every
 # answer carries its `semantic_ranking_unavailable` entry, rather than the web app staying down.
 #
-# Loopback only. Keycloak runs `start-dev` and PostgreSQL and MinIO use the public development
-# credentials from docker-compose.yml; this is not a network service.
+# Loopback only. Keycloak runs `start-dev` and PostgreSQL and the object store (SeaweedFS) use the
+# public development credentials from docker-compose.yml; this is not a network service.
 
 set -euo pipefail
 
@@ -67,8 +67,7 @@ export KF_STACK_WEB_PORT="${KF_STACK_WEB_PORT:-${KF_VERACIER_WEB_PORT:-3100}}"
 export KF_STACK_API_PORT="${KF_STACK_API_PORT:-${KF_VERACIER_API_PORT:-4100}}"
 export KF_STACK_KEYCLOAK_PORT="${KF_STACK_KEYCLOAK_PORT:-18080}"
 export KF_STACK_PG_PORT="${KF_STACK_PG_PORT:-15432}"
-export KF_STACK_MINIO_PORT="${KF_STACK_MINIO_PORT:-19000}"
-export KF_STACK_MINIO_CONSOLE_PORT="${KF_STACK_MINIO_CONSOLE_PORT:-19001}"
+export KF_STACK_OBJECTS_PORT="${KF_STACK_OBJECTS_PORT:-19000}"
 fixture="${KF_STACK_FIXTURE:-veracier}"
 organization_name="${KF_STACK_ORGANIZATION:-Véracier Industries S.A.}"
 # The names the loader and the tests have always read.
@@ -96,7 +95,7 @@ compose() {
 }
 
 # The environment every application process shares. Only non-secret values; each process gets
-# its one credential as a *_FILE path, and the development MinIO secret is the public value
+# its one credential as a *_FILE path, and the development object-store secret is the public value
 # docker-compose.yml already publishes.
 app_env() {
   export XDG_STATE_HOME="$state"
@@ -104,7 +103,7 @@ app_env() {
   export OIDC_ISSUER="$keycloak_origin/realms/$realm"
   export OIDC_AUDIENCE='knowledge-fabric-api'
   export OIDC_JWKS_URI="$keycloak_origin/realms/$realm/protocol/openid-connect/certs"
-  export S3_ENDPOINT="http://localhost:$KF_STACK_MINIO_PORT"
+  export S3_ENDPOINT="http://localhost:$KF_STACK_OBJECTS_PORT"
   export S3_REGION='us-east-1'
   export S3_ACCESS_KEY_ID='kf-dev-access-key'
   export S3_SECRET_ACCESS_KEY='dev-only-not-a-secret'
@@ -212,8 +211,9 @@ up() {
   secret_file "$state/web-session-secret" 'base64.b64encode(secrets.token_bytes(32)).decode()'
 
   echo "== dependencies (compose project $KF_STACK_PROJECT)"
-  compose up -d --wait postgres minio keycloak
-  compose up minio-init >/dev/null
+  compose up -d --wait postgres seaweedfs keycloak
+  # Fails, and so stops `up`, unless every bucket answers that versioning is Enabled.
+  compose run --rm --no-deps seaweedfs-init >/dev/null
 
   echo '== database'
   owner_env

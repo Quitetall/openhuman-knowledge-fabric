@@ -69,52 +69,65 @@ services:
       retries: 20
       start_period: 10s
 
-  minio:
-    # Pinned, like postgres and keycloak. A floating tag means a clean checkout can stop
-    # working because an upstream release changed, with nothing in this repo to explain it.
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
-    container_name: kf-minio
+  seaweedfs:
+    # The working object store (ADR 0039): SeaweedFS's S3 gateway, master, volume server and filer
+    # in one process, which is the simplest durable shape on one machine — every byte and every
+    # filer record is under /data. Pinned by release AND digest, like postgres and keycloak: a
+    # floating tag means a clean checkout can stop working because an upstream release changed,
+    # with nothing in this repo to explain it. (MinIO, which this replaced, is the example: its
+    # pinned images were deleted from every registry in 2026-09.)
+    image: chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
+    container_name: kf-seaweedfs
     restart: unless-stopped
     labels: *kf-profile-labels
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: kf-dev-access-key
-      MINIO_ROOT_PASSWORD: dev-only-not-a-secret
+    # -ip=127.0.0.1: the servers find one another on loopback, so a recreated container (new
+    # address) still reads its own volume. Only the S3 gateway binds beyond loopback, and only
+    # so the published port reaches it; the filer, which has no authentication, does not.
+    # -s3.iam=false: identities come from the file and nothing else, never from a runtime API.
+    command:
+      - server
+      - -ip=127.0.0.1
+      - -ip.bind=127.0.0.1
+      - -s3
+      - -s3.ip.bind=0.0.0.0
+      - -s3.port=8333
+      - -s3.config=/etc/seaweedfs/identities.json
+      - -s3.iam=false
     ports:
-      - '127.0.0.1:9000:9000'
-      - '127.0.0.1:9001:9001'
+      - '127.0.0.1:9000:8333'
     volumes:
-      - minio-data:/data
+      - seaweedfs-data:/data
+      # The development identity, with the public credentials below. Read-only.
+      - ./deploy/object-store/development-identities.json:/etc/seaweedfs/identities.json:ro
+      - ./deploy/object-store/ready.sh:/kf/ready.sh:ro
+    # Healthy means able to serve what it holds, not merely listening: after a restart the S3
+    # gateway answers for ~5 s before the master knows the volumes, and reads in that window fail
+    # with InternalError. ready.sh waits for the master to know every volume file on disk.
     healthcheck:
-      test: ['CMD', 'mc', 'ready', 'local']
+      test: ['CMD', 'sh', '/kf/ready.sh', '/data']
       interval: 5s
       timeout: 5s
-      retries: 20
+      retries: 30
       start_period: 10s
 
-  # Creates the buckets the evidence vault needs and turns on object versioning.
+  # Creates the buckets the evidence vault needs and turns on object versioning, through the S3
+  # API, then reads every bucket back and fails unless versioning is Enabled.
   # Versioning must exist before the first object is written — enabling it later does not
   # retroactively protect anything already stored.
-  minio-init:
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
-    container_name: kf-minio-init
+  seaweedfs-init:
+    image: chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
+    container_name: kf-seaweedfs-init
     labels: *kf-profile-labels
     depends_on:
-      minio:
+      seaweedfs:
         condition: service_healthy
-    entrypoint: >
-      /bin/sh -c "
-      mc alias set kf http://minio:9000 kf-dev-access-key dev-only-not-a-secret &&
-      mc mb --ignore-existing kf/kf-artifacts &&
-      mc mb --ignore-existing kf/kf-snapshots &&
-      mc mb --ignore-existing kf/kf-checkpoints &&
-      mc mb --ignore-existing kf/kf-exports &&
-      mc version enable kf/kf-artifacts &&
-      mc version enable kf/kf-snapshots &&
-      mc version enable kf/kf-checkpoints &&
-      mc version enable kf/kf-exports &&
-      echo 'buckets ready with versioning enabled'
-      "
+    entrypoint: ['/bin/sh', '/kf/init-buckets.sh']
+    environment:
+      KF_OBJECTS_ENDPOINT: http://seaweedfs:8333
+      KF_OBJECTS_ACCESS_KEY_ID: kf-dev-access-key
+      KF_OBJECTS_SECRET_ACCESS_KEY: dev-only-not-a-secret
+    volumes:
+      - ./deploy/object-store/init-buckets.sh:/kf/init-buckets.sh:ro
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.4@sha256:9409c59bdfb65dbffa20b11e6f18b8abb9281d480c7ca402f51ed3d5977e6007
@@ -140,11 +153,11 @@ services:
       # rewrite it would let local drift silently become the checked-in truth. Re-export
       # deliberately (see docs/deployment/identity-and-login.md) rather than by accident.
       - ./deploy/keycloak:/opt/keycloak/data/import:ro
-    # Port 9000 is deliberate and is NOT MinIO's. Since Keycloak 25 the health and metrics
-    # endpoints live on a separate MANAGEMENT interface listening on 9000; localhost:8080
-    # /health/ready returns 404. This runs inside the Keycloak container, so localhost:9000
-    # is Keycloak's own management port — MinIO would be reachable at minio:9000, and is
-    # not consulted here.
+    # Port 9000 is deliberate and is NOT the object store's. Since Keycloak 25 the health and
+    # metrics endpoints live on a separate MANAGEMENT interface listening on 9000; localhost:8080
+    # /health/ready returns 404. This runs inside the Keycloak container, so localhost:9000 is
+    # Keycloak's own management port — the object store is seaweedfs:8333 (published on the
+    # host's 127.0.0.1:9000), and is not consulted here.
     healthcheck:
       test:
         [
@@ -158,5 +171,5 @@ services:
 
 volumes:
   postgres-data:
-  minio-data:
+  seaweedfs-data:
   keycloak-data:

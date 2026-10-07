@@ -17,7 +17,7 @@
     "db:reset": "dbmate --migrations-dir ./database/migrations --no-dump-schema drop && pnpm db:migrate",
     "db:seed": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -q -f generated/sql-registry/001-ontology-seed.sql",
     "db:status": "dbmate --migrations-dir ./database/migrations status",
-    "db:up": "docker compose up -d postgres minio keycloak",
+    "db:up": "docker compose up -d --wait postgres seaweedfs keycloak && docker compose run --rm --no-deps seaweedfs-init",
     "dev": "pnpm --parallel --filter \"./apps/**\" --filter \"!@kf/attestor\" dev",
     "dev:dogfood": "pnpm --filter @kf/api... --filter @kf/attestor... build && node scripts/dev-dogfood.mjs",
     "dogfood:logins": "pnpm --filter @kf/api... build && NODE_ENV=development pnpm --filter @kf/api dogfood:logins",
