@@ -1,6 +1,6 @@
 # GENERATED from ontology/ — do not edit.
 # ontology_version: 1.2.0-draft.1
-# source_digest: 2207b744b57d3c9fc6174f50762c0d854824e14ec8cfd9fe0f6f408887706e5a
+# source_digest: 3deaef88bbc89f229da5b21b1edf7b284bf285ded7b7974c36059f2c1204dbeb
 
 @prefix sh: <http://www.w3.org/ns/shacl#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
@@ -127,3 +127,9 @@ kf:WorkOrderAmendmentShape a sh:NodeShape ;
 kf:WarrantShape a sh:NodeShape ;
   sh:targetClass kf:warrant ;
   sh:property [ sh:path kf:warrant_uuid ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ] .
+
+kf:QualificationRecordShape a sh:NodeShape ;
+  sh:targetClass kf:qualification_record ;
+  sh:property [ sh:path kf:person_id ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ] ;
+  sh:property [ sh:path kf:pack_id ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ] ;
+  sh:property [ sh:path kf:contact_person_id ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ] .

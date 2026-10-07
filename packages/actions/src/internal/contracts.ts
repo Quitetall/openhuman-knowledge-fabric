@@ -107,6 +107,12 @@ export interface ActionDefinition {
   readonly transitions: readonly { machine: string; from: string; to: string }[];
   /** ADR 0016: 'act' — a live act grant must reach every target (or the organization). */
   readonly requiresCapability: 'act' | null;
+  /**
+   * ADR 0038 decision 8: the act may be gated by a qualification requirement, and the actor's
+   * current credit for every in-force requirement that gates it is checked at the moment of the
+   * act, after act-grant coverage. Qualification never grants: this only adds a refusal.
+   */
+  readonly requiresQualification?: boolean;
 }
 
 /** Action-specific check beyond registry transition and authority. */

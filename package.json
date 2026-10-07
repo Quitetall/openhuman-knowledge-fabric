@@ -73,6 +73,7 @@
     "@kf/orchestrator": "workspace:*",
     "@kf/product-quality": "workspace:*",
     "@kf/projections": "workspace:*",
+    "@kf/qualification": "workspace:*",
     "@kf/record-atoms": "workspace:*",
     "@kf/retrieval": "workspace:*",
     "@kf/search": "workspace:*",

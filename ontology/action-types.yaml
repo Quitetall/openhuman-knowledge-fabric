@@ -536,10 +536,16 @@ action_types:
     audited: true
     transactional: true
     drives: []
+    # ADR 0038 decision 8: a requirement of an approved pack may name this act in `gates`; the
+    # database then checks the actor's credit for it at the moment of the act (KF-SAS-RQ-258).
+    requires_qualification: true
   - id: contain_nonconformity
     audited: true
     transactional: true
     drives: [nonconformity]
+    # ADR 0038 decision 8: a requirement of an approved pack may name this act in `gates`; the
+    # database then checks the actor's credit for it at the moment of the act (KF-SAS-RQ-258).
+    requires_qualification: true
   - id: investigate_nonconformity
     audited: true
     transactional: true
@@ -561,6 +567,8 @@ action_types:
     transactional: true
     drives: [capa]
     requires: act
+    # ADR 0038: an institutional act may also be gated; the grant is still required (RQ-258).
+    requires_qualification: true
   - id: implement_capa
     audited: true
     transactional: true
@@ -668,6 +676,9 @@ action_types:
     audited: true
     transactional: true
     drives: [test_execution]
+    # ADR 0038 decision 8: a requirement of an approved pack may name this act in `gates`; the
+    # database then checks the actor's credit for it at the moment of the act (KF-SAS-RQ-258).
+    requires_qualification: true
   - id: invalidate_test_execution
     audited: true
     transactional: true
@@ -966,4 +977,72 @@ action_types:
     audited: true
     transactional: true
     drives: [organization_overview]
+    requires: act
+
+  # ── Qualification (ADR 0038; KF-SAS-RQ-254 to RQ-261) ─────────────────────────────────────
+  # One protocol for every person; a role differs only in its pack. No act here grants a
+  # permission (RQ-258), and none may be performed by an agent except submitting evidence for its
+  # person: an assistant explains and assembles, it never credits (ADR 0038 decision 10).
+  #   draft_qualification_pack      creates a pack (draft) from a `kf-qualification-pack-v1`
+  #                                 document; the document is validated as it is drafted
+  #   approve_qualification_pack    draft → approved; validated again against the record (dead
+  #                                 references, inaccessible mandatory resources). Institutional
+  #   supersede_qualification_pack  a new revision of an approved pack, approved in the same act;
+  #                                 every revised requirement declares its behavioural impact
+  #   retire_qualification_pack     institutional; records pinned to it are untouched
+  #   assign_qualification          creates a record: person, scope, contact, the pack's current
+  #                                 approved revision. Institutional
+  #   submit_qualification_evidence the person (or their agent) names a record as evidence for a
+  #                                 requirement; it waits in Needs you for a reviewer
+  #   credit_qualification_evidence a reviewer holding the requirement's authority credits
+  #                                 evidence, accepting the work in the same act
+  #   accept_qualification          assigned → qualified; credits the last evidence in the same
+  #                                 act, and is refused while a mandatory requirement is missing
+  #   withdraw_qualification        institutional, with a reason
+  #   supersede_qualification       institutional: a newer record replaces this one
+  - id: draft_qualification_pack
+    audited: true
+    transactional: true
+    drives: []
+  - id: approve_qualification_pack
+    audited: true
+    transactional: true
+    drives: [qualification_pack]
+    requires: act
+  - id: supersede_qualification_pack
+    audited: true
+    transactional: true
+    drives: []
+    requires: act
+  - id: retire_qualification_pack
+    audited: true
+    transactional: true
+    drives: [qualification_pack]
+    requires: act
+  - id: assign_qualification
+    audited: true
+    transactional: true
+    drives: []
+    requires: act
+  - id: submit_qualification_evidence
+    audited: true
+    transactional: true
+    drives: []
+  - id: credit_qualification_evidence
+    audited: true
+    transactional: true
+    drives: []
+  - id: accept_qualification
+    audited: true
+    transactional: true
+    drives: [qualification_record]
+  - id: withdraw_qualification
+    audited: true
+    transactional: true
+    drives: [qualification_record]
+    requires: act
+  - id: supersede_qualification
+    audited: true
+    transactional: true
+    drives: [qualification_record]
     requires: act

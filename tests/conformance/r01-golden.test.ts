@@ -213,6 +213,9 @@ const DECLARED_ADDITIONS = {
     // The living organization overview (ADR 0040): an ordinary record, its statements generated.
     'organization_overview',
     'physical_binding',
+    // Qualification is evidence against a versioned pack (ADR 0038): the pack and the record.
+    'qualification_pack',
+    'qualification_record',
     'risk_control',
     'supplier',
     'test_definition',
@@ -239,6 +242,9 @@ const DECLARED_ADDITIONS = {
   ],
   action_types: [
     'accept_document_compilation',
+    // Qualification (ADR 0038): assign, credit, accept, withdraw and supersede a record; draft,
+    // approve, supersede and retire a pack. Approving, assigning and withdrawing are institutional.
+    'accept_qualification',
     // The engagement lifecycle (2026-09-24). R01 declared its states and no transitions.
     'activate_engagement',
     'add_authored_fragment',
@@ -252,8 +258,10 @@ const DECLARED_ADDITIONS = {
     'apply_document_proposal',
     'approve_capa_plan',
     'approve_controlled_document',
+    'approve_qualification_pack',
     'approve_test_definition',
     'approve_warrant_deviation',
+    'assign_qualification',
     'attach_warrant_gate_run',
     'attach_warrant_runtime_receipt',
     'authorize_ml_metric_stream',
@@ -275,6 +283,7 @@ const DECLARED_ADDITIONS = {
     'consume_secure_object_capability',
     'contain_nonconformity',
     'create_warrant_draft',
+    'credit_qualification_evidence',
     // Organization lifecycle (2026-09-10). R01 declared this type's states and left
     // `state_machine: null`, so an organization could be created and never retired.
     'deactivate_organization',
@@ -293,6 +302,7 @@ const DECLARED_ADDITIONS = {
     'disposition_nonconformity',
     'dispute_warrant_resolution',
     'disqualify_supplier',
+    'draft_qualification_pack',
     // Roles as composable presets of scope (ADR 0040): what holding a role grants, and inclusion.
     'exclude_role',
     'execute_test',
@@ -401,6 +411,7 @@ const DECLARED_ADDITIONS = {
     'retire_organization',
     // The living organization overview (ADR 0040): an ordinary record, its statements generated.
     'retire_organization_overview',
+    'retire_qualification_pack',
     'retire_risk_control',
     'revise_authored_fragment',
     'revise_document_composition',
@@ -417,9 +428,12 @@ const DECLARED_ADDITIONS = {
     // ADR 0040: whether an agent's records of a kind are verified on arrival (institutional).
     'set_verification_policy',
     'submit_document_for_review',
+    'submit_qualification_evidence',
     'submit_warrant',
     'supersede_configuration_item',
     'supersede_controlled_document',
+    'supersede_qualification',
+    'supersede_qualification_pack',
     'supersede_test_definition',
     'supersede_warrant',
     'suspend_engagement',
@@ -433,6 +447,7 @@ const DECLARED_ADDITIONS = {
     'withdraw_interface_contract',
 
     'withdraw_observation',
+    'withdraw_qualification',
     'withdraw_warrant_proposal',
   ],
 } as const;

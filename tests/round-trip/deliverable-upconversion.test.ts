@@ -52,7 +52,18 @@ const RETIRED_SECTION = 'deliverable-retired-attributes';
  */
 const PRESET_SECTIONS = ['role-preset-grants', 'role-inclusions'];
 const POLICY_SECTIONS = ['verification-policies', 'act-proposals', 'act-proposal-resolutions'];
-const AFTER_RETIRED = [...PRESET_SECTIONS, ...POLICY_SECTIONS];
+/** ADR 0038's qualification (M5QUALIFY), which descends from both siblings above. */
+const QUALIFICATION_SECTIONS = [
+  'qualification-packs',
+  'qualification-pack-revisions',
+  'qualification-requirement-revisions',
+  'qualification-pack-requirements',
+  'qualification-records',
+  'qualification-evidence-submissions',
+  'qualification-credits',
+  'invitations',
+];
+const AFTER_RETIRED = [...PRESET_SECTIONS, ...POLICY_SECTIONS, ...QUALIFICATION_SECTIONS];
 
 /**
  * Sections whose rows 20260902000200 derived rather than created empty: the `working` store it
@@ -602,18 +613,29 @@ describe('an archive written before deliverables had their ontology fields', () 
       ),
     ).toEqual([]);
     expect(drop('access-demand', RETIRED_SECTION, ...AFTER_RETIRED)).toEqual([]);
-    // An archive between the retired attributes and both later arrivals is an era of its own, and
-    // so is one that carries either sibling without the other; one without the retired
-    // attributes but with either sibling is no exporter's.
+    // An archive between the retired attributes and the later arrivals is an era of its own, and
+    // so is one that carries either sibling without the other (and so without qualification,
+    // which descends from both); one without the retired attributes but with any of them is no
+    // exporter's.
     expect(drop(...AFTER_RETIRED)).toEqual([]);
-    expect(drop(...PRESET_SECTIONS)).toEqual([]);
-    expect(drop(...POLICY_SECTIONS)).toEqual([]);
+    expect(drop(...PRESET_SECTIONS, ...QUALIFICATION_SECTIONS)).toEqual([]);
+    expect(drop(...POLICY_SECTIONS, ...QUALIFICATION_SECTIONS)).toEqual([]);
+    expect(drop(...QUALIFICATION_SECTIONS)).toEqual([]);
+    // Qualification arrived after both siblings: an archive without either carries none of it.
+    expect(drop(...PRESET_SECTIONS)).toEqual([
+      expect.stringMatching(
+        /predates role-preset-grants, role-inclusions \(ee9e0696\) but carries qualification-packs/,
+      ),
+    ]);
     expect(drop(RETIRED_SECTION)).toEqual([
       expect.stringMatching(
         /predates deliverable-retired-attributes \(b8886185\) but carries role-preset-grants, role-inclusions/,
       ),
       expect.stringMatching(
         /predates deliverable-retired-attributes \(b8886185\) but carries verification-policies, act-proposals, act-proposal-resolutions/,
+      ),
+      expect.stringMatching(
+        /predates deliverable-retired-attributes \(b8886185\) but carries qualification-packs/,
       ),
     ]);
     expect(drop('access-demand')).toEqual([
@@ -626,6 +648,7 @@ describe('an archive written before deliverables had their ontology fields', () 
       expect.stringMatching(
         /predates access-demand \(de59c226\) but carries verification-policies, act-proposals, act-proposal-resolutions/,
       ),
+      expect.stringMatching(/predates access-demand \(de59c226\) but carries qualification-packs/),
     ]);
   });
 

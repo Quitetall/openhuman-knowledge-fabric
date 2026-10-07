@@ -101,6 +101,19 @@ const LOCAL_FAMILIES: readonly string[] = [
   // agents, so they are local by the same reasoning as KF-CTX.
   'KF-AGENT',
   'KF-VPOL',
+  // Qualification (ADR 0038, 20261007400000). KF-QUAL: an act that declares
+  // requires_qualification is refused, naming the requirement, when the actor lacks a current
+  // credit for it (001); pack, record, credit and submission rows are written only by their own
+  // acts (002, 010) and never changed (004); a requirement revision means one thing (003); a
+  // credit needs the authority the requirement names (014), is never self-credited (015), names
+  // accepted work or a declared equivalent at the same mode (016), and acknowledges only what the
+  // person can read (017); an assistant never credits (011); a record closes only complete (020)
+  // and by its contact or a reviewer (021); an assignment needs an approved pack and a live
+  // contact (030); only the record's person submits (031); an invitation is the owner's (040);
+  // a pack document is refused for what the validator finds (050). They enforce KF-SAS-RQ-254 to
+  // RQ-261 in the database; rules.yaml declares no invariant for qualification, so they are
+  // local by the same reasoning as KF-AGENT.
+  'KF-QUAL',
 ];
 
 function declaredRules(): ReadonlyMap<string, string> {

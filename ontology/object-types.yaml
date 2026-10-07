@@ -1263,3 +1263,55 @@ object_types:
     state_machine: organization_overview
     states: [active, retired]
     fields: []
+
+  # ADR 0038 (KF-SAS-RQ-254 to RQ-261): qualification is evidence against a versioned pack.
+  #
+  # A qualification pack is a controlled, versioned declaration of requirements for a scope. Its
+  # document (`kf-qualification-pack-v1`, validated by @kf/qualification) composes, by explicit
+  # list, the requirements of other packs (a common part, a role part, scope parts) and declares
+  # its own; a requirement shared by two parts is one requirement, satisfied once. Resources are
+  # referenced by identifier and revision, never copied. Approving a pack, and every later
+  # revision of it, is institutional. Its revisions and requirements live in
+  # `org.qualification_pack_revision` and `org.qualification_requirement_revision`.
+  - id: qualification_pack
+    title: Qualification pack
+    authority_domain: organization
+    enterprise_namespace: null
+    first_class: true
+    state_machine: qualification_pack
+    states: [draft, approved, retired]
+    fields:
+      - { name: pack_key, type: string, required: true, min_length: 1, max_length: 120 }
+
+  # One person's qualification for one scope, pinned to the exact pack revision it was assigned
+  # under, with the evidence credited against each requirement and who credited it
+  # (`org.qualification_credit`). Confidential to the person, their named contact and the
+  # reviewers who may credit it (ADR 0038 decision 12); others learn the scope and the state
+  # (eligibility) through the ordinary grant path. Qualification grants nothing (RQ-258).
+  - id: qualification_record
+    title: Qualification record
+    authority_domain: organization
+    enterprise_namespace: null
+    first_class: true
+    state_machine: qualification_record
+    states: [assigned, qualified, withdrawn, superseded]
+    fields:
+      - {
+          name: person_id,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - {
+          name: pack_id,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }
+      - { name: pack_revision, type: integer, required: true }
+      - {
+          name: contact_person_id,
+          type: uuid,
+          required: true,
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        }

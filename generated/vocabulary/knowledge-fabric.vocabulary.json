@@ -2,7 +2,7 @@
   "schema_version": "1.2.0-draft.1",
   "x-generated-from": {
     "ontology_version": "1.2.0-draft.1",
-    "source_digest": "2207b744b57d3c9fc6174f50762c0d854824e14ec8cfd9fe0f6f408887706e5a"
+    "source_digest": "3deaef88bbc89f229da5b21b1edf7b284bf285ded7b7974c36059f2c1204dbeb"
   },
   "node_types": {
     "organization": {
@@ -167,6 +167,14 @@
       "enterprise_namespace": null
     },
     "organization_overview": {
+      "authority_domain": "organization",
+      "enterprise_namespace": null
+    },
+    "qualification_pack": {
+      "authority_domain": "organization",
+      "enterprise_namespace": null
+    },
+    "qualification_record": {
       "authority_domain": "organization",
       "enterprise_namespace": null
     }
@@ -2928,6 +2936,46 @@
       "transactional": true
     },
     "retire_organization_overview": {
+      "audited": true,
+      "transactional": true
+    },
+    "draft_qualification_pack": {
+      "audited": true,
+      "transactional": true
+    },
+    "approve_qualification_pack": {
+      "audited": true,
+      "transactional": true
+    },
+    "supersede_qualification_pack": {
+      "audited": true,
+      "transactional": true
+    },
+    "retire_qualification_pack": {
+      "audited": true,
+      "transactional": true
+    },
+    "assign_qualification": {
+      "audited": true,
+      "transactional": true
+    },
+    "submit_qualification_evidence": {
+      "audited": true,
+      "transactional": true
+    },
+    "credit_qualification_evidence": {
+      "audited": true,
+      "transactional": true
+    },
+    "accept_qualification": {
+      "audited": true,
+      "transactional": true
+    },
+    "withdraw_qualification": {
+      "audited": true,
+      "transactional": true
+    },
+    "supersede_qualification": {
       "audited": true,
       "transactional": true
     }

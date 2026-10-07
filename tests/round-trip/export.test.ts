@@ -62,6 +62,7 @@ let store: InMemoryObjectStore;
 let verifiedId: string;
 /** ADR 0040: an observation an agent captured, verified on arrival by a policy. */
 let policyVerifiedId: string;
+let qualificationRecordId: string;
 const EXPORT_AGENT = 'export-colleague-agent';
 let unverifiedId: string;
 
@@ -277,6 +278,98 @@ beforeAll(async () => {
       payload: {},
       reason: 'the reading matches the log',
     },
+  });
+
+  // ADR 0038 (20261007400000): a pack, its approval, a record, a submission and a credit, so the
+  // qualification sections are round-tripped over rows, the credit naming its requirement revision.
+  const as = (actor: 'reviewer' | 'performer') => ({
+    actorId: actor === 'reviewer' ? f.reviewerId : f.performerId,
+    actingRoleId: actor === 'reviewer' ? f.reviewerRoleId : f.performerRoleId,
+    organizationId: f.organizationId,
+    maxClassification: 'restricted',
+  });
+  const organizationRevision = (
+    await withTransaction(h.adminPool, (tx) =>
+      tx.one<{ v: string }>('select row_version::text as v from core.object where id = $1', [
+        f.organizationId,
+      ]),
+    )
+  ).v;
+  const drafted = await colleagues({
+    ...as('reviewer'),
+    actionType: 'draft_qualification_pack',
+    targetIds: [],
+    idempotencyKey: 'export-pack-0001',
+    payload: {
+      document: {
+        format: 'kf-qualification-pack-v1',
+        key: 'export.common',
+        revision: 1,
+        title: 'Export — common part',
+        owner: 'role:technical_authority',
+        closing: 'on_evidence',
+        requirements: [
+          {
+            key: 'export.read-in',
+            revision: 1,
+            part: 'common',
+            stage: 'read_in',
+            outcome: 'Knows what the organization is and how it is run.',
+            evidence_mode: 'acknowledge',
+            accepted_by: 'self',
+            mandatory: false,
+            resources: [
+              {
+                id: f.organizationId,
+                revision: organizationRevision,
+                authority_class: 'reference',
+              },
+            ],
+          },
+          {
+            key: 'export.first-contribution',
+            revision: 1,
+            part: 'common',
+            stage: 'first_contribution',
+            outcome: 'Has finished one bounded piece of work, accepted as is.',
+            evidence_mode: 'demonstrate',
+            accepted_by: 'contact',
+            mandatory: false,
+          },
+        ],
+      },
+    },
+  });
+  const packId = String(drafted.receipt?.['packId']);
+  await colleagues({
+    ...as('reviewer'),
+    actionType: 'approve_qualification_pack',
+    targetIds: [packId],
+    idempotencyKey: 'export-pack-approve-0001',
+  });
+  const assigned = await colleagues({
+    ...as('reviewer'),
+    actionType: 'assign_qualification',
+    targetIds: [],
+    idempotencyKey: 'export-assign-0001',
+    payload: { person_id: f.performerId, pack_id: packId, contact_person_id: f.reviewerId },
+  });
+  qualificationRecordId = String(assigned.receipt?.['recordId']);
+  await colleagues({
+    ...as('performer'),
+    actionType: 'credit_qualification_evidence',
+    targetIds: [qualificationRecordId],
+    idempotencyKey: 'export-acknowledge-0001',
+    payload: {
+      credits: [{ requirement_key: 'export.read-in', evidence_object_id: f.organizationId }],
+    },
+  });
+  await colleagues({
+    ...as('performer'),
+    actionType: 'submit_qualification_evidence',
+    targetIds: [qualificationRecordId],
+    idempotencyKey: 'export-submit-0001',
+    payload: { requirement_key: 'export.first-contribution', evidence_object_id: policyVerifiedId },
   });
 }, 180_000);
 
@@ -810,6 +903,33 @@ describe('preservation export', () => {
         ),
       );
       expect(byPolicy).toEqual({ basis: 'verified_by_policy', named: true });
+
+      // ADR 0038: the pack, the record pinned to its revision, the credit pinned to its
+      // requirement's, and the submission, restored as rows.
+      for (const section of [
+        'qualification-packs',
+        'qualification-pack-revisions',
+        'qualification-requirement-revisions',
+        'qualification-pack-requirements',
+        'qualification-records',
+        'qualification-evidence-submissions',
+        'qualification-credits',
+      ]) {
+        expect(pkg.manifest.counts[section], section).toBeGreaterThan(0);
+      }
+      const credited = await withTransaction(fresh.adminPool, (tx) =>
+        tx.one<{ requirement_key: string; requirement_revision: number; pack_revision: number }>(
+          `select c.requirement_key, c.requirement_revision, r.pack_revision
+             from org.qualification_credit c join org.qualification_record r on r.id = c.record_id
+            where c.record_id = $1`,
+          [qualificationRecordId],
+        ),
+      );
+      expect(credited).toEqual({
+        requirement_key: 'export.read-in',
+        requirement_revision: 1,
+        pack_revision: 1,
+      });
 
       const again = authenticate(
         await withTransaction(fresh.adminPool, async (tx) => createExport(tx)),

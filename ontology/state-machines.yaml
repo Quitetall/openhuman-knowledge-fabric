@@ -387,3 +387,31 @@ state_machines:
     terminal: [retired]
     transitions:
       - { from: active, to: retired, action: retire_organization_overview }
+
+  # ADR 0038. A pack is drafted, then approved (institutional); a later revision of an approved
+  # pack is `supersede_qualification_pack`, which approves the new revision in the same act and
+  # leaves the pack approved. Retired, never deleted: records pinned to it keep their revision.
+  - id: qualification_pack
+    initial: draft
+    terminal: [retired]
+    transitions:
+      - { from: draft, to: approved, action: approve_qualification_pack }
+      - { from: draft, to: retired, action: retire_qualification_pack }
+      - { from: approved, to: retired, action: retire_qualification_pack }
+
+  # ADR 0038 decision 3, in the supplier's pattern: assigned (prospective) becomes qualified when
+  # every mandatory requirement is evidenced, by the act that accepts the last of the work
+  # (`accept_qualification`, which credits in the same act: no second approval, RQ-257). A
+  # record is withdrawn for a stated reason, or superseded by a newer record (a promotion, a
+  # transfer, a return). Currency after a requirement revision is computed, never a state: a
+  # qualified record stays qualified at its pinned revision, and only the action that needs the
+  # revised requirement is restricted (RQ-259).
+  - id: qualification_record
+    initial: assigned
+    terminal: [withdrawn, superseded]
+    transitions:
+      - { from: assigned, to: qualified, action: accept_qualification }
+      - { from: assigned, to: withdrawn, action: withdraw_qualification }
+      - { from: qualified, to: withdrawn, action: withdraw_qualification }
+      - { from: assigned, to: superseded, action: supersede_qualification }
+      - { from: qualified, to: superseded, action: supersede_qualification }

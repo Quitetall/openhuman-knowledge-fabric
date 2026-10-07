@@ -161,7 +161,15 @@
     "work.work_package",
     "org.access_demand",
     "content.master_record_input_exemption",
-    "work.deliverable_retired_attribute"
+    "work.deliverable_retired_attribute",
+    "org.qualification_pack",
+    "org.qualification_pack_revision",
+    "org.qualification_requirement_revision",
+    "org.qualification_pack_requirement",
+    "org.qualification_record",
+    "org.qualification_evidence_submission",
+    "org.qualification_credit",
+    "org.invitation"
   ],
   "derivedTables": ["search.document", "retrieval.band_version", "retrieval.embed_pending"],
   "liveExternalTables": [],

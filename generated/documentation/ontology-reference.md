@@ -1,9 +1,9 @@
 <!-- GENERATED from ontology/ — do not edit. -->
-<!-- ontology_version: 1.2.0-draft.1 · source_digest: 2207b744b57d3c9fc6174f50762c0d854824e14ec8cfd9fe0f6f408887706e5a -->
+<!-- ontology_version: 1.2.0-draft.1 · source_digest: 3deaef88bbc89f229da5b21b1edf7b284bf285ded7b7974c36059f2c1204dbeb -->
 
 # Ontology reference
 
-Compiled from `ontology/`. 41 object types, 42 relation types, 179 action types, 27 state machines, 16 invariants, 5 corpus projections.
+Compiled from `ontology/`. 43 object types, 42 relation types, 189 action types, 29 state machines, 16 invariants, 5 corpus projections.
 
 ## Object types
 
@@ -50,6 +50,8 @@ Compiled from `ontology/`. 41 object types, 42 relation types, 179 action types,
 | `warrant` | project | WAR | warrant | 7 |
 | `observation` | project | — | observation | 3 |
 | `organization_overview` | organization | — | organization_overview | 2 |
+| `qualification_pack` | organization | — | qualification_pack | 3 |
+| `qualification_record` | organization | — | qualification_record | 4 |
 
 ## Relation types
 
@@ -192,13 +194,13 @@ Compiled from `ontology/`. 41 object types, 42 relation types, 179 action types,
 | `authorize_ml_metric_stream` | — | act |
 | `append_ml_metric_event` | — | role only |
 | `authorize_ml_promotion` | — | act |
-| `raise_nonconformity` | — | role only |
-| `contain_nonconformity` | nonconformity | role only |
+| `raise_nonconformity` | — | role only + qualification |
+| `contain_nonconformity` | nonconformity | role only + qualification |
 | `investigate_nonconformity` | nonconformity | role only |
 | `disposition_nonconformity` | nonconformity | role only |
 | `close_nonconformity` | nonconformity | role only |
 | `open_capa` | — | role only |
-| `approve_capa_plan` | capa | act |
+| `approve_capa_plan` | capa | act + qualification |
 | `implement_capa` | capa | role only |
 | `check_capa_effectiveness` | capa | role only |
 | `close_capa` | capa | role only |
@@ -224,7 +226,7 @@ Compiled from `ontology/`. 41 object types, 42 relation types, 179 action types,
 | `supersede_test_definition` | test_definition | act |
 | `plan_test_execution` | — | role only |
 | `execute_test` | test_execution | role only |
-| `record_test_result` | test_execution | role only |
+| `record_test_result` | test_execution | role only + qualification |
 | `invalidate_test_execution` | test_execution | act |
 | `record_observation` | — | role only |
 | `promote_observation` | observation | act |
@@ -281,6 +283,16 @@ Compiled from `ontology/`. 41 object types, 42 relation types, 179 action types,
 | `exclude_role` | — | act |
 | `declare_organization_overview` | — | act |
 | `retire_organization_overview` | organization_overview | act |
+| `draft_qualification_pack` | — | role only |
+| `approve_qualification_pack` | qualification_pack | act |
+| `supersede_qualification_pack` | — | act |
+| `retire_qualification_pack` | qualification_pack | act |
+| `assign_qualification` | — | act |
+| `submit_qualification_evidence` | — | role only |
+| `credit_qualification_evidence` | — | role only |
+| `accept_qualification` | qualification_record | role only |
+| `withdraw_qualification` | qualification_record | act |
+| `supersede_qualification` | qualification_record | act |
 
 ## Lifecycles
 
@@ -722,6 +734,35 @@ stateDiagram-v2
     [*] --> active
     active --> retired: retire_organization_overview
     retired --> [*]
+```
+
+### `qualification_pack`
+
+Initial: `draft` · Terminal: `retired`
+
+```mermaid
+stateDiagram-v2
+    [*] --> draft
+    draft --> approved: approve_qualification_pack
+    draft --> retired: retire_qualification_pack
+    approved --> retired: retire_qualification_pack
+    retired --> [*]
+```
+
+### `qualification_record`
+
+Initial: `assigned` · Terminal: `withdrawn`, `superseded`
+
+```mermaid
+stateDiagram-v2
+    [*] --> assigned
+    assigned --> qualified: accept_qualification
+    assigned --> withdrawn: withdraw_qualification
+    qualified --> withdrawn: withdraw_qualification
+    assigned --> superseded: supersede_qualification
+    qualified --> superseded: supersede_qualification
+    withdrawn --> [*]
+    superseded --> [*]
 ```
 
 ## Invariants

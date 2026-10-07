@@ -57,6 +57,11 @@ import type { ExportPackage } from './types.js';
  *   `verification-policies`, `act-proposals`, `act-proposal-resolutions`. Created empty; only the
  *   acts ADR 0040 adds write them. The two arrivals are siblings: each descends from b8886185 and
  *   neither from the other, so an archive may carry either without the other.
+ * - M5QUALIFY (2026-10-07, after both) — `20261007400000`: `qualification-packs`,
+ *   `qualification-pack-revisions`, `qualification-requirement-revisions`,
+ *   `qualification-pack-requirements`, `qualification-records`,
+ *   `qualification-evidence-submissions`, `qualification-credits`, `invitations` (ADR 0038).
+ *   Created empty; only the qualification acts and the owner's invitation write them.
  *
  * Absence does NOT mean none, and the importer restores what the migration derived:
  *
@@ -151,6 +156,20 @@ export const SECTION_ARRIVALS: readonly SectionArrival[] = [
     commit: 'b535bb14',
     after: ['b8886185'],
     sections: ['verification-policies', 'act-proposals', 'act-proposal-resolutions'],
+  },
+  {
+    commit: 'M5QUALIFY',
+    after: ['ee9e0696', 'b535bb14'],
+    sections: [
+      'qualification-packs',
+      'qualification-pack-revisions',
+      'qualification-requirement-revisions',
+      'qualification-pack-requirements',
+      'qualification-records',
+      'qualification-evidence-submissions',
+      'qualification-credits',
+      'invitations',
+    ],
   },
 ];
 

@@ -73,6 +73,9 @@ importers:
       '@kf/projections':
         specifier: workspace:*
         version: link:packages/projections
+      '@kf/qualification':
+        specifier: workspace:*
+        version: link:packages/qualification
       '@kf/record-atoms':
         specifier: workspace:*
         version: link:packages/record-atoms
@@ -625,6 +628,9 @@ importers:
       '@kf/product-quality':
         specifier: workspace:*
         version: link:../product-quality
+      '@kf/qualification':
+        specifier: workspace:*
+        version: link:../qualification
       '@kf/warrants':
         specifier: workspace:*
         version: link:../warrants
@@ -666,6 +672,25 @@ importers:
       '@kf/ontology-compiler':
         specifier: workspace:*
         version: link:../ontology-compiler
+    devDependencies:
+      '@types/node':
+        specifier: ^24.13.3
+        version: 24.13.3
+
+  packages/qualification:
+    dependencies:
+      '@kf/actions':
+        specifier: workspace:*
+        version: link:../actions
+      '@kf/canonicalization':
+        specifier: workspace:*
+        version: link:../canonicalization
+      '@kf/database':
+        specifier: workspace:*
+        version: link:../database
+      '@kf/record-atoms':
+        specifier: workspace:*
+        version: link:../record-atoms
     devDependencies:
       '@types/node':
         specifier: ^24.13.3

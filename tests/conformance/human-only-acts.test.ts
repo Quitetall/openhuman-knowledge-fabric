@@ -152,8 +152,9 @@ describe('SAS §22 human-only acts (KF-SAS-RQ-019)', () => {
       'utf8',
     );
     for (const id of SECTION_22.flat().flatMap((act) => act.actions)) {
+      // The fifth column, requires_qualification (ADR 0038), is either way.
       expect(seed, `${id} is not seeded as requiring act`).toMatch(
-        new RegExp(`\\('${id}', true, true, 'act'\\)`),
+        new RegExp(`\\('${id}', true, true, 'act', (true|false)\\)`),
       );
     }
   });

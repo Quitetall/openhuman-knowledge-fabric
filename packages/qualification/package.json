@@ -1,9 +1,9 @@
 {
-  "name": "@kf/orchestrator",
+  "name": "@kf/qualification",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Composition root for independently auditable Knowledge Fabric action atoms",
+  "description": "Qualification is evidence against a versioned pack (ADR 0038): packs, records, the evaluator, Start Here and the agent-guide context",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -18,16 +18,9 @@
   },
   "dependencies": {
     "@kf/actions": "workspace:*",
-    "@kf/artifacts": "workspace:*",
-    "@kf/authorization": "workspace:*",
+    "@kf/canonicalization": "workspace:*",
     "@kf/database": "workspace:*",
-    "@kf/documents": "workspace:*",
-    "@kf/identifiers": "workspace:*",
-    "@kf/warrants": "workspace:*",
-    "@kf/integration": "workspace:*",
-    "@kf/product-quality": "workspace:*",
-    "@kf/qualification": "workspace:*",
-    "@kf/work-control": "workspace:*"
+    "@kf/record-atoms": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.13.3"
