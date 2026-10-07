@@ -3,5 +3,5 @@
   "compilerOptions": { "rootDir": "./src", "outDir": "./dist", "types": ["node"] },
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts", "dist", "node_modules"],
-  "references": [{ "path": "../domain" }]
+  "references": [{ "path": "../domain" }, { "path": "../qualification" }]
 }

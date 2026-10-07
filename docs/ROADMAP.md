@@ -45,7 +45,9 @@ For an agent session picking this up cold:
    says which Warrants are draft, authorized or resolved. `war next` and `war frontier` (below)
    list what can start.
 2. **Take the next milestone.** It is the **first row of the Milestones table (§3) whose Warrant is
-   not resolved and whose dependencies are all resolved.** Today that is **M0, KF-WAR-0002**.
+   not resolved and whose dependencies are all resolved.** Today that is still **M0, KF-WAR-0002**:
+   M0 to M5 are built (§3, "Status"), and no Warrant is resolved until the owner authorizes and
+   resolves it.
    Warrant numbers are not the order: KF-WAR-0001 is numbered first because it was written first,
    but it is M6 and depends on M0. `war next` and `war frontier` know each Warrant's internal
    milestone order but not the order between Warrants; this table does.
@@ -110,6 +112,16 @@ Order is top to bottom. "Depends on" names milestones that must be **resolved** 
 | M6  | **Host**: Phase 9 commissioning on the VPS (ADR 0039)                          | [KF-WAR-0001](warrants/KF-WAR-0001/generated/WAR.md) | `KF-PHASE-9/exit`                     | M0 (and M2 to M5 for a useful host) | rent the VPS; Tailscale; B2 buckets and keys; SSH; confirm an alert and a real login                                               | `kf-commissioning` reports every check satisfied, again after a reboot, on the VPS; nothing public but the tailnet                                                                    |
 | M7  | **Owner correctness and user pass** on the hosted instance                     | [KF-WAR-0008](warrants/KF-WAR-0008/generated/WAR.md) | `KF-PHASE-10/m7-owner-pass`           | M6                                  | the whole pass; judging it complete                                                                                                | every finding fixed with a test, moved to a named Warrant, or recorded as decided; every latency bar has a host figure                                                                |
 | M8  | **v1.0**: Phase 10                                                             | [KF-WAR-0009](warrants/KF-WAR-0009/generated/WAR.md) | `KF-PHASE-10/exit`                    | M7                                  | accept cutover; sign the pack; accept the §100 dispositions; settle independent verification; cut the tag                          | every ADR 0004 criterion met, every open §100 entry closed or accepted, CI green on the tagged commit                                                                                 |
+
+**Status, 2026-10-07: M0 to M5 are built; their owner-only acts are outstanding.** The work of
+each is on `main` through PRs #14 to #22 (M0: SeaweedFS, the tailnet and B2; M1: ADR 0040 and SAS §24B; M2: the KF MCP
+server, the verification policy and Needs you; M3: role presets, the overview, the master
+document and the dashboard; M4: the in-app agent, routing by classification and notifications; M5:
+qualification, `kf invite` and Start Here), and the specification records it as built (SAS §24A,
+§24B, §100). Every Warrant is still **draft**, so none is resolved and the order above still
+starts at M0. Two "Done when" items were not met as written: §100.42 and §100.43 (M3) are still
+open, and §100.45 (M4) is narrowed, not closed, because the choice of fusion is the owner's (§5).
+What each milestone still needs from the owner is in §6.
 
 **Why everything before v1.0 sits under Phase 10.** SAS §98 numbers phases 0 to 10 and the
 roadmap grammar caps a phase number at 10 (§100.17, §100.24), so nothing new can be numbered. The
@@ -192,22 +204,23 @@ EOF
 ```
 
 Measured when this page was written: **44 entries, 10 closed, 34 open; 34 cited, none missing,
-none duplicated, none closed.** "Open" means the entry's title does not end "— closed". §100.20
+none duplicated, none closed.** Measured again after the closing pass of M0 to M5 (2026-10-07):
+**61 entries, 21 closed, 40 open; 40 cited, none missing, none duplicated, none closed.** After the agent guide (§100.61 closed, §100.63 added): **62 entries, 22 closed, 40 open; 40 cited, none missing, none duplicated, none closed.** "Open" means the entry's title does not end "— closed". §100.20
 does not exist.
 
 <!-- gap-table:start -->
 
-| Milestone                          | Entries                                                                                                                                                                 |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| M0, KF-WAR-0002                    | §100.40 (SeaweedFS replaces MinIO), §100.21 (engine on LAMU `main`; independent verification stays open), §100.39 (key custody, the owner's decision)                   |
-| M2, KF-WAR-0004                    | §100.26 (verification's basis is paced; the one-click path must record it truthfully, and the remainder becomes an accepted limit)                                      |
-| M3, KF-WAR-0005                    | §100.42 (Object View recounts after any write), §100.43 (master-record reads take the whole manifest)                                                                   |
-| M4, KF-WAR-0006                    | §100.44 (the embedding pump is serial), §100.45 (weak word matches pull the fused list down)                                                                            |
-| M5, KF-WAR-0007                    | §100.41 (qualification specified, not built)                                                                                                                            |
-| M6, KF-WAR-0001                    | §100.4 (replication scheduled nowhere), §100.10 (no host commissioned)                                                                                                  |
-| M7, KF-WAR-0008                    | §100.18 (two latency bars include a person; every run is a workstation's; chat integration)                                                                             |
-| M8, KF-WAR-0009                    | §100.1, §100.3, §100.6, §100.11, §100.13, §100.14, §100.25, §100.27, §100.28, §100.32, §100.35, §100.36                                                                 |
-| Accepted limits (stay, documented) | §100.5, §100.15 (done, a host measurement owed), §100.17 and §100.24 (the phase cap; this page is the workaround), §100.22, §100.23, §100.29, §100.30, §100.33, §100.38 |
+| Milestone                          | Entries                                                                                                                                                                                                                            |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M0, KF-WAR-0002                    | §100.21 (engine on LAMU `main`; independent verification stays open), §100.39 (key custody, the owner's decision)                                                                                                                  |
+| M2, KF-WAR-0004                    | §100.26 (verification's basis is paced; the one-click path must record it truthfully, and the remainder becomes an accepted limit), §100.56 (four readings of M2 for the owner to confirm)                                         |
+| M3, KF-WAR-0005                    | §100.42 (Object View recounts after any write), §100.43 (master-record reads take the whole manifest), §100.60 (photo and voice capture at phone width)                                                                            |
+| M4, KF-WAR-0006                    | §100.45 (narrowed: the choice between the two fusions is the owner's), §100.57 (one urgent-push destination), §100.58 (typed text is not classified)                                                                               |
+| M5, KF-WAR-0007                    | §100.62 (qualification acts with no web gesture), §100.63 (the record envelope is `internal`, the owner's decision)                                                                                                                |
+| M6, KF-WAR-0001                    | §100.4 (replication scheduled nowhere), §100.10 (no host commissioned), §100.54 (the object store's identities file), §100.55 (object-lock retention, the owner's decision), §100.59 (LAMU's forwarding must stay off on the host) |
+| M7, KF-WAR-0008                    | §100.18 (two latency bars include a person; every run is a workstation's; chat integration)                                                                                                                                        |
+| M8, KF-WAR-0009                    | §100.1, §100.3, §100.6, §100.11, §100.13, §100.14, §100.25, §100.27, §100.28, §100.32, §100.35, §100.36                                                                                                                            |
+| Accepted limits (stay, documented) | §100.5, §100.15 (done, a host measurement owed), §100.17 and §100.24 (the phase cap; this page is the workaround), §100.22, §100.23, §100.29, §100.30, §100.33, §100.38                                                            |
 
 <!-- gap-table:end -->
 
@@ -249,6 +262,17 @@ list the signing acts live; this is the whole list, including what no tool track
 10. Authorize KF-WAR-0006; supply a provider key or decide on none.
 11. Authorize KF-WAR-0007; approve the fixture packs; sign the re-cut schema pack
     (`pnpm ontology:approve`); create the first invitees with the owner credential.
+
+**Found by the closing pass of M0 to M5 (2026-10-07), none of them blocking M6**
+
+- Choose the fused ranking: `kf.fused.rrf.v2`, served now, or `v1` (SAS §100.45).
+- Decide object-lock retention on the backup copy: set by the transport, required and checked as
+  the bucket's default, or ADR 0039's wording amended (§100.55).
+- Confirm or overturn the four readings M2 made (§100.56), and accept ADR 0016's dated note on role
+  presets (KF-WAR-0005).
+- Decide the digest's send time and recipients and each organization's provider ceiling, and put a
+  provider key in the secrets store or decide on none (ADR 0040's open items).
+- Decide whether a qualification record's envelope is raised to `confidential` (§100.63).
 
 **For M6 to M8**
 

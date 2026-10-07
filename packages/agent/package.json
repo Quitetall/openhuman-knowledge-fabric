@@ -22,7 +22,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.131.0",
-    "@kf/domain": "workspace:*"
+    "@kf/domain": "workspace:*",
+    "@kf/qualification": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.13.3"

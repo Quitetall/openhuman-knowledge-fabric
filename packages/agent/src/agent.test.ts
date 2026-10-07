@@ -107,6 +107,8 @@ function fabricOver(
         const c = corpus.find((entry) => entry.id === id)!;
         return { status: 200, body: { text: c.text, classification: c.classification } };
       }
+      // The reader holds no open qualification record (guide.test.ts covers one who does).
+      if (path === '/start-here/guide') return { status: 404, body: { error: 'not_found' } };
       throw new Error(`unexpected ${method} ${path}`);
     },
   };

@@ -280,7 +280,7 @@
       <div><dt>Accepted</dt><dd>2026-09-27</dd></div>
       <div><dt>Authority</dt><dd>Brian Lam</dd></div>
       <div><dt>Requirements</dt><dd>207 &middot; append&#8209;only</dd></div>
-      <div><dt>Source digest</dt><dd>03f3827c8a38</dd></div>
+      <div><dt>Source digest</dt><dd>ac2fc1a36714</dd></div>
     </dl>
   </header>
 
@@ -346,7 +346,7 @@
     <div class="groups">
       <div class="grp"><span>Identity, authority and access</span><span class="ct">20</span><span class="bar"><i class="fill-open" style="width:40%"></i></span></div>
       <div class="grp"><span>Content and preservation</span><span class="ct">16</span><span class="bar"><i class="fill-open" style="width:25%"></i></span></div>
-      <div class="grp"><span>The experience, 2026-10-07 (ADR 0040, specified and not built)</span><span class="ct">15</span><span class="bar"><i class="fill-open" style="width:100%"></i></span></div>
+      <div class="grp"><span>The experience, 2026-10-07 (ADR 0040, built for M2 to M5)</span><span class="ct">15</span><span class="bar"><i class="fill-open" style="width:100%"></i></span></div>
       <div class="grp"><span>Design laws</span><span class="ct">14</span><span class="bar"><i class="fill-open" style="width:21%"></i></span></div>
       <div class="grp"><span>Institutional acts and federation</span><span class="ct">14</span><span class="bar"><i class="fill-open" style="width:7%"></i></span></div>
       <div class="grp"><span>The write path</span><span class="ct">13</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
@@ -356,7 +356,7 @@
       <div class="grp"><span>Retrieval, 2026-09-14 (ADR 0028)</span><span class="ct">11</span><span class="bar"><i class="fill-open" style="width:36%"></i></span></div>
       <div class="grp"><span>What the principal binding left open, 2026-09-24 (ADR 0033)</span><span class="ct">10</span><span class="bar"><i class="fill-open" style="width:20%"></i></span></div>
       <div class="grp"><span>Interfaces</span><span class="ct">9</span><span class="bar"><i class="fill-open" style="width:33%"></i></span></div>
-      <div class="grp"><span>Qualification, 2026-09-26 (ADR 0038, specified and not built)</span><span class="ct">8</span><span class="bar"><i class="fill-open" style="width:100%"></i></span></div>
+      <div class="grp"><span>Qualification, 2026-09-26 (ADR 0038, built for M5)</span><span class="ct">8</span><span class="bar"><i class="fill-open" style="width:100%"></i></span></div>
       <div class="grp"><span>Governance</span><span class="ct">7</span><span class="bar"><i class="fill-open" style="width:43%"></i></span></div>
       <div class="grp"><span>The database binds the principal, 2026-09-24 (ADR 0033)</span><span class="ct">7</span><span class="bar"><i class="fill-open" style="width:0%"></i></span></div>
       <div class="grp"><span>Capture and verification, 2026-09-14 (ADR 0031)</span><span class="ct">6</span><span class="bar"><i class="fill-open" style="width:50%"></i></span></div>
@@ -392,7 +392,7 @@
   <section>
     <div class="head">
       <h2>Recorded gaps</h2>
-      <span class="eyebrow">&sect;100 &middot; 52</span>
+      <span class="eyebrow">&sect;100 &middot; 62</span>
     </div>
 
     <ul class="gaps">
@@ -434,27 +434,37 @@
       <li><b>100.37</b><span>A token linked to nobody can add identification refusals under any organization — closed</span></li>
       <li><b>100.38</b><span>A record moved to another organization is answered &quot;no longer permitted&quot;</span></li>
       <li><b>100.39</b><span>The retrieval engine's key is not released by the Fabric</span></li>
-      <li><b>100.40</b><span>A clean machine cannot start the object store</span></li>
-      <li><b>100.41</b><span>Qualification is specified and not built</span></li>
+      <li><b>100.40</b><span>A clean machine cannot start the object store — closed</span></li>
+      <li><b>100.41</b><span>Qualification is specified and not built — closed</span></li>
       <li><b>100.42</b><span>After any write in an organization, an Object View falls back to recounting</span></li>
       <li><b>100.43</b><span>The master-record reads other than the Object View still read the whole manifest</span></li>
-      <li><b>100.44</b><span>The embedding pump sends one request at a time</span></li>
-      <li><b>100.45</b><span>Weak word matches pull the fused list below the semantic list alone</span></li>
-      <li><b>100.46</b><span>No agent can write through the Fabric except over the HTTP API</span></li>
-      <li><b>100.47</b><span>Verification has no policy and no queue</span></li>
-      <li><b>100.48</b><span>Roles are a flat list of names</span></li>
-      <li><b>100.49</b><span>There is no organization overview and no master-document page</span></li>
-      <li><b>100.50</b><span>There is no dashboard, no density setting, and no designed phone layout</span></li>
-      <li><b>100.51</b><span>There is no in-app agent and no backend chosen by classification</span></li>
-      <li><b>100.52</b><span>Nothing notifies a person that something needs them</span></li>
-      <li><b>100.53</b><span>There is no invitation and no Start Here</span></li>
+      <li><b>100.44</b><span>The embedding pump sends one request at a time — closed</span></li>
+      <li><b>100.45</b><span>Weak word matches pull the fused list below its sources — narrowed</span></li>
+      <li><b>100.46</b><span>No agent can write through the Fabric except over the HTTP API — closed</span></li>
+      <li><b>100.47</b><span>Verification has no policy and no queue — closed</span></li>
+      <li><b>100.48</b><span>Roles are a flat list of names — closed</span></li>
+      <li><b>100.49</b><span>There is no organization overview and no master-document page — closed</span></li>
+      <li><b>100.50</b><span>There is no dashboard, no density setting, and no designed phone layout — closed</span></li>
+      <li><b>100.51</b><span>There is no in-app agent and no backend chosen by classification — closed</span></li>
+      <li><b>100.52</b><span>Nothing notifies a person that something needs them — closed</span></li>
+      <li><b>100.53</b><span>There is no invitation and no Start Here — closed</span></li>
+      <li><b>100.54</b><span>The object store's identities are a file of secrets on disk</span></li>
+      <li><b>100.55</b><span>Nothing sets or checks object-lock retention on the backup copy</span></li>
+      <li><b>100.56</b><span>Four readings M2 made the owner has not confirmed</span></li>
+      <li><b>100.57</b><span>The urgent push has one destination</span></li>
+      <li><b>100.58</b><span>What a person types is not classified</span></li>
+      <li><b>100.59</b><span>LAMU's own forwarding is outside the Fabric's sight</span></li>
+      <li><b>100.60</b><span>A phone cannot capture a photo or a voice note</span></li>
+      <li><b>100.61</b><span>The in-app agent is not yet the Start Here guide — closed</span></li>
+      <li><b>100.62</b><span>Some qualification acts have no web gesture</span></li>
+      <li><b>100.63</b><span>A qualification record's envelope is `internal`</span></li>
     </ul>
 
     <p class="note" style="margin-top:1.2rem">A gap is recorded in an enumerable place or it is not recorded. There is not one <code>TODO</code>, <code>FIXME</code> or <code>HACK</code> in the repository &mdash; gaps live here, in decision records, in pack manifests, or as named checker warnings, where a reader will find them and a gate can count them.</p>
   </section>
 
   <footer>
-    Generated by <code>kf overview</code> from source digest <code>03f3827c8a38</code> &mdash; a hash over the specification and the Warrant manifests this page projects, not over the commit containing it, which could not exist before the page was written. No wall&#8209;clock timestamp appears above, deliberately: a generated artifact that differs on every build turns a drift check into noise. Counts are the most perishable claims here; re&#8209;derive rather than trust them. Where this sheet and the specification disagree, the specification governs; where the specification and the code disagree, the code is right and the specification has drifted.
+    Generated by <code>kf overview</code> from source digest <code>ac2fc1a36714</code> &mdash; a hash over the specification and the Warrant manifests this page projects, not over the commit containing it, which could not exist before the page was written. No wall&#8209;clock timestamp appears above, deliberately: a generated artifact that differs on every build turns a drift check into noise. Counts are the most perishable claims here; re&#8209;derive rather than trust them. Where this sheet and the specification disagree, the specification governs; where the specification and the code disagree, the code is right and the specification has drifted.
   </footer>
 
 </div>

@@ -11,6 +11,12 @@ describe('the closed list of agent acts', () => {
       'resolve_act_proposal',
       'grant_access',
       'correct_record',
+      // Qualification: an agent may submit evidence for its person, never decide on it.
+      'credit_qualification_evidence',
+      'accept_qualification',
+      'assign_qualification',
+      'withdraw_qualification',
+      'supersede_qualification',
     ]) {
       expect(names).not.toContain(forbidden);
     }
