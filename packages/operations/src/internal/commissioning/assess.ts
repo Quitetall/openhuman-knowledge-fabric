@@ -15,6 +15,7 @@ import {
 } from './host.js';
 import { attestorSeparation, secretPosture, unitProvenance } from './units.js';
 import { systemdLoadedUnits } from './loaded-units.js';
+import { publicExposure } from './exposure.js';
 
 /**
  * A check for most blockers in `docs/deployment/private-host.md`, in the order an operator
@@ -71,6 +72,13 @@ export const COMMISSIONING_CHECKS: readonly CommissioningCheckDefinition[] = [
       'no installed nginx validation: upstream TLS termination is asserted by the deployment ' +
       'and, until this passes, verified by nobody',
     run: reverseProxyPosture,
+  },
+  {
+    id: 'public_exposure',
+    blocker:
+      'no host evidence that nothing listens on the public interface but the private ' +
+      "network's own transport",
+    run: publicExposure,
   },
   {
     id: 'identity_provider_policy',

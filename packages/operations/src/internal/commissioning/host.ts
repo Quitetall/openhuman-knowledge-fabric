@@ -405,8 +405,13 @@ export const reverseProxyPosture: CommissioningCheckFn = async (inputs: Commissi
     };
   }
 
+  const privateAddresses = (inputs.privateListenAddresses ?? '')
+    .split(',')
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry !== '');
   const cleartextProxying: string[] = [];
   const remoteUpstreams: string[] = [];
+  const unboundListeners: string[] = [];
   const missingForwardedProto: string[] = [];
   const weakProtocols: string[] = [];
 
@@ -419,6 +424,24 @@ export const reverseProxyPosture: CommissioningCheckFn = async (inputs: Commissi
     );
 
     if (servesCleartext && proxied.length > 0) cleartextProxying.push(names);
+
+    // With private addresses declared (ADR 0039: the tailnet's), nginx listens on those and on
+    // loopback, never on a wildcard or any other address: `listen 443` is every interface,
+    // the public one included.
+    if (privateAddresses.length > 0) {
+      for (const listen of listens) {
+        const address = listenAddress(listen);
+        if (
+          address === null ||
+          !(
+            privateAddresses.includes(address) ||
+            ['127.0.0.1', '::1', 'localhost'].includes(address)
+          )
+        ) {
+          unboundListeners.push(`${names}: listen ${listen}`);
+        }
+      }
+    }
 
     for (const target of proxied) {
       const host = /^https?:\/\/([^/:]+|\[[^\]]+\])/.exec(target)?.[1] ?? target;
@@ -440,6 +463,9 @@ export const reverseProxyPosture: CommissioningCheckFn = async (inputs: Commissi
     remoteUpstreams: remoteUpstreams.join('; ') || 'none',
     missingForwardedProto: missingForwardedProto.join(', ') || 'none',
     weakProtocols: weakProtocols.join('; ') || 'none',
+    privateListenAddresses: privateAddresses.join(', ') || null,
+    listenersOffPrivateAddresses:
+      privateAddresses.length === 0 ? 'not checked' : unboundListeners.join('; ') || 'none',
   };
 
   if (cleartextProxying.length > 0) {
@@ -458,6 +484,16 @@ export const reverseProxyPosture: CommissioningCheckFn = async (inputs: Commissi
       detail:
         'A proxy_pass names an upstream that is not loopback. The API and web processes bind ' +
         '127.0.0.1 and rely on this proxy being the only route to them.',
+      observed,
+    };
+  }
+  if (unboundListeners.length > 0) {
+    return {
+      status: 'unsatisfied',
+      detail:
+        `${String(unboundListeners.length)} listen directive(s) are not bound to a private ` +
+        `address (${privateAddresses.join(', ')}) or loopback: a wildcard or another address ` +
+        'publishes the proxy on every interface, the public one included.',
       observed,
     };
   }
@@ -485,6 +521,20 @@ export const reverseProxyPosture: CommissioningCheckFn = async (inputs: Commissi
     observed,
   };
 };
+
+/**
+ * The address an nginx `listen` names, lowercased and unbracketed, or null for a wildcard.
+ * `443 ssl` and `*:443` and `[::]:443` and `0.0.0.0:443` are all every address.
+ */
+export function listenAddress(listen: string): string | null {
+  const target = listen.trim().split(/\s+/)[0] ?? '';
+  if (/^\d+$/.test(target)) return null;
+  const bracketed = /^\[([^\]]+)\](?::\d+)?$/.exec(target);
+  const host = bracketed?.[1] ?? target.replace(/:\d+$/, '');
+  const lowered = host.toLowerCase();
+  if (lowered === '*' || lowered === '0.0.0.0' || lowered === '::') return null;
+  return lowered;
+}
 
 /** The values `verify-liminal-runtime.sh` requires, named here so a missing one is reportable. */
 const LIMINAL_RUNTIME_VARIABLES = [

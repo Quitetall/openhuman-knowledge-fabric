@@ -37,6 +37,9 @@ export const IMPORT_ORDER = [
   'retention-holds',
   'person-entitlement-exclusions',
   'access-grants',
+  // After the roles they name and the acts that defined them (ADR 0040).
+  'role-preset-grants',
+  'role-inclusions',
   'artifacts',
   'artifact-versions',
   'artifact-stores',

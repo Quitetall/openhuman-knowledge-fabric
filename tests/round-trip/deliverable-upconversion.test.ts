@@ -45,17 +45,16 @@ const VERIFICATION = { trustedManifestKeys: new Map([[KEY_ID, KEY.publicKey]]) }
 
 const RETIRED_SECTION = 'deliverable-retired-attributes';
 /**
- * The arrival after the retired attributes (b535bb14, ADR 0040): an archive written before the
- * retired attributes was written before these too, so every archive of that era lacks them.
+ * The arrivals after the retired attributes, both descending from it and neither from the other:
+ * ee9e0696 (ADR 0040's role presets) and b535bb14 (ADR 0040's verification policy). An archive
+ * written before the retired attributes was written before both, so every archive of that era
+ * lacks them.
  */
-const AFTER_RETIRED = [
-  'verification-policies',
-  'act-proposals',
-  'act-proposal-resolutions',
-  // 20261007300000 (ADR 0040, M4), after those.
-  'model-routing-policies',
-  'notification-preferences',
-];
+const PRESET_SECTIONS = ['role-preset-grants', 'role-inclusions'];
+const POLICY_SECTIONS = ['verification-policies', 'act-proposals', 'act-proposal-resolutions'];
+// 20261007300000 (ADR 0040, M4): after the policy sections, a sibling of the presets.
+const HOME_SECTIONS = ['model-routing-policies', 'notification-preferences'];
+const AFTER_RETIRED = [...PRESET_SECTIONS, ...POLICY_SECTIONS, ...HOME_SECTIONS];
 
 /**
  * Sections whose rows 20260902000200 derived rather than created empty: the `working` store it
@@ -172,7 +171,7 @@ function repack(
       files,
       new Set(
         Object.keys(base.manifest.counts)
-          .concat(RETIRED_SECTION, AFTER_RETIRED)
+          .concat(RETIRED_SECTION, ...AFTER_RETIRED)
           .filter((name) => !files.some((file) => file.path === `${name}.json`)),
       ),
     ),
@@ -208,7 +207,8 @@ function asArchiveBeforeTheMigration(current: ExportPackage): ExportPackage {
     new Map<string, unknown>([
       ['deliverables.json', old],
       [`${RETIRED_SECTION}.json`, null],
-      ...AFTER_RETIRED.map((name): [string, null] => [`${name}.json`, null]),
+      // Written after 20260925130100, so an archive from before it has none of them either.
+      ...AFTER_RETIRED.map((name): [string, unknown] => [`${name}.json`, null]),
     ]),
   );
 }
@@ -443,7 +443,7 @@ describe('an archive written before deliverables had their ontology fields', () 
       expect(restored.locations).toEqual([{ version_id: addressed.id }]);
       // And this test covers every section the list names.
       expect(new Set(SECTIONS_ADDED_WITHOUT_FORMAT_BUMP)).toEqual(
-        new Set([...later, RETIRED_SECTION]),
+        new Set([...later, RETIRED_SECTION, ...AFTER_RETIRED]),
       );
     } finally {
       await fresh.stop();
@@ -607,9 +607,37 @@ describe('an archive written before deliverables had their ontology fields', () 
       ),
     ).toEqual([]);
     expect(drop('access-demand', RETIRED_SECTION, ...AFTER_RETIRED)).toEqual([]);
+    // An archive between the retired attributes and both later arrivals is an era of its own, and
+    // so is one that carries either sibling without the other; one without the retired
+    // attributes but with either sibling is no exporter's.
+    expect(drop(...AFTER_RETIRED)).toEqual([]);
+    expect(drop(...PRESET_SECTIONS)).toEqual([]);
+    expect(drop(...POLICY_SECTIONS, ...HOME_SECTIONS)).toEqual([]);
+    expect(drop(...HOME_SECTIONS)).toEqual([]);
+    expect(drop(...PRESET_SECTIONS, ...HOME_SECTIONS)).toEqual([]);
+    // Without the policy sections but with M4's, which arrived after them: no exporter's.
+    expect(drop(...POLICY_SECTIONS)).toEqual([
+      expect.stringMatching(
+        /predates verification-policies, act-proposals, act-proposal-resolutions \(b535bb14\) but carries model-routing-policies, notification-preferences/,
+      ),
+    ]);
+    expect(drop(RETIRED_SECTION)).toEqual([
+      expect.stringMatching(
+        /predates deliverable-retired-attributes \(b8886185\) but carries role-preset-grants, role-inclusions/,
+      ),
+      expect.stringMatching(
+        /predates deliverable-retired-attributes \(b8886185\) but carries verification-policies, act-proposals, act-proposal-resolutions/,
+      ),
+      expect.stringMatching(
+        /predates deliverable-retired-attributes \(b8886185\) but carries model-routing-policies, notification-preferences/,
+      ),
+    ]);
     expect(drop('access-demand')).toEqual([
       expect.stringMatching(
         /predates access-demand \(de59c226\) but carries deliverable-retired-attributes/,
+      ),
+      expect.stringMatching(
+        /predates access-demand \(de59c226\) but carries role-preset-grants, role-inclusions/,
       ),
       expect.stringMatching(
         /predates access-demand \(de59c226\) but carries verification-policies, act-proposals, act-proposal-resolutions/,
@@ -638,8 +666,7 @@ describe('an archive written before deliverables had their ontology fields', () 
   }, 240_000);
 
   it('refuses a current package that lost its retired-attributes section', async () => {
-    // Truncated to the retired attributes' era: what arrived after them goes too, or the verifier
-    // refuses the era before the importer ever sees the deliverables.
+    // The sections that arrived after it go too, or the era check refuses the package first.
     const truncated = repack(
       pkg,
       new Map([RETIRED_SECTION, ...AFTER_RETIRED].map((name) => [`${name}.json`, null])),

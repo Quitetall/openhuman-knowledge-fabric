@@ -10,6 +10,7 @@
  *   retire-organization     an organization nobody can act in (bootstrap tier)
  *   revoke-identity         withdraw a provider account's link to a person (bootstrap tier)
  *   declare-agent           which OAuth clients may act for a person, ADR 0035 (bootstrap tier)
+ *   define-role             a role name in the vocabulary, ADR 0040 (bootstrap tier)
  *
  * The bootstrap-tier commands need DATABASE_OWNER_URL_FILE and are refused without it; the others
  * never see an owner credential.
@@ -17,9 +18,11 @@
 
 import { bootstrapUsage } from './admin/bootstrap-organization.js';
 import { declareAgentUsage } from './admin/declare-agent.js';
+import { defineRoleUsage } from './admin/define-role.js';
 import {
   runBootstrapCommand,
   runDeclareAgentCommand,
+  runDefineRoleCommand,
   runGrantAuthorityCommand,
   runRetireOrganizationCommand,
   runRevokeIdentityCommand,
@@ -39,7 +42,7 @@ function allUsage(): string {
     'kf <command> [options]',
     '',
     '  ingest | note | master-record | overview | bootstrap-organization | grant-authority |',
-    '  retire-organization | revoke-identity | declare-agent',
+    '  retire-organization | revoke-identity | declare-agent | define-role',
     '',
     ingestUsage(),
     '',
@@ -62,6 +65,8 @@ function allUsage(): string {
     revokeIdentityUsage(),
     '',
     declareAgentUsage(),
+    '',
+    defineRoleUsage(),
   ].join('\n');
 }
 
@@ -98,6 +103,9 @@ switch (command) {
     break;
   case 'declare-agent':
     process.exitCode = await runDeclareAgentCommand(rest);
+    break;
+  case 'define-role':
+    process.exitCode = await runDefineRoleCommand(rest);
     break;
   case 'help':
   case '--help':

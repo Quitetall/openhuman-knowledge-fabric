@@ -32,7 +32,7 @@
 # ── WHY A PRIVATE DAEMON RATHER THAN THE HOST SOCKET ────────────────────────────────────────
 #
 # The usual recipe mounts /var/run/docker.sock so Testcontainers can start PostgreSQL. That
-# gives every CI job control of the HOST's docker, and this host is running MinIO, Keycloak and
+# gives every CI job control of the HOST's docker, and this host is running SeaweedFS, Keycloak and
 # a development PostgreSQL. One `docker system prune` in a job, or a reaper with a broad label
 # filter, and they are gone. A sibling DinD daemon costs one container and an image cache
 # volume, and CI containers simply cannot see the host's.

@@ -40,6 +40,8 @@ export const PRESERVATION_IMPORT_TARGETS = {
   'person-clearance-retirements': 'org.person_clearance_retirement',
   'person-entitlement-exclusions': 'content.person_entitlement_exclusion',
   'access-grants': 'org.access_grant',
+  'role-preset-grants': 'org.role_preset_grant',
+  'role-inclusions': 'org.role_inclusion',
   artifacts: 'content.artifact',
   'artifact-versions': 'content.artifact_version',
   'artifact-stores': 'content.artifact_store',

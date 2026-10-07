@@ -379,3 +379,11 @@ state_machines:
       - { from: draft, to: terminated, action: terminate_engagement }
       - { from: active, to: terminated, action: terminate_engagement }
       - { from: suspended, to: terminated, action: terminate_engagement }
+
+  # ADR 0040. An overview is born `active` by declare_organization_overview and retired, never
+  # deleted (Law 6); a new overview is a new record.
+  - id: organization_overview
+    initial: active
+    terminal: [retired]
+    transitions:
+      - { from: active, to: retired, action: retire_organization_overview }

@@ -28,11 +28,18 @@ import {
   AGENT_ACT_RECEIPTS,
   AUTHORITY_ACTION_IDS,
   AUTHORITY_EFFECTS,
+  ROLE_PRESET_ACTION_IDS,
+  ROLE_PRESET_EFFECTS,
 } from '@kf/authorization';
 import type { Pool } from '@kf/database';
 import { StoreRegistry, createStorageActionAtoms, type StorageActionAtoms } from '@kf/artifacts';
 import { createOrganizationLifecycleAtoms } from '@kf/authorization';
-import type { DocumentActionAtoms } from '@kf/documents';
+import {
+  ORGANIZATION_OVERVIEW_ACTION_IDS,
+  ORGANIZATION_OVERVIEW_EFFECTS,
+  ORGANIZATION_OVERVIEW_MATERIALIZERS,
+  type DocumentActionAtoms,
+} from '@kf/documents';
 import { IDENTIFIER_ACTION_IDS, IDENTIFIER_EFFECTS, IDENTIFIER_RECEIPTS } from '@kf/identifiers';
 import { WARRANT_ACTION_IDS, WARRANT_EFFECTS, WARRANT_MATERIALIZERS } from '@kf/warrants';
 import {
@@ -139,6 +146,22 @@ const BUILT_IN_ATOMS: readonly ActionAtoms[] = [
     name: 'authority',
     ownedActions: [...AUTHORITY_ACTION_IDS, ...ACCESS_ACTION_IDS],
     effects: { ...AUTHORITY_EFFECTS, ...ACCESS_EFFECTS },
+  },
+  {
+    // Roles as composable presets of scope (ADR 0040, KF-SAS-RQ-269). Their own group so the
+    // acts that change what every holder of a role may read are visible here as one set.
+    name: 'role-presets',
+    ownedActions: ROLE_PRESET_ACTION_IDS,
+    effects: ROLE_PRESET_EFFECTS,
+  },
+  {
+    // The living organization overview (ADR 0040): a record declared by an act, whose
+    // statements are generated per reader and never stored. Built in, like the presets, because
+    // it needs no store, key or configuration.
+    name: 'organization-overview',
+    ownedActions: ORGANIZATION_OVERVIEW_ACTION_IDS,
+    materializers: ORGANIZATION_OVERVIEW_MATERIALIZERS,
+    effects: ORGANIZATION_OVERVIEW_EFFECTS,
   },
   {
     // Agents submit; authority verifies (ADR 0040, 20261007100000): the verification policy, an

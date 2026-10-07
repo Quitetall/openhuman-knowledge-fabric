@@ -48,6 +48,164 @@ but they need independent credentials, backups and off-host copies. The workstat
 file is a dependency rehearsal with public credentials and Keycloak `start-dev`; it is never
 copied onto the host as deployment configuration.
 
+## First host (ADR 0039)
+
+The first commissioned host is a rented KVM VPS (about 4 vCPU and 8 GB, Debian 13). People reach
+it over a Tailscale tailnet, and it publishes nothing. Its certificate is the publicly trusted one
+`tailscale cert` issues for its tailnet name. Its durable artifact copies and its encrypted
+off-site backups are in Backblaze B2. That is ADR 0039, proposed on 2026-10-03 and not yet on
+this branch (`KF-ADR-0039-the-first-host-is-a-vps-on-a-tailnet-with-seaweedfs-and-b2.md`, on
+`harden/defensive-posture`).
+The rest of this document applies unchanged. This section is the order to do it in, and it names
+what is specific to this host.
+
+**The alternative it replaces.** The rest of this document was written for a host on a private
+network with a certificate from a CA you run: the private-CA path, with
+[`deploy/nginx/knowledge-fabric.conf`](../../deploy/nginx/knowledge-fabric.conf) and an `rsync`
+off-site destination. That path still works. Set `KF_HOST_ACCESS=private-ca` in
+`/etc/kf/tailnet.env` and provisioning checks none of the tailnet items below. Each person's
+devices must then trust your CA, which is the cost ADR 0039 chose not to pay.
+
+### 1. What the owner sets up (outside this repository)
+
+1. **The VPS.** Full virtualisation (KVM), not a container plan: bubblewrap needs real user,
+   mount and PID namespaces (§85.5), and the host preflight refuses a plan that lacks them. Keep
+   the provider's web console login. Once the firewall is on, it is the second way in.
+2. **Tailscale.**
+   - Install tailscale from pkgs.tailscale.com.
+   - Run `sudo tailscale up` and approve the host in the admin console.
+   - In the console's DNS settings, turn on MagicDNS and **HTTPS Certificates**; without them
+     `tailscale cert` refuses.
+   - Join each person's devices.
+   - Write `TS_PERMIT_CERT_UID=kf-tls` into `/etc/default/tailscaled`, then run
+     `systemctl restart tailscaled`. This lets the renewal unit fetch the certificate without
+     operator rights over tailscaled.
+   - Confirm `ssh <host>.<tailnet>.ts.net` works before step 6 closes the public address.
+3. **Backblaze B2.** Two private buckets, in one region:
+   - **The backup bucket.** Account, bucket and key setup for encrypted off-site backups is
+     [backup custody](backup-custody.md), and nothing here repeats it. Its application key does
+     not go on the host by hand. It is delivered from the workstation's encrypted store through
+     the volatile channels in [B2 credential custody](b2-credential-custody.md) (copier) and
+     [drill B2 credential delivery](drill-b2-credential-delivery.md) (restore drill). The
+     transport, and what it verifies, is [the B2 ciphertext transport](b2-ciphertext-transport.md).
+   - **The durable bucket.** Every artifact version is replicated here (the `durable` store,
+     ADR 0017). Create a key restricted to it with listBuckets, listFiles, readFiles and
+     writeFiles, and no deleteFiles. Its keyID is `S3_DURABLE_ACCESS_KEY_ID` in
+     `/etc/kf/storage/storage.env`. Its applicationKey is the 0600 file
+     `/etc/kf/storage/s3-durable-secret`, written by hand, never on a command line. The bucket
+     page shows the endpoint (`https://s3.<region>.backblazeb2.com`) and the region (`<region>`).
+
+### 2. `provision-host.sh --check`
+
+Install the release (step 3 shows how), then run `sudo /opt/kf/scripts/deploy/provision-host.sh`
+once to create what a machine can. After that, `--check` lists what only you can supply, each with
+its path. On this host, besides the database logins and keys described in
+[Provision the host](#provision-the-host), it asks for:
+
+- **host requirements:** `tailscale` at `/usr/bin/tailscale` and `nginx` at `/usr/sbin/nginx`
+  (Debian: `apt install nginx-light`);
+- **the tailnet:**
+  - `tailscale status` must report the host up;
+  - `/etc/kf/tailnet.env` needs `KF_TAILNET_HOSTNAME` (`<host>.<tailnet>.ts.net`) and
+    `KF_TAILNET_ADDRESS` (`tailscale ip -4`). Provisioning fills both from `tailscale status`
+    once the host is up, and reports a value that disagrees with it;
+  - `/etc/default/tailscaled` needs `TS_PERMIT_CERT_UID=kf-tls`;
+  - the certificate goes in `/etc/kf/tls/tailnet.crt`;
+- **nginx:** Debian's `/etc/nginx/sites-enabled/default`, which listens on `0.0.0.0:80`, must be
+  removed. Provisioning renders
+  [`deploy/nginx/knowledge-fabric-tailnet.conf`](../../deploy/nginx/knowledge-fabric-tailnet.conf)
+  for this host into `/etc/nginx/sites-available/knowledge-fabric.conf` and enables it;
+- **the off-site bucket:** `provision-host.sh` does not ask for it. `KF_OFFSITE_DESTINATION=b2`
+  and `KF_DRILL_OFFSITE_SOURCE=b2` select it, and its B2 settings arrive by the
+  delivery in [B2 credential custody](b2-credential-custody.md) and
+  [drill B2 credential delivery](drill-b2-credential-delivery.md). Their root-only status commands,
+  `b2-status` and `drill-b2-status`, say whether a generation is ready on this boot;
+
+- **the durable bucket:** in `/etc/kf/storage/storage.env`, `S3_DURABLE_ENDPOINT`,
+  `S3_DURABLE_REGION`, `S3_DURABLE_ACCESS_KEY_ID` and `S3_DURABLE_BUCKET`, with the secret in
+  `/etc/kf/storage/s3-durable-secret`. B2 documents no conditional writes. If the first
+  replication fails on `If-None-Match`, set `S3_DURABLE_CONDITIONAL_CREATE=false`
+  ([`storage.env.example`](../../deploy/systemd/storage.env.example) says what that costs).
+
+Re-run `--check` until it exits 0.
+
+### 3. Install
+
+Build once on the workstation ([Build once on the workstation](#build-once-on-the-workstation)).
+Copy the archive to the host over the tailnet, then install it with `install-release.sh`
+([Install and roll back](#install-and-roll-back-install-releasesh)). Apply the migrations with
+`kf-migrate.service`, then set the API's origins in `/etc/kf/api.env`:
+`KF_WEB_ORIGIN=https://<host>.<tailnet>.ts.net` and
+`KF_API_ORIGIN=https://<host>.<tailnet>.ts.net:8443`. A tailnet name has no subdomains, so the
+API is on the same name at port 8443. Then enable the services and timers as
+[`deploy/systemd/README.md`](../../deploy/systemd/README.md) lists them.
+
+Keycloak's issuer must be https and reachable by the people signing in, which on this host means
+the tailnet name. Neither template proxies Keycloak (the issuer is its own authority boundary), and
+**this repository does not configure Keycloak's TLS on the tailnet host**. Decide it at
+commissioning: Keycloak serving its own HTTPS on the tailnet address, or a reviewed nginx server
+for it. Record the issuer in `OIDC_ISSUER`.
+
+### 4. Certificate
+
+```sh
+sudo systemctl enable --now kf-tls-renew.timer
+sudo systemctl start kf-tls-renew.service     # tailscale cert, then nginx -t, then reload
+```
+
+`kf-tls-renew.service` runs as `kf-tls`. It writes `/etc/kf/tls/tailnet.crt` and `tailnet.key`
+(the key 0600, owned by `kf-tls`), and only its last two steps run with privileges: `nginx -t`,
+then the reload. A configuration nginx refuses is never loaded, and the unit fails and alerts. The
+certificate lasts 90 days. `tailscale cert` returns the cached one until renewal is due, so the
+daily timer costs nothing. The timer declares `X-KF-MaxSilenceSec`, so `scripts/timer-liveness.sh`
+names it if it stops firing, weeks before the certificate would lapse.
+
+Then the firewall. Do this only after `ssh <host>.<tailnet>.ts.net` works:
+[`deploy/nftables/knowledge-fabric-tailnet.nft`](../../deploy/nftables/knowledge-fabric-tailnet.nft)
+drops everything on the public interface except tailscaled's WireGuard port (`udp/41641`) and the
+ICMP and DHCP replies the address needs. Include it from `/etc/nftables.conf`, run
+`nft -c -f /etc/nftables.conf`, then `systemctl enable --now nftables`.
+
+### 5. Commissioning
+
+Run `kf-commissioning` as in [Commissioning: run it, do not read it](#commissioning-run-it-do-not-read-it),
+with this host's values:
+
+```sh
+KF_PUBLIC_HOSTNAME=<host>.<tailnet>.ts.net \
+KF_TLS_CERTIFICATE=/etc/kf/tls/tailnet.crt \
+KF_TLS_PRIVATE_KEY=/etc/kf/tls/tailnet.key \
+KF_REVERSE_PROXY_CONFIG=/etc/nginx/sites-available/knowledge-fabric.conf \
+KF_PRIVATE_LISTEN_ADDRESSES="$(tailscale ip -4),$(tailscale ip -6)" \
+  …the rest as in that section… kf-commissioning
+```
+
+On this host, two checks carry ADR 0039's access rule:
+
+- `reverse_proxy_posture` refuses any nginx `listen` that is not on one of those addresses or
+  loopback: a bare port, `0.0.0.0`, `[::]` or a public address.
+- `public_exposure` lists the host's listening sockets (`ss`). Every one must be on loopback, on a
+  tailnet address, bound to `tailscale0`, or the tailnet transport (`KF_PUBLIC_LISTEN_ALLOWED`,
+  default `udp:41641`). If your provider assigns the public address by DHCP, add `udp:68` there
+  deliberately; the check names everything else.
+
+Neither proves what the firewall admits. The evidence for that comes from outside the tailnet: a
+port scan of the public address (`nmap -Pn -p- <public address>` and
+`sudo nmap -sU -p 41641 <public address>`) shows nothing open but `41641/udp`. Record it with the
+commissioning output.
+
+Then run the backup path once by hand: `systemctl start kf-backup.service`, which pulls in
+`kf-backup-offsite.service`. Its journal must record a verified remote cloud object. Then run
+`systemctl start kf-restore-drill.service`. The drill pulls back exactly the recorded version, and
+its notes carry `transport=b2 backup_copy_id=<id>`. What each step proves and does not prove is in
+[the B2 ciphertext transport](b2-ciphertext-transport.md#evidence-and-remaining-commissioning).
+
+### 6. Reboot
+
+Reboot the host. Then re-run `provision-host.sh --check`, the certificate unit, `kf-commissioning`
+and the port scan. A service that works only in the install shell is not deployed (§91.3), and a
+firewall loaded only by hand is not a firewall.
+
 ## Supported host platform
 
 The current private-host artifacts support one platform contract: a GNU/FHS Linux host using
@@ -743,11 +901,14 @@ It generates the rollback-receipt HMAC key, the web session key, the readiness t
 the checkpoint signing key — whose id is its own fingerprint, published in
 `/etc/kf/checkpoint-public-keys/` before `CHECKPOINT_SIGNING_KEY_ID` is written — each `0600`,
 owned by the one identity that reads it, never printed and never on a command line. It creates
-the thirteen service identities (including `kf-audit-verify`, `kf-drill` and `kf-attestor`) and
+the nineteen service identities (including `kf-audit-verify`, `kf-drill`, `kf-attestor`, the three retrieval identities, `kf-tls`, and `kf-objects` and `kf-objects-init` for the object store) and
 the `kf-archive` and `kf-attest` groups, installs the units
-and the environment templates, applies the storage key's orphan-collection policy when `mc` has
-an admin alias (`KF_MC_ALIAS`), and asks the object store whether that key really may list and
-delete versions. It ends by listing only what a person must supply, each with the exact file it
+and the environment templates, installs the pinned SeaweedFS binary for this host's own object
+store (`kf-objects`, ADR 0039; refused unless both pinned sha256 digests match), generates each
+service's object-store secret and renders the store's identities from them — the storage key
+granted the orphan-collection policy in SeaweedFS's form, the drill's key read-only — prints that
+policy instead for a store that is not this host's own, and asks the object store whether the
+storage key really may list and delete versions. It ends by listing only what a person must supply, each with the exact file it
 goes in: database logins, object-store secrets and routing, the off-site destination, the alert
 webhook, the OIDC issuer, the preservation key (external custody by design), and the backup
 recovery key — for which `--generate-recovery-key <file>` or `--seal-drill-key <file>` does the
@@ -819,11 +980,17 @@ walked against the workstation realm, including the parts that stop short of a u
 Tracked service units and non-secret environment templates live in
 [`../../deploy/systemd/`](../../deploy/systemd/). API and web bind only `127.0.0.1`; command
 arguments override environment-file attempts to widen them. Worker and migrator have separate
-unprivileged identities. Nginx template in
-[`../../deploy/nginx/knowledge-fabric.conf`](../../deploy/nginx/knowledge-fabric.conf) redirects
-HTTP, terminates TLS, rejects unknown virtual hosts and proxies only to loopback. Replace example
-hostnames with reviewed names and certificate paths; run `nginx -t`; do not generate or enroll
-certificates from this repository.
+unprivileged identities. There are two nginx templates. Both redirect HTTP, terminate TLS, reject
+unknown virtual hosts and proxy only to loopback:
+
+- [`../../deploy/nginx/knowledge-fabric-tailnet.conf`](../../deploy/nginx/knowledge-fabric-tailnet.conf)
+  is for the first host (ADR 0039; see [First host](#first-host-adr-0039)). `provision-host.sh`
+  renders it for the host's tailnet name and address, and every `listen` is on that address. Its
+  certificate comes from `tailscale cert` through `kf-tls-renew.timer`.
+- [`../../deploy/nginx/knowledge-fabric.conf`](../../deploy/nginx/knowledge-fabric.conf) is the
+  private-CA alternative. Replace its example hostnames with reviewed names and certificate paths,
+  and run `nginx -t`. Its certificates come from a CA you run, and this repository neither
+  generates nor enrolls them.
 
 The template also rate-limits per client address and answers the excess with `429`: `/ingest`
 at 10 requests a minute (burst 5), `/documents` and `/search` at 10 a second (burst 40), the
@@ -935,7 +1102,9 @@ Before any shared user is admitted:
    operation or commissioning claim it protects even when HTTP status is `200`; never treat service
    availability as institutional approval.
 5. Run and record a backup, off-host copy and restore drill using the declared recovery
-   objective.
+   objective. To an S3 bucket (ADR 0039: Backblaze B2), the copy is read back from the version
+   the bucket returned, and the drill restores exactly that version.
+   See [First host](#first-host-adr-0039), step 5.
 6. Verify checkpoint signing from the signer service and prove the API service account cannot
    read the private key.
 7. Verify rollback rehearsal receipt matches exact release; verify migration service succeeded
@@ -992,6 +1161,7 @@ KF_IDENTITY_CLIENT_ID=knowledge-fabric \
 KF_IDENTITY_POLICY=/etc/kf/realm-policy.json \
 KF_IDENTITY_POLICY_SHA256=<digest recorded at review> \
 KF_REVERSE_PROXY_CONFIG=/etc/nginx/sites-enabled/kf \
+KF_PRIVATE_LISTEN_ADDRESSES=<the private addresses people reach this host on> \
 KF_RELEASE_DIR=/opt/kf/release \
 KF_EVIDENCE_DIR=/var/lib/kf/commissioning \
 KF_RELEASE_ID=<release this host is running> \
@@ -1009,11 +1179,14 @@ workstation, which had also never been done.
 
 Three more have defaults and are therefore easy to miss, and two of them decide verdicts:
 
-| variable                      | default                             | what it changes                                         |
-| ----------------------------- | ----------------------------------- | ------------------------------------------------------- |
-| `KF_CERTIFICATE_RENEWAL_DAYS` | `21`                                | how close to expiry a certificate may be and still pass |
-| `KF_ROLLBACK_REHEARSAL_DAYS`  | `180`                               | how old a rollback rehearsal receipt may be             |
-| `KF_ALERT_DISPATCH`           | `/opt/kf/scripts/alert-dispatch.sh` | the script `--send-test-alert` runs                     |
+| variable                      | default                             | what it changes                                          |
+| ----------------------------- | ----------------------------------- | -------------------------------------------------------- |
+| `KF_CERTIFICATE_RENEWAL_DAYS` | `21`                                | how close to expiry a certificate may be and still pass  |
+| `KF_ROLLBACK_REHEARSAL_DAYS`  | `180`                               | how old a rollback rehearsal receipt may be              |
+| `KF_ALERT_DISPATCH`           | `/opt/kf/scripts/alert-dispatch.sh` | the script `--send-test-alert` runs                      |
+| `KF_PRIVATE_INTERFACE`        | `tailscale0`                        | a socket bound to it counts as private                   |
+| `KF_PUBLIC_LISTEN_ALLOWED`    | `udp:41641`                         | what may listen on every address (the tailnet transport) |
+| `KF_SS`                       | `/usr/bin/ss`                       | the program that lists listening sockets                 |
 
 `kf-commissioning --help` prints all of this from the same table the program reads, so it
 cannot describe a different program than the one on the host. Prefer it to this section when
@@ -1059,7 +1232,8 @@ What each check reads, and the blocker it closes:
 | `tls_termination`           | the certificate for the public hostname — SAN coverage, validity window, renewal margin — and the private key's mode                                                                                                       | site hostname, certificate, TLS termination                          |
 | `identity_provider_policy`  | issuer is https, client is named, the reviewed realm policy on disk still digests to what was reviewed, and that realm is not weak (see below)                                                                             | reviewed reproducible Keycloak realm/client policy                   |
 | `runtime_version`           | the Node version this process runs, against the tested one                                                                                                                                                                 | host uses the exact tested runtime                                   |
-| `reverse_proxy_posture`     | the installed nginx configuration: refuses a cleartext server that proxies, a non-loopback upstream, TLS 1.0/1.1, and a proxying block that drops the original scheme                                                      | installed nginx validation                                           |
+| `reverse_proxy_posture`     | the installed nginx configuration: refuses a cleartext server that proxies, a non-loopback upstream, TLS 1.0/1.1, a proxying block that drops the original scheme, and a `listen` off `KF_PRIVATE_LISTEN_ADDRESSES`        | installed nginx validation                                           |
+| `public_exposure`           | the host's listening sockets (`ss`): each on loopback, a private address or interface, or an allowed transport                                                                                                             | nothing listens on the public interface                              |
 | `liminal_runtime_inventory` | the compiler and its runtime closure on this host, via the release's own `verify-liminal-runtime.sh`                                                                                                                       | reviewed compiler artifact and runtime-closure inventory             |
 | `evidence_receipts`         | release verification, rollback rehearsal and compiler qualification receipts: present, naming this release, ratified, recent enough                                                                                        | rollback receipt, migration result, ratified compiler qualification  |
 
@@ -1074,9 +1248,10 @@ Three things stay human evidence, and the verifier reports `unverifiable` rather
 
 - **real-provider browser evidence.** `identity_provider_policy` proves the deployment points
   at the reviewed policy; it cannot prove a person can sign in or that the flow behaves.
-- **firewall rules.** The certificate check proves the name is covered and
-  `reverse_proxy_posture` reads the installed nginx configuration; neither proves what can reach
-  the port. This bullet said "firewall rules and installed nginx validation" until 2026-08-24,
+- **firewall rules.** The certificate check proves the name is covered,
+  `reverse_proxy_posture` reads the installed nginx configuration, and `public_exposure` lists what
+  is listening on the host. None of them proves what the firewall admits from outside. That is a
+  port scan of the public address, run from off the tailnet and recorded by a person. This bullet said "firewall rules and installed nginx validation" until 2026-08-24,
   which stopped being true when `reverse_proxy_posture` shipped.
 - **service start, restart and reboot behaviour.** `unit_provenance` proves the right units are
   installed; whether the host survives a reboot is observed, not inferred.
@@ -1104,8 +1279,12 @@ cannot quietly acquire the appearance of coverage.
   configuration as installed and refuses a cleartext server that proxies, an upstream that is
   not loopback, TLS 1.0/1.1, and a proxying block that does not forward the original scheme.
   It does not follow `include` directives and cannot interrogate the running nginx, so point it
-  at the file that defines the server blocks. Firewall rules have **no check** and remain
-  inspection by hand.
+  at the file that defines the server blocks. With `KF_PRIVATE_LISTEN_ADDRESSES` set it also
+  refuses a `listen` on any other address. What is actually listening is `public_exposure`, which
+  reads the host's sockets and names every one that is not on loopback, a private address or
+  interface, or the allowed transport. Firewall rules have **no check**. What the firewall admits
+  from outside remains a port scan of the public address, made and recorded by a person
+  ([First host](#first-host-adr-0039), step 5).
 - no installed user/file ownership evidence, service start/restart/reboot evidence —
   `unit_provenance`. `systemd_loaded_units` separately inspects the manager's loaded
   metadata; it does not establish running-process custody or successful startup/reboot.

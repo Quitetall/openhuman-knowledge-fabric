@@ -15,7 +15,7 @@ export const ATTESTOR_LOGIN = 'kf_attestor_dev';
  * records the same two grants on the host). Nothing else (`pnpm dogfood:logins`).
  */
 export const WORKER_LOGIN = 'kf_worker_dogfood';
-/** MinIO's development secret from docker-compose.yml: public on purpose, loopback only. */
+/** The object store's development secret from docker-compose.yml: public on purpose, loopback only. */
 export const DEV_S3_SECRET = 'dev-only-not-a-secret';
 
 /**

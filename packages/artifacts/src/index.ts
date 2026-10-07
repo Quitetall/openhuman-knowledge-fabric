@@ -46,6 +46,12 @@ export {
   type ListedObject,
   type SweepableObjectStore,
 } from './sweep-store.js';
+export {
+  VersioningNotEnabled,
+  bucketVersioning,
+  requireVersioning,
+  type BucketVersioning,
+} from './versioning.js';
 
 export const PACKAGE = {
   name: '@kf/artifacts',
