@@ -382,7 +382,7 @@ describe('an urgent push is derived from what waits on a person', () => {
     const urgent = () =>
       withTransaction(notifier, (tx) =>
         tx.query<{ person_id: string; kind: string }>(
-          'select person_id, kind from core.urgent_notifications($1)',
+          'select person_id, kind from core.urgent_notifications($1, null)',
           [since],
         ),
       );

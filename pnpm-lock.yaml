@@ -278,6 +278,9 @@ importers:
 
   apps/mcp:
     dependencies:
+      '@kf/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
       '@kf/domain':
         specifier: workspace:*
         version: link:../../packages/domain

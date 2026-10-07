@@ -8,7 +8,7 @@ file matches only when it holds half of what that statement says. Do not edit by
 
 - questions: 44; cut-off: 10 documents; semantic ranking: present
 - ceiling on mean recall@10 (min(10, |truth|)/|truth|): 1
-- fused ranking: `kf.fused.rrf.v1(k=60; kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2; lamu.kf.masked-cosine.v1)`
+- fused ranking: `kf.fused.rrf.v2(k=60; lexical vote=(coverage-0.5)/0.5; kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2; lamu.kf.masked-cosine.v1)`
 - before: the run of 2026-09-25 (3b7a2258), whose summary is committed as
   `search-baseline.2026-09-25.json`: every word required as written, English stemming
   for every language, lexical and semantic served as two lists.
@@ -17,64 +17,73 @@ file matches only when it holds half of what that statement says. Do not edit by
 
 | questions | verbatim lexical | keywords lexical | verbatim semantic | keywords semantic | verbatim fused | keywords fused | before: verbatim lexical | before: keywords lexical |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 44 | 0.0227 | 0.0455 | 0.8182 | 0.5038 | 0.5265 | 0.2917 | 0 | 0.0227 |
+| 44 | 0.0227 | 0.0455 | 0.8182 | 0.5038 | 0.8182 | 0.4583 | 0 | 0.0227 |
+
+## This run beside earlier runs of the same lists
+
+| run | fused ranking | verbatim lexical | keywords lexical | verbatim semantic | keywords semantic | verbatim fused | keywords fused |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| this run | kf.fused.rrf.v2(k=60; lexical vote=(coverage-0.5)/0.5; kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2; lamu.kf.masked-cosine.v1) | 0.0227 | 0.0455 | 0.8182 | 0.5038 | 0.8182 | 0.4583 |
+| 2026-09-26 (e9efa0ec) | kf.fused.rrf.v1(k=60; kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2; lamu.kf.masked-cosine.v1) | 0.0227 | 0.0455 | 0.8182 | 0.5038 | 0.5265 | 0.2917 |
+
+2026-09-26: reciprocal rank fusion with every word match voting fully (kf.fused.rrf.v1), on the owner's fixture stack; summary taken from the report committed in that commit.
 
 ## By question type
 
 | type | questions | verbatim lexical | keywords lexical | verbatim semantic | keywords semantic | verbatim fused | keywords fused | before: verbatim lexical | before: keywords lexical |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| admin | 8 | 0 | 0 | 0.8125 | 0.5625 | 0.625 | 0.0625 | 0 | 0 |
-| bm | 1 | 0 | 0 | 1 | 1 | 1 | 0 | 0 | 0 |
-| ds | 9 | 0 | 0 | 0.8889 | 0.4444 | 0.4444 | 0.2222 | 0 | 0 |
-| finance | 7 | 0 | 0 | 0.7143 | 0.4524 | 0.4524 | 0.2619 | 0 | 0 |
-| hr | 10 | 0 | 0 | 0.85 | 0.65 | 0.5 | 0.5 | 0 | 0 |
-| pm | 2 | 0 | 0 | 1 | 0.5 | 0.5 | 0.25 | 0 | 0 |
-| research | 2 | 0 | 0 | 1 | 0 | 0.5 | 0.5 | 0 | 0 |
+| admin | 8 | 0 | 0 | 0.8125 | 0.5625 | 0.8125 | 0.4375 | 0 | 0 |
+| bm | 1 | 0 | 0 | 1 | 1 | 1 | 1 | 0 | 0 |
+| ds | 9 | 0 | 0 | 0.8889 | 0.4444 | 0.8889 | 0.4444 | 0 | 0 |
+| finance | 7 | 0 | 0 | 0.7143 | 0.4524 | 0.7143 | 0.4524 | 0 | 0 |
+| hr | 10 | 0 | 0 | 0.85 | 0.65 | 0.85 | 0.55 | 0 | 0 |
+| pm | 2 | 0 | 0 | 1 | 0.5 | 1 | 0.5 | 0 | 0 |
+| research | 2 | 0 | 0 | 1 | 0 | 1 | 0 | 0 | 0 |
 | sde | 5 | 0.2 | 0.4 | 0.6 | 0.4 | 0.6 | 0.4 | 0 | 0.2 |
 
 ## Per question
 
 | question | type | asker | truth | readable by asker | verbatim hits@10 | verbatim recall | verbatim matches | keywords hits@10 | keywords recall | verbatim fused recall | keywords fused recall | withheld (keywords) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| admin-check-employees-budget-and-reply | admin | sarah.johnson | 1 | 1 | 0 | 0 | 3 | 0 | 0 | 1 | 0 | 0 |
+| admin-check-employees-budget-and-reply | admin | sarah.johnson | 1 | 1 | 0 | 0 | 3 | 0 | 0 | 1 | 1 | 0 |
 | admin-check-employees-budget-and-reply-2 | admin | sarah.johnson | 1 | 1 | 0 | 0 | 5 | 0 | 0 | 1 | 0 | 0 |
 | admin-check-employees-budget-and-reply-and-record | admin | sarah.johnson | 1 | 1 | 0 | 0 | 3 | 0 | 0 | 1 | 0 | 0 |
 | admin-collect-requests-and-compute-total-price | admin | sarah.johnson | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 |
-| admin-make-spreadsheet | admin | sarah.johnson | 2 | 2 | 0 | 0 | 17 | 0 | 0 | 0.5 | 0 | 0 |
+| admin-make-spreadsheet | admin | sarah.johnson | 2 | 2 | 0 | 0 | 17 | 0 | 0 | 0.5 | 0.5 | 0 |
 | admin-mass-forms-filling | admin | sarah.johnson | 2 | 2 | 0 | 0 | 0 | 0 | 0 | 0.5 | 0.5 | 0 |
-| admin-read-survey-and-summarise | admin | sarah.johnson | 2 | 2 | 0 | 0 | 17 | 0 | 0 | 0 | 0 | 0 |
-| admin-translate-sales-chat | admin | sarah.johnson | 1 | 1 | 0 | 0 | 18 | 0 | 0 | 0 | 0 | 0 |
-| bm-classify-nationality | bm | sarah.johnson | 1 | 1 | 0 | 0 | 20 | 0 | 0 | 1 | 0 | 0 |
-| ds-answer-numerical-data-question | ds | sarah.johnson | 1 | 1 | 0 | 0 | 17 | 0 | 0 | 0 | 0 | 0 |
+| admin-read-survey-and-summarise | admin | sarah.johnson | 2 | 2 | 0 | 0 | 17 | 0 | 0 | 0.5 | 0.5 | 0 |
+| admin-translate-sales-chat | admin | sarah.johnson | 1 | 1 | 0 | 0 | 18 | 0 | 0 | 1 | 1 | 0 |
+| bm-classify-nationality | bm | sarah.johnson | 1 | 1 | 0 | 0 | 20 | 0 | 0 | 1 | 1 | 0 |
+| ds-answer-numerical-data-question | ds | sarah.johnson | 1 | 1 | 0 | 0 | 17 | 0 | 0 | 1 | 1 | 0 |
 | ds-answer-spreadsheet-questions | ds | sarah.johnson | 1 | 1 | 0 | 0 | 4 | 0 | 0 | 1 | 1 | 0 |
-| ds-coffee-shop-database-management | ds | sarah.johnson | 1 | 1 | 0 | 0 | 9 | 0 | 0 | 0 | 0 | 0 |
+| ds-coffee-shop-database-management | ds | sarah.johnson | 1 | 1 | 0 | 0 | 9 | 0 | 0 | 1 | 1 | 0 |
 | ds-fix-table-values-and-missing-answers | ds | sarah.johnson | 1 | 1 | 0 | 0 | 20 | 0 | 0 | 0 | 0 | 0 |
 | ds-format-excel-sheets | ds | sarah.johnson | 1 | 1 | 0 | 0 | 1 | 0 | 0 | 1 | 0 | 0 |
 | ds-merge-multiple-sheets | ds | sarah.johnson | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 |
-| ds-predictive-modeling | ds | sarah.johnson | 2 | 2 | 0 | 0 | 20 | 0 | 0 | 0 | 0 | 0 |
-| ds-stock-analysis-slides | ds | sarah.johnson | 1 | 1 | 0 | 0 | 17 | 0 | 0 | 0 | 0 | 0 |
+| ds-predictive-modeling | ds | sarah.johnson | 2 | 2 | 0 | 0 | 20 | 0 | 0 | 1 | 0 | 0 |
+| ds-stock-analysis-slides | ds | sarah.johnson | 1 | 1 | 0 | 0 | 17 | 0 | 0 | 1 | 0 | 0 |
 | ds-visualize-data-in-pie-and-bar-chart | ds | sarah.johnson | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 0 |
-| finance-apply-tax-credit | finance | sarah.johnson | 3 | 3 | 0 | 0 | 15 | 0 | 0 | 0.6667 | 0.3333 | 0 |
-| finance-budget-variance | finance | sarah.johnson | 2 | 2 | 0 | 0 | 19 | 0 | 0 | 0.5 | 0 | 0 |
-| finance-check-attendance-payroll | finance | sarah.johnson | 2 | 2 | 0 | 0 | 15 | 0 | 0 | 0.5 | 0 | 0 |
+| finance-apply-tax-credit | finance | sarah.johnson | 3 | 3 | 0 | 0 | 15 | 0 | 0 | 0.6667 | 0.6667 | 0 |
+| finance-budget-variance | finance | sarah.johnson | 2 | 2 | 0 | 0 | 19 | 0 | 0 | 1 | 0 | 0 |
+| finance-check-attendance-payroll | finance | sarah.johnson | 2 | 2 | 0 | 0 | 15 | 0 | 0 | 1 | 1 | 0 |
 | finance-invoice-matching | finance | sarah.johnson | 1 | 1 | 0 | 0 | 18 | 0 | 0 | 0 | 0 | 0 |
-| finance-nonqualified-bill-ask-for-reimburse | finance | sarah.johnson | 2 | 2 | 0 | 0 | 10 | 0 | 0 | 0.5 | 0.5 | 0 |
+| finance-nonqualified-bill-ask-for-reimburse | finance | sarah.johnson | 2 | 2 | 0 | 0 | 10 | 0 | 0 | 1 | 0.5 | 0 |
 | finance-qualified-bill-ask-for-reimburse | finance | sarah.johnson | 2 | 2 | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 0 |
-| finance-r-d-activities | finance | sarah.johnson | 3 | 3 | 0 | 0 | 16 | 0 | 0 | 0 | 0 | 0 |
+| finance-r-d-activities | finance | sarah.johnson | 3 | 3 | 0 | 0 | 16 | 0 | 0 | 0.3333 | 0 | 0 |
 | hr-check-attendance-multiple-days | hr | sarah.johnson | 1 | 1 | 0 | 0 | 1 | 0 | 0 | 1 | 1 | 0 |
 | hr-check-attendance-multiple-days-department | hr | sarah.johnson | 2 | 2 | 0 | 0 | 1 | 0 | 0 | 0.5 | 0.5 | 0 |
 | hr-check-attendance-multiple-days-department-with-chat | hr | sarah.johnson | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 0 |
 | hr-check-attendance-one-day | hr | sarah.johnson | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 0 |
 | hr-create-career-ladder | hr | sarah.johnson | 1 | 1 | 0 | 0 | 8 | 0 | 0 | 0 | 0 | 0 |
-| hr-create-employee-manual | hr | sarah.johnson | 2 | 2 | 0 | 0 | 20 | 0 | 0 | 0 | 0 | 0 |
-| hr-internal-tooling-slides | hr | sarah.johnson | 1 | 1 | 0 | 0 | 17 | 0 | 0 | 0 | 0 | 0 |
-| hr-mass-survey | hr | sarah.johnson | 1 | 1 | 0 | 0 | 17 | 0 | 0 | 0 | 0 | 0 |
+| hr-create-employee-manual | hr | sarah.johnson | 2 | 2 | 0 | 0 | 20 | 0 | 0 | 1 | 0.5 | 0 |
+| hr-internal-tooling-slides | hr | sarah.johnson | 1 | 1 | 0 | 0 | 17 | 0 | 0 | 1 | 0 | 0 |
+| hr-mass-survey | hr | sarah.johnson | 1 | 1 | 0 | 0 | 17 | 0 | 0 | 1 | 0 | 0 |
 | hr-populate-salary-increase-memo | hr | sarah.johnson | 1 | 1 | 0 | 0 | 8 | 0 | 0 | 1 | 1 | 0 |
-| hr-salary-analysis | hr | sarah.johnson | 2 | 2 | 0 | 0 | 8 | 0 | 0 | 0.5 | 0.5 | 0 |
-| pm-create-teammate-channel-from-spreadsheet | pm | sarah.johnson | 2 | 2 | 0 | 0 | 7 | 0 | 0 | 1 | 0.5 | 0 |
-| pm-present-engineer-group-members | pm | sarah.johnson | 1 | 1 | 0 | 0 | 19 | 0 | 0 | 0 | 0 | 0 |
-| research-answer-questions-on-paper | research | sarah.johnson | 2 | 2 | 0 | 0 | 18 | 0 | 0 | 0 | 0 | 0 |
-| research-reproduce-figures | research | sarah.johnson | 1 | 1 | 0 | 0 | 20 | 0 | 0 | 1 | 1 | 0 |
+| hr-salary-analysis | hr | sarah.johnson | 2 | 2 | 0 | 0 | 8 | 0 | 0 | 1 | 0.5 | 0 |
+| pm-create-teammate-channel-from-spreadsheet | pm | sarah.johnson | 2 | 2 | 0 | 0 | 7 | 0 | 0 | 1 | 1 | 0 |
+| pm-present-engineer-group-members | pm | sarah.johnson | 1 | 1 | 0 | 0 | 19 | 0 | 0 | 1 | 0 | 0 |
+| research-answer-questions-on-paper | research | sarah.johnson | 2 | 2 | 0 | 0 | 18 | 0 | 0 | 1 | 0 | 0 |
+| research-reproduce-figures | research | sarah.johnson | 1 | 1 | 0 | 0 | 20 | 0 | 0 | 1 | 0 | 0 |
 | sde-add-all-repos-to-docs | sde | sarah.johnson | 1 | 1 | 0 | 0 | 2 | 0 | 0 | 1 | 0 | 0 |
 | sde-copy-table-from-pdf-to-xlsx | sde | sarah.johnson | 1 | 1 | 0 | 0 | 0 | 1 | 1 | 1 | 1 | 0 |
 | sde-create-new-repo | sde | sarah.johnson | 1 | 1 | 0 | 0 | 8 | 0 | 0 | 0 | 0 | 0 |

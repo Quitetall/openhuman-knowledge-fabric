@@ -16,16 +16,21 @@ import {
   createPostgresCompilerRuntimeRepository,
   type CompilationRuntime,
 } from './compiler-runtime.js';
-import { workerConcurrency, workerDatabaseUrl } from './config.js';
+import { embeddingConcurrency, workerConcurrency, workerDatabaseUrl } from './config.js';
 import { prepareWorkerQueue } from './queue-backup.js';
 import { RetrievalClient } from '@kf/retrieval';
-import { drainEmbeddings, embeddingOutboxHandler, requireVectorsOnlyEngine } from './embedding.js';
+import {
+  DEFAULT_EMBEDDING_TIMEOUT_MS,
+  embeddingBacklog,
+  embeddingOutboxHandler,
+  requireVectorsOnlyEngine,
+  startEmbeddingPump,
+} from './embedding.js';
 import { drainOutbox, OUTBOX_HANDLERS, type OutboxHandler } from './outbox.js';
 import { sweepTransientObservations } from './transient.js';
 import { taskList, TASKS } from './tasks.js';
 
 const OUTBOX_INTERVAL_MS = 1_000;
-const EMBEDDING_INTERVAL_MS = 2_000;
 const SWEEP_INTERVAL_MS = 60 * 60 * 1_000;
 
 /**
@@ -41,7 +46,9 @@ async function retrievalEngine(): Promise<RetrievalClient | undefined> {
       `KF_RETRIEVAL_SOCKET must be an absolute path, got ${JSON.stringify(socketPath)}`,
     );
   }
-  const client = new RetrievalClient({ socketPath });
+  // A write embeds one record's whole text, which on a CPU embedder takes seconds; the client's
+  // default (two seconds, sized for a query) would abandon it mid-embedding and retry it.
+  const client = new RetrievalClient({ socketPath, timeoutMs: DEFAULT_EMBEDDING_TIMEOUT_MS });
   await requireVectorsOnlyEngine(client);
   return client;
 }
@@ -240,9 +247,12 @@ async function main(): Promise<void> {
   }
 
   const concurrency = workerConcurrency();
+  // Refused here, before anything starts, rather than when the pump first runs.
+  const embeddingSlots = embeddingConcurrency();
   const pool = createPool({
     connectionString,
-    maxConnections: Math.max(2, concurrency + 2),
+    // Graphile's jobs, each embedding consumer's short claim and completion, and the pumps.
+    maxConnections: Math.max(2, concurrency + embeddingSlots + 2),
   });
   // Before anything else starts: an engine that fails the handshake ends the process here.
   const engine = await retrievalEngine();
@@ -281,20 +291,43 @@ async function main(): Promise<void> {
   const embedding =
     engine === undefined
       ? undefined
-      : startPump('embedding drain', EMBEDDING_INTERVAL_MS, async () => {
-          const result = await drainEmbeddings(pool, engine);
-          if (result.failed.length > 0) {
-            console.warn(
+      : startEmbeddingPump(pool, engine, {
+          concurrency: embeddingSlots,
+          engineTimeoutMs: DEFAULT_EMBEDDING_TIMEOUT_MS,
+          onPass: (result, waitMs) => {
+            if (result.stoppedBy === 'empty' && result.failed.length === 0) return;
+            void embeddingBacklog(pool)
+              .catch(() => undefined)
+              .then((backlog) => {
+                console.warn(
+                  JSON.stringify({
+                    level: 'warn',
+                    msg:
+                      result.stoppedBy === 'engine_unavailable'
+                        ? 'embedding engine unavailable; backing off'
+                        : result.stoppedBy === 'failing'
+                          ? 'embedding engine failing; backing off'
+                          : 'embedding drain incomplete',
+                    claimed: result.claimed,
+                    embedded: result.embedded,
+                    waitMs,
+                    ...(result.reason === undefined ? {} : { reason: redact(result.reason) }),
+                    failed: result.failed,
+                    ...(backlog === undefined ? {} : { backlog }),
+                  }),
+                );
+              });
+          },
+          onError: (error, waitMs) => {
+            console.error(
               JSON.stringify({
-                level: 'warn',
-                msg: 'embedding drain incomplete',
-                failed: result.failed.map((failure) => ({
-                  objectId: failure.objectId,
-                  reason: redact(failure.reason),
-                })),
+                level: 'error',
+                msg: 'embedding drain failed',
+                waitMs,
+                error: redact(error instanceof Error ? error.message : String(error)),
               }),
             );
-          }
+          },
         });
   const sweep = startPump('transient observation sweep', SWEEP_INTERVAL_MS, () =>
     sweepTransientObservations(pool),

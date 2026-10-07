@@ -2,8 +2,10 @@
  * The person's one gesture: a draft becomes the act it drafted (ADR 0040 decisions 5 to 7,
  * KF-SAS-RQ-263, RQ-265, RQ-266).
  *
- * The same landing the KF MCP server's `submit_act` gives (apps/mcp/src/server.ts), over the same
- * API, with the person's token exchanged for the in-app agent's:
+ * ONE implementation for both agent surfaces: the web application's in-app agent calls it with the
+ * person's token exchanged for the in-app agent's, and the KF MCP server's `submit_act`
+ * (apps/mcp/src/server.ts) calls it with the person's delegated token. Each surface keeps only its
+ * own wording; what lands, and how, is decided here once:
  *
  *   - a `submit` act is performed for the person and recorded with the agent's participation, and
  *     what it writes is UNVERIFIED until someone with authority verifies it (or a verification
@@ -16,7 +18,7 @@
  * refused with its problems rather than half-written.
  */
 
-import { agentAct, draftAgentAct, type AgentDraft } from '@kf/domain';
+import { agentAct, draftAgentAct, recordVerification, type AgentDraft } from '@kf/domain';
 import { record, type ApiAnswer, type FabricClient } from './fabric.js';
 
 export type SubmitOutcome =
@@ -25,7 +27,14 @@ export type SubmitOutcome =
       readonly act: string;
       readonly actionId: string | null;
       readonly recordIds: readonly string[];
-      /** Each record's verification as the person's own read reports it. */
+      /** The same gesture again: the API replayed its first answer and wrote nothing new. */
+      readonly replayed: boolean;
+      /**
+       * Each record's verification as the person's own read reports it, so a record a policy
+       * verified on arrival is not described as unverified, and an unverified one never as
+       * checked. A record the person's grants do not reach is written and still theirs, but no
+       * verification of it is visible to them, and it says so in those words.
+       */
       readonly verification: Readonly<Record<string, unknown>>;
     }
   | {
@@ -40,6 +49,10 @@ export type SubmitOutcome =
       readonly code: string;
       readonly message: string;
       readonly problems?: readonly string[];
+      /** The form as rebuilt, when it was incomplete. */
+      readonly draft?: AgentDraft;
+      /** The API's own answer, when the API refused. */
+      readonly body?: unknown;
     };
 
 function refusedBy(act: string, answer: ApiAnswer): SubmitOutcome {
@@ -53,6 +66,7 @@ function refusedBy(act: string, answer: ApiAnswer): SubmitOutcome {
       typeof body?.['message'] === 'string'
         ? body['message']
         : `the Fabric answered ${String(answer.status)}`,
+    body: answer.body,
   };
 }
 
@@ -63,6 +77,8 @@ export interface SubmitInput {
   readonly reason?: string;
   /** The gesture's key: a retry of the same gesture replays, never repeats. */
   readonly idempotencyKey: string;
+  /** Who proposed an institutional act, in the proposal's reason. Default: the in-app agent. */
+  readonly proposer?: string;
 }
 
 export async function submitDraft(
@@ -92,6 +108,7 @@ export async function submitDraft(
       code: 'draft_incomplete',
       message: 'the form is not complete',
       problems: draft.problems,
+      draft,
     };
   }
 
@@ -105,7 +122,7 @@ export async function submitDraft(
           payload: draft.payload,
           ...(draft.reason === null ? {} : { reason: draft.reason }),
         },
-        reason: `proposed by the in-app agent for its person: ${entry.act}`,
+        reason: `proposed by ${input.proposer ?? 'the in-app agent'} for its person: ${entry.act}`,
         idempotencyKey: input.idempotencyKey,
       },
     });
@@ -142,13 +159,18 @@ export async function submitDraft(
   const verification: Record<string, unknown> = {};
   for (const id of recordIds) {
     const read = await fabric.call('GET', `/objects/${encodeURIComponent(id)}/verification`);
-    verification[id] = record(read.body)?.['verification'] ?? null;
+    const found = record(read.body)?.['verification'];
+    verification[id] =
+      read.status === 200 && found !== undefined
+        ? found
+        : recordVerification(undefined, { visible: false });
   }
   return {
     disposition: 'submitted',
     act: entry.act,
     actionId: typeof body['actionId'] === 'string' ? body['actionId'] : null,
     recordIds,
+    replayed: body['replayed'] === true,
     verification,
   };
 }

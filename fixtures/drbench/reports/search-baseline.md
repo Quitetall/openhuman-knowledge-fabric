@@ -6,7 +6,7 @@ persona, in their own company; truth is the task’s insight files. Do not edit 
 
 - questions: 101; cut-off: 10 documents; semantic ranking: present
 - ceiling on mean recall@10 (min(10, |truth|)/|truth|): 0.9654
-- fused ranking: `kf.fused.rrf.v1(k=60; kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2; lamu.kf.masked-cosine.v1)`
+- fused ranking: `kf.fused.rrf.v2(k=60; lexical vote=(coverage-0.5)/0.5; kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2; lamu.kf.masked-cosine.v1)`
 - before: the run of 2026-09-25 (3b7a2258), whose summary is committed as
   `search-baseline.2026-09-25.json`: every word required as written, English stemming
   for every language, lexical and semantic served as two lists.
@@ -15,15 +15,24 @@ persona, in their own company; truth is the task’s insight files. Do not edit 
 
 | questions | verbatim lexical | keywords lexical | verbatim semantic | keywords semantic | verbatim fused | keywords fused | before: verbatim lexical | before: keywords lexical |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 101 | 0.7266 | 0.7233 | 0.7103 | 0.7242 | 0.7887 | 0.7977 | 0.0717 | 0.7922 |
+| 101 | 0.7266 | 0.7233 | 0.7103 | 0.7242 | 0.7606 | 0.7855 | 0.0717 | 0.7922 |
+
+## This run beside earlier runs of the same lists
+
+| run | fused ranking | verbatim lexical | keywords lexical | verbatim semantic | keywords semantic | verbatim fused | keywords fused |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| this run | kf.fused.rrf.v2(k=60; lexical vote=(coverage-0.5)/0.5; kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2; lamu.kf.masked-cosine.v1) | 0.7266 | 0.7233 | 0.7103 | 0.7242 | 0.7606 | 0.7855 |
+| 2026-09-26 (e9efa0ec) | kf.fused.rrf.v1(k=60; kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2; lamu.kf.masked-cosine.v1) | 0.7266 | 0.7233 | 0.7103 | 0.7242 | 0.7887 | 0.7977 |
+
+2026-09-26: reciprocal rank fusion with every word match voting fully (kf.fused.rrf.v1), on the owner's fixture stack; summary taken from the report committed in that commit.
 
 ## By question type
 
 | type | questions | verbatim lexical | keywords lexical | verbatim semantic | keywords semantic | verbatim fused | keywords fused | before: verbatim lexical | before: keywords lexical |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| easy | 21 | 0.6349 | 0.6349 | 0.627 | 0.746 | 0.6706 | 0.7302 | 0.0397 | 0.6944 |
-| hard | 57 | 0.7487 | 0.7428 | 0.7374 | 0.7126 | 0.8178 | 0.8175 | 0.0744 | 0.8182 |
-| medium | 23 | 0.7557 | 0.7557 | 0.7195 | 0.7329 | 0.8245 | 0.81 | 0.0942 | 0.8173 |
+| easy | 21 | 0.6349 | 0.6349 | 0.627 | 0.746 | 0.6706 | 0.7698 | 0.0397 | 0.6944 |
+| hard | 57 | 0.7487 | 0.7428 | 0.7374 | 0.7126 | 0.7782 | 0.8008 | 0.0744 | 0.8182 |
+| medium | 23 | 0.7557 | 0.7557 | 0.7195 | 0.7329 | 0.7992 | 0.7619 | 0.0942 | 0.8173 |
 
 ## Per question
 
@@ -33,82 +42,82 @@ persona, in their own company; truth is the task’s insight files. Do not edit 
 | DR0002 | easy | michael.lee | 4 | 4 | 0 | 0 | 50 | 0 | 0 | 0.25 | 0.25 | 13 |
 | DR0003 | medium | david.lee | 7 | 7 | 4 | 0.5714 | 59 | 4 | 0.5714 | 0.5714 | 0.5714 | 10 |
 | DR0004 | medium | sofia.patel | 6 | 6 | 3 | 0.5 | 51 | 3 | 0.5 | 0.6667 | 0.5 | 9 |
-| DR0005 | hard | david.thompson | 16 | 16 | 7 | 0.4375 | 35 | 7 | 0.4375 | 0.5 | 0.5 | 0 |
+| DR0005 | hard | david.thompson | 16 | 16 | 7 | 0.4375 | 35 | 7 | 0.4375 | 0.5625 | 0.5625 | 0 |
 | DR0016 | easy | emily.patel | 2 | 2 | 2 | 1 | 4 | 2 | 1 | 1 | 1 | 0 |
 | DR0017 | easy | sofia.patel | 2 | 2 | 2 | 1 | 2 | 2 | 1 | 1 | 1 | 0 |
 | DR0018 | easy | sofia.patel | 2 | 2 | 1 | 0.5 | 1 | 1 | 0.5 | 1 | 1 | 0 |
 | DR0019 | easy | sofia.patel | 2 | 2 | 0 | 0 | 0 | 0 | 0 | 0.5 | 0.5 | 0 |
 | DR0020 | medium | michael.lee | 3 | 3 | 2 | 0.6667 | 3 | 2 | 0.6667 | 0.6667 | 0.6667 | 1 |
 | DR0021 | medium | kevin.wong | 3 | 3 | 3 | 1 | 4 | 3 | 1 | 1 | 1 | 0 |
-| DR0022 | medium | kevin.wong | 3 | 3 | 3 | 1 | 7 | 3 | 1 | 1 | 1 | 0 |
-| DR0023 | medium | kevin.wong | 3 | 3 | 3 | 1 | 5 | 3 | 1 | 1 | 1 | 0 |
+| DR0022 | medium | kevin.wong | 3 | 3 | 3 | 1 | 7 | 3 | 1 | 0.6667 | 0.3333 | 0 |
+| DR0023 | medium | kevin.wong | 3 | 3 | 3 | 1 | 5 | 3 | 1 | 0.6667 | 0.6667 | 0 |
 | DR0025 | hard | david.thompson | 5 | 5 | 2 | 0.4 | 3 | 2 | 0.4 | 0.8 | 0.8 | 0 |
 | DR0026 | hard | david.thompson | 5 | 5 | 5 | 1 | 6 | 5 | 1 | 1 | 1 | 0 |
-| DR0027 | hard | david.thompson | 5 | 5 | 3 | 0.6 | 8 | 3 | 0.6 | 0.6 | 0.8 | 0 |
+| DR0027 | hard | david.thompson | 5 | 5 | 3 | 0.6 | 8 | 3 | 0.6 | 0.4 | 0.6 | 0 |
 | DR0029 | hard | sophie.tran | 4 | 4 | 2 | 0.5 | 4 | 2 | 0.5 | 0.5 | 0.75 | 0 |
 | DR0030 | hard | sophie.tran | 4 | 4 | 4 | 1 | 4 | 4 | 1 | 1 | 1 | 0 |
 | DR0031 | hard | sophie.tran | 4 | 4 | 4 | 1 | 5 | 4 | 1 | 1 | 1 | 0 |
 | DR0033 | hard | jason.wong | 14 | 14 | 9 | 0.6429 | 16 | 9 | 0.6429 | 0.6429 | 0.7143 | 0 |
-| DR0034 | hard | jason.wong | 14 | 14 | 10 | 0.7143 | 13 | 10 | 0.7143 | 0.7143 | 0.7143 | 0 |
+| DR0034 | hard | jason.wong | 14 | 14 | 10 | 0.7143 | 13 | 10 | 0.7143 | 0.7143 | 0.6429 | 0 |
 | DR0035 | hard | jason.wong | 14 | 14 | 10 | 0.7143 | 12 | 10 | 0.7143 | 0.7143 | 0.7143 | 0 |
-| DR0037 | medium | andrew.park | 3 | 3 | 2 | 0.6667 | 2 | 2 | 0.6667 | 0.6667 | 0.6667 | 0 |
+| DR0037 | medium | andrew.park | 3 | 3 | 2 | 0.6667 | 2 | 2 | 0.6667 | 0.6667 | 0.3333 | 0 |
 | DR0038 | medium | andrew.park | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 0 |
 | DR0039 | medium | andrew.park | 3 | 3 | 3 | 1 | 3 | 3 | 1 | 1 | 1 | 0 |
-| DR0087 | hard | tony.nguyen | 6 | 6 | 5 | 0.8333 | 5 | 4 | 0.6667 | 1 | 0.8333 | 0 |
+| DR0087 | hard | tony.nguyen | 6 | 6 | 5 | 0.8333 | 5 | 4 | 0.6667 | 0.8333 | 0.8333 | 0 |
 | DR0090 | hard | grace.kim | 6 | 6 | 6 | 1 | 8 | 6 | 1 | 1 | 1 | 0 |
-| DR0091 | hard | sophie.liu | 6 | 6 | 6 | 1 | 9 | 5 | 0.8333 | 1 | 0.8333 | 0 |
+| DR0091 | hard | sophie.liu | 6 | 6 | 6 | 1 | 9 | 5 | 0.8333 | 0.8333 | 0.8333 | 0 |
 | DR0095 | hard | janet.park | 7 | 7 | 6 | 0.8571 | 7 | 6 | 0.8571 | 0.8571 | 1 | 0 |
-| DR0096 | hard | maria.gonzalez | 8 | 8 | 7 | 0.875 | 8 | 7 | 0.875 | 0.875 | 0.875 | 0 |
+| DR0096 | hard | maria.gonzalez | 8 | 8 | 7 | 0.875 | 8 | 7 | 0.875 | 0.75 | 0.75 | 0 |
 | DR0098 | hard | andrew.chang | 6 | 6 | 4 | 0.6667 | 5 | 4 | 0.6667 | 0.6667 | 0.6667 | 0 |
 | SANITY0 | easy | emily.patel | 1 | 1 | 1 | 1 | 11 | 1 | 1 | 1 | 1 | 0 |
 | DR0006 | easy | samantha.lee | 4 | 4 | 2 | 0.5 | 4 | 2 | 0.5 | 0.5 | 0.75 | 0 |
 | DR0007 | easy | emily.patel | 6 | 6 | 4 | 0.6667 | 10 | 4 | 0.6667 | 0.6667 | 0.6667 | 0 |
-| DR0008 | medium | brian.smith | 7 | 4 | 2 | 0.2857 | 19 | 2 | 0.2857 | 0.2857 | 0.2857 | 3 |
-| DR0009 | medium | liam.patel | 12 | 4 | 2 | 0.1667 | 8 | 2 | 0.1667 | 0.1667 | 0.25 | 0 |
+| DR0008 | medium | brian.smith | 7 | 4 | 2 | 0.2857 | 19 | 2 | 0.2857 | 0.2857 | 0.4286 | 3 |
+| DR0009 | medium | liam.patel | 12 | 4 | 2 | 0.1667 | 8 | 2 | 0.1667 | 0.25 | 0.3333 | 0 |
 | DR0010 | hard | ryan.thompson | 16 | 16 | 10 | 0.625 | 18 | 10 | 0.625 | 0.625 | 0.625 | 0 |
 | DR0024 | medium | samantha.lee | 3 | 3 | 2 | 0.6667 | 2 | 2 | 0.6667 | 1 | 1 | 0 |
 | DR0028 | medium | ryan.thompson | 3 | 3 | 3 | 1 | 32 | 3 | 1 | 1 | 1 | 0 |
 | DR0040 | hard | liam.patel | 4 | 4 | 4 | 1 | 12 | 4 | 1 | 1 | 1 | 0 |
-| DR0041 | hard | liam.patel | 4 | 4 | 3 | 0.75 | 4 | 3 | 0.75 | 0.75 | 0.75 | 0 |
+| DR0041 | hard | liam.patel | 4 | 4 | 3 | 0.75 | 4 | 3 | 0.75 | 0.5 | 0.75 | 0 |
 | DR0042 | hard | liam.patel | 4 | 4 | 0 | 0 | 2 | 0 | 0 | 0.75 | 0.75 | 0 |
 | DR0043 | hard | emily.chen | 5 | 5 | 3 | 0.6 | 3 | 3 | 0.6 | 0.8 | 0.8 | 0 |
-| DR0044 | hard | emily.chen | 5 | 5 | 2 | 0.4 | 2 | 2 | 0.4 | 0.6 | 0.4 | 0 |
-| DR0045 | hard | emily.chen | 5 | 5 | 3 | 0.6 | 4 | 3 | 0.6 | 0.8 | 1 | 0 |
-| DR0046 | hard | emily.patel | 10 | 10 | 6 | 0.6 | 9 | 6 | 0.6 | 0.7 | 0.6 | 0 |
-| DR0047 | hard | emily.patel | 10 | 10 | 8 | 0.8 | 11 | 8 | 0.8 | 0.7 | 0.7 | 0 |
+| DR0044 | hard | emily.chen | 5 | 5 | 2 | 0.4 | 2 | 2 | 0.4 | 0.4 | 0.4 | 0 |
+| DR0045 | hard | emily.chen | 5 | 5 | 3 | 0.6 | 4 | 3 | 0.6 | 0.6 | 1 | 0 |
+| DR0046 | hard | emily.patel | 10 | 10 | 6 | 0.6 | 9 | 6 | 0.6 | 0.5 | 0.5 | 0 |
+| DR0047 | hard | emily.patel | 10 | 10 | 8 | 0.8 | 11 | 8 | 0.8 | 0.6 | 0.6 | 0 |
 | DR0048 | hard | emily.patel | 10 | 10 | 10 | 1 | 21 | 10 | 1 | 1 | 1 | 0 |
-| DR0049 | hard | rachel.lee | 13 | 13 | 3 | 0.2308 | 5 | 3 | 0.2308 | 0.6154 | 0.6154 | 0 |
+| DR0049 | hard | rachel.lee | 13 | 13 | 3 | 0.2308 | 5 | 3 | 0.2308 | 0.7692 | 0.7692 | 0 |
 | DR0050 | hard | rachel.lee | 13 | 13 | 0 | 0 | 0 | 0 | 0 | 0.6154 | 0.3077 | 0 |
 | DR0051 | hard | rachel.lee | 13 | 13 | 5 | 0.3846 | 5 | 5 | 0.3846 | 0.6154 | 0.4615 | 0 |
 | DR0052 | easy | isabella.nguyen | 2 | 2 | 2 | 1 | 3 | 2 | 1 | 1 | 1 | 0 |
 | DR0053 | easy | isabella.nguyen | 2 | 2 | 1 | 0.5 | 1 | 1 | 0.5 | 0.5 | 1 | 0 |
 | DR0054 | easy | isabella.nguyen | 2 | 2 | 2 | 1 | 2 | 2 | 1 | 1 | 1 | 0 |
 | DR0055 | easy | julian.lee | 2 | 2 | 2 | 1 | 2 | 2 | 1 | 1 | 1 | 0 |
-| DR0056 | easy | julian.lee | 2 | 2 | 1 | 0.5 | 16 | 1 | 0.5 | 0 | 0.5 | 0 |
+| DR0056 | easy | julian.lee | 2 | 2 | 1 | 0.5 | 16 | 1 | 0.5 | 0 | 1 | 0 |
 | DR0057 | easy | julian.lee | 2 | 2 | 2 | 1 | 4 | 2 | 1 | 1 | 1 | 0 |
 | DR0058 | hard | brian.smith | 4 | 4 | 3 | 0.75 | 3 | 3 | 0.75 | 0.75 | 0.75 | 0 |
 | DR0059 | hard | brian.smith | 4 | 4 | 4 | 1 | 6 | 4 | 1 | 1 | 1 | 0 |
 | DR0060 | hard | brian.smith | 4 | 4 | 4 | 1 | 4 | 4 | 1 | 1 | 1 | 0 |
 | DR0086 | hard | ryan.cooper | 6 | 6 | 5 | 0.8333 | 7 | 5 | 0.8333 | 1 | 1 | 0 |
-| DR0088 | hard | jordan.lee | 8 | 8 | 7 | 0.875 | 11 | 7 | 0.875 | 1 | 1 | 0 |
+| DR0088 | hard | jordan.lee | 8 | 8 | 7 | 0.875 | 11 | 7 | 0.875 | 0.875 | 1 | 0 |
 | DR0092 | hard | emma.martinez | 7 | 7 | 7 | 1 | 9 | 7 | 1 | 1 | 1 | 0 |
 | DR0093 | hard | dr.priya.patel | 6 | 6 | 4 | 0.6667 | 5 | 4 | 0.6667 | 0.8333 | 1 | 0 |
-| DR0094 | hard | daniel.kim | 7 | 7 | 7 | 1 | 10 | 7 | 1 | 1 | 1 | 0 |
-| DR0097 | hard | laura.singh | 8 | 8 | 7 | 0.875 | 9 | 7 | 0.875 | 0.75 | 0.875 | 1 |
+| DR0094 | hard | daniel.kim | 7 | 7 | 7 | 1 | 10 | 7 | 1 | 0.8571 | 0.8571 | 0 |
+| DR0097 | hard | laura.singh | 8 | 8 | 7 | 0.875 | 9 | 7 | 0.875 | 0.75 | 0.75 | 1 |
 | DR0100 | hard | mark.johnson | 6 | 6 | 5 | 0.8333 | 6 | 5 | 0.8333 | 0.8333 | 0.8333 | 0 |
 | DR0011 | easy | sofia.rodriguez | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| DR0012 | easy | ethan.smith | 3 | 3 | 2 | 0.6667 | 4 | 2 | 0.6667 | 0.6667 | 0.6667 | 0 |
+| DR0012 | easy | ethan.smith | 3 | 3 | 2 | 0.6667 | 4 | 2 | 0.6667 | 0.6667 | 1 | 0 |
 | DR0013 | medium | ethan.thompson | 6 | 6 | 5 | 0.8333 | 19 | 5 | 0.8333 | 0.6667 | 0.6667 | 2 |
 | DR0014 | medium | liam.chen | 7 | 6 | 6 | 0.8571 | 10 | 6 | 0.8571 | 0.8571 | 0.8571 | 0 |
 | DR0015 | hard | ryan.thompson | 15 | 15 | 9 | 0.6 | 16 | 9 | 0.6 | 0.6 | 0.6 | 0 |
 | DR0032 | easy | sofia.rodriguez | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | DR0036 | medium | ryan.thompson | 3 | 3 | 3 | 1 | 29 | 3 | 1 | 1 | 1 | 0 |
 | DR0061 | hard | emily.lee | 5 | 5 | 4 | 0.8 | 5 | 4 | 0.8 | 0.8 | 0.8 | 0 |
-| DR0062 | hard | emily.lee | 5 | 5 | 3 | 0.6 | 3 | 3 | 0.6 | 0.6 | 0.6 | 0 |
+| DR0062 | hard | emily.lee | 5 | 5 | 3 | 0.6 | 3 | 3 | 0.6 | 0.4 | 0.4 | 0 |
 | DR0063 | hard | emily.lee | 5 | 5 | 5 | 1 | 5 | 5 | 1 | 1 | 1 | 0 |
 | DR0064 | hard | amanda.lee | 13 | 13 | 9 | 0.6923 | 15 | 9 | 0.6923 | 0.7692 | 0.7692 | 0 |
-| DR0065 | hard | amanda.lee | 13 | 13 | 9 | 0.6923 | 23 | 9 | 0.6923 | 0.7692 | 0.6923 | 0 |
-| DR0066 | hard | amanda.lee | 13 | 13 | 9 | 0.6923 | 19 | 9 | 0.6923 | 0.7692 | 0.7692 | 0 |
+| DR0065 | hard | amanda.lee | 13 | 13 | 9 | 0.6923 | 23 | 9 | 0.6923 | 0.7692 | 0.7692 | 0 |
+| DR0066 | hard | amanda.lee | 13 | 13 | 9 | 0.6923 | 19 | 9 | 0.6923 | 0.7692 | 0.5385 | 0 |
 | DR0067 | easy | liam.chen | 1 | 1 | 1 | 1 | 2 | 1 | 1 | 1 | 1 | 0 |
 | DR0068 | easy | liam.chen | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | DR0069 | easy | liam.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 |
@@ -118,15 +127,15 @@ persona, in their own company; truth is the task’s insight files. Do not edit 
 | DR0073 | medium | ethan.smith | 3 | 3 | 3 | 1 | 5 | 3 | 1 | 1 | 1 | 0 |
 | DR0074 | medium | ethan.smith | 3 | 3 | 3 | 1 | 3 | 3 | 1 | 1 | 1 | 0 |
 | DR0075 | medium | ethan.smith | 3 | 3 | 2 | 0.6667 | 2 | 2 | 0.6667 | 0.6667 | 0.6667 | 0 |
-| DR0076 | hard | olivia.martinez | 4 | 4 | 3 | 0.75 | 13 | 3 | 0.75 | 0.75 | 0.75 | 3 |
+| DR0076 | hard | olivia.martinez | 4 | 4 | 3 | 0.75 | 13 | 3 | 0.75 | 0.75 | 1 | 3 |
 | DR0077 | hard | olivia.martinez | 4 | 4 | 3 | 0.75 | 6 | 3 | 0.75 | 0.75 | 0.75 | 1 |
 | DR0078 | hard | olivia.martinez | 4 | 4 | 4 | 1 | 4 | 4 | 1 | 1 | 1 | 1 |
 | DR0079 | hard | ryan.thompson | 5 | 5 | 4 | 0.8 | 15 | 4 | 0.8 | 0.8 | 0.8 | 0 |
 | DR0080 | hard | ryan.thompson | 5 | 5 | 5 | 1 | 12 | 5 | 1 | 1 | 1 | 0 |
-| DR0081 | hard | ryan.thompson | 5 | 5 | 4 | 0.8 | 9 | 4 | 0.8 | 0.8 | 0.8 | 0 |
+| DR0081 | hard | ryan.thompson | 5 | 5 | 4 | 0.8 | 9 | 4 | 0.8 | 0.6 | 0.6 | 0 |
 | DR0082 | hard | ryan.thompson | 5 | 5 | 5 | 1 | 9 | 5 | 1 | 1 | 1 | 0 |
 | DR0083 | medium | ryan.thompson | 4 | 4 | 4 | 1 | 7 | 4 | 1 | 1 | 1 | 0 |
-| DR0084 | hard | ryan.thompson | 5 | 5 | 4 | 0.8 | 9 | 4 | 0.8 | 0.8 | 0.8 | 0 |
+| DR0084 | hard | ryan.thompson | 5 | 5 | 4 | 0.8 | 9 | 4 | 0.8 | 0.6 | 0.8 | 0 |
 | DR0085 | hard | ryan.thompson | 5 | 5 | 4 | 0.8 | 12 | 4 | 0.8 | 0.8 | 0.8 | 0 |
 | DR0089 | hard | amanda.foster | 7 | 7 | 7 | 1 | 7 | 7 | 1 | 1 | 1 | 0 |
 | DR0099 | hard | rachel.kim | 6 | 6 | 5 | 0.8333 | 8 | 5 | 0.8333 | 1 | 1 | 0 |

@@ -1,0 +1,57 @@
+{
+  "date": "2026-09-26",
+  "commit": "e9efa0ec",
+  "note": "reciprocal rank fusion with every word match voting fully (kf.fused.rrf.v1), on the owner's fixture stack; summary taken from the report committed in that commit.",
+  "summary": {
+    "k": 10,
+    "lists": [
+      "lexical",
+      "semantic",
+      "fused"
+    ],
+    "overall": {
+      "questions": 101,
+      "ceiling": 0.9654,
+      "verbatim_lexical": 0.7266,
+      "keywords_lexical": 0.7233,
+      "verbatim_semantic": 0.7103,
+      "keywords_semantic": 0.7242,
+      "verbatim_fused": 0.7887,
+      "keywords_fused": 0.7977
+    },
+    "byType": [
+      {
+        "type": "easy",
+        "questions": 21,
+        "verbatim_lexical": 0.6349,
+        "keywords_lexical": 0.6349,
+        "verbatim_semantic": 0.627,
+        "keywords_semantic": 0.746,
+        "verbatim_fused": 0.6706,
+        "keywords_fused": 0.7302
+      },
+      {
+        "type": "hard",
+        "questions": 57,
+        "verbatim_lexical": 0.7487,
+        "keywords_lexical": 0.7428,
+        "verbatim_semantic": 0.7374,
+        "keywords_semantic": 0.7126,
+        "verbatim_fused": 0.8178,
+        "keywords_fused": 0.8175
+      },
+      {
+        "type": "medium",
+        "questions": 23,
+        "verbatim_lexical": 0.7557,
+        "keywords_lexical": 0.7557,
+        "verbatim_semantic": 0.7195,
+        "keywords_semantic": 0.7329,
+        "verbatim_fused": 0.8245,
+        "keywords_fused": 0.81
+      }
+    ],
+    "semantic": "present",
+    "fusedRanking": "kf.fused.rrf.v1(k=60; kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2; lamu.kf.masked-cosine.v1)"
+  }
+}

@@ -8,7 +8,7 @@ when any of its artifacts is in the first ten distinct documents returned.
 
 - questions: 500; cut-off: 10 documents; semantic ranking: present
 - ceiling on mean recall@10 (min(10, |truth|)/|truth|): 1
-- fused ranking: `kf.fused.rrf.v1(k=60; kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2; lamu.kf.masked-cosine.v1)`
+- fused ranking: `kf.fused.rrf.v2(k=60; lexical vote=(coverage-0.5)/0.5; kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2; lamu.kf.masked-cosine.v1)`
 - before: the run of 2026-09-25 (3b7a2258), whose summary is committed as
   `search-baseline.2026-09-25.json`: every word required as written, English stemming
   for every language, lexical and semantic served as two lists.
@@ -17,22 +17,31 @@ when any of its artifacts is in the first ten distinct documents returned.
 
 | questions | verbatim lexical | keywords lexical | verbatim semantic | keywords semantic | verbatim fused | keywords fused | before: verbatim lexical | before: keywords lexical |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 500 | 0.6602 | 0.664 | 0.6266 | 0.4827 | 0.8083 | 0.7236 | 0.0717 | 0.7046 |
+| 500 | 0.6602 | 0.664 | 0.6266 | 0.4827 | 0.7216 | 0.617 | 0.0717 | 0.7046 |
+
+## This run beside earlier runs of the same lists
+
+| run | fused ranking | verbatim lexical | keywords lexical | verbatim semantic | keywords semantic | verbatim fused | keywords fused |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| this run | kf.fused.rrf.v2(k=60; lexical vote=(coverage-0.5)/0.5; kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2; lamu.kf.masked-cosine.v1) | 0.6602 | 0.664 | 0.6266 | 0.4827 | 0.7216 | 0.617 |
+| 2026-09-26 (e9efa0ec) | kf.fused.rrf.v1(k=60; kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2; lamu.kf.masked-cosine.v1) | 0.6602 | 0.664 | 0.6266 | 0.4827 | 0.8083 | 0.7236 |
+
+2026-09-26: reciprocal rank fusion with every word match voting fully (kf.fused.rrf.v1), on the owner's fixture stack; summary taken from the report committed in that commit.
 
 ## By question type
 
 | type | questions | verbatim lexical | keywords lexical | verbatim semantic | keywords semantic | verbatim fused | keywords fused | before: verbatim lexical | before: keywords lexical |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| basic | 175 | 0.7543 | 0.7486 | 0.7314 | 0.5543 | 0.9257 | 0.84 | 0.0629 | 0.8114 |
-| completeness | 20 | 0.2993 | 0.3264 | 0.5405 | 0.3903 | 0.5017 | 0.4183 | 0.0894 | 0.3911 |
-| conflicting_info | 20 | 0.975 | 0.95 | 0.625 | 0.55 | 0.9 | 0.85 | 0.475 | 0.95 |
-| constrained | 30 | 0.6667 | 0.7333 | 0.8833 | 0.7833 | 0.9333 | 0.9167 | 0.05 | 0.85 |
+| basic | 175 | 0.7543 | 0.7486 | 0.7314 | 0.5543 | 0.8629 | 0.7486 | 0.0629 | 0.8114 |
+| completeness | 20 | 0.2993 | 0.3264 | 0.5405 | 0.3903 | 0.5333 | 0.4128 | 0.0894 | 0.3911 |
+| conflicting_info | 20 | 0.975 | 0.95 | 0.625 | 0.55 | 0.875 | 0.875 | 0.475 | 0.95 |
+| constrained | 30 | 0.6667 | 0.7333 | 0.8833 | 0.7833 | 0.9 | 0.85 | 0.05 | 0.85 |
 | high_level | 10 | — | — | — | — | — | — | — | — |
 | info_not_found | 20 | — | — | — | — | — | — | — | — |
-| intra_document_reasoning | 40 | 0.95 | 0.95 | 0.8 | 0.75 | 1 | 1 | 0.1 | 0.95 |
+| intra_document_reasoning | 40 | 0.95 | 0.95 | 0.8 | 0.75 | 0.975 | 0.975 | 0.1 | 0.95 |
 | miscellaneous | 20 | 0.85 | 0.85 | 0.95 | 0.95 | 1 | 0.95 | 0.05 | 0.7 |
-| project_related | 40 | 0.6947 | 0.7135 | 0.6922 | 0.6386 | 0.8222 | 0.806 | 0.1231 | 0.871 |
-| semantic | 125 | 0.4 | 0.4 | 0.304 | 0.104 | 0.552 | 0.392 | 0 | 0.4 |
+| project_related | 40 | 0.6947 | 0.7135 | 0.6922 | 0.6386 | 0.7499 | 0.7431 | 0.1231 | 0.871 |
+| semantic | 125 | 0.4 | 0.4 | 0.304 | 0.104 | 0.352 | 0.16 | 0 | 0.4 |
 
 ## Info Not Found
 
@@ -78,19 +87,19 @@ any record holding any of them.
 | qst_0002 | basic | ava.chen | 1 | 1 | 0 | 0 | 1917 | 0 | 0 | 0 | 0 | 0 |
 | qst_0003 | basic | ava.chen | 1 | 1 | 1 | 1 | 16 | 1 | 1 | 1 | 1 | 0 |
 | qst_0004 | basic | ava.chen | 1 | 1 | 1 | 1 | 86 | 1 | 1 | 1 | 1 | 0 |
-| qst_0005 | basic | ava.chen | 1 | 1 | 1 | 1 | 31 | 1 | 1 | 1 | 1 | 0 |
+| qst_0005 | basic | ava.chen | 1 | 1 | 1 | 1 | 31 | 1 | 1 | 0 | 0 | 0 |
 | qst_0006 | basic | ava.chen | 1 | 1 | 1 | 1 | 498 | 1 | 1 | 1 | 1 | 0 |
 | qst_0007 | basic | ava.chen | 1 | 1 | 1 | 1 | 22 | 1 | 1 | 1 | 1 | 0 |
 | qst_0008 | basic | ava.chen | 1 | 1 | 1 | 1 | 10 | 1 | 1 | 1 | 1 | 0 |
 | qst_0009 | basic | ava.chen | 1 | 1 | 1 | 1 | 13 | 1 | 1 | 1 | 1 | 0 |
-| qst_0010 | basic | ava.chen | 1 | 1 | 0 | 0 | 253 | 0 | 0 | 1 | 1 | 0 |
+| qst_0010 | basic | ava.chen | 1 | 1 | 0 | 0 | 253 | 0 | 0 | 1 | 0 | 0 |
 | qst_0011 | basic | ava.chen | 1 | 1 | 1 | 1 | 47 | 1 | 1 | 1 | 1 | 0 |
 | qst_0012 | basic | ava.chen | 1 | 1 | 1 | 1 | 3 | 1 | 1 | 1 | 1 | 0 |
 | qst_0013 | basic | ava.chen | 1 | 1 | 0 | 0 | 14 | 0 | 0 | 1 | 1 | 0 |
 | qst_0014 | basic | ava.chen | 1 | 1 | 1 | 1 | 125 | 1 | 1 | 1 | 1 | 0 |
-| qst_0015 | basic | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 |
+| qst_0015 | basic | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 | 0 |
 | qst_0016 | basic | ava.chen | 1 | 1 | 1 | 1 | 64 | 1 | 1 | 1 | 1 | 0 |
-| qst_0017 | basic | ava.chen | 1 | 1 | 1 | 1 | 5 | 1 | 1 | 1 | 1 | 0 |
+| qst_0017 | basic | ava.chen | 1 | 1 | 1 | 1 | 5 | 1 | 1 | 1 | 0 | 0 |
 | qst_0018 | basic | ava.chen | 1 | 1 | 1 | 1 | 4 | 1 | 1 | 1 | 1 | 0 |
 | qst_0019 | basic | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 |
 | qst_0020 | basic | ava.chen | 1 | 1 | 1 | 1 | 57 | 1 | 1 | 1 | 1 | 0 |
@@ -100,22 +109,22 @@ any record holding any of them.
 | qst_0024 | basic | ava.chen | 1 | 1 | 1 | 1 | 4 | 1 | 1 | 1 | 1 | 0 |
 | qst_0025 | basic | ava.chen | 1 | 1 | 1 | 1 | 494 | 1 | 1 | 1 | 1 | 0 |
 | qst_0026 | basic | ava.chen | 1 | 1 | 1 | 1 | 250 | 1 | 1 | 1 | 1 | 0 |
-| qst_0027 | basic | ava.chen | 1 | 1 | 0 | 0 | 337 | 0 | 0 | 1 | 1 | 0 |
+| qst_0027 | basic | ava.chen | 1 | 1 | 0 | 0 | 337 | 0 | 0 | 0 | 1 | 0 |
 | qst_0028 | basic | ava.chen | 1 | 1 | 1 | 1 | 42 | 0 | 0 | 1 | 1 | 0 |
 | qst_0029 | basic | ava.chen | 1 | 1 | 1 | 1 | 90 | 1 | 1 | 1 | 1 | 0 |
 | qst_0030 | basic | ava.chen | 1 | 1 | 0 | 0 | 134 | 0 | 0 | 1 | 1 | 0 |
 | qst_0031 | basic | ava.chen | 1 | 1 | 1 | 1 | 59 | 1 | 1 | 1 | 1 | 0 |
 | qst_0032 | basic | ava.chen | 1 | 1 | 0 | 0 | 3040 | 0 | 0 | 1 | 0 | 0 |
-| qst_0033 | basic | ava.chen | 1 | 1 | 1 | 1 | 745 | 1 | 1 | 1 | 1 | 0 |
+| qst_0033 | basic | ava.chen | 1 | 1 | 1 | 1 | 745 | 1 | 1 | 0 | 0 | 0 |
 | qst_0034 | basic | ava.chen | 1 | 1 | 1 | 1 | 8 | 1 | 1 | 1 | 1 | 0 |
 | qst_0035 | basic | ava.chen | 1 | 1 | 1 | 1 | 560 | 1 | 1 | 1 | 1 | 0 |
 | qst_0036 | basic | ava.chen | 1 | 1 | 1 | 1 | 1633 | 1 | 1 | 1 | 1 | 0 |
-| qst_0037 | basic | ava.chen | 1 | 1 | 0 | 0 | 126 | 0 | 0 | 1 | 1 | 0 |
-| qst_0038 | basic | ava.chen | 1 | 1 | 1 | 1 | 64 | 1 | 1 | 1 | 1 | 0 |
+| qst_0037 | basic | ava.chen | 1 | 1 | 0 | 0 | 126 | 0 | 0 | 1 | 0 | 0 |
+| qst_0038 | basic | ava.chen | 1 | 1 | 1 | 1 | 64 | 1 | 1 | 0 | 1 | 0 |
 | qst_0039 | basic | ava.chen | 1 | 1 | 1 | 1 | 199 | 0 | 0 | 1 | 1 | 0 |
 | qst_0040 | basic | ava.chen | 1 | 1 | 1 | 1 | 148 | 1 | 1 | 1 | 1 | 0 |
 | qst_0041 | basic | ava.chen | 1 | 1 | 1 | 1 | 114 | 1 | 1 | 1 | 1 | 0 |
-| qst_0042 | basic | ava.chen | 1 | 1 | 1 | 1 | 4 | 1 | 1 | 1 | 1 | 0 |
+| qst_0042 | basic | ava.chen | 1 | 1 | 1 | 1 | 4 | 1 | 1 | 1 | 0 | 0 |
 | qst_0043 | basic | ava.chen | 1 | 1 | 0 | 0 | 895 | 0 | 0 | 0 | 0 | 0 |
 | qst_0044 | basic | ava.chen | 1 | 1 | 1 | 1 | 150 | 1 | 1 | 1 | 1 | 0 |
 | qst_0045 | basic | ava.chen | 1 | 1 | 1 | 1 | 382 | 1 | 1 | 1 | 1 | 0 |
@@ -127,7 +136,7 @@ any record holding any of them.
 | qst_0051 | basic | ava.chen | 1 | 1 | 0 | 0 | 115 | 0 | 0 | 1 | 1 | 0 |
 | qst_0052 | basic | ava.chen | 1 | 1 | 0 | 0 | 367 | 0 | 0 | 1 | 0 | 0 |
 | qst_0053 | basic | ava.chen | 1 | 1 | 0 | 0 | 152 | 0 | 0 | 1 | 1 | 0 |
-| qst_0054 | basic | ava.chen | 1 | 1 | 0 | 0 | 261 | 1 | 1 | 1 | 0 | 0 |
+| qst_0054 | basic | ava.chen | 1 | 1 | 0 | 0 | 261 | 1 | 1 | 0 | 0 | 0 |
 | qst_0055 | basic | ava.chen | 1 | 1 | 1 | 1 | 1645 | 1 | 1 | 1 | 1 | 0 |
 | qst_0056 | basic | ava.chen | 1 | 1 | 1 | 1 | 27 | 1 | 1 | 1 | 1 | 0 |
 | qst_0057 | basic | ava.chen | 1 | 1 | 1 | 1 | 11 | 1 | 1 | 1 | 1 | 0 |
@@ -139,7 +148,7 @@ any record holding any of them.
 | qst_0063 | basic | ava.chen | 1 | 1 | 1 | 1 | 4 | 1 | 1 | 1 | 1 | 0 |
 | qst_0064 | basic | ava.chen | 1 | 1 | 0 | 0 | 235 | 0 | 0 | 0 | 0 | 0 |
 | qst_0065 | basic | ava.chen | 1 | 1 | 1 | 1 | 488 | 1 | 1 | 1 | 1 | 0 |
-| qst_0066 | basic | ava.chen | 1 | 1 | 1 | 1 | 2 | 1 | 1 | 1 | 1 | 0 |
+| qst_0066 | basic | ava.chen | 1 | 1 | 1 | 1 | 2 | 1 | 1 | 1 | 0 | 0 |
 | qst_0067 | basic | ava.chen | 1 | 1 | 0 | 0 | 1 | 0 | 0 | 1 | 0 | 0 |
 | qst_0068 | basic | ava.chen | 1 | 1 | 1 | 1 | 404 | 1 | 1 | 1 | 1 | 0 |
 | qst_0069 | basic | ava.chen | 1 | 1 | 0 | 0 | 310 | 0 | 0 | 1 | 1 | 0 |
@@ -155,7 +164,7 @@ any record holding any of them.
 | qst_0079 | basic | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 |
 | qst_0080 | basic | ava.chen | 1 | 1 | 1 | 1 | 30 | 1 | 1 | 1 | 1 | 0 |
 | qst_0081 | basic | ava.chen | 1 | 1 | 0 | 0 | 390 | 0 | 0 | 1 | 1 | 0 |
-| qst_0082 | basic | ava.chen | 1 | 1 | 0 | 0 | 157 | 0 | 0 | 1 | 1 | 0 |
+| qst_0082 | basic | ava.chen | 1 | 1 | 0 | 0 | 157 | 0 | 0 | 0 | 0 | 0 |
 | qst_0083 | basic | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 |
 | qst_0084 | basic | ava.chen | 1 | 1 | 1 | 1 | 11 | 1 | 1 | 1 | 1 | 0 |
 | qst_0085 | basic | ava.chen | 1 | 1 | 0 | 0 | 2218 | 0 | 0 | 1 | 1 | 0 |
@@ -166,7 +175,7 @@ any record holding any of them.
 | qst_0090 | basic | ava.chen | 1 | 1 | 0 | 0 | 9 | 0 | 0 | 0 | 0 | 0 |
 | qst_0091 | basic | ava.chen | 1 | 1 | 1 | 1 | 1214 | 1 | 1 | 1 | 1 | 0 |
 | qst_0092 | basic | ava.chen | 1 | 1 | 0 | 0 | 1627 | 0 | 0 | 0 | 0 | 0 |
-| qst_0093 | basic | ava.chen | 1 | 1 | 0 | 0 | 257 | 0 | 0 | 0 | 0 | 0 |
+| qst_0093 | basic | ava.chen | 1 | 1 | 0 | 0 | 257 | 0 | 0 | 1 | 0 | 0 |
 | qst_0094 | basic | ava.chen | 1 | 1 | 1 | 1 | 814 | 1 | 1 | 1 | 1 | 0 |
 | qst_0095 | basic | ava.chen | 1 | 1 | 1 | 1 | 165 | 1 | 1 | 1 | 1 | 0 |
 | qst_0096 | basic | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 |
@@ -181,13 +190,13 @@ any record holding any of them.
 | qst_0105 | basic | ava.chen | 1 | 1 | 0 | 0 | 916 | 0 | 0 | 1 | 1 | 0 |
 | qst_0106 | basic | ava.chen | 1 | 1 | 1 | 1 | 161 | 1 | 1 | 1 | 1 | 0 |
 | qst_0107 | basic | ava.chen | 1 | 1 | 1 | 1 | 5 | 1 | 1 | 1 | 1 | 0 |
-| qst_0108 | basic | ava.chen | 1 | 1 | 0 | 0 | 485 | 0 | 0 | 1 | 1 | 0 |
+| qst_0108 | basic | ava.chen | 1 | 1 | 0 | 0 | 485 | 0 | 0 | 0 | 0 | 0 |
 | qst_0109 | basic | ava.chen | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 |
 | qst_0110 | basic | ava.chen | 1 | 1 | 1 | 1 | 2447 | 1 | 1 | 1 | 1 | 0 |
 | qst_0111 | basic | ava.chen | 1 | 1 | 1 | 1 | 27 | 1 | 1 | 1 | 1 | 0 |
 | qst_0112 | basic | ava.chen | 1 | 1 | 0 | 0 | 5477 | 0 | 0 | 0 | 0 | 0 |
 | qst_0113 | basic | ava.chen | 1 | 1 | 1 | 1 | 746 | 1 | 1 | 1 | 1 | 0 |
-| qst_0114 | basic | ava.chen | 1 | 1 | 1 | 1 | 12 | 1 | 1 | 1 | 1 | 0 |
+| qst_0114 | basic | ava.chen | 1 | 1 | 1 | 1 | 12 | 1 | 1 | 0 | 0 | 0 |
 | qst_0115 | basic | ava.chen | 1 | 1 | 1 | 1 | 26 | 1 | 1 | 1 | 1 | 0 |
 | qst_0116 | basic | ava.chen | 1 | 1 | 0 | 0 | 1139 | 0 | 0 | 0 | 0 | 0 |
 | qst_0117 | basic | ava.chen | 1 | 1 | 1 | 1 | 27 | 1 | 1 | 1 | 1 | 0 |
@@ -197,7 +206,7 @@ any record holding any of them.
 | qst_0121 | basic | ava.chen | 1 | 1 | 0 | 0 | 3875 | 0 | 0 | 0 | 0 | 0 |
 | qst_0122 | basic | ava.chen | 1 | 1 | 1 | 1 | 79 | 1 | 1 | 1 | 1 | 0 |
 | qst_0123 | basic | ava.chen | 1 | 1 | 1 | 1 | 12 | 1 | 1 | 1 | 1 | 0 |
-| qst_0124 | basic | ava.chen | 1 | 1 | 1 | 1 | 20 | 1 | 1 | 1 | 1 | 0 |
+| qst_0124 | basic | ava.chen | 1 | 1 | 1 | 1 | 20 | 1 | 1 | 1 | 0 | 0 |
 | qst_0125 | basic | ava.chen | 1 | 1 | 1 | 1 | 46 | 1 | 1 | 1 | 0 | 0 |
 | qst_0126 | basic | ava.chen | 1 | 1 | 1 | 1 | 6 | 1 | 1 | 1 | 1 | 0 |
 | qst_0127 | basic | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 |
@@ -207,7 +216,7 @@ any record holding any of them.
 | qst_0131 | basic | ava.chen | 1 | 1 | 0 | 0 | 2 | 0 | 0 | 1 | 0 | 0 |
 | qst_0132 | basic | ava.chen | 1 | 1 | 1 | 1 | 23 | 1 | 1 | 1 | 1 | 0 |
 | qst_0133 | basic | ava.chen | 1 | 1 | 1 | 1 | 258 | 1 | 1 | 1 | 1 | 0 |
-| qst_0134 | basic | ava.chen | 1 | 1 | 0 | 0 | 1685 | 0 | 0 | 0 | 1 | 0 |
+| qst_0134 | basic | ava.chen | 1 | 1 | 0 | 0 | 1685 | 0 | 0 | 0 | 0 | 0 |
 | qst_0135 | basic | ava.chen | 1 | 1 | 1 | 1 | 189 | 1 | 1 | 1 | 1 | 0 |
 | qst_0136 | basic | ava.chen | 1 | 1 | 1 | 1 | 139 | 1 | 1 | 1 | 0 | 0 |
 | qst_0137 | basic | ava.chen | 1 | 1 | 1 | 1 | 81 | 1 | 1 | 1 | 0 | 0 |
@@ -217,13 +226,13 @@ any record holding any of them.
 | qst_0141 | basic | ava.chen | 1 | 1 | 1 | 1 | 786 | 1 | 1 | 1 | 1 | 0 |
 | qst_0142 | basic | ava.chen | 1 | 1 | 1 | 1 | 15 | 1 | 1 | 1 | 1 | 0 |
 | qst_0143 | basic | ava.chen | 1 | 1 | 1 | 1 | 80 | 1 | 1 | 1 | 1 | 0 |
-| qst_0144 | basic | ava.chen | 1 | 1 | 1 | 1 | 156 | 1 | 1 | 1 | 1 | 0 |
+| qst_0144 | basic | ava.chen | 1 | 1 | 1 | 1 | 156 | 1 | 1 | 0 | 1 | 0 |
 | qst_0145 | basic | ava.chen | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 |
 | qst_0146 | basic | ava.chen | 1 | 1 | 1 | 1 | 191 | 1 | 1 | 1 | 1 | 0 |
 | qst_0147 | basic | ava.chen | 1 | 1 | 0 | 0 | 90 | 0 | 0 | 1 | 0 | 0 |
 | qst_0148 | basic | ava.chen | 1 | 1 | 1 | 1 | 331 | 1 | 1 | 1 | 1 | 0 |
 | qst_0149 | basic | ava.chen | 1 | 1 | 1 | 1 | 66 | 1 | 1 | 1 | 1 | 0 |
-| qst_0150 | basic | ava.chen | 1 | 1 | 1 | 1 | 251 | 1 | 1 | 1 | 0 | 0 |
+| qst_0150 | basic | ava.chen | 1 | 1 | 1 | 1 | 251 | 1 | 1 | 1 | 1 | 0 |
 | qst_0151 | basic | ava.chen | 1 | 1 | 1 | 1 | 8 | 1 | 1 | 1 | 1 | 0 |
 | qst_0152 | basic | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 |
 | qst_0153 | basic | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 |
@@ -231,8 +240,8 @@ any record holding any of them.
 | qst_0155 | basic | ava.chen | 1 | 1 | 1 | 1 | 345 | 1 | 1 | 1 | 0 | 0 |
 | qst_0156 | basic | ava.chen | 1 | 1 | 1 | 1 | 90 | 1 | 1 | 1 | 1 | 0 |
 | qst_0157 | basic | ava.chen | 1 | 1 | 1 | 1 | 29 | 1 | 1 | 1 | 1 | 0 |
-| qst_0158 | basic | ava.chen | 1 | 1 | 1 | 1 | 475 | 1 | 1 | 1 | 1 | 0 |
-| qst_0159 | basic | ava.chen | 1 | 1 | 1 | 1 | 103 | 1 | 1 | 1 | 1 | 0 |
+| qst_0158 | basic | ava.chen | 1 | 1 | 1 | 1 | 475 | 1 | 1 | 0 | 0 | 0 |
+| qst_0159 | basic | ava.chen | 1 | 1 | 1 | 1 | 103 | 1 | 1 | 1 | 0 | 0 |
 | qst_0160 | basic | ava.chen | 1 | 1 | 1 | 1 | 15 | 1 | 1 | 1 | 1 | 0 |
 | qst_0161 | basic | ava.chen | 1 | 1 | 1 | 1 | 262 | 1 | 1 | 1 | 1 | 0 |
 | qst_0162 | basic | ava.chen | 1 | 1 | 1 | 1 | 61 | 1 | 1 | 1 | 1 | 0 |
@@ -243,84 +252,84 @@ any record holding any of them.
 | qst_0167 | basic | ava.chen | 1 | 1 | 1 | 1 | 10 | 1 | 1 | 1 | 1 | 0 |
 | qst_0168 | basic | ava.chen | 1 | 1 | 0 | 0 | 192 | 0 | 0 | 1 | 1 | 0 |
 | qst_0169 | basic | ava.chen | 1 | 1 | 1 | 1 | 780 | 1 | 1 | 1 | 1 | 0 |
-| qst_0170 | basic | ava.chen | 1 | 1 | 0 | 0 | 32 | 0 | 0 | 1 | 0 | 0 |
+| qst_0170 | basic | ava.chen | 1 | 1 | 0 | 0 | 32 | 0 | 0 | 0 | 0 | 0 |
 | qst_0171 | basic | ava.chen | 1 | 1 | 1 | 1 | 5 | 1 | 1 | 1 | 1 | 0 |
 | qst_0172 | basic | ava.chen | 1 | 1 | 1 | 1 | 4 | 1 | 1 | 1 | 1 | 0 |
-| qst_0173 | basic | ava.chen | 1 | 1 | 1 | 1 | 443 | 1 | 1 | 1 | 1 | 0 |
+| qst_0173 | basic | ava.chen | 1 | 1 | 1 | 1 | 443 | 1 | 1 | 0 | 0 | 0 |
 | qst_0174 | basic | ava.chen | 1 | 1 | 1 | 1 | 317 | 1 | 1 | 1 | 1 | 0 |
-| qst_0175 | basic | ava.chen | 1 | 1 | 0 | 0 | 60 | 0 | 0 | 1 | 1 | 0 |
+| qst_0175 | basic | ava.chen | 1 | 1 | 0 | 0 | 60 | 0 | 0 | 1 | 0 | 0 |
 | qst_0176 | semantic | ava.chen | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 0 |
 | qst_0177 | semantic | ava.chen | 1 | 1 | 1 | 1 | 10 | 1 | 1 | 1 | 1 | 0 |
 | qst_0178 | semantic | ava.chen | 1 | 1 | 0 | 0 | 11 | 0 | 0 | 0 | 0 | 0 |
 | qst_0179 | semantic | ava.chen | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 |
 | qst_0180 | semantic | ava.chen | 1 | 1 | 1 | 1 | 358 | 1 | 1 | 0 | 0 | 0 |
-| qst_0181 | semantic | ava.chen | 1 | 1 | 0 | 0 | 142 | 0 | 0 | 1 | 0 | 0 |
+| qst_0181 | semantic | ava.chen | 1 | 1 | 0 | 0 | 142 | 0 | 0 | 0 | 0 | 0 |
 | qst_0182 | semantic | ava.chen | 1 | 1 | 0 | 0 | 36 | 0 | 0 | 0 | 0 | 0 |
-| qst_0183 | semantic | ava.chen | 1 | 1 | 1 | 1 | 623 | 1 | 1 | 1 | 1 | 0 |
+| qst_0183 | semantic | ava.chen | 1 | 1 | 1 | 1 | 623 | 1 | 1 | 0 | 0 | 0 |
 | qst_0184 | semantic | ava.chen | 1 | 1 | 0 | 0 | 191 | 0 | 0 | 0 | 0 | 0 |
 | qst_0185 | semantic | ava.chen | 1 | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | qst_0186 | semantic | ava.chen | 1 | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | qst_0187 | semantic | ava.chen | 1 | 1 | 0 | 0 | 3 | 0 | 0 | 0 | 0 | 0 |
 | qst_0188 | semantic | ava.chen | 1 | 1 | 1 | 1 | 2 | 1 | 1 | 1 | 1 | 0 |
-| qst_0189 | semantic | ava.chen | 1 | 1 | 0 | 0 | 16 | 0 | 0 | 1 | 1 | 0 |
+| qst_0189 | semantic | ava.chen | 1 | 1 | 0 | 0 | 16 | 0 | 0 | 1 | 0 | 0 |
 | qst_0190 | semantic | ava.chen | 1 | 1 | 1 | 1 | 89 | 1 | 1 | 0 | 0 | 0 |
 | qst_0191 | semantic | ava.chen | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | qst_0192 | semantic | ava.chen | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| qst_0193 | semantic | ava.chen | 1 | 1 | 1 | 1 | 4 | 1 | 1 | 1 | 1 | 0 |
-| qst_0194 | semantic | ava.chen | 1 | 1 | 1 | 1 | 3 | 1 | 1 | 1 | 1 | 0 |
-| qst_0195 | semantic | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 |
+| qst_0193 | semantic | ava.chen | 1 | 1 | 1 | 1 | 4 | 1 | 1 | 0 | 0 | 0 |
+| qst_0194 | semantic | ava.chen | 1 | 1 | 1 | 1 | 3 | 1 | 1 | 1 | 0 | 0 |
+| qst_0195 | semantic | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 | 0 | 0 |
 | qst_0196 | semantic | ava.chen | 1 | 1 | 0 | 0 | 11 | 0 | 0 | 0 | 1 | 0 |
 | qst_0197 | semantic | ava.chen | 1 | 1 | 1 | 1 | 93 | 1 | 1 | 0 | 0 | 0 |
 | qst_0198 | semantic | ava.chen | 1 | 1 | 1 | 1 | 5 | 1 | 1 | 1 | 1 | 0 |
-| qst_0199 | semantic | ava.chen | 1 | 1 | 1 | 1 | 3 | 1 | 1 | 1 | 1 | 0 |
+| qst_0199 | semantic | ava.chen | 1 | 1 | 1 | 1 | 3 | 1 | 1 | 0 | 1 | 0 |
 | qst_0200 | semantic | ava.chen | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| qst_0201 | semantic | ava.chen | 1 | 1 | 0 | 0 | 43 | 0 | 0 | 1 | 0 | 0 |
-| qst_0202 | semantic | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 |
+| qst_0201 | semantic | ava.chen | 1 | 1 | 0 | 0 | 43 | 0 | 0 | 0 | 0 | 0 |
+| qst_0202 | semantic | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 | 0 |
 | qst_0203 | semantic | ava.chen | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | qst_0204 | semantic | ava.chen | 1 | 1 | 0 | 0 | 311 | 0 | 0 | 0 | 0 | 0 |
 | qst_0205 | semantic | ava.chen | 1 | 1 | 1 | 1 | 264 | 1 | 1 | 1 | 1 | 0 |
-| qst_0206 | semantic | ava.chen | 1 | 1 | 1 | 1 | 23 | 1 | 1 | 1 | 1 | 0 |
+| qst_0206 | semantic | ava.chen | 1 | 1 | 1 | 1 | 23 | 1 | 1 | 0 | 0 | 0 |
 | qst_0207 | semantic | ava.chen | 1 | 1 | 0 | 0 | 355 | 0 | 0 | 0 | 0 | 0 |
-| qst_0208 | semantic | ava.chen | 1 | 1 | 1 | 1 | 6 | 1 | 1 | 1 | 1 | 0 |
+| qst_0208 | semantic | ava.chen | 1 | 1 | 1 | 1 | 6 | 1 | 1 | 0 | 0 | 0 |
 | qst_0209 | semantic | ava.chen | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| qst_0210 | semantic | ava.chen | 1 | 1 | 0 | 0 | 49 | 0 | 0 | 1 | 0 | 0 |
-| qst_0211 | semantic | ava.chen | 1 | 1 | 1 | 1 | 30 | 1 | 1 | 1 | 1 | 0 |
+| qst_0210 | semantic | ava.chen | 1 | 1 | 0 | 0 | 49 | 0 | 0 | 0 | 0 | 0 |
+| qst_0211 | semantic | ava.chen | 1 | 1 | 1 | 1 | 30 | 1 | 1 | 1 | 0 | 0 |
 | qst_0212 | semantic | ava.chen | 1 | 1 | 1 | 1 | 101 | 1 | 1 | 0 | 0 | 0 |
 | qst_0213 | semantic | ava.chen | 1 | 1 | 0 | 0 | 15 | 0 | 0 | 0 | 0 | 0 |
 | qst_0214 | semantic | ava.chen | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | qst_0215 | semantic | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 |
-| qst_0216 | semantic | ava.chen | 1 | 1 | 0 | 0 | 26 | 0 | 0 | 1 | 1 | 0 |
-| qst_0217 | semantic | ava.chen | 1 | 1 | 1 | 1 | 94 | 1 | 1 | 1 | 1 | 0 |
+| qst_0216 | semantic | ava.chen | 1 | 1 | 0 | 0 | 26 | 0 | 0 | 0 | 0 | 0 |
+| qst_0217 | semantic | ava.chen | 1 | 1 | 1 | 1 | 94 | 1 | 1 | 1 | 0 | 0 |
 | qst_0218 | semantic | ava.chen | 1 | 1 | 0 | 0 | 50 | 0 | 0 | 1 | 0 | 0 |
 | qst_0219 | semantic | ava.chen | 1 | 1 | 0 | 0 | 4 | 0 | 0 | 0 | 0 | 0 |
 | qst_0220 | semantic | ava.chen | 1 | 1 | 0 | 0 | 34 | 0 | 0 | 0 | 0 | 0 |
 | qst_0221 | semantic | ava.chen | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | qst_0222 | semantic | ava.chen | 1 | 1 | 1 | 1 | 131 | 1 | 1 | 1 | 1 | 0 |
-| qst_0223 | semantic | ava.chen | 1 | 1 | 1 | 1 | 6 | 1 | 1 | 1 | 1 | 0 |
+| qst_0223 | semantic | ava.chen | 1 | 1 | 1 | 1 | 6 | 1 | 1 | 1 | 0 | 0 |
 | qst_0224 | semantic | ava.chen | 1 | 1 | 0 | 0 | 164 | 0 | 0 | 0 | 0 | 0 |
-| qst_0225 | semantic | ava.chen | 1 | 1 | 1 | 1 | 31 | 1 | 1 | 1 | 1 | 0 |
+| qst_0225 | semantic | ava.chen | 1 | 1 | 1 | 1 | 31 | 1 | 1 | 0 | 0 | 0 |
 | qst_0226 | semantic | ava.chen | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | qst_0227 | semantic | ava.chen | 1 | 1 | 0 | 0 | 15 | 0 | 0 | 1 | 0 | 0 |
-| qst_0228 | semantic | ava.chen | 1 | 1 | 1 | 1 | 2 | 1 | 1 | 1 | 1 | 0 |
+| qst_0228 | semantic | ava.chen | 1 | 1 | 1 | 1 | 2 | 1 | 1 | 1 | 0 | 0 |
 | qst_0229 | semantic | ava.chen | 1 | 1 | 0 | 0 | 17 | 0 | 0 | 0 | 0 | 0 |
 | qst_0230 | semantic | ava.chen | 1 | 1 | 1 | 1 | 69 | 1 | 1 | 1 | 1 | 0 |
 | qst_0231 | semantic | ava.chen | 1 | 1 | 0 | 0 | 35 | 0 | 0 | 0 | 0 | 0 |
-| qst_0232 | semantic | ava.chen | 1 | 1 | 1 | 1 | 4 | 1 | 1 | 1 | 1 | 0 |
+| qst_0232 | semantic | ava.chen | 1 | 1 | 1 | 1 | 4 | 1 | 1 | 1 | 0 | 0 |
 | qst_0233 | semantic | ava.chen | 1 | 1 | 0 | 0 | 359 | 0 | 0 | 0 | 0 | 0 |
-| qst_0234 | semantic | ava.chen | 1 | 1 | 1 | 1 | 1481 | 1 | 1 | 1 | 0 | 0 |
+| qst_0234 | semantic | ava.chen | 1 | 1 | 1 | 1 | 1481 | 1 | 1 | 0 | 0 | 0 |
 | qst_0235 | semantic | ava.chen | 1 | 1 | 0 | 0 | 6 | 0 | 0 | 0 | 0 | 0 |
-| qst_0236 | semantic | ava.chen | 1 | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
-| qst_0237 | semantic | ava.chen | 1 | 1 | 1 | 1 | 42 | 1 | 1 | 1 | 1 | 0 |
+| qst_0236 | semantic | ava.chen | 1 | 1 | 0 | 0 | 1 | 0 | 0 | 1 | 0 | 0 |
+| qst_0237 | semantic | ava.chen | 1 | 1 | 1 | 1 | 42 | 1 | 1 | 1 | 0 | 0 |
 | qst_0238 | semantic | ava.chen | 1 | 1 | 1 | 1 | 4 | 1 | 1 | 1 | 1 | 0 |
 | qst_0239 | semantic | ava.chen | 1 | 1 | 0 | 0 | 7 | 0 | 0 | 0 | 0 | 0 |
 | qst_0240 | semantic | ava.chen | 1 | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | qst_0241 | semantic | ava.chen | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 0 |
-| qst_0242 | semantic | ava.chen | 1 | 1 | 1 | 1 | 84 | 1 | 1 | 1 | 1 | 0 |
+| qst_0242 | semantic | ava.chen | 1 | 1 | 1 | 1 | 84 | 1 | 1 | 0 | 0 | 0 |
 | qst_0243 | semantic | ava.chen | 1 | 1 | 0 | 0 | 5 | 0 | 0 | 0 | 0 | 0 |
 | qst_0244 | semantic | ava.chen | 1 | 1 | 0 | 0 | 75 | 0 | 0 | 1 | 0 | 0 |
 | qst_0245 | semantic | ava.chen | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 |
 | qst_0246 | semantic | ava.chen | 1 | 1 | 1 | 1 | 18 | 1 | 1 | 0 | 0 | 0 |
-| qst_0247 | semantic | ava.chen | 1 | 1 | 1 | 1 | 13 | 1 | 1 | 1 | 1 | 0 |
+| qst_0247 | semantic | ava.chen | 1 | 1 | 1 | 1 | 13 | 1 | 1 | 1 | 0 | 0 |
 | qst_0248 | semantic | ava.chen | 1 | 1 | 0 | 0 | 27 | 0 | 0 | 0 | 0 | 0 |
 | qst_0249 | semantic | ava.chen | 1 | 1 | 0 | 0 | 5 | 0 | 0 | 1 | 0 | 0 |
 | qst_0250 | semantic | ava.chen | 1 | 1 | 1 | 1 | 130 | 1 | 1 | 1 | 1 | 0 |
@@ -328,50 +337,50 @@ any record holding any of them.
 | qst_0252 | semantic | ava.chen | 1 | 1 | 0 | 0 | 11 | 0 | 0 | 0 | 0 | 0 |
 | qst_0253 | semantic | ava.chen | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 |
 | qst_0254 | semantic | ava.chen | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| qst_0255 | semantic | ava.chen | 1 | 1 | 1 | 1 | 6 | 1 | 1 | 1 | 1 | 0 |
+| qst_0255 | semantic | ava.chen | 1 | 1 | 1 | 1 | 6 | 1 | 1 | 0 | 0 | 0 |
 | qst_0256 | semantic | ava.chen | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | qst_0257 | semantic | ava.chen | 1 | 1 | 0 | 0 | 4 | 0 | 0 | 1 | 1 | 0 |
-| qst_0258 | semantic | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 |
+| qst_0258 | semantic | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 | 0 | 0 |
 | qst_0259 | semantic | ava.chen | 1 | 1 | 1 | 1 | 27 | 1 | 1 | 1 | 1 | 0 |
 | qst_0260 | semantic | ava.chen | 1 | 1 | 0 | 0 | 431 | 0 | 0 | 0 | 0 | 0 |
 | qst_0261 | semantic | ava.chen | 1 | 1 | 0 | 0 | 888 | 0 | 0 | 0 | 0 | 0 |
 | qst_0262 | semantic | ava.chen | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | qst_0263 | semantic | ava.chen | 1 | 1 | 0 | 0 | 152 | 0 | 0 | 0 | 0 | 0 |
-| qst_0264 | semantic | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 |
+| qst_0264 | semantic | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 | 0 |
 | qst_0265 | semantic | ava.chen | 1 | 1 | 0 | 0 | 3 | 0 | 0 | 1 | 0 | 0 |
-| qst_0266 | semantic | ava.chen | 1 | 1 | 1 | 1 | 22 | 1 | 1 | 1 | 0 | 0 |
+| qst_0266 | semantic | ava.chen | 1 | 1 | 1 | 1 | 22 | 1 | 1 | 0 | 0 | 0 |
 | qst_0267 | semantic | ava.chen | 1 | 1 | 0 | 0 | 23 | 0 | 0 | 0 | 0 | 0 |
 | qst_0268 | semantic | ava.chen | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | qst_0269 | semantic | ava.chen | 1 | 1 | 0 | 0 | 3 | 0 | 0 | 1 | 0 | 0 |
 | qst_0270 | semantic | ava.chen | 1 | 1 | 0 | 0 | 2 | 0 | 0 | 1 | 0 | 0 |
 | qst_0271 | semantic | ava.chen | 1 | 1 | 1 | 1 | 5 | 1 | 1 | 1 | 1 | 0 |
-| qst_0272 | semantic | ava.chen | 1 | 1 | 1 | 1 | 609 | 1 | 1 | 1 | 1 | 0 |
+| qst_0272 | semantic | ava.chen | 1 | 1 | 1 | 1 | 609 | 1 | 1 | 0 | 1 | 0 |
 | qst_0273 | semantic | ava.chen | 1 | 1 | 0 | 0 | 4 | 0 | 0 | 1 | 0 | 0 |
-| qst_0274 | semantic | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 |
+| qst_0274 | semantic | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 | 0 |
 | qst_0275 | semantic | ava.chen | 1 | 1 | 0 | 0 | 20 | 0 | 0 | 0 | 0 | 0 |
-| qst_0276 | semantic | ava.chen | 1 | 1 | 1 | 1 | 43 | 1 | 1 | 1 | 1 | 0 |
-| qst_0277 | semantic | ava.chen | 1 | 1 | 1 | 1 | 11 | 1 | 1 | 1 | 1 | 0 |
+| qst_0276 | semantic | ava.chen | 1 | 1 | 1 | 1 | 43 | 1 | 1 | 0 | 0 | 0 |
+| qst_0277 | semantic | ava.chen | 1 | 1 | 1 | 1 | 11 | 1 | 1 | 0 | 0 | 0 |
 | qst_0278 | semantic | ava.chen | 1 | 1 | 0 | 0 | 5 | 0 | 0 | 0 | 0 | 0 |
 | qst_0279 | semantic | ava.chen | 1 | 1 | 0 | 0 | 12 | 0 | 0 | 1 | 1 | 0 |
-| qst_0280 | semantic | ava.chen | 1 | 1 | 1 | 1 | 19 | 1 | 1 | 1 | 1 | 0 |
-| qst_0281 | semantic | ava.chen | 1 | 1 | 1 | 1 | 24 | 1 | 1 | 1 | 1 | 0 |
+| qst_0280 | semantic | ava.chen | 1 | 1 | 1 | 1 | 19 | 1 | 1 | 0 | 0 | 0 |
+| qst_0281 | semantic | ava.chen | 1 | 1 | 1 | 1 | 24 | 1 | 1 | 0 | 0 | 0 |
 | qst_0282 | semantic | ava.chen | 1 | 1 | 0 | 0 | 21 | 0 | 0 | 0 | 0 | 0 |
 | qst_0283 | semantic | ava.chen | 1 | 1 | 0 | 0 | 3 | 0 | 0 | 0 | 0 | 0 |
 | qst_0284 | semantic | ava.chen | 1 | 1 | 1 | 1 | 78 | 1 | 1 | 1 | 1 | 0 |
 | qst_0285 | semantic | ava.chen | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | qst_0286 | semantic | ava.chen | 1 | 1 | 1 | 1 | 3 | 1 | 1 | 1 | 1 | 0 |
 | qst_0287 | semantic | ava.chen | 1 | 1 | 0 | 0 | 39 | 0 | 0 | 0 | 0 | 0 |
-| qst_0288 | semantic | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 |
+| qst_0288 | semantic | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 | 0 | 0 |
 | qst_0289 | semantic | ava.chen | 1 | 1 | 0 | 0 | 1 | 0 | 0 | 1 | 0 | 0 |
-| qst_0290 | semantic | ava.chen | 1 | 1 | 0 | 0 | 30 | 0 | 0 | 1 | 0 | 0 |
+| qst_0290 | semantic | ava.chen | 1 | 1 | 0 | 0 | 30 | 0 | 0 | 0 | 0 | 0 |
 | qst_0291 | semantic | ava.chen | 1 | 1 | 0 | 0 | 1677 | 0 | 0 | 0 | 0 | 0 |
-| qst_0292 | semantic | ava.chen | 1 | 1 | 1 | 1 | 21 | 1 | 1 | 1 | 0 | 0 |
+| qst_0292 | semantic | ava.chen | 1 | 1 | 1 | 1 | 21 | 1 | 1 | 0 | 0 | 0 |
 | qst_0293 | semantic | ava.chen | 1 | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
-| qst_0294 | semantic | ava.chen | 1 | 1 | 1 | 1 | 2 | 1 | 1 | 1 | 1 | 0 |
+| qst_0294 | semantic | ava.chen | 1 | 1 | 1 | 1 | 2 | 1 | 1 | 0 | 0 | 0 |
 | qst_0295 | semantic | ava.chen | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 |
 | qst_0296 | semantic | ava.chen | 1 | 1 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | qst_0297 | semantic | ava.chen | 1 | 1 | 0 | 0 | 698 | 0 | 0 | 0 | 0 | 0 |
-| qst_0298 | semantic | ava.chen | 1 | 1 | 1 | 1 | 18 | 1 | 1 | 1 | 1 | 0 |
+| qst_0298 | semantic | ava.chen | 1 | 1 | 1 | 1 | 18 | 1 | 1 | 0 | 0 | 0 |
 | qst_0299 | semantic | ava.chen | 1 | 1 | 0 | 0 | 1 | 0 | 0 | 1 | 0 | 0 |
 | qst_0300 | semantic | ava.chen | 1 | 1 | 0 | 0 | 45 | 0 | 0 | 0 | 0 | 0 |
 | qst_0301 | intra_document_reasoning | ava.chen | 1 | 1 | 1 | 1 | 536 | 1 | 1 | 1 | 1 | 0 |
@@ -394,7 +403,7 @@ any record holding any of them.
 | qst_0318 | intra_document_reasoning | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 |
 | qst_0319 | intra_document_reasoning | ava.chen | 1 | 1 | 1 | 1 | 19 | 1 | 1 | 1 | 1 | 0 |
 | qst_0320 | intra_document_reasoning | ava.chen | 1 | 1 | 1 | 1 | 81 | 1 | 1 | 1 | 1 | 0 |
-| qst_0321 | intra_document_reasoning | ava.chen | 1 | 1 | 1 | 1 | 152 | 1 | 1 | 1 | 1 | 0 |
+| qst_0321 | intra_document_reasoning | ava.chen | 1 | 1 | 1 | 1 | 152 | 1 | 1 | 0 | 1 | 0 |
 | qst_0322 | intra_document_reasoning | ava.chen | 1 | 1 | 1 | 1 | 3 | 1 | 1 | 1 | 1 | 0 |
 | qst_0323 | intra_document_reasoning | ava.chen | 1 | 1 | 1 | 1 | 41 | 1 | 1 | 1 | 1 | 0 |
 | qst_0324 | intra_document_reasoning | ava.chen | 1 | 1 | 1 | 1 | 7 | 1 | 1 | 1 | 1 | 0 |
@@ -403,7 +412,7 @@ any record holding any of them.
 | qst_0327 | intra_document_reasoning | ava.chen | 1 | 1 | 1 | 1 | 8 | 1 | 1 | 1 | 1 | 0 |
 | qst_0328 | intra_document_reasoning | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 |
 | qst_0329 | intra_document_reasoning | ava.chen | 1 | 1 | 1 | 1 | 77 | 1 | 1 | 1 | 1 | 0 |
-| qst_0330 | intra_document_reasoning | ava.chen | 1 | 1 | 1 | 1 | 149 | 1 | 1 | 1 | 1 | 0 |
+| qst_0330 | intra_document_reasoning | ava.chen | 1 | 1 | 1 | 1 | 149 | 1 | 1 | 1 | 0 | 0 |
 | qst_0331 | intra_document_reasoning | ava.chen | 1 | 1 | 1 | 1 | 125 | 1 | 1 | 1 | 1 | 0 |
 | qst_0332 | intra_document_reasoning | ava.chen | 1 | 1 | 1 | 1 | 18 | 1 | 1 | 1 | 1 | 0 |
 | qst_0333 | intra_document_reasoning | ava.chen | 1 | 1 | 1 | 1 | 18 | 1 | 1 | 1 | 1 | 0 |
@@ -414,50 +423,50 @@ any record holding any of them.
 | qst_0338 | intra_document_reasoning | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 |
 | qst_0339 | intra_document_reasoning | ava.chen | 1 | 1 | 1 | 1 | 60 | 1 | 1 | 1 | 1 | 0 |
 | qst_0340 | intra_document_reasoning | ava.chen | 1 | 1 | 1 | 1 | 345 | 1 | 1 | 1 | 1 | 0 |
-| qst_0341 | project_related | ava.chen | 2 | 2 | 1 | 0.5 | 68 | 1 | 0.5 | 1 | 1 | 0 |
-| qst_0342 | project_related | ava.chen | 4 | 4 | 4 | 1 | 17 | 4 | 1 | 1 | 0.75 | 0 |
-| qst_0343 | project_related | ava.chen | 3 | 3 | 2 | 0.6667 | 6 | 2 | 0.6667 | 0.6667 | 1 | 0 |
+| qst_0341 | project_related | ava.chen | 2 | 2 | 1 | 0.5 | 68 | 1 | 0.5 | 0.5 | 0.5 | 0 |
+| qst_0342 | project_related | ava.chen | 4 | 4 | 4 | 1 | 17 | 4 | 1 | 1 | 0.5 | 0 |
+| qst_0343 | project_related | ava.chen | 3 | 3 | 2 | 0.6667 | 6 | 2 | 0.6667 | 0.6667 | 0.6667 | 0 |
 | qst_0344 | project_related | ava.chen | 4 | 4 | 1 | 0.25 | 6 | 1 | 0.25 | 0.5 | 0.5 | 0 |
 | qst_0345 | project_related | ava.chen | 2 | 2 | 1 | 0.5 | 4 | 1 | 0.5 | 0.5 | 0.5 | 0 |
 | qst_0346 | project_related | ava.chen | 3 | 3 | 2 | 0.6667 | 110 | 2 | 0.6667 | 1 | 1 | 0 |
-| qst_0347 | project_related | ava.chen | 2 | 2 | 2 | 1 | 149 | 2 | 1 | 1 | 0.5 | 0 |
-| qst_0348 | project_related | ava.chen | 4 | 4 | 3 | 0.75 | 48 | 3 | 0.75 | 1 | 1 | 0 |
+| qst_0347 | project_related | ava.chen | 2 | 2 | 2 | 1 | 149 | 2 | 1 | 1 | 1 | 0 |
+| qst_0348 | project_related | ava.chen | 4 | 4 | 3 | 0.75 | 48 | 3 | 0.75 | 1 | 0.5 | 0 |
 | qst_0349 | project_related | ava.chen | 3 | 3 | 0 | 0 | 0 | 2 | 0.6667 | 0.6667 | 0.6667 | 0 |
 | qst_0350 | project_related | ava.chen | 3 | 3 | 1 | 0.3333 | 11 | 1 | 0.3333 | 0.6667 | 0.3333 | 0 |
 | qst_0351 | project_related | ava.chen | 4 | 4 | 3 | 0.75 | 102 | 3 | 0.75 | 1 | 1 | 0 |
 | qst_0352 | project_related | ava.chen | 2 | 2 | 2 | 1 | 28 | 2 | 1 | 1 | 1 | 0 |
-| qst_0353 | project_related | ava.chen | 2 | 2 | 2 | 1 | 9 | 2 | 1 | 1 | 1 | 0 |
+| qst_0353 | project_related | ava.chen | 2 | 2 | 2 | 1 | 9 | 2 | 1 | 1 | 0.5 | 0 |
 | qst_0354 | project_related | ava.chen | 8 | 8 | 6 | 0.75 | 283 | 6 | 0.75 | 0.5 | 0.75 | 0 |
-| qst_0355 | project_related | ava.chen | 3 | 3 | 2 | 0.6667 | 138 | 2 | 0.6667 | 1 | 1 | 0 |
+| qst_0355 | project_related | ava.chen | 3 | 3 | 2 | 0.6667 | 138 | 2 | 0.6667 | 0.3333 | 1 | 0 |
 | qst_0356 | project_related | ava.chen | 4 | 4 | 2 | 0.5 | 4 | 2 | 0.5 | 0.5 | 0.5 | 0 |
-| qst_0357 | project_related | ava.chen | 3 | 3 | 3 | 1 | 13 | 3 | 1 | 1 | 1 | 0 |
-| qst_0358 | project_related | ava.chen | 4 | 4 | 3 | 0.75 | 5 | 4 | 1 | 0.75 | 1 | 0 |
-| qst_0359 | project_related | ava.chen | 6 | 6 | 6 | 1 | 8 | 5 | 0.8333 | 1 | 0.8333 | 0 |
+| qst_0357 | project_related | ava.chen | 3 | 3 | 3 | 1 | 13 | 3 | 1 | 0.6667 | 0.6667 | 0 |
+| qst_0358 | project_related | ava.chen | 4 | 4 | 3 | 0.75 | 5 | 4 | 1 | 0.75 | 0.75 | 0 |
+| qst_0359 | project_related | ava.chen | 6 | 6 | 6 | 1 | 8 | 5 | 0.8333 | 0.8333 | 0.8333 | 0 |
 | qst_0360 | project_related | ava.chen | 2 | 2 | 2 | 1 | 7 | 2 | 1 | 1 | 1 | 0 |
 | qst_0361 | project_related | ava.chen | 3 | 3 | 3 | 1 | 25 | 3 | 1 | 1 | 1 | 0 |
 | qst_0362 | project_related | ava.chen | 9 | 9 | 4 | 0.4444 | 130 | 4 | 0.4444 | 0.4444 | 0.3333 | 0 |
 | qst_0363 | project_related | ava.chen | 6 | 6 | 3 | 0.5 | 146 | 3 | 0.5 | 0.5 | 0.6667 | 0 |
 | qst_0364 | project_related | ava.chen | 3 | 3 | 2 | 0.6667 | 761 | 2 | 0.6667 | 1 | 1 | 0 |
-| qst_0365 | project_related | ava.chen | 9 | 9 | 6 | 0.6667 | 290 | 6 | 0.6667 | 0.4444 | 0.6667 | 0 |
+| qst_0365 | project_related | ava.chen | 9 | 9 | 6 | 0.6667 | 290 | 6 | 0.6667 | 0.3333 | 0.4444 | 0 |
 | qst_0366 | project_related | ava.chen | 9 | 9 | 7 | 0.7778 | 67 | 7 | 0.7778 | 0.7778 | 0.7778 | 0 |
-| qst_0367 | project_related | ava.chen | 9 | 9 | 6 | 0.6667 | 27 | 6 | 0.6667 | 0.7778 | 0.7778 | 0 |
+| qst_0367 | project_related | ava.chen | 9 | 9 | 6 | 0.6667 | 27 | 6 | 0.6667 | 0.6667 | 0.7778 | 0 |
 | qst_0368 | project_related | ava.chen | 2 | 2 | 2 | 1 | 4 | 2 | 1 | 1 | 1 | 0 |
 | qst_0369 | project_related | ava.chen | 6 | 6 | 1 | 0.1667 | 315 | 1 | 0.1667 | 0.6667 | 0.6667 | 0 |
 | qst_0370 | project_related | ava.chen | 5 | 5 | 2 | 0.4 | 571 | 2 | 0.4 | 0.4 | 0.6 | 0 |
 | qst_0371 | project_related | ava.chen | 3 | 3 | 2 | 0.6667 | 85 | 2 | 0.6667 | 1 | 1 | 0 |
 | qst_0372 | project_related | ava.chen | 4 | 4 | 4 | 1 | 62 | 4 | 1 | 1 | 1 | 0 |
 | qst_0373 | project_related | ava.chen | 3 | 3 | 3 | 1 | 10 | 3 | 1 | 1 | 1 | 0 |
-| qst_0374 | project_related | ava.chen | 3 | 3 | 3 | 1 | 15 | 3 | 1 | 1 | 0.6667 | 0 |
-| qst_0375 | project_related | ava.chen | 4 | 4 | 2 | 0.5 | 758 | 2 | 0.5 | 1 | 0.75 | 0 |
-| qst_0376 | project_related | ava.chen | 3 | 3 | 2 | 0.6667 | 6 | 2 | 0.6667 | 0.6667 | 0.6667 | 0 |
-| qst_0377 | project_related | ava.chen | 6 | 6 | 5 | 0.8333 | 9 | 5 | 0.8333 | 0.8333 | 0.8333 | 0 |
-| qst_0378 | project_related | ava.chen | 4 | 4 | 2 | 0.5 | 3 | 2 | 0.5 | 1 | 0.75 | 0 |
-| qst_0379 | project_related | ava.chen | 8 | 8 | 2 | 0.25 | 220 | 2 | 0.25 | 0.625 | 0.75 | 0 |
+| qst_0374 | project_related | ava.chen | 3 | 3 | 3 | 1 | 15 | 3 | 1 | 0.6667 | 0.6667 | 0 |
+| qst_0375 | project_related | ava.chen | 4 | 4 | 2 | 0.5 | 758 | 2 | 0.5 | 1 | 1 | 0 |
+| qst_0376 | project_related | ava.chen | 3 | 3 | 2 | 0.6667 | 6 | 2 | 0.6667 | 0.3333 | 0.3333 | 0 |
+| qst_0377 | project_related | ava.chen | 6 | 6 | 5 | 0.8333 | 9 | 5 | 0.8333 | 0.5 | 0.6667 | 0 |
+| qst_0378 | project_related | ava.chen | 4 | 4 | 2 | 0.5 | 3 | 2 | 0.5 | 1 | 1 | 0 |
+| qst_0379 | project_related | ava.chen | 8 | 8 | 2 | 0.25 | 220 | 2 | 0.25 | 0.625 | 0.625 | 0 |
 | qst_0380 | project_related | ava.chen | 2 | 2 | 2 | 1 | 23 | 2 | 1 | 1 | 1 | 0 |
 | qst_0381 | constrained | ava.chen | 2 | 2 | 2 | 1 | 5 | 2 | 1 | 1 | 1 | 0 |
-| qst_0382 | constrained | ava.chen | 1 | 1 | 1 | 1 | 11 | 1 | 1 | 1 | 1 | 0 |
+| qst_0382 | constrained | ava.chen | 1 | 1 | 1 | 1 | 11 | 1 | 1 | 1 | 0 | 0 |
 | qst_0383 | constrained | ava.chen | 1 | 1 | 0 | 0 | 0 | 1 | 1 | 1 | 1 | 0 |
-| qst_0384 | constrained | ava.chen | 2 | 2 | 1 | 0.5 | 1 | 2 | 1 | 1 | 1 | 0 |
+| qst_0384 | constrained | ava.chen | 2 | 2 | 1 | 0.5 | 1 | 2 | 1 | 1 | 0.5 | 0 |
 | qst_0385 | constrained | ava.chen | 2 | 2 | 1 | 0.5 | 14 | 1 | 0.5 | 0.5 | 1 | 0 |
 | qst_0386 | constrained | ava.chen | 1 | 1 | 1 | 1 | 4 | 1 | 1 | 1 | 1 | 0 |
 | qst_0387 | constrained | ava.chen | 1 | 1 | 1 | 1 | 8 | 1 | 1 | 1 | 1 | 0 |
@@ -477,7 +486,7 @@ any record holding any of them.
 | qst_0401 | constrained | ava.chen | 1 | 1 | 1 | 1 | 2 | 1 | 1 | 1 | 1 | 0 |
 | qst_0402 | constrained | ava.chen | 2 | 2 | 1 | 0.5 | 3 | 1 | 0.5 | 1 | 0.5 | 0 |
 | qst_0403 | constrained | ava.chen | 2 | 2 | 0 | 0 | 0 | 1 | 0.5 | 0.5 | 0.5 | 0 |
-| qst_0404 | constrained | ava.chen | 2 | 2 | 2 | 1 | 3 | 2 | 1 | 1 | 0.5 | 0 |
+| qst_0404 | constrained | ava.chen | 2 | 2 | 2 | 1 | 3 | 2 | 1 | 0 | 0 | 0 |
 | qst_0405 | constrained | ava.chen | 2 | 2 | 1 | 0.5 | 1 | 1 | 0.5 | 0.5 | 0.5 | 0 |
 | qst_0406 | constrained | ava.chen | 1 | 1 | 1 | 1 | 3 | 1 | 1 | 1 | 1 | 0 |
 | qst_0407 | constrained | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 |
@@ -485,15 +494,15 @@ any record holding any of them.
 | qst_0409 | constrained | ava.chen | 1 | 1 | 1 | 1 | 3 | 1 | 1 | 1 | 1 | 0 |
 | qst_0410 | constrained | ava.chen | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 0 |
 | qst_0411 | conflicting_info | ava.chen | 2 | 2 | 2 | 1 | 2 | 2 | 1 | 1 | 1 | 0 |
-| qst_0412 | conflicting_info | ava.chen | 2 | 2 | 2 | 1 | 10 | 1 | 0.5 | 1 | 0.5 | 0 |
+| qst_0412 | conflicting_info | ava.chen | 2 | 2 | 2 | 1 | 10 | 1 | 0.5 | 0.5 | 0.5 | 0 |
 | qst_0413 | conflicting_info | ava.chen | 2 | 2 | 2 | 1 | 2 | 2 | 1 | 1 | 1 | 0 |
-| qst_0414 | conflicting_info | ava.chen | 2 | 2 | 2 | 1 | 22 | 2 | 1 | 1 | 0 | 0 |
+| qst_0414 | conflicting_info | ava.chen | 2 | 2 | 2 | 1 | 22 | 2 | 1 | 0.5 | 0.5 | 0 |
 | qst_0415 | conflicting_info | ava.chen | 2 | 2 | 2 | 1 | 644 | 2 | 1 | 1 | 1 | 0 |
 | qst_0416 | conflicting_info | ava.chen | 2 | 2 | 2 | 1 | 2 | 2 | 1 | 1 | 1 | 0 |
 | qst_0417 | conflicting_info | ava.chen | 2 | 2 | 2 | 1 | 1704 | 2 | 1 | 0 | 0.5 | 0 |
 | qst_0418 | conflicting_info | ava.chen | 2 | 2 | 2 | 1 | 178 | 2 | 1 | 1 | 1 | 0 |
 | qst_0419 | conflicting_info | ava.chen | 2 | 2 | 2 | 1 | 747 | 2 | 1 | 1 | 1 | 0 |
-| qst_0420 | conflicting_info | ava.chen | 2 | 2 | 2 | 1 | 5 | 2 | 1 | 1 | 1 | 0 |
+| qst_0420 | conflicting_info | ava.chen | 2 | 2 | 2 | 1 | 5 | 2 | 1 | 1 | 0.5 | 0 |
 | qst_0421 | conflicting_info | ava.chen | 2 | 2 | 2 | 1 | 69 | 2 | 1 | 1 | 1 | 0 |
 | qst_0422 | conflicting_info | ava.chen | 2 | 2 | 2 | 1 | 29 | 2 | 1 | 1 | 1 | 0 |
 | qst_0423 | conflicting_info | ava.chen | 2 | 2 | 2 | 1 | 27 | 2 | 1 | 1 | 1 | 0 |
@@ -503,27 +512,27 @@ any record holding any of them.
 | qst_0427 | conflicting_info | ava.chen | 2 | 2 | 2 | 1 | 5 | 2 | 1 | 1 | 1 | 0 |
 | qst_0428 | conflicting_info | ava.chen | 2 | 2 | 1 | 0.5 | 790 | 1 | 0.5 | 0.5 | 0.5 | 0 |
 | qst_0429 | conflicting_info | ava.chen | 2 | 2 | 2 | 1 | 2 | 2 | 1 | 1 | 1 | 0 |
-| qst_0430 | conflicting_info | ava.chen | 2 | 2 | 2 | 1 | 703 | 2 | 1 | 0.5 | 0.5 | 0 |
+| qst_0430 | conflicting_info | ava.chen | 2 | 2 | 2 | 1 | 703 | 2 | 1 | 1 | 1 | 0 |
 | qst_0431 | completeness | ava.chen | 2 | 2 | 2 | 1 | 1154 | 2 | 1 | 1 | 1 | 0 |
-| qst_0432 | completeness | ava.chen | 6 | 6 | 1 | 0.1667 | 307 | 1 | 0.1667 | 0.5 | 0.5 | 0 |
-| qst_0433 | completeness | ava.chen | 6 | 6 | 1 | 0.1667 | 1031 | 1 | 0.1667 | 0.3333 | 0.5 | 0 |
-| qst_0434 | completeness | ava.chen | 6 | 6 | 6 | 1 | 31 | 6 | 1 | 1 | 0.8333 | 0 |
+| qst_0432 | completeness | ava.chen | 6 | 6 | 1 | 0.1667 | 307 | 1 | 0.1667 | 0.6667 | 0.5 | 0 |
+| qst_0433 | completeness | ava.chen | 6 | 6 | 1 | 0.1667 | 1031 | 1 | 0.1667 | 0.5 | 0.6667 | 0 |
+| qst_0434 | completeness | ava.chen | 6 | 6 | 6 | 1 | 31 | 6 | 1 | 1 | 0.5 | 0 |
 | qst_0435 | completeness | ava.chen | 6 | 6 | 6 | 1 | 180 | 6 | 1 | 1 | 1 | 0 |
-| qst_0436 | completeness | ava.chen | 10 | 10 | 1 | 0.1 | 15 | 1 | 0.1 | 0.1 | 0.1 | 0 |
+| qst_0436 | completeness | ava.chen | 10 | 10 | 1 | 0.1 | 15 | 1 | 0.1 | 0.2 | 0.1 | 0 |
 | qst_0437 | completeness | ava.chen | 9 | 9 | 0 | 0 | 7827 | 0 | 0 | 0 | 0 | 0 |
-| qst_0438 | completeness | ava.chen | 9 | 9 | 1 | 0.1111 | 94 | 1 | 0.1111 | 0.3333 | 0.3333 | 0 |
+| qst_0438 | completeness | ava.chen | 9 | 9 | 1 | 0.1111 | 94 | 1 | 0.1111 | 0.3333 | 0.2222 | 0 |
 | qst_0439 | completeness | ava.chen | 5 | 5 | 0 | 0 | 349 | 0 | 0 | 0 | 0 | 0 |
-| qst_0440 | completeness | ava.chen | 6 | 6 | 0 | 0 | 0 | 2 | 0.3333 | 0.8333 | 0.6667 | 0 |
-| qst_0441 | completeness | ava.chen | 6 | 6 | 3 | 0.5 | 205 | 2 | 0.3333 | 0.5 | 0.3333 | 0 |
+| qst_0440 | completeness | ava.chen | 6 | 6 | 0 | 0 | 0 | 2 | 0.3333 | 0.8333 | 0.3333 | 0 |
+| qst_0441 | completeness | ava.chen | 6 | 6 | 3 | 0.5 | 205 | 2 | 0.3333 | 0.3333 | 0.5 | 0 |
 | qst_0442 | completeness | ava.chen | 8 | 8 | 1 | 0.125 | 2 | 3 | 0.375 | 0.625 | 0.5 | 0 |
-| qst_0443 | completeness | ava.chen | 5 | 5 | 4 | 0.8 | 10 | 4 | 0.8 | 0.8 | 0.8 | 0 |
+| qst_0443 | completeness | ava.chen | 5 | 5 | 4 | 0.8 | 10 | 4 | 0.8 | 1 | 0.8 | 0 |
 | qst_0444 | completeness | ava.chen | 6 | 6 | 0 | 0 | 0 | 0 | 0 | 0.6667 | 0.1667 | 0 |
 | qst_0445 | completeness | ava.chen | 8 | 8 | 2 | 0.25 | 13 | 2 | 0.25 | 0.375 | 0.375 | 0 |
 | qst_0446 | completeness | ava.chen | 5 | 5 | 3 | 0.6 | 15 | 3 | 0.6 | 0.8 | 0.8 | 0 |
-| qst_0447 | completeness | ava.chen | 6 | 6 | 0 | 0 | 26 | 0 | 0 | 0.5 | 0.1667 | 0 |
+| qst_0447 | completeness | ava.chen | 6 | 6 | 0 | 0 | 26 | 0 | 0 | 0.8333 | 0.1667 | 0 |
 | qst_0448 | completeness | ava.chen | 7 | 7 | 0 | 0 | 2852 | 0 | 0 | 0 | 0 | 0 |
-| qst_0449 | completeness | ava.chen | 6 | 6 | 1 | 0.1667 | 1 | 1 | 0.1667 | 0.1667 | 0.1667 | 0 |
-| qst_0450 | completeness | ava.chen | 8 | 8 | 0 | 0 | 0 | 1 | 0.125 | 0.5 | 0.125 | 0 |
+| qst_0449 | completeness | ava.chen | 6 | 6 | 1 | 0.1667 | 1 | 1 | 0.1667 | 0 | 0 | 0 |
+| qst_0450 | completeness | ava.chen | 8 | 8 | 0 | 0 | 0 | 1 | 0.125 | 0.5 | 0.625 | 0 |
 | qst_0451 | miscellaneous | ava.chen | 1 | 1 | 0 | 0 | 6 | 0 | 0 | 1 | 0 | 0 |
 | qst_0452 | miscellaneous | ava.chen | 1 | 1 | 1 | 1 | 2 | 1 | 1 | 1 | 1 | 0 |
 | qst_0453 | miscellaneous | ava.chen | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 0 |

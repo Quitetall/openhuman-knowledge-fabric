@@ -31,14 +31,10 @@
 import { randomUUID } from 'node:crypto';
 import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
-import {
-  AGENT_ACT_NAMES,
-  AGENT_ACTS,
-  agentAct,
-  draftAgentAct,
-  recordVerification,
-  type AgentAct,
-} from '@kf/domain';
+import { AGENT_ACT_NAMES, AGENT_ACTS, agentAct, draftAgentAct, type AgentAct } from '@kf/domain';
+// The submit subpath only: the MCP server shares the in-app agent's landing of a draft, and never
+// loads its model backends.
+import { submitDraft } from '@kf/agent/submit';
 import type { ApiAnswer, FabricApi } from './api.js';
 
 export const SERVER_NAME = 'knowledge-fabric';
@@ -386,87 +382,54 @@ export function createKfMcpServer(api: FabricApi, log: Log = stderrLog): McpServ
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
     },
     async ({ act, targetIds, fields, reason, idempotencyKey }) => {
-      const entry = agentAct(act)!;
-      const draft = draftAgentAct(entry, {
+      // One landing for both agent surfaces (@kf/agent submitDraft): the draft is rebuilt from
+      // the fields, a submit act is performed and read back for its verification, and an
+      // institutional act is only proposed. What follows is this surface's wording.
+      const outcome = await submitDraft(api, {
+        act,
         ...(targetIds === undefined ? {} : { targetIds }),
         ...(fields === undefined ? {} : { fields }),
         ...(reason === undefined ? {} : { reason }),
+        idempotencyKey: idempotencyKey ?? `mcp-${randomUUID()}`,
+        proposer: 'an agent',
       });
-      if (!draft.ready) {
-        log({ tool: 'submit_act', outcome: 'refused', code: 'draft_incomplete' });
-        return refused({ error: 'draft_incomplete', problems: draft.problems, draft });
-      }
-      const key = idempotencyKey ?? `mcp-${randomUUID()}`;
-      if (entry.disposition === 'propose') {
-        const response = await api.call('POST', '/actions/propose_act', {
-          body: {
-            targetIds: draft.targetIds.length > 0 ? draft.targetIds : [api.organizationId],
-            payload: {
-              action_type: entry.act,
-              target_ids: draft.targetIds,
-              payload: draft.payload,
-              ...(draft.reason === null ? {} : { reason: draft.reason }),
-            },
-            reason: `proposed by an agent for its person: ${entry.act}`,
-            idempotencyKey: key,
-          },
+      if (outcome.disposition === 'refused') {
+        if (outcome.code === 'draft_incomplete') {
+          log({ tool: 'submit_act', outcome: 'refused', code: 'draft_incomplete' });
+          return refused({
+            error: 'draft_incomplete',
+            problems: outcome.problems ?? [],
+            draft: outcome.draft,
+          });
+        }
+        log({
+          tool: 'submit_act',
+          outcome: outcome.status >= 500 ? 'error' : 'refused',
+          status: outcome.status,
+          code: outcome.code,
         });
-        if (response.status >= 300) return answer(log, 'submit_act', response);
-        log({ tool: 'submit_act', outcome: 'ok', status: response.status });
-        const receipt = (response.body as { receipt?: Record<string, unknown> }).receipt ?? {};
+        return refused({ status: outcome.status, refusal: outcome.body ?? null });
+      }
+      if (outcome.disposition === 'proposed') {
+        log({ tool: 'submit_act', outcome: 'ok', status: 200 });
         return ok({
           disposition: 'proposed',
-          act: entry.act,
-          proposalId: receipt['proposalId'] ?? null,
+          act: outcome.act,
+          proposalId: outcome.proposalId,
           performed: false,
           message:
-            `${entry.act} is institutional, so it was proposed, not performed. It waits in your ` +
+            `${outcome.act} is institutional, so it was proposed, not performed. It waits in your ` +
             'person’s Needs you; only they can perform it.',
         });
       }
-
-      const response =
-        entry.route === 'capture'
-          ? await api.call('POST', '/capture/observation', {
-              body: { ...draft.payload, gesture_id: key },
-            })
-          : await api.call('POST', `/actions/${entry.act}`, {
-              body: {
-                targetIds: draft.targetIds,
-                payload: draft.payload,
-                ...(draft.reason === null ? {} : { reason: draft.reason }),
-                idempotencyKey: key,
-              },
-            });
-      if (response.status >= 300) return answer(log, 'submit_act', response);
-      const body = response.body as Record<string, unknown>;
-      const recordIds: string[] =
-        typeof body['observationId'] === 'string'
-          ? [body['observationId']]
-          : Array.isArray(body['objectIds'])
-            ? (body['objectIds'] as string[])
-            : [];
-      // The verification as the person's own read reports it, so a record a policy verified on
-      // arrival is not described as unverified, and an unverified one never as checked.
-      const verifications: Record<string, unknown> = {};
-      for (const id of recordIds) {
-        const read = await api.call('GET', `/objects/${encodeURIComponent(id)}/verification`);
-        const found = read.body as { verification?: unknown } | null;
-        // A record the person's grants do not reach is written and still theirs, but no
-        // verification of it is visible to them: said in those words, never "nobody checked".
-        verifications[id] =
-          read.status === 200 && found?.verification !== undefined
-            ? found.verification
-            : recordVerification(undefined, { visible: false });
-      }
-      log({ tool: 'submit_act', outcome: 'ok', status: response.status });
+      log({ tool: 'submit_act', outcome: 'ok', status: 200 });
       return ok({
         disposition: 'submitted',
-        act: entry.act,
-        actionId: body['actionId'] ?? null,
-        replayed: body['replayed'] ?? false,
-        recordIds,
-        verification: verifications,
+        act: outcome.act,
+        actionId: outcome.actionId,
+        replayed: outcome.replayed,
+        recordIds: outcome.recordIds,
+        verification: outcome.verification,
         message:
           'Recorded as your person’s act with this agent’s participation. It is UNVERIFIED until ' +
           'someone with authority verifies it, unless the verification above names a policy.',
