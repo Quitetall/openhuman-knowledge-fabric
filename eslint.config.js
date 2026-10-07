@@ -8,6 +8,8 @@ export default tseslint.config(
       '**/node_modules/**',
       '**/dist/**',
       '**/.next/**',
+      // The browser tests' own production builds, present only while one runs.
+      '**/.next-e2e-*/**',
       '**/coverage/**',
       // generated/ is compiler output. Reviewing it is the ontology compiler's job,
       // not the linter's — and drift is caught by the generated-vs-committed CI check.

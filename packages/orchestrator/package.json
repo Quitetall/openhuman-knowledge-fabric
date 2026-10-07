@@ -26,6 +26,7 @@
     "@kf/warrants": "workspace:*",
     "@kf/integration": "workspace:*",
     "@kf/product-quality": "workspace:*",
+    "@kf/qualification": "workspace:*",
     "@kf/work-control": "workspace:*"
   },
   "devDependencies": {

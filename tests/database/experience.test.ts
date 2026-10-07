@@ -275,7 +275,9 @@ describe('the living organization overview', () => {
     expect(overview.status).toBe(404);
     expect(overview.body).toEqual({ error: 'not_found' });
     const dashboard = await get(nobody, '/dashboard');
-    const panel = (dashboard.body['panels'] as { id: string; empty?: boolean }[])[0]!;
+    const panel = (dashboard.body['panels'] as { id: string; empty?: boolean }[]).find(
+      (p) => p.id === 'overview',
+    )!;
     expect(panel).toEqual({ id: 'overview', empty: true });
     expect(JSON.stringify(dashboard.body)).not.toContain(overviewId);
   });

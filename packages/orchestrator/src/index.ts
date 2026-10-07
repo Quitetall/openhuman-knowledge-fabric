@@ -41,6 +41,13 @@ import {
   type DocumentActionAtoms,
 } from '@kf/documents';
 import { IDENTIFIER_ACTION_IDS, IDENTIFIER_EFFECTS, IDENTIFIER_RECEIPTS } from '@kf/identifiers';
+import {
+  QUALIFICATION_ACTION_IDS,
+  QUALIFICATION_EFFECTS,
+  QUALIFICATION_MATERIALIZERS,
+  QUALIFICATION_PRECONDITIONS,
+  QUALIFICATION_RECEIPTS,
+} from '@kf/qualification';
 import { WARRANT_ACTION_IDS, WARRANT_EFFECTS, WARRANT_MATERIALIZERS } from '@kf/warrants';
 import {
   createMlActionAtoms,
@@ -181,6 +188,17 @@ const BUILT_IN_ATOMS: readonly ActionAtoms[] = [
     effects: AGENT_AT_HOME_EFFECTS,
     preconditions: AGENT_AT_HOME_PRECONDITIONS,
     receipts: AGENT_AT_HOME_RECEIPTS,
+  },
+  {
+    // Qualification is evidence against a versioned pack (ADR 0038, 20261007400000): packs,
+    // records, credits. Built in: joining (ADR 0040 decision 12) needs no store or configuration,
+    // and an act that declares requires_qualification is checked whether or not any pack exists.
+    name: 'qualification',
+    ownedActions: QUALIFICATION_ACTION_IDS,
+    materializers: QUALIFICATION_MATERIALIZERS,
+    effects: QUALIFICATION_EFFECTS,
+    preconditions: QUALIFICATION_PRECONDITIONS,
+    receipts: QUALIFICATION_RECEIPTS,
   },
   {
     // R6 allocation (ADR 0018). The receipt reader is what puts the allocated identifier in

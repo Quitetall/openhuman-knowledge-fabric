@@ -11,6 +11,7 @@
  *   revoke-identity         withdraw a provider account's link to a person (bootstrap tier)
  *   declare-agent           which OAuth clients may act for a person, ADR 0035 (bootstrap tier)
  *   define-role             a role name in the vocabulary, ADR 0040 (bootstrap tier)
+ *   invite                  a person, their account, authority, qualification and link (ADR 0040)
  *
  * The bootstrap-tier commands need DATABASE_OWNER_URL_FILE and are refused without it; the others
  * never see an owner credential.
@@ -23,6 +24,7 @@ import {
   runBootstrapCommand,
   runDeclareAgentCommand,
   runDefineRoleCommand,
+  runInviteCommand,
   runGrantAuthorityCommand,
   runRetireOrganizationCommand,
   runRevokeIdentityCommand,
@@ -42,7 +44,7 @@ function allUsage(): string {
     'kf <command> [options]',
     '',
     '  ingest | note | master-record | overview | bootstrap-organization | grant-authority |',
-    '  retire-organization | revoke-identity | declare-agent | define-role',
+    '  retire-organization | revoke-identity | declare-agent | define-role | invite',
     '',
     ingestUsage(),
     '',
@@ -106,6 +108,9 @@ switch (command) {
     break;
   case 'define-role':
     process.exitCode = await runDefineRoleCommand(rest);
+    break;
+  case 'invite':
+    process.exitCode = await runInviteCommand(rest);
     break;
   case 'help':
   case '--help':

@@ -40,6 +40,17 @@ export const IMPORT_ORDER = [
   // After the roles they name and the acts that defined them (ADR 0040).
   'role-preset-grants',
   'role-inclusions',
+  // Qualification (ADR 0038): a pack before its revisions, a revision before the requirement
+  // revisions it introduced and its composition, a record after its pack revision, a submission
+  // before the credit that answers it, and an invitation after the record it prepared.
+  'qualification-packs',
+  'qualification-pack-revisions',
+  'qualification-requirement-revisions',
+  'qualification-pack-requirements',
+  'qualification-records',
+  'qualification-evidence-submissions',
+  'qualification-credits',
+  'invitations',
   'artifacts',
   'artifact-versions',
   'artifact-stores',

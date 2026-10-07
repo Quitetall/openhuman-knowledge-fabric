@@ -43,6 +43,8 @@ import {
   planGrantAuthority,
   runGrantAuthority,
 } from './grant-authority.js';
+import { inviteUsage, parseInviteArgs, planInvite, runInvite } from './invite.js';
+import type { KeycloakAdmin } from './keycloak-invite.js';
 import {
   parseRevokeIdentityArgs,
   planRevokeIdentity,
@@ -419,6 +421,85 @@ export async function runDefineRoleCommand(
         ? `role ${result.id} defined; it grants nothing until an organization gives it a preset\n`
         : `role ${result.id} already defined; nothing to change\n`,
     );
+    return 0;
+  } catch (error: unknown) {
+    err.write(`${message(error)}\n`);
+    return 1;
+  } finally {
+    await owner.end();
+  }
+}
+
+/**
+ * `kf invite` (ADR 0040 decision 12): the person, their account, their authority, their
+ * qualification record and an invitation link, all the owner's acts (KF-SAS-RQ-236). With
+ * `--keycloak` the account is created at the identity provider with the admin credential from
+ * `KEYCLOAK_ADMIN_PASSWORD_FILE` (inline only in development and test), `KEYCLOAK_ADMIN_USERNAME`,
+ * `KEYCLOAK_BASE_URL` and `KEYCLOAK_REALM`.
+ */
+export async function runInviteCommand(
+  argv: readonly string[],
+  env: NodeJS.ProcessEnv = process.env,
+  out: Out = process.stdout,
+  err: Out = process.stderr,
+): Promise<number> {
+  const url = ownerUrl(env, err);
+  if (url === undefined) return 1;
+  let request;
+  try {
+    request = parseInviteArgs(argv);
+  } catch (error: unknown) {
+    err.write(`${message(error)}\n\n${inviteUsage()}\n`);
+    return 2;
+  }
+  const planned = planInvite(request);
+  if (!planned.ok) {
+    err.write('refusing to invite:\n');
+    for (const refusal of planned.refusals) err.write(`  - ${refusal}\n`);
+    err.write(`\n${inviteUsage()}\n`);
+    return 2;
+  }
+  let keycloak: KeycloakAdmin | undefined;
+  if (planned.plan.keycloak) {
+    try {
+      keycloak = {
+        baseUrl: env['KEYCLOAK_BASE_URL'] ?? '',
+        realm: env['KEYCLOAK_REALM'] ?? 'knowledge-fabric',
+        username: env['KEYCLOAK_ADMIN_USERNAME'] ?? '',
+        password: loadSecret('KEYCLOAK_ADMIN_PASSWORD', env, {
+          allowInline: env['NODE_ENV'] === 'development' || env['NODE_ENV'] === 'test',
+        }),
+      };
+      if (keycloak.baseUrl === '' || keycloak.username === '') {
+        throw new Error(
+          'KEYCLOAK_BASE_URL and KEYCLOAK_ADMIN_USERNAME are required with --keycloak',
+        );
+      }
+    } catch (error: unknown) {
+      err.write(`${message(error)}\n`);
+      return 1;
+    }
+  }
+  const owner = createPool({ connectionString: url, maxConnections: 2 });
+  try {
+    const result = await runInvite(owner, planned.plan, keycloak);
+    out.write('invited, and recorded:\n');
+    out.write(`  person        ${result.personId}\n`);
+    out.write(`  account       ${result.subject}\n`);
+    out.write(`  assignment    ${result.roleAssignmentId}  ${planned.plan.roleId}\n`);
+    if (result.recordId !== undefined) out.write(`  qualification ${result.recordId}\n`);
+    out.write(
+      `  invitation    ${result.invitationId}  (expires ${result.expiresAt.toISOString()})\n`,
+    );
+    if (result.keycloak !== undefined) {
+      out.write(
+        result.keycloak.actionsEmailSent
+          ? '  email         sent by the identity provider (set a password, verify the address)\n'
+          : '  email         NOT sent: the identity provider has no mail server; send the link\n',
+      );
+    }
+    // The link, once. The database holds only its digest; it carries no authority by itself.
+    out.write(`\nThe link, for ${planned.plan.email} only:\n  ${result.link}\n`);
     return 0;
   } catch (error: unknown) {
     err.write(`${message(error)}\n`);

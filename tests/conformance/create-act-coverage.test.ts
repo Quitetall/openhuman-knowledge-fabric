@@ -62,6 +62,9 @@ const CREATED_BY: Readonly<Record<string, readonly string[]>> = {
   observation: ['record_observation'],
   // ADR 0040: the living organization overview, declared by an institutional act.
   organization_overview: ['declare_organization_overview'],
+  // ADR 0038: a pack is drafted (and approved by another act); a record is assigned.
+  qualification_pack: ['draft_qualification_pack'],
+  qualification_record: ['assign_qualification'],
   // KF-SAS-RQ-142, draft.8: the work-control records that had none.
   engagement: ['record_engagement'],
   milestone: ['plan_milestone'],

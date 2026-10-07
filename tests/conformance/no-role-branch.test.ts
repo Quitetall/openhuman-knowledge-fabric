@@ -30,6 +30,16 @@ const SURFACES = [
   'apps/web/src/app/dashboard',
   'apps/web/src/app/master-document',
   'apps/web/src/app/components',
+  // Qualification (ADR 0038 decision 1, KF-SAS-RQ-254; KF-WAR-0007 OBL-001): the evaluator, the
+  // pack validator, Start Here, the guide, the routes and the pages. One protocol; a role differs
+  // only in its pack, which is data.
+  'packages/qualification/src',
+  'apps/api/src/routes/qualification.ts',
+  'apps/api/src/admin/invite.ts',
+  'apps/web/src/app/start-here',
+  'apps/web/src/app/join',
+  'apps/web/src/app/qualification',
+  'apps/web/src/lib/api/qualification.ts',
 ];
 
 function files(path: string): string[] {
@@ -74,7 +84,7 @@ describe('no surface of the experience branches on a role or a title (KF-SAS-RQ-
   const roles = roleIds();
 
   it('reads the surfaces it guards, and knows the vocabulary', () => {
-    expect(sources.length).toBeGreaterThanOrEqual(5);
+    expect(sources.length).toBeGreaterThanOrEqual(15);
     expect(roles).toEqual(expect.arrayContaining(['technical_authority', 'chief_executive']));
   });
 

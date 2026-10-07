@@ -15,7 +15,8 @@ import { NeedsYouPanel } from '../needs-you/needs-you-panel';
  */
 export async function NeedsYouSlot(): Promise<React.ReactNode> {
   const data = await getNeedsYou(await webCaller('/'));
-  const waiting = data.toVerify.total + data.awaitingOthers.total + data.proposals.total;
+  const waiting =
+    data.toVerify.total + data.awaitingOthers.total + data.proposals.total + data.toCredit.total;
   if (waiting === 0) return null;
   return (
     <section className="kf-panel" aria-labelledby="p-needs_you">

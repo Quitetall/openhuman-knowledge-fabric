@@ -318,6 +318,67 @@ export const CORE_SECTIONS = [
             from org.role_inclusion order by id`,
   },
   {
+    // Qualification (ADR 0038, 20261007400000): packs, their revisions and the requirement
+    // revisions they introduced, each revision's composition, the records, what people submitted
+    // and what was credited. Every row of each: a record is pinned to its pack revision and every
+    // credit to its requirement revision, and currency is recomputed from them after a restore.
+    name: 'qualification-packs',
+    sql: `select id, organization_id, pack_key from org.qualification_pack order by id`,
+  },
+  {
+    name: 'qualification-pack-revisions',
+    sql: `select pack_id, revision, organization_id, title, document, document_digest, owner_role,
+                 closing, acceptor_role, drafted_by, drafted_by_action, drafted_at, approved_by,
+                 approved_by_action, approved_at
+            from org.qualification_pack_revision order by pack_id, revision`,
+  },
+  {
+    name: 'qualification-requirement-revisions',
+    sql: `select organization_id, requirement_key, revision, definition, definition_digest, stage,
+                 outcome, evidence_mode, accepted_by, mandatory, consequence, behavioural_impact,
+                 scope_object_id, gates, introduced_by_pack, introduced_in_revision
+            from org.qualification_requirement_revision
+           order by organization_id, requirement_key, revision`,
+  },
+  {
+    name: 'qualification-pack-requirements',
+    sql: `select pack_id, pack_revision, organization_id, requirement_key, requirement_revision,
+                 part, via_pack, via_revision
+            from org.qualification_pack_requirement
+           order by pack_id, pack_revision, requirement_key`,
+  },
+  {
+    name: 'qualification-records',
+    sql: `select id, organization_id, person_id, scope_object_id, pack_id, pack_revision,
+                 contact_person_id, assigned_by, assigned_by_action, assigned_at
+            from org.qualification_record order by id`,
+  },
+  {
+    name: 'qualification-evidence-submissions',
+    sql: `select id, organization_id, record_id, person_id, contact_person_id, pack_id,
+                 pack_revision, requirement_key, evidence_object_id, note, agent_client_id,
+                 submitted_by_action, submitted_at
+            from org.qualification_evidence_submission order by id`,
+  },
+  {
+    // Ordered by id (uuidv7, time-ordered) so a credit is restored after the prior credit it
+    // names as equivalent evidence.
+    name: 'qualification-credits',
+    sql: `select id, organization_id, record_id, person_id, contact_person_id, pack_id,
+                 pack_revision, requirement_key, requirement_revision, evidence_mode,
+                 evidence_object_id, prior_credit_id, submission_id, credited_by,
+                 credited_by_action, credited_at
+            from org.qualification_credit order by id`,
+  },
+  {
+    // The owner's invitations (KF-SAS-RQ-236): the token's digest, never the token.
+    name: 'invitations',
+    sql: `select id, organization_id, person_id, token_digest, role_assignment_id,
+                 qualification_record_id, contact_person_id, invited_by, invited_by_action,
+                 invited_at, expires_at
+            from org.invitation order by id`,
+  },
+  {
     name: 'recovery-objectives',
     sql: `select id, rpo_seconds, restore_drill_days, requires_pitr, declared_by,
                  declared_at, rationale, rto_seconds

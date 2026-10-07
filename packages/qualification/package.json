@@ -1,0 +1,28 @@
+{
+  "name": "@kf/qualification",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Qualification is evidence against a versioned pack (ADR 0038): packs, records, the evaluator, Start Here and the agent-guide context",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@kf/actions": "workspace:*",
+    "@kf/canonicalization": "workspace:*",
+    "@kf/database": "workspace:*",
+    "@kf/record-atoms": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3"
+  }
+}

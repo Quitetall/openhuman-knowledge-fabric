@@ -194,3 +194,13 @@ that CI fail when generated output differs. The digest answers the same question
 it identifies exactly which ontology produced these bytes, and two artifacts with the same
 digest are the same artifact regardless of when they were written. A test asserts no
 artifact embeds anything that looks like a timestamp.
+
+## Acts that need a qualification
+
+An action type may declare `requires_qualification: true` (ADR 0038 decision 8; KF-SAS-RQ-258).
+The compiler seeds it as `registry.action_type.requires_qualification`, and the database then
+checks the act at the moment it is recorded, after act-grant coverage: every in-force requirement
+of an approved qualification pack that names the act in its `gates`, organization-wide or scoped to
+one of the act's targets, needs a current credit of the actor, or the act is refused naming it
+(`KF-QUAL-001`). An act that declares nothing is never checked, and a pack that names such an act is
+refused. Qualification never grants: the declaration adds a refusal, never a path.

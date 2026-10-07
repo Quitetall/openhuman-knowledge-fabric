@@ -203,6 +203,14 @@ export interface ActionType {
    * (or the organization). Absent means the action is role-only.
    */
   readonly requires?: 'act';
+  /**
+   * ADR 0038 decision 8 (KF-SAS-RQ-258): the act may be gated by a qualification requirement.
+   * A requirement of an approved pack names it in `gates`, and the database checks the actor's
+   * current credit for every such requirement at the moment of the act, beside act-grant
+   * coverage. Absent (false) means the act is never checked for qualification, and a pack that
+   * names it in `gates` is refused. Qualification never grants: this adds a check, not a path.
+   */
+  readonly requiresQualification?: true;
 }
 
 export interface Transition {
@@ -501,6 +509,18 @@ export function loadOntology(dir: string): Ontology {
                 throw new Error(`action_types[${i}].requires must be 'act' when present`);
               }
               return 'act' as const;
+            })(),
+          }),
+      ...(r['requires_qualification'] === undefined
+        ? {}
+        : {
+            requiresQualification: (() => {
+              if (r['requires_qualification'] !== true) {
+                throw new Error(
+                  `action_types[${i}].requires_qualification must be true when present`,
+                );
+              }
+              return true as const;
             })(),
           }),
     };

@@ -2,7 +2,7 @@
   "schema_version": "1.2.0-draft.1",
   "x-generated-from": {
     "ontology_version": "1.2.0-draft.1",
-    "source_digest": "81d24eb15220c34620e7ac44cb6783a7c8332f337efeedf2eedfe8fbc82eb611"
+    "source_digest": "9873ad7eb80c4f6e03b8f4dcbd4718a2264b98cb1c8992fc49fec7d351b32ebc"
   },
   "machines": {
     "initiative_project": {
@@ -1003,6 +1003,63 @@
           "active",
           "retired",
           "retire_organization_overview"
+        ]
+      ]
+    },
+    "qualification_pack": {
+      "initial": "draft",
+      "terminal": [
+        "retired"
+      ],
+      "transitions": [
+        [
+          "draft",
+          "approved",
+          "approve_qualification_pack"
+        ],
+        [
+          "draft",
+          "retired",
+          "retire_qualification_pack"
+        ],
+        [
+          "approved",
+          "retired",
+          "retire_qualification_pack"
+        ]
+      ]
+    },
+    "qualification_record": {
+      "initial": "assigned",
+      "terminal": [
+        "withdrawn",
+        "superseded"
+      ],
+      "transitions": [
+        [
+          "assigned",
+          "qualified",
+          "accept_qualification"
+        ],
+        [
+          "assigned",
+          "withdrawn",
+          "withdraw_qualification"
+        ],
+        [
+          "qualified",
+          "withdrawn",
+          "withdraw_qualification"
+        ],
+        [
+          "assigned",
+          "superseded",
+          "supersede_qualification"
+        ],
+        [
+          "qualified",
+          "superseded",
+          "supersede_qualification"
         ]
       ]
     }

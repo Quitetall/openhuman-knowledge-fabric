@@ -51,9 +51,12 @@ export async function loadDefinition(tx: Tx, actionType: string): Promise<Action
     id: string;
     transactional: boolean;
     requires_capability: 'act' | null;
-  }>('select id, transactional, requires_capability from registry.action_type where id = $1', [
-    actionType,
-  ]);
+    requires_qualification?: boolean;
+  }>(
+    `select id, transactional, requires_capability, requires_qualification
+       from registry.action_type where id = $1`,
+    [actionType],
+  );
   if (row === undefined) {
     throw new ActionRejected('unknown_action', `no such action type '${actionType}'`, {
       actionType,
@@ -69,6 +72,7 @@ export async function loadDefinition(tx: Tx, actionType: string): Promise<Action
     id: row.id,
     transactional: row.transactional,
     requiresCapability: row.requires_capability,
+    requiresQualification: row.requires_qualification === true,
     transitions: transitions.map((transition) => ({
       machine: transition.machine,
       from: transition.from_state,
@@ -128,6 +132,53 @@ export async function assertActCovered(
       { actionType: request.actionType, targetIds: [...targetIds] },
     );
   }
+}
+
+/**
+ * ADR 0038 decision 8 (KF-SAS-RQ-258): an act that declares `requires_qualification` needs the
+ * actor's current credit for every in-force requirement that gates it, organization-wide or scoped
+ * to one of its targets. Asked of the same database function the `core.action` trigger asks
+ * (`org.qualification_gaps_for_act`), after act-grant coverage, so an absent grant is refused as
+ * `act_not_granted` before qualification is considered: qualification never stands in for
+ * authority. The refusal names the requirement; the database's own refusal says the same if a
+ * caller did not come through here.
+ */
+export async function assertQualified(
+  tx: Tx,
+  request: ActionRequest,
+  definition: ActionDefinition,
+  targetIds: readonly string[],
+): Promise<void> {
+  if (definition.requiresQualification !== true) return;
+  const gaps = await tx.query<{
+    requirement_key: string;
+    revision: number;
+    outcome: string;
+    credited_revision: number | null;
+  }>(
+    `select requirement_key, revision, outcome, credited_revision
+       from org.qualification_gaps_for_act($1, $2, $3, $4::uuid[])
+      order by requirement_key`,
+    [request.actorId, request.organizationId, request.actionType, [...targetIds]],
+  );
+  const gap = gaps[0];
+  if (gap === undefined) return;
+  throw new ActionRejected(
+    'precondition_failed',
+    `KF-QUAL-001: ${request.actionType} requires qualification "${gap.requirement_key}" ` +
+      `(revision ${String(gap.revision)}): ${gap.outcome}. ` +
+      (gap.credited_revision === null
+        ? 'No evidence for it has been credited to this person'
+        : `The credit at revision ${String(gap.credited_revision)} predates a revision that ` +
+          'changed required behaviour'),
+    {
+      rule: 'KF-QUAL-001',
+      actionType: request.actionType,
+      requirement: gap.requirement_key,
+      revision: gap.revision,
+      missing: gaps.map((g) => g.requirement_key),
+    },
+  );
 }
 
 export function assertReasonPresent(request: ActionRequest, reasonRequired: ReadonlySet<string>) {
@@ -221,6 +272,10 @@ export function createTransactionalPreflight(
     await bindResolvedAccessContext(tx, request);
     assertReasonPresent(request, resolved.reasonRequired);
     await assertActCovered(tx, request, definition, [
+      ...request.targetIds,
+      ...prospectiveObjects.map((object) => object.id),
+    ]);
+    await assertQualified(tx, request, definition, [
       ...request.targetIds,
       ...prospectiveObjects.map((object) => object.id),
     ]);

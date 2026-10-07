@@ -17,6 +17,7 @@
     { "path": "../warrants" },
     { "path": "../integration" },
     { "path": "../product-quality" },
+    { "path": "../qualification" },
     { "path": "../work-control" }
   ]
 }

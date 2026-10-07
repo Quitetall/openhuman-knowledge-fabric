@@ -5,7 +5,7 @@
   "description": "Normative machine-readable graph envelope for the organizational graph and work-control specification.",
   "x-generated-from": {
     "ontology_version": "1.2.0-draft.1",
-    "source_digest": "81d24eb15220c34620e7ac44cb6783a7c8332f337efeedf2eedfe8fbc82eb611"
+    "source_digest": "9873ad7eb80c4f6e03b8f4dcbd4718a2264b98cb1c8992fc49fec7d351b32ebc"
   },
   "type": "object",
   "properties": {
@@ -151,6 +151,12 @@
           },
           {
             "$ref": "#/$defs/OrganizationOverviewNode"
+          },
+          {
+            "$ref": "#/$defs/QualificationPackNode"
+          },
+          {
+            "$ref": "#/$defs/QualificationRecordNode"
           }
         ]
       }
@@ -501,6 +507,7 @@
             "reactivate_person",
             "bootstrap_organization",
             "grant_person_clearance",
+            "invite_person",
             "revoke_external_identity",
             "grant_access",
             "revoke_access",
@@ -610,7 +617,17 @@
             "include_role",
             "exclude_role",
             "declare_organization_overview",
-            "retire_organization_overview"
+            "retire_organization_overview",
+            "draft_qualification_pack",
+            "approve_qualification_pack",
+            "supersede_qualification_pack",
+            "retire_qualification_pack",
+            "assign_qualification",
+            "submit_qualification_evidence",
+            "credit_qualification_evidence",
+            "accept_qualification",
+            "withdraw_qualification",
+            "supersede_qualification"
           ]
         },
         "actor": {
@@ -7956,6 +7973,310 @@
           "type": "object",
           "properties": {},
           "required": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "node_id",
+        "node_type",
+        "title",
+        "state",
+        "classification",
+        "owner",
+        "created_at",
+        "created_by",
+        "updated_at",
+        "updated_by",
+        "source_authority",
+        "attributes"
+      ],
+      "additionalProperties": false
+    },
+    "QualificationPackNode": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "const": "1.2.0-draft.1"
+        },
+        "node_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "node_type": {
+          "const": "qualification_pack"
+        },
+        "enterprise_id": {
+          "type": "string",
+          "anyOf": [
+            {
+              "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+            },
+            {
+              "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+            }
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "approved",
+            "retired"
+          ]
+        },
+        "classification": {
+          "type": "string",
+          "enum": [
+            "public",
+            "internal",
+            "confidential",
+            "restricted"
+          ]
+        },
+        "owner": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "created_by": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_by": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "source_authority": {
+          "type": "string",
+          "enum": [
+            "knowledge_fabric",
+            "plm",
+            "qms",
+            "finance",
+            "hr",
+            "git",
+            "external"
+          ]
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "uniqueItems": true,
+          "default": []
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+          },
+          "uniqueItems": true,
+          "default": []
+        },
+        "external_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ExternalReference"
+          },
+          "default": []
+        },
+        "extensions": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+          },
+          "additionalProperties": true,
+          "default": {}
+        },
+        "attributes": {
+          "type": "object",
+          "properties": {
+            "pack_key": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            }
+          },
+          "required": [
+            "pack_key"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "node_id",
+        "node_type",
+        "title",
+        "state",
+        "classification",
+        "owner",
+        "created_at",
+        "created_by",
+        "updated_at",
+        "updated_by",
+        "source_authority",
+        "attributes"
+      ],
+      "additionalProperties": false
+    },
+    "QualificationRecordNode": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "const": "1.2.0-draft.1"
+        },
+        "node_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "node_type": {
+          "const": "qualification_record"
+        },
+        "enterprise_id": {
+          "type": "string",
+          "anyOf": [
+            {
+              "pattern": "^OH-(?:[A-Z]{2,5})-[0-9]{6}-[0-9]$"
+            },
+            {
+              "pattern": "^OH-RCD-[0-9]{4}-[0-9]{6}-[0-9]$"
+            }
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "assigned",
+            "qualified",
+            "withdrawn",
+            "superseded"
+          ]
+        },
+        "classification": {
+          "type": "string",
+          "enum": [
+            "public",
+            "internal",
+            "confidential",
+            "restricted"
+          ]
+        },
+        "owner": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "created_by": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_by": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "source_authority": {
+          "type": "string",
+          "enum": [
+            "knowledge_fabric",
+            "plm",
+            "qms",
+            "finance",
+            "hr",
+            "git",
+            "external"
+          ]
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "uniqueItems": true,
+          "default": []
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+          },
+          "uniqueItems": true,
+          "default": []
+        },
+        "external_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ExternalReference"
+          },
+          "default": []
+        },
+        "extensions": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-z0-9][a-z0-9_.-]*:[A-Za-z0-9_.-]+$"
+          },
+          "additionalProperties": true,
+          "default": {}
+        },
+        "attributes": {
+          "type": "object",
+          "properties": {
+            "person_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "pack_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "pack_revision": {
+              "type": "integer"
+            },
+            "contact_person_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          },
+          "required": [
+            "person_id",
+            "pack_id",
+            "pack_revision",
+            "contact_person_id"
+          ],
           "additionalProperties": false
         }
       },

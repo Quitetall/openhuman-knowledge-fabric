@@ -14,8 +14,11 @@ import {
   type ClaimHeader,
   type HeldAssignment,
   type OverviewReading,
+  type OwnQualification,
   type RecordLine,
+  type ReviewingQualification,
 } from '../../../lib/api/experience';
+import type { StartHere } from '../../../lib/api/qualification';
 import { NeedsYouSlot } from '../needs-you-slot';
 import { VerificationChip, WithheldChip } from '../state-chip';
 
@@ -216,7 +219,123 @@ export function ListPanel({
   );
 }
 
-export function PeoplePanel({ assignments }: { readonly assignments: readonly HeldAssignment[] }) {
+/**
+ * Start Here, first while the reader's qualification is open (ADR 0040 decision 2). A summary:
+ * each record's five stages as progress, and the way in. The page itself is `/start-here`.
+ */
+export function StartHerePanel({ pages }: { readonly pages: readonly StartHere[] }) {
+  return (
+    <section
+      className="kf-panel kf-panel-reading"
+      data-panel="start_here"
+      aria-labelledby="p-start_here"
+    >
+      <header className="kf-panel-header">
+        <h2 id="p-start_here" className="kf-panel-title">
+          Start Here
+        </h2>
+        <p className="kf-panel-note">
+          What you have joined, your place in it, where truth lives, how work moves, and one first
+          piece of real work.
+        </p>
+      </header>
+      {pages.map((page) => (
+        <div key={page.recordId} className="kf-sh-summary" data-record={page.recordId}>
+          <p className="kf-record-title">{page.pack.title}</p>
+          <ol className="kf-sh-progress">
+            {page.stages.map((stage) => (
+              <li key={stage.id} data-stage={stage.id} data-complete={stage.done === stage.total}>
+                <span aria-hidden="true">{stage.done === stage.total ? '✓' : '○'}</span>{' '}
+                {stage.title}{' '}
+                <span className="kf-muted">{`${String(stage.done)}/${String(stage.total)}`}</span>
+              </li>
+            ))}
+          </ol>
+          {page.blocked.length === 0 ? null : (
+            <p className="kf-panel-note">
+              {page.blocked.length === 1
+                ? 'One item is blocked on the organization, not on you.'
+                : `${String(page.blocked.length)} items are blocked on the organization, not on you.`}
+            </p>
+          )}
+        </div>
+      ))}
+      <p>
+        <Link href="/start-here" className="kf-button kf-button-primary">
+          Open Start Here
+        </Link>
+      </p>
+    </section>
+  );
+}
+
+function QualificationLists({
+  own,
+  reviewing,
+}: {
+  readonly own: readonly OwnQualification[];
+  readonly reviewing: readonly ReviewingQualification[];
+}) {
+  if (own.length === 0 && reviewing.length === 0) return null;
+  return (
+    <div className="kf-sh-people" data-part="qualification">
+      {own.length === 0 ? null : (
+        <>
+          <h3 className="kf-sh-stage-title">Your qualification</h3>
+          <ul className="kf-records">
+            {own.map((q) => (
+              <li key={q.recordId} className="kf-record" data-qualification={q.recordId}>
+                <Link href="/start-here" className="kf-record-title">
+                  {q.packTitle}
+                </Link>
+                <span className="kf-record-meta">
+                  <span>
+                    {q.currency === 'qualified'
+                      ? 'qualified'
+                      : q.currency === 'qualified_with_gap'
+                        ? `qualified; changed since: ${q.gaps.join(', ')}`
+                        : `${String(q.missing)} to do`}
+                  </span>
+                  {q.blocked === 0 ? null : <span>{q.blocked} blocked on the organization</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {reviewing.length === 0 ? null : (
+        <>
+          <h3 className="kf-sh-stage-title">People you guide or review</h3>
+          <ul className="kf-records">
+            {reviewing.map((q) => (
+              <li key={q.id} className="kf-record" data-qualification={q.id}>
+                <Link href={`/qualification/${q.id}`} className="kf-record-title">
+                  {q.personName ?? 'A colleague'}
+                </Link>
+                <span className="kf-record-meta">
+                  <span>{q.packTitle}</span>
+                  <span>{q.state}</span>
+                  {q.contact ? <span>you are their contact</span> : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
+export function PeoplePanel({
+  assignments,
+  qualification = { own: [], reviewing: [] },
+}: {
+  readonly assignments: readonly HeldAssignment[];
+  readonly qualification?: {
+    readonly own: readonly OwnQualification[];
+    readonly reviewing: readonly ReviewingQualification[];
+  };
+}) {
   return (
     <section className="kf-panel" data-panel="people" aria-labelledby="p-people">
       <header className="kf-panel-header">
@@ -257,9 +376,7 @@ export function PeoplePanel({ assignments }: { readonly assignments: readonly He
           </li>
         ))}
       </ul>
-      <p className="kf-panel-note">
-        Qualification — what you have shown you can do, against a pack — arrives with milestone M5.
-      </p>
+      <QualificationLists own={qualification.own} reviewing={qualification.reviewing} />
     </section>
   );
 }

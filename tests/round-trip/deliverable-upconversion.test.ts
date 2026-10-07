@@ -54,7 +54,23 @@ const PRESET_SECTIONS = ['role-preset-grants', 'role-inclusions'];
 const POLICY_SECTIONS = ['verification-policies', 'act-proposals', 'act-proposal-resolutions'];
 // 20261007300000 (ADR 0040, M4): after the policy sections, a sibling of the presets.
 const HOME_SECTIONS = ['model-routing-policies', 'notification-preferences'];
-const AFTER_RETIRED = [...PRESET_SECTIONS, ...POLICY_SECTIONS, ...HOME_SECTIONS];
+/** ADR 0038's qualification (f5d7dbee): after the presets and the policy, a sibling of M4's. */
+const QUALIFICATION_SECTIONS = [
+  'qualification-packs',
+  'qualification-pack-revisions',
+  'qualification-requirement-revisions',
+  'qualification-pack-requirements',
+  'qualification-records',
+  'qualification-evidence-submissions',
+  'qualification-credits',
+  'invitations',
+];
+const AFTER_RETIRED = [
+  ...PRESET_SECTIONS,
+  ...POLICY_SECTIONS,
+  ...HOME_SECTIONS,
+  ...QUALIFICATION_SECTIONS,
+];
 
 /**
  * Sections whose rows 20260902000200 derived rather than created empty: the `working` store it
@@ -607,18 +623,31 @@ describe('an archive written before deliverables had their ontology fields', () 
       ),
     ).toEqual([]);
     expect(drop('access-demand', RETIRED_SECTION, ...AFTER_RETIRED)).toEqual([]);
-    // An archive between the retired attributes and both later arrivals is an era of its own, and
-    // so is one that carries either sibling without the other; one without the retired
-    // attributes but with either sibling is no exporter's.
+    // An archive between the retired attributes and the later arrivals is an era of its own, and
+    // so is one that carries either sibling without the other (and so without qualification,
+    // which descends from both); one without the retired attributes but with any of them is no
+    // exporter's.
     expect(drop(...AFTER_RETIRED)).toEqual([]);
-    expect(drop(...PRESET_SECTIONS)).toEqual([]);
-    expect(drop(...POLICY_SECTIONS, ...HOME_SECTIONS)).toEqual([]);
+    // Each branch's exporter: M3's (presets only), M2's (policy only), M4's (policy and home),
+    // M5's (presets, policy and qualification), and main before M5 (all but qualification).
+    expect(drop(...POLICY_SECTIONS, ...HOME_SECTIONS, ...QUALIFICATION_SECTIONS)).toEqual([]);
+    expect(drop(...PRESET_SECTIONS, ...HOME_SECTIONS, ...QUALIFICATION_SECTIONS)).toEqual([]);
+    expect(drop(...PRESET_SECTIONS, ...QUALIFICATION_SECTIONS)).toEqual([]);
     expect(drop(...HOME_SECTIONS)).toEqual([]);
-    expect(drop(...PRESET_SECTIONS, ...HOME_SECTIONS)).toEqual([]);
-    // Without the policy sections but with M4's, which arrived after them: no exporter's.
+    expect(drop(...QUALIFICATION_SECTIONS)).toEqual([]);
+    // Without the presets but with qualification, which arrived after them: no exporter's.
+    expect(drop(...PRESET_SECTIONS, ...HOME_SECTIONS)).toEqual([
+      expect.stringMatching(
+        /predates role-preset-grants, role-inclusions \(ee9e0696\) but carries qualification-packs/,
+      ),
+    ]);
+    // Without the policy sections but with M4's and qualification, both after them: no exporter's.
     expect(drop(...POLICY_SECTIONS)).toEqual([
       expect.stringMatching(
         /predates verification-policies, act-proposals, act-proposal-resolutions \(b535bb14\) but carries model-routing-policies, notification-preferences/,
+      ),
+      expect.stringMatching(
+        /predates verification-policies, act-proposals, act-proposal-resolutions \(b535bb14\) but carries qualification-packs/,
       ),
     ]);
     expect(drop(RETIRED_SECTION)).toEqual([
@@ -630,6 +659,9 @@ describe('an archive written before deliverables had their ontology fields', () 
       ),
       expect.stringMatching(
         /predates deliverable-retired-attributes \(b8886185\) but carries model-routing-policies, notification-preferences/,
+      ),
+      expect.stringMatching(
+        /predates deliverable-retired-attributes \(b8886185\) but carries qualification-packs/,
       ),
     ]);
     expect(drop('access-demand')).toEqual([
@@ -645,6 +677,7 @@ describe('an archive written before deliverables had their ontology fields', () 
       expect.stringMatching(
         /predates access-demand \(de59c226\) but carries model-routing-policies, notification-preferences/,
       ),
+      expect.stringMatching(/predates access-demand \(de59c226\) but carries qualification-packs/),
     ]);
   });
 

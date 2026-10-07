@@ -60,6 +60,12 @@ import type { ExportPackage } from './types.js';
  * - 1501e386 (2026-10-07, after b535bb14 and on a branch without ee9e0696) — `20261007300000`:
  *   `model-routing-policies`, `notification-preferences`. Created empty; only
  *   set_model_routing_policy and set_notification_preference write them.
+ * - f5d7dbee (2026-10-07, after ee9e0696 and b535bb14, on a branch without 1501e386) —
+ *   `20261007400000`: `qualification-packs`, `qualification-pack-revisions`,
+ *   `qualification-requirement-revisions`, `qualification-pack-requirements`,
+ *   `qualification-records`, `qualification-evidence-submissions`, `qualification-credits`,
+ *   `invitations` (ADR 0038). Created empty; only the qualification acts and the owner's
+ *   invitation write them.
  *
  * Absence does NOT mean none, and the importer restores what the migration derived:
  *
@@ -159,6 +165,20 @@ export const SECTION_ARRIVALS: readonly SectionArrival[] = [
     commit: '1501e386',
     after: ['b535bb14'],
     sections: ['model-routing-policies', 'notification-preferences'],
+  },
+  {
+    commit: 'f5d7dbee',
+    after: ['ee9e0696', 'b535bb14'],
+    sections: [
+      'qualification-packs',
+      'qualification-pack-revisions',
+      'qualification-requirement-revisions',
+      'qualification-pack-requirements',
+      'qualification-records',
+      'qualification-evidence-submissions',
+      'qualification-credits',
+      'invitations',
+    ],
   },
 ];
 

@@ -620,3 +620,144 @@ pre {
     animation: none !important;
   }
 }
+
+/* ── Start Here (ADR 0038, ADR 0040 decision 12) ─────────────────────────────────────────────
+   Five stages, the same for everyone. Status is carried by glyph, word and border style, never by
+   colour alone; everything wraps at phone width and nothing scrolls sideways. */
+
+.kf-sh {
+  max-width: var(--kf-measure);
+  margin-bottom: var(--kf-gap);
+}
+
+.kf-sh-header {
+  margin-bottom: calc(var(--kf-space) * 0.75);
+}
+
+.kf-sh-state {
+  margin: 0.4rem 0 0;
+  line-height: var(--kf-leading-prose);
+}
+
+.kf-sh-stage {
+  border-top: 1px solid var(--kf-rule);
+  padding-top: calc(var(--kf-space) * 0.6);
+  margin-top: calc(var(--kf-space) * 0.9);
+}
+
+.kf-sh-stage-title {
+  font-family: var(--kf-serif);
+  font-size: var(--kf-size-h3);
+  font-weight: 600;
+  margin: 0 0 calc(var(--kf-space) * 0.5);
+  overflow-wrap: anywhere;
+}
+
+.kf-sh-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: calc(var(--kf-space) * 0.75);
+}
+
+.kf-sh-item {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.kf-sh-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 0.75rem;
+  font-size: var(--kf-size-meta);
+  color: var(--kf-muted);
+}
+
+.kf-sh-outcome {
+  margin: 0.3rem 0 0;
+  line-height: var(--kf-leading-prose);
+}
+
+.kf-sh-consequence,
+.kf-sh-evidence {
+  margin: 0.3rem 0 0;
+  font-size: var(--kf-size-small);
+}
+
+.kf-sh-label {
+  font-weight: 600;
+}
+
+.kf-sh-resources,
+.kf-sh-blockers {
+  margin: 0.3rem 0 0;
+  padding-left: 1.1rem;
+  font-size: var(--kf-size-small);
+}
+
+.kf-sh-blockers {
+  border-left: 3px double var(--kf-ink);
+  list-style: none;
+  padding-left: 0.6rem;
+}
+
+.kf-sh-optional {
+  font-style: italic;
+}
+
+.kf-sh-submit {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  max-width: 32rem;
+}
+
+.kf-sh-submit label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: var(--kf-size-small);
+}
+
+.kf-sh-submit .kf-control {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Status by form: satisfied solid, open dashed, submitted double, a revised gap dotted with a
+   triangle, blocked on the organization a heavy left rule with a barred circle. */
+.kf-sh-satisfied {
+  border-style: solid;
+}
+.kf-sh-open {
+  border-style: dashed;
+}
+.kf-sh-submitted {
+  border-style: double;
+}
+.kf-sh-gap_revised {
+  border-style: dotted;
+}
+.kf-sh-blocked_on_organization {
+  border-style: solid;
+  border-left-width: 4px;
+}
+
+.kf-sh-summary {
+  margin-bottom: calc(var(--kf-space) * 0.75);
+}
+
+.kf-sh-progress {
+  list-style: none;
+  margin: 0.3rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  font-size: var(--kf-size-small);
+}
+
+.kf-sh-people {
+  margin-top: calc(var(--kf-space) * 0.75);
+}

@@ -1,7 +1,18 @@
 import { randomUUID } from 'node:crypto';
-import type { NeedsYou, NeedsYouProposal, NeedsYouRecord } from '../../lib/api/needs-you';
+import type {
+  NeedsYou,
+  NeedsYouEvidence,
+  NeedsYouProposal,
+  NeedsYouRecord,
+} from '../../lib/api/needs-you';
 import { VerificationNote } from '../components/verification-note';
-import { confirmProposed, declineProposed, verifyRecord, verifySelected } from './actions';
+import {
+  confirmProposed,
+  creditSubmitted,
+  declineProposed,
+  verifyRecord,
+  verifySelected,
+} from './actions';
 
 /**
  * Needs you: what waits on this person, and one gesture for each (ADR 0040 decisions 2, 5, 6, 10;
@@ -103,6 +114,39 @@ function ProposalItem({ item, returnTo }: { item: NeedsYouProposal; returnTo: st
   );
 }
 
+/**
+ * Qualification evidence a person submitted, for a requirement this reader may credit
+ * (ADR 0038). One gesture accepts the work and credits it; when it is the last requirement, the
+ * same act closes the person's record. Nothing here infers competence: the reader judges the
+ * work, which is linked.
+ */
+function EvidenceItem({ item, returnTo }: { item: NeedsYouEvidence; returnTo: string }) {
+  return (
+    <div style={box} data-submission={item.submissionId}>
+      <p style={{ margin: 0, overflowWrap: 'anywhere' }}>
+        <strong>{item.personName ?? 'A colleague'}</strong> submits{' '}
+        <a href={`/objects/${encodeURIComponent(item.evidenceObjectId)}`}>
+          {item.evidenceTitle ?? item.evidenceObjectId.slice(0, 8)}
+        </a>{' '}
+        for <em>{item.outcome}</em> ({item.mode}) · {item.packTitle}
+      </p>
+      <p style={{ margin: '0.25rem 0' }}>
+        {item.evidenceVerified
+          ? 'The work is already accepted; crediting maps it to this requirement.'
+          : 'Crediting it also accepts the work, as your individual review of it.'}{' '}
+        <a href={`/qualification/${encodeURIComponent(item.recordId)}`}>Their Start Here</a>
+      </p>
+      <form action={creditSubmitted}>
+        <input type="hidden" name="recordId" value={item.recordId} />
+        <input type="hidden" name="submissionId" value={item.submissionId} />
+        <input type="hidden" name="gestureId" value={randomUUID()} />
+        <input type="hidden" name="returnTo" value={returnTo} />
+        <button type="submit">Accept the work and credit it</button>
+      </form>
+    </div>
+  );
+}
+
 export function NeedsYouPanel({
   data,
   returnTo = '/needs-you',
@@ -113,9 +157,9 @@ export function NeedsYouPanel({
   /** 2 on its own page; 3 inside the dashboard, whose panel heading is the h2. */
   readonly headingLevel?: 2 | 3;
 }) {
-  const { toVerify, awaitingOthers, proposals } = data;
+  const { toVerify, awaitingOthers, proposals, toCredit } = data;
   const H = headingLevel === 3 ? 'h3' : 'h2';
-  if (toVerify.total + awaitingOthers.total + proposals.total === 0) {
+  if (toVerify.total + awaitingOthers.total + proposals.total + toCredit.total === 0) {
     return (
       <section aria-label="Needs you">
         <p>Nothing needs you.</p>
@@ -129,6 +173,14 @@ export function NeedsYouPanel({
           <H>Proposed for you to perform ({proposals.total})</H>
           {proposals.items.map((item) => (
             <ProposalItem key={item.id} item={item} returnTo={returnTo} />
+          ))}
+        </>
+      )}
+      {toCredit.total === 0 ? null : (
+        <>
+          <H>Evidence to credit ({toCredit.total})</H>
+          {toCredit.items.map((item) => (
+            <EvidenceItem key={item.submissionId} item={item} returnTo={returnTo} />
           ))}
         </>
       )}

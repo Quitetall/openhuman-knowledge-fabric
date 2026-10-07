@@ -21,6 +21,7 @@ import {
   NeedsYouPlace,
   OverviewPanel,
   PeoplePanel,
+  StartHerePanel,
 } from './components/dashboard/panels';
 import { StatusReport } from './components/status-report';
 import { AgentDock } from './agent/agent-dock';
@@ -30,6 +31,9 @@ export const metadata: Metadata = { title: 'Home' };
 
 function Panel({ panel }: { readonly panel: DashboardPanel }) {
   switch (panel.id) {
+    case 'start_here':
+      // Present only while the reader's own qualification is open (ADR 0040 decision 2).
+      return panel.empty ? null : <StartHerePanel pages={panel.pages} />;
     case 'overview':
       return panel.empty || panel.overview === undefined ? null : (
         <OverviewPanel overview={panel.overview} />
@@ -59,7 +63,9 @@ function Panel({ panel }: { readonly panel: DashboardPanel }) {
         />
       );
     case 'people':
-      return panel.empty ? null : <PeoplePanel assignments={panel.assignments} />;
+      return panel.empty ? null : (
+        <PeoplePanel assignments={panel.assignments} qualification={panel.qualification} />
+      );
   }
 }
 
@@ -109,8 +115,9 @@ export default async function Home({
       {dashboard.panels.map((panel) => (
         <Panel key={panel.id} panel={panel} />
       ))}
-      {/* The in-app agent (ADR 0040 decision 7): the same chat as /agent, folded until opened. */}
-      <section className="kf-panel" data-panel="agent" aria-label="Agent">
+      {/* The in-app agent (ADR 0040 decision 7): the same chat as /agent, folded until opened. A
+          dock, not one of the layout's panels (DASHBOARD_LAYOUT), so it is not marked as one. */}
+      <section className="kf-panel" data-dock="agent" aria-label="Agent">
         <AgentDock returnTo="/" />
       </section>
       <p className="kf-footnote">

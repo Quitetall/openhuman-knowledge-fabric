@@ -26,6 +26,9 @@
       "path": "./packages/warrants"
     },
     {
+      "path": "./packages/qualification"
+    },
+    {
       "path": "./packages/ontology-compiler"
     },
     {
