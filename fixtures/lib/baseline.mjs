@@ -143,10 +143,40 @@ export async function readPrevious(file) {
   return JSON.parse(await readFile(file, 'utf8'));
 }
 
+/**
+ * This run's means beside earlier runs' that scored the same three lists, one row each, so a change
+ * to the fused ranking is read against the numbers it replaced. `earlier` holds committed summaries
+ * (`search-baseline.<date>.json`, with `date`, `commit` and `note`).
+ */
+function earlierRuns(summary, earlier) {
+  if (earlier.length === 0) return [];
+  const lists = ['lexical', 'semantic', 'fused'];
+  const row = (label, ranking, overall) => [
+    label,
+    ranking ?? '—',
+    ...lists.flatMap((l) => [overall?.[`verbatim_${l}`], overall?.[`keywords_${l}`]]),
+  ];
+  return [
+    '## This run beside earlier runs of the same lists',
+    '',
+    ...table(
+      ['run', 'fused ranking', ...lists.flatMap((l) => [`verbatim ${l}`, `keywords ${l}`])],
+      [
+        row('this run', summary.fusedRanking, summary.overall),
+        ...earlier.map((run) =>
+          row(`${run.date} (${run.commit})`, run.summary.fusedRanking, run.summary.overall),
+        ),
+      ],
+    ),
+    '',
+    ...earlier.flatMap((run) => (run.note === undefined ? [] : [`${run.date}: ${run.note}`, ''])),
+  ];
+}
+
 /** Writes `<out>/search-baseline.{md,json}`. */
 export async function writeReport(
   out,
-  { title, intro, results, summary, extra = [], previous = undefined },
+  { title, intro, results, summary, extra = [], previous = undefined, earlier = [] },
 ) {
   const k = summary.k;
   await mkdir(out, { recursive: true });
@@ -191,6 +221,7 @@ export async function writeReport(
       [[summary.overall.questions, ...values(summary.overall), ...beforeValues(before?.overall)]],
     ),
     '',
+    ...earlierRuns(summary, earlier),
     '## By question type',
     '',
     ...table(

@@ -32,6 +32,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stackSettings } from '../lib/stack.mjs';
 import { parseCsv } from './lib/csv.mjs';
 import { PersonaSession } from './lib/kf.mjs';
 
@@ -60,6 +61,21 @@ const PREVIOUS_RUN = {
   semantic: { verbatim: 0.1866, keywords: 0.202 },
   composed: { verbatim: 0.1767, keywords: 0.1793 },
 };
+
+/**
+ * The run before the lexical vote (2026-09-26, e9efa0ec): the same three lists, fused by plain
+ * reciprocal rank fusion (`kf.fused.rrf.v1`), every word match voting fully. Its per-question rows
+ * are in git history there. The same code reproduced every one of these means on the stack the
+ * 2026-10-07 run was made on, so the two runs differ only in the fusion.
+ */
+const FUSED_V1_RUNS = [
+  {
+    run: '2026-09-26 (e9efa0ec), plain RRF',
+    lexical: { verbatim: 0.0736, keywords: 0.0918 },
+    semantic: { verbatim: 0.1866, keywords: 0.202 },
+    fused: { verbatim: 0.1603, keywords: 0.1855 },
+  },
+];
 
 /** Labels that mark a row as NOT an answer to its question. */
 export const NEGATIVE_LABELS = new Set([
@@ -140,7 +156,9 @@ function parseArgs(argv) {
   const out = {
     corpus: process.env.KF_VERACIER_CORPUS ?? '/mnt/4tb/data/veracier',
     out: path.join(HERE, 'reports'),
-    state: process.env.KF_VERACIER_STATE ?? path.join(homedir(), '.local', 'state', 'kf-veracier'),
+    // The stack's own state directory, from the KF_STACK_* settings every other baseline reads
+    // (fixtures/lib/stack.mjs); unset, the Véracier stack's.
+    state: stackSettings().state,
     personas:
       process.env.KF_VERACIER_PERSONAS ??
       path.join(homedir(), '.config', 'kf', 'veracier-personas.txt'),
@@ -182,12 +200,12 @@ async function main() {
     if (entry.textArtifactId) docOfArtifact.set(entry.textArtifactId, docId);
   }
   const byDoc = new Map(documents.map((d) => [d.doc_id, d]));
-  const oidc = {
-    issuer: `${process.env.KF_VERACIER_KEYCLOAK ?? 'http://localhost:18080'}/realms/knowledge-fabric`,
-    clientId: 'knowledge-fabric-web',
-    redirectUri: `http://localhost:${process.env.KF_VERACIER_WEB_PORT ?? '3100'}/auth/callback`,
-  };
-  const apiOrigin = `http://127.0.0.1:${process.env.KF_VERACIER_API_PORT ?? '4100'}`;
+  // Which stack: KF_STACK_* (or the older KF_VERACIER_* names), as every other baseline and the
+  // loader read it. This script used to read only KF_VERACIER_*, so run against another fixture
+  // stack it signed in to, and searched, the Véracier stack's own API instead.
+  const settings = stackSettings();
+  const oidc = settings.oidc;
+  const apiOrigin = settings.api;
   const sessions = new Map();
   const sessionOf = (person) => {
     if (!sessions.has(person.key)) {
@@ -325,6 +343,14 @@ async function main() {
     '',
     `Fused ranking: \`${summary.fused_ranking ?? '—'}\`.`,
     '',
+    '| run | verbatim lexical | keywords lexical | verbatim semantic | keywords semantic | verbatim fused | keywords fused |',
+    '| --- | --- | --- | --- | --- | --- | --- |',
+    `| this run | ${cell(summary.mean_verbatim_lexical_recall)} | ${cell(summary.mean_keywords_lexical_recall)} | ${cell(summary.mean_verbatim_semantic_recall)} | ${cell(summary.mean_keywords_semantic_recall)} | ${cell(summary.mean_verbatim_fused_recall)} | ${cell(summary.mean_keywords_fused_recall)} |`,
+    ...FUSED_V1_RUNS.map(
+      (r) =>
+        `| ${r.run} | ${r.lexical.verbatim} | ${r.lexical.keywords} | ${r.semantic.verbatim} | ${r.semantic.keywords} | ${r.fused.verbatim} | ${r.fused.keywords} |`,
+    ),
+    '',
     [
       `**What changed since ${PREVIOUS_RUN.date}.** Lexical search no longer needs every word: a`,
       'record matches when it holds at least half of the query’s information (IDF-weighted), each',
@@ -340,9 +366,12 @@ async function main() {
       `of ${summary.questions} questions match no record by their words, and ${results.filter((r) => (r.verbatim_lexical_total ?? 0) > 0 && r.verbatim_lexical_total <= 3).length}`,
       'match three or fewer: the questions name people, products and figures in words the',
       'documents (mostly French) do not hold, and a word no record holds carries the most weight,',
-      'so few records hold half of a question. Where the word matches that remain rank records the',
-      'semantic list does not, reciprocal rank fusion places them among its first ten, and the fused',
-      'list can fall below the semantic list alone.',
+      'so few records hold half of a question. Under plain reciprocal rank fusion the word matches',
+      'that remained took places among the first ten that the semantic list would have given to',
+      'better records, and the fused list fell below the semantic list alone (SAS §100.45). Since',
+      '2026-10-07 a word match votes for how far its share of the question lies above the floor,',
+      '(coverage − 0.5) / 0.5, so one holding half the question votes nothing; the weight is the',
+      'lexical ranking’s own score from its stated floor, fitted to nothing.',
     ].join(' '),
     '',
     `First run (${FIRST_RUN.date}, lexical only, no retrieval engine): verbatim ${FIRST_RUN.verbatimLexical},`,

@@ -10,11 +10,16 @@ Authority: none. Indexes are disposable and must be rebuildable from authoritati
 `composeSearch` answers one query with one list to read first and the two rankings it came from:
 
 - **ranked** — the lexical page and the re-checked semantic list fused by reciprocal rank fusion
-  with its published constant (k = 60; Cormack, Clarke and Büttcher, 2009), named
-  `kf.fused.rrf.v1(k=60; <lexical>; <semantic>)`. Every fused hit says where each ranking placed it
-  (`lexical.rank` and how it matched, `semantic.rank`). Fusion adds no record and uses nothing but
-  the two lists' places, so a semantic hit reaches it only after the re-check below. Without a
-  semantic list the fused list is the lexical page, and its name says so.
+  with its published constant (k = 60; Cormack, Clarke and Büttcher, 2009), each word match's vote
+  weighted by how far its share of the query lies above the lexical floor, (coverage − 0.5) / 0.5,
+  and a partial-identifier match voting 1 — named
+  `kf.fused.rrf.v2(k=60; lexical vote=(coverage-0.5)/0.5; <lexical>; <semantic>)` (SAS §100.45;
+  `v1` gave every word match a full vote, and the fused list fell below the semantic list alone on
+  Véracier and TheAgentCompany). Every fused hit says where each ranking placed it (`lexical.rank`
+  and how it matched, `semantic.rank`). Fusion adds no record and uses nothing but the two lists'
+  places and the lexical ranking's own score, so a semantic hit reaches it only after the re-check
+  below. Without a semantic list the fused list is the lexical page in its own order, and its name
+  says so.
 - **lexical** — word matching over `search.document` (`search.lexical_matches`, 20260926100000),
   ranking named `kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2`. A record
   matches when it holds at least half of the query's information: the inverse document frequency
@@ -43,6 +48,32 @@ every request and stored nowhere. Records above the ceiling are invisible to the
 security, so they are never counted, and nothing about a withheld record except the count is
 returned. A masked record is never scored by the engine, so the count is over lexical matches, under
 the same floor that decides what the lexical list holds.
+
+## How the lexical vote was chosen, and what it costs (SAS §100.45)
+
+Nothing was fitted to the evaluation questions. Every question of the four fixture corpora was put
+in one of two halves by the parity of the first byte of sha256(`<corpus>:<question id>`). The
+candidates were scored offline from each question's served lexical page and semantic list (fusion
+is a function of the two, so this is exactly what the API serves): plain RRF; a vote equal to the
+coverage; the vote above the floor; and a mixture `α + (1 − α)·vote` with α fitted. The rule,
+stated before the held-out half was read: maximise, on the first half, the worst margin over the
+eight corpus × query-form cells of the fused list over the better of its two sources. The vote
+above the floor won it on the first half (worst margin −0.044; plain RRF −0.142; the best fitted
+mixture, α = 0.25, −0.050) and on the held-out half (−0.083; plain RRF −0.417; α = 0.25, −0.125).
+
+It wins on no corpus everywhere. Recall@10 over all questions, plain RRF → this vote, on the same
+stack: Véracier 0.1603 → 0.1890 and 0.1855 → 0.2070 (semantic 0.1866, 0.2020); TheAgentCompany
+0.5265 → 0.8182 and 0.2917 → 0.4583 (semantic 0.8182, 0.5038 — the keyword form is still below
+it); DRBench 0.7887 → 0.7606 and 0.7977 → 0.7855; EnterpriseRAG-Bench 0.8034 → 0.7169 and
+0.7116 → 0.6056, where its keyword form falls below the lexical list alone (0.6592). Where word
+matches are strong, plain RRF used them better; this vote trades that for not letting weak ones
+displace the semantic list. The four reports carry the served numbers.
+
+Also measured, not adopted: BM25 (k1 = 1.2, b = 0.75, its published defaults) as the lexical leg
+of the fusion. On TheAgentCompany it found the named files the coverage floor never matches
+(lexical recall 0.02 → 0.32, fused 0.53 → 0.65), still below the semantic list; computed over
+`search.document`'s vectors it took about two seconds a question on 1 277 records and was not
+practical on the 50 000 of EnterpriseRAG-Bench without term statistics this schema does not keep.
 
 ## Transient observations (§64B)
 

@@ -99,6 +99,7 @@ if (out !== undefined) {
     results,
     summary,
     previous,
+    earlier: [await readPrevious(path.join(HERE, 'reports', 'search-baseline.2026-09-26.json'))],
     extra,
   });
 }

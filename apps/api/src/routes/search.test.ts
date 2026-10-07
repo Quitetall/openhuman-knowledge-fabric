@@ -239,7 +239,7 @@ describe('GET /search', () => {
     });
     // One list to read first; without an engine it is the lexical page, and says so.
     expect(body.ranked.ranking).toBe(
-      'kf.fused.rrf.v1(k=60; kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2)',
+      'kf.fused.rrf.v2(k=60; lexical vote=(coverage-0.5)/0.5; kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2)',
     );
     expect(body.ranked.hits.map((hit: { objectId: string }) => hit.objectId)).toEqual(
       body.lexical.hits.map((hit: { objectId: string }) => hit.objectId),

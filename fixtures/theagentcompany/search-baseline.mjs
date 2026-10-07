@@ -89,5 +89,6 @@ await writeReport(out, {
   results,
   summary,
   previous: await readPrevious(path.join(HERE, 'reports', 'search-baseline.2026-09-25.json')),
+  earlier: [await readPrevious(path.join(HERE, 'reports', 'search-baseline.2026-09-26.json'))],
 });
 process.stdout.write(`${JSON.stringify(summary.overall)}\n`);
