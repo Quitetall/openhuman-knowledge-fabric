@@ -38,35 +38,6 @@ export const DAMM_TABLE: readonly (readonly number[])[] = [
   [2, 5, 8, 1, 4, 3, 6, 7, 9, 0],
 ];
 
-/** The 19 namespaces that use the enterprise grammar. RCD is excluded — it has its own (§9.4). */
-export const ENTERPRISE_NAMESPACES = [
-  'ITM',
-  'DOC',
-  'INTF',
-  'BIND',
-  'SWC',
-  'DAT',
-  'MDL',
-  'REQ',
-  'RSK',
-  'TST',
-  'CHG',
-  'ADR',
-  'BSL',
-  'RLS',
-  'QEV',
-  'EQP',
-  'SUP',
-  'LOT',
-  'WRK',
-  'WAR',
-  'CONF',
-] as const;
-
-const ENTERPRISE_RE = new RegExp(`^OH-(${ENTERPRISE_NAMESPACES.join('|')})-([0-9]{6})-([0-9])$`);
-const RECORD_RE = /^OH-RCD-([0-9]{4})-([0-9]{6})-([0-9])$/;
-const SERIAL_RE = /^OH-SN-([0-9]{9})-([0-9])$/;
-
 /**
  * The check digit for a payload of decimal digits.
  *
@@ -115,77 +86,138 @@ export interface IdentifierVerdict {
 }
 
 /**
- * Validate an OpenHuman identifier: grammar first, then the check digit.
+ * One registry's identifier grammar, compiled from its `grammars.yaml` (KF-SAS-RQ-139, SAS §100.3).
  *
- * Both halves are required. Appendix B.1 says so directly — "Regex conformance is necessary but
- * not sufficient" — and the two failures read differently to a user: a shape error is usually a
- * wrong format, a digit error is usually a typo or a transposition in transcription.
+ * THIS MODULE NAMES NO PREFIX AND NO NAMESPACE. It used to: `^OH-` and OpenHuman's namespace list
+ * were constants here, so a second registry's identifiers were refused for their prefix before
+ * their check digit was read, and `registry-check`'s reject-vector gate was vacuous for any
+ * registry but OpenHuman's. The registry directory is the seam (ADR 0006); the grammar is read
+ * from it, and the Damm walk — which is the same for every registry — stays here.
+ */
+export interface IdentifierGrammar {
+  /** The enterprise prefix the registry's patterns fix, e.g. `OH-`. */
+  readonly prefix: string;
+  /** The namespaces the enterprise pattern enumerates, in the pattern's order. */
+  readonly enterpriseNamespaces: readonly string[];
+  /**
+   * Validate an identifier: grammar first, then the check digit.
+   *
+   * Both halves are required. Appendix B.1 says so directly — "Regex conformance is necessary
+   * but not sufficient" — and the two failures read differently to a user: a shape error is
+   * usually a wrong format, a digit error is usually a typo or a transposition in transcription.
+   */
+  validate(id: string): IdentifierVerdict;
+  /** Format an enterprise identifier from its parts, computing the check digit. */
+  formatEnterprise(namespace: string, sequence: number): string;
+}
+
+/** Which digits a grammar's check digit covers (`damm_payload` in grammars.yaml). */
+type DammPayload = 'sequence' | 'year_and_sequence';
+
+interface CompiledKind {
+  readonly kind: IdentifierKind;
+  readonly pattern: RegExp;
+  readonly payload: DammPayload;
+}
+
+function grammarRecord(value: unknown, where: string): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error(`identifier grammar: ${where} is not a mapping`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Compile a registry's grammar from the parsed `grammars.yaml` (`RegistryPolicy.grammars`).
+ *
+ * Throws, naming what is missing, when the file does not declare a check-digit grammar this
+ * module can apply. `checkRegistryPolicy` turns that into a named failure.
  *
  * The Damm payload differs by kind, which is the part that is easy to get wrong:
  *   enterprise  digit covers the six-digit sequence only, NOT the namespace
  *   record      digit covers YYYY + NNNNNN, ten digits (§9.4)
  *   serial      digit covers the nine-digit sequence (§10.1)
+ * Every one of those patterns ends `-<digits>-<check>`, and the record grammar's year is the
+ * hyphen field before its sequence, so the payload is read from the identifier's last fields.
  */
-export function validateIdentifier(id: string): IdentifierVerdict {
-  const enterprise = ENTERPRISE_RE.exec(id);
-  if (enterprise !== null) {
-    const [, , sequence, check] = enterprise;
-    return dammCheck(sequence! + check!) === 0
-      ? { valid: true, kind: 'enterprise' }
-      : {
-          valid: false,
-          kind: 'enterprise',
-          reason: `check digit is ${check}, expected ${dammCheck(sequence!)}`,
-        };
-  }
+export function identifierGrammar(
+  grammarsFile: Readonly<Record<string, unknown>>,
+): IdentifierGrammar {
+  const grammars = grammarRecord(grammarsFile['grammars'], 'grammars');
+  const compile = (kind: IdentifierKind): CompiledKind => {
+    const g = grammarRecord(grammars[kind], kind);
+    if (typeof g['pattern'] !== 'string')
+      throw new Error(`identifier grammar: ${kind} has no pattern`);
+    if (g['damm_required'] !== true) {
+      throw new Error(`identifier grammar: ${kind} does not require a Damm digit`);
+    }
+    const payload = g['damm_payload'];
+    if (payload !== 'sequence' && payload !== 'year_and_sequence') {
+      throw new Error(`identifier grammar: ${kind} damm_payload ${String(payload)} is not known`);
+    }
+    return { kind, pattern: new RegExp(g['pattern']), payload };
+  };
+  const kinds = (['enterprise', 'record', 'serial'] as const).map(compile);
+  const enterprise = kinds[0]!;
 
-  const record = RECORD_RE.exec(id);
-  if (record !== null) {
-    const [, year, sequence, check] = record;
-    return dammCheck(year! + sequence! + check!) === 0
-      ? { valid: true, kind: 'record' }
-      : {
-          valid: false,
-          kind: 'record',
-          reason: `check digit is ${check}, expected ${dammCheck(year! + sequence!)}`,
-        };
+  // The enterprise pattern is `^<PREFIX>(<NS>|<NS>|...)-[0-9]{6}-[0-9]$`. registry-check
+  // requires the alternation to equal the namespaces declared to use the grammar.
+  const shape = /^\^([A-Z][A-Z0-9]*-)\(([A-Z|]+)\)-/.exec(enterprise.pattern.source);
+  if (shape === null) {
+    throw new Error(
+      'identifier grammar: the enterprise pattern does not read as ^<PREFIX>(<NAMESPACES>)-',
+    );
   }
+  const prefix = shape[1]!;
+  const enterpriseNamespaces = Object.freeze(shape[2]!.split('|'));
+  const shaped = new RegExp(`^${escapeRegExp(prefix)}([A-Z]{2,5})-[0-9]{6}-[0-9]$`);
 
-  const serial = SERIAL_RE.exec(id);
-  if (serial !== null) {
-    const [, sequence, check] = serial;
-    return dammCheck(sequence! + check!) === 0
-      ? { valid: true, kind: 'serial' }
-      : {
-          valid: false,
-          kind: 'serial',
-          reason: `check digit is ${check}, expected ${dammCheck(sequence!)}`,
-        };
-  }
+  const validate = (id: string): IdentifierVerdict => {
+    for (const { kind, pattern, payload } of kinds) {
+      if (!pattern.test(id)) continue;
+      const fields = id.split('-');
+      const check = fields.at(-1)!;
+      const sequence = fields.at(-2)!;
+      const digits = payload === 'year_and_sequence' ? fields.at(-3)! + sequence : sequence;
+      return dammCheck(digits + check) === 0
+        ? { valid: true, kind }
+        : { valid: false, kind, reason: `check digit is ${check}, expected ${dammCheck(digits)}` };
+    }
+    // Distinguish "no grammar matched" from "namespace not allocated", because they are
+    // different mistakes. §8's rule is that an identifier absent from the registry does not
+    // exist, and a reader who typed <PREFIX>XYZ-000001-3 needs to be told which half was wrong.
+    const unallocated = shaped.exec(id);
+    if (unallocated !== null) {
+      return {
+        valid: false,
+        reason:
+          `'${unallocated[1]!}' is not an allocated namespace. ` +
+          `Allocated: ${enterpriseNamespaces.join(', ')} (RCD uses the record grammar).`,
+      };
+    }
+    return { valid: false, reason: 'matches no allocated identifier grammar' };
+  };
 
-  // Distinguish "no grammar matched" from "namespace not allocated", because they are
-  // different mistakes. §8's rule is that an identifier absent from the registry does not
-  // exist, and a reader who typed OH-XYZ-000001-3 needs to be told which half was wrong.
-  const shaped = /^OH-([A-Z]{2,5})-[0-9]{6}-[0-9]$/.exec(id);
-  if (shaped !== null) {
-    return {
-      valid: false,
-      reason:
-        `'${shaped[1]}' is not an allocated namespace. ` +
-        `Allocated: ${ENTERPRISE_NAMESPACES.join(', ')} (RCD uses the record grammar).`,
-    };
-  }
-  return { valid: false, reason: 'matches no allocated identifier grammar' };
-}
+  const formatEnterprise = (namespace: string, sequence: number): string => {
+    if (!enterpriseNamespaces.includes(namespace)) {
+      throw new Error(`formatEnterprise: '${namespace}' is not an allocated namespace`);
+    }
+    if (!Number.isInteger(sequence) || sequence < 0 || sequence > 999_999) {
+      throw new Error(`formatEnterprise: sequence ${String(sequence)} outside 0-999999`);
+    }
+    const padded = String(sequence).padStart(6, '0');
+    const id = `${prefix}${namespace}-${padded}-${String(dammCheck(padded))}`;
+    // The formatted identifier must satisfy the grammar it was formatted from; a pattern whose
+    // tail is not -[0-9]{6}-[0-9] would otherwise produce identifiers it then refuses.
+    if (!validate(id).valid) {
+      throw new Error(`formatEnterprise: ${id} does not satisfy the registry's own grammar`);
+    }
+    return id;
+  };
 
-/** Format an enterprise identifier from its parts, computing the check digit. */
-export function formatEnterpriseId(namespace: string, sequence: number): string {
-  if (!(ENTERPRISE_NAMESPACES as readonly string[]).includes(namespace)) {
-    throw new Error(`formatEnterpriseId: '${namespace}' is not an allocated namespace`);
-  }
-  if (!Number.isInteger(sequence) || sequence < 0 || sequence > 999_999) {
-    throw new Error(`formatEnterpriseId: sequence ${sequence} outside 0-999999`);
-  }
-  const padded = String(sequence).padStart(6, '0');
-  return `OH-${namespace}-${padded}-${dammCheck(padded)}`;
+  return Object.freeze({ prefix, enterpriseNamespaces, validate, formatEnterprise });
 }

@@ -51,11 +51,9 @@ export {
 export type { CheckFailure, RegistryPolicy } from './registry-pack.js';
 export {
   DAMM_TABLE,
-  ENTERPRISE_NAMESPACES,
   dammCheck,
   dammValid,
-  formatEnterpriseId,
+  identifierGrammar,
   isAntiSymmetricQuasigroup,
-  validateIdentifier,
 } from './damm.js';
-export type { IdentifierKind, IdentifierVerdict } from './damm.js';
+export type { IdentifierGrammar, IdentifierKind, IdentifierVerdict } from './damm.js';

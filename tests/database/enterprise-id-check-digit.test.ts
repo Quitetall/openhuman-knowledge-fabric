@@ -14,9 +14,10 @@
  * refused in the field. Sampling would very likely miss it.
  */
 
+import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { withTransaction } from '@kf/database';
-import { dammCheck, formatEnterpriseId } from '@kf/ontology-compiler';
+import { dammCheck, identifierGrammar, loadRegistryPolicy } from '@kf/ontology-compiler';
 import {
   bindContext,
   createObject,
@@ -25,6 +26,14 @@ import {
   type Fixtures,
   type Harness,
 } from './harness.js';
+
+// The database is seeded with OpenHuman's namespaces, so identifiers are formatted by that
+// registry's grammar — compiled from its grammars.yaml, not a constant (SAS §100.3).
+const OPENHUMAN = identifierGrammar(
+  loadRegistryPolicy(join(import.meta.dirname, '..', '..', 'registries', 'openhuman')).grammars,
+);
+const formatEnterpriseId = (namespace: string, sequence: number): string =>
+  OPENHUMAN.formatEnterprise(namespace, sequence);
 
 let h: Harness;
 let f: Fixtures;
