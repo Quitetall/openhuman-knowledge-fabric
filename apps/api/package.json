@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Knowledge Fabric HTTP API — typed reads and typed actions",
+  "description": "Knowledge Fabric HTTP API \u2014 typed reads and typed actions",
   "main": "./dist/server.js",
   "bin": {
     "kf": "./dist/cli.js"
@@ -32,6 +32,7 @@
     "@kf/operations": "workspace:*",
     "@kf/orchestrator": "workspace:*",
     "@kf/projections": "workspace:*",
+    "@kf/qualification": "workspace:*",
     "@kf/record-atoms": "workspace:*",
     "@kf/retrieval": "workspace:*",
     "@kf/search": "workspace:*",

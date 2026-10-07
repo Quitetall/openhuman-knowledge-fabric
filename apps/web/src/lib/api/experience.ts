@@ -18,10 +18,12 @@ import {
   parseResponse,
   type Caller,
 } from './client';
+import { parseStartHere, type StartHere } from './qualification';
 import { nonNegativeInteger, record } from './validation';
 import { parseVerification, type Verification } from './verification';
 
 export const DASHBOARD_PANELS = [
+  'start_here',
   'overview',
   'master_document',
   'needs_you',
@@ -87,7 +89,28 @@ export interface HeldAssignment {
   readonly reaches: readonly (readonly string[])[];
 }
 
+/** One of the reader's own qualification records, summarized (ADR 0038). */
+export interface OwnQualification {
+  readonly recordId: string;
+  readonly packTitle: string;
+  readonly state: string;
+  readonly currency: string;
+  readonly missing: number;
+  readonly gaps: readonly string[];
+  readonly blocked: number;
+}
+
+/** A record of someone else the reader may read: as their contact or a reviewer. */
+export interface ReviewingQualification {
+  readonly id: string;
+  readonly personName: string | null;
+  readonly state: string;
+  readonly packTitle: string;
+  readonly contact: boolean;
+}
+
 export type DashboardPanel =
+  | { readonly id: 'start_here'; readonly empty: boolean; readonly pages: readonly StartHere[] }
   | { readonly id: 'overview'; readonly empty: boolean; readonly overview?: OverviewReading }
   | { readonly id: 'master_document'; readonly empty: false; readonly claim: ClaimHeader }
   | { readonly id: 'needs_you'; readonly slot: 'needs-you' }
@@ -102,6 +125,10 @@ export type DashboardPanel =
       readonly empty: boolean;
       readonly assignments: readonly HeldAssignment[];
       readonly presetGrants: number;
+      readonly qualification: {
+        readonly own: readonly OwnQualification[];
+        readonly reviewing: readonly ReviewingQualification[];
+      };
     };
 
 export interface Dashboard {
@@ -215,6 +242,12 @@ function parsePanel(value: unknown, expected: DashboardPanelId): DashboardPanel 
   if (p['id'] !== expected) fail(`panel order: expected ${expected}`);
   const empty = p['empty'] === true;
   switch (expected) {
+    case 'start_here':
+      return {
+        id: 'start_here',
+        empty,
+        pages: empty ? [] : list(p['pages'], 'start_here.pages').map(parseStartHere),
+      };
     case 'overview':
       return empty || p['overview'] === undefined
         ? { id: 'overview', empty: true }
@@ -248,8 +281,42 @@ function parsePanel(value: unknown, expected: DashboardPanelId): DashboardPanel 
             ),
           };
         }),
+        qualification: parseQualificationSummary(p['qualification']),
       };
   }
+}
+
+/** The People panel's qualification part; absent or null reads as none (fail towards less). */
+function parseQualificationSummary(value: unknown): {
+  readonly own: readonly OwnQualification[];
+  readonly reviewing: readonly ReviewingQualification[];
+} {
+  const q = record(value);
+  if (q === undefined) return { own: [], reviewing: [] };
+  return {
+    own: list(q['own'], 'qualification.own').map((candidate) => {
+      const o = record(candidate) ?? fail('qualification.own');
+      return {
+        recordId: str(o['recordId'], 'own.recordId'),
+        packTitle: str(o['packTitle'], 'own.packTitle'),
+        state: str(o['state'], 'own.state'),
+        currency: str(o['currency'], 'own.currency'),
+        missing: count(o['missing'], 'own.missing'),
+        gaps: list(o['gaps'], 'own.gaps').map((g) => str(g, 'own.gap')),
+        blocked: count(o['blocked'], 'own.blocked'),
+      };
+    }),
+    reviewing: list(q['reviewing'], 'qualification.reviewing').map((candidate) => {
+      const r = record(candidate) ?? fail('qualification.reviewing');
+      return {
+        id: str(r['id'], 'reviewing.id'),
+        personName: typeof r['personName'] === 'string' ? r['personName'] : null,
+        state: str(r['state'], 'reviewing.state'),
+        packTitle: str(r['packTitle'], 'reviewing.packTitle'),
+        contact: r['contact'] === true,
+      };
+    }),
+  };
 }
 
 /** kf-dashboard-v1. The layout must be exactly the declared one, and the panels in its order. */

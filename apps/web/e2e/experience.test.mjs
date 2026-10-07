@@ -36,6 +36,7 @@ const ROLE_ID = '01900000-0000-7000-8000-0000000000e1';
 const ORGANIZATION_ID = '01900000-0000-7000-8000-0000000000e2';
 const OBJECT_ID = '01900000-0000-7000-8000-0000000000e3';
 const LAYOUT = [
+  'start_here',
   'overview',
   'master_document',
   'needs_you',
@@ -107,6 +108,7 @@ function overview(sections, withheld) {
 const READERS = {
   ceo: {
     panels: [
+      { id: 'start_here', empty: true, pages: [] },
       {
         id: 'overview',
         empty: false,
@@ -196,6 +198,7 @@ const READERS = {
   },
   engineer: {
     panels: [
+      { id: 'start_here', empty: true, pages: [] },
       {
         id: 'overview',
         empty: false,
@@ -258,6 +261,7 @@ const READERS = {
   // A person granted almost nothing: their overview, work and recent panels are empty.
   narrow: {
     panels: [
+      { id: 'start_here', empty: true, pages: [] },
       { id: 'overview', empty: true },
       { id: 'master_document', empty: false, claim: { status: 'missing' } },
       { id: 'needs_you', slot: 'needs-you' },
@@ -309,10 +313,11 @@ const NEEDS_YOU = {
 
 function masterDocument(reader) {
   const panels = READERS[reader].panels;
-  const ov = panels[0].empty ? null : panels[0].overview;
+  const overviewPanel = panels.find((panel) => panel.id === 'overview');
+  const ov = overviewPanel.empty ? null : overviewPanel.overview;
   return {
     format: 'kf-master-document-v1',
-    claim: panels[1].claim,
+    claim: panels.find((panel) => panel.id === 'master_document').claim,
     overview: ov,
     sections: [
       {
@@ -636,7 +641,13 @@ test(
       await page.goto(`${webOrigin}/`);
       const engineerPanels = await panelSequence();
       const engineerTexts = await texts();
-      assert.deepEqual(ceoPanels, LAYOUT, 'every panel of a full dashboard, in layout order');
+      // Start Here is first in the layout and collapses for a reader with no open qualification,
+      // like any empty panel (tests/joining.test.mjs shows it present for one who has).
+      assert.deepEqual(
+        ceoPanels,
+        LAYOUT.filter((id) => id !== 'start_here'),
+        'every panel of a full dashboard, in layout order',
+      );
       assert.deepEqual(engineerPanels, ceoPanels, 'one layout for everyone');
       assert.notDeepEqual(engineerTexts, ceoTexts, 'different grants, different contents');
       assert.match(

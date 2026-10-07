@@ -45,10 +45,25 @@ export interface NeedsYouProposal {
   readonly confirmableHere: boolean;
 }
 
+/** Qualification evidence a person submitted that this reader may credit (ADR 0038). */
+export interface NeedsYouEvidence {
+  readonly submissionId: string;
+  readonly recordId: string;
+  readonly personName: string | null;
+  readonly requirementKey: string;
+  readonly outcome: string;
+  readonly mode: string;
+  readonly evidenceObjectId: string;
+  readonly evidenceTitle: string | null;
+  readonly evidenceVerified: boolean;
+  readonly packTitle: string;
+}
+
 export interface NeedsYou {
   readonly toVerify: { readonly items: readonly NeedsYouRecord[]; readonly total: number };
   readonly awaitingOthers: { readonly items: readonly NeedsYouRecord[]; readonly total: number };
   readonly proposals: { readonly items: readonly NeedsYouProposal[]; readonly total: number };
+  readonly toCredit: { readonly items: readonly NeedsYouEvidence[]; readonly total: number };
 }
 
 function list<T>(
@@ -125,6 +140,32 @@ function parseProposal(r: Record<string, unknown>): NeedsYouProposal {
   };
 }
 
+function parseEvidence(r: Record<string, unknown>): NeedsYouEvidence {
+  for (const field of [
+    'submissionId',
+    'recordId',
+    'requirementKey',
+    'outcome',
+    'mode',
+    'evidenceObjectId',
+    'packTitle',
+  ]) {
+    if (typeof r[field] !== 'string') throw new Error(`needs-you evidence lacks ${field}`);
+  }
+  return {
+    submissionId: r['submissionId'] as string,
+    recordId: r['recordId'] as string,
+    personName: typeof r['personName'] === 'string' ? r['personName'] : null,
+    requirementKey: r['requirementKey'] as string,
+    outcome: r['outcome'] as string,
+    mode: r['mode'] as string,
+    evidenceObjectId: r['evidenceObjectId'] as string,
+    evidenceTitle: typeof r['evidenceTitle'] === 'string' ? r['evidenceTitle'] : null,
+    evidenceVerified: r['evidenceVerified'] === true,
+    packTitle: r['packTitle'] as string,
+  };
+}
+
 export function parseNeedsYou(value: unknown): NeedsYou {
   const v = record(value);
   if (v === undefined) throw new Error('needs-you response is not an object');
@@ -132,6 +173,9 @@ export function parseNeedsYou(value: unknown): NeedsYou {
     toVerify: list(v['toVerify'], parseRecord),
     awaitingOthers: list(v['awaitingOthers'], parseRecord),
     proposals: list(v['proposals'], parseProposal),
+    // Absent from an API before M5: nothing to credit, which is what absence means.
+    toCredit:
+      v['toCredit'] === undefined ? { items: [], total: 0 } : list(v['toCredit'], parseEvidence),
   };
 }
 

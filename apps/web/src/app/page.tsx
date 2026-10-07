@@ -21,6 +21,7 @@ import {
   NeedsYouPlace,
   OverviewPanel,
   PeoplePanel,
+  StartHerePanel,
 } from './components/dashboard/panels';
 import { StatusReport } from './components/status-report';
 
@@ -29,6 +30,9 @@ export const metadata: Metadata = { title: 'Home' };
 
 function Panel({ panel }: { readonly panel: DashboardPanel }) {
   switch (panel.id) {
+    case 'start_here':
+      // Present only while the reader's own qualification is open (ADR 0040 decision 2).
+      return panel.empty ? null : <StartHerePanel pages={panel.pages} />;
     case 'overview':
       return panel.empty || panel.overview === undefined ? null : (
         <OverviewPanel overview={panel.overview} />
@@ -58,7 +62,9 @@ function Panel({ panel }: { readonly panel: DashboardPanel }) {
         />
       );
     case 'people':
-      return panel.empty ? null : <PeoplePanel assignments={panel.assignments} />;
+      return panel.empty ? null : (
+        <PeoplePanel assignments={panel.assignments} qualification={panel.qualification} />
+      );
   }
 }
 

@@ -2,6 +2,7 @@ node_modules/
 dist/
 *.tsbuildinfo
 .next/
+.next-e2e-*/
 coverage/
 .vitest/
 

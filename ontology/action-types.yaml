@@ -401,6 +401,15 @@ action_types:
     drives: []
     requires: act
 
+  # The owner's invitation (ADR 0040 decision 12; KF-SAS-RQ-236). Bootstrap tier, as
+  # bootstrap_organization: recorded by `kf invite` under the owner credential beside the person,
+  # identity link and role assignment it accompanies, and owned by no dispatcher group, so no
+  # caller can invite through the API (the database refuses the row too, KF-QUAL-040).
+  - id: invite_person
+    audited: true
+    transactional: true
+    drives: []
+
   # Withdraw a provider account's link to a person (`org.external_identity.revoked_at`). Bootstrap
   # tier, like the link it undoes: only `kf revoke-identity`, over the owner credential, records it,
   # because since 20260923000200 the application login cannot touch the identity table at all.

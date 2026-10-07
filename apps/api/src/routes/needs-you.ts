@@ -22,7 +22,11 @@
  *                   the person sees what their agents submitted.
  *   proposals       institutional acts this person's agents proposed, not yet answered.
  *
- * Qualification evidence joins the list when M5 builds it (KF-WAR-0007).
+ *   toCredit        evidence a person submitted for a requirement this person may credit (their
+ *                   contact, or a holder of the role the requirement names), not yet credited
+ *                   (ADR 0038, KF-WAR-0007); answered by POST /qualification/records/:id/credit,
+ *                   which accepts the work and credits it in one act, and closes the record when
+ *                   it was the last (RQ-257).
  *
  * THE GESTURES DECIDE NOTHING. Verify dispatches one `verify_record` at `reviewed_individually`,
  * with the row version the person read: the panel shows the verify button only on a record the
@@ -48,6 +52,7 @@ import {
 } from '@kf/authorization';
 import { bindPrincipal, PrincipalRefused, withTransaction, type Pool, type Tx } from '@kf/database';
 import { recordVerification, type RecordVerification } from '@kf/domain';
+import { evidenceToCredit, type EvidenceToCredit } from '@kf/qualification';
 import { refuseUnidentified } from './actions/auth.js';
 import type { ActionRoutesOptions, Caller, IdentifyCaller } from './actions/contracts.js';
 import { actionRejectionBody } from './actions/errors.js';
@@ -104,6 +109,8 @@ export interface NeedsYou {
   readonly toVerify: { readonly items: readonly NeedsYouRecord[]; readonly total: number };
   readonly awaitingOthers: { readonly items: readonly NeedsYouRecord[]; readonly total: number };
   readonly proposals: { readonly items: readonly NeedsYouProposal[]; readonly total: number };
+  /** Qualification evidence awaiting this person's credit (ADR 0038). */
+  readonly toCredit: { readonly items: readonly EvidenceToCredit[]; readonly total: number };
 }
 
 interface TouchedRow extends Record<string, unknown> {
@@ -225,6 +232,11 @@ export async function needsYou(tx: Tx, caller: Caller): Promise<NeedsYou> {
       total: awaitingOthers.length,
     },
     proposals: { items: proposals, total: proposalIds.length },
+    // An agent's token reads Needs you and answers nothing: crediting is the person's judgement.
+    toCredit:
+      caller.agent === undefined
+        ? await evidenceToCredit(tx, caller, NEEDS_YOU_LIMIT)
+        : { items: [], total: 0 },
   };
 }
 

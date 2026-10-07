@@ -326,6 +326,8 @@ const DECLARED_ADDITIONS = {
     'implement_risk_control',
     // Roles as composable presets of scope (ADR 0040): what holding a role grants, and inclusion.
     'include_role',
+    // ADR 0040 decision 12: the owner's invitation, bootstrap tier like bootstrap_organization.
+    'invite_person',
     'invalidate_test_execution',
     'investigate_complaint',
     'investigate_nonconformity',

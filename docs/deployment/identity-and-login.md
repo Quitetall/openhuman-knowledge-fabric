@@ -309,6 +309,36 @@ to already exist. It runs on the owner connection instead, which is also why it 
 human types and not an HTTP route: `linkIdentity` says "somebody decides that this account is that
 person, and that decision is recorded with who made it."
 
+## Inviting a person — `kf invite` (ADR 0040 decision 12)
+
+Joining is being granted scope, then qualifying (KF-SAS-RQ-275), so an invitation is the owner
+doing, in one run, the acts that already make someone a member, plus a link to Start Here. Every
+step is an owner-credential act (KF-SAS-RQ-236), recorded and on the audit chain:
+
+```sh
+pnpm kf invite --organization <uuid> --name "Lucie Garnier" --email lucie@example.org \
+  --role performer --clearance internal --invited-by <person> --contact <person> \
+  --reason "Joins the methods team" --issuer https://identity.kf.example/realms/knowledge-fabric \
+  --keycloak --pack <qualification pack> [--scope <object>] --web https://kf.example
+```
+
+1. the person (`bootstrap-organization --organization`);
+2. with `--keycloak`, their account at the identity provider, created with "set a password" and
+   "verify your email" required and Keycloak's own action email sent, which returns them to the
+   link once done. The admin credential is `KEYCLOAK_ADMIN_PASSWORD_FILE` (inline only in
+   development and test), with `KEYCLOAK_ADMIN_USERNAME`, `KEYCLOAK_BASE_URL` and `KEYCLOAK_REALM`;
+   without `--keycloak`, `--subject` names an account the operator already made;
+3. the identity link, a role assignment ending within 366 days (one year unless `--valid-to` says
+   otherwise) and the clearance (`grant-authority`, granted by the inviter);
+4. with `--pack`, an `assign_qualification` act of the inviter: the qualification record, pinned to
+   the pack's current approved revision, with the named contact;
+5. an `invite_person` act and the invitation: the digest of a fresh token, never the token, and an
+   expiry within 30 days (`--expires-in-days`, default 7).
+
+The link, `<web>/join/<token>`, is printed once. It carries no authority: the web application
+follows it only for the signed-in account the owner linked (`GET /invitations/:token` answers the
+same 404 for any other person or token), and sends them to Start Here.
+
 ## An agent acting for a person — token shape verified, end to end derived
 
 ADR 0035: an agent that forms and dispatches an act for a named person does so on a

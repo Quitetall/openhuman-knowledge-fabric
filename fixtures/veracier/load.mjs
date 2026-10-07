@@ -20,6 +20,12 @@
 //      inclusions, organization-wide reading, each team's documents and records — and the living
 //      organization overview, each an act by the CEO. A document or record read by exactly one
 //      team reaches its readers through the team's preset instead of one grant per reader.
+//   8. qualification (ADR 0038, fixtures/veracier/qualification.mjs): the common part, then the
+//      chief-executive and aero-engineer packs, each DRAFTED by the quality director over the
+//      records the steps above created. Approving a pack is the technical authority's
+//      institutional act (decision 13) and the owner's to perform, so the loader stops at drafts
+//      and says which approval each waits on; the two role packs compose the approved common part
+//      and are drafted on the run after it is approved.
 //
 // Idempotent by replay: every act carries a deterministic idempotency key, so a second run
 // changes nothing and reports each act as replayed ("0 new"). The bootstrap commands reuse what
@@ -45,6 +51,7 @@ import {
   reindex,
 } from '../lib/loader.mjs';
 import { personasFile, stackSettings } from '../lib/stack.mjs';
+import { AERO, CEO, COMMON, veracierPacks } from './qualification.mjs';
 import {
   INCLUSIONS,
   ORGANIZATION_WIDE,
@@ -557,6 +564,88 @@ async function reindexAll(opts) {
   }
 }
 
+/**
+ * The Véracier packs, drafted by the quality director (step 8). Each resource is referenced by
+ * identifier and the revision it has now, read from the record; nothing is copied.
+ */
+async function qualificationPacks(owner, overlay, sessions, boot, ids) {
+  const director = sessions.get(overlay.people.find((p) => p.persona === 'quality').key);
+  const org = boot.organizationId;
+  const need = {
+    overview: ids.overviewId,
+    procedures: ids.records['cd-fire-training'],
+    ncrExample: ids.records['nc-0312-001'],
+    authorityMatrix: ids.records['cd-incident-policy'],
+    programme: ids.records['prj-ramp-up'],
+  };
+  const missing = Object.entries(need).filter(([, id]) => id === undefined);
+  if (missing.length > 0) {
+    log(
+      `== qualification: skipped, these records are not loaded: ${missing.map(([k]) => k).join(', ')}`,
+    );
+    return;
+  }
+  const revisions = new Map(
+    (
+      await owner.scoped(
+        org,
+        `select o.id::text, coalesce(cd.revision, o.row_version::text) as revision
+           from core.object o left join quality.controlled_document cd on cd.id = o.id
+          where o.id = any($1::uuid[])`,
+        [Object.values(need)],
+      )
+    ).map((row) => [row.id, row.revision]),
+  );
+  const ref = (id) => ({ id, revision: revisions.get(id) });
+  const packs = veracierPacks({
+    resources: Object.fromEntries(Object.entries(need).map(([k, id]) => [k, ref(id)])),
+    scope: { av3000: need.programme },
+    roles: { owner: 'quality_director', quality: 'quality_director', executive: 'executive' },
+  });
+  const state = async (key) =>
+    (
+      await owner.scoped(
+        org,
+        `select o.lifecycle_state as state from org.qualification_pack p
+           join core.object o on o.id = p.id where p.organization_id = $1 and p.pack_key = $2`,
+        [org, key],
+      )
+    )[0]?.state;
+  log(
+    '== qualification (draft_qualification_pack, by the quality director; approval is the owner’s)',
+  );
+  const draft = async (document) => {
+    if ((await state(document.key)) !== undefined) {
+      tally('draft_qualification_pack', true);
+      return;
+    }
+    const res = await director.act('draft_qualification_pack', {
+      targetIds: [],
+      idempotencyKey: `veracier-v1:pack:${document.key}:${String(document.revision)}`,
+      reason: `Véracier qualification pack ${document.key}`,
+      payload: { document },
+    });
+    tally('draft_qualification_pack', res.status === 200);
+  };
+  await draft(packs.common);
+  if ((await state(COMMON)) === 'approved') {
+    await draft(packs.ceo);
+    await draft(packs.aero);
+  }
+  for (const key of [COMMON, CEO, AERO]) {
+    const now = await state(key);
+    log(
+      `  ${key}: ${
+        now === undefined
+          ? 'drafted once the common part is approved'
+          : now === 'draft'
+            ? 'drafted; waits on the owner’s approve_qualification_pack'
+            : now
+      }`,
+    );
+  }
+}
+
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
   if (opts.reindexOnly) {
@@ -614,6 +703,7 @@ async function main() {
       await needToKnow(opts, overlay, sessions, boot, ids);
       await governedRecords(opts, owner, overlay, sessions, boot, ids);
       await presets(opts, overlay, sessions, boot, ids);
+      await qualificationPacks(owner, overlay, sessions, boot, ids);
       if (refused.length > 0)
         log(`  ${refused.length} ingest refusal(s) above; they are reported, not retried`);
       // Every assignment the bootstrap tier wrote, the preset roles' included.

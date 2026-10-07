@@ -3,7 +3,7 @@
   "info": {
     "title": "OpenHuman Knowledge Fabric API",
     "version": "1.2.0-draft.1",
-    "description": "Generated from ontology source digest 3deaef88bbc89f229da5b21b1edf7b284bf285ded7b7974c36059f2c1204dbeb."
+    "description": "Generated from ontology source digest 50228da3a68d70cc5ff6d46ce6485eabb0755418b1a5a29da4645e75b24add67."
   },
   "paths": {
     "/objects/organization/{id}": {
@@ -3512,6 +3512,36 @@
       "post": {
         "summary": "Execute grant_person_clearance",
         "operationId": "grant_person_clearance",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/invite_person": {
+      "post": {
+        "summary": "Execute invite_person",
+        "operationId": "invite_person",
         "requestBody": {
           "required": true,
           "content": {
@@ -7444,6 +7474,7 @@
               "reactivate_person",
               "bootstrap_organization",
               "grant_person_clearance",
+              "invite_person",
               "revoke_external_identity",
               "grant_access",
               "revoke_access",

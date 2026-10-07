@@ -1,6 +1,6 @@
 # GENERATED from ontology/ — do not edit.
 # ontology_version: 1.2.0-draft.1
-# source_digest: 3deaef88bbc89f229da5b21b1edf7b284bf285ded7b7974c36059f2c1204dbeb
+# source_digest: 50228da3a68d70cc5ff6d46ce6485eabb0755418b1a5a29da4645e75b24add67
 
 @prefix sh: <http://www.w3.org/ns/shacl#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .

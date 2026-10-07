@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { redirect } from 'next/navigation';
 import { ApiError } from '../../lib/api';
 import { confirmProposal, declineProposal, verifyMany, verifyOne } from '../../lib/api/needs-you';
+import { creditEvidence } from '../../lib/api/qualification';
 import { webCaller } from '../../lib/session';
 
 /**
@@ -89,4 +90,30 @@ export async function declineProposed(form: FormData): Promise<void> {
       }),
     'Declined.',
   );
+}
+
+/**
+ * Credit a person's submitted evidence (ADR 0038 decision 7): one gesture accepts the work and
+ * credits the requirement, and when it is the last, the same act closes their record (RQ-257).
+ */
+export async function creditSubmitted(form: FormData): Promise<void> {
+  const caller = await webCaller('/needs-you');
+  let actionType: string;
+  try {
+    actionType = (
+      await creditEvidence(caller, text(form, 'recordId'), {
+        credits: [{ submissionId: text(form, 'submissionId') }],
+        idempotencyKey: text(form, 'gestureId') || randomUUID(),
+      })
+    ).actionType;
+  } catch (error: unknown) {
+    if (error instanceof ApiError && error.isRefusal) back(form, { refused: error.message });
+    throw error;
+  }
+  back(form, {
+    ok:
+      actionType === 'accept_qualification'
+        ? 'Credited. That was the last requirement: their qualification is complete.'
+        : 'Credited, and the work accepted.',
+  });
 }

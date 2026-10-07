@@ -12,6 +12,13 @@
  * Needs you is a slot: its contents are KF-WAR-0004's (milestone M2) and are read by its own
  * route. The dashboard names the slot in its place in the layout and supplies nothing for it, so
  * the two milestones cannot disagree about what the panel shows.
+ *
+ * Start Here is first (ADR 0040 decision 2: "a person whose qualification is open sees Start Here
+ * first") and is in every reader's layout: it carries the reader's own records still open, each
+ * as its generated Start Here, and is empty — and collapses — for everyone else. The layout is
+ * therefore still one constant; what decides whether it shows is the reader's own record, never
+ * a role. People and qualification carries the reader's own records and the people they are the
+ * contact or a reviewer for (KF-WAR-0007, ADR 0038 decision 12).
  */
 
 import { enumerateAccessCoverage, type AccessCoverage } from '@kf/authorization';
@@ -22,12 +29,21 @@ import {
   type OverviewAnswer,
 } from '@kf/documents';
 import type { ProjectionDefinitionSet } from '@kf/projections';
+import {
+  loadRecordEvaluation,
+  ownRecords,
+  reviewableRecords,
+  startHere,
+  type ReviewableRecord,
+  type StartHere,
+} from '@kf/qualification';
 import { grantedRecords, type GrantedRecord } from './granted-records.js';
 
 export const DASHBOARD_FORMAT = 'kf-dashboard-v1' as const;
 
 /** The one layout (RQ-262). Order is presentation order. */
 export const DASHBOARD_LAYOUT = [
+  'start_here',
   'overview',
   'master_document',
   'needs_you',
@@ -70,6 +86,25 @@ const LIST_LIMIT = 12;
 export interface Reader {
   readonly actorId: string;
   readonly organizationId: string;
+}
+
+export interface StartHerePanel {
+  readonly id: 'start_here';
+  /** True when the reader holds no record still open: the panel collapses. */
+  readonly empty: boolean;
+  /** The reader's own open records, each as its generated Start Here. */
+  readonly pages: readonly StartHere[];
+}
+
+/** One of the reader's own records, as the People panel summarizes it. */
+export interface OwnQualification {
+  readonly recordId: string;
+  readonly packTitle: string;
+  readonly state: StartHere['state'];
+  readonly currency: StartHere['currency'];
+  readonly missing: number;
+  readonly gaps: readonly string[];
+  readonly blocked: number;
 }
 
 export interface OverviewPanel {
@@ -124,11 +159,18 @@ export interface PeoplePanel {
   }[];
   /** Live read templates reaching the reader through roles, by the role path they came by. */
   readonly presetGrants: number;
-  /** Qualification is KF-WAR-0007's (milestone M5); until then this panel names none. */
-  readonly qualification: null;
+  /**
+   * Qualification (ADR 0038, KF-WAR-0007): the reader's own records, and the people whose
+   * records the reader may read as their contact or as a reviewer. Never anyone else's.
+   */
+  readonly qualification: {
+    readonly own: readonly OwnQualification[];
+    readonly reviewing: readonly ReviewableRecord[];
+  };
 }
 
 export type DashboardPanel =
+  | StartHerePanel
   | OverviewPanel
   | MasterDocumentPanel
   | NeedsYouPanel
@@ -182,7 +224,22 @@ async function masterDocumentPanel(tx: Tx, reader: Reader): Promise<MasterDocume
   };
 }
 
-async function peoplePanel(tx: Tx, reader: Reader, coverage: AccessCoverage): Promise<PeoplePanel> {
+/** The reader's own records in force, each generated as Start Here. */
+async function ownPages(tx: Tx, reader: Reader): Promise<StartHere[]> {
+  const pages: StartHere[] = [];
+  for (const record of await ownRecords(tx, reader)) {
+    const evaluation = await loadRecordEvaluation(tx, record.id);
+    if (evaluation !== undefined) pages.push(startHere(evaluation));
+  }
+  return pages;
+}
+
+async function peoplePanel(
+  tx: Tx,
+  reader: Reader,
+  coverage: AccessCoverage,
+  own: readonly StartHere[],
+): Promise<PeoplePanel> {
   const held = await tx.query<{
     id: string;
     role_id: string;
@@ -210,9 +267,10 @@ async function peoplePanel(tx: Tx, reader: Reader, coverage: AccessCoverage): Pr
     paths.set(grant.rolePath.join('\u0000'), grant.rolePath);
     pathsByHeldRole.set(first, paths);
   }
+  const reviewing = await reviewableRecords(tx, reader);
   return {
     id: 'people',
-    empty: held.length === 0,
+    empty: held.length === 0 && own.length === 0 && reviewing.length === 0,
     assignments: held.map((row) => ({
       assignmentId: row.id,
       roleId: row.role_id,
@@ -223,7 +281,18 @@ async function peoplePanel(tx: Tx, reader: Reader, coverage: AccessCoverage): Pr
       ),
     })),
     presetGrants: preset.length,
-    qualification: null,
+    qualification: {
+      own: own.map((page) => ({
+        recordId: page.recordId,
+        packTitle: page.pack.title,
+        state: page.state,
+        currency: page.currency,
+        missing: page.missing.length,
+        gaps: page.gaps,
+        blocked: page.blocked.length,
+      })),
+      reviewing,
+    },
   };
 }
 
@@ -258,7 +327,10 @@ export async function readDashboard(
     limit: LIST_LIMIT,
     exclude: PEOPLE_AND_ROLES,
   });
+  const pages = await ownPages(tx, reader);
+  const open = pages.filter((page) => page.currency !== 'qualified');
   const panels: DashboardPanel[] = [
+    { id: 'start_here', empty: open.length === 0, pages: open },
     overview.status === 'ready'
       ? { id: 'overview', empty: false, overview: overviewSummary(overview) }
       : { id: 'overview', empty: true },
@@ -271,7 +343,7 @@ export async function readDashboard(
       total: recent.total,
       records: recent.records,
     },
-    await peoplePanel(tx, reader, coverage),
+    await peoplePanel(tx, reader, coverage, pages),
   ];
   // The layout is the constant, and the panels are in its order; asserted, not assumed.
   if (panels.map((panel) => panel.id).join() !== DASHBOARD_LAYOUT.join()) {

@@ -33,6 +33,7 @@ fixture adds. The repository `NOTICE` carries the attribution.
 | `search-baseline.mjs`   | recall@10 of the benchmark's questions through KF search, as each asker; writes `reports/search-baseline.{md,json}`    |
 | `context-example.mjs`   | compiles an agent context for one question as its asker, through search and `agent_context`, and checks its sources    |
 | `stack/embed-server.py` | the loopback embedding server (BAAI/bge-m3) the retrieval engine embeds through                                        |
+| `qualification.mjs`     | the qualification packs (ADR 0038): the common part, the chief executive's and the aero engineer's                     |
 
 ## Bring it up
 
@@ -265,6 +266,24 @@ summary says `nothing new: this database already held the fixture`. `--sample` l
 every entity, top-level folder kind, format and classification, and every document a record rests
 on — which is what `tests/deployment/veracier-fixture.test.ts` runs against a live stack
 (`KF_VERACIER_LIVE=1`).
+
+## Qualification and joining (ADR 0038, KF-WAR-0007)
+
+`qualification.mjs` holds Véracier's first qualification packs, as data: a common part every
+person composes, a pack for the chief executive and a pack for an aero engineer on the AV-3000
+programme. Each requirement states its outcome, its stage among the five (Read-In, Role Read-In,
+References, Execution, First Contribution), its evidence mode, who accepts it and, if mandatory,
+what fails without it; resources are the organization's own records, referenced by identifier and
+revision. A new role is a new pack and no code.
+
+The loader's last step drafts the packs as the quality director over the records it loaded.
+Approving a pack is the owner's institutional act (decision 13), so the loader stops at drafts and
+says which approval each waits on; the two role packs are drafted on the run after the common part
+is approved. Joining a person is `kf invite` (`docs/deployment/identity-and-login.md`), and the
+walk from invitation to a qualified record — through Start Here, a first Warrant credited as
+evidence and the contact's closing gesture — is `tests/database/joining.test.ts` over the real
+routes and `apps/web/e2e/joining.test.mjs` in a browser, with `JOINERS` naming the fixture's two
+joiners.
 
 ## Text extraction
 
