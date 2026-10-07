@@ -7,7 +7,9 @@
  *                                            first; an empty list when they hold none
  *   GET  /start-here/guide                   the agent-guide context (`kf-agent-guide-context-v1`)
  *                                            for the reader's first record still open: what M4's
- *                                            chat is given when it guides; 404 when none is open
+ *                                            chat is given when it guides, labelled at the
+ *                                            record's level (never below confidential); 404
+ *                                            when none is open
  *   GET  /qualification/records/:id          one record as Start Here, for its person, their
  *                                            contact or a reviewer; 404 for anyone else, whether
  *                                            or not the record exists (decision 12)
@@ -149,10 +151,19 @@ export function registerQualificationRoutes(
   app.get('/start-here/guide', async (request, reply) => {
     const caller = await identify(request, reply);
     if (caller === undefined) return reply;
-    const pages = await bound(options.pool, caller, (tx) => startHerePages(tx, caller));
-    const open = pages?.find((page) => page.currency !== 'qualified');
-    if (open === undefined) return reply.code(404).send({ error: 'not_found' });
-    return reply.header('cache-control', 'private, no-store').send(agentGuideContext(open));
+    const guide = await bound(options.pool, caller, async (tx) => {
+      const open = (await startHerePages(tx, caller)).find((page) => page.currency !== 'qualified');
+      if (open === undefined) return undefined;
+      // The envelope's own label, which agentGuideContext raises to the record's level: never
+      // below confidential (ADR 0038 decision 12), so the chat routes it as it routes such a record.
+      const envelope = await tx.maybeOne<{ classification: string }>(
+        'select classification from core.object where id = $1',
+        [open.recordId],
+      );
+      return agentGuideContext(open, envelope?.classification);
+    });
+    if (guide === undefined) return reply.code(404).send({ error: 'not_found' });
+    return reply.header('cache-control', 'private, no-store').send(guide);
   });
 
   app.get<{ Params: { id: string } }>('/qualification/records/:id', async (request, reply) => {

@@ -5,6 +5,8 @@
  *   draftFromRequest  the real form for one act from M2's closed list, filled
  *   submitDraft       the person's one gesture: submitted unverified, or proposed into Needs you
  *   chooseBackend     the router; ProviderBackend the egress guard every provider call passes
+ *   readGuide         the reader's Start Here guide while their own qualification is open: one
+ *                     more source, labelled confidential at least (guide.ts)
  *
  * No I/O of its own beyond the Fabric API (as the person, through `FabricClient`) and the model
  * backends it is given. It keeps nothing.
@@ -61,4 +63,18 @@ export {
 } from './turn.js';
 export { asksToRecord, draftFromRequest, strippedRequest, type DraftOutcome } from './draft.js';
 export { submitDraft, type SubmitInput, type SubmitOutcome } from './submit.js';
+export {
+  GUIDE_ACTS,
+  GUIDE_MAY,
+  GUIDE_MAY_NOT,
+  guideItem,
+  guideLabel,
+  guidePermits,
+  guideSystem,
+  parseGuide,
+  readGuide,
+  type Guide,
+  type GuideNext,
+  type GuideRead,
+} from './guide.js';
 export { CredentialRefused, readOwnerOnlyFile } from './secret.js';

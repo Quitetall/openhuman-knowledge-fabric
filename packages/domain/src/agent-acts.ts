@@ -133,6 +133,45 @@ export const AGENT_ACTS: readonly AgentAct[] = [
     fields: [],
   },
   {
+    // The joining guide's one act (KF-WAR-0007; ADR 0038 decision 10): it names a record as
+    // evidence for a requirement of the person's OWN qualification record, and credits nothing —
+    // a reviewer decides from Needs you. The database refuses anyone but the record's person
+    // (KF-QUAL-031). Crediting and accepting are not on this list, and never will be: an agent
+    // never credits (KF-QUAL-011).
+    act: 'submit_qualification_evidence',
+    disposition: 'submit',
+    route: 'action',
+    title: 'Submit evidence for your Start Here',
+    description:
+      'Name a record as evidence for one of your own qualification requirements. It credits ' +
+      'nothing: it waits in Needs you for a reviewer holding the authority the requirement names.',
+    targets: 'one',
+    targetKind: 'qualification_record',
+    reasonRequired: false,
+    fields: [
+      {
+        name: 'requirement_key',
+        kind: 'text',
+        required: true,
+        label: 'The requirement it is evidence for (its key on your Start Here)',
+        maxLength: 160,
+      },
+      {
+        name: 'evidence_object_id',
+        kind: 'uuid',
+        required: true,
+        label: 'The record that is the evidence (an id you can read)',
+      },
+      {
+        name: 'note',
+        kind: 'text',
+        required: false,
+        label: 'A note for the reviewer',
+        maxLength: 2000,
+      },
+    ],
+  },
+  {
     act: 'promote_observation',
     disposition: 'propose',
     route: 'action',

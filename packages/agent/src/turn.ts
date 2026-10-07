@@ -16,6 +16,11 @@
  *   4. The answer is accepted only if every citation it makes is a source of this turn and every
  *      record id it mentions is one (prompt.ts). Otherwise it is refused, not trimmed.
  *
+ * While the reader's own qualification record is open, the turn also carries their guide
+ * (guide.ts): one more source, labelled at the record's level — never below confidential — so step
+ * 3 keeps it on the host like any record of that label, plus the guide's rules in the system
+ * prompt, which name no record. With no open record nothing here changes.
+ *
  * Nothing is kept: the answer is returned, sealed, and forgotten (seal.ts says why).
  */
 
@@ -33,6 +38,7 @@ import {
   type ProviderCeiling,
 } from './classification.js';
 import { record, refusalRule, type ApiAnswer, type FabricClient } from './fabric.js';
+import { guideItem, guideSystem, readGuide } from './guide.js';
 import { checkCitations, SYSTEM_PROMPT } from './prompt.js';
 import { chooseBackend, type Backends } from './router.js';
 import { sealTurn, verifiedHistory, type CarriedTurn } from './seal.js';
@@ -72,6 +78,11 @@ export interface ChatAnswer {
   readonly notes: readonly string[];
   /** The highest classification of what produced this turn; sealed for the next one. */
   readonly classification: string;
+  /**
+   * The Start Here the turn was given as guide (its record and digest), or null when the reader
+   * holds no open qualification record. The guide is also in `consulted`.
+   */
+  readonly guide: { readonly recordId: string; readonly digest: string } | null;
   readonly seal: string;
 }
 
@@ -256,6 +267,16 @@ export async function answerTurn(deps: AgentDependencies, input: TurnInput): Pro
     );
   }
 
+  // The guide, while the reader's own qualification is open: one more labelled source.
+  const guideRead = await readGuide(deps.fabric);
+  const guide = guideRead.kind === 'guide' ? guideRead.guide : undefined;
+  if (guideRead.kind === 'unreadable') {
+    notes.push(
+      'Your Start Here could not be read for this answer, so it was not given to the agent.',
+    );
+  }
+  if (guide !== undefined) context.push(guideItem(context.length + 1, guide));
+
   const consulted = context.map(citationOf);
   const classification =
     highestOf([
@@ -265,7 +286,13 @@ export async function answerTurn(deps: AgentDependencies, input: TurnInput): Pro
   const finish = (
     answer: Omit<
       ChatAnswer,
-      'classification' | 'seal' | 'withheldCount' | 'semanticRanking' | 'notes' | 'consulted'
+      | 'classification'
+      | 'seal'
+      | 'withheldCount'
+      | 'semanticRanking'
+      | 'notes'
+      | 'consulted'
+      | 'guide'
     >,
   ): ChatAnswer => {
     const text = answer.text ?? '';
@@ -276,6 +303,7 @@ export async function answerTurn(deps: AgentDependencies, input: TurnInput): Pro
       semanticRanking,
       notes,
       classification,
+      guide: guide === undefined ? null : { recordId: guide.recordId, digest: guide.digest },
       seal: sealTurn(deps.sealKey, text, classification),
     };
   };
@@ -311,7 +339,8 @@ export async function answerTurn(deps: AgentDependencies, input: TurnInput): Pro
   }
 
   const request: ModelRequest = {
-    system: SYSTEM_PROMPT,
+    system:
+      guide === undefined ? SYSTEM_PROMPT : `${SYSTEM_PROMPT}\n\n${guideSystem(context.length)}`,
     history,
     context,
     question,

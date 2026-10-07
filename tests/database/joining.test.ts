@@ -9,6 +9,12 @@
  * guide's context, acknowledges, submits their first Warrant; their reviewers find it in Needs
  * you, credit it, and the contact's one gesture closes the record. The dashboard shows Start Here
  * first while it is open and drops it once they are qualified.
+ *
+ * The in-app agent (`@kf/agent`) is driven over the same routes: while the record is open its turn
+ * carries the guide, labelled confidential although the record's envelope is `internal`, so a
+ * provider under an `internal` ceiling is sent nothing; it drafts and submits evidence through
+ * M2's closed list, which credits nothing; it cannot credit or accept. Once the record is closed,
+ * and for anyone without one, the turn carries no guide.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -17,12 +23,25 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { JsonValue } from '@kf/canonicalization';
 import { withTransaction } from '@kf/database';
 import { invitationTokenDigest } from '@kf/qualification';
+import {
+  ProviderBackend,
+  answerTurn,
+  draftFromRequest,
+  readGuide,
+  submitDraft,
+  type FabricClient,
+  type ModelBackend,
+  type ModelRequest,
+  type ProviderTransport,
+} from '@kf/agent';
 import { createFabricDispatcher } from '@kf/orchestrator';
 import type { Caller } from '../../apps/api/src/routes/actions/contracts.js';
 import { planInvite, runInvite, type InviteResult } from '../../apps/api/src/admin/invite.js';
 import { registerExperienceRoutes } from '../../apps/api/src/routes/experience.js';
 import { registerNeedsYouRoutes } from '../../apps/api/src/routes/needs-you.js';
 import { registerQualificationRoutes } from '../../apps/api/src/routes/qualification.js';
+import { registerActionPostRoute } from '../../apps/api/src/routes/actions/write-route.js';
+import { DEFAULT_EFFECTIVE_AT_BOUNDS } from '../../apps/api/src/routes/actions/effective-at.js';
 import { AERO, KEYS, veracierPacks } from '../../fixtures/veracier/qualification.mjs';
 import {
   createObject,
@@ -73,6 +92,13 @@ async function api(
   registerQualificationRoutes(server, { pool: h.pool, execute, identify });
   registerNeedsYouRoutes(server, { pool: h.pool, execute, identify, bearer: false });
   registerExperienceRoutes(server, { pool: h.pool, identify });
+  registerActionPostRoute(server, {
+    execute,
+    identify,
+    stepUp: {},
+    verifier: undefined,
+    effectiveAtBounds: DEFAULT_EFFECTIVE_AT_BOUNDS,
+  });
   await server.ready();
   try {
     const response = await server.inject({
@@ -104,6 +130,58 @@ const act = (
   });
 
 const pastThePace = () => new Promise((resolve) => setTimeout(resolve, 1_100));
+
+/**
+ * The Fabric as the in-app agent reaches it, for `who`, over these routes. The organization's
+ * ceiling is `internal`, ADR 0040's default; search and the context source are not mounted here,
+ * so a turn's only record content is what the guide carries.
+ */
+const fabricFor = (who: Who): FabricClient => ({
+  organizationId: f.organizationId,
+  async call(method, path, options) {
+    if (path === '/model-routing') return { status: 200, body: { providerCeiling: 'internal' } };
+    const query = options?.query === undefined ? '' : `?${new URLSearchParams(options.query)}`;
+    return api(who, method, `${path}${query}`, options?.body as Record<string, unknown>);
+  },
+});
+
+/** A provider that records what it is handed; the host's model, recording too. */
+class Recorder implements ProviderTransport {
+  readonly name = 'recording provider';
+  readonly sent: ModelRequest[] = [];
+  async send(request: ModelRequest) {
+    this.sent.push(request);
+    return { text: 'From the record.' };
+  }
+}
+class Host implements ModelBackend {
+  readonly kind = 'on_host' as const;
+  readonly name = 'LAMU on this host (test)';
+  readonly sent: ModelRequest[] = [];
+  reply = 'Start with your read-in.';
+  async complete(request: ModelRequest) {
+    this.sent.push(request);
+    return { text: this.reply };
+  }
+}
+
+/** One turn as `who`, both models offered; what each was sent. */
+async function turnAs(who: Who) {
+  const recorder = new Recorder();
+  const host = new Host();
+  const answer = await answerTurn(
+    {
+      fabric: fabricFor(who),
+      backends: {
+        onHost: host,
+        provider: new ProviderBackend(recorder, { ceiling: () => 'internal' }),
+      },
+      sealKey: new Uint8Array(32).fill(5),
+    },
+    { question: 'what do I do first?' },
+  );
+  return { answer, host, recorder };
+}
 
 beforeAll(async () => {
   h = await startHarness();
@@ -272,6 +350,32 @@ describe('the invited person joins', () => {
     });
     expect((guide.body['next'] as { key: string }[])[0]?.key).toBe(KEYS.readIn);
     expect(String(guide.body['instructions'])).toMatch(/never credit evidence/);
+    // Labelled at the record's level: the envelope is internal, the guide is not.
+    expect(guide.body['classification']).toBe('confidential');
+    const envelope = await withTransaction(h.adminPool, (tx) =>
+      tx.one<{ classification: string }>('select classification from core.object where id = $1', [
+        invited.recordId,
+      ]),
+    );
+    expect(envelope.classification).toBe('internal');
+  });
+
+  it('gives the in-app agent the guide, on the host only; an outsider’s turn carries none', async () => {
+    const asAgent = { ...joiner, agent: 'knowledge-fabric-web-agent' };
+    const { answer, host, recorder } = await turnAs(asAgent);
+    expect(answer.guide?.recordId).toBe(invited.recordId);
+    expect(answer.backend?.kind).toBe('on_host');
+    expect(recorder.sent).toHaveLength(0);
+    const item = host.sent[0]!.context.find((c) => c.recordId === invited.recordId)!;
+    expect(item.classification).toBe('confidential');
+    expect(item.text).toContain(KEYS.readIn);
+    expect(item.text).toMatch(/may not: .*credit_evidence/);
+
+    const other = await turnAs(outsider);
+    expect(other.answer.guide).toBeNull();
+    expect(other.answer.status).toBe('nothing_found');
+    expect(other.recorder.sent).toHaveLength(0);
+    expect(other.host.sent).toHaveLength(0);
   });
 
   it('acknowledges, submits a first Warrant, and is qualified by the reviewers’ gestures alone', async () => {
@@ -296,7 +400,51 @@ describe('the invited person joins', () => {
       profile: 'delivery',
       assurance_level: 'controlled',
     });
-    for (const key of [KEYS.references, KEYS.ncr, KEYS.containment, KEYS.firstContribution]) {
+    // The in-app agent, as the guide, drafts and commits the First Contribution's evidence through
+    // M2's closed list: one submission on her own record, crediting nothing.
+    const asAgent = { ...joiner, agent: 'knowledge-fabric-web-agent' };
+    const guideRead = await readGuide(fabricFor(asAgent));
+    if (guideRead.kind !== 'guide') throw new Error(`no guide: ${guideRead.kind}`);
+    const host = new Host();
+    host.reply = JSON.stringify({
+      act: 'submit_qualification_evidence',
+      targetIds: [],
+      fields: { requirement_key: KEYS.firstContribution, evidence_object_id: work },
+    });
+    const drafted = await draftFromRequest(
+      { onHost: host },
+      'internal',
+      'record that my Warrant is the evidence for my first contribution',
+      guideRead.guide,
+    );
+    expect(drafted.act.act).toBe('submit_qualification_evidence');
+    expect(drafted.draft.targetIds).toEqual([record]);
+    const byGuide = await submitDraft(fabricFor(asAgent), {
+      act: drafted.act.act,
+      targetIds: drafted.draft.targetIds,
+      fields: drafted.draft.payload,
+      idempotencyKey: `guide-${randomUUID()}`,
+    });
+    expect(byGuide.disposition).toBe('submitted');
+    const firstContribution = (
+      (await api(joiner, 'GET', '/start-here')).body['pages'] as {
+        stages: { items: { key: string; status: string }[] }[];
+      }[]
+    )[0]!.stages
+      .flatMap((s) => s.items)
+      .find((i) => i.key === KEYS.firstContribution);
+    expect(firstContribution?.status).toBe('submitted');
+    // Crediting or accepting through the same path is refused before anything is sent.
+    for (const act of ['credit_qualification_evidence', 'accept_qualification']) {
+      const refused = await submitDraft(fabricFor(asAgent), {
+        act,
+        targetIds: [record],
+        idempotencyKey: `guide-${randomUUID()}`,
+      });
+      expect(refused).toMatchObject({ disposition: 'refused', code: 'not_an_agent_act' });
+    }
+
+    for (const key of [KEYS.references, KEYS.ncr, KEYS.containment]) {
       const submitted = await api(joiner, 'POST', `/qualification/records/${record}/submit`, {
         idempotencyKey: `submit-${randomUUID()}`,
         requirementKey: key,
@@ -362,6 +510,10 @@ describe('the invited person joins', () => {
       expect.objectContaining({ currency: 'qualified' }),
     ]);
     expect((await api(joiner, 'GET', '/start-here/guide')).status).toBe(404);
+    // Qualified: the agent's turn carries no guide any more.
+    const after_ = await turnAs({ ...joiner, agent: 'knowledge-fabric-web-agent' });
+    expect(after_.answer.guide).toBeNull();
+    expect(after_.host.sent).toHaveLength(0);
   });
 
   it('keeps the record from anyone but the person, the contact and the reviewers', async () => {
