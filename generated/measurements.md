@@ -18,7 +18,7 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 | tables created | 199 | in migration up-sections |
 | row-security policies | 500 | in migration up-sections |
 | triggers created | 206 | literal `create trigger` statements in migration up-sections |
-| security definer declarations | 202 | in migration up-sections; a function redefined is declared again |
+| security definer declarations | 203 | in migration up-sections; a function redefined is declared again |
 | views | 13 | distinct view names in migration up-sections |
 | indexes created | 105 | explicit `create index` statements in migration up-sections |
 | foreign-key references | 510 | `references` clauses in migration up-sections |

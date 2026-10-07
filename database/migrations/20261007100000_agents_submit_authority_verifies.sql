@@ -85,6 +85,20 @@ as $$ select core.sealed_setting('kf.principal', true)::uuid $$;
 
 grant execute on function core.current_principal_or_null() to kf_app, kf_worker;
 
+-- The act this transaction recorded, or null. A row of the three tables below is written only by
+-- its own act: the act write guard (20260925011000) proves a write belongs to SOME act recorded in
+-- this transaction, not that the act's type writes this table, so without this a compromised API
+-- could write a policy under a cheap act and step around set_verification_policy's act authority.
+-- The dispatcher records the act before its effects run (applyAction), so it is there to read.
+create function core.current_action_type() returns text
+language sql
+stable
+security definer
+set search_path = pg_catalog, core
+as $$ select a.action_type from core.action a where a.id = core.current_action_id() $$;
+
+revoke all on function core.current_action_type() from public;
+
 -- 1. An agent never performs an institutional act -----------------------------------------------
 
 create function core.action_agent_bar() returns trigger
@@ -199,6 +213,11 @@ begin
         where d.client_id = new.agent_client_id and d.withdrawn_at is null) then
     raise exception 'KF-VPOL-002: % is not a live declared agent; a policy trusts a declared agent '
       'or none (ADR 0035)', new.agent_client_id
+      using errcode = 'check_violation';
+  end if;
+  if core.current_action_type() is distinct from 'set_verification_policy' then
+    raise exception 'KF-VPOL-004: a verification policy is written only by set_verification_policy, '
+      'an institutional act; this transaction recorded %', coalesce(core.current_action_type(), 'no act')
       using errcode = 'check_violation';
   end if;
   -- Who decided, by which act, when, and in what order: the database's, never the caller's.
@@ -457,6 +476,11 @@ begin
     raise exception 'KF-AGENT-004: a proposal is an agent''s; a person performs the act directly'
       using errcode = 'check_violation';
   end if;
+  if core.current_action_type() is distinct from 'propose_act' then
+    raise exception 'KF-AGENT-006: a proposal is written only by propose_act; this transaction '
+      'recorded %', coalesce(core.current_action_type(), 'no act')
+      using errcode = 'check_violation';
+  end if;
   new.organization_id := core.current_organization();
   new.proposed_for := core.current_actor_or_null();
   new.acting_role_id := core.current_acting_role();
@@ -496,6 +520,11 @@ begin
   if core.current_agent_or_null() is not null then
     raise exception 'KF-AGENT-002: resolving a proposal is the person''s own judgement; agent % may '
       'not record it (KF-SAS-RQ-265)', core.current_agent_or_null()
+      using errcode = 'check_violation';
+  end if;
+  if core.current_action_type() is distinct from 'resolve_act_proposal' then
+    raise exception 'KF-AGENT-006: a resolution is written only by resolve_act_proposal; this '
+      'transaction recorded %', coalesce(core.current_action_type(), 'no act')
       using errcode = 'check_violation';
   end if;
   select * into v_proposal from core.act_proposal where id = new.proposal_id;
@@ -647,6 +676,7 @@ drop function core.verification_policy_in_force(uuid, text, text, text);
 
 drop trigger action_agent_bar on core.action;
 drop function core.action_agent_bar();
+drop function core.current_action_type();
 drop function core.current_principal_or_null();
 drop function core.current_agent_or_null();
 drop function core.action_type_is_institutional(text);

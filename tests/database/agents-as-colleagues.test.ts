@@ -283,6 +283,24 @@ describe('a verification policy, set by an attributed act', () => {
     expect(refused.detail['rule']).toBe('KF-AGENT-001');
   });
 
+  it('a policy row is written only by set_verification_policy (KF-VPOL-004)', async () => {
+    // A bound person with act authority, writing the row directly under a different act: the act
+    // write guard alone would admit it (the act is recorded in this transaction); this does not.
+    await expect(
+      withTransaction(h.pool, async (tx) => {
+        await bindContext(tx, f, f.reviewerId);
+        await tx.query(
+          `insert into core.verification_policy
+             (organization_id, object_type, action_type, agent_client_id, mode, reason, set_by,
+              set_by_action)
+           values ($1, 'observation', 'record_observation', $2, 'verified_on_submit',
+                   'trusting the agent outside the act', $3, core.current_action_id())`,
+          [f.organizationId, AGENT, f.reviewerId],
+        );
+      }),
+    ).rejects.toThrow(/KF-VPOL-004/);
+  });
+
   it('a verified_by_policy row cannot be forged (KF-VPOL-003)', async () => {
     // A record the agent did NOT write, with the live policy's id and setter: the database
     // refuses, because no act in force wrote it under that policy.
