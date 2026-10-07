@@ -490,3 +490,119 @@ describe('provisioning covers every secret a shipped unit names', () => {
     expect(missing, 'a unit reads a secret provisioning never creates').toEqual([]);
   });
 });
+
+describe('the tailnet host (ADR 0039)', () => {
+  const NAME = 'kf-host-1.example-tailnet.ts.net';
+  const ADDRESS = '100.101.102.103';
+
+  function tailnetHost(state = 'Running'): Host {
+    const h = host();
+    for (const dir of [
+      '/usr/bin',
+      '/usr/sbin',
+      '/etc/nginx/sites-available',
+      '/etc/nginx/sites-enabled',
+      '/etc/default',
+    ]) {
+      mkdirSync(h.path(dir), { recursive: true });
+    }
+    writeFileSync(
+      h.path('/usr/bin/tailscale'),
+      `#!/usr/bin/env bash\n[ "$1 $2" = "status --json" ] || exit 2\ncat <<'JSON'\n${JSON.stringify(
+        {
+          BackendState: state,
+          Self: { DNSName: `${NAME}.`, TailscaleIPs: [ADDRESS, 'fd7a:115c:a1e0::1'] },
+        },
+      )}\nJSON\n`,
+      { mode: 0o755 },
+    );
+    writeFileSync(h.path('/usr/sbin/nginx'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+    writeFileSync(h.path('/etc/nginx/sites-enabled/default'), 'server { listen 80; }\n');
+    return h;
+  }
+
+  it('lists the host requirements and the tailnet inputs on a bare host', () => {
+    const h = host();
+    expect(h.run().code).toBe(0);
+    const output = h.run(['--check']).output;
+    expect(output).toContain('tailscale (/usr/bin/tailscale)');
+    expect(output).toContain('nginx (/usr/sbin/nginx)');
+    expect(output).toContain('KF_TAILNET_HOSTNAME');
+    expect(output).toContain('KF_TAILNET_ADDRESS');
+    expect(output).toContain('TS_PERMIT_CERT_UID=kf-tls');
+    expect(output).toContain('/etc/kf/tls/tailnet.crt');
+    expect(mode(h.path('/etc/kf/tls'))).toBe('750');
+    expect(mode(h.path('/etc/kf/tailnet.env'))).toBe('640');
+  });
+
+  it('fills the name and address from tailscale, renders nginx for them, and says what is left', () => {
+    const h = tailnetHost();
+    expect(h.run().code).toBe(0);
+    const env = readFileSync(h.path('/etc/kf/tailnet.env'), 'utf8');
+    expect(env).toMatch(new RegExp(`^KF_TAILNET_HOSTNAME=${NAME.replaceAll('.', '\\.')}$`, 'm'));
+    expect(env).toMatch(new RegExp(`^KF_TAILNET_ADDRESS=${ADDRESS.replaceAll('.', '\\.')}$`, 'm'));
+
+    const site = readFileSync(h.path('/etc/nginx/sites-available/knowledge-fabric.conf'), 'utf8');
+    expect(site).not.toMatch(/KF_TAILNET_(ADDRESS|HOSTNAME)/);
+    const listens = [...site.matchAll(/^\s*listen\s+([^;]+);/gm)].map((m) => m[1]!);
+    expect(listens.length).toBeGreaterThan(3);
+    for (const listen of listens) expect(listen.startsWith(`${ADDRESS}:`), listen).toBe(true);
+    expect(site).toContain(`server_name ${NAME};`);
+
+    const left = h.run(['--check']).output;
+    expect(left).toContain('/etc/nginx/sites-enabled/default');
+    expect(left).toContain('TS_PERMIT_CERT_UID=kf-tls');
+    expect(left).toContain('/etc/kf/tls/tailnet.crt');
+    expect(left).not.toContain('tailscale (/usr/bin/tailscale)');
+    expect(left).not.toContain('KF_TAILNET_HOSTNAME');
+
+    rmSync(h.path('/etc/nginx/sites-enabled/default'));
+    writeFileSync(h.path('/etc/default/tailscaled'), 'PORT="41641"\nTS_PERMIT_CERT_UID=kf-tls\n');
+    writeFileSync(h.path('/etc/kf/tls/tailnet.crt'), 'certificate\n');
+    const done = h.run(['--check']).output;
+    for (const item of ['sites-enabled/default', 'TS_PERMIT_CERT_UID', 'tailnet.crt', 'nginx (']) {
+      expect(done).not.toContain(item);
+    }
+  });
+
+  it('says so when the host is not up on the tailnet, and fills nothing', () => {
+    const h = tailnetHost('NeedsLogin');
+    expect(h.run().code).toBe(0);
+    expect(h.run(['--check']).output).toContain('not up on the tailnet (state: NeedsLogin)');
+    expect(readFileSync(h.path('/etc/kf/tailnet.env'), 'utf8')).toMatch(/^KF_TAILNET_HOSTNAME=$/m);
+    expect(existsSync(h.path('/etc/nginx/sites-available/knowledge-fabric.conf'))).toBe(false);
+  });
+
+  it('reports a configured name that is not the one tailscale knows', () => {
+    const h = tailnetHost();
+    expect(h.run().code).toBe(0);
+    const env = h.path('/etc/kf/tailnet.env');
+    writeFileSync(
+      env,
+      readFileSync(env, 'utf8').replace(
+        /^KF_TAILNET_HOSTNAME=.*$/m,
+        'KF_TAILNET_HOSTNAME=old.example-tailnet.ts.net',
+      ),
+    );
+    expect(h.run(['--check']).output).toContain(`but tailscale reports ${NAME}`);
+  });
+
+  it('checks none of it on a private-CA host', () => {
+    const h = host();
+    expect(h.run().code).toBe(0);
+    const env = h.path('/etc/kf/tailnet.env');
+    writeFileSync(
+      env,
+      readFileSync(env, 'utf8').replace(/^KF_HOST_ACCESS=tailnet$/m, 'KF_HOST_ACCESS=private-ca'),
+    );
+    const output = h.run(['--check']).output;
+    for (const item of [
+      'tailscale (',
+      'KF_TAILNET_HOSTNAME',
+      'TS_PERMIT_CERT_UID',
+      'tailnet.crt',
+    ]) {
+      expect(output).not.toContain(item);
+    }
+  });
+});
