@@ -51,7 +51,7 @@ import type { ExportPackage } from './types.js';
  *   `requirements`, `risks`, `tests`.
  * - 79124c0a (2026-09-24) — `20260925030200`: `observations`.
  * - de59c226 (2026-09-24, on a branch without beb2a9d3 and 79124c0a): `access-demand`.
- * - M2-PENDING (2026-10-07) — `20261007100000`: `verification-policies`, `act-proposals`,
+ * - b535bb14 (2026-10-07) — `20261007100000`: `verification-policies`, `act-proposals`,
  *   `act-proposal-resolutions`. Created empty; only the acts ADR 0040 adds write them.
  *
  * Absence does NOT mean none, and the importer restores what the migration derived:
@@ -143,7 +143,7 @@ export const SECTION_ARRIVALS: readonly SectionArrival[] = [
     sections: ['deliverable-retired-attributes'],
   },
   {
-    commit: 'M2-PENDING',
+    commit: 'b535bb14',
     after: ['b8886185'],
     sections: ['verification-policies', 'act-proposals', 'act-proposal-resolutions'],
   },
