@@ -80,6 +80,11 @@ overrides:
   # cosmiconfig declares `^4.1.0` and the suite stayed green, which means only that nothing in
   # it parses YAML through that path — not that the jump was safe.
   'js-yaml@>=4.0.0 <4.3.2': '^4.3.2'
+  # GHSA-68fv-2mgg-jv7q: indexed source-map offsets can block the event loop.
+  # A targeted refresh left Vite's separate PostCSS resolution on 1.2.1;
+  # enforce the patched floor for every affected 1.x resolution, without
+  # widening into a future major or muting the advisory.
+  'source-map-js@>=1.0.0 <1.2.2': '^1.2.2'
 
 # Dependency advisories: `pnpm audit --audit-level=moderate` (the `gate` script and ci.yml) fails
 # on any moderate-or-worse advisory NOT listed below. It was `high` until 2026-09-23, which let
