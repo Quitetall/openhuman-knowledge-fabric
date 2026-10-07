@@ -134,6 +134,36 @@ export const COMMISSIONING_ENVIRONMENT: readonly CommissioningVariable[] = [
     summary: 'the nginx configuration AS INSTALLED, not the shipped template',
   },
   {
+    env: 'KF_PRIVATE_LISTEN_ADDRESSES',
+    key: 'privateListenAddresses',
+    kind: 'required',
+    summary:
+      'the private addresses people reach the host on, comma-separated (tailnet: `tailscale ip`) — public_exposure, reverse_proxy_posture',
+  },
+  {
+    env: 'KF_PRIVATE_INTERFACE',
+    key: 'privateInterface',
+    kind: 'tunable',
+    defaultKey: 'privateInterface',
+    summary:
+      'the interface those addresses are on; a socket bound to it is private — public_exposure',
+  },
+  {
+    env: 'KF_PUBLIC_LISTEN_ALLOWED',
+    key: 'publicListenAllowed',
+    kind: 'tunable',
+    defaultKey: 'publicListenAllowed',
+    summary:
+      'proto:port allowed on every address, comma-separated: the private network transport only — public_exposure',
+  },
+  {
+    env: 'KF_SS',
+    key: 'socketStatisticsPath',
+    kind: 'tunable',
+    defaultKey: 'socketStatisticsPath',
+    summary: 'the ss that lists listening sockets — public_exposure',
+  },
+  {
     env: 'KF_RELEASE_DIR',
     key: 'releaseDirectory',
     kind: 'required',

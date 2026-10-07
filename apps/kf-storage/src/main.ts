@@ -50,6 +50,8 @@ function s3(prefix: 'S3' | 'S3_DURABLE', bucketVar: string): S3Config | undefine
     }),
     bucket: required(bucketVar),
     forcePathStyle: process.env[`${prefix}_FORCE_PATH_STYLE`] !== 'false',
+    // `false` for a store without conditional writes (Backblaze B2 documents none).
+    conditionalCreate: process.env[`${prefix}_CONDITIONAL_CREATE`] !== 'false',
   };
 }
 

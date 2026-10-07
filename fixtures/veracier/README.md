@@ -38,7 +38,7 @@ fixture adds. The repository `NOTICE` carries the attribution.
 
 ```sh
 pnpm install --frozen-lockfile
-fixtures/veracier/stack/stack.sh up      # PostgreSQL 18, MinIO, Keycloak; migrations; logins; build; apps
+fixtures/veracier/stack/stack.sh up      # PostgreSQL 18, SeaweedFS, Keycloak; migrations; logins; build; apps
 fixtures/veracier/stack/stack.sh load    # the whole fixture (or: load --sample), then restart the apps
 ```
 
@@ -49,12 +49,16 @@ The stack is its own compose project (`kf-veracier`) with its own containers, vo
 state directory (`~/.local/state/kf-veracier`, 0700), so it never touches the default
 `docker compose` stack or its database. Every port is on loopback:
 
-| what              | where                                |
-| ----------------- | ------------------------------------ |
-| web application   | <http://localhost:3100>              |
-| API               | <http://127.0.0.1:4100>              |
-| Keycloak          | <http://localhost:18080>             |
-| PostgreSQL, MinIO | `127.0.0.1:15432`, `127.0.0.1:19000` |
+| what                       | where                                |
+| -------------------------- | ------------------------------------ |
+| web application            | <http://localhost:3100>              |
+| API                        | <http://127.0.0.1:4100>              |
+| Keycloak                   | <http://localhost:18080>             |
+| PostgreSQL, S3 (SeaweedFS) | `127.0.0.1:15432`, `127.0.0.1:19000` |
+
+The object store is SeaweedFS (ADR 0039), the `seaweedfs` service of the repository's
+`docker-compose.yml`; `up` creates its four buckets with versioning on and refuses to continue
+unless each reads back `Enabled` (`deploy/object-store/init-buckets.sh`).
 
 It runs the processes a dogfood host runs, in the **dogfood** profile, built from this checkout:
 `kf-attestor` on a Unix socket, the API holding only `kf_app`, the worker holding only
@@ -78,13 +82,39 @@ build.
   It is prepared once, into float16 safetensors with a `PROVENANCE.json` naming both digests:
 
   ```sh
-  python3 fixtures/veracier/stack/embed-server.py prepare \
+  "$(ls -d ~/.local/share/kf-veracier/embed-env/*/bin/python | head -n 1)" -s -E \
+    fixtures/veracier/stack/embed-server.py prepare \
     --source <a download of the revision above> --out ~/.local/share/kf-veracier/bge-m3-f16
   ```
+
+  (the environment below exists once `stack.sh` has started semantic ranking; before that, any
+  Python with the same packages will do for this one-off step).
 
   `stack/embed-server.py serve` loads that directory (≈1.8 GB of GPU memory; CPU if there is no
   GPU), binds 127.0.0.1 only and speaks the two routes LAMU's `HttpServeEmbedder` probes
   (`/health`, `/v1/embeddings`). Nothing leaves the host (KF-SAS-RQ-218).
+
+- **the embedder's own Python environment** — never the user's site-packages, which another
+  project's `pip` can break (on 2026-10-06 an OS upgrade left `boto3` without `s3transfer`, which
+  broke `accelerate` and then `transformers`, and the embedder refused to start). On first use
+  `stack.sh` builds a virtualenv with [uv](https://docs.astral.sh/uv/) under
+  `~/.local/share/kf-veracier/embed-env/<first 16 hex of the lockfile's sha256>/` (override the
+  root with `KF_VERACIER_EMBED_ENV_ROOT`), from a uv-managed CPython 3.14.6 (not the OS's, which an
+  upgrade replaces) and `stack/embed-requirements.txt` installed with `--require-hashes`, and runs
+  the server as `python -s -E`, so neither user site-packages nor `PYTHON*` variables reach it.
+  The build is locked (two stacks starting together build it once) and used only once marked
+  complete. A changed lockfile is a new directory; the old one can be deleted. The direct pins,
+  in `stack/embed-requirements.in`:
+
+  | package      | version                                       |
+  | ------------ | --------------------------------------------- |
+  | torch        | 2.11.0+cu130 (CUDA 13.0 wheel; CPU if no GPU) |
+  | transformers | 5.5.3                                         |
+  | safetensors  | 0.7.0                                         |
+  | tokenizers   | 0.22.2                                        |
+
+  Everything they pull in (numpy, huggingface-hub, the NVIDIA runtime wheels, …) is pinned with
+  its sha256 in `stack/embed-requirements.txt`; the command that regenerates it is in the `.in`.
 
 - **the retrieval engine** — LAMU's `lamu kf-retrieval serve` (LAMU-WAR-0016), from
   `KF_VERACIER_LAMU_BIN` (default `~/.local/libexec/kf-veracier/lamu`, else `lamu` on PATH), on
