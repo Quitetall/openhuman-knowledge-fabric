@@ -15,3 +15,10 @@ export type {
   RecordedCompiledView,
 } from './compiler-runtime/types.js';
 export { parseCompilerRuntimeRequest } from './compiler-runtime/validation.js';
+export { rerunRecordedCompilations } from './compiler-runtime/determinism.js';
+export type {
+  DeterminismFinding,
+  DeterminismOptions,
+  DeterminismProblem,
+  DeterminismReport,
+} from './compiler-runtime/determinism.js';

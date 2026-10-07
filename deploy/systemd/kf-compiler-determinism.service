@@ -1,0 +1,66 @@
+[Unit]
+Description=Re-run recorded document compilations and fail when one does not reproduce
+Documentation=file:///opt/kf/docs/deployment/private-host.md
+Wants=network-online.target
+After=network-online.target
+OnFailure=kf-alert@%n.service
+
+# SAS §100.35 (KF-SAS-RQ-102). A compilation that does not reproduce an earlier one over the same
+# sources is refused when it is recorded, but until this unit nothing compiled the same sources
+# again unless somebody asked to, so a nondeterministic compiler went unnoticed. This re-runs the
+# newest recorded successes (apps/worker/src/compiler-runtime/determinism.ts), compares run
+# digests, and records nothing; a difference fails the unit and reaches a person.
+#
+# It runs as kf-worker because it compiles exactly as the worker does: the worker's database
+# login (to read requests through content.compiler_runtime_request and the sample function), the
+# working store's read credentials, and the same pinned Liminal binary under the same sandbox.
+# The share is declared in tests/deployment/systemd-units.test.ts.
+
+[Service]
+Type=oneshot
+User=kf-worker
+Group=kf-worker
+WorkingDirectory=/opt/kf/apps/worker
+EnvironmentFile=/etc/kf/worker.env
+UnsetEnvironment=NODE_OPTIONS NODE_PATH
+ExecStartPre=/usr/bin/test -s /etc/kf/worker/database-url
+ExecStartPre=/usr/bin/test -s /etc/kf/worker/s3-secret-access-key
+ExecStartPre=/usr/bin/test -x /usr/bin/bwrap
+ExecStartPre=/usr/bin/test -x /usr/bin/prlimit
+ExecStartPre=/opt/kf/scripts/deploy/verify-liminal-runtime.sh /opt/kf
+ExecStart=/usr/bin/env NODE_ENV=production DATABASE_URL_FILE=/etc/kf/worker/database-url /usr/bin/node /opt/kf/apps/worker/dist/determinism-cli.js --limit 5
+TimeoutStartSec=1h
+# The same ceilings as the worker: one compile at a time, each bounded by the adapter.
+MemoryHigh=3G
+MemoryMax=4G
+TasksMax=256
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectClock=true
+ProtectHostname=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectProc=invisible
+ProcSubset=pid
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+# bubblewrap needs exactly these namespace classes to create the compiler child sandbox.
+RestrictNamespaces=user mnt pid ipc net uts cgroup
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+# The worker's syscall boundary, line for line (kf-worker.service says why each line is there):
+# the Liminal sandbox inherits it, so the re-run compiles under the filter the worker does.
+SystemCallFilter=@system-service @mount
+SystemCallFilter=~@privileged @debug @module @raw-io @reboot @swap @clock @cpu-emulation @obsolete @keyring userfaultfd kcmp process_vm_readv process_vm_writev
+SystemCallFilter=capset pivot_root
+SystemCallErrorNumber=EPERM
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
