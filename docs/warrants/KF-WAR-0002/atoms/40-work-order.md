@@ -16,7 +16,11 @@ writer's checkout.
 
 ## Deliverables
 
-1. **SeaweedFS on `main`.** Finish or take over `integrate/seaweedfs`: merge `host/seaweedfs`
+1. **SeaweedFS on `main`.** First check whether it has already landed: `git fetch origin`, then
+   `git merge-base --is-ancestor host/seaweedfs origin/main`. If it has not, find out whether the
+   session integrating it (`integrate/seaweedfs`, /mnt/4tb/kf-wt-seaweed) is still active; if it
+   is, leave it to that session and start on deliverable 6's text instead. Only if it is abandoned,
+   with the owner's agreement, merge `host/seaweedfs`
    (including the untracked `migrate-objects.mjs` if it was never committed; its commit is
    `12952a68`). Gates: the full serial suite, including
    tests/database/object-store-versioning.test.ts, tests/database/object-store-identities.test.ts

@@ -29,7 +29,7 @@ milestones:
 
 stages:
   - id: "STAGE-001"
-    title: "Merge host/seaweedfs into main through integrate/seaweedfs, with migrate-objects.mjs committed"
+    title: "Check whether host/seaweedfs is on main; if not, and its integrating session is gone, merge it with migrate-objects.mjs"
     executor_kind: "agent"
     responsibility_tier: "T2"
 
