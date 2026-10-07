@@ -82,6 +82,13 @@ lamu_bin="${KF_VERACIER_LAMU_BIN:-$lamu_default}"
 # `embed-server.py prepare` writes this once from the Hub checkpoint (see that file).
 embed_model_dir="${KF_VERACIER_EMBED_MODEL_DIR:-$HOME/.local/share/kf-veracier/bge-m3-f16}"
 embed_port="${KF_VERACIER_EMBED_PORT:-${KF_STACK_EMBED_PORT:-8021}}"
+# The embedding server's own Python environment (embed-requirements.txt, hash-locked), never the
+# user's site-packages; created on first use by ensure_embed_env. Shared by every fixture stack,
+# since they share the prepared model. Named by the lockfile's digest, so changing a pin makes a
+# new environment rather than mutating a working one.
+embed_python_version='3.14.6'
+embed_lock="$here/embed-requirements.txt"
+embed_env_root="${KF_VERACIER_EMBED_ENV_ROOT:-$HOME/.local/share/kf-veracier/embed-env}"
 embed_url="http://127.0.0.1:$embed_port"
 retrieval_socket="$run/retrieval.sock"
 realm='knowledge-fabric'
@@ -131,29 +138,33 @@ secret_file() { # secret_file <path> <python expression producing the value>
   chmod 600 "$1"
 }
 
-pid_alive() { [ -f "$1" ] && kill -0 "$(cat "$1")" 2>/dev/null; }
+# Every pidfile names a process by pid, start time and boot, never by pid alone; see pidfile.sh.
+# shellcheck source=fixtures/veracier/stack/pidfile.sh
+. "$here/pidfile.sh"
+pid_alive() { pidfile_alive "$1"; }
 
 start_process() { # start_process <name> <cwd> <command...>
   local name="$1" cwd="$2"
   shift 2
   if pid_alive "$run/$name.pid"; then
-    echo "  $name already running (pid $(cat "$run/$name.pid"))"
+    echo "  $name already running (pid $(pidfile_pid "$run/$name.pid"))"
     return 0
   fi
   rm -f "$run/$name.pid"
-  # A session of its own, whose leader writes its OWN pid before it execs: that pid is also the
-  # process group, so `down` stops the process and anything it started (next start's server).
-  # Recording `$!` instead recorded setsid's short-lived parent whenever setsid had to fork.
-  # `exec`: without it the background subshell forks setsid and waits on it for the process's
-  # whole life, holding this script's stdout open, so `stack.sh up | tee` never finished.
-  (cd "$cwd" && exec setsid bash -c 'echo $$ > "$0"; exec "$@"' "$run/$name.pid" "$@" \
-    >"$logs/$name.log" 2>&1 </dev/null &)
+  # A session of its own, whose leader records ITSELF (pid, start time, boot; pidfile.sh) before
+  # it execs: that pid is also the process group, so `down` stops the process and anything it
+  # started (next start's server). Recording `$!` instead recorded setsid's short-lived parent
+  # whenever setsid had to fork. `exec`: without it the background subshell forks setsid and
+  # waits on it for the process's whole life, holding this script's stdout open, so
+  # `stack.sh up | tee` never finished.
+  (cd "$cwd" && exec setsid bash -c '. "$1" && pidfile_record "$0" || exit 70; shift; exec "$@"' \
+    "$run/$name.pid" "$here/pidfile.sh" "$@" >"$logs/$name.log" 2>&1 </dev/null &)
   local waited=0
   until [ -s "$run/$name.pid" ] || [ "$waited" -ge 50 ]; do
     sleep 0.1
     waited=$((waited + 1))
   done
-  echo "  $name started (pid $(cat "$run/$name.pid")), log $logs/$name.log"
+  echo "  $name started (pid $(pidfile_pid "$run/$name.pid")), log $logs/$name.log"
 }
 
 wait_for() { # wait_for <what> <seconds> <command...>
@@ -292,8 +303,12 @@ start_retrieval() {
     echo "  port $embed_port is already in use by something this script did not start" >&2
     return 1
   fi
-  start_process embed "$here" python3 embed-server.py serve --model-dir "$embed_model_dir" \
-    --port "$embed_port"
+  local embed_python
+  embed_python="$(ensure_embed_env)" || return 1
+  # -s -E: no user site-packages and no PYTHON* variables, so nothing outside the environment
+  # can be imported in place of what it pins.
+  start_process embed "$here" "$embed_python" -s -E embed-server.py serve \
+    --model-dir "$embed_model_dir" --port "$embed_port"
   wait_for 'embedding server' "${KF_VERACIER_EMBED_WAIT:-240}" curl -sf "$embed_url/health" ||
     return 1
   if [ ! -s "$retrieval/embedder-pin" ]; then
@@ -315,13 +330,43 @@ start_retrieval() {
   semantic_ready=1
 }
 
+# The embedding server's virtualenv, created on first use: a uv-managed CPython (not the OS's,
+# which an upgrade replaces) and exactly the wheels embed-requirements.txt names, each checked
+# against its sha256. Built under a lock, so two stacks starting at once build it once, and marked
+# complete only after the install succeeded: an interrupted build is discarded and redone, never
+# used. Prints the environment's python.
+ensure_embed_env() {
+  local digest env
+  digest="$(sha256sum "$embed_lock" | cut -c1-16)"
+  env="$embed_env_root/$digest"
+  if [ ! -f "$env/.complete" ]; then
+    command -v uv >/dev/null 2>&1 || {
+      echo "  uv is not installed; it builds the embedder's environment (https://docs.astral.sh/uv/)" >&2
+      return 1
+    }
+    install -d -m 0700 "$embed_env_root"
+    (
+      flock 9
+      [ ! -f "$env/.complete" ] || exit 0
+      rm -rf -- "$env"
+      echo "  building the embedder's environment once, in $env" >&2
+      uv python install --quiet "$embed_python_version" >&2 &&
+        uv venv --quiet --python "$embed_python_version" --python-preference only-managed \
+          "$env" >&2 &&
+        uv pip sync --quiet --require-hashes --index-strategy unsafe-best-match \
+          --python "$env/bin/python" "$embed_lock" >&2 &&
+        cp -- "$embed_lock" "$env/.complete"
+    ) 9>"$embed_env_root/.lock" || {
+      echo "  could not build the embedder's environment" >&2
+      return 1
+    }
+  fi
+  printf '%s' "$env/bin/python"
+}
+
 stop_retrieval() {
   for name in retrieval embed; do
-    if pid_alive "$run/$name.pid"; then
-      kill -TERM -- "-$(cat "$run/$name.pid")" 2>/dev/null || kill -TERM "$(cat "$run/$name.pid")"
-      echo "  stopped $name"
-    fi
-    rm -f "$run/$name.pid"
+    if pidfile_stop "$run/$name.pid" "$name" 0; then echo "  stopped $name"; fi
   done
 }
 
@@ -371,20 +416,9 @@ start_apps() {
 
 stop_apps() {
   for name in web worker api attestor; do
-    if pid_alive "$run/$name.pid"; then
-      local pid
-      pid="$(cat "$run/$name.pid")"
-      # Each process leads its own session; stop the group so `next start` children go too.
-      kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid"
-      # Wait for it to be gone (20 s), or `restart` finds its port still held and refuses.
-      local waited=0
-      while kill -0 "$pid" 2>/dev/null && [ "$waited" -lt 200 ]; do
-        sleep 0.1
-        waited=$((waited + 1))
-      done
-      echo "  stopped $name"
-    fi
-    rm -f "$run/$name.pid"
+    # Each process leads its own session; the group is stopped so `next start` children go too,
+    # and waited for (20 s), or `restart` finds its port still held and refuses.
+    if pidfile_stop "$run/$name.pid" "$name" 200; then echo "  stopped $name"; fi
   done
 }
 
@@ -406,7 +440,7 @@ down() {
 status() {
   for name in embed retrieval attestor api worker web; do
     if pid_alive "$run/$name.pid"; then
-      printf '  %-9s running  pid %s\n' "$name" "$(cat "$run/$name.pid")"
+      printf '  %-9s running  pid %s\n' "$name" "$(pidfile_pid "$run/$name.pid")"
     else
       printf '  %-9s stopped\n' "$name"
     fi
