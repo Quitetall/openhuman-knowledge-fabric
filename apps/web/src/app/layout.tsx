@@ -52,6 +52,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <Link href="/capture" style={{ color: '#334155', textDecoration: 'none' }}>
               Capture
             </Link>
+            <Link href="/agent" style={{ color: '#334155', textDecoration: 'none' }}>
+              Agent
+            </Link>
             <Link href="/ml/runs" style={{ color: '#334155', textDecoration: 'none' }}>
               ML runs
             </Link>

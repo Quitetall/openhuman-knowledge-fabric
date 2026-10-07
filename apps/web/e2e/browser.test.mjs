@@ -133,6 +133,11 @@ test(
     let fixtureOrigin = '';
     let webOrigin = '';
     let issuer = '';
+    // The in-app agent (ADR 0040): what reached the API on the agent's exchanged token, and what
+    // reached the on-host model.
+    const agentRequests = [];
+    const agentCaptures = [];
+    const lamuRequests = [];
 
     const fixture = createServer(async (request, response) => {
       try {
@@ -175,6 +180,19 @@ test(
             /^application\/x-www-form-urlencoded/,
           );
           const form = new globalThis.URLSearchParams(await requestBody(request));
+          if (form.get('grant_type') === 'urn:ietf:params:oauth:grant-type:token-exchange') {
+            // The in-app agent's client, authenticated, exchanging the person's own token.
+            assert.equal(
+              request.headers.authorization,
+              `Basic ${Buffer.from('knowledge-fabric-web-agent:fixture-agent-secret').toString('base64')}`,
+            );
+            assert.equal(form.get('subject_token'), 'fixture-access-token');
+            return json(response, 200, {
+              access_token: 'fixture-agent-token',
+              token_type: 'Bearer',
+              expires_in: 300,
+            });
+          }
           const code = form.get('code') ?? '';
           const transaction = codes.get(code);
           assert.ok(transaction, 'authorization code must be live and one-use');
@@ -213,6 +231,91 @@ test(
           const destination = url.searchParams.get('post_logout_redirect_uri');
           assert.equal(destination, `${webOrigin}/`);
           return redirect(response, destination);
+        }
+
+        if (url.pathname === '/v1/chat/completions') {
+          // LAMU on the host (loopback, OpenAI-compatible).
+          const body = JSON.parse(await requestBody(request));
+          lamuRequests.push(body);
+          const system = body.messages[0]?.content ?? '';
+          const content = system.includes('You fill in one form')
+            ? JSON.stringify({
+                act: 'record_observation',
+                targetIds: [],
+                fields: { body: 'bench 4 tripped at 3.29 V' },
+                reason: null,
+              })
+            : 'The bench rail measured 3.31 V under load [1].';
+          return json(response, 200, {
+            choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: 'stop' }],
+          });
+        }
+
+        if (
+          url.pathname.startsWith('/api/') &&
+          request.headers.authorization === 'Bearer fixture-agent-token'
+        ) {
+          assert.equal(request.headers['x-kf-organization'], ORGANIZATION_ID);
+          assert.equal(request.headers['x-kf-acting-role'], ROLE_ID);
+          agentRequests.push(`${request.method} ${url.pathname}`);
+          const BENCH = '77777777-7777-7777-8777-777777777777';
+          if (url.pathname === '/api/search') {
+            return json(response, 200, {
+              ranked: {
+                ranking: 'fixture',
+                hits: [
+                  {
+                    objectId: BENCH,
+                    title: 'Bench rail measured at 3.31 V',
+                    classification: 'internal',
+                  },
+                ],
+              },
+              semantic: { ranking: 'fixture', hits: [] },
+              lexical: { ranking: 'fixture', total: 0, complete: true, hits: [] },
+              withheld: [],
+              withheldCount: 3,
+              hits: [],
+            });
+          }
+          if (url.pathname === '/api/model-routing') {
+            return json(response, 200, {
+              providerCeiling: 'internal',
+              revision: null,
+              setAt: null,
+            });
+          }
+          if (url.pathname === '/api/context-source/retrieve') {
+            return json(response, 200, {
+              references: [
+                {
+                  adapter: 'knowledge-fabric',
+                  record: BENCH,
+                  revision: 'a'.repeat(64),
+                  digest: 'b'.repeat(64),
+                },
+              ],
+            });
+          }
+          if (url.pathname === '/api/context-source/read') {
+            return json(response, 200, {
+              text: 'Bench 4 rail: 3.31 V under load.',
+              classification: 'internal',
+            });
+          }
+          if (url.pathname === '/api/capture/observation') {
+            const body = JSON.parse(await requestBody(request));
+            agentCaptures.push({ body, authorization: request.headers.authorization });
+            return json(response, 201, {
+              observationId: '88888888-8888-7888-8888-888888888888',
+              actionId: '99999999-9999-7999-8999-999999999999',
+              replayed: agentCaptures.length > 1,
+            });
+          }
+          if (url.pathname.endsWith('/verification')) {
+            return json(response, 200, { verification: { verified: false } });
+          }
+          return json(response, 404, { error: 'not_found' });
         }
 
         if (url.pathname.startsWith('/api/')) {
@@ -849,6 +952,8 @@ test(
     const originalNextEnvironmentDeclaration = readFileSync(nextEnvironmentDeclaration);
     const secretPath = join(runtimeDirectory, 'session-secret');
     writeFileSync(secretPath, `${Buffer.alloc(32, 7).toString('base64')}\n`, { mode: 0o600 });
+    const agentSecretPath = join(runtimeDirectory, 'agent-client-secret');
+    writeFileSync(agentSecretPath, 'fixture-agent-secret\n', { mode: 0o600 });
     const distDir = `.next-e2e-${process.pid}`;
     const nextEnvironment = {
       ...process.env,
@@ -862,8 +967,13 @@ test(
       KF_WEB_SESSION_SECRET_FILE: secretPath,
       KF_API_URL: `${fixtureOrigin}/api`,
       KF_WEB_ORGANIZATION: ORGANIZATION_ID,
+      // The in-app agent: LAMU on loopback (the fixture), no provider, and its own client.
+      KF_AGENT_LAMU_URL: fixtureOrigin,
+      KF_WEB_AGENT_CLIENT_ID: 'knowledge-fabric-web-agent',
+      KF_WEB_AGENT_CLIENT_SECRET_FILE: agentSecretPath,
     };
     delete nextEnvironment.KF_WEB_SESSION_SECRET;
+    delete nextEnvironment.ANTHROPIC_API_KEY;
     let nextLogs = '';
     const collect = (chunk) => {
       nextLogs = `${nextLogs}${chunk}`.slice(-64 * 1024);
@@ -1253,6 +1363,61 @@ test(
         true,
         'ML detail must not create page-level horizontal overflow at a narrow viewport',
       );
+
+      // The in-app agent at phone width (ADR 0040 decisions 7 and 10, KF-SAS-RQ-266, RQ-272,
+      // RQ-273): an answer that names its backend, cites and counts what was withheld; a draft
+      // that is the act's real form; one click commits it on the agent's exchanged token.
+      const noOverflow = () =>
+        page.evaluate(
+          () => globalThis.document.documentElement.scrollWidth <= globalThis.window.innerWidth,
+        );
+      await page.goto(`${webOrigin}/agent`);
+      await assert.doesNotReject(() => page.getByRole('heading', { name: 'Agent' }).waitFor());
+      assert.equal(await noOverflow(), true, '/agent must not scroll sideways on a phone');
+      await page.getByLabel(/Ask, or say/).fill('What did the bench rail measure?');
+      await page.getByRole('button', { name: 'Ask' }).click();
+      await assert.doesNotReject(() => page.getByText(/LAMU on this host/).waitFor());
+      await assert.doesNotReject(() =>
+        page.getByRole('link', { name: '[1] Bench rail measured at 3.31 V' }).waitFor(),
+      );
+      await assert.doesNotReject(() =>
+        page.getByText(/3 matching records your grants do not reach/).waitFor(),
+      );
+      assert.equal(lamuRequests.length, 1, 'the answer came from the host’s model');
+      assert.ok(agentRequests.includes('POST /api/context-source/read'));
+      assert.equal(await noOverflow(), true, 'an answer must not scroll sideways on a phone');
+
+      await page.getByLabel(/Ask, or say/).fill('Record that bench 4 tripped at 3.29 V');
+      await page.getByRole('button', { name: 'Ask' }).click();
+      const draft = page.getByRole('form', { name: 'Draft: Record an observation' });
+      await assert.doesNotReject(() => draft.waitFor());
+      assert.equal(
+        await draft.getByLabel(/What was observed/).inputValue(),
+        'bench 4 tripped at 3.29 V',
+      );
+      // The same fields a person filling the capture form would see, and nothing written yet.
+      await assert.doesNotReject(() => draft.getByLabel(/Records it concerns/).waitFor());
+      await assert.doesNotReject(() => draft.getByLabel(/^Tags/).waitFor());
+      assert.equal(agentCaptures.length, 0, 'a draft writes nothing');
+      assert.equal(await noOverflow(), true, 'a draft must not scroll sideways on a phone');
+      await draft.getByRole('button', { name: 'Commit this record' }).click();
+      await assert.doesNotReject(() => page.getByText(/Recorded as your act/).waitFor());
+      assert.equal(agentCaptures.length, 1, 'one click, one act');
+      assert.equal(agentCaptures[0].authorization, 'Bearer fixture-agent-token');
+      assert.equal(agentCaptures[0].body.body, 'bench 4 tripped at 3.29 V');
+      assert.equal(
+        await draft.getByRole('button', { name: 'Committed' }).isDisabled(),
+        true,
+        'a committed draft cannot be committed again',
+      );
+
+      await page.goto(`${webOrigin}/capture`);
+      await assert.doesNotReject(() =>
+        page.getByRole('heading', { name: 'Capture an observation' }).waitFor(),
+      );
+      assert.equal(await noOverflow(), true, '/capture must not scroll sideways on a phone');
+      await page.goto(`${webOrigin}/ml/runs/${RUN_AUTHORITY_ID}/revisions/${RUN_REVISION_ID}`);
+      await page.waitForLoadState('networkidle');
 
       await page.getByRole('link', { name: 'Change context' }).click();
       await page.waitForURL(`${webOrigin}/session/select**`);

@@ -9,6 +9,14 @@
 #
 # Usage:  alert-dispatch.sh failure   <unit-name>
 #         alert-dispatch.sh heartbeat
+#         alert-dispatch.sh urgent
+#
+# `urgent` is the person-facing push (ADR 0040 decision 9, KF-SAS-RQ-274): kf-notify-urgent sends
+# it when something waits on the person this alert path reaches — an act an agent proposed for
+# them, or a blocker opened in their organization. It travels this path, to the same endpoint, so
+# a person's urgent items and the operational failures reach one phone the same way, and it says
+# exactly as little: that something needs them, and nothing about what (no title, no name, no
+# record content, no host). The person opens Knowledge Fabric to see it.
 #
 # WHAT THIS SENDS, AND WHAT IT DELIBERATELY DOES NOT. The payload carries the unit name, the
 # host, the time, systemd's own result words, and the invocation id. It carries NO LOG TEXT.
@@ -54,8 +62,12 @@ case "$event" in
   heartbeat)
     unit="${unit:-kf-alert-heartbeat.service}"
     ;;
+  urgent)
+    # Fixed: the sender is the notifier, and the push names nothing else.
+    unit="kf-notify-urgent.service"
+    ;;
   *)
-    echo "usage: alert-dispatch.sh {failure <unit-name>|heartbeat}" >&2
+    echo "usage: alert-dispatch.sh {failure <unit-name>|heartbeat|urgent}" >&2
     exit 2
     ;;
 esac
@@ -166,6 +178,10 @@ elif [ "$event" = failure ]; then
   # generic alerts: not even host/unit names, timestamps, invocation ids or log commands.
   payload='Service needs attention. Check the service locally.'
   content_type=text/plain
+elif [ "$event" = urgent ]; then
+  # The same stance for a person's urgent item: that something needs them, never what.
+  payload='Something in Knowledge Fabric needs you. Open Needs you.'
+  content_type=text/plain
 else
   # Healthchecks stores POST bodies. Send no metadata, and accept only its exact success
   # response: it can also return HTTP 200 for an unknown or rate-limited check.
@@ -189,7 +205,7 @@ while :; do
       exit 0
     elif [ "$event" = heartbeat ] && [ "$response" = OK ]; then
       exit 0
-    elif [ "$event" = failure ] && printf '%s' "$response" | node -e '
+    elif { [ "$event" = failure ] || [ "$event" = urgent ]; } && printf '%s' "$response" | KF_EXPECTED="$payload" node -e '
       let input = "";
       process.stdin.setEncoding("utf8");
       process.stdin.on("data", chunk => { input += chunk; });
@@ -197,7 +213,7 @@ while :; do
         try {
           const response = JSON.parse(input);
           process.exitCode = response.event === "message" &&
-            response.message === "Service needs attention. Check the service locally." ? 0 : 1;
+            response.message === process.env.KF_EXPECTED ? 0 : 1;
         } catch { process.exitCode = 1; }
       });
     '; then

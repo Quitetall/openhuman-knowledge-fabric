@@ -51,6 +51,8 @@
     "core.verification_policy",
     "core.act_proposal",
     "core.act_proposal_resolution",
+    "core.model_routing_policy",
+    "core.notification_preference",
     "core.outbox",
     "core.relation",
     "core.retention_hold",

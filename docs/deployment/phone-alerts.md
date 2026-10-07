@@ -11,6 +11,18 @@ No host/unit names, timestamps, invocation IDs, log commands, record identifiers
 document content are sent by this provider. The existing JSON webhook provider remains the
 default for other deployments.
 
+## Urgent items for a person
+
+The same path carries ADR 0040's urgent push (KF-SAS-RQ-274). `kf-notify@urgent.service` runs
+`alert-dispatch.sh urgent` when something urgent waits on the person this topic belongs to
+(`KF_NOTIFY_PUSH_PERSON` in `/etc/kf/notify.env`): an act an agent proposed for them, or a warrant
+blocker opened in their organization. The message is one fixed line, `Something in Knowledge
+Fabric needs you. Open Needs you.`, and the response must echo it exactly, as for a failure. It
+names no record, person, organization or host. Only urgent items push; everything else waits for
+the daily e-mail digest. The notifier reads the same endpoint from
+`/etc/kf/notify/alert-webhook-url` (owner `kf-notify`, mode 0600), because the script refuses a file
+readable by more than its owner. See [`../agents/in-app-agent.md`](../agents/in-app-agent.md).
+
 ## Owner setup
 
 1. Install the ntfy iOS app and allow notifications. Use the hosted `https://ntfy.sh` server.

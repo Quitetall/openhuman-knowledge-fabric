@@ -1,9 +1,9 @@
 <!-- GENERATED from ontology/ — do not edit. -->
-<!-- ontology_version: 1.2.0-draft.1 · source_digest: 7ff9a074f593873f8f48a8e4714249539fef5b33892f28420e55bfb6ad7d60cf -->
+<!-- ontology_version: 1.2.0-draft.1 · source_digest: d70bcc6393476d52bbd81f3956681055db55b7d67aeed11e2a976b0f77762a08 -->
 
 # Ontology reference
 
-Compiled from `ontology/`. 40 object types, 42 relation types, 173 action types, 26 state machines, 16 invariants, 4 corpus projections.
+Compiled from `ontology/`. 40 object types, 42 relation types, 175 action types, 26 state machines, 16 invariants, 4 corpus projections.
 
 ## Object types
 
@@ -163,6 +163,8 @@ Compiled from `ontology/`. 40 object types, 42 relation types, 173 action types,
 | `set_verification_policy` | — | act |
 | `propose_act` | — | role only |
 | `resolve_act_proposal` | — | role only |
+| `set_model_routing_policy` | — | act |
+| `set_notification_preference` | — | role only |
 | `deactivate_organization` | organization | act |
 | `reactivate_organization` | organization | act |
 | `retire_organization` | organization, person | act |

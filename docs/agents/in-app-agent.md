@@ -1,0 +1,141 @@
+# The in-app agent, and how a person is told
+
+Milestone M4 ([KF-WAR-0006](../warrants/KF-WAR-0006/manifest.toml)), building
+[ADR 0040](../decisions/0040-the-experience-scope-is-the-product.md) decisions 7, 8 and 9 and SAS
+§24B: KF-SAS-RQ-266, RQ-271, RQ-272, RQ-273 and RQ-274.
+
+## What a person sees
+
+`/agent` in the web application, and `AgentDock` (`apps/web/src/app/agent/agent-dock.tsx`), the same
+chat as one panel the dashboard can mount. One column that works at phone width.
+
+- **Ask.** The answer cites every record it drew on — each a link to the record — names the backend
+  that produced it ("LAMU on this host" or the provider's model), and says how many matching
+  records the reader's grants do not reach. That count is `withheldCount` from `GET /search` for the
+  same query and reader (ADR 0037). When semantic ranking was unavailable the answer says so
+  (KF-SAS-RQ-216).
+- **"Record that …".** The agent picks one act from M2's closed list (`AGENT_ACTS`) and shows its
+  real form: the same fields, labels and limits a person filling it sees, because `draftAgentAct`
+  builds both. Nothing is written. One click commits it as the person's act with the in-app agent's
+  participation, unverified until someone with authority verifies it. An institutional act is
+  proposed into the person's Needs you and is not performed (KF-SAS-RQ-265, RQ-266).
+
+## How it works
+
+`@kf/agent` (`packages/agent`) holds the logic; the web application's server actions
+(`apps/web/src/app/agent/actions.ts`) run it as the signed-in person.
+
+1. **Identity.** The web application exchanges the person's access token (RFC 8693, Keycloak
+   standard token exchange) for one issued to the in-app agent's client, declared with
+   `kf declare-agent` (ADR 0035). Every call the agent makes carries that token, so the database
+   records the agent's participation on each read and write. With no agent client configured, the
+   agent reads as the person and refuses to commit a draft, because a write it made would carry no
+   participation.
+2. **Retrieval** through the API only: `GET /search`, then `POST /context-source/retrieve` and
+   `POST /context-source/read` for each reference, over loopback (KF-SAS-RQ-253). Every read is
+   checked against current authority and recorded in `search.context_disclosure` (KF-SAS-RQ-250).
+   A missing or stale master record is compiled once, as the person's act.
+3. **Routing**, below.
+4. **Citation check.** The model is given numbered sources and must cite by number. An answer that
+   cites a number that is not a source of this turn, or mentions a record id that is not one, is
+   refused (KF-CHAT-002). It is not trimmed.
+
+## The backend router (KF-SAS-RQ-271, RQ-272)
+
+**The setting** is per organization: `core.model_routing_policy.provider_ceiling`, the highest
+classification that may leave the host to a provider's model or in a notification. It is `none`,
+`public` or `internal`. Nothing set means `internal`, ADR 0040's default. It is written only by
+`set_model_routing_policy`, an institutional act, so no agent can widen it. The database refuses
+`confidential` and `restricted` in every session, an administrator's included (KF-ROUTE-001).
+`GET /model-routing` reads it.
+
+**The decision.** The router reads the highest classification of everything a turn carries: this
+turn's records, plus every earlier answer in the conversation.
+
+| Highest classification in the turn | Provider configured | LAMU on the host | Answered by                                       |
+| ---------------------------------- | ------------------- | ---------------- | ------------------------------------------------- |
+| at or below the ceiling            | yes                 | any              | the provider (or LAMU if preferred)               |
+| at or below the ceiling            | no                  | yes              | LAMU                                              |
+| above the ceiling                  | any                 | yes              | LAMU, only                                        |
+| above the ceiling                  | any                 | no               | refused, KF-ROUTE-004                             |
+| anything, and LAMU fails           | any                 | yes, failing     | refused, KF-CHAT-001; never retried on a provider |
+
+**The enforcement point** is `ProviderBackend.complete` (`packages/agent/src/backends.ts`). It is
+the last line before the provider's transport is handed a byte. It re-checks every context item's
+own classification and every earlier answer's label against the ceiling, on the exact request about
+to be sent. If anything may not leave, it throws KF-ROUTE-003 naming the records, and the transport
+is never called. Under a `none` ceiling it refuses everything, including the person's own words.
+The router chooses the backend. This guard is what makes a router bug, or a caller that skips the
+router, fail closed.
+
+**LAMU** is reached at its OpenAI-compatible `POST /v1/chat/completions`. The adapter refuses any
+address that is not loopback, so an "on-host" backend cannot be pointed off the host.
+
+**The provider** is the Claude API through `@anthropic-ai/sdk`. The model is `claude-opus-5-5` by
+default, or `claude-sonnet-5`, at effort `medium`. The key is read from an owner-only file on each
+call (`KF_AGENT_PROVIDER_KEY_FILE`). The SDK is given that key explicitly, and the web application
+refuses to start a turn if `ANTHROPIC_API_KEY` is in its environment. On the owner's workstation
+the key lives in the secrets store and is materialized for a run with `secrets run --`. It is never
+in the repository or an env file.
+
+## The conversation is not stored
+
+The server stores no question, no answer and no conversation. The page holds the conversation in
+memory and loses it on reload.
+
+The reason: an answer is a projection of records the reader may read now. A stored answer would be
+a copy of record text outside the record, with its own retention, its own export and backup
+exposure, and a grant problem: when a grant is withdrawn, the stored answer would keep quoting the
+record. The context source exists to avoid that. What a turn disclosed is already recorded, as
+transient observations under §64B: each read in `search.context_disclosure` and each query in
+`search.recorded_query`, both swept at 90 days.
+
+Because the browser carries earlier answers back as context for a follow-up, each answer is sealed
+with an HMAC over its text and classification. The key is derived from the web session key and the
+browser never sees it. An earlier answer whose seal does not verify is treated as `restricted`, so
+a lowered label can only keep a conversation on the host.
+
+`tests/permissions/agent-chat.test.ts` ("a turn keeps nothing") counts every table's rows before and
+after a turn and allows only the transient disclosure tables to change.
+
+## Notifications (KF-SAS-RQ-274)
+
+`kf-notify@.service` (`apps/notify`) runs as `kf-notify`, on a database login that inherits
+`kf_notifier` and reads no table.
+
+- **The daily digest** (`kf-notify-digest.timer`, 07:00). It calls `core.needs_you_digest()`, which
+  returns each person's Needs you — the same three lists, read grants and clearance as
+  `GET /needs-you` — with a title and an identifier only for items at or below the organization's
+  provider ceiling. Everything else is a count and a link. The composer does not print a title from
+  a row not marked disclosed, even if the row carries one. Subjects carry no titles. A person
+  with nothing waiting gets nothing. A person can turn the digest off with
+  `set_notification_preference` (`digest: off`); nobody else can turn it off for them, including an
+  agent acting for them (KF-NOTIFY-001). SMTP settings come from `/etc/kf/notify/smtp.json` (0600),
+  over TLS or STARTTLS. A plain connection is allowed only to a loopback relay.
+- **The urgent push** (`kf-notify-urgent.timer`, every five minutes). It calls
+  `core.urgent_notifications(since)`. The urgent kinds are an act an agent proposed and its person
+  must perform, and a warrant blocker opened in the organization (for its organization-wide
+  technical authorities). A failed backup or alert is the third kind, and `kf-alert@` already
+  pushes it on `OnFailure=`. When anything urgent arose for the person this host's alert path
+  reaches (`KF_NOTIFY_PUSH_PERSON`), it runs `scripts/alert-dispatch.sh` with the event `urgent`: the same script,
+  endpoint and credential custody as the operational alerts. The push is one fixed line, "Something
+  in Knowledge Fabric needs you. Open Needs you." It names no record, person, organization or host.
+  Nothing that is not urgent is ever pushed. A person can turn the push off (`push: off`).
+
+Timer liveness: both timers declare `X-KF-MaxSilenceSec`, so `scripts/timer-liveness.sh` reports a
+stopped or silent one.
+
+## Limits, recorded
+
+- **What a person types is not classified** (KF-WAR-0006 RR-001). The router classifies what KF put
+  in the context. Text a person pastes into a question can still reach a provider when the turn's
+  context allows one. Drafting prefers LAMU for the same reason: dictated words are about to become
+  a record.
+- **LAMU's own forwarding.** LAMU can be configured to forward to a cloud gateway
+  (`LAMU_GATEWAY_URL`). KF cannot see that from outside, so the host's commissioning must keep it
+  unset.
+- **One push destination.** The urgent push reaches the one person the deployment's alert topic
+  belongs to. Other people learn of urgent items from their digest until per-person topics exist.
+- **The urgent boundary** is kept at millisecond precision in `/var/lib/kf-notify`. An item
+  committed after a later item, in the same millisecond, can be missed by the push. The digest still
+  lists it.

@@ -76,6 +76,21 @@ export const CORE_SECTIONS = [
             from core.act_proposal_resolution order by proposal_id`,
   },
   {
+    // ADR 0040 decision 8 (20261007300000): what each organization lets leave the host, to a
+    // provider's model or in a notification. Every row, superseded ones included: the history of
+    // what was allowed to leave is the evidence for every answer routed under it.
+    name: 'model-routing-policies',
+    sql: `select id, revision, organization_id, provider_ceiling, reason, set_by, set_by_action,
+                 set_at
+            from core.model_routing_policy order by revision`,
+  },
+  {
+    // ADR 0040 decision 9: each person's own digest and push setting, every revision.
+    name: 'notification-preferences',
+    sql: `select id, revision, organization_id, person_id, digest, push, set_by_action, set_at
+            from core.notification_preference order by revision`,
+  },
+  {
     // KF-SAS-RQ-221: the demand aggregate is a record — which records people could not reach,
     // and how many distinct persons wanted each, never which persons. The recorded queries and
     // per-asker contributions it was counted from are transient and are NOT exported (§64B).

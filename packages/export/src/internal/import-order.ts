@@ -27,6 +27,8 @@ export const IMPORT_ORDER = [
   'object-verifications',
   'act-proposals',
   'act-proposal-resolutions',
+  'model-routing-policies',
+  'notification-preferences',
   'access-demand',
   'snapshots',
   'audit-events',

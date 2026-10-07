@@ -135,6 +135,14 @@ type, so `create-act-coverage` is unchanged. The database refuses every institut
 `verify_record` and every resolution under an agent's attestation, and any policy that would verify
 an institutional act on submit.
 
+Two acts carry ADR 0040's rules on what leaves the host and how a person is told (KF-SAS-RQ-271,
+RQ-274; migration `20261007300000`). `set_model_routing_policy` (institutional) records, for the
+organization it targets, the highest classification that may leave the host, to a provider's model
+or in a notification: `none`, `public` or `internal`, and the database refuses `confidential` and
+`restricted` in every session. `set_notification_preference` records the performing person's own
+digest and urgent-push setting, and the database refuses it under an agent's attestation. Neither
+creates an object type.
+
 ## Where each rule is enforced
 
 `rules.yaml` says where each invariant is enforced; `tests/database/rule-ledger.test.ts` is the
