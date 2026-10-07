@@ -1,4 +1,5 @@
 import { loadSecret } from '@kf/operations';
+import { DEFAULT_EMBEDDING_CONCURRENCY, MAX_EMBEDDING_CONCURRENCY } from './embedding.js';
 
 export const MAX_WORKER_CONCURRENCY = 128;
 
@@ -22,6 +23,24 @@ export function workerConcurrency(
   if (!Number.isSafeInteger(value) || value <= 0 || value > MAX_WORKER_CONCURRENCY) {
     throw new Error(
       `WORKER_CONCURRENCY must be an integer from 1 through ${String(MAX_WORKER_CONCURRENCY)}`,
+    );
+  }
+  return value;
+}
+
+/**
+ * Engine requests the embedding pump keeps in flight (SAS §100.44): KF_EMBEDDING_CONCURRENCY,
+ * from 1 through MAX_EMBEDDING_CONCURRENCY, DEFAULT_EMBEDDING_CONCURRENCY when unset. Refused, not
+ * clamped, when out of range: a value nobody can explain should stop the worker, not be guessed at.
+ */
+export function embeddingConcurrency(
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+): number {
+  const raw = environment['KF_EMBEDDING_CONCURRENCY'];
+  const value = raw === undefined || raw === '' ? DEFAULT_EMBEDDING_CONCURRENCY : Number(raw);
+  if (!Number.isSafeInteger(value) || value < 1 || value > MAX_EMBEDDING_CONCURRENCY) {
+    throw new Error(
+      `KF_EMBEDDING_CONCURRENCY must be an integer from 1 through ${String(MAX_EMBEDDING_CONCURRENCY)}`,
     );
   }
   return value;

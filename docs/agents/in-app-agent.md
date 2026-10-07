@@ -78,6 +78,59 @@ refuses to start a turn if `ANTHROPIC_API_KEY` is in its environment. On the own
 the key lives in the secrets store and is materialized for a run with `secrets run --`. It is never
 in the repository or an env file.
 
+## The embedding pump (SAS §100.44)
+
+A record is findable by meaning once the worker's embedding pump has handed its text to the
+retrieval engine (`apps/worker/src/embedding.ts`, `20261007500000`). Until this milestone the pump
+claimed one batch of 32 records per two-second tick, so however fast the engine was a large ingest
+became findable at most 960 records a minute.
+
+- **Concurrent and bounded.** Up to `KF_EMBEDDING_CONCURRENCY` engine requests in flight (1 to 16;
+  default 1, the fixture stack 4). Each consumer claims one record, embeds it with no transaction
+  open, completes it, and claims the next, until nothing is claimable; only then does the pump
+  sleep.
+- **Never twice under a race.** A claim is a lease on one record, at least twice the engine timeout
+  (60 s), so it cannot lapse under a live worker, and claims skip locked rows, so two workers never
+  hold one record. A record edited while it is being embedded is marked, not released: its new text
+  is embedded after the old one is answered, never beside it, so a stale vector cannot land last.
+  (Before `20261007500000` an edit released the claim and a second consumer could embed the new text
+  while the old was still in flight; whichever answered last was kept.) What remains is waste, not
+  a duplicate: when the client gives up on a slow engine (60 s) the engine may still store that
+  vector, and the retry stores it again in the same slot.
+- **Failures back off, then are recorded.** A record the engine refused, or that could not be
+  completed, waits 15 s · 2^(attempts−1) (capped at an hour) and after eight attempts is recorded as
+  given up in its queue row — `failed_at`, the class of failure, the count — and is not claimed again
+  until it is enqueued again (an edit, or `stack.sh reindex`). `retrieval.embedding_backlog()` counts
+  the queue for the worker's log. An engine that fails the handshake costs no record an attempt:
+  nothing is claimed, and the pump backs off as a whole, doubling from 2 s to five minutes.
+- **The band version** is untouched by any of this (§64A): vectors still land after the act that
+  moved it, and the client still rebuilds its bitmaps when the engine's slot count moves.
+
+Measured on this workstation's copy of the fixture stack (not the owner's), Véracier's 2 245
+records re-enqueued and drained to empty, bge-m3 on the fixture's GPU embedder, each run twice,
+interleaved; the host was shared with other work (load average 50 to 80, I/O pressure 50 to 85 %),
+and the copy's PostgreSQL ran with `synchronous_commit = off` for both, so the commits did not wait
+on that disk:
+
+| pump                                  | run 1     | run 2     |
+| ------------------------------------- | --------- | --------- |
+| before (one batch of 32 per 2 s tick) | 877 / min | 604 / min |
+| after, 1 in flight                    | 2 234     | 2 454     |
+| after, 4 in flight                    | 2 911     | 2 811     |
+| after, 8 in flight                    | 2 910     | 2 683     |
+
+Four saturates the fixture's embedder, which embeds one request at a time behind a lock. On a CPU
+embedder the default is one: the same model on four pinned cores embedded 60 records at 13 a minute
+with one in flight and 10 to 11 with two or four, where long records also outran the timeout and
+were embedded again.
+
+## The KF MCP server lands drafts the same way
+
+`submit_act` in the KF MCP server (`apps/mcp/src/server.ts`) calls the same `submitDraft` the chat
+does (`@kf/agent/submit`, a subpath that loads none of the model backends). The two surfaces differ
+only in their words; what lands and how — the draft rebuilt from the fields, a submit act performed
+and read back for its verification, an institutional act only proposed — is one implementation.
+
 ## The conversation is not stored
 
 The server stores no question, no answer and no conversation. The page holds the conversation in
@@ -113,7 +166,7 @@ after a turn and allows only the transient disclosure tables to change.
   agent acting for them (KF-NOTIFY-001). SMTP settings come from `/etc/kf/notify/smtp.json` (0600),
   over TLS or STARTTLS. A plain connection is allowed only to a loopback relay.
 - **The urgent push** (`kf-notify-urgent.timer`, every five minutes). It calls
-  `core.urgent_notifications(since)`. The urgent kinds are an act an agent proposed and its person
+  `core.urgent_notifications(since, item)`. The urgent kinds are an act an agent proposed and its person
   must perform, and a warrant blocker opened in the organization (for its organization-wide
   technical authorities). A failed backup or alert is the third kind, and `kf-alert@` already
   pushes it on `OnFailure=`. When anything urgent arose for the person this host's alert path
@@ -136,6 +189,11 @@ stopped or silent one.
   unset.
 - **One push destination.** The urgent push reaches the one person the deployment's alert topic
   belongs to. Other people learn of urgent items from their digest until per-person topics exist.
-- **The urgent boundary** is kept at millisecond precision in `/var/lib/kf-notify`. An item
-  committed after a later item, in the same millisecond, can be missed by the push. The digest still
-  lists it.
+- **The urgent boundary** is the last item a run saw, as (time, item id), kept in `/var/lib/kf-notify`
+  at the database's microsecond precision (`20261007500100`). This previously read: "kept at
+  millisecond precision … an item committed after a later item, in the same millisecond, can be
+  missed by the push". That edge is closed: a later item in the same instant is after the boundary
+  by its id, and a seen item never is (`tests/database/notifications.test.ts`). What remains: an
+  item's time is when its transaction began, so an item whose transaction began before a run and
+  committed after it is behind the boundary that run set. The window is how long a proposing
+  transaction stays open, milliseconds for an act through the API. The digest still lists it.

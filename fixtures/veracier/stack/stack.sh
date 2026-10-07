@@ -351,7 +351,9 @@ start_apps() {
   NODE_ENV=development KF_DEPLOYMENT_PROFILE=dogfood HOST=127.0.0.1 PORT="$KF_STACK_API_PORT" \
     DATABASE_URL_FILE="$files/dogfood-api-database-url" \
     start_process api "$repo" node apps/api/dist/server.js
+  # The GPU embedder takes four records at once (SAS §100.44; docs/agents/in-app-agent.md).
   NODE_ENV=development KF_DEPLOYMENT_PROFILE=dogfood DATABASE_URL_FILE="$files/worker-database-url" \
+    KF_EMBEDDING_CONCURRENCY="${KF_EMBEDDING_CONCURRENCY:-4}" \
     start_process worker "$repo" node apps/worker/dist/main.js
   NODE_ENV=production KF_DEPLOYMENT_PROFILE=dogfood KF_API_URL="http://127.0.0.1:$KF_STACK_API_PORT" \
     KF_WEB_OIDC_ISSUER="$OIDC_ISSUER" KF_WEB_OIDC_CLIENT_ID='knowledge-fabric-web' \
