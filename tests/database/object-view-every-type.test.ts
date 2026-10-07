@@ -63,6 +63,17 @@ const FIXTURE: Readonly<
     state: 'recorded',
     proven: 'packages/integration/src/ml.test.ts',
   },
+  // ADR 0038: drafted and assigned through their acts in the qualification suite.
+  qualification_pack: {
+    domain: 'organization',
+    state: 'approved',
+    proven: 'tests/database/qualification.test.ts',
+  },
+  qualification_record: {
+    domain: 'organization',
+    state: 'assigned',
+    proven: 'tests/database/qualification.test.ts',
+  },
 };
 
 let harness: Harness;

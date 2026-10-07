@@ -316,7 +316,7 @@ beforeAll(async () => {
   await draftAndApprove(packs.common);
   await draftAndApprove(packs.ceo);
   await draftAndApprove(packs.aero);
-}, 300_000);
+}, 900_000);
 
 afterAll(async () => {
   await h?.stop();

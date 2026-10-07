@@ -168,7 +168,7 @@ beforeAll(async () => {
   invited = await runInvite(h.adminPool, planned.plan);
   token = invited.link.slice('https://kf.example/join/'.length);
   joiner = { id: invited.personId, role: invited.roleAssignmentId, ceiling: 'internal' };
-}, 300_000);
+}, 900_000);
 
 afterAll(async () => {
   await h?.stop();

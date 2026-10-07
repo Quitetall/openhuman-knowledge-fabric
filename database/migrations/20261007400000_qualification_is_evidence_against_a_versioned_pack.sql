@@ -274,6 +274,19 @@ comment on table org.qualification_credit is
   'Evidence credited against one requirement of one record, by whom and in which act (ADR 0038 '
   'decision 7). The mode is the requirement''s, never upgraded. Append-only.';
 
+-- Every typed row is its type (20260925012000): a pack row can only be a qualification_pack, a
+-- record row only a qualification_record.
+alter table org.qualification_pack
+  add column object_type text generated always as ('qualification_pack') stored;
+alter table org.qualification_pack
+  add constraint qualification_pack_is_qualification_pack
+  foreign key (id, object_type) references core.object (id, object_type);
+alter table org.qualification_record
+  add column object_type text generated always as ('qualification_record') stored;
+alter table org.qualification_record
+  add constraint qualification_record_is_qualification_record
+  foreign key (id, object_type) references core.object (id, object_type);
+
 -- 3. Invitations ------------------------------------------------------------------------------
 
 create table org.invitation (
