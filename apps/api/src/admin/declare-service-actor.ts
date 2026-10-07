@@ -23,7 +23,8 @@
  * replaces `KF_STORAGE_ROLE`.
  */
 
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
+import { taggedDigest } from '@kf/canonicalization';
 import { appendAuditEvent } from '@kf/actions';
 import { insertPersonClearance } from '@kf/authorization';
 import {
@@ -267,18 +268,18 @@ export async function runDeclareServiceActor(
         declaration.validTo.toISOString(),
       ],
     );
-    const requestDigest = createHash('sha256')
-      .update(
-        JSON.stringify([
-          'declare_service_actor',
-          declaration.organizationId,
-          declaration.name,
-          declaration.roleId,
-          declaration.classification,
-          declaration.declaredBy,
-        ]),
-      )
-      .digest('hex');
+    // Tagged and canonical (KF-SAS-RQ-016, SAS §100.27). Acts recorded before carry an untagged
+    // sha256 over JSON.stringify of the same six values; nothing recomputes either, and reuse
+    // is found by name below the idempotency key, so the key's new digest prefix collides with
+    // nothing it should.
+    const requestDigest = taggedDigest('kf-declare-service-actor-request-v1', {
+      actionType: 'declare_service_actor',
+      organizationId: declaration.organizationId,
+      name: declaration.name,
+      roleId: declaration.roleId,
+      classification: declaration.classification,
+      declaredBy: declaration.declaredBy,
+    });
     await tx.query(
       `insert into core.action
          (id, organization_id, request_digest, action_type, actor_id, acting_role_id,

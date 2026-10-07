@@ -19,7 +19,8 @@
  * a bootstrap path that also works when the ordinary path works is a bypass.
  */
 
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
+import { taggedDigest } from '@kf/canonicalization';
 
 import { appendAuditEvent, type ActionRequest, type ObjectRow } from '@kf/actions';
 import { createOrganizationLifecycleAtoms } from '@kf/authorization';
@@ -251,9 +252,13 @@ export async function runRetireOrganization(
       [
         actionId,
         decision.organizationId,
-        createHash('sha256')
-          .update(`retire-organization ${decision.organizationId} ${decision.reason}`)
-          .digest('hex'),
+        // Tagged and canonical (KF-SAS-RQ-016, SAS §100.27). Acts recorded before carry the
+        // untagged sha256('retire-organization <id> <reason>'); nothing recomputes either.
+        taggedDigest('kf-retire-organization-request-v1', {
+          actionType: 'retire_organization',
+          organizationId: decision.organizationId,
+          reason: decision.reason,
+        }),
         decision.decidedBy,
         BOOTSTRAP_IDENTITY,
         // The same set the audit event commits to. Every verifier — checkpoint signing, export

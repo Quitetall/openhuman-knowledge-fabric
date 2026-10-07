@@ -27,6 +27,7 @@ import { join } from 'node:path';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { taggedDigest } from '@kf/canonicalization';
 import { buildArtifacts, loadOntology, type Artifact, type Ontology } from '@kf/ontology-compiler';
 
 const ROOT = join(import.meta.dirname, '..', '..');
@@ -873,10 +874,15 @@ describe('determinism', () => {
       ...ontology,
       rules: ontology.rules.map((r, i) => (i === 0 ? { ...r, severity: 'warning' as const } : r)),
     };
-    // Recomputed the same way loadOntology does, minus the digest field itself.
-    const { sourceDigest: _drop, ...rest } = mutated;
-    const recomputed = createHash('sha256').update(JSON.stringify(rest)).digest('hex');
-    expect(recomputed).not.toBe(ontology.sourceDigest);
+    // Recomputed the same way loadOntology does, minus the digest field itself. (This read
+    // createHash over JSON.stringify until SAS §100.27, which was never how loadOntology took
+    // it, so the inequality held for the wrong reason.)
+    const recompute = (model: Ontology): string => {
+      const { sourceDigest: _drop, ...rest } = model;
+      return taggedDigest('kf-ontology-source-v1', rest);
+    };
+    expect(recompute(ontology)).toBe(ontology.sourceDigest);
+    expect(recompute(mutated)).not.toBe(ontology.sourceDigest);
   });
 
   it('carries provenance on every generated artifact', () => {

@@ -1,5 +1,5 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
-import { digestBytes } from '@kf/canonicalization';
+import { digestBytes, taggedDigest } from '@kf/canonicalization';
 import type { Tx } from '@kf/database';
 
 export interface MasterRecordLinkClaims {
@@ -162,7 +162,10 @@ export async function issueMasterRecordLink(
         link_id: claims.linkId,
         action_id: options.issuedByAction,
         token_digest: digest,
-        payload_digest: digestBytes(Buffer.from(JSON.stringify(claims.scope), 'utf8')),
+        // Tagged and canonical (KF-SAS-RQ-016, SAS §100.27); earlier events carry the untagged
+        // digest of JSON.stringify(scope). The receipt copies the event's value and compares it
+        // for equality, never recomputing it, so an event issued before delivers after.
+        payload_digest: taggedDigest('kf-master-record-link-payload-v1', { scope: claims.scope }),
       }),
     ],
   );

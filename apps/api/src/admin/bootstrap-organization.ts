@@ -17,7 +17,7 @@
  * the first authority in an institution a side effect of creating it.
  */
 
-import { createHash } from 'node:crypto';
+import { taggedDigest } from '@kf/canonicalization';
 
 import { appendAuditEvent } from '@kf/actions';
 import {
@@ -61,7 +61,13 @@ async function recordBootstrapAct(
     [
       actionId,
       organizationId,
-      createHash('sha256').update(`bootstrap-organization\u0000${reason}`).digest('hex'),
+      // Tagged and canonical (KF-SAS-RQ-016, SAS §100.27). Acts recorded before carry the
+      // untagged sha256('bootstrap-organization\0' || reason); nothing recomputes either.
+      taggedDigest('kf-bootstrap-organization-request-v1', {
+        actionType: 'bootstrap_organization',
+        targetIds: [...targets],
+        reason,
+      }),
       BOOTSTRAP_IDENTITY,
       targets,
       `bootstrap-${actionId}`,

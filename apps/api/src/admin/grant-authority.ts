@@ -27,7 +27,8 @@
  * assignment is "already held" and nothing is written.
  */
 
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
+import { taggedDigest } from '@kf/canonicalization';
 import { appendAuditEvent } from '@kf/actions';
 import { insertPersonClearance, linkIdentity } from '@kf/authorization';
 import {
@@ -440,22 +441,20 @@ export async function runGrantAuthority(
       );
     }
 
-    const requestDigest = createHash('sha256')
-      .update(
-        JSON.stringify([
-          'grant_person_clearance',
-          grant.personId,
-          grant.organizationId,
-          grant.roleId,
-          grant.classification,
-          grant.grantedBy,
-          grant.identity?.issuer ?? null,
-          grant.identity?.subject ?? null,
-          grant.validTo.toISOString(),
-          renewing?.id ?? null,
-        ]),
-      )
-      .digest('hex');
+    // Tagged and canonical (KF-SAS-RQ-016, SAS §100.27). Acts recorded before carry an untagged
+    // sha256 over JSON.stringify of the same values; nothing recomputes either.
+    const requestDigest = taggedDigest('kf-grant-person-clearance-request-v1', {
+      actionType: 'grant_person_clearance',
+      personId: grant.personId,
+      organizationId: grant.organizationId,
+      roleId: grant.roleId,
+      classification: grant.classification,
+      grantedBy: grant.grantedBy,
+      identityIssuer: grant.identity?.issuer ?? null,
+      identitySubject: grant.identity?.subject ?? null,
+      validTo: grant.validTo.toISOString(),
+      renews: renewing?.id ?? null,
+    });
 
     await tx.query(
       `insert into core.action

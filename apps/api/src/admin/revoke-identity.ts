@@ -21,7 +21,8 @@
  * minute, but "revoked" should mean the next request is refused, not the one after next.
  */
 
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
+import { taggedDigest } from '@kf/canonicalization';
 import { appendAuditEvent } from '@kf/actions';
 import { revokeIdentity } from '@kf/authorization';
 import {
@@ -263,18 +264,16 @@ export async function runRevokeIdentity(
       issuer: link.issuer,
       subject: link.subject,
     };
-    const requestDigest = createHash('sha256')
-      .update(
-        JSON.stringify([
-          'revoke_external_identity',
-          link.id,
-          link.issuer,
-          link.subject,
-          link.person_id,
-          decision.revokedBy,
-        ]),
-      )
-      .digest('hex');
+    // Tagged and canonical (KF-SAS-RQ-016, SAS §100.27). Acts recorded before carry an untagged
+    // sha256 over JSON.stringify of the same values; nothing recomputes either.
+    const requestDigest = taggedDigest('kf-revoke-external-identity-request-v1', {
+      actionType: 'revoke_external_identity',
+      identityId: link.id,
+      issuer: link.issuer,
+      subject: link.subject,
+      personId: link.person_id,
+      revokedBy: decision.revokedBy,
+    });
 
     await tx.query(
       `insert into core.action
