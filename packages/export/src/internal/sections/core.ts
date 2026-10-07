@@ -174,11 +174,20 @@ export const CORE_SECTIONS = [
   },
   {
     name: 'organizations',
-    sql: `select id, legal_name, organization_kind, jurisdiction from org.organization order by id`,
+    // `retired_at` (20260910000100) and `succeeded_by` (20260911000100) are last, so an archive
+    // written before they were exported differs only by the missing keys and restores both
+    // null — what every organization held before the migrations, and, for an archive written
+    // after them by an exporter that omitted them (until SAS §100.32's test found it), what the
+    // restore can know. A retired organization's lifecycle state travels in `objects` either way.
+    sql: `select id, legal_name, organization_kind, jurisdiction, retired_at, succeeded_by
+            from org.organization order by id`,
   },
   {
     name: 'people',
-    sql: 'select id, display_name, organization, email from org.person order by id',
+    // `person_kind` (ADR 0020, 20260902000700) is last for the same reason. An archive without
+    // it restores every person as `human`, the column default and what every person was before
+    // service actors; one written between that migration and SAS §100.32 cannot say otherwise.
+    sql: 'select id, display_name, organization, email, person_kind from org.person order by id',
   },
   {
     name: 'engagements',
