@@ -64,8 +64,8 @@ mixture, α = 0.25, −0.050) and on the held-out half (−0.083; plain RRF −0
 It wins on no corpus everywhere. Recall@10 over all questions, plain RRF → this vote, on the same
 stack: Véracier 0.1603 → 0.1890 and 0.1855 → 0.2070 (semantic 0.1866, 0.2020); TheAgentCompany
 0.5265 → 0.8182 and 0.2917 → 0.4583 (semantic 0.8182, 0.5038 — the keyword form is still below
-it); DRBench 0.7887 → 0.7606 and 0.7977 → 0.7855; EnterpriseRAG-Bench 0.8034 → 0.7169 and
-0.7116 → 0.6056, where its keyword form falls below the lexical list alone (0.6592). Where word
+it); DRBench 0.7887 → 0.7606 and 0.7977 → 0.7855; EnterpriseRAG-Bench 0.8083 → 0.7216 and
+0.7236 → 0.6170, where its keyword form falls below the lexical list alone (0.6640). Where word
 matches are strong, plain RRF used them better; this vote trades that for not letting weak ones
 displace the semantic list. The four reports carry the served numbers.
 
