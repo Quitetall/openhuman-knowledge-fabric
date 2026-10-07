@@ -1,3 +1,67 @@
+/*
+ * The Knowledge Fabric's visual system (SAS §24B, "It reads as a document").
+ *
+ * An institutional record, set for reading. Prose — the overview, the master document — is set in
+ * a book serif at a reading measure; lists people scan are set tight in the system sans. The
+ * palette is cool and quiet: archival ink on a pale stone ground, one deep ledger-green for links
+ * and focus. State is carried by form (glyph, word, border style), never colour alone.
+ *
+ * Density (KF-SAS-RQ-276) is presentation only: `html[data-density='compact']` rescales space and
+ * type through these variables, and nothing else changes.
+ */
+:root {
+  --kf-ink: #1e2a33;
+  --kf-muted: #5a6670;
+  --kf-rule: #d3d9dc;
+  --kf-ground: #f3f5f4;
+  --kf-surface: #ffffff;
+  --kf-accent: #1d5c4f;
+  --kf-accent-soft: #e3eeea;
+  --kf-alert: #8f2b20;
+  --kf-serif:
+    'Iowan Old Style', 'Charter', 'Bitstream Charter', 'Sitka Text', Cambria, Georgia, serif;
+  --kf-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* A modular scale (1.2), from the reading size. */
+  --kf-size-body: 1.0625rem;
+  --kf-size-small: 0.875rem;
+  --kf-size-meta: 0.8125rem;
+  --kf-size-h3: 1.0625rem;
+  --kf-size-h2: 1.3rem;
+  --kf-size-h1: 1.85rem;
+  --kf-leading-prose: 1.6;
+  --kf-leading-list: 1.35;
+  --kf-measure: 68ch;
+  --kf-space: 1rem;
+  --kf-gap: 2.25rem;
+  color-scheme: light dark;
+}
+
+html[data-density='compact'] {
+  --kf-size-body: 0.9375rem;
+  --kf-size-small: 0.8125rem;
+  --kf-size-meta: 0.75rem;
+  --kf-size-h3: 0.9375rem;
+  --kf-size-h2: 1.05rem;
+  --kf-size-h1: 1.35rem;
+  --kf-leading-prose: 1.42;
+  --kf-leading-list: 1.2;
+  --kf-space: 0.5rem;
+  --kf-gap: 1rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --kf-ink: #dde4e8;
+    --kf-muted: #9aa7b0;
+    --kf-rule: #34414a;
+    --kf-ground: #161d22;
+    --kf-surface: #1d262c;
+    --kf-accent: #7fc3b0;
+    --kf-accent-soft: #23342f;
+    --kf-alert: #f0a196;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -8,7 +72,25 @@ html {
 
 body {
   min-width: 0;
+  margin: 0;
   overflow-wrap: anywhere;
+  font-family: var(--kf-sans);
+  font-size: var(--kf-size-body);
+  line-height: 1.5;
+  color: var(--kf-ink);
+  background: var(--kf-ground);
+}
+
+a {
+  color: var(--kf-accent);
+  text-underline-offset: 0.18em;
+  text-decoration-thickness: 1px;
+}
+
+a:focus-visible,
+button:focus-visible {
+  outline: 3px solid var(--kf-accent);
+  outline-offset: 2px;
 }
 
 button,
@@ -36,18 +118,19 @@ textarea {
   width: fit-content;
   min-height: 2.4rem;
   padding: 0.55rem 1rem;
-  border: 1px solid #64748b;
-  border-radius: 0.45rem;
-  background: #fff;
-  color: #0f172a;
+  border: 1px solid var(--kf-muted);
+  border-radius: 0.35rem;
+  background: var(--kf-surface);
+  color: var(--kf-ink);
   cursor: pointer;
   font-weight: 600;
+  text-decoration: none;
 }
 
 .kf-button-primary {
-  border-color: #0f172a;
-  background: #0f172a;
-  color: #fff;
+  border-color: var(--kf-accent);
+  background: var(--kf-accent);
+  color: var(--kf-surface);
 }
 
 .kf-button:disabled {
@@ -176,4 +259,363 @@ pre {
   color: #991b1b;
   font-weight: 600;
   letter-spacing: 0.02em;
+}
+
+/* ── Masthead ──────────────────────────────────────────────────────────────────────────────── */
+
+.kf-masthead {
+  border-bottom: 1px solid var(--kf-rule);
+  background: var(--kf-surface);
+}
+
+.kf-primary-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 1.1rem;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: calc(var(--kf-space) * 0.8) 1.25rem;
+}
+
+.kf-wordmark {
+  font-family: var(--kf-serif);
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--kf-ink);
+  text-decoration: none;
+}
+
+.kf-nav-link {
+  color: var(--kf-muted);
+  text-decoration: none;
+  font-size: var(--kf-size-small);
+}
+
+.kf-nav-link:hover {
+  color: var(--kf-ink);
+  text-decoration: underline;
+}
+
+.kf-density {
+  margin: 0;
+}
+
+.kf-density-button {
+  border: 1px solid var(--kf-rule);
+  border-radius: 0.3rem;
+  background: transparent;
+  color: var(--kf-muted);
+  font-size: var(--kf-size-meta);
+  padding: 0.2rem 0.55rem;
+  cursor: pointer;
+}
+
+/* ── Pages ─────────────────────────────────────────────────────────────────────────────────── */
+
+.kf-page {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: calc(var(--kf-gap) * 0.8) 1.25rem calc(var(--kf-gap) * 2);
+}
+
+.kf-page-narrow {
+  max-width: 50rem;
+}
+
+.kf-page-reading {
+  max-width: calc(var(--kf-measure) + 2.5rem);
+}
+
+.kf-title {
+  font-family: var(--kf-serif);
+  font-size: var(--kf-size-h1);
+  line-height: 1.15;
+  font-weight: 600;
+  margin: 0 0 0.4em;
+}
+
+.kf-lede {
+  font-family: var(--kf-serif);
+  color: var(--kf-muted);
+  max-width: var(--kf-measure);
+  line-height: var(--kf-leading-prose);
+  margin-top: 0;
+}
+
+.kf-muted {
+  color: var(--kf-muted);
+  font-weight: 400;
+}
+
+.kf-notice {
+  border-left: 3px solid var(--kf-accent);
+  background: var(--kf-accent-soft);
+  padding: 0.5rem 0.8rem;
+}
+
+.kf-footnote {
+  font-size: var(--kf-size-meta);
+  color: var(--kf-muted);
+}
+
+.kf-signin {
+  margin-bottom: var(--kf-gap);
+  padding-bottom: var(--kf-gap);
+  border-bottom: 1px solid var(--kf-rule);
+}
+
+/* The dashboard: the reading panels span the column; the scanned panels sit two abreast when
+   there is room. DOM order is the declared layout order whatever the width. */
+.kf-dashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--kf-gap) calc(var(--kf-gap) * 1.2);
+  align-items: start;
+}
+
+@media (min-width: 60rem) {
+  .kf-dashboard {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .kf-dashboard > .kf-panel-reading,
+  .kf-dashboard > .kf-footnote {
+    grid-column: 1 / -1;
+  }
+}
+
+.kf-panel {
+  min-width: 0;
+  border-top: 2px solid var(--kf-ink);
+  padding-top: calc(var(--kf-space) * 0.75);
+}
+
+.kf-panel-header {
+  margin-bottom: calc(var(--kf-space) * 0.6);
+}
+
+.kf-panel-title {
+  font-family: var(--kf-serif);
+  font-size: var(--kf-size-h2);
+  font-weight: 600;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.kf-panel-note {
+  margin: 0.25rem 0 0;
+  font-size: var(--kf-size-small);
+  color: var(--kf-muted);
+}
+
+.kf-link-strong {
+  font-weight: 600;
+}
+
+.kf-slot:empty {
+  display: none;
+}
+
+/* ── The overview: prose, one sentence per record ─────────────────────────────────────────── */
+
+.kf-overview {
+  max-width: var(--kf-measure);
+  font-family: var(--kf-serif);
+  line-height: var(--kf-leading-prose);
+}
+
+.kf-overview-section + .kf-overview-section {
+  margin-top: calc(var(--kf-space) * 1.1);
+}
+
+.kf-overview-heading {
+  font-family: var(--kf-sans);
+  font-size: var(--kf-size-small);
+  font-weight: 600;
+  color: var(--kf-muted);
+  margin: 0 0 0.2rem;
+}
+
+.kf-statements {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.kf-statement {
+  padding: calc(var(--kf-space) * 0.15) 0;
+}
+
+.kf-statement-text {
+  color: var(--kf-ink);
+  text-decoration-color: var(--kf-rule);
+}
+
+.kf-statement-text:hover {
+  text-decoration-color: var(--kf-accent);
+}
+
+.kf-withheld {
+  margin-top: var(--kf-space);
+  font-family: var(--kf-sans);
+  font-size: var(--kf-size-small);
+  color: var(--kf-muted);
+}
+
+.kf-more {
+  margin: 0.3rem 0 0;
+  font-size: var(--kf-size-small);
+}
+
+/* ── Lists people scan ─────────────────────────────────────────────────────────────────────── */
+
+.kf-records {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  line-height: var(--kf-leading-list);
+}
+
+.kf-record {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.15rem 0.75rem;
+  align-items: baseline;
+  padding: calc(var(--kf-space) * 0.5) 0;
+  border-bottom: 1px solid var(--kf-rule);
+}
+
+.kf-record-title {
+  color: var(--kf-ink);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.kf-record-title:hover {
+  text-decoration: underline;
+}
+
+.kf-record-meta {
+  grid-column: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.8rem;
+  font-size: var(--kf-size-meta);
+  color: var(--kf-muted);
+}
+
+.kf-record > .kf-chip {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+
+.kf-paths {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.8rem;
+  font-size: var(--kf-size-meta);
+}
+
+.kf-path {
+  color: var(--kf-ink);
+}
+
+.kf-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 2rem;
+  margin: 0 0 var(--kf-space);
+}
+
+.kf-facts dt {
+  font-size: var(--kf-size-meta);
+  color: var(--kf-muted);
+}
+
+.kf-facts dd {
+  margin: 0;
+  font-weight: 500;
+}
+
+/* ── State chips: verified, unverified, withheld — told apart by form ─────────────────────── */
+
+.kf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  padding: 0 0.45em;
+  border-radius: 0.25rem;
+  font-family: var(--kf-sans);
+  font-size: var(--kf-size-meta);
+  line-height: 1.5;
+  white-space: nowrap;
+  vertical-align: 0.08em;
+}
+
+.kf-chip-glyph {
+  font-size: 0.9em;
+}
+
+.kf-chip-verified {
+  border: 1px solid var(--kf-accent);
+  color: var(--kf-accent);
+  background: var(--kf-accent-soft);
+}
+
+.kf-chip-unverified {
+  border: 1px dashed var(--kf-muted);
+  color: var(--kf-muted);
+}
+
+.kf-chip-withheld {
+  border: 1px dotted var(--kf-ink);
+  color: var(--kf-ink);
+}
+
+/* ── The master document ───────────────────────────────────────────────────────────────────── */
+
+.kf-doc-header {
+  margin-bottom: var(--kf-gap);
+}
+
+.kf-digest code {
+  font-size: var(--kf-size-meta);
+}
+
+.kf-inline-form {
+  margin: 0;
+}
+
+.kf-doc-overview,
+.kf-doc-section {
+  margin-top: var(--kf-gap);
+  padding-top: calc(var(--kf-space) * 0.75);
+  border-top: 2px solid var(--kf-ink);
+}
+
+.kf-doc-heading {
+  font-family: var(--kf-serif);
+  font-size: var(--kf-size-h2);
+  font-weight: 600;
+  margin: 0 0 calc(var(--kf-space) * 0.5);
+}
+
+@media (max-width: 30rem) {
+  .kf-record {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .kf-record > .kf-chip {
+    grid-column: 1;
+    grid-row: auto;
+    justify-self: start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
 }
