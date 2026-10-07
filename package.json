@@ -55,6 +55,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@kf/actions": "workspace:*",
+    "@kf/agent": "workspace:*",
     "@kf/agent-tools": "workspace:*",
     "@kf/artifacts": "workspace:*",
     "@kf/authorization": "workspace:*",
@@ -67,6 +68,7 @@
     "@kf/export": "workspace:*",
     "@kf/integration": "workspace:*",
     "@kf/mcp": "workspace:*",
+    "@kf/notify": "workspace:*",
     "@kf/ml-registry": "workspace:*",
     "@kf/ontology-compiler": "workspace:*",
     "@kf/operations": "workspace:*",

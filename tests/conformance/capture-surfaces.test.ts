@@ -34,6 +34,10 @@ const CONNECTION_OWNERS: ReadonlySet<string> = new Set([
   'checkpoint',
   'kf-storage',
   'attestor',
+  // kf-notify (ADR 0040, 20261007300000): its login inherits kf_notifier, which reads no table
+  // and may only execute the two functions that decide what a notification may say. It captures
+  // nothing and writes nothing.
+  'notify',
 ]);
 
 interface SourceFile {

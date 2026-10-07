@@ -200,6 +200,42 @@ describe('the alert path', () => {
     expect(paths).toEqual(['/ntfy-topic']);
   });
 
+  it('pushes a person’s urgent item as one fixed line that names nothing (KF-SAS-RQ-274)', async () => {
+    responseBody = JSON.stringify({
+      event: 'message',
+      message: 'Something in Knowledge Fabric needs you. Open Needs you.',
+    });
+    const file = urlFile(`https://127.0.0.1:${port}/ntfy-urgent-topic`);
+    // Arguments after the event are ignored: the push cannot be made to carry a title.
+    const result = await dispatch(['urgent', 'Acquisition target is Halberd Aero'], file, {
+      KF_ALERT_PROVIDER: 'ntfy-healthchecks',
+    });
+    expect(result.code, result.stderr).toBe(0);
+    expect(received).toEqual(['Something in Knowledge Fabric needs you. Open Needs you.']);
+    expect(received.join('')).not.toContain('Halberd');
+  });
+
+  it('refuses an urgent acknowledgement that does not echo the fixed line', async () => {
+    responseBody = JSON.stringify({
+      event: 'message',
+      message: 'Service needs attention. Check the service locally.',
+    });
+    const file = urlFile(`https://127.0.0.1:${port}/ntfy-urgent-false`);
+    const result = await dispatch(['urgent'], file, { KF_ALERT_PROVIDER: 'ntfy-healthchecks' });
+    expect(result.code).not.toBe(0);
+    expect(received).toHaveLength(3);
+  }, 60_000);
+
+  it('sends an urgent event to a webhook with no record content, as an exact key set', async () => {
+    const file = urlFile(`https://127.0.0.1:${port}/urgent-hook`);
+    expect((await dispatch(['urgent', 'Halberd'], file)).code).toBe(0);
+    const body = JSON.parse(received[0]!) as Record<string, unknown>;
+    expect(body.event).toBe('urgent');
+    expect(body.unit).toBe('kf-notify-urgent.service');
+    expect(Object.keys(body).sort()).toEqual(['at', 'event', 'host', 'logs', 'schema', 'unit']);
+    expect(received[0]).not.toContain('Halberd');
+  });
+
   it('sends an empty heartbeat to Healthchecks, not to ntfy', async () => {
     responseBody = 'OK';
     // Write distinct paths: the old helper names files from length, not from contents.

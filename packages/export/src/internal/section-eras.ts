@@ -57,6 +57,9 @@ import type { ExportPackage } from './types.js';
  *   `verification-policies`, `act-proposals`, `act-proposal-resolutions`. Created empty; only the
  *   acts ADR 0040 adds write them. The two arrivals are siblings: each descends from b8886185 and
  *   neither from the other, so an archive may carry either without the other.
+ * - 1501e386 (2026-10-07, after b535bb14 and on a branch without ee9e0696) — `20261007300000`:
+ *   `model-routing-policies`, `notification-preferences`. Created empty; only
+ *   set_model_routing_policy and set_notification_preference write them.
  *
  * Absence does NOT mean none, and the importer restores what the migration derived:
  *
@@ -151,6 +154,11 @@ export const SECTION_ARRIVALS: readonly SectionArrival[] = [
     commit: 'b535bb14',
     after: ['b8886185'],
     sections: ['verification-policies', 'act-proposals', 'act-proposal-resolutions'],
+  },
+  {
+    commit: '1501e386',
+    after: ['b535bb14'],
+    sections: ['model-routing-policies', 'notification-preferences'],
   },
 ];
 

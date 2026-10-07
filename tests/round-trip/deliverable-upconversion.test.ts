@@ -52,7 +52,9 @@ const RETIRED_SECTION = 'deliverable-retired-attributes';
  */
 const PRESET_SECTIONS = ['role-preset-grants', 'role-inclusions'];
 const POLICY_SECTIONS = ['verification-policies', 'act-proposals', 'act-proposal-resolutions'];
-const AFTER_RETIRED = [...PRESET_SECTIONS, ...POLICY_SECTIONS];
+// 20261007300000 (ADR 0040, M4): after the policy sections, a sibling of the presets.
+const HOME_SECTIONS = ['model-routing-policies', 'notification-preferences'];
+const AFTER_RETIRED = [...PRESET_SECTIONS, ...POLICY_SECTIONS, ...HOME_SECTIONS];
 
 /**
  * Sections whose rows 20260902000200 derived rather than created empty: the `working` store it
@@ -114,6 +116,9 @@ const FROM_STORAGE_ON = [
   'verification-policies',
   'act-proposals',
   'act-proposal-resolutions',
+  // ADR 0040 (20261007300000), after those.
+  'model-routing-policies',
+  'notification-preferences',
 ];
 /** Every section added without a format bump but the retired attributes, dropped separately. */
 const LATER = [...BEFORE_STORAGE, ...FROM_STORAGE_ON];
@@ -607,13 +612,24 @@ describe('an archive written before deliverables had their ontology fields', () 
     // attributes but with either sibling is no exporter's.
     expect(drop(...AFTER_RETIRED)).toEqual([]);
     expect(drop(...PRESET_SECTIONS)).toEqual([]);
-    expect(drop(...POLICY_SECTIONS)).toEqual([]);
+    expect(drop(...POLICY_SECTIONS, ...HOME_SECTIONS)).toEqual([]);
+    expect(drop(...HOME_SECTIONS)).toEqual([]);
+    expect(drop(...PRESET_SECTIONS, ...HOME_SECTIONS)).toEqual([]);
+    // Without the policy sections but with M4's, which arrived after them: no exporter's.
+    expect(drop(...POLICY_SECTIONS)).toEqual([
+      expect.stringMatching(
+        /predates verification-policies, act-proposals, act-proposal-resolutions \(b535bb14\) but carries model-routing-policies, notification-preferences/,
+      ),
+    ]);
     expect(drop(RETIRED_SECTION)).toEqual([
       expect.stringMatching(
         /predates deliverable-retired-attributes \(b8886185\) but carries role-preset-grants, role-inclusions/,
       ),
       expect.stringMatching(
         /predates deliverable-retired-attributes \(b8886185\) but carries verification-policies, act-proposals, act-proposal-resolutions/,
+      ),
+      expect.stringMatching(
+        /predates deliverable-retired-attributes \(b8886185\) but carries model-routing-policies, notification-preferences/,
       ),
     ]);
     expect(drop('access-demand')).toEqual([
@@ -625,6 +641,9 @@ describe('an archive written before deliverables had their ontology fields', () 
       ),
       expect.stringMatching(
         /predates access-demand \(de59c226\) but carries verification-policies, act-proposals, act-proposal-resolutions/,
+      ),
+      expect.stringMatching(
+        /predates access-demand \(de59c226\) but carries model-routing-policies, notification-preferences/,
       ),
     ]);
   });

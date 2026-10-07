@@ -35,6 +35,14 @@ declared list (currently that one pair), so a new share fails and a stale excuse
 (KF-SAS-RQ-163). Command-local API/web listener settings prevent an
 environment file widening loopback binds.
 
+`kf-notify@.service` (ADR 0040 decision 9) runs as `kf-notify`, one template for both of its
+timers: `kf-notify-digest.timer` starts `kf-notify@digest` daily and `kf-notify-urgent.timer`
+starts `kf-notify@urgent` every five minutes. Its database login inherits `kf_notifier`, which
+reads no table and may only execute the two functions that decide what a notification may say.
+It holds `/etc/kf/notify/{database-url,smtp.json,alert-webhook-url}` and `/etc/kf/notify.env`;
+the urgent push runs `scripts/alert-dispatch.sh` with the event `urgent`, the operational alerts' own path.
+See [`../../docs/agents/in-app-agent.md`](../../docs/agents/in-app-agent.md).
+
 `kf-backup.service` and `kf-restore-drill.service` shared `kf-backup` until 2026-09-23, on the
 argument that they needed the same secrets. They did not: the backup SIGNS with the preservation
 key, the drill DECRYPTS with the recovery key, and with one uid the only thing keeping the

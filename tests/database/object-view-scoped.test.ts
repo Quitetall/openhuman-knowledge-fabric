@@ -478,6 +478,9 @@ describe('what the record of writes covers', () => {
       'core.audit_event',
       'core.context_seal_key',
       'core.migration030_rollback_state',
+      // ADR 0040 (20261007300000): what may leave the host, and a person's notification setting.
+      'core.model_routing_policy',
+      'core.notification_preference',
       'core.object_verification',
       'core.outbox',
       'core.principal_attestation',

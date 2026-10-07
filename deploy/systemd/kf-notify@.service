@@ -1,0 +1,52 @@
+[Unit]
+Description=Tell people what needs them (%i: the daily digest, or the urgent push)
+Documentation=file:///opt/kf/docs/agents/in-app-agent.md
+After=network-online.target
+OnFailure=kf-alert@%n.service
+
+# ADR 0040 decision 9, KF-SAS-RQ-274. `kf-notify@digest` e-mails each person their Needs you once
+# a day; `kf-notify@urgent` pushes, through the operational alert path (scripts/alert-dispatch.sh
+# urgent, the same script and endpoint as kf-alert@), when something urgent waits on the person
+# that path reaches. Neither carries record content above what the organization lets leave the
+# host: the database decides what each row may say (core.needs_you_digest), and the push says only
+# that something needs you.
+
+[Service]
+Type=oneshot
+# Its own identity. It holds the notifier's database login (kf_notifier: execute on two functions,
+# no table), the SMTP relay's settings and the alert endpoint, and nothing else: no record can be
+# read through it, only the redacted rows those functions return.
+User=kf-notify
+Group=kf-notify
+WorkingDirectory=/opt/kf
+Environment=NODE_ENV=production
+Environment=DATABASE_URL_FILE=/etc/kf/notify/database-url
+Environment=KF_NOTIFY_SMTP_FILE=/etc/kf/notify/smtp.json
+Environment=KF_ALERT_WEBHOOK_URL_FILE=/etc/kf/notify/alert-webhook-url
+Environment=KF_NOTIFY_STATE_DIR=/var/lib/kf-notify
+Environment=KF_NOTIFY_ALERT_DISPATCH=/opt/kf/scripts/alert-dispatch.sh
+# KF_NOTIFY_WEB_ORIGIN, KF_NOTIFY_PUSH_PERSON and, for a ntfy topic, KF_ALERT_PROVIDER.
+EnvironmentFile=/etc/kf/notify.env
+StateDirectory=kf-notify
+StateDirectoryMode=0700
+ExecStartPre=/usr/bin/test -s /etc/kf/notify/database-url
+ExecStartPre=/usr/bin/test -s /etc/kf/notify.env
+ExecStart=/usr/bin/node /opt/kf/apps/notify/dist/main.js %i
+TimeoutStartSec=15min
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+# SMTP and HTTPS out are the whole job.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+UMask=0077
