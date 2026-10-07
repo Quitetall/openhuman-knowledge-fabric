@@ -11,6 +11,7 @@ export * from './evaluate.js';
 export * from './start-here.js';
 export * from './agent-guide.js';
 export * from './repository.js';
+export * from './invitation.js';
 export {
   QUALIFICATION_ACTION_IDS,
   QUALIFICATION_EFFECTS,

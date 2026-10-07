@@ -987,214 +987,222 @@ async function directly(
   throw new Error('unreachable');
 }
 
-describe('every guard falsified: dropped, the forbidden thing happens', () => {
-  /** Apply `ddl` for real, run `body`, and put the guard back from the migration's definition. */
-  async function without(ddl: string, body: () => Promise<void>): Promise<void> {
-    const [drop, restore] = ddl.split('||');
-    await withTransaction(h.adminPool, (tx) => tx.query(drop!));
-    try {
-      await body();
-    } finally {
-      await withTransaction(h.adminPool, (tx) => tx.query(restore!));
+// Each case drops a guard for real (DDL on core.action or core.object), runs acts, and restores
+// it: minutes, not seconds, on a loaded host.
+describe(
+  'every guard falsified: dropped, the forbidden thing happens',
+  { timeout: 180_000 },
+  () => {
+    /** Apply `ddl` for real, run `body`, and put the guard back from the migration's definition. */
+    async function without(ddl: string, body: () => Promise<void>): Promise<void> {
+      const [drop, restore] = ddl.split('||');
+      await withTransaction(h.adminPool, (tx) => tx.query(drop!));
+      try {
+        await body();
+      } finally {
+        await withTransaction(h.adminPool, (tx) => tx.query(restore!));
+      }
     }
-  }
 
-  const caraAero = () =>
-    withTransaction(h.adminPool, (tx) =>
-      tx.one<{ id: string }>(
-        `select id from org.qualification_record where person_id = $1 and pack_id = $2`,
-        [P.cara.id, packIds[AERO]!],
-      ),
-    ).then((row) => row.id);
+    const caraAero = () =>
+      withTransaction(h.adminPool, (tx) =>
+        tx.one<{ id: string }>(
+          `select id from org.qualification_record where person_id = $1 and pack_id = $2`,
+          [P.cara.id, packIds[AERO]!],
+        ),
+      ).then((row) => row.id);
 
-  it('without the act check, an act its requirement gates is recorded for someone lacking it', async () => {
-    const nc = (
-      await act(P.lucie, 'raise_nonconformity', [], {
-        title: 'Port D scratch',
-        severity: 'minor',
-        description: 'Scratch at port D.',
-      })
-    ).objectIds[0]!;
-    // Cara holds no containment credit: a caller that skipped the dispatcher is refused too.
-    await expect(directly(P.cara, 'contain_nonconformity', [nc])).rejects.toThrow(/KF-QUAL-001/);
-    await without(
-      'drop trigger action_requires_qualification on core.action||' +
-        'create trigger action_requires_qualification before insert on core.action ' +
-        'for each row execute function core.action_requires_qualification()',
-      async () => {
-        expect(await directly(P.cara, 'contain_nonconformity', [nc])).toBe('written');
-        // The dispatcher's own check still refuses: two controls, each falsified on its own.
-        const refused = await refusal(
-          act(P.cara, 'contain_nonconformity', [nc], { containment: 'Quarantined' }),
-        );
-        expect(refused.detail['rule']).toBe('KF-QUAL-001');
-      },
-    );
-    await expect(directly(P.cara, 'contain_nonconformity', [nc])).rejects.toThrow(/KF-QUAL-001/);
-  });
-
-  it('without the credit rules, a reviewer with no authority credits a requirement', async () => {
-    const record = await caraAero();
-    const work = await warrant(P.lucie, 'Someone else’s contained lot');
-    await pastThePace();
-    const credits = [{ requirement_key: KEYS.containment, evidence_object_id: work }];
-    expect((await refusal(credit(P.reviewer, record, credits))).detail['rule']).toBe('KF-QUAL-014');
-    await without(
-      'drop trigger qualification_credit_bounded on org.qualification_credit||' +
-        'create trigger qualification_credit_bounded before insert or update or delete on ' +
-        'org.qualification_credit for each row execute function org.qualification_credit_bounded()',
-      async () => {
-        const result = await credit(P.reviewer, record, credits);
-        // Credited by the technical authority, for a requirement only the quality authority
-        // credits, against work nobody accepted: what the trigger exists to refuse.
-        expect(result.receipt?.['credits']).toEqual([
-          expect.objectContaining({ requirementKey: KEYS.containment }),
-        ]);
-        await withTransaction(h.adminPool, (tx) =>
-          tx.query('delete from org.qualification_credit where credited_by_action = $1', [
-            result.actionId,
-          ]),
-        );
-      },
-    );
-  });
-
-  it('without the closing check, an incomplete record is accepted', async () => {
-    const record = await caraAero();
-    expect((await refusal(act(P.reviewer, 'accept_qualification', [record]))).detail['rule']).toBe(
-      'KF-QUAL-020',
-    );
-    await without(
-      'drop trigger qualification_record_closes on core.object||' +
-        'create constraint trigger qualification_record_closes after update on core.object ' +
-        'deferrable initially deferred for each row ' +
-        "when (new.object_type = 'qualification_record' and new.lifecycle_state = 'qualified' " +
-        'and old.lifecycle_state is distinct from new.lifecycle_state) ' +
-        'execute function org.qualification_record_closes()',
-      async () => {
-        await act(P.reviewer, 'accept_qualification', [record]);
-        const state = await withTransaction(h.adminPool, (tx) =>
-          tx.one<{ lifecycle_state: string }>(
-            'select lifecycle_state from core.object where id = $1',
-            [record],
-          ),
-        );
-        expect(state.lifecycle_state).toBe('qualified');
-      },
-    );
-  });
-
-  it('without the record policy, an outsider reads someone’s qualification', async () => {
-    expect(await evaluate(P.outsider, lucieAero)).toBeUndefined();
-    await without(
-      'drop policy qualification_record_read on org.qualification_record; ' +
-        'create policy qualification_record_read on org.qualification_record for select ' +
-        'using (organization_id = (select core.current_organization()))||' +
-        'drop policy qualification_record_read on org.qualification_record; ' +
-        'create policy qualification_record_read on org.qualification_record for select using (' +
-        'organization_id = (select core.current_organization()) ' +
-        'and exists (select 1 from core.object envelope where envelope.id = qualification_record.id) ' +
-        'and (person_id = (select core.current_principal_or_null()) ' +
-        'or contact_person_id = (select core.current_principal_or_null()) ' +
-        'or person_id = (select org.qualification_subject_or_null()) ' +
-        'or org.qualification_reviews_pack(pack_id, pack_revision) ' +
-        'or exists (select 1 from org.qualification_credit c where c.record_id = qualification_record.id ' +
-        'and c.credited_by = (select core.current_principal_or_null()))))',
-      async () => {
-        expect(await evaluate(P.outsider, lucieAero)).toBeDefined();
-      },
-    );
-    expect(await evaluate(P.outsider, lucieAero)).toBeUndefined();
-  });
-
-  it('without the assistant bar, an agent credits evidence', async () => {
-    const record = await caraAero();
-    const agentCredit = () =>
-      credit(
-        P.reviewer,
-        record,
-        [{ requirement_key: KEYS.readIn, evidence_object_id: R.overview }],
-        'credit_qualification_evidence',
-        AGENT,
+    it('without the act check, an act its requirement gates is recorded for someone lacking it', async () => {
+      const nc = (
+        await act(P.lucie, 'raise_nonconformity', [], {
+          title: 'Port D scratch',
+          severity: 'minor',
+          description: 'Scratch at port D.',
+        })
+      ).objectIds[0]!;
+      // Cara holds no containment credit: a caller that skipped the dispatcher is refused too.
+      await expect(directly(P.cara, 'contain_nonconformity', [nc])).rejects.toThrow(/KF-QUAL-001/);
+      await without(
+        'drop trigger action_requires_qualification on core.action||' +
+          'create trigger action_requires_qualification before insert on core.action ' +
+          'for each row execute function core.action_requires_qualification()',
+        async () => {
+          expect(await directly(P.cara, 'contain_nonconformity', [nc])).toBe('written');
+          // The dispatcher's own check still refuses: two controls, each falsified on its own.
+          const refused = await refusal(
+            act(P.cara, 'contain_nonconformity', [nc], { containment: 'Quarantined' }),
+          );
+          expect(refused.detail['rule']).toBe('KF-QUAL-001');
+        },
       );
-    expect((await refusal(agentCredit())).detail['rule']).toBe('KF-QUAL-011');
-    await without(
-      'drop trigger action_qualification_agent_bar on core.action; ' +
-        'drop trigger qualification_credit_bounded on org.qualification_credit||' +
-        'create trigger action_qualification_agent_bar before insert on core.action ' +
-        'for each row execute function core.qualification_agent_bar(); ' +
-        'create trigger qualification_credit_bounded before insert or update or delete on ' +
-        'org.qualification_credit for each row execute function org.qualification_credit_bounded()',
-      async () => {
-        const result = await agentCredit();
-        const participation = await withTransaction(h.adminPool, (tx) =>
-          tx.one<{ agent_participation: string | null }>(
-            'select agent_participation from core.action where id = $1',
-            [result.actionId],
-          ),
-        );
-        expect(participation.agent_participation).toBe(AGENT);
-        await withTransaction(h.adminPool, (tx) =>
-          tx.query('delete from org.qualification_credit where credited_by_action = $1', [
-            result.actionId,
-          ]),
-        );
-      },
-    );
-  });
+      await expect(directly(P.cara, 'contain_nonconformity', [nc])).rejects.toThrow(/KF-QUAL-001/);
+    });
 
-  it('without the invitation bar, the application could invite', async () => {
-    const invite = () =>
-      withTransaction(h.pool, async (tx) => {
-        await tx.query('select core.bind_principal($1, $2, $3, $4, $5)', [
-          P.reviewer.id,
-          P.reviewer.role,
-          f.organizationId,
-          'restricted',
-          (await attestationFor(tx, principal(P.reviewer))) ?? null,
-        ]);
-        const actionId = randomUUID();
-        await tx.query('select core.set_transaction_context($1, $2, $3, $4)', [
-          P.reviewer.id,
-          P.reviewer.role,
-          actionId,
-          'invitation-under-test',
-        ]);
-        await tx.query(
-          `insert into core.action
+    it('without the credit rules, a reviewer with no authority credits a requirement', async () => {
+      const record = await caraAero();
+      const work = await warrant(P.lucie, 'Someone else’s contained lot');
+      await pastThePace();
+      const credits = [{ requirement_key: KEYS.containment, evidence_object_id: work }];
+      expect((await refusal(credit(P.reviewer, record, credits))).detail['rule']).toBe(
+        'KF-QUAL-014',
+      );
+      await without(
+        'drop trigger qualification_credit_bounded on org.qualification_credit||' +
+          'create trigger qualification_credit_bounded before insert or update or delete on ' +
+          'org.qualification_credit for each row execute function org.qualification_credit_bounded()',
+        async () => {
+          const result = await credit(P.reviewer, record, credits);
+          // Credited by the technical authority, for a requirement only the quality authority
+          // credits, against work nobody accepted: what the trigger exists to refuse.
+          expect(result.receipt?.['credits']).toEqual([
+            expect.objectContaining({ requirementKey: KEYS.containment }),
+          ]);
+          await withTransaction(h.adminPool, (tx) =>
+            tx.query('delete from org.qualification_credit where credited_by_action = $1', [
+              result.actionId,
+            ]),
+          );
+        },
+      );
+    });
+
+    it('without the closing check, an incomplete record is accepted', async () => {
+      const record = await caraAero();
+      expect(
+        (await refusal(act(P.reviewer, 'accept_qualification', [record]))).detail['rule'],
+      ).toBe('KF-QUAL-020');
+      await without(
+        'drop trigger qualification_record_closes on core.object||' +
+          'create constraint trigger qualification_record_closes after update on core.object ' +
+          'deferrable initially deferred for each row ' +
+          "when (new.object_type = 'qualification_record' and new.lifecycle_state = 'qualified' " +
+          'and old.lifecycle_state is distinct from new.lifecycle_state) ' +
+          'execute function org.qualification_record_closes()',
+        async () => {
+          await act(P.reviewer, 'accept_qualification', [record]);
+          const state = await withTransaction(h.adminPool, (tx) =>
+            tx.one<{ lifecycle_state: string }>(
+              'select lifecycle_state from core.object where id = $1',
+              [record],
+            ),
+          );
+          expect(state.lifecycle_state).toBe('qualified');
+        },
+      );
+    });
+
+    it('without the record policy, an outsider reads someone’s qualification', async () => {
+      expect(await evaluate(P.outsider, lucieAero)).toBeUndefined();
+      await without(
+        'drop policy qualification_record_read on org.qualification_record; ' +
+          'create policy qualification_record_read on org.qualification_record for select ' +
+          'using (organization_id = (select core.current_organization()))||' +
+          'drop policy qualification_record_read on org.qualification_record; ' +
+          'create policy qualification_record_read on org.qualification_record for select using (' +
+          'organization_id = (select core.current_organization()) ' +
+          'and exists (select 1 from core.object envelope where envelope.id = qualification_record.id) ' +
+          'and (person_id = (select core.current_principal_or_null()) ' +
+          'or contact_person_id = (select core.current_principal_or_null()) ' +
+          'or person_id = (select org.qualification_subject_or_null()) ' +
+          'or org.qualification_reviews_pack(pack_id, pack_revision) ' +
+          'or exists (select 1 from org.qualification_credit c where c.record_id = qualification_record.id ' +
+          'and c.credited_by = (select core.current_principal_or_null()))))',
+        async () => {
+          expect(await evaluate(P.outsider, lucieAero)).toBeDefined();
+        },
+      );
+      expect(await evaluate(P.outsider, lucieAero)).toBeUndefined();
+    });
+
+    it('without the assistant bar, an agent credits evidence', async () => {
+      const record = await caraAero();
+      const agentCredit = () =>
+        credit(
+          P.reviewer,
+          record,
+          [{ requirement_key: KEYS.readIn, evidence_object_id: R.overview }],
+          'credit_qualification_evidence',
+          AGENT,
+        );
+      expect((await refusal(agentCredit())).detail['rule']).toBe('KF-QUAL-011');
+      await without(
+        'drop trigger action_qualification_agent_bar on core.action; ' +
+          'drop trigger qualification_credit_bounded on org.qualification_credit||' +
+          'create trigger action_qualification_agent_bar before insert on core.action ' +
+          'for each row execute function core.qualification_agent_bar(); ' +
+          'create trigger qualification_credit_bounded before insert or update or delete on ' +
+          'org.qualification_credit for each row execute function org.qualification_credit_bounded()',
+        async () => {
+          const result = await agentCredit();
+          const participation = await withTransaction(h.adminPool, (tx) =>
+            tx.one<{ agent_participation: string | null }>(
+              'select agent_participation from core.action where id = $1',
+              [result.actionId],
+            ),
+          );
+          expect(participation.agent_participation).toBe(AGENT);
+          await withTransaction(h.adminPool, (tx) =>
+            tx.query('delete from org.qualification_credit where credited_by_action = $1', [
+              result.actionId,
+            ]),
+          );
+        },
+      );
+    });
+
+    it('without the invitation bar, the application could invite', async () => {
+      const invite = () =>
+        withTransaction(h.pool, async (tx) => {
+          await tx.query('select core.bind_principal($1, $2, $3, $4, $5)', [
+            P.reviewer.id,
+            P.reviewer.role,
+            f.organizationId,
+            'restricted',
+            (await attestationFor(tx, principal(P.reviewer))) ?? null,
+          ]);
+          const actionId = randomUUID();
+          await tx.query('select core.set_transaction_context($1, $2, $3, $4)', [
+            P.reviewer.id,
+            P.reviewer.role,
+            actionId,
+            'invitation-under-test',
+          ]);
+          await tx.query(
+            `insert into core.action
              (id, organization_id, request_digest, action_type, actor_id, acting_role_id,
               target_ids, idempotency_key, effective_at, reason, result_status)
            values ($1::uuid, $2::uuid, encode(sha256(convert_to($1::text, 'UTF8')), 'hex'),
                    'correct_record', $3::uuid, $4::uuid, array[$2::uuid], 'invite-' || $1::text,
                    date_trunc('milliseconds', now() + interval '999 microseconds'),
                    'an invitation under test', 'applied')`,
-          [actionId, f.organizationId, P.reviewer.id, P.reviewer.role],
-        );
-        await tx.query(
-          `insert into org.invitation (organization_id, person_id, token_digest, invited_by,
+            [actionId, f.organizationId, P.reviewer.id, P.reviewer.role],
+          );
+          await tx.query(
+            `insert into org.invitation (organization_id, person_id, token_digest, invited_by,
                                        invited_by_action, expires_at)
            values ($1, $2, $3, $4, $5, now() + interval '7 days')`,
-          [f.organizationId, P.dana.id, 'b'.repeat(64), P.reviewer.id, actionId],
-        );
-        throw new Error('ROLLBACK-OK');
-      });
-    // Granted the write the application never has, the trigger still refuses it.
-    await without(
-      'grant insert on org.invitation to kf_app; ' +
-        'create policy invitation_insert_under_test on org.invitation for insert with check (true)||' +
-        'drop policy invitation_insert_under_test on org.invitation; ' +
-        'revoke insert on org.invitation from kf_app',
-      async () => {
-        await expect(invite()).rejects.toThrow(/KF-QUAL-040/);
-        await without(
-          'drop trigger invitation_bounded on org.invitation||' +
-            'create trigger invitation_bounded before insert or update or delete on org.invitation ' +
-            'for each row execute function org.invitation_bounded()',
-          async () => {
-            await expect(invite()).rejects.toThrow('ROLLBACK-OK');
-          },
-        );
-      },
-    );
-  });
-});
+            [f.organizationId, P.dana.id, 'b'.repeat(64), P.reviewer.id, actionId],
+          );
+          throw new Error('ROLLBACK-OK');
+        });
+      // Granted the write the application never has, the trigger still refuses it.
+      await without(
+        'grant insert on org.invitation to kf_app; ' +
+          'create policy invitation_insert_under_test on org.invitation for insert with check (true)||' +
+          'drop policy invitation_insert_under_test on org.invitation; ' +
+          'revoke insert on org.invitation from kf_app',
+        async () => {
+          await expect(invite()).rejects.toThrow(/KF-QUAL-040/);
+          await without(
+            'drop trigger invitation_bounded on org.invitation||' +
+              'create trigger invitation_bounded before insert or update or delete on org.invitation ' +
+              'for each row execute function org.invitation_bounded()',
+            async () => {
+              await expect(invite()).rejects.toThrow('ROLLBACK-OK');
+            },
+          );
+        },
+      );
+    });
+  },
+);

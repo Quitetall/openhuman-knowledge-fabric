@@ -31,11 +31,11 @@
  * title (tests/conformance/no-role-branch.test.ts).
  */
 
-import { createHash } from 'node:crypto';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { bindPrincipal, PrincipalRefused, withTransaction, type Pool, type Tx } from '@kf/database';
 import {
   agentGuideContext,
+  invitationTokenDigest,
   loadRecordEvaluation,
   ownRecords,
   startHere,
@@ -86,11 +86,6 @@ async function bound<T>(
 function idempotencyKeyOf(body: Record<string, unknown>): string | undefined {
   const key = body['idempotencyKey'];
   return typeof key === 'string' && key.length >= 8 && key.length <= 91 ? key : undefined;
-}
-
-/** The token's digest, the only form of it the database holds. */
-export function invitationTokenDigest(token: string): string {
-  return createHash('sha256').update(token, 'utf8').digest('hex');
 }
 
 export function registerQualificationRoutes(

@@ -25,7 +25,9 @@
  * person (`GET /invitations/:token`). Printed once; not stored.
  */
 
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
+import { taggedDigest } from '@kf/canonicalization';
+import { invitationTokenDigest } from '@kf/qualification';
 import { appendAuditEvent } from '@kf/actions';
 import {
   setAccessContext,
@@ -257,9 +259,11 @@ async function recordAct(
     [
       act.actionId,
       act.organizationId,
-      createHash('sha256')
-        .update(JSON.stringify([act.actionType, act.targetIds, act.parameters]))
-        .digest('hex'),
+      taggedDigest('kf-invite-request-v1', {
+        actionType: act.actionType,
+        targetIds: [...act.targetIds],
+        parameters: act.parameters,
+      }),
       act.actionType,
       act.actorId,
       act.actingRoleId,
@@ -509,7 +513,7 @@ export async function runInvite(
     ...(plan.scopeObjectId === undefined ? {} : { scopeObjectId: plan.scopeObjectId }),
     reason: plan.reason,
     expiresAt: plan.expiresAt,
-    tokenDigest: createHash('sha256').update(token, 'utf8').digest('hex'),
+    tokenDigest: invitationTokenDigest(token),
   });
   return {
     personId: person.personId,

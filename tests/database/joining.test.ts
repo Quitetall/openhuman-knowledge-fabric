@@ -11,11 +11,12 @@
  * first while it is open and drops it once they are qualified.
  */
 
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { JsonValue } from '@kf/canonicalization';
 import { withTransaction } from '@kf/database';
+import { invitationTokenDigest } from '@kf/qualification';
 import { createFabricDispatcher } from '@kf/orchestrator';
 import type { Caller } from '../../apps/api/src/routes/actions/contracts.js';
 import { planInvite, runInvite, type InviteResult } from '../../apps/api/src/admin/invite.js';
@@ -217,7 +218,7 @@ describe('the owner invites', () => {
         [invited.invitationId],
       ),
     );
-    expect(stored.token_digest).toBe(createHash('sha256').update(token).digest('hex'));
+    expect(stored.token_digest).toBe(invitationTokenDigest(token));
     expect(stored.as_text).not.toContain(token);
   });
 
