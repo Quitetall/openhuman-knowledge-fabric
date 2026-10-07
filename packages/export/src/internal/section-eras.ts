@@ -51,6 +51,7 @@ import type { ExportPackage } from './types.js';
  *   `requirements`, `risks`, `tests`.
  * - 79124c0a (2026-09-24) — `20260925030200`: `observations`.
  * - de59c226 (2026-09-24, on a branch without beb2a9d3 and 79124c0a): `access-demand`.
+ * - ee9e0696 (2026-10-07) — `20261007200000`: `role-preset-grants`, `role-inclusions` (ADR 0040).
  *
  * Absence does NOT mean none, and the importer restores what the migration derived:
  *
@@ -140,6 +141,7 @@ export const SECTION_ARRIVALS: readonly SectionArrival[] = [
     after: ['79124c0a', 'de59c226'],
     sections: ['deliverable-retired-attributes'],
   },
+  { commit: 'ee9e0696', after: ['b8886185'], sections: ['role-preset-grants', 'role-inclusions'] },
 ];
 
 /** Every section above, oldest arrival first. */

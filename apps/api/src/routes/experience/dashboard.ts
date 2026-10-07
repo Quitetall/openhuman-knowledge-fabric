@@ -199,24 +199,29 @@ async function peoplePanel(tx: Tx, reader: Reader, coverage: AccessCoverage): Pr
   );
   const grants = [...coverage.organizationWide, ...[...coverage.byObject.values()].flat()];
   const preset = grants.filter((grant) => grant.source === 'role_preset');
+  // The distinct role paths the reader's presets arrived by, grouped under the role each starts
+  // from — the role of the assignment that carries them. Data grouped by its own key; nothing here
+  // decides what to show from which role it is.
+  const pathsByHeldRole = new Map<string, Map<string, readonly string[]>>();
+  for (const grant of preset) {
+    const [first] = grant.rolePath ?? [];
+    if (first === undefined || grant.rolePath === undefined) continue;
+    const paths = pathsByHeldRole.get(first) ?? new Map<string, readonly string[]>();
+    paths.set(grant.rolePath.join('\u0000'), grant.rolePath);
+    pathsByHeldRole.set(first, paths);
+  }
   return {
     id: 'people',
     empty: held.length === 0,
-    assignments: held.map((row) => {
-      const paths = new Map<string, readonly string[]>();
-      for (const grant of preset) {
-        if (grant.rolePath !== undefined && grant.rolePath[0] === row.role_id) {
-          paths.set(grant.rolePath.join('\u0000'), grant.rolePath);
-        }
-      }
-      return {
-        assignmentId: row.id,
-        roleId: row.role_id,
-        organizationWide: row.scope_id === reader.organizationId,
-        validTo: row.valid_to === null ? null : new Date(row.valid_to).toISOString(),
-        reaches: [...paths.values()].sort((a, b) => a.join(' ').localeCompare(b.join(' '))),
-      };
-    }),
+    assignments: held.map((row) => ({
+      assignmentId: row.id,
+      roleId: row.role_id,
+      organizationWide: row.scope_id === reader.organizationId,
+      validTo: row.valid_to === null ? null : new Date(row.valid_to).toISOString(),
+      reaches: [...(pathsByHeldRole.get(row.role_id)?.values() ?? [])].sort((a, b) =>
+        a.join(' ').localeCompare(b.join(' ')),
+      ),
+    })),
     presetGrants: preset.length,
     qualification: null,
   };
