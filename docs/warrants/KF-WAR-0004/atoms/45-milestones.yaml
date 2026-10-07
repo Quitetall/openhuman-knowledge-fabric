@@ -1,0 +1,50 @@
+schema: "oh.war/milestones/v1"
+
+milestones:
+  - id: "M1"
+    title: "An agent reads its person's slice through MCP, under a delegated token, labelled"
+    stage_refs: ["STAGE-001", "STAGE-002"]
+    obligation_refs: ["OBL-001", "OBL-002"]
+
+  - id: "M2"
+    title: "An agent's writes land as unverified, attributed acts; institutional acts only queue"
+    depends_on: ["M1"]
+    stage_refs: ["STAGE-003", "STAGE-004"]
+    obligation_refs: ["OBL-003", "OBL-004"]
+
+  - id: "M3"
+    title: "Needs you lists what waits on a person and verifies it in one click, on a phone too"
+    depends_on: ["M2"]
+    stage_refs: ["STAGE-005", "STAGE-006"]
+    obligation_refs: ["OBL-005"]
+
+stages:
+  - id: "STAGE-001"
+    title: "Build the MCP server's read tools on AGENT_TOOLS and the API"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-002"
+    title: "Wire the ADR 0035 token exchange through the attestor for MCP sessions"
+    executor_kind: "agent"
+    responsibility_tier: "T3"
+
+  - id: "STAGE-003"
+    title: "Add the verification policy as data, with the database refusing auto-verify of institutional acts"
+    executor_kind: "agent"
+    responsibility_tier: "T3"
+
+  - id: "STAGE-004"
+    title: "Add capture, draft, submit and propose_act write tools"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-005"
+    title: "Build the Needs-you route and web panel over core.object_verification and the bulk route"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-006"
+    title: "Owner declares his agents and sets any policy beyond the default"
+    executor_kind: "human"
+    responsibility_tier: "T3"

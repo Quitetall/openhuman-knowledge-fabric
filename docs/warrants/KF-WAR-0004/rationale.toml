@@ -1,0 +1,18 @@
+schema = "oh.war/rationale/v1"
+
+# The residual risks named in atoms/60-assurance.md, typed so the authorization request puts
+# them in front of the person signing (see KF-WAR-0001/rationale.toml for why this file exists).
+
+[[assumption]]
+id = "A-001"
+statement = "A person who clicks verify has read what they verified."
+epistemic_status = "accepted_residual_risk"
+consequence_if_false = "A record reads as verified on a click alone. SAS §100.26 records that the pace makes a false claim slow and attributed, not impossible."
+judgment_ref = ""
+
+[[assumption]]
+id = "A-002"
+statement = "What an MCP client does with what it read stays out of KF's reach."
+epistemic_status = "accepted_residual_risk"
+consequence_if_false = "A disclosure KF recorded correctly travels further inside the client's context than the grant intended; KF can show what it disclosed, not where it went next."
+judgment_ref = ""

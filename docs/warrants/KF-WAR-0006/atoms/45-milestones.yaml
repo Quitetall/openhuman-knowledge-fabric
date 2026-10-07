@@ -1,0 +1,60 @@
+schema: "oh.war/milestones/v1"
+
+milestones:
+  - id: "M1"
+    title: "Retrieval is fast and fused well enough to answer from: the pump batches, fusion is fixed"
+    stage_refs: ["STAGE-001", "STAGE-002"]
+    obligation_refs: ["OBL-005"]
+
+  - id: "M2"
+    title: "Chat answers from the reader's record with citations and withheld counts, routed by classification"
+    depends_on: ["M1"]
+    stage_refs: ["STAGE-003", "STAGE-004"]
+    obligation_refs: ["OBL-001", "OBL-002"]
+
+  - id: "M3"
+    title: "The agent fills real forms as drafts that commit in one click"
+    depends_on: ["M2"]
+    stage_refs: ["STAGE-005"]
+    obligation_refs: ["OBL-003"]
+
+  - id: "M4"
+    title: "A daily digest and an urgent push reach the person and leak nothing"
+    stage_refs: ["STAGE-006", "STAGE-007"]
+    obligation_refs: ["OBL-004"]
+
+stages:
+  - id: "STAGE-001"
+    title: "Batch the embedding pump and measure ingest-to-findable on Veracier"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-002"
+    title: "Fix fusion for weak word matches and re-run the four fixture baselines"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-003"
+    title: "Build the classification router and the LAMU and provider adapters"
+    executor_kind: "agent"
+    responsibility_tier: "T3"
+
+  - id: "STAGE-004"
+    title: "Build the chat panel over the context source, with citations and withheld counts"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-005"
+    title: "Add form-filling drafts and proposals into Needs you"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-006"
+    title: "Build the email digest and the ntfy urgent push on the alert path"
+    executor_kind: "agent"
+    responsibility_tier: "T2"
+
+  - id: "STAGE-007"
+    title: "Owner supplies a provider key or none, and decides digest and urgent kinds"
+    executor_kind: "human"
+    responsibility_tier: "T3"

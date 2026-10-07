@@ -133,7 +133,11 @@ class throughout: they read through the Fabric and write back to keep a clean re
 
 The milestone before friends are invited is: the KF MCP server, the dashboard with Needs you and
 one-click verification, the in-app agent, Start Here and qualification, search by words and by
-meaning, roles as scope presets, and the master document. The order is in the roadmap.
+meaning, roles as scope presets, and the master document. The order is in the roadmap. This
+resequences ADR 0038, which put building qualification last, after hosting and the owner's
+correctness pass: the owner decided on 2026-10-06 that a friend must be able to qualify before
+being invited, so qualification (M5) now precedes the first host (M6). ADR 0038's decisions
+about what qualification is are unchanged; only when it is built moves.
 
 This record is the stopgap the owner chose for where the experience is specified. The owner
 intends to ask OpenWarrant for a UX document class so that the experience has a native home. Until

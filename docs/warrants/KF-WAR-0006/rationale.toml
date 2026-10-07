@@ -1,0 +1,18 @@
+schema = "oh.war/rationale/v1"
+
+# The residual risks named in atoms/60-assurance.md, typed so the authorization request puts
+# them in front of the person signing (see KF-WAR-0001/rationale.toml for why this file exists).
+
+[[assumption]]
+id = "A-001"
+statement = "What a person types into a provider-routed question is not controlled content."
+epistemic_status = "accepted_residual_risk"
+consequence_if_false = "A person pastes a restricted record's text into a question the router sends to a provider; the router classifies only what KF placed in the context."
+judgment_ref = ""
+
+[[assumption]]
+id = "A-002"
+statement = "Free hosted ntfy is acceptable for pushes that carry no record content."
+epistemic_status = "accepted_residual_risk"
+consequence_if_false = "Anyone who learns the topic reads or forges pushes. The owner accepted this in docs/deployment/phone-alerts.md; OBL-004 keeps content out."
+judgment_ref = ""

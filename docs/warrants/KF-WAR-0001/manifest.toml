@@ -12,6 +12,11 @@ title = "Commission the dogfood host: KF serves records from a machine that is n
 profile = "delivery"
 assurance_level = "controlled"
 
+# Milestone M6 of docs/ROADMAP.md. The host is the one ADR 0039 chose: a rented VPS on a tailnet,
+# SeaweedFS as the working store, Backblaze B2 for durable copies and off-site backups, semantic
+# search on the host's CPU with the LAMU engine pinned at 26923afb. It depends on KF-WAR-0002 (M0),
+# which lands that code.
+#
 # Phase 9's exit. Every requirement below is an OPERATIONS requirement (SAS §106) that only a
 # host can evidence — which is why they all read `unaddressed` until this Warrant resolves.
 [[roadmap]]
@@ -60,8 +65,8 @@ contribution = "complete"
 ref = "sas://KF-SAS-RQ-171"
 contribution = "validation"
 
-# Storage: a second store on a different physical device, with replication and verification
-# running as recorded acts on a timer rather than by hand.
+# Storage: a durable store in Backblaze B2, hardware run by someone else (ADR 0039), with
+# replication and verification running as recorded acts on a timer rather than by hand.
 [[implements]]
 ref = "sas://KF-SAS-RQ-095"
 contribution = "complete"
@@ -74,6 +79,12 @@ contribution = "complete"
 [[implements]]
 ref = "sas://KF-SAS-RQ-049"
 contribution = "complete"
+
+# Semantic search runs on the host's CPU with a pinned local embedder; nothing leaves the host to
+# be embedded. Validated on the host, not newly built here (ADR 0039, decision 5).
+[[implements]]
+ref = "sas://KF-SAS-RQ-218"
+contribution = "validation"
 
 [[atoms]]
 ordinal = 10
