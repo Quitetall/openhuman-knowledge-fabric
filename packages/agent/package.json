@@ -1,0 +1,26 @@
+{
+  "name": "@kf/agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The in-app agent: answers from the reader's record with citations, drafts the real forms, and routes every model call by the classification of what it carries (ADR 0040)",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.131.0",
+    "@kf/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3"
+  }
+}

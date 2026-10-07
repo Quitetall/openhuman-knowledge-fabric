@@ -60,6 +60,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             <Link href="/capture" className="kf-nav-link">
               Capture
             </Link>
+            <Link href="/agent" className="kf-nav-link">
+              Agent
+            </Link>
             <Link href="/ml/runs" className="kf-nav-link">
               ML runs
             </Link>

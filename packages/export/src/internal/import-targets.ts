@@ -9,6 +9,8 @@ export const PRESERVATION_IMPORT_TARGETS = {
   'object-verifications': 'core.object_verification',
   'act-proposals': 'core.act_proposal',
   'act-proposal-resolutions': 'core.act_proposal_resolution',
+  'model-routing-policies': 'core.model_routing_policy',
+  'notification-preferences': 'core.notification_preference',
   'access-demand': 'org.access_demand',
   snapshots: 'core.snapshot',
   'audit-events': 'core.audit_event',

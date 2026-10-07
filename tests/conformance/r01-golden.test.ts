@@ -427,6 +427,10 @@ const DECLARED_ADDITIONS = {
     'revoke_role_scope',
     'revoke_secure_object_authority_key',
     'revoke_secure_object_capability',
+    // ADR 0040: what may leave the host, per organization (institutional, 20261007300000).
+    'set_model_routing_policy',
+    // ADR 0040: a person's own digest and urgent-push setting.
+    'set_notification_preference',
     // ADR 0040: whether an agent's records of a kind are verified on arrival (institutional).
     'set_verification_policy',
     'submit_document_for_review',

@@ -24,6 +24,7 @@ import {
   StartHerePanel,
 } from './components/dashboard/panels';
 import { StatusReport } from './components/status-report';
+import { AgentDock } from './agent/agent-dock';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Home' };
@@ -114,6 +115,10 @@ export default async function Home({
       {dashboard.panels.map((panel) => (
         <Panel key={panel.id} panel={panel} />
       ))}
+      {/* The in-app agent (ADR 0040 decision 7): the same chat as /agent, folded until opened. */}
+      <section className="kf-panel" data-panel="agent" aria-label="Agent">
+        <AgentDock returnTo="/" />
+      </section>
       <p className="kf-footnote">
         <Link href="/status">Service status</Link>
       </p>

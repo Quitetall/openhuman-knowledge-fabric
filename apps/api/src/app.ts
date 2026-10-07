@@ -64,6 +64,7 @@ import { registerIdentifierRoutes } from './routes/identifiers.js';
 import { registerVerificationRoutes } from './routes/verifications.js';
 import { registerNeedsYouRoutes } from './routes/needs-you.js';
 import { registerQualificationRoutes } from './routes/qualification.js';
+import { registerAgentSettingsRoutes } from './routes/agent-settings.js';
 import { registerCaptureRoutes } from './routes/capture.js';
 import { registerSessionRoutes } from './routes/session.js';
 import { registerExperienceRoutes } from './routes/experience.js';
@@ -112,6 +113,11 @@ export interface AppDependencies {
   readonly documentParser?: DocumentParser;
   /** Where log lines go instead of stdout: a test seam, to read what the log would have said. */
   readonly logStream?: { write(line: string): void };
+  /**
+   * A stand-in for the retrieval engine: a test seam, as `objectStore` is. Production builds one
+   * from `retrievalSocket` and nothing else.
+   */
+  readonly semantic?: Pick<SemanticRetrieval, 'rank'>;
 }
 
 export async function buildApp(
@@ -550,6 +556,8 @@ export async function buildApp(
     // Joining and qualification (ADR 0038, ADR 0040 decision 12): Start Here, the guide's context,
     // a record for its contact and reviewers, the submit and credit gestures, and invitations.
     registerQualificationRoutes(app, { pool, execute, identify });
+    // What may leave the host, and the caller's own notification setting (ADR 0040, M4).
+    registerAgentSettingsRoutes(app, { pool, identify });
     // One gesture, one observation (ADR 0034): the seam `kf note`, the web form and agents share.
     registerCaptureRoutes(app, { pool, execute, identify });
     // What a signed-in person may choose between when they pick their context.
@@ -582,9 +590,10 @@ export async function buildApp(
     // is the process's; absent, search is lexical only and says so (KF-SAS-RQ-216), and the
     // context source refuses to retrieve.
     const semantic =
-      config.retrievalSocket === undefined
+      dependencies.semantic ??
+      (config.retrievalSocket === undefined
         ? undefined
-        : new SemanticRetrieval(new RetrievalClient({ socketPath: config.retrievalSocket }));
+        : new SemanticRetrieval(new RetrievalClient({ socketPath: config.retrievalSocket })));
     await registerSearchRoutes(app, {
       pool,
       identify,

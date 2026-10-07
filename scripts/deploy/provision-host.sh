@@ -103,7 +103,7 @@ human() { HUMAN+=("$1|$2"); }
 
 USERS=(kf-api kf-web kf-worker kf-migrator kf-checkpoint kf-backup kf-offsite kf-readiness
   kf-storage kf-audit-verify kf-alert kf-drill kf-attestor kf-retrieval-key kf-embedding kf-retrieval
-  kf-tls kf-objects kf-objects-init)
+  kf-tls kf-objects kf-objects-init kf-notify)
 
 # Numeric ids from the account database, root included, so ownership is compared as the kernel
 # records it.
@@ -183,6 +183,7 @@ DIRECTORIES=(
   "0750 root kf-storage /etc/kf/storage"
   "0750 root kf-audit-verify /etc/kf/audit-verify"
   "0750 root kf-alert /etc/kf/alert"
+  "0750 root kf-notify /etc/kf/notify"
   "0750 root kf-drill /etc/kf/drill"
   "0700 kf-attestor kf-attestor /etc/kf/attestor"
   "0700 kf-objects kf-objects /etc/kf/objects"
@@ -338,6 +339,7 @@ ENV_FILES=(
   "tailnet.env.example /etc/kf/tailnet.env 0640 root kf-tls"
   "storage.env.example /etc/kf/storage/storage.env 0600 kf-storage kf-storage"
   "objects.env.example /etc/kf/objects-init/objects.env 0600 kf-objects-init kf-objects-init"
+  "notify.env.example /etc/kf/notify.env 0640 root kf-notify"
 )
 
 # Keys whose empty value is an unconfigured deployment rather than an opted-out feature.
@@ -956,6 +958,9 @@ if [ -d "$(p /etc/kf/migrator)" ]; then
   ensure_human_secret kf-storage /etc/kf/storage/s3-durable-secret "secret for S3_DURABLE_ACCESS_KEY_ID in /etc/kf/storage/storage.env"
   ensure_human_secret kf-audit-verify /etc/kf/audit-verify/database-url "connection string for the audit verifier's login (member of kf_checkpoint for its cross-organization reads)"
   ensure_human_secret kf-alert /etc/kf/alert/webhook-url "the https:// webhook that reaches a person"
+  ensure_human_secret kf-notify /etc/kf/notify/database-url "connection string for the notifier's login (member of kf_notifier ONLY: it reads no table)"
+  ensure_human_secret kf-notify /etc/kf/notify/smtp.json "the digest's SMTP relay: {\"host\", \"port\", \"security\": \"tls\"|\"starttls\", \"user\"?, \"from\"}"
+  ensure_human_secret kf-notify /etc/kf/notify/alert-webhook-url "the same https:// endpoint as /etc/kf/alert/webhook-url: the urgent push travels the alert path"
   ensure_human_secret kf-drill /etc/kf/drill/database-url "connection string the restore drill records into (the production ledger; kf_backup's grants)"
   ensure_human_secret kf-drill /etc/kf/drill/s3-secret-access-key "secret for S3_ACCESS_KEY_ID in /etc/kf/drill.env (a READ-ONLY key on the artifacts bucket)"
 fi

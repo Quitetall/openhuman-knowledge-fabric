@@ -1,0 +1,24 @@
+{
+  "name": "@kf/notify",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "kf-notify — the daily Needs-you digest by email and the urgent push on the alert path, carrying nothing a provider model may not receive (ADR 0040 decision 9)",
+  "main": "./dist/main.js",
+  "bin": {
+    "kf-notify": "./dist/main.js"
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@kf/database": "workspace:*",
+    "@kf/operations": "workspace:*",
+    "nodemailer": "10.0.15"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "@types/nodemailer": "8.0.2"
+  }
+}

@@ -95,7 +95,13 @@
       "path": "./packages/orchestrator"
     },
     {
+      "path": "./packages/agent"
+    },
+    {
       "path": "./apps/mcp"
+    },
+    {
+      "path": "./apps/notify"
     }
   ]
 }

@@ -3,7 +3,7 @@
   "info": {
     "title": "OpenHuman Knowledge Fabric API",
     "version": "1.2.0-draft.1",
-    "description": "Generated from ontology source digest 50228da3a68d70cc5ff6d46ce6485eabb0755418b1a5a29da4645e75b24add67."
+    "description": "Generated from ontology source digest 9873ad7eb80c4f6e03b8f4dcbd4718a2264b98cb1c8992fc49fec7d351b32ebc."
   },
   "paths": {
     "/objects/organization/{id}": {
@@ -3302,6 +3302,66 @@
       "post": {
         "summary": "Execute resolve_act_proposal",
         "operationId": "resolve_act_proposal",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/set_model_routing_policy": {
+      "post": {
+        "summary": "Execute set_model_routing_policy",
+        "operationId": "set_model_routing_policy",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/set_notification_preference": {
+      "post": {
+        "summary": "Execute set_notification_preference",
+        "operationId": "set_notification_preference",
         "requestBody": {
           "required": true,
           "content": {
@@ -7467,6 +7527,8 @@
               "set_verification_policy",
               "propose_act",
               "resolve_act_proposal",
+              "set_model_routing_policy",
+              "set_notification_preference",
               "deactivate_organization",
               "reactivate_organization",
               "retire_organization",

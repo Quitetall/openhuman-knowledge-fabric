@@ -138,3 +138,14 @@ export {
   type ProposedAct,
   type VerificationPolicyMode,
 } from './agent-acts.js';
+export {
+  AGENT_AT_HOME_ACTION_IDS,
+  AGENT_AT_HOME_EFFECTS,
+  AGENT_AT_HOME_PRECONDITIONS,
+  AGENT_AT_HOME_RECEIPTS,
+  DEFAULT_PROVIDER_CEILING,
+  DIGEST_SETTINGS,
+  PROVIDER_CEILINGS,
+  PUSH_SETTINGS,
+  type ProviderCeiling,
+} from './agent-at-home.js';

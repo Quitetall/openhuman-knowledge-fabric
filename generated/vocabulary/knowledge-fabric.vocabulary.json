@@ -2,7 +2,7 @@
   "schema_version": "1.2.0-draft.1",
   "x-generated-from": {
     "ontology_version": "1.2.0-draft.1",
-    "source_digest": "50228da3a68d70cc5ff6d46ce6485eabb0755418b1a5a29da4645e75b24add67"
+    "source_digest": "9873ad7eb80c4f6e03b8f4dcbd4718a2264b98cb1c8992fc49fec7d351b32ebc"
   },
   "node_types": {
     "organization": {
@@ -2468,6 +2468,14 @@
       "transactional": true
     },
     "resolve_act_proposal": {
+      "audited": true,
+      "transactional": true
+    },
+    "set_model_routing_policy": {
+      "audited": true,
+      "transactional": true
+    },
+    "set_notification_preference": {
       "audited": true,
       "transactional": true
     },

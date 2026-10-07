@@ -101,6 +101,16 @@ const LOCAL_FAMILIES: readonly string[] = [
   // agents, so they are local by the same reasoning as KF-CTX.
   'KF-AGENT',
   'KF-VPOL',
+  // The agent at home (ADR 0040, 20261007300000). KF-ROUTE: no organization may let
+  // confidential or restricted content leave the host, and a routing policy is written only by
+  // its own institutional act. KF-NOTIFY: a notification setting is the person's own, never an
+  // agent's, written only by its act. Local for the same reason as KF-AGENT.
+  'KF-ROUTE',
+  'KF-NOTIFY',
+  // The in-app agent's own refusals (packages/agent): a model that could not answer, never
+  // replaced by another (KF-CHAT-001), and an answer citing a source it was not given, refused
+  // rather than trimmed (KF-CHAT-002). KF-SAS-RQ-271 and RQ-272; local for the same reason.
+  'KF-CHAT',
   // Qualification (ADR 0038, 20261007400000). KF-QUAL: an act that declares
   // requires_qualification is refused, naming the requirement, when the actor lacks a current
   // credit for it (001); pack, record, credit and submission rows are written only by their own

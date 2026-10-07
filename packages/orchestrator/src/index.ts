@@ -20,6 +20,10 @@ import {
   ACCESS_EFFECTS,
   AGENT_ACT_ACTION_IDS,
   AGENT_ACT_EFFECTS,
+  AGENT_AT_HOME_ACTION_IDS,
+  AGENT_AT_HOME_EFFECTS,
+  AGENT_AT_HOME_PRECONDITIONS,
+  AGENT_AT_HOME_RECEIPTS,
   AGENT_ACT_PRECONDITIONS,
   AGENT_ACT_RECEIPTS,
   AUTHORITY_ACTION_IDS,
@@ -175,6 +179,15 @@ const BUILT_IN_ATOMS: readonly ActionAtoms[] = [
     effects: AGENT_ACT_EFFECTS,
     preconditions: AGENT_ACT_PRECONDITIONS,
     receipts: AGENT_ACT_RECEIPTS,
+  },
+  {
+    // The agent at home (ADR 0040, 20261007300000): what may leave the host per organization, and a
+    // person's own notification setting.
+    name: 'agent-at-home',
+    ownedActions: AGENT_AT_HOME_ACTION_IDS,
+    effects: AGENT_AT_HOME_EFFECTS,
+    preconditions: AGENT_AT_HOME_PRECONDITIONS,
+    receipts: AGENT_AT_HOME_RECEIPTS,
   },
   {
     // Qualification is evidence against a versioned pack (ADR 0038, 20261007400000): packs,

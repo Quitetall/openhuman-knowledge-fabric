@@ -316,6 +316,24 @@ action_types:
     audited: true
     transactional: true
     drives: []
+  # The agent at home (ADR 0040 decisions 8 and 9, KF-SAS-RQ-271, RQ-274; 20261007300000).
+  #
+  # `set_model_routing_policy` targets the organization and records the highest classification of
+  # content that may leave the host, to a provider's model or in a notification: `none`, `public`
+  # or `internal`. Institutional: what leaves the organization is the organization's decision, and
+  # so no agent can widen it. The database refuses `confidential` and `restricted` in every session
+  # (KF-ROUTE-001).
+  - id: set_model_routing_policy
+    audited: true
+    transactional: true
+    drives: []
+    requires: act
+  # `set_notification_preference` records the performing person's own digest (`daily` or `off`) and
+  # urgent push (`urgent` or `off`) in the organization it targets. Never an agent's (KF-NOTIFY-001).
+  - id: set_notification_preference
+    audited: true
+    transactional: true
+    drives: []
   # Grants a person an organization-scoped, effective-dated clearance (ADR 0011).
   #
   # This type exists because `org.person_clearance.granted_by_action` is a NOT NULL foreign key

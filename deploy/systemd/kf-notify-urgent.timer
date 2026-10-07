@@ -1,0 +1,15 @@
+[Unit]
+Description=Push urgent items to the person the alert path reaches, every five minutes
+
+[Timer]
+Unit=kf-notify@urgent.service
+# Every five minutes: 20 minutes silent means three runs were missed, and an urgent item would
+# wait that long unannounced.
+X-KF-MaxSilenceSec=1200
+OnCalendar=*:0/5
+# Not Persistent: the run reads everything since its last boundary, so a missed run is caught up
+# by the next one anyway.
+Persistent=false
+
+[Install]
+WantedBy=timers.target

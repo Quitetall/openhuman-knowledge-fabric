@@ -12,6 +12,8 @@
     "clean": "rm -rf .next"
   },
   "dependencies": {
+    "@kf/agent": "workspace:*",
+    "@kf/domain": "workspace:*",
     "@kf/ml-registry": "workspace:*",
     "@kf/ui": "workspace:*",
     "jose": "^6.2.8",

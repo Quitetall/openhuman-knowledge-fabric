@@ -280,6 +280,32 @@ beforeAll(async () => {
     },
   });
 
+  // ADR 0040 (20261007300000): what may leave the host, and a person's own notification setting,
+  // so both sections are round-tripped over rows.
+  const ceiling = await colleagues({
+    actionType: 'set_model_routing_policy',
+    actorId: f.reviewerId,
+    actingRoleId: f.reviewerRoleId,
+    targetIds: [f.organizationId],
+    organizationId: f.organizationId,
+    maxClassification: 'restricted',
+    idempotencyKey: 'export-routing-0001',
+    reason: 'only public content may reach a provider here',
+    payload: { provider_ceiling: 'public' },
+  });
+  expect(ceiling.status).toBe('applied');
+  const preference = await colleagues({
+    actionType: 'set_notification_preference',
+    actorId: f.performerId,
+    actingRoleId: f.performerRoleId,
+    targetIds: [f.organizationId],
+    organizationId: f.organizationId,
+    maxClassification: 'restricted',
+    idempotencyKey: 'export-preference-0001',
+    payload: { digest: 'off', push: 'urgent' },
+  });
+  expect(preference.status).toBe('applied');
+
   // ADR 0038 (20261007400000): a pack, its approval, a record, a submission and a credit, so the
   // qualification sections are round-tripped over rows, the credit naming its requirement revision.
   const as = (actor: 'reviewer' | 'performer') => ({
@@ -891,7 +917,12 @@ describe('preservation export', () => {
       );
 
       // ADR 0040: the policy, the record it verified naming it, and the proposal, restored as rows.
-      for (const section of ['verification-policies', 'act-proposals']) {
+      for (const section of [
+        'verification-policies',
+        'act-proposals',
+        'model-routing-policies',
+        'notification-preferences',
+      ]) {
         expect(pkg.manifest.counts[section], section).toBeGreaterThan(0);
       }
       const byPolicy = await withTransaction(fresh.adminPool, (tx) =>
@@ -903,6 +934,14 @@ describe('preservation export', () => {
         ),
       );
       expect(byPolicy).toEqual({ basis: 'verified_by_policy', named: true });
+      const settings = await withTransaction(fresh.adminPool, (tx) =>
+        tx.one<{ ceiling: string; digest: string }>(
+          `select core.provider_ceiling_in_force($1) as ceiling,
+                  (select digest from core.notification_preference where person_id = $2) as digest`,
+          [f.organizationId, f.performerId],
+        ),
+      );
+      expect(settings).toEqual({ ceiling: 'public', digest: 'off' });
 
       // ADR 0038: the pack, the record pinned to its revision, the credit pinned to its
       // requirement's, and the submission, restored as rows.
