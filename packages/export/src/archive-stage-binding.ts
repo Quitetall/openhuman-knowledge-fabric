@@ -1,4 +1,4 @@
-import { digest } from '@kf/canonicalization';
+import { canonicalize } from '@kf/canonicalization';
 import { isRecord } from './internal/format.js';
 
 type Row = Readonly<Record<string, unknown>>;
@@ -109,7 +109,7 @@ export function bindArchiveStages(
           (candidate) =>
             !isRecord(candidate['contract_binding']) ||
             candidate['source_digest'] !== first['source_digest'] ||
-            digest(candidate['graph']) !== digest(first['graph']),
+            canonicalize(candidate['graph']) !== canonicalize(first['graph']),
         )
       )
         throw new Error('Ambiguous source stage declaration');

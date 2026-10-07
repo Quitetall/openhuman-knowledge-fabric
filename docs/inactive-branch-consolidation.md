@@ -20,6 +20,11 @@ their source pointers; conflicting graphs remain ambiguous. Source authenticatio
 and execution qualification remain separate, as described in the
 [preservation interface](integrations/openwarrant-preservation.md#reconstructed-historical-stage-bindings).
 
+During integration, the current digest-tag gate rejected the imported internal
+graph-comparison hash. Compare canonical graph strings directly instead; no digest
+is recorded. Regression assertions cover reordered keys and conflicting graphs
+even when the supplied source digest is the same.
+
 ## Why the old LAMU branches are history, not a second runtime
 
 The September prototype supplies generic canonical facts through an earlier

@@ -140,6 +140,7 @@ it('binds historical membership only to its reconstructed contract and exact sna
   ).toThrow(/Invalid archive stage contract binding/);
   const repeated = {
     ...historical,
+    graph: { milestones: declaration.graph.milestones, stages: declaration.graph.stages },
     source: historical.source.replace('/old/', '/other/'),
     manifest_source: historical.manifest_source.replace('/old/', '/other/'),
     contract_binding: {
@@ -152,6 +153,22 @@ it('binds historical membership only to its reconstructed contract and exact sna
   ]);
   expect(result.matches).toHaveLength(1);
   expect(result.matches[0]?.['equivalentSources']).toHaveLength(2);
+  expect(() =>
+    bindArchiveStages(
+      {
+        ...inventory,
+        declarations: [
+          historical,
+          {
+            ...repeated,
+            graph: { ...repeated.graph, stages: [{ id: 'S1' }, { id: 'S2' }] },
+          },
+        ],
+      },
+      2,
+      [dispatch],
+    ),
+  ).toThrow(/Ambiguous/);
   expect(() =>
     bindArchiveStages(
       {
