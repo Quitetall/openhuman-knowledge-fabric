@@ -23,7 +23,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { S3ObjectStore, type ObjectStore } from '@kf/artifacts';
 import { loadSecret } from '@kf/operations';
@@ -132,7 +132,13 @@ async function main(argv: readonly string[]): Promise<number> {
   return failures.length === 0 ? 0 : 1;
 }
 
-if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// Compared by real path. The drill runs this as /opt/kf/apps/…, and /opt/kf is a symbolic link
+// to the release; Node resolves the module to the release's real path, so comparing against
+// argv as given never matched on a host, and the verifier exited 0 having measured nothing.
+if (
+  process.argv[1] !== undefined &&
+  import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href
+) {
   main(process.argv.slice(2)).then(
     (code) => {
       process.exitCode = code;
