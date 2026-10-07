@@ -17,11 +17,11 @@ Source: every Warrant under the configured warrants path, its sidecar records, a
 - **digest:** `sha256:b7cfdf1f0eea15625b61ba00c43beb9466171280d08e77bd3d8911415b2c23ea`
 - Revision 0.1.0-draft.8 is ACCEPTED (§101.2) and normative. A Warrant compiles against the revision its authorization recorded (§14), so a later revision does not move an authorized contract: 1 against 0.1.0-draft.8.
 
-**Requirements (192 in §106)** — strictest rung first:
+**Requirements (207 in §106)** — strictest rung first:
 
 | satisfied | in_progress | claimed | unaddressed | superseded |
 |---|---|---|---|---|
-| **0** | 0 | 12 | 180 | 0 |
+| **0** | 0 | 12 | 195 | 0 |
 
 ## Objectives (SAS §98 phases)
 
@@ -79,7 +79,7 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 
 ## Requirements (SAS §106, §34.3)
 
-**Unaddressed (180)** — no Warrant names these. Several may be built; the gap is bookkeeping, and it is listed rather than hidden:
+**Unaddressed (195)** — no Warrant names these. Several may be built; the gap is bookkeeping, and it is listed rather than hidden:
 
 - `KF-SAS-RQ-001` — One coherent typed graph over records whose authorities remain distinct
 - `KF-SAS-RQ-002` — Visibility, immutability and integrity enforced in the database
@@ -261,6 +261,21 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 - `KF-SAS-RQ-259` — Only a behavioural revision of a requirement creates a gap, and only for the scope it touches
 - `KF-SAS-RQ-260` — A mandatory requirement names what becomes unsafe, unauthorized or unreliable without it
 - `KF-SAS-RQ-261` — An unavailable resource or reviewer is the organization's blocker, never the person's failure
+- `KF-SAS-RQ-262` — One dashboard layout for everyone, each panel scoped by the viewer's grants; nothing branches on a role or title
+- `KF-SAS-RQ-263` — A record written with an agent's participation is the person's act and is unverified until authority or a policy in force verifies it
+- `KF-SAS-RQ-264` — Verification policy is per organization, kind and agent, set by an attributed act, requires a person by default, and is named on what it verifies
+- `KF-SAS-RQ-265` — An agent performs no institutional act without the authority holder's explicit confirmation, and no policy verifies one
+- `KF-SAS-RQ-266` — An agent's draft shows the fields a person would fill and is written only by that person's gesture or setting, never for an institutional act
+- `KF-SAS-RQ-267` — A master document is scope compiled; an overview or handbook reaches it only as an ordinary record through grants
+- `KF-SAS-RQ-268` — A generated overview links every statement to its source and is evaluated over its reader's corpus, withholding and counting the rest
+- `KF-SAS-RQ-269` — A role is a preset of scope that may include roles, acyclic by the database, projected into the one effective grant view
+- `KF-SAS-RQ-270` — An explanation of access names the role path by which a grant arrived
+- `KF-SAS-RQ-271` — Confidential and restricted content is never sent to a model off the host; with no on-host model the request is refused
+- `KF-SAS-RQ-272` — Every agent answer names its backend, cites its records and counts what was withheld
+- `KF-SAS-RQ-273` — Reading, verifying from Needs you and capturing work at phone width
+- `KF-SAS-RQ-274` — Notifications are a digest plus an urgent-only push, carrying no content a provider model may not receive
+- `KF-SAS-RQ-275` — An invited person reaches Start Here from their qualification record; joining needs nothing beyond grants and qualification
+- `KF-SAS-RQ-276` — Density changes presentation only, and every view is usable at its most compact
 
 | requirement | status | would_satisfy | implementers |
 |---|---|---|---|
@@ -456,6 +471,21 @@ Warrants blocked on each requirement. Names, not a score: this says what to fix.
 | `KF-SAS-RQ-259` | unaddressed | 0 | — |
 | `KF-SAS-RQ-260` | unaddressed | 0 | — |
 | `KF-SAS-RQ-261` | unaddressed | 0 | — |
+| `KF-SAS-RQ-262` | unaddressed | 0 | — |
+| `KF-SAS-RQ-263` | unaddressed | 0 | — |
+| `KF-SAS-RQ-264` | unaddressed | 0 | — |
+| `KF-SAS-RQ-265` | unaddressed | 0 | — |
+| `KF-SAS-RQ-266` | unaddressed | 0 | — |
+| `KF-SAS-RQ-267` | unaddressed | 0 | — |
+| `KF-SAS-RQ-268` | unaddressed | 0 | — |
+| `KF-SAS-RQ-269` | unaddressed | 0 | — |
+| `KF-SAS-RQ-270` | unaddressed | 0 | — |
+| `KF-SAS-RQ-271` | unaddressed | 0 | — |
+| `KF-SAS-RQ-272` | unaddressed | 0 | — |
+| `KF-SAS-RQ-273` | unaddressed | 0 | — |
+| `KF-SAS-RQ-274` | unaddressed | 0 | — |
+| `KF-SAS-RQ-275` | unaddressed | 0 | — |
+| `KF-SAS-RQ-276` | unaddressed | 0 | — |
 
 ## Warrants (1) — invalid 0 · draft 1 · ready_to_resolve 0 · would_satisfy 0 · resolved **0**
 

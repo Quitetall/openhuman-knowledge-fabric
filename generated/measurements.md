@@ -30,8 +30,8 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 | action types | 170 | declared in `ontology/action-types.yaml` |
 | object types | 40 | declared in `ontology/object-types.yaml` |
 | relation types | 42 | declared in `ontology/relation-types.yaml` |
-| decision records | 38 | atoms under `docs/decisions/atoms/` — 35 accepted, 1 proposed, 2 superseded |
-| architecture requirements | 192 | distinct identifiers in §106 |
+| decision records | 39 | atoms under `docs/decisions/atoms/` — 35 accepted, 2 proposed, 2 superseded |
+| architecture requirements | 207 | distinct identifiers in §106 |
 | test files | 327 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
 
 ## Runtime measurements, cited rather than derived

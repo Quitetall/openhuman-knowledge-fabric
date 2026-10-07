@@ -8,7 +8,7 @@
 | Short name | KF SAS |
 | Status | Draft for acceptance |
 | Version | `0.1.0-draft.9` |
-| Date | 2026-09-26 |
+| Date | 2026-10-07 |
 | Enterprise identifier | Unallocated — this file name is not an official Identifier Registry allocation (§94.5) |
 | Program name | **OpenHuman Knowledge Fabric** |
 | Record name | **Object** |
@@ -1113,6 +1113,148 @@ unauthorized or unreliable without it.
 
 **KF-SAS-RQ-261.** An unavailable resource or reviewer SHALL be recorded as a blocker on the
 organization, and SHALL NOT be recorded as the person's failure.
+
+## 24B. The experience
+
+**Specified, and not built.** This section states what a person and an agent experience, as
+[ADR 0040](../decisions/atoms/KF-ADR-0040-the-experience-scope-is-the-product.md) records the
+owner's decisions of 2026-10-06. Almost none of it exists at this revision. It is specified now so
+that the application can be checked against something, and §100.46 to §100.53 record each unbuilt
+part against the milestone that builds it.
+
+**Scope is the product.** The Fabric gives every person and every agent exactly the knowledge
+their grants entitle them to, as one living document, and every contribution flows back into the
+same record and becomes trusted when someone with authority verifies it. Everything in this
+section is that sentence applied to a surface. The primary users, in order, are the owner, then
+engineers, then invited people who must be brought in to contribute. Agents are first class
+throughout.
+
+**Two surfaces, one record.** A person works through an agent that reads and writes the Fabric
+over a KF MCP server, and through the web application, which is the home screen and holds an
+agent of its own. Both dispatch the typed acts every other surface dispatches (§8A, KF-SAS-RQ-203).
+Neither has a private path to storage.
+
+**One dashboard, scoped by grants.** Every person sees the same layout: the overview, their master
+document, Needs you, Work in flight, Recent record, and People & qualification. A panel shows what
+the viewer's grants reach and nothing else. An empty panel collapses, and a person whose
+qualification is open sees Start Here first. There is no screen per role or title, for the reason
+§24A gives for qualification: a fork per title is maintained by nobody.
+
+**A master record is scope, compiled.** A person's master document is their master record (§57)
+and has no other input. The living organization overview and any handwritten handbook are ordinary
+records, and they reach a reader only through that reader's grants. Granted nothing, a person
+receives a master record and no overview. Granted the overview, they receive a master record that
+includes it. The overview is generated from the record, every statement linking to its source.
+It is evaluated over the reader's own corpus as every projection is (§59), so a statement drawn
+from a record the reader cannot see is withheld and counted, never shown.
+
+**Roles are composable presets of scope.** A role is a preset: assigning it grants its scope, so
+an engineer receives the engineering documents and a CEO what a CEO's master document should hold.
+A role may include other roles, and inclusion is a directed acyclic graph the database keeps
+acyclic. Assigning a role projects its scope, and the scope of every role it includes, into
+`org.effective_access_grant`, the one view every read and write consults (§18). A role is
+therefore not a second access mechanism, and an explanation of access (§19) names the role path
+by which a grant arrived. Today `org.role` is a flat list of names with no preset and no
+inclusion, and this is a model change (§100.48).
+
+**Agents submit; authority verifies.** Anything an agent writes, from the in-app agent or over MCP,
+is the named person's act with the agent's participation recorded (§24, KF-SAS-RQ-204). It enters
+unverified (§48A) and becomes trusted when a person with authority verifies it. By default this
+takes one click from Needs you. An organization may set a verification policy, per record kind
+and per declared agent, under which a record is verified on arrival once the organization trusts
+that agent for that kind. The default for every kind and agent requires a person. Setting a
+policy is an attributed act, and a record verified under one says so, naming the policy, as
+KF-SAS-RQ-231 requires a bulk promotion to say so. An institutional act (§20) is outside every
+policy: an agent may propose one, which waits in Needs you, and only the explicit confirmation of
+the person holding the authority performs it.
+
+**The in-app agent answers from the record and drafts into it.** It answers by retrieval over the
+reader's corpus (§64A, §64C), citing every record it drew on and stating how many were withheld
+(§64B). Asked to record something, it fills the same form, with the same fields, a person would
+fill, and the person commits it with one gesture. A capture may later be committed without that
+gesture under the person's own setting. An institutional act never is.
+
+**Controlled knowledge does not leave the host to be answered.** KF-SAS-RQ-218 keeps controlled
+content from leaving the host to be embedded. Generation has the same exposure, so the same line
+applies to it. Content classified `confidential` or `restricted` (§16) is answered only by a model
+on the host — LAMU — and is never sent to a provider's model, with no fallback. Content classified
+`public` or `internal` may go to a provider where the organization's configuration permits. The
+highest classification in an answer's context decides, and every answer names its backend.
+
+**Notifications are quiet by default.** A daily email digest lists what needs the person, and an
+immediate ntfy push is sent only for an urgent item: a person blocked on the organization, a failed
+alert, or an act someone is waiting on. The push shares the path the operational alerts use
+(§87). A notification leaves the host, so it names the item and links to it, and carries no record
+content the preceding paragraph would keep from a provider.
+
+**A phone reads, verifies and captures.** At phone width a person can read the dashboard and
+records, verify from Needs you, capture text, a photo or a voice note as an observation (§8A), and
+talk to the agent. Heavier work is designed for a desktop and still works on a phone.
+
+**It reads as a document.** Reading views are set for reading. Lists are dense where a person
+scans them. Verified, unverified and withheld are shown by form, not by colour alone. A density
+setting makes any view extremely compact, and changes presentation and nothing else (§81).
+
+**Joining is being granted scope, then qualifying.** An invitation leads to sign-in and then to
+Start Here, the projection of the person's qualification record that §24A and
+[ADR 0038](../decisions/atoms/KF-ADR-0038-qualification-is-evidence-against-a-versioned-pack.md)
+specify. The in-app agent is the guide, under §24A's rule that an assistant explains and assembles
+and never infers competence or grants anything. The fifth stage is a small real Warrant. The
+targets are understanding the project in the first hour and a first accepted contribution on the
+first day. There is no onboarding system besides grants and qualification.
+
+**KF-SAS-RQ-262.** Every person SHALL be shown the same dashboard layout, each panel SHALL show
+only what that person's grants reach, and no panel, route or view SHALL branch on a role or job
+title.
+
+**KF-SAS-RQ-263.** A record written with an agent's participation SHALL be recorded as the named
+person's act with that participation, and SHALL be unverified until a person with authority
+verifies it or a verification policy in force for its kind and agent does.
+
+**KF-SAS-RQ-264.** A verification policy SHALL be set per organization, record kind and declared
+agent by an attributed act. In the absence of a policy, a person SHALL verify. A record verified
+under a policy SHALL record that basis and the policy that applied.
+
+**KF-SAS-RQ-265.** An agent SHALL NOT perform an institutional act without the explicit
+confirmation of the person holding its authority, and no verification policy SHALL apply to an
+institutional act.
+
+**KF-SAS-RQ-266.** An agent that drafts a record for a person SHALL present the fields a person
+would fill, and the record SHALL be written only by a gesture of that person or under a setting
+that person made, which SHALL NOT reach an institutional act.
+
+**KF-SAS-RQ-267.** A person's master document SHALL be their scope compiled, and an organization
+overview or handbook SHALL reach it only as an ordinary record through that person's grants.
+
+**KF-SAS-RQ-268.** A generated overview SHALL link each statement to its source record and SHALL
+be evaluated over its reader's corpus, withholding and counting every statement whose source that
+reader cannot see.
+
+**KF-SAS-RQ-269.** A role SHALL be a preset of scope that may include other roles, the database
+SHALL refuse an inclusion that forms a cycle, and assigning a role SHALL project its scope and its
+included roles' scope into the one effective grant view.
+
+**KF-SAS-RQ-270.** An explanation of access SHALL name the role path by which a grant reached the
+person.
+
+**KF-SAS-RQ-271.** Content classified `confidential` or `restricted` SHALL NOT be sent to a model
+off the host, and where no on-host model can answer, the request SHALL be refused rather than sent
+to a provider.
+
+**KF-SAS-RQ-272.** Every agent answer SHALL name the backend that produced it, cite the records it
+drew on, and state how many were withheld.
+
+**KF-SAS-RQ-273.** Reading the dashboard and records, verifying from Needs you, and capturing an
+observation SHALL work at phone width.
+
+**KF-SAS-RQ-274.** Notifications SHALL be a digest, and an immediate push only for an item marked
+urgent, and SHALL carry no record content above what a provider model may receive.
+
+**KF-SAS-RQ-275.** An invited person SHALL reach Start Here, generated from their qualification
+record, and joining SHALL require no mechanism other than grants and qualification.
+
+**KF-SAS-RQ-276.** A density setting SHALL change only presentation, and every view SHALL be
+usable at its most compact setting.
 
 ---
 
@@ -3320,6 +3462,12 @@ rule.
 Eight reads and one rehearsal (§32). Stated as an interface because the shape is the guarantee:
 there is no general write tool, and adding one would be an authority change.
 
+[ADR 0040](../decisions/atoms/KF-ADR-0040-the-experience-scope-is-the-product.md) is that change,
+proposed and not built (§24B, §100.46). The KF MCP server it specifies adds writes as a closed list
+of typed acts — capture, draft, submit, propose — each dispatched on the person's delegated token
+(§24). No tool accepts a caller-supplied action type (KF-SAS-RQ-020), and none performs an
+institutional act (KF-SAS-RQ-265).
+
 ## 83. Versioning and compatibility
 
 The ontology carries a schema version, `1.2.0-draft.1` at this writing. The pack supersedes a
@@ -3750,7 +3898,7 @@ The supersession graph, which nothing else in the repository states in one place
 | builds on | 0014→0013; 0015→0014; 0016→{0008, 0011, 0013}; 0017→{0004, 0006}; 0018→{0006, 0016}; 0019→0018; 0020→{0016, 0017}; 0021→{0006, 0016}; 0022→0009; 0027→{0011, 0016, 0025, 0026}; 0028→{0010, 0016, 0023, 0027}; 0029→{0016, 0024}; 0030→{0002, 0010, 0013, 0023, 0028}; 0034→{0024, 0031}; 0035→{0020, 0033}; 0036→{0016, 0020}; 0037→{0027, 0029} |
 | supersedes a rationale rather than a record | 0028 supersedes the "no `pgvector`" reasoning in `database/migrations/20260811001800_search.sql`, on the condition that reasoning set |
 | accepted by the owner on 2026-09-24 | 0034, 0035, 0036 and 0037, all implemented; until `0.1.0-draft.9` this row read "proposed, awaiting the owner" |
-| proposed, awaiting the owner | 0038→{0016, 0019, 0020, 0027, 0033, 0036}, specified and not built (§24A) |
+| proposed, awaiting the owner | 0038→{0016, 0019, 0020, 0027, 0033, 0036}, specified and not built (§24A); 0040→{0014, 0016, 0024, 0028, 0031, 0034, 0035, 0038}, specified and not built (§24B) |
 
 A superseded record is kept in full. ADR 0008 remains as the measured problem and the options
 history even though its recommendation no longer applies, because deleting it would leave ADR
@@ -4075,7 +4223,10 @@ product.
 **100.17 The phase ladder is full against a hard cap.** §98 uses phases 0 through 10, and the
 tooling that reads them caps a phase number at 10. A twelfth objective — a data-primitives phase,
 for instance — cannot be added without restructuring the ladder. Recorded rather than worked
-around, because renumbering objectives would break every reference to them.
+around, because renumbering objectives would break every reference to them. Since
+`0.1.0-draft.9` the work after the ladder is scheduled by the roadmap, docs/ROADMAP.md, and the
+Warrant it names for each milestone, not by a phase; §100.24 says why that is the workaround and
+not a fix.
 
 **100.18 Two of ADR 0024's latency bars are unmeasured, no bar has a commissioned host's figure,
 and there is no chat integration.** Narrowed in `0.1.0-draft.8`, which first stated that none was
@@ -4163,7 +4314,11 @@ is v1.0, while the roadmap reference grammar bounds a phase number at 10 — a c
 neighbouring program's own phase count and applied to every program that uses the scheme. So the
 ladder is not merely full: nothing after v1.0 has a number, including the retrieval work in §64A.
 Renumbering would cost every existing reference and buy one slot. Supersedes the narrower reading in
-§100.17, which described this as a twelfth objective being unaddable.
+§100.17, which described this as a twelfth objective being unaddable. Accepted as a limit in
+`0.1.0-draft.9`: work after v1.0, and the milestones that lead to it, is scheduled by the roadmap,
+docs/ROADMAP.md, and its Warrants (KF-WAR-0002 onward), each Warrant's obligations citing the
+requirements here. A Warrant needs no phase number, so nothing waits on the cap; what the ladder
+loses is only a phase-level objective for that work, and the roadmap states the order instead.
 
 **100.26 Verification is recorded, and labelled everywhere a record is shown; its basis is paced,
 not proven.** Recorded first as "verification is not recorded anywhere", and before that as
@@ -4350,7 +4505,8 @@ Bears on KF-SAS-RQ-161.
 **100.41 Qualification is specified and not built.** §24A and KF-SAS-RQ-254 through RQ-261 state the
 design ADR 0038 proposes. Nothing of it is in the ontology, the database or the code: no pack, no
 record, no act, no qualification an action can declare. The owner's sequence places it last, after
-hosting and the correctness pass, and ADR 0038 awaits the owner's acceptance.
+hosting and the correctness pass, and ADR 0038 awaits the owner's acceptance. Scheduled for
+milestone M5 (KF-WAR-0007), with Start Here (§100.53).
 
 **100.42 After any write in an organization, an Object View falls back to recounting.** The record
 of input writes (§58, `20260926110100`) is per organization and per transaction, not per reader:
@@ -4382,6 +4538,50 @@ is about — take places in the fused list that semantic ranking alone would hav
 records. The fixture baselines show it on Véracier and TheAgentCompany (§93A). Nothing here is
 tuned to hide it (§64): the floor and the fusion constant are stated defaults. Bears on
 KF-SAS-RQ-224 and RQ-201.
+
+**100.46 No agent can write through the Fabric except over the HTTP API.** §24B and ADR 0040
+specify a KF MCP server: search, read, the master record and the context source, and a closed list
+of typed acts to capture, draft, submit and propose, each on the person's delegated token through
+the attestor (§24). None of it exists, and §82 still describes reads and one rehearsal. Scheduled
+for milestone M2 (KF-WAR-0004). Bears on KF-SAS-RQ-263 and RQ-265.
+
+**100.47 Verification has no policy and no queue.** Every verification is a person's
+`verify_record`, singly or by `POST /verifications/bulk` (§48A). There is no verification policy
+per kind and agent, no basis for a record verified by policy, and no Needs you list from which a
+person verifies an agent's submission or confirms an act it proposed. Scheduled for M2
+(KF-WAR-0004). Bears on KF-SAS-RQ-263 to RQ-266.
+
+**100.48 Roles are a flat list of names.** `org.role` holds ten seeded names; a role carries no
+preset of scope and includes no other role, and an explanation of access names the grant, not a
+role path. Making roles composable presets projected into `org.effective_access_grant` is a model
+change: a migration, the preservation inventory, the export and the import. Scheduled for M3
+(KF-WAR-0005). Bears on KF-SAS-RQ-269 and RQ-270.
+
+**100.49 There is no organization overview and no master-document page.** `kf overview`
+generates the development control record from this specification; it is not the living
+organization overview §24B describes, which is a generated record, granted like any other and
+evaluated over each reader's corpus. A person's master record is compiled and served (§57) but has
+no reading page of its own in the web application. Scheduled for M3 (KF-WAR-0005). Bears on
+KF-SAS-RQ-267 and RQ-268.
+
+**100.50 There is no dashboard, no density setting, and no designed phone layout.** The web
+application's home states which gates are implemented and which are open, and its other pages grew
+out of the API one at a time. None of the six panels exists, no
+view has a compact setting, and nothing has been checked at phone width. Scheduled for M3
+(KF-WAR-0005). Bears on KF-SAS-RQ-262, RQ-273 and RQ-276.
+
+**100.51 There is no in-app agent and no backend chosen by classification.** The web application
+holds no agent, so nothing answers from the record with citations, drafts a form, or chooses
+between LAMU and a provider by the classification of its context. Scheduled for M4 (KF-WAR-0006).
+Bears on KF-SAS-RQ-266, RQ-271 and RQ-272.
+
+**100.52 Nothing notifies a person that something needs them.** The operational alert path
+reaches a person (§87); nothing sends a digest of what needs a person or an urgent push for one.
+Scheduled for M4 (KF-WAR-0006). Bears on KF-SAS-RQ-274.
+
+**100.53 There is no invitation and no Start Here.** Joining today is an administrator's
+bootstrap and grant (§33); there is no invitation link, and Start Here waits on qualification
+(§100.41). Scheduled for M5 (KF-WAR-0007). Bears on KF-SAS-RQ-275.
 
 **KF-SAS-RQ-186.** The set of tables forced under row-level security SHALL be derivable from the
 migrations, and any difference between that set and the running database SHALL be reconciled.
@@ -4547,7 +4747,7 @@ record which program owns each federated fact.
 
 | Revision | Date | Change |
 |---|---|---|
-| `0.1.0-draft.9` | 2026-09-26 | Records the owner's decisions since `draft.8` and what was built under them, and corrects one statement `draft.8` got wrong. ADRs 0034 to 0037 were accepted on 2026-09-24, and every place this document called them proposed now says so (§8A, §18, §24, §64B, §96, §100); every ADR is now an OpenWarrant atom, its old path a link to it (§96). The correction: §17 and ADR 0033 said a requested ceiling above the person's clearance is clamped to it, and it is refused — `org.resolve_effective_classification` raises and the attestor answers 401 `classification_not_granted` — so both now say so, ADR 0033 with a dated note, the decision unchanged. §64C states the context source LAMU's compiler reads — retrieve, read and revision, loopback only, current authority on every call, refusals `KF-CTX-001` to `-007` with one byte-identical not-found, and every answer and decision's refusal recorded in `search.context_disclosure`, bound to the reader's master-record corpus — and INT-07, the source-policy proof over it, which the owner accepted on 2026-09-26; a non-text record is served as its content alone, `kf.context-facts/v2`. §64B records identification refusals made before anyone is bound, the owner's 2026-09-25 decision that a retrieval's query text is kept as every search's is, and that `draft.8`'s retention claim was incomplete because the API's request log kept query URLs. §52 records a NUL as conversion loss and indexes a file's parsed text; §48 refuses a title outside 1 to 240 characters, takes a file up to its download limit, and lets a derived text name its source; §8A answers an observation about an unseen record 404; §64A states the client's stale-bitmap fix. §93A states the fixture corpora, their licences, the ordered-pair isolation test and where their baselines live. §24A specifies qualification as [ADR 0038](../decisions/atoms/KF-ADR-0038-qualification-is-evidence-against-a-versioned-pack.md) proposes it, marked specified and not built. §102 gains the context source's digest tag and schema names and the Warrant runtime manifest's tag. Amended before acceptance with the search-and-scale work merged on 2026-09-26. Search serves one list fused from the lexical and semantic rankings by reciprocal rank fusion, `kf.fused.rrf.v1(k=60; …)`, beside the exhaustive lexical list and the semantic list, every fused result naming where each ranking placed it (§64A); `draft.8`'s requirement that the rankings be composed rather than merged is superseded, because the composed answer the web showed lexical first lost to the semantic list alone. Lexical search matches a record holding at least half of the query's IDF-weighted information, ranked by that share, then phrase, then `ts_rank`, as `kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2`; each record is indexed in its detected languages (English, French, German, Italian, Spanish, Portuguese, Dutch, a second kept when strong), and a query term matches every language's stem and its simple form; quotes, `-term` and `or` are no longer operators, a behaviour change; the floor, IDF, language rule and fusion constant are stated defaults, not tuned (§64, `20260926100000`, `20260926100300`). `search.rebuild()` runs in batches, resumably, deleting nothing first (§36, `20260926100100`). The band version moves once per transaction, at its commit, by a deferred trigger, in both organizations of an organization change (§64A, `20260926100200`). The context picker lists every live assignment the token's own person holds, in every organization, under its legal name (§24, `20260926120000`). An Object View reads one neighbourhood with its claim's size and yields the whole claim's Result, its member budget bounding what it evaluates, so a reader of more than 5 000 records is served rather than refused 413; its claim's currency is shown from the database's record of input writes since the compilation's snapshot — `content.master_record_input_write`, `content.master_record_currency`, a statement trigger on every governed input table — before any recount; and a claim's items are checked against its manifest once per statement (§58, §61, `20260926110000` to `110200`). §93A's baselines are fused and keep the numbers they replace; §102 lists the ranking names. §100 narrows and retitles .21 — the retrieval engine is built in LAMU and unverified by anyone independent — and .25, the fused ranking now measured on four corpora, and appends .37–.45: an unlinked token's identification refusals (opened and closed in this draft, `20260927000100`), a moved record answered 403, the engine's key not released by the Fabric, object-store images that no longer exist, qualification unbuilt, an Object View recounting after any write in its organization, the other master-record reads still reading the whole manifest, an embedding pump one request at a time, and weak word matches pulling the fused list below the semantic list alone. Twelve requirements appended (KF-SAS-RQ-250 to RQ-261: four for the context source, eight for qualification); two retitled in place, each keeping its identifier — RQ-224 from composing to fusing, and RQ-112 to admit the database's record of writes beside comparison as a way of showing a claim current, never asserted by the writer; none removed. Architecture-changing under §94.3, carrying ADR 0038, proposed. |
+| `0.1.0-draft.9` | 2026-09-26 | Records the owner's decisions since `draft.8` and what was built under them, and corrects one statement `draft.8` got wrong. ADRs 0034 to 0037 were accepted on 2026-09-24, and every place this document called them proposed now says so (§8A, §18, §24, §64B, §96, §100); every ADR is now an OpenWarrant atom, its old path a link to it (§96). The correction: §17 and ADR 0033 said a requested ceiling above the person's clearance is clamped to it, and it is refused — `org.resolve_effective_classification` raises and the attestor answers 401 `classification_not_granted` — so both now say so, ADR 0033 with a dated note, the decision unchanged. §64C states the context source LAMU's compiler reads — retrieve, read and revision, loopback only, current authority on every call, refusals `KF-CTX-001` to `-007` with one byte-identical not-found, and every answer and decision's refusal recorded in `search.context_disclosure`, bound to the reader's master-record corpus — and INT-07, the source-policy proof over it, which the owner accepted on 2026-09-26; a non-text record is served as its content alone, `kf.context-facts/v2`. §64B records identification refusals made before anyone is bound, the owner's 2026-09-25 decision that a retrieval's query text is kept as every search's is, and that `draft.8`'s retention claim was incomplete because the API's request log kept query URLs. §52 records a NUL as conversion loss and indexes a file's parsed text; §48 refuses a title outside 1 to 240 characters, takes a file up to its download limit, and lets a derived text name its source; §8A answers an observation about an unseen record 404; §64A states the client's stale-bitmap fix. §93A states the fixture corpora, their licences, the ordered-pair isolation test and where their baselines live. §24A specifies qualification as [ADR 0038](../decisions/atoms/KF-ADR-0038-qualification-is-evidence-against-a-versioned-pack.md) proposes it, marked specified and not built. §102 gains the context source's digest tag and schema names and the Warrant runtime manifest's tag. Amended before acceptance with the search-and-scale work merged on 2026-09-26. Search serves one list fused from the lexical and semantic rankings by reciprocal rank fusion, `kf.fused.rrf.v1(k=60; …)`, beside the exhaustive lexical list and the semantic list, every fused result naming where each ranking placed it (§64A); `draft.8`'s requirement that the rankings be composed rather than merged is superseded, because the composed answer the web showed lexical first lost to the semantic list alone. Lexical search matches a record holding at least half of the query's IDF-weighted information, ranked by that share, then phrase, then `ts_rank`, as `kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2`; each record is indexed in its detected languages (English, French, German, Italian, Spanish, Portuguese, Dutch, a second kept when strong), and a query term matches every language's stem and its simple form; quotes, `-term` and `or` are no longer operators, a behaviour change; the floor, IDF, language rule and fusion constant are stated defaults, not tuned (§64, `20260926100000`, `20260926100300`). `search.rebuild()` runs in batches, resumably, deleting nothing first (§36, `20260926100100`). The band version moves once per transaction, at its commit, by a deferred trigger, in both organizations of an organization change (§64A, `20260926100200`). The context picker lists every live assignment the token's own person holds, in every organization, under its legal name (§24, `20260926120000`). An Object View reads one neighbourhood with its claim's size and yields the whole claim's Result, its member budget bounding what it evaluates, so a reader of more than 5 000 records is served rather than refused 413; its claim's currency is shown from the database's record of input writes since the compilation's snapshot — `content.master_record_input_write`, `content.master_record_currency`, a statement trigger on every governed input table — before any recount; and a claim's items are checked against its manifest once per statement (§58, §61, `20260926110000` to `110200`). §93A's baselines are fused and keep the numbers they replace; §102 lists the ranking names. §100 narrows and retitles .21 — the retrieval engine is built in LAMU and unverified by anyone independent — and .25, the fused ranking now measured on four corpora, and appends .37–.45: an unlinked token's identification refusals (opened and closed in this draft, `20260927000100`), a moved record answered 403, the engine's key not released by the Fabric, object-store images that no longer exist, qualification unbuilt, an Object View recounting after any write in its organization, the other master-record reads still reading the whole manifest, an embedding pump one request at a time, and weak word matches pulling the fused list below the semantic list alone. Amended again before acceptance on 2026-10-07 with the experience the owner decided on 2026-10-06: §24B states it as [ADR 0040](../decisions/atoms/KF-ADR-0040-the-experience-scope-is-the-product.md) proposes it, marked specified and not built — one dashboard layout scoped by grants; a master record that is scope compiled, the organization overview and handbooks being ordinary records; roles as composable presets of scope, acyclic and projected into the one grant view; agent submissions recorded on the person's behalf and unverified until a person with authority, or a configurable policy that defaults to requiring one, verifies them, institutional acts never; `confidential` and `restricted` content never sent to a provider's model, every answer naming its backend; a phone that reads, verifies and captures; a digest and an urgent push, quiet by default; joining through Start Here and qualification. §82 records the KF MCP server as the authority change it said a write tool would be; §96 adds ADR 0040's relations; §100 appends .46–.53, each unbuilt part named against its milestone (M2 to M5), schedules .41 for M5, and records under .17 and .24 that the work after the ladder is scheduled by the roadmap and its Warrants. Twenty-seven requirements appended (KF-SAS-RQ-250 to RQ-276: four for the context source, eight for qualification, fifteen for the experience); two retitled in place, each keeping its identifier — RQ-224 from composing to fusing, and RQ-112 to admit the database's record of writes beside comparison as a way of showing a claim current, never asserted by the writer; none removed. Architecture-changing under §94.3, carrying ADRs 0038 and 0040, both proposed. |
 | `0.1.0-draft.8` | 2026-09-24 | Brings this document in line with the security hardening of 2026-09-23/24 and with everything built on it before acceptance. The hardening began with a red-team pass run as `kf_app`, which showed that row-level security held against a buggy API and not a hostile one: every `kf.*` setting the policies read was the application's to write, and the ledger, the audit chain, role assignments, identity links and verifications all accepted rows no act had made. §17 now states that the database binds the principal — a sealed context, `core.bind_principal` deriving organization and ceiling from a live assignment and clearance, the application only narrowing — and §24 the attestation boundary: `kf-attestor` verifies RS256 and the database binds a person for the API's login only on its current attestation, the replay window being the token's life, which commissioning now caps at 300 s, and an attestor that cannot be asked is a 503 outage with no fallback. The database also recomputes audit digests (§30), checks act authority on the ledger row (§20), forces row security on every table that enables it and reconciles a running database against the migrations' declared set (§38), so KF-SAS-RQ-073 is met and §100.15 is closed; refuses a domain write that belongs to no recorded act (§25); fixes a closed record's identity and a decided decision's words (§41); and refuses an edge whose endpoint types its relation does not declare (§35). Authority rows are minted only by the owner credential, and an identity link is withdrawn only there, as `kf:revoke-identity`'s recorded act (§33, §76). An agent acts for a named person on an exchanged token, its participation written into the ledger by the database (§24, ADR 0035). An observation is captured in one gesture on three surfaces (§8A, ADR 0034); three of ADR 0024's five latency bars are measured (§8A). Every projection, Object View, agent read and search hit labels an unverified record (§59, `kf-projection-result-v2`); agent reads and the AI planner ask the read grant and consume the reader's `agent_context` projection (§32, §59); the projection grammar is closed and bounded in depth, size and runtime (§60). The retrieval index's Fabric half is built — per-query masks, a band version that never repeats, embed-on-ingest, composed rankings, a withheld count within the asker's ceiling (§64A, §64B, ADR 0037) — and queries are recorded under an expiring pseudonym and replayable by their asker. §43, §45 and §86 state the install and migration scripts, correcting a false claim that a test pinned the seeded ontology's digest; §88 the backup login that until then could not take a backup. §13 and §29 state the database clock and the caller's `effectiveAt` bounds; §48–§49 the ingest order and the recorded orphan sweep; §61 ADR 0033's amendment of ADR 0015. §28 gains `not_attested`, HTTP 401, as a thirteenth code. Every remaining source count is removed in favour of [`generated/measurements.md`](../../generated/measurements.md), which gains schemas, triggers, views, indexes, foreign keys, checks, group roles, forward-only migrations, packages and systemd units, and excludes SQL comments. §102's format tags are reconciled with the code, and §100.27's two untagged digests are resolved in the same draft, the remaining untagged ones enumerated by a gate. Delegation is one level deep and every new assignment ends within a year (§18, ADR 0036); every process resolves its stores against their declared, bound address (§50); a requalified compiler must reproduce the run before it (§54); an archive from an earlier exporter imports (§56); another person's recorded queries are replayed only as the aggregate (§64B); an object's history is read by index (§61); and an engagement cannot close over live work (§73). §100 closes .2, .7, .8, .9, .12, .15, .16, .19, .31 and .34 and the labelling half of .26; narrows .1, .3, .5, .18, .21, .23, .27 and .32; and appends .28–.36, the first of which records that the owner has not confirmed KF-SAS-RQ-038's clarified reading. Seventeen requirements appended (KF-SAS-RQ-233 to RQ-249); six retitled in place (RQ-038 to ADR 0027's session ceiling, RQ-042, RQ-044, RQ-150, RQ-181 and RQ-222), because the earlier wording was wrong about the design or narrower than what was built, and each keeps its identifier; none removed. Architecture-changing under §94.3, carrying [ADR 0033](../decisions/0033-the-database-binds-the-principal.md), and citing ADRs 0034 to 0037, which are proposed and await the owner. |
 | `0.1.0-draft.7` | 2026-09-20 | Records the owner's waiver of ADR 0004's seven-day floor on compiler cutover ([ADR 0032](../decisions/0032-the-seven-day-floor-is-waived.md)). The other three conditions stand: twice-compiled byte-identical output, five action paths exercised, zero unexplained drift. §93.1 restated, because it asserted a floor that no longer applies. No requirement added, removed or retitled; not architecture-changing under §94.3 — the waived condition was a procedural floor rather than an architectural rule, and what it gave up is recorded in the ADR rather than in a requirement. |
 | `0.1.0-draft.6` | 2026-09-18 | Corrects a conflation in `draft.5`. §48A used "draft" and "unverified" interchangeably, and they are not the same: `draft` is the initial state of 8 of the 24 state machines in `ontology/state-machines.yaml`, while the rest begin at `planned`, `proposed`, `active`, `open`, `captured`, `prospective`, `in_service` or `received`. A work order that begins at `planned` was never a draft, so the previous wording's rules did not reach it — and "any initial state" is wrong in the other direction, since equipment beginning at `in_service` is not unverified. Verification is therefore orthogonal to lifecycle: a record may be `active` and unverified, or `draft` and verified. KF-SAS-RQ-228 is retitled from "a draft" to "an unverified record", RQ-232 is appended stating the orthogonality, §48A's prose and title are corrected, and §100.26 is restated — it had recorded the same error. One requirement appended, one retitled, none removed; architecture-changing under §94.3, carrying [ADR 0031](../decisions/0031-a-draft-is-a-record-that-says-so.md), corrected in place while proposed. |
@@ -4858,3 +5058,23 @@ from evidence, never recorded here (§97.3).
 | KF-SAS-RQ-259 | Only a behavioural revision of a requirement creates a gap, and only for the scope it touches |
 | KF-SAS-RQ-260 | A mandatory requirement names what becomes unsafe, unauthorized or unreliable without it |
 | KF-SAS-RQ-261 | An unavailable resource or reviewer is the organization's blocker, never the person's failure |
+
+### The experience, 2026-10-07 (ADR 0040, specified and not built)
+
+| ID | Requirement |
+|---|---|
+| KF-SAS-RQ-262 | One dashboard layout for everyone, each panel scoped by the viewer's grants; nothing branches on a role or title |
+| KF-SAS-RQ-263 | A record written with an agent's participation is the person's act and is unverified until authority or a policy in force verifies it |
+| KF-SAS-RQ-264 | Verification policy is per organization, kind and agent, set by an attributed act, requires a person by default, and is named on what it verifies |
+| KF-SAS-RQ-265 | An agent performs no institutional act without the authority holder's explicit confirmation, and no policy verifies one |
+| KF-SAS-RQ-266 | An agent's draft shows the fields a person would fill and is written only by that person's gesture or setting, never for an institutional act |
+| KF-SAS-RQ-267 | A master document is scope compiled; an overview or handbook reaches it only as an ordinary record through grants |
+| KF-SAS-RQ-268 | A generated overview links every statement to its source and is evaluated over its reader's corpus, withholding and counting the rest |
+| KF-SAS-RQ-269 | A role is a preset of scope that may include roles, acyclic by the database, projected into the one effective grant view |
+| KF-SAS-RQ-270 | An explanation of access names the role path by which a grant arrived |
+| KF-SAS-RQ-271 | Confidential and restricted content is never sent to a model off the host; with no on-host model the request is refused |
+| KF-SAS-RQ-272 | Every agent answer names its backend, cites its records and counts what was withheld |
+| KF-SAS-RQ-273 | Reading, verifying from Needs you and capturing work at phone width |
+| KF-SAS-RQ-274 | Notifications are a digest plus an urgent-only push, carrying no content a provider model may not receive |
+| KF-SAS-RQ-275 | An invited person reaches Start Here from their qualification record; joining needs nothing beyond grants and qualification |
+| KF-SAS-RQ-276 | Density changes presentation only, and every view is usable at its most compact |
