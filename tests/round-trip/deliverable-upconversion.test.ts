@@ -44,6 +44,11 @@ const KEY = generateKeyPairSync('ed25519');
 const VERIFICATION = { trustedManifestKeys: new Map([[KEY_ID, KEY.publicKey]]) };
 
 const RETIRED_SECTION = 'deliverable-retired-attributes';
+/**
+ * The arrival after the retired attributes (b535bb14, ADR 0040): an archive written before the
+ * retired attributes was written before these too, so every archive of that era lacks them.
+ */
+const AFTER_RETIRED = ['verification-policies', 'act-proposals', 'act-proposal-resolutions'];
 
 /**
  * Sections whose rows 20260902000200 derived rather than created empty: the `working` store it
@@ -157,7 +162,7 @@ function repack(
       files,
       new Set(
         Object.keys(base.manifest.counts)
-          .concat(RETIRED_SECTION)
+          .concat(RETIRED_SECTION, AFTER_RETIRED)
           .filter((name) => !files.some((file) => file.path === `${name}.json`)),
       ),
     ),
@@ -193,6 +198,7 @@ function asArchiveBeforeTheMigration(current: ExportPackage): ExportPackage {
     new Map<string, unknown>([
       ['deliverables.json', old],
       [`${RETIRED_SECTION}.json`, null],
+      ...AFTER_RETIRED.map((name): [string, null] => [`${name}.json`, null]),
     ]),
   );
 }
@@ -587,12 +593,16 @@ describe('an archive written before deliverables had their ontology fields', () 
         'tests',
         'observations',
         RETIRED_SECTION,
+        ...AFTER_RETIRED,
       ),
     ).toEqual([]);
-    expect(drop('access-demand', RETIRED_SECTION)).toEqual([]);
+    expect(drop('access-demand', RETIRED_SECTION, ...AFTER_RETIRED)).toEqual([]);
     expect(drop('access-demand')).toEqual([
       expect.stringMatching(
         /predates access-demand \(de59c226\) but carries deliverable-retired-attributes/,
+      ),
+      expect.stringMatching(
+        /predates access-demand \(de59c226\) but carries verification-policies, act-proposals, act-proposal-resolutions/,
       ),
     ]);
   });
@@ -615,7 +625,12 @@ describe('an archive written before deliverables had their ontology fields', () 
   }, 240_000);
 
   it('refuses a current package that lost its retired-attributes section', async () => {
-    const truncated = repack(pkg, new Map([[`${RETIRED_SECTION}.json`, null]]));
+    // Truncated to the retired attributes' era: what arrived after them goes too, or the verifier
+    // refuses the era before the importer ever sees the deliverables.
+    const truncated = repack(
+      pkg,
+      new Map([RETIRED_SECTION, ...AFTER_RETIRED].map((name) => [`${name}.json`, null])),
+    );
     const fresh = await startHarness();
     try {
       await expect(

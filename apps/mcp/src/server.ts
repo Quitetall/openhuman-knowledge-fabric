@@ -31,7 +31,14 @@
 import { randomUUID } from 'node:crypto';
 import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
-import { AGENT_ACT_NAMES, AGENT_ACTS, agentAct, draftAgentAct, type AgentAct } from '@kf/domain';
+import {
+  AGENT_ACT_NAMES,
+  AGENT_ACTS,
+  agentAct,
+  draftAgentAct,
+  recordVerification,
+  type AgentAct,
+} from '@kf/domain';
 import type { ApiAnswer, FabricApi } from './api.js';
 
 export const SERVER_NAME = 'knowledge-fabric';
@@ -445,10 +452,12 @@ export function createKfMcpServer(api: FabricApi, log: Log = stderrLog): McpServ
       for (const id of recordIds) {
         const read = await api.call('GET', `/objects/${encodeURIComponent(id)}/verification`);
         const found = read.body as { verification?: unknown } | null;
+        // A record the person's grants do not reach is written and still theirs, but no
+        // verification of it is visible to them: said in those words, never "nobody checked".
         verifications[id] =
           read.status === 200 && found?.verification !== undefined
             ? found.verification
-            : { verified: false, label: 'UNVERIFIED — nobody has checked this record' };
+            : recordVerification(undefined, { visible: false });
       }
       log({ tool: 'submit_act', outcome: 'ok', status: response.status });
       return ok({
