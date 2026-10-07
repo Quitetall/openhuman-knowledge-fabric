@@ -80,3 +80,16 @@ publishing. Compare the current SAS/ADR, LAMU routes and database interfaces
 against baseline `067bd0bb` to verify that the superseded candidates did not
 replace them. A green source gate still does not promote the VM or discharge
 owner-controlled custody and acceptance work.
+
+Include merge-authored changes in the local history scan by passing
+`--log-opts='--all --full-history --diff-merges=first-parent'` to the CI-pinned
+gitleaks binary. A plain patch log can omit new content authored in a merge.
+
+## Existing CI authority blocker
+
+[CI for baseline 067bd0bb](https://github.com/Quitetall/openhuman-knowledge-fabric/actions/runs/37574549531)
+passed build, tests, ontology and secret scanning. The separate SAS job failed
+`authority.actor-not-human` for accepted revision draft.8: Brian Lam has no
+SSH principal declaration in `docs/authority/roles.toml`. The generated-view
+comparisons passed. Branch consolidation neither supplies that human identity
+declaration nor waives its check, and the current authority files are preserved.
