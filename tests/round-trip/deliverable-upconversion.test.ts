@@ -52,7 +52,7 @@ const RETIRED_SECTION = 'deliverable-retired-attributes';
  */
 const PRESET_SECTIONS = ['role-preset-grants', 'role-inclusions'];
 const POLICY_SECTIONS = ['verification-policies', 'act-proposals', 'act-proposal-resolutions'];
-/** ADR 0038's qualification (M5QUALIFY), which descends from both siblings above. */
+/** ADR 0038's qualification (f5d7dbee), which descends from both siblings above. */
 const QUALIFICATION_SECTIONS = [
   'qualification-packs',
   'qualification-pack-revisions',
