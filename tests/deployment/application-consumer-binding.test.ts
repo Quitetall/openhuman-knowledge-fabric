@@ -108,6 +108,46 @@ roles.forEach((role,i)=>{
 `);
   });
 
+  it('runs the determinism re-run as the worker, with its own program and work directory (SAS §100.35)', () => {
+    evaluate(`
+import { applicationConsumerAccount } from ${JSON.stringify(pathToFileURL(MODULE).href)};
+assert.equal(applicationConsumerAccount('compiler-determinism'),'worker');
+roles.forEach(role=>assert.equal(applicationConsumerAccount(role),role));
+assert.throws(()=>applicationConsumerAccount('unknown'));
+const extra={LIMINAL_COMPILER_PATH:root+'/vendor/liminal/liminal-document-compiler',WORKER_CONCURRENCY:'8'};
+const plan=applicationConsumerPlan('compiler-determinism',root,{...env,...extra,RUNTIME_DIRECTORY:'/run/kf-compiler-determinism-work'});
+const worker=applicationConsumerPlan('worker',root,{...env,...extra,RUNTIME_DIRECTORY:runtime('worker')});
+assert.deepEqual(plan.commands,[{executable:'/usr/bin/node',args:[root+'/apps/worker/dist/determinism-cli.js','--limit','5']}]);
+assert.equal(plan.env.TMPDIR,'/run/kf-compiler-determinism-work');
+const{TMPDIR:_a,...own}=plan.env,{TMPDIR:_b,...theirs}=worker.env;assert.deepEqual(own,theirs);
+assert.throws(()=>applicationConsumerPlan('compiler-determinism',root,{...env,RUNTIME_DIRECTORY:runtime('worker')}));
+`);
+    const drop = readFileSync(
+      join(ROOT, 'deploy/systemd/application-compiler-determinism-workstation-credentials.conf'),
+      'utf8',
+    );
+    const worker = readFileSync(
+      join(ROOT, 'deploy/systemd/application-worker-workstation-credentials.conf'),
+      'utf8',
+    );
+    const lines = (text: string, key: string): string[] =>
+      text.split('\n').filter((line) => line.startsWith(`${key}=`));
+    // The same credentials and public file as the worker, so commissioning sees an even share.
+    for (const key of [
+      'LoadCredential',
+      'LoadCredentialEncrypted',
+      'EnvironmentFile',
+      'UnsetEnvironment',
+    ]) {
+      expect(lines(drop, key), key).toEqual(lines(worker, key));
+    }
+    expect(drop).toContain(
+      'ExecStart=/usr/bin/node /opt/kf/scripts/deploy/application-consumer.mjs compiler-determinism',
+    );
+    expect(drop).toContain('RuntimeDirectory=kf-compiler-determinism-work');
+    expect(drop).toContain('verify-liminal-runtime.sh /opt/kf');
+  });
+
   it('refuses unknown roles, aliased roots, nonnative custody and wrong runtime sets', () => {
     evaluate(`
 for(const role of ['unknown','backup','constructor','__proto__'])assert.throws(()=>applicationConsumerPlan(role,root,env));
@@ -137,6 +177,8 @@ for(const role of ['api','attestor'])for(const name of ['OIDC_ISSUER','OIDC_AUDI
       ['unknown'],
       ['api', 'never-print-this'],
       ...roles.map((role) => [role]),
+      ['compiler-determinism'],
+      ['compiler-determinism', '--limit', '100'],
     ]) {
       const result = spawnSync(process.execPath, [SCRIPT, ...args], {
         env: { PATH: '/usr/bin:/bin', DATABASE_URL: 'never-print-this' },
@@ -147,7 +189,7 @@ for(const role of ['api','attestor'])for(const name of ['OIDC_ISSUER','OIDC_AUDI
       expect(result.stdout).toBe('');
       expect(result.stderr).not.toContain('never-print-this');
       expect(result.stderr).toMatch(
-        /^(?:usage: application-consumer\.mjs api\|worker\|attestor\|checkpoint\|storage\|readiness|native application binding refused)\n$/,
+        /^(?:usage: application-consumer\.mjs api\|worker\|attestor\|checkpoint\|storage\|readiness\|compiler-determinism|native application binding refused)\n$/,
       );
     }
   });

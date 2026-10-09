@@ -6,16 +6,14 @@
  * jobs: the idle state is logged explicitly.
  */
 
-import { StoreRegistry } from '@kf/artifacts';
-import { createPool, withTransaction, type Pool } from '@kf/database';
-import { PinnedLiminalProcessAdapter, preflightLiminalProcessHost } from '@kf/documents';
-import { loadSecret, redact } from '@kf/operations';
+import { createPool, type Pool } from '@kf/database';
+import { redact } from '@kf/operations';
 import {
   compilationOutboxHandler,
   createCompilationRuntime,
-  createPostgresCompilerRuntimeRepository,
   type CompilationRuntime,
 } from './compiler-runtime.js';
+import { compilerEnvironment } from './compiler-environment.js';
 import { embeddingConcurrency, workerConcurrency, workerDatabaseUrl } from './config.js';
 import { prepareWorkerQueue } from './queue-backup.js';
 import { RetrievalClient } from '@kf/retrieval';
@@ -90,83 +88,9 @@ function startPump(
   };
 }
 
-function configured(name: string): boolean {
-  return process.env[name] !== undefined || process.env[`${name}_FILE`] !== undefined;
-}
-
-function liminalRuntimeFilePaths(): readonly string[] {
-  const configuredPaths = process.env['LIMINAL_RUNTIME_FILE_PATHS'];
-  if (configuredPaths === undefined) return [];
-  return configuredPaths
-    .split(':')
-    .map((path) => path.trim())
-    .filter((path) => path !== '');
-}
-
 async function compilationRuntime(pool: Pool): Promise<CompilationRuntime | undefined> {
-  const liminal = [
-    'LIMINAL_COMPILER_PATH',
-    'LIMINAL_CARGO_LOCK_PATH',
-    'LIMINAL_BWRAP_PATH',
-    'LIMINAL_RUNTIME_FILE_PATHS',
-    'LIMINAL_EXECUTABLE_SHA256',
-    'LIMINAL_CARGO_LOCK_SHA256',
-    'LIMINAL_RUNTIME_CLOSURE_SHA256',
-  ] as const;
-  const configuredLiminal = liminal.filter((name) => process.env[name] !== undefined);
-  if (configuredLiminal.length === 0) return undefined;
-  const required = [
-    'S3_ENDPOINT',
-    'S3_REGION',
-    'S3_ACCESS_KEY_ID',
-    'S3_BUCKET_ARTIFACTS',
-    ...liminal,
-  ] as const;
-  const configuredValues = required.filter((name) => process.env[name] !== undefined);
-  const secretConfigured = configured('S3_SECRET_ACCESS_KEY');
-  if (configuredValues.length !== required.length || !secretConfigured) {
-    throw new Error(
-      `${required.join(', ')}, and S3_SECRET_ACCESS_KEY[_FILE] must all be set for document compilation`,
-    );
-  }
-
-  // Resolved against the registered `working` row before a client exists (KF-SAS-RQ-095): a
-  // worker configured with another bucket refuses to start rather than compiling into it.
-  const working = {
-    endpoint: process.env['S3_ENDPOINT']!,
-    region: process.env['S3_REGION']!,
-    accessKeyId: process.env['S3_ACCESS_KEY_ID']!,
-    secretAccessKey: loadSecret('S3_SECRET_ACCESS_KEY', process.env, {
-      allowInline: process.env['NODE_ENV'] !== 'production',
-    }),
-    bucket: process.env['S3_BUCKET_ARTIFACTS']!,
-    forcePathStyle: process.env['S3_FORCE_PATH_STYLE'] !== 'false',
-  };
-  const registry = await withTransaction(pool, (tx) => StoreRegistry.fromDatabase(tx, { working }));
-  const store = registry.get('working');
-  if (store === undefined) throw new Error('the working store did not resolve');
-  const runtimeFilePaths = liminalRuntimeFilePaths();
-  await preflightLiminalProcessHost({
-    executablePath: process.env['LIMINAL_COMPILER_PATH']!,
-    cargoLockPath: process.env['LIMINAL_CARGO_LOCK_PATH']!,
-    executableDigest: process.env['LIMINAL_EXECUTABLE_SHA256']!,
-    cargoLockDigest: process.env['LIMINAL_CARGO_LOCK_SHA256']!,
-    runtimeClosureDigest: process.env['LIMINAL_RUNTIME_CLOSURE_SHA256']!,
-    bubblewrapPath: process.env['LIMINAL_BWRAP_PATH']!,
-    runtimeFilePaths,
-  });
-  return createCompilationRuntime({
-    repository: createPostgresCompilerRuntimeRepository(pool),
-    store,
-    adapterFor: (identity) =>
-      new PinnedLiminalProcessAdapter({
-        identity,
-        executablePath: process.env['LIMINAL_COMPILER_PATH']!,
-        cargoLockPath: process.env['LIMINAL_CARGO_LOCK_PATH']!,
-        bubblewrapPath: process.env['LIMINAL_BWRAP_PATH']!,
-        runtimeFilePaths,
-      }),
-  });
+  const environment = await compilerEnvironment(pool);
+  return environment === undefined ? undefined : createCompilationRuntime(environment);
 }
 
 function startOutboxPump(

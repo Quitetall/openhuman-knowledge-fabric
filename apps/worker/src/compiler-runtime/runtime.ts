@@ -16,11 +16,11 @@ import type {
 import { requireUuid } from './validation.js';
 
 const RUN_NAMESPACE = 'kf-document-compilation-run/v1\0';
-const DEFAULT_MAX_CANONICAL_INPUT_BYTES = 16 * 1024 * 1024;
+export const DEFAULT_MAX_CANONICAL_INPUT_BYTES = 16 * 1024 * 1024;
 // Matches advertised document-source limit. Base64 expands 10 MiB to 13.34 MiB, retaining
 // more than 2.6 MiB of Liminal's 16 MiB canonical request envelope for Basis and metadata.
 // A 12 MiB raw budget consumes all 16 MiB before JSON framing and can never reach compiler.
-const DEFAULT_MAX_SOURCE_BYTES = 10 * 1024 * 1024;
+export const DEFAULT_MAX_SOURCE_BYTES = 10 * 1024 * 1024;
 
 function deterministicRunId(actionId: string): string {
   const bytes = createHash('sha256')

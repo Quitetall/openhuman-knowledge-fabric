@@ -128,6 +128,39 @@ describe('checkpoint signatures are verified daily, not only by the monthly dril
   });
 });
 
+describe('compilations are re-run on a schedule to test determinism (SAS §100.35)', () => {
+  const service = parseSections(
+    readFileSync(join(UNITS, 'kf-compiler-determinism.service'), 'utf8'),
+  );
+  const timer = parseSections(readFileSync(join(UNITS, 'kf-compiler-determinism.timer'), 'utf8'));
+  const worker = parseSections(readFileSync(join(UNITS, 'kf-worker.service'), 'utf8'));
+
+  it('runs the shipped re-run once and alerts on a finding', () => {
+    expect(service.get('Service')?.get('Type')?.[0]).toBe('oneshot');
+    const exec = service.get('Service')?.get('ExecStart')?.[0] ?? '';
+    expect(exec).toMatch(/\/opt\/kf\/apps\/worker\/dist\/determinism-cli\.js --limit \d+$/);
+    expect(readFileSync(join(ROOT, 'apps', 'worker', 'src', 'determinism-cli.ts'), 'utf8')).toMatch(
+      /content\.compilation_determinism_sample/,
+    );
+    expect(service.get('Unit')?.get('OnFailure')?.[0]).toBe('kf-alert@%n.service');
+  });
+
+  it('compiles under the sandbox the worker compiles under', () => {
+    // The Liminal child inherits the unit's seccomp filter and namespaces; a re-run under a
+    // looser unit would test a compiler the worker never runs.
+    for (const key of ['SystemCallFilter', 'RestrictNamespaces', 'EnvironmentFile', 'User']) {
+      expect(service.get('Service')?.get(key), key).toEqual(worker.get('Service')?.get(key));
+    }
+  });
+
+  it('is scheduled at least weekly and catches up after downtime', () => {
+    expect(timer.get('Timer')?.get('OnCalendar')?.[0]).toMatch(
+      /^(weekly|(Mon|Tue|Wed|Thu|Fri|Sat|Sun) \*-\*-\* \d\d:\d\d:\d\d)$/,
+    );
+    expect(timer.get('Timer')?.get('Persistent')?.[0]).toBe('true');
+  });
+});
+
 /**
  * KF-SAS-RQ-163: each service runs under a distinct unprivileged account, sharing one only where
  * two units require identical secrets and identical data.
@@ -151,6 +184,16 @@ describe('every service runs as its own unprivileged account (KF-SAS-RQ-163)', (
         reason:
           'both hold exactly one secret, the alert webhook URL, and no data; the heartbeat ' +
           'exists to exercise the same delivery path the failure alert uses',
+      },
+    ],
+    [
+      'kf-worker',
+      {
+        units: ['kf-compiler-determinism.service', 'kf-worker.service'],
+        reason:
+          'the determinism re-run (SAS §100.35) compiles exactly as the worker does: the same ' +
+          'database login, the same working-store credentials, the same pinned Liminal binary ' +
+          'under the same sandbox; it holds nothing the worker does not, and records nothing',
       },
     ],
   ]);

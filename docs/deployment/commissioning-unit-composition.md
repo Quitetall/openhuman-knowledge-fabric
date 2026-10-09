@@ -45,19 +45,20 @@ gate records that raw-byte rationale explicitly. No drop-in is required by
 this check. When present, exactly one selected fragment is admitted, at
 `<unit>.d/<template>` with bytes matching the sealed template:
 
-| Unit                         | Template                                              |
-| ---------------------------- | ----------------------------------------------------- |
-| `kf-api.service`             | `application-api-workstation-credentials.conf`        |
-| `kf-worker.service`          | `application-worker-workstation-credentials.conf`     |
-| `kf-attestor.service`        | `application-attestor-workstation-credentials.conf`   |
-| `kf-checkpoint.service`      | `application-checkpoint-workstation-credentials.conf` |
-| `kf-storage.service`         | `application-storage-workstation-credentials.conf`    |
-| `kf-readiness.service`       | `application-readiness-workstation-credentials.conf`  |
-| `kf-backup.service`          | `backup-workstation-credentials.conf`                 |
-| `kf-backup-offsite.service`  | `offsite-b2-workstation-credentials.conf`             |
-| `kf-restore-drill.service`   | `drill-b2-workstation-credentials.conf`               |
-| `kf-alert@.service`          | `alert-workstation-credentials.conf`                  |
-| `kf-alert-heartbeat.service` | `alert-heartbeat-workstation-credentials.conf`        |
+| Unit                              | Template                                                        |
+| --------------------------------- | --------------------------------------------------------------- |
+| `kf-api.service`                  | `application-api-workstation-credentials.conf`                  |
+| `kf-worker.service`               | `application-worker-workstation-credentials.conf`               |
+| `kf-compiler-determinism.service` | `application-compiler-determinism-workstation-credentials.conf` |
+| `kf-attestor.service`             | `application-attestor-workstation-credentials.conf`             |
+| `kf-checkpoint.service`           | `application-checkpoint-workstation-credentials.conf`           |
+| `kf-storage.service`              | `application-storage-workstation-credentials.conf`              |
+| `kf-readiness.service`            | `application-readiness-workstation-credentials.conf`            |
+| `kf-backup.service`               | `backup-workstation-credentials.conf`                           |
+| `kf-backup-offsite.service`       | `offsite-b2-workstation-credentials.conf`                       |
+| `kf-restore-drill.service`        | `drill-b2-workstation-credentials.conf`                         |
+| `kf-alert@.service`               | `alert-workstation-credentials.conf`                            |
+| `kf-alert-heartbeat.service`      | `alert-heartbeat-workstation-credentials.conf`                  |
 
 An edited, renamed, additional, wrong-role or unrecognized selected fragment
 refuses, including a no-op comment file. Lower-specificity same-name files
@@ -71,7 +72,7 @@ directory reader and provenance check. Its initial six regressions failed on
 the previous reader. Coverage includes scope filtering, filename precedence,
 template/instance and recursive prefix composition, reset/section behavior,
 symlink, oversize and invalid-UTF-8 refusal,
-unchanged-base requirements, all eleven native bindings together and a
+unchanged-base requirements, all twelve native bindings together and a
 separate edited-template refusal for each binding. The earlier commissioning
 and provisioning batteries still detect their original plants. The commissioning
 fixture now injects a controlled manager observation; it is not live PID1 evidence.

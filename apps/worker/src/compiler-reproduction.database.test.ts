@@ -18,7 +18,12 @@
  * it — by the precondition and, with the precondition removed, by the database. A run with no
  * failed reproduction, and a different binary over the same sources, are still accepted.
  *
- * Not covered: a compiler that is nondeterministic only between two runs nobody asked for.
+ * And the scheduled re-run (SAS §100.35, `kf-compiler-determinism.timer`): a recorded success is
+ * compiled again, read-only, and a compiler that no longer reproduces it is reported without
+ * anything being recorded.
+ *
+ * Not covered: a compiler that is nondeterministic only on sources the scheduled re-run does not
+ * sample (the newest succeeded runs whose registration is enabled).
  */
 
 import { randomUUID } from 'node:crypto';
@@ -40,6 +45,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   createCompilationRuntime,
   createPostgresCompilerRuntimeRepository,
+  rerunRecordedCompilations,
   type CompilerRuntimeRepository,
 } from './compiler-runtime.js';
 import {
@@ -462,5 +468,93 @@ describe('a compilation reproduces the one before it (KF-SAS-RQ-102)', () => {
     await expect(accept(fourth.runId, executeUnchecked)).resolves.toMatchObject({
       actionId: expect.any(String),
     });
+  });
+
+  it('re-runs a recorded success on a schedule, reports one that does not reproduce, and writes nothing', async () => {
+    // Its own binary, so the runs above (some of whose registrations are revoked) stay apart.
+    const pin = { ...PIN, executableDigest: '9'.repeat(64) };
+    const { basis } = await registerPin(qualified('not_run'), undefined, pin);
+    const run = await compile(basis, '# Re-run on a schedule\n');
+    expect(run.status).toBe('succeeded');
+    const actionId = (
+      await withTransaction(harness.adminPool, (tx) =>
+        tx.one<{ requested_by_action: string }>(
+          'select requested_by_action from content.compilation_run where id = $1',
+          [run.runId],
+        ),
+      )
+    ).requested_by_action;
+
+    // The worker's login samples it — and not a run whose registration was revoked since.
+    const sampled = await withTransaction(workerPool, (tx) =>
+      tx.query<{ request_action_id: string }>(
+        'select request_action_id from content.compilation_determinism_sample(100)',
+      ),
+    );
+    expect(sampled.map((row) => row.request_action_id)).toContain(actionId);
+    const revoked = await withTransaction(harness.adminPool, (tx) =>
+      tx.query<{ requested_by_action: string }>(
+        `select r.requested_by_action from content.compilation_run r
+           join content.compilation_basis b on b.id = r.basis_id
+           join content.document_compiler_revocation v on v.registration_id = b.compiler_registration_id
+          where r.run_status = 'succeeded'`,
+      ),
+    );
+    expect(revoked.length).toBeGreaterThan(0);
+    for (const row of revoked) {
+      expect(sampled.map((s) => s.request_action_id)).not.toContain(row.requested_by_action);
+    }
+
+    const runsBefore = await withTransaction(harness.adminPool, (tx) =>
+      tx.one<{ n: number }>('select count(*)::int as n from content.compilation_run'),
+    );
+    const reproduced = await rerunRecordedCompilations({
+      repository,
+      store,
+      adapterFor: () => producing('# Re-run on a schedule\n')(basis),
+      actionIds: [actionId],
+    });
+    expect(reproduced).toEqual({ checked: [actionId], findings: [] });
+
+    const drifted = await rerunRecordedCompilations({
+      repository,
+      store,
+      adapterFor: () => producing('# Re-run, and it came out different\n')(basis),
+      actionIds: [actionId],
+    });
+    expect(drifted.findings).toEqual([
+      expect.objectContaining({
+        actionId,
+        runId: run.runId,
+        problem: 'run_digest_differs',
+        recordedRunDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
+        rerunRunDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
+      }),
+    ]);
+    expect(drifted.findings[0]!.rerunRunDigest).not.toBe(drifted.findings[0]!.recordedRunDigest);
+
+    // An act with no run is reported, not skipped.
+    const unrun = await call('request_document_compilation', [compositionId], {
+      basis_id: randomUUID(),
+      basis: (
+        await registerPin(qualified('incomplete'), undefined, {
+          ...pin,
+          executableDigest: 'a'.repeat(64),
+        })
+      ).basis,
+    });
+    const notRecorded = await rerunRecordedCompilations({
+      repository,
+      store,
+      adapterFor: () => producing('# never\n')(basis),
+      actionIds: [unrun.actionId],
+    });
+    expect(notRecorded.findings.map((f) => f.problem)).toEqual(['not_a_recorded_success']);
+
+    // Read-only: no run was recorded by any of the three re-runs.
+    const runsAfter = await withTransaction(harness.adminPool, (tx) =>
+      tx.one<{ n: number }>('select count(*)::int as n from content.compilation_run'),
+    );
+    expect(runsAfter.n).toBe(runsBefore.n);
   });
 });

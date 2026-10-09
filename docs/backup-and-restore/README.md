@@ -230,10 +230,18 @@ moved the live rows, keyed on what the archive carries rather than on a date:
   exporter wrote. Any other missing section is still a truncated export and refused;
 - an archive without `artifact-stores` and `artifact-locations` (before `20260902000200`) keeps the
   `working` store the restoring database's migrations declared, and each addressed artifact version
-  gets its working location, as that migration recorded it.
+  gets its working location, as that migration recorded it;
+- a master record with no `corpus_digest` gets the digest `20260901000100` computed, from its
+  manifest;
+- an archive written before 69b7e1b9 (2026-10-07) never carried `people.person_kind`,
+  `organizations.retired_at` or `organizations.succeeded_by`, because the exporter left them out:
+  it restores every person as `human` and every organization unretired with no successor. A
+  service actor or a retired organization in such an archive must be put right by hand after the
+  restore (SAS §100.32).
 
 `tests/round-trip/deliverable-upconversion.test.ts` cuts an old-shape archive from a current one,
-restores it, and holds the re-export byte-equal to the original.
+restores it, and holds the re-export byte-equal to the original;
+`tests/round-trip/reverted-columns.test.ts` does the same for every column a later migration added.
 
 ## The object store is not in here
 

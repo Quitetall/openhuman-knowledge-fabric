@@ -12,6 +12,7 @@
  *   legacy       — recomputes an untagged format that recorded rows carry and are verified under.
  *   protocol     — a hash an external standard fixes (SCRAM, PKCE, UUIDv8, Merkle nodes).
  *   secret       — a bearer token hashed for lookup; opaque text, not a structure.
+ *   superseded   — (SQL only) a function body a later migration replaced; the file still holds it.
  *   UNTAGGED     — a named gap that remains, with where it lives. These are the work left.
  *
  * An entry is keyed by file and the exact trimmed source line. Reformatting a line makes its
@@ -22,7 +23,13 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { productionSources, scanDigests, type DigestFinding } from './digest-scan.js';
+import {
+  migrationSources,
+  productionSources,
+  scanDigests,
+  scanSqlDigests,
+  type DigestFinding,
+} from './digest-scan.js';
 
 const ROOT = join(import.meta.dirname, '..', '..');
 
@@ -38,36 +45,6 @@ const ALLOWED: readonly Allowed[] = [
     line: "const digest = (text: string): string => createHash('sha256').update(text).digest('hex');",
     reason:
       'raw bytes: SHA-256 of regular UTF-8 systemd fragments for exact release-file comparison; not a structured record or authority digest',
-  },
-  {
-    path: 'apps/api/src/admin/bootstrap-organization.ts',
-    line: "createHash('sha256').update(`bootstrap-organization\\u0000${reason}`).digest('hex'),",
-    reason:
-      'UNTAGGED: request_digest of the bootstrap act, a hand-built string; stored in core.action (remaining)',
-  },
-  {
-    path: 'apps/api/src/admin/declare-service-actor.ts',
-    line: "const requestDigest = createHash('sha256')",
-    reason:
-      'UNTAGGED: request_digest of an admin act over JSON.stringify, not RFC 8785; stored in core.action (remaining)',
-  },
-  {
-    path: 'apps/api/src/admin/grant-authority.ts',
-    line: "const requestDigest = createHash('sha256')",
-    reason:
-      'UNTAGGED: request_digest of an admin act over JSON.stringify, not RFC 8785; stored in core.action (remaining)',
-  },
-  {
-    path: 'apps/api/src/admin/retire-organization.ts',
-    line: "createHash('sha256')",
-    reason:
-      'UNTAGGED: request_digest of the retire act, a hand-built string; stored in core.action (remaining)',
-  },
-  {
-    path: 'apps/api/src/admin/revoke-identity.ts',
-    line: "const requestDigest = createHash('sha256')",
-    reason:
-      'UNTAGGED: request_digest of an admin act over JSON.stringify, not RFC 8785; stored in core.action (remaining)',
   },
   {
     path: 'apps/api/src/dogfood/config.ts',
@@ -368,11 +345,6 @@ const ALLOWED: readonly Allowed[] = [
     reason: 'secret: hashes a bearer link token for storage; opaque text, not a structure',
   },
   {
-    path: 'packages/documents/src/master-record-links.ts',
-    line: "payload_digest: digestBytes(Buffer.from(JSON.stringify(claims.scope), 'utf8')),",
-    reason: 'UNTAGGED: link payload digest over JSON.stringify, not RFC 8785 (remaining)',
-  },
-  {
     path: 'packages/documents/src/master-record-repository.ts',
     line: 'digest(compilation.manifest),',
     reason:
@@ -552,11 +524,6 @@ const ALLOWED: readonly Allowed[] = [
       'raw bytes: hashes bytes as received or stored, never canonical JSON — exempt by design',
   },
   {
-    path: 'packages/ontology-compiler/src/model.ts',
-    line: 'return { ...ontology, sourceDigest: digest(ontology) };',
-    reason: 'UNTAGGED: ontology/registry source digest recorded in the generated pack (remaining)',
-  },
-  {
     path: 'packages/ontology-compiler/src/pack.ts',
     line: "sha256: createHash('sha256').update(bytes).digest('hex'),",
     reason:
@@ -589,6 +556,339 @@ const ALLOWED: readonly Allowed[] = [
     reason: 'raw bytes: hashes an observation body as typed',
   },
 ];
+
+/**
+ * Digests the database takes (SAS §100.27: the TypeScript scan alone missed them). Keyed like
+ * ALLOWED; `superseded` names a body a later migration replaced, which still shows in its file.
+ */
+const ALLOWED_SQL: readonly Allowed[] = [
+  {
+    path: 'database/migrations/20260814000200_ml_registry.sql',
+    line: "sha256(convert_to(v_manifest_canonical, 'UTF8')),",
+    reason:
+      'UNTAGGED: ml.enforce_run_seal (trigger run_seal_validate, live) — segment-manifest digest over a bare JSON array; recorded in ml.run_seal.segment_manifest_sha256 (remaining)',
+  },
+  {
+    path: 'database/migrations/20260814000300_secure_object_authority.sql',
+    line: "public_key_sha256 = encode(digest(decode(public_key_spki_der_base64, 'base64'), 'sha256'), 'hex')",
+    reason:
+      'raw bytes: check constraint authority_signing_key_material_digest — SHA-256 of DER public-key bytes',
+  },
+  {
+    path: 'database/migrations/20260814000800_ml_promotion_signature_authority.sql',
+    line: "ml.ed25519_le_to_numeric(public.digest(v_r_encoded || p_public_key_raw || p_message, 'sha512')),",
+    reason: 'protocol: ml.verify_ed25519 — SHA-512 of R||A||M is RFC 8032 Ed25519 verification',
+  },
+  {
+    path: 'database/migrations/20260814000800_ml_promotion_signature_authority.sql',
+    line: "public.digest(decode(public_key_spki_der_base64, 'base64'), 'sha256'),",
+    reason:
+      'raw bytes: ml.promotion_signing_key table constraint — SHA-256 of DER public-key bytes',
+  },
+  {
+    path: 'database/migrations/20260814000800_ml_promotion_signature_authority.sql',
+    line: 'public.digest(',
+    reason:
+      'UNTAGGED: ml.append_signed_promotion_receipt — digest of canonical_aggregate_reference (no tag), used to order evidence; mirrors TS digest(reference) (remaining)',
+  },
+  {
+    path: 'database/migrations/20260814000800_ml_promotion_signature_authority.sql',
+    line: "public.digest(convert_to(v_evidence_json, 'UTF8'), 'sha256'),",
+    reason:
+      'UNTAGGED: ml.append_signed_promotion_receipt — evidenceSetDigest over bare JSON array; recorded inside the kf.ml.promotion-receipt.v1 receipt (remaining)',
+  },
+  {
+    path: 'database/migrations/20260814000800_ml_promotion_signature_authority.sql',
+    line: "public.digest(convert_to(v_unsigned_receipt, 'UTF8'), 'sha256'),",
+    reason:
+      'self-tagged: ml.append_signed_promotion_receipt — unsigned receipt carries schemaVersion kf.ml.promotion-receipt.v1',
+  },
+  {
+    path: 'database/migrations/20260814000800_ml_promotion_signature_authority.sql',
+    line: "public.digest(convert_to(v_unsigned_revocation, 'UTF8'), 'sha256'),",
+    reason:
+      'self-tagged: ml.append_signed_promotion_revocation — preimage carries schemaVersion kf.ml.promotion-revocation.v1',
+  },
+  {
+    path: 'database/migrations/20260814001200_ml_typed_actions.sql',
+    line: "return encode(public.digest(convert_to(v_event_json, 'UTF8'), 'sha256'), 'hex');",
+    reason:
+      'self-tagged: ml.canonical_metric_event_sha256 — event JSON carries schemaVersion kf.ml.metric-event.v1',
+  },
+  {
+    path: 'database/migrations/20260814001300_ml_run_seal_authority.sql',
+    line: "public.digest(decode(public_key_spki_der_base64, 'base64'), 'sha256'),",
+    reason: 'raw bytes: ml.run_seal_signing_key table constraint — SHA-256 of DER public-key bytes',
+  },
+  {
+    path: 'database/migrations/20260814001300_ml_run_seal_authority.sql',
+    line: "public.digest(convert_to(v_lineage_json, 'UTF8'), 'sha256'),",
+    reason:
+      'superseded: ml.append_signed_run_seal v1, renamed append_signed_run_seal_v1_archive and execute revoked by 20260814002300; preimage kf.ml.run-lineage.v1',
+  },
+  {
+    path: 'database/migrations/20260814001300_ml_run_seal_authority.sql',
+    line: "public.digest(convert_to(v_segment_json, 'UTF8'), 'sha256'),",
+    reason:
+      'superseded: ml.append_signed_run_seal v1 (renamed _v1_archive, execute revoked, 20260814002300); preimage kf.ml.metric-segment.v1',
+  },
+  {
+    path: 'database/migrations/20260814001300_ml_run_seal_authority.sql',
+    line: "public.digest(convert_to(v_segment_manifest_json, 'UTF8'), 'sha256'),",
+    reason:
+      'superseded: ml.append_signed_run_seal v1 (renamed _v1_archive, execute revoked, 20260814002300); untagged segment-manifest array',
+  },
+  {
+    path: 'database/migrations/20260814001300_ml_run_seal_authority.sql',
+    line: "public.digest(convert_to(v_unsigned_seal, 'UTF8'), 'sha256'),",
+    reason:
+      'superseded: ml.append_signed_run_seal v1 (renamed _v1_archive, execute revoked, 20260814002300); preimage kf.ml.run-seal.v1',
+  },
+  {
+    path: 'database/migrations/20260814001700_ml_human_promotion_authority.sql',
+    line: "v_claim_sha256 := encode(public.digest(convert_to(v_claim, 'UTF8'), 'sha256'), 'hex');",
+    reason:
+      'superseded: ml.authorize_promotion_decision_action, replaced by 20260816000200 (same claim, kf.ml.promotion-decision.v1)',
+  },
+  {
+    path: 'database/migrations/20260814001900_action_semantic_idempotency.sql',
+    line: "public.digest(convert_to('kf-action-legacy-v1:' || id::text, 'UTF8'), 'sha256'),",
+    reason:
+      'legacy format: one-time UPDATE in migration 019 — kf-action-legacy-v1 reservation digest, tag prefixed in the preimage',
+  },
+  {
+    path: 'database/migrations/20260814001900_action_semantic_idempotency.sql',
+    line: "public.digest(convert_to('kf-action-legacy-v1:' || new.id::text, 'UTF8'), 'sha256'),",
+    reason:
+      'superseded: core.assert_action_semantic_scope, replaced by 20260814002800 (kf-action-legacy-v1 reservation digest)',
+  },
+  {
+    path: 'database/migrations/20260814002200_compiler_preimage_provenance.sql',
+    line: "if encode(public.digest(convert_to(new.loss_preimage, 'UTF8'), 'sha256'), 'hex')",
+    reason:
+      'superseded: content.verify_document_parse_preimage, replaced by 20260925114000 (kf-document-parse-v2); v1 loss digest untagged',
+  },
+  {
+    path: 'database/migrations/20260814002200_compiler_preimage_provenance.sql',
+    line: "if encode(public.digest(convert_to(new.projection_preimage, 'UTF8'), 'sha256'), 'hex')",
+    reason:
+      'superseded: content.verify_document_parse_preimage, replaced by 20260925114000 (kf-document-parse-v2); v1 content digest untagged',
+  },
+  {
+    path: 'database/migrations/20260814002200_compiler_preimage_provenance.sql',
+    line: "if encode(public.digest(convert_to(new.atom_preimage, 'UTF8'), 'sha256'), 'hex')",
+    reason:
+      'superseded: content.verify_document_atom_preimage, replaced by 20260925114000 (kf-document-atom-v1)',
+  },
+  {
+    path: 'database/migrations/20260814002200_compiler_preimage_provenance.sql',
+    line: "if encode(public.digest(convert_to(p_canonical_preimage, 'UTF8'), 'sha256'), 'hex')",
+    reason:
+      'self-tagged: content.record_compilation_preimage — run preimage carries format kf-document-compilation-run-v2 (exact keys checked)',
+  },
+  {
+    path: 'database/migrations/20260814002200_compiler_preimage_provenance.sql',
+    line: "or encode(public.digest(convert_to(p_semantic_preimage, 'UTF8'), 'sha256'), 'hex')",
+    reason:
+      'UNTAGGED: content.record_compilation_preimage — semantic-graph digest, no tag; recorded as compilation_run.semantic_digest (Liminal protocol) (remaining)',
+  },
+  {
+    path: 'database/migrations/20260814002300_ml_segment_event_binding.sql',
+    line: "public.digest(convert_to(v_claim, 'UTF8'), 'sha256'),",
+    reason:
+      'self-tagged: ml.authorize_metric_stream_action — claim carries schemaVersion kf.ml.metric-write-authorization.v2',
+  },
+  {
+    path: 'database/migrations/20260814002300_ml_segment_event_binding.sql',
+    line: "public.digest(convert_to(v_actual_manifest_json, 'UTF8'), 'sha256'),",
+    reason:
+      'UNTAGGED: ml.enforce_metric_segment_v2_event_manifest — event-manifest digest over bare JSON array; sub-digest of the v2 segment (remaining)',
+  },
+  {
+    path: 'database/migrations/20260814002300_ml_segment_event_binding.sql',
+    line: "public.digest(convert_to(v_metadata, 'UTF8'), 'sha256'),",
+    reason:
+      'self-tagged: ml.enforce_metric_segment_v2_event_manifest — metadata carries schemaVersion kf.ml.metric-segment.v2',
+  },
+  {
+    path: 'database/migrations/20260814002300_ml_segment_event_binding.sql',
+    line: "public.digest(convert_to(v_event_manifest_json, 'UTF8'), 'sha256'),",
+    reason:
+      'UNTAGGED: ml.enforce_run_seal_v2_event_manifest — event-manifest digest over bare JSON array; recorded on ml.run_seal (remaining)',
+  },
+  {
+    path: 'database/migrations/20260814002300_ml_segment_event_binding.sql',
+    line: "public.digest(convert_to(v_lineage_json, 'UTF8'), 'sha256'),",
+    reason:
+      'self-tagged: ml.append_signed_run_seal (v2) — lineage preimage carries schemaVersion kf.ml.run-lineage.v1',
+  },
+  {
+    path: 'database/migrations/20260814002300_ml_segment_event_binding.sql',
+    line: "public.digest(convert_to(v_segment_event_manifest_json, 'UTF8'), 'sha256'),",
+    reason:
+      'UNTAGGED: ml.append_signed_run_seal (v2) — per-segment event-manifest digest over bare JSON array; inside kf.ml.metric-segment.v2 (remaining)',
+  },
+  {
+    path: 'database/migrations/20260814002300_ml_segment_event_binding.sql',
+    line: "public.digest(convert_to(v_segment_json, 'UTF8'), 'sha256'),",
+    reason:
+      'self-tagged: ml.append_signed_run_seal (v2) — segment preimage carries schemaVersion kf.ml.metric-segment.v2',
+  },
+  {
+    path: 'database/migrations/20260814002300_ml_segment_event_binding.sql',
+    line: "public.digest(convert_to(v_global_event_manifest_json, 'UTF8'), 'sha256'),",
+    reason:
+      'UNTAGGED: ml.append_signed_run_seal (v2) — global event-manifest digest over bare JSON array; recorded inside kf.ml.run-seal.v2 (remaining)',
+  },
+  {
+    path: 'database/migrations/20260814002300_ml_segment_event_binding.sql',
+    line: "public.digest(convert_to(v_segment_manifest_json, 'UTF8'), 'sha256'),",
+    reason:
+      'UNTAGGED: ml.append_signed_run_seal (v2) — segment-manifest digest over bare JSON array; recorded inside kf.ml.run-seal.v2 (remaining)',
+  },
+  {
+    path: 'database/migrations/20260814002300_ml_segment_event_binding.sql',
+    line: "public.digest(convert_to(v_unsigned_seal, 'UTF8'), 'sha256'),",
+    reason:
+      'self-tagged: ml.append_signed_run_seal (v2) — unsigned seal carries schemaVersion kf.ml.run-seal.v2',
+  },
+  {
+    path: 'database/migrations/20260814002550_legacy_action_cohort_recovery.sql',
+    line: 'public.digest(',
+    reason:
+      'legacy format: one-time DO block (migration 025.5) recomputing the kf-action-legacy-v1 reservation digest; tag prefixed in preimage',
+  },
+  {
+    path: 'database/migrations/20260814002550_legacy_action_cohort_recovery.sql',
+    line: "public.digest(convert_to('kf-action-legacy-v1:' || action.id::text, 'UTF8'), 'sha256'),",
+    reason:
+      'legacy format: one-time DO block recomputing the kf-action-legacy-v1 reservation digest; tag prefixed in preimage',
+  },
+  {
+    path: 'database/migrations/20260814002800_legacy_action_digest_reservation.sql',
+    line: "public.digest(convert_to('kf-action-legacy-v1:' || new.id::text, 'UTF8'), 'sha256'),",
+    reason:
+      'legacy format: core.assert_action_semantic_scope (live) — refuses kf-action-legacy-v1 reservation digest; tag prefixed in preimage',
+  },
+  {
+    path: 'database/migrations/20260814002800_legacy_action_digest_reservation.sql',
+    line: "public.digest(convert_to('kf-action-legacy-v1:' || action.id::text, 'UTF8'), 'sha256'),",
+    reason:
+      'legacy format: one-time DO block checking the kf-action-legacy-v1 reservation digest; tag prefixed in preimage',
+  },
+  {
+    path: 'database/migrations/20260815000200_ml_registry_bootstrap_actions.sql',
+    line: "v_computed_sha256 := encode(public.digest(convert_to(v_lineage_json, 'UTF8'), 'sha256'), 'hex');",
+    reason:
+      'self-tagged: ml.register_run_lineage_action — lineage preimage carries schemaVersion kf.ml.run-lineage.v1',
+  },
+  {
+    path: 'database/migrations/20260815000200_ml_registry_bootstrap_actions.sql',
+    line: "public.digest(convert_to(v_manifest_json, 'UTF8'), 'sha256'), 'hex'",
+    reason:
+      'UNTAGGED: ml.register_metric_segment_action — event-manifest digest over bare JSON array; sub-digest of kf.ml.metric-segment.v2 (remaining)',
+  },
+  {
+    path: 'database/migrations/20260815000200_ml_registry_bootstrap_actions.sql',
+    line: "public.digest(convert_to(v_metadata_json, 'UTF8'), 'sha256'), 'hex'",
+    reason:
+      'self-tagged: ml.register_metric_segment_action — metadata carries schemaVersion kf.ml.metric-segment.v2',
+  },
+  {
+    path: 'database/migrations/20260816000200_transaction_identity_width.sql',
+    line: "v_claim_sha256 := encode(public.digest(convert_to(v_claim, 'UTF8'), 'sha256'), 'hex');",
+    reason:
+      'self-tagged: ml.authorize_promotion_decision_action (live) — claim carries schemaVersion kf.ml.promotion-decision.v1',
+  },
+  {
+    path: 'database/migrations/20260901000100_master_record_corpus_identity.sql',
+    line: "sha256(convert_to(coalesce(string_agg(line, E'\\n' order by line collate \"C\"), ''), 'UTF8')),",
+    reason:
+      'UNTAGGED: content.master_record_corpus_digest and content.master_record_permission_digest — sorted lines, no tag; mirror TS master-record.ts and are recorded with the master record (remaining)',
+  },
+  {
+    path: 'database/migrations/20260923000200_writes_match_the_context.sql',
+    line: "select encode(sha256(decode(p_prev_digest, 'hex') || convert_to(",
+    reason:
+      'legacy format: core.audit_event_digest (9-arg) — kf-audit-link-v1 links, still called by the v1 branch of 20260924001100 to verify recorded rows',
+  },
+  {
+    path: 'database/migrations/20260924001000_the_person_is_present.sql',
+    line: 'values (sha256(v_secret), p_person, p_assignment, p_organization, v_ceiling, v_expiry);',
+    reason:
+      'secret: core.issue_attestation — attestation secret hashed for lookup; superseded by 20260925100000 (dropped and recreated)',
+  },
+  {
+    path: 'database/migrations/20260924001000_the_person_is_present.sql',
+    line: "where a.digest = sha256(decode(p_attestation, 'hex'))",
+    reason:
+      'secret: core.bind_principal — attestation hashed for lookup; superseded by 20260925100000 create or replace',
+  },
+  {
+    path: 'database/migrations/20260924001100_audit_links_name_their_format.sql',
+    line: "return encode(sha256(decode(p_prev_digest, 'hex') || convert_to(",
+    reason:
+      'self-tagged: core.audit_event_digest (link-format variant) — kf-audit-link-v2 preimage carries "format":"kf-audit-link-v2"',
+  },
+  {
+    path: 'database/migrations/20260925030200_an_observation_is_captured_then_promoted.sql',
+    line: "new.body_sha256 := encode(sha256(convert_to(new.body, 'UTF8')), 'hex');",
+    reason:
+      'raw bytes: content.observation_body_digest trigger — SHA-256 of the observation body as typed',
+  },
+  {
+    path: 'database/migrations/20260925100000_an_agent_acts_for_a_named_human.sql',
+    line: 'values (sha256(v_secret), p_person, p_assignment, p_organization, v_ceiling, v_expiry,',
+    reason: 'secret: core.issue_attestation (live) — attestation secret hashed for lookup',
+  },
+  {
+    path: 'database/migrations/20260925100000_an_agent_acts_for_a_named_human.sql',
+    line: "where a.digest = sha256(decode(p_attestation, 'hex'))",
+    reason:
+      'secret: core.bind_principal (live, and the body its migrate:down restores) — a presented attestation hashed for lookup',
+  },
+  {
+    path: 'database/migrations/20260925100000_an_agent_acts_for_a_named_human.sql',
+    line: 'values (sha256(v_secret), p_person, p_assignment, p_organization, v_ceiling, v_expiry);',
+    reason:
+      'secret: core.issue_attestation in migrate:down (rollback restores earlier body) — attestation secret hashed for lookup',
+  },
+  {
+    path: 'database/migrations/20260925114000_document_parse_digests_carry_tags.sql',
+    line: "if encode(public.digest(convert_to(new.loss_preimage, 'UTF8'), 'sha256'), 'hex')",
+    reason:
+      'self-tagged: content.verify_document_parse_preimage (live) — loss preimage carries format kf-document-conversion-loss-v1',
+  },
+  {
+    path: 'database/migrations/20260925114000_document_parse_digests_carry_tags.sql',
+    line: "if encode(public.digest(convert_to(new.projection_preimage, 'UTF8'), 'sha256'), 'hex')",
+    reason:
+      'self-tagged: content.verify_document_parse_preimage (live) — projection preimage carries format kf-document-projection-v1',
+  },
+  {
+    path: 'database/migrations/20260925114000_document_parse_digests_carry_tags.sql',
+    line: "if encode(public.digest(convert_to(new.atom_preimage, 'UTF8'), 'sha256'), 'hex')",
+    reason:
+      'self-tagged: content.verify_document_atom_preimage (live) — atom preimage carries format kf-document-atom-v1',
+  },
+  {
+    path: 'database/migrations/20260926110100_a_current_claim_is_known_without_recounting_it.sql',
+    line: "select encode(sha256(convert_to(coalesce(string_agg(entry, E'\\n' order by entry), ''), 'UTF8')), 'hex')",
+    reason:
+      'equality: content.master_record_schema_fingerprint — catalog-xmin fingerprint stored as a cache-currency key and compared for equality',
+  },
+];
+
+/**
+ * The UNTAGGED entries, counted. A ceiling, not a target: closing a gap lowers it in the same
+ * commit, and an entry added under UNTAGGED fails here rather than slipping into the list. Last
+ * lowered for SAS §100.27 from 35 TypeScript entries, when the five owner-credential admin acts,
+ * the master-record link payload and the ontology source digest took tags.
+ */
+const UNTAGGED_CEILING = { typescript: 28, sql: 11 } as const;
+
+const untaggedCount = (allowed: readonly Allowed[]): number =>
+  allowed.filter((entry) => entry.reason.startsWith('UNTAGGED')).length;
 
 function unexplained(findings: readonly DigestFinding[], allowed: readonly Allowed[]): string[] {
   const keys = new Set(allowed.map((entry) => `${entry.path}\u0000${entry.line}`));
@@ -627,8 +927,17 @@ describe('every digest carries its format tag, or says why not (KF-SAS-RQ-016)',
     const kinds =
       /^(raw bytes|self-tagged|equality|legacy format|protocol|secret|not a digest|UNTAGGED): ./;
     for (const entry of ALLOWED) expect(entry.reason, entry.path).toMatch(kinds);
+    expect(ALLOWED.some((entry) => entry.reason.startsWith('superseded'))).toBe(false);
     const keys = ALLOWED.map((entry) => `${entry.path}\u0000${entry.line}`);
     expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it('holds the untagged list at or below its ceiling (it can only shrink)', () => {
+    expect(untaggedCount(ALLOWED)).toBeLessThanOrEqual(UNTAGGED_CEILING.typescript);
+    expect(untaggedCount(ALLOWED_SQL)).toBeLessThanOrEqual(UNTAGGED_CEILING.sql);
+    // A ceiling left above the count would let a new gap in silently; lower it with the fix.
+    expect(untaggedCount(ALLOWED)).toBe(UNTAGGED_CEILING.typescript);
+    expect(untaggedCount(ALLOWED_SQL)).toBe(UNTAGGED_CEILING.sql);
   });
 
   it('finds planted bare digests and leaves the tagged form and hash methods alone', () => {
@@ -671,6 +980,59 @@ describe('every digest carries its format tag, or says why not (KF-SAS-RQ-016)',
       expect(
         stale(planted, [{ path: 'gone.ts', line: 'digest(x)', reason: 'equality: x' }]),
       ).toEqual(['gone.ts: digest(x)']);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('every digest the database takes carries its format tag, or says why not (SAS §100.27)', () => {
+  const migrations = migrationSources(ROOT);
+  const findings = scanSqlDigests(ROOT, migrations);
+
+  it('scans the migrations it claims to (non-vacuous)', () => {
+    expect(migrations.length).toBeGreaterThan(100);
+    expect(migrations).toContain(
+      'database/migrations/20260901000100_master_record_corpus_identity.sql',
+    );
+    expect(findings.length).toBeGreaterThan(40);
+  });
+
+  it('finds no untagged SQL digest the allowlist does not explain', () => {
+    expect(unexplained(findings, ALLOWED_SQL)).toEqual([]);
+  });
+
+  it('carries no stale SQL entry: each names a line that still exists', () => {
+    expect(stale(findings, ALLOWED_SQL)).toEqual([]);
+  });
+
+  it('gives every SQL entry a reason of a known kind, and no duplicates', () => {
+    const kinds =
+      /^(raw bytes|self-tagged|equality|legacy format|protocol|secret|not a digest|superseded|UNTAGGED): ./;
+    for (const entry of ALLOWED_SQL) expect(entry.reason, entry.path).toMatch(kinds);
+    const keys = ALLOWED_SQL.map((entry) => `${entry.path}\u0000${entry.line}`);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it('finds planted SQL digests, in both spellings, and leaves comments and names alone', () => {
+    const root = mkdtempSync(join(tmpdir(), 'kf-digest-scan-sql-'));
+    try {
+      mkdirSync(join(root, 'database', 'migrations'), { recursive: true });
+      writeFileSync(
+        join(root, 'database', 'migrations', '20990101000000_planted.sql'),
+        [
+          "select encode(sha256(convert_to('x', 'UTF8')), 'hex');",
+          "select encode(public.digest(convert_to('x', 'UTF8'), 'sha256'), 'hex');",
+          "select encode(digest('x', 'sha256'), 'hex');",
+          '-- sha256(x) in a comment computes nothing',
+          'select ml.canonical_metric_event_sha256(1);',
+          'select a.digest from t a;',
+          '',
+        ].join('\n'),
+      );
+      const planted = scanSqlDigests(root, ['database/migrations/20990101000000_planted.sql']);
+      expect(planted.map((finding) => finding.line)).toEqual([1, 2, 3]);
+      expect(unexplained(planted, ALLOWED_SQL)).toHaveLength(3);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

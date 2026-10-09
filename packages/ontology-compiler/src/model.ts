@@ -9,7 +9,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
-import { digest } from '@kf/canonicalization';
+import { taggedDigest } from '@kf/canonicalization';
 
 // ── field types ─────────────────────────────────────────────────────────────────────────
 
@@ -759,5 +759,11 @@ export function loadOntology(dir: string): Ontology {
   // The digest is over the parsed model, not the file bytes: reformatting a YAML file or
   // changing a comment must not invalidate every generated artifact, but changing a
   // declaration must.
-  return { ...ontology, sourceDigest: digest(ontology) };
+  //
+  // Tagged since SAS §100.27 was closed (KF-SAS-RQ-016): the preimage carries
+  // `format: 'kf-ontology-source-v1'`. Every generated artifact and pack built before records
+  // the untagged digest of the same model; none is recomputed against a later build except by
+  // the drift gate, which already names every knowledge-fabric pack as drifted, and the seed
+  // upserts the release row's digest as it does after any ontology edit.
+  return { ...ontology, sourceDigest: taggedDigest('kf-ontology-source-v1', ontology) };
 }
