@@ -79,17 +79,18 @@ credential. Application start/restart never runs migrations.
 
 These things have to happen on a schedule, and until they are scheduled they are habits:
 
-| Unit                        | Interval          | What stops being true without it                                                            |
-| --------------------------- | ----------------- | ------------------------------------------------------------------------------------------- |
-| `kf-checkpoint.timer`       | hourly            | The audit log is unsigned past the last run. A rewrite inside that window is undetectable.  |
-| `kf-backup.timer`           | daily 02:00       | Everything exists in one place.                                                             |
-| `kf-backup-offsite.service` | after each backup | The copy is beside the original; a lost host loses both.                                    |
-| `kf-audit-verify.timer`     | daily 05:15       | A rewritten audit log or an unverifiable checkpoint goes unnoticed until the monthly drill. |
-| `kf-restore-drill.timer`    | monthly           | Nothing has proven the backups can be read.                                                 |
-| `kf-readiness.timer`        | every 15 min      | Nothing notices when any of the above stops running.                                        |
-| `kf-alert-heartbeat.timer`  | daily             | Nothing notices when the thing that notices stops working.                                  |
-| `kf-storage.timer`          | daily 03:30       | Every artifact version has one copy, and nothing has re-hashed the copies that exist.       |
-| `kf-tls-renew.timer`        | daily 03:30       | Tailnet hosts (ADR 0039): the `tailscale cert` certificate lapses after 90 days.            |
+| Unit                            | Interval             | What stops being true without it                                                                        |
+| ------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------- |
+| `kf-checkpoint.timer`           | hourly               | The audit log is unsigned past the last run. A rewrite inside that window is undetectable.              |
+| `kf-backup.timer`               | daily 02:00          | Everything exists in one place.                                                                         |
+| `kf-backup-offsite.service`     | after each backup    | The copy is beside the original; a lost host loses both.                                                |
+| `kf-audit-verify.timer`         | daily 05:15          | A rewritten audit log or an unverifiable checkpoint goes unnoticed until the monthly drill.             |
+| `kf-restore-drill.timer`        | monthly              | Nothing has proven the backups can be read.                                                             |
+| `kf-readiness.timer`            | every 15 min         | Nothing notices when any of the above stops running.                                                    |
+| `kf-alert-heartbeat.timer`      | daily                | Nothing notices when the thing that notices stops working.                                              |
+| `kf-storage.timer`              | daily 03:30          | Every artifact version has one copy, and nothing has re-hashed the copies that exist.                   |
+| `kf-tls-renew.timer`            | daily 03:30          | Tailnet hosts (ADR 0039): the `tailscale cert` certificate lapses after 90 days.                        |
+| `kf-compiler-determinism.timer` | weekly, Sunday 04:30 | A nondeterministic compiler is caught only when somebody compiles the same sources again (SAS §100.35). |
 
 The readiness and heartbeat timers are what make the others real. A backup timer that silently stops is
 indistinguishable from a backup timer that is working, right up until the restore — unless
@@ -267,6 +268,8 @@ sudo systemctl enable --now kf-attestor.service kf-api.service kf-worker.service
 sudo systemctl enable --now kf-checkpoint.timer kf-backup.timer kf-storage.timer \
   kf-audit-verify.timer kf-restore-drill.timer kf-readiness.timer kf-alert-heartbeat.timer \
   kf-notify-digest.timer kf-notify-urgent.timer
+# A host that compiles documents (LIMINAL_* set in worker.env) also re-runs them weekly:
+sudo systemctl enable --now kf-compiler-determinism.timer
 # A tailnet host (ADR 0039) also renews its certificate:
 sudo systemctl enable --now kf-tls-renew.timer
 ```

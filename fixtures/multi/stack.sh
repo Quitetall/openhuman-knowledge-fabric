@@ -30,6 +30,11 @@ export KF_STACK_KEYCLOAK_PORT="${KF_STACK_KEYCLOAK_PORT:-18180}"
 export KF_STACK_PG_PORT="${KF_STACK_PG_PORT:-15532}"
 export KF_STACK_OBJECTS_PORT="${KF_STACK_OBJECTS_PORT:-19100}"
 export KF_STACK_EMBED_PORT="${KF_STACK_EMBED_PORT:-8022}"
+# The Véracier stack's embedding server, shared: the same model, so one copy in GPU memory, not
+# two. The pin refuses it if it is ever not the same. KF_STACK_EMBED_URL= (empty) runs this
+# stack's own on KF_STACK_EMBED_PORT. Start the Véracier stack first: with its server down, this
+# stack starts lexical-only, and while it stays down this stack cannot embed.
+export KF_STACK_EMBED_URL="${KF_STACK_EMBED_URL-http://127.0.0.1:8021}"
 export KF_STACK_FIXTURE="${KF_STACK_FIXTURE:-all}"
 export KF_STACK_ORGANIZATION="${KF_STACK_ORGANIZATION:-Redwood Inference, Inc.}"
 # Never inherit the Véracier stack's names: they would point this stack's loader at that one.

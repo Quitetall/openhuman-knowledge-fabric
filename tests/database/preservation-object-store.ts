@@ -57,6 +57,20 @@ export async function composeStoreService(file = COMPOSE): Promise<StoreService>
   return { image, command };
 }
 
+/**
+ * The same digest-pinned image, fetched through a Docker Hub mirror when KF_DOCKER_HUB_MIRROR names
+ * one (CI sets mirror.gcr.io: the hosted runners' shared addresses meet Docker Hub's anonymous pull
+ * limit). Only a Docker Hub reference is rewritten, and only one pinned by digest, so the bytes
+ * that run cannot differ from the ones docker-compose.yml pins.
+ */
+export function fromHubMirror(image: string, mirror = process.env['KF_DOCKER_HUB_MIRROR']): string {
+  if (!mirror) return image;
+  const first = image.split('/')[0]!;
+  const onHub = !image.includes('/') || !(first.includes('.') || first.includes(':'));
+  if (!onHub || !image.includes('@sha256:')) return image;
+  return `${mirror}/${image}`;
+}
+
 async function docker(...args: string[]): Promise<string> {
   return (await exec('docker', args, { timeout: 120_000, maxBuffer: 1024 * 1024 })).stdout.trim();
 }
@@ -110,7 +124,8 @@ export class PreservationObjectStore {
 
   /** Start a store and create the buckets with versioning on, through init-buckets.sh. */
   async start(): Promise<StartedStore> {
-    const service = await composeStoreService();
+    const pinned = await composeStoreService();
+    const service = { ...pinned, image: fromHubMirror(pinned.image) };
     this.service = service;
     // A missing image is pulled by its pinned digest; a pull that fails says so.
     await docker('image', 'inspect', '--format', '{{.Id}}', service.image).catch(() =>

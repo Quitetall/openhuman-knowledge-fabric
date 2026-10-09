@@ -72,6 +72,25 @@ atoms: [atom preimages], conversionLoss }`). All are recorded with their exact p
   (`{ excerpts: [digest] }`) — a resolved citation's and an assembled briefing's digests. Both
   are computed on request and compared to nothing stored, so they moved onto their tags with no
   earlier form to keep verifiable; the untagged line hashes they replace were never recorded.
+- `kf-bootstrap-organization-request-v1`, `kf-declare-service-actor-request-v1`,
+  `kf-grant-person-clearance-request-v1`, `kf-retire-organization-request-v1` and
+  `kf-revoke-external-identity-request-v1` — the `request_digest` of the owner-credential
+  administrative acts, which insert into `core.action` directly rather than through the
+  dispatcher (SAS §100.27). Each preimage is `{ actionType, …the values the act was asked
+for }`. Acts recorded before carry an untagged SHA-256 over a hand-built string or
+  `JSON.stringify`; nothing recomputes a request digest from a recorded act, and these acts
+  find a replay by what they declare, not by the digest, so both forms stand as recorded.
+- `kf-master-record-link-payload-v1` — the `payload_digest` of a `kf.master_record_link_issued`
+  outbox event, `{ scope }`. The delivery receipt copies it from the event and the database
+  compares the two for equality; an event recorded before carries the untagged digest of
+  `JSON.stringify(scope)` and still delivers.
+- `kf-ontology-source-v1` — the ontology's `sourceDigest` over its parsed model, written into
+  every generated artifact and pack manifest. Artifacts and packs built before carry the
+  untagged digest of the same model. Nothing recomputes an old one: the seed upserts the
+  release row as after any ontology edit, and the pack drift gate already names every signed
+  knowledge-fabric pack as drifted. The registry pack's `policy_source_digest` is NOT moved: the
+  signed `openhuman-registry-1.0.0-draft.2` still matches its source, and tagging it would break
+  that until the pack owner re-cuts it.
 - `kf-projection-result-v2` and `kf-action-request-v1` are now spelled through `taggedDigest`,
   byte-identically (their goldens did not move).
 

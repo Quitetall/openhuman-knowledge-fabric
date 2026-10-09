@@ -25,7 +25,13 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
 import { canonicalize, compareCanonicalText, digest } from '@kf/canonicalization';
-import { DAMM_TABLE, dammCheck, isAntiSymmetricQuasigroup, validateIdentifier } from './damm.js';
+import {
+  DAMM_TABLE,
+  dammCheck,
+  identifierGrammar,
+  isAntiSymmetricQuasigroup,
+  type IdentifierGrammar,
+} from './damm.js';
 import type { PackFile } from './pack.js';
 
 /** The six canonical sources. Listed so a missing or unexpected file is an error, not a silent skip. */
@@ -168,12 +174,22 @@ export function checkRegistryPolicy(p: RegistryPolicy, ontologyDir: string): Che
     }
   }
 
+  // The validator is compiled from THIS registry's grammar, never from a constant (SAS §100.3):
+  // a validator that refused every identifier for its prefix would make the reject-vector gate
+  // below pass vacuously for any registry but the one the constant named.
+  let grammar: IdentifierGrammar | undefined;
+  try {
+    grammar = identifierGrammar(p.grammars);
+  } catch (error) {
+    fail('identifier_grammar_compiles', error instanceof Error ? error.message : String(error));
+  }
+
   // A validator that cannot reject is not a validator. These are known-bad identifiers; if any
   // of them validates, the check digit is not actually being enforced.
   for (const raw of asArray(p.damm['reject_vectors'], 'damm.yaml reject_vectors')) {
     const v = asRecord(raw, 'damm.yaml reject_vectors entry');
     const id = String(v['identifier']);
-    if (validateIdentifier(id).valid) {
+    if (grammar?.validate(id).valid === true) {
       fail(
         'damm_reject_vectors',
         `${id} was accepted; it must be rejected (${String(v['reason'])})`,
@@ -307,16 +323,18 @@ export function checkRegistryPolicy(p: RegistryPolicy, ontologyDir: string): Che
     );
   }
 
-  // ── the two identifiers actually issued ──────────────────────────────────────────────────
-  // If either of these ever stops validating, something in the chain is wrong and every
-  // identifier this organisation has is suspect.
-  for (const [id, what] of [
-    ['OH-DOC-000001-3', 'this registry'],
-    ['OH-DOC-000002-1', 'Knowledge Fabric OGWCS'],
-  ] as const) {
-    const verdict = validateIdentifier(id);
-    if (!verdict.valid)
-      fail('issued_identifiers_validate', `${id} (${what}): ${verdict.reason ?? 'invalid'}`);
+  // ── the identifiers actually issued ──────────────────────────────────────────────────────
+  // damm.yaml's `allocated_vectors` name them. If one ever stops validating, something in the
+  // chain is wrong and every identifier this organisation has is suspect.
+  for (const raw of asArray(p.damm['allocated_vectors'], 'damm.yaml allocated_vectors')) {
+    const v = asRecord(raw, 'damm.yaml allocated_vectors entry');
+    const id = String(v['canonical']);
+    const verdict = grammar?.validate(id);
+    if (verdict !== undefined && !verdict.valid)
+      fail(
+        'issued_identifiers_validate',
+        `${id} (${String(v['note'])}): ${verdict.reason ?? 'invalid'}`,
+      );
   }
 
   // ── agreement with ontology/meta.yaml ────────────────────────────────────────────────────
@@ -350,8 +368,8 @@ export function checkRegistryPolicy(p: RegistryPolicy, ontologyDir: string): Che
   // Nor is the schema the right place. R01 rule R7 says invalid check digits are "rejected at
   // entry and import", and Appendix B.1 says regex conformance "is necessary but not
   // sufficient; validators shall also verify ... Damm digits, namespace state". Namespace
-  // membership and the check digit are validator obligations, discharged by
-  // `validateIdentifier` and the core.object check constraint. A JSON Schema pattern cannot
+  // membership and the check digit are validator obligations, discharged by the registry's
+  // compiled `identifierGrammar` and the core.object check constraint. A JSON Schema pattern cannot
   // express a check digit at all, so a schema that looked strict would still be insufficient.
   //
   // So what is checked here is one-way: everything the registry accepts, the ontology must
@@ -383,10 +401,12 @@ export function checkRegistryPolicy(p: RegistryPolicy, ontologyDir: string): Che
 
   // The converse is recorded rather than enforced: the ontology is deliberately the looser of
   // the two. If it ever became the same or narrower, the note below is what should be revisited.
-  const ontologyIsLooser = ['OH-XYZ-000001-3', 'OH-ZZ-000001-3'].some(
-    (id) => acceptedByOntology(id) && !validateIdentifier(id).valid,
-  );
-  if (!ontologyIsLooser) {
+  const ontologyIsLooser =
+    grammar !== undefined &&
+    [`${grammar.prefix}XYZ-000001-3`, `${grammar.prefix}ZZ-000001-3`].some(
+      (id) => acceptedByOntology(id) && !grammar.validate(id).valid,
+    );
+  if (grammar !== undefined && !ontologyIsLooser) {
     warn(
       'ontology_pattern_no_longer_looser',
       'ontology/meta.yaml enterprise_id now rejects unallocated namespaces that the registry ' +

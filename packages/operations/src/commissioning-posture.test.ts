@@ -139,6 +139,19 @@ describe('commissioning secret-source metadata and public projection classificat
       publicConfigurationPaths: ['/etc/kf/application-public/api.env'],
     });
   });
+  it("admits the worker's public file for the determinism re-run, and no other unit's", () => {
+    const own = parseUnit(
+      'kf-compiler-determinism.service',
+      '[Service]\nEnvironmentFile=/etc/kf/application-public/worker.env\n',
+    );
+    expect(own.secretPaths).toEqual([]);
+    expect(own.publicConfigurationPaths).toEqual(['/etc/kf/application-public/worker.env']);
+    const other = parseUnit(
+      'kf-compiler-determinism.service',
+      '[Service]\nEnvironmentFile=/etc/kf/application-public/api.env\n',
+    );
+    expect(other.secretPaths).toEqual(['/etc/kf/application-public/api.env']);
+  });
   it('keeps encrypted PID1 sources distinct and does not treat unknown EnvironmentFiles as public', () => {
     const facts = parseUnit(
       'kf-api.service',

@@ -247,7 +247,7 @@ describe('commissioning unit file composition', () => {
     expect((await unitProvenance(f.inputs)).status).toBe('unsatisfied');
   });
 
-  it('accepts all eleven shipped native bindings together, with each role still isolated', async () => {
+  it('accepts all twelve shipped native bindings together, with each role still isolated', async () => {
     const f = await fixture();
     for (const name of await readdir(SYSTEMD)) {
       if (!name.endsWith('.service') && !name.endsWith('.conf')) continue;
@@ -258,6 +258,10 @@ describe('commissioning unit file composition', () => {
     const bindings = [
       ['kf-api.service', 'application-api-workstation-credentials.conf'],
       ['kf-worker.service', 'application-worker-workstation-credentials.conf'],
+      [
+        'kf-compiler-determinism.service',
+        'application-compiler-determinism-workstation-credentials.conf',
+      ],
       ['kf-attestor.service', 'application-attestor-workstation-credentials.conf'],
       ['kf-checkpoint.service', 'application-checkpoint-workstation-credentials.conf'],
       ['kf-storage.service', 'application-storage-workstation-credentials.conf'],

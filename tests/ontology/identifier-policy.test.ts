@@ -15,14 +15,12 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   DAMM_TABLE,
-  ENTERPRISE_NAMESPACES,
   checkRegistryPolicy,
   dammCheck,
-  formatEnterpriseId,
+  identifierGrammar,
   isAntiSymmetricQuasigroup,
   loadRegistryPolicy,
   registryPackGaps,
-  validateIdentifier,
   type CheckFailure,
 } from '@kf/ontology-compiler';
 
@@ -32,6 +30,13 @@ import {
 // also means these tests exercise the same parse the pack builder uses, so a loader that
 // silently dropped a section could not pass here while failing there.
 const POLICY = loadRegistryPolicy(join(import.meta.dirname, '..', '..', 'registries', 'openhuman'));
+// The validator is compiled from the registry's own grammars.yaml (SAS §100.3), not a constant.
+const GRAMMAR = identifierGrammar(POLICY.grammars);
+const validateIdentifier = (id: string): ReturnType<typeof GRAMMAR.validate> =>
+  GRAMMAR.validate(id);
+const formatEnterpriseId = (namespace: string, sequence: number): string =>
+  GRAMMAR.formatEnterprise(namespace, sequence);
+const ENTERPRISE_NAMESPACES = GRAMMAR.enterpriseNamespaces;
 
 describe('the Damm table', () => {
   it('is an anti-symmetric quasigroup', () => {
@@ -148,7 +153,7 @@ describe('validateIdentifier', () => {
   });
 });
 
-describe('formatEnterpriseId', () => {
+describe('formatEnterprise', () => {
   it('round-trips through validateIdentifier for the whole sequence space it will use', () => {
     // Not exhaustive over 10^6 — a spread including both boundaries and the two real ones.
     for (const n of [0, 1, 2, 7, 42, 123, 999, 1000, 65535, 999_999]) {
@@ -171,10 +176,49 @@ describe('formatEnterpriseId', () => {
   });
 });
 
+describe('the grammar is compiled from the registry, and refused by name when it cannot be', () => {
+  const ONTOLOGY = join(import.meta.dirname, '..', '..', 'ontology');
+  const grammars = POLICY.grammars['grammars'] as Record<string, Record<string, unknown>>;
+
+  function withEnterprise(change: Record<string, unknown>): CheckFailure[] {
+    return checkRegistryPolicy(
+      {
+        ...POLICY,
+        grammars: {
+          ...POLICY.grammars,
+          grammars: { ...grammars, enterprise: { ...grammars['enterprise'], ...change } },
+        },
+      },
+      ONTOLOGY,
+    ).filter((f) => f.check === 'identifier_grammar_compiles');
+  }
+
+  it('reads the prefix from the enterprise pattern rather than knowing it', () => {
+    expect(GRAMMAR.prefix).toBe('OH-');
+  });
+
+  it('compiles the registry it ships with', () => {
+    expect(withEnterprise({})).toEqual([]);
+  });
+
+  it('refuses an enterprise pattern it cannot read a prefix and namespaces from', () => {
+    const failures = withEnterprise({ pattern: '^OH-[A-Z]{2,5}-[0-9]{6}-[0-9]$' });
+    expect(failures.map((f) => f.detail)).toEqual([
+      'identifier grammar: the enterprise pattern does not read as ^<PREFIX>(<NAMESPACES>)-',
+    ]);
+  });
+
+  it('refuses a check-digit grammar whose payload it does not know', () => {
+    const failures = withEnterprise({ damm_payload: 'namespace_and_sequence' });
+    expect(failures).toHaveLength(1);
+    expect(failures[0]?.detail).toMatch(/damm_payload namespace_and_sequence is not known/);
+  });
+});
+
 describe('the namespace list', () => {
   it('matches registries/openhuman/namespaces.yaml', () => {
-    // damm.ts carries the list as a constant so it needs no filesystem at runtime. That copy
-    // is only safe while something compares it to the source.
+    // The list is read from the enterprise pattern in grammars.yaml; namespaces.yaml declares
+    // which namespaces use that grammar. The two are separate statements and must agree.
     const declared = (POLICY.namespaces['namespaces'] as { code: string; grammar: string }[])
       .filter((n) => n.grammar === 'enterprise')
       .map((n) => n.code);

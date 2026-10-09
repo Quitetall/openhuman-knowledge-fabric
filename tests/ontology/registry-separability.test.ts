@@ -14,7 +14,9 @@
  *   2. The database accepts its identifiers once its namespaces are seeded — proved against a
  *      real database by `tests/database/instance-identifier-namespace.test.ts` ("accepts a
  *      DIFFERENT organisation prefix once allocated — the whole point"), cited, not repeated.
- *   3. Every place the product still pins `OH-` is listed in RECORDED_COUPLINGS below, and the
+ *   3. Its identifiers validate under its own grammar, compiled from its `grammars.yaml`, and
+ *      registry-check's reject-vector gate is not vacuous for it (SAS §100.3).
+ *   4. Every place the product still pins `OH-` is listed in RECORDED_COUPLINGS below, and the
  *      list is asserted EXHAUSTIVE in both directions: a new pin fails, and a removed one fails
  *      until the record is updated. That is RQ-139's "where that separation does not yet hold,
  *      the specific coupling SHALL be recorded", made checkable.
@@ -32,8 +34,8 @@ import {
   buildRegistryPack,
   checkRegistryPolicy,
   dammCheck,
+  identifierGrammar,
   loadRegistryPolicy,
-  validateIdentifier,
 } from '@kf/ontology-compiler';
 
 const ROOT = join(import.meta.dirname, '..', '..');
@@ -52,10 +54,10 @@ const RECORDED_COUPLINGS: Readonly<Record<string, string>> = {
     'compiled from ontology/meta.yaml; inherits the pin, so a graph export carrying AC- ' +
     'identifiers fails schema validation.',
   'generated/openapi/knowledge-fabric.openapi.json': 'compiled from ontology/meta.yaml.',
-  'packages/ontology-compiler/src/damm.ts':
-    'validateIdentifier and formatEnterpriseId hard-code ^OH- and OpenHuman namespace list. ' +
-    'Not governance-pinned: a code coupling. Consequence: registry-check reject-vector gate is ' +
-    'vacuous for a second registry (every AC- identifier is rejected for its prefix).',
+  // packages/ontology-compiler/src/damm.ts was the fourth: validateIdentifier and
+  // formatEnterpriseId hard-coded ^OH- and OpenHuman's namespace list, which made the
+  // registry-check reject-vector gate vacuous for a second registry. Removed for SAS §100.3:
+  // the validator is now compiled from the registry's grammars.yaml (identifierGrammar).
 };
 
 /** Files whose executable lines name the `OH-` prefix as a pattern or literal. */
@@ -125,12 +127,44 @@ describe('a second registry compiles (KF-SAS-RQ-139)', () => {
     ).toEqual([]);
   });
 
-  it("rejects a well-formed second-registry identifier for its prefix alone (damm.ts's coupling)", () => {
+  it("checks a second registry's reject vectors against its own grammar, not OpenHuman's", () => {
+    // SAS §100.3: while damm.ts hard-coded ^OH-, every AC- identifier was refused for its
+    // prefix before its check digit was read, so this gate passed a reject vector that is in
+    // fact a valid identifier. Plant one and require the gate to name it.
+    const payload = '000001';
+    const valid = `AC-DOC-${payload}-${String(dammCheck(payload))}`;
+    const planted = {
+      ...second,
+      damm: {
+        ...second.damm,
+        reject_vectors: [
+          ...(second.damm['reject_vectors'] as unknown[]),
+          { identifier: valid, reason: 'planted: a valid identifier posing as a reject vector' },
+        ],
+      },
+    };
+    const named = checkRegistryPolicy(planted, join(ROOT, 'ontology')).filter(
+      (f) => f.check === 'damm_reject_vectors',
+    );
+    expect(named.map((f) => f.detail)).toEqual([
+      `${valid} was accepted; it must be rejected (planted: a valid identifier posing as a reject vector)`,
+    ]);
+  });
+
+  it("validates a second registry's identifiers by its own grammar, and refuses OpenHuman's", () => {
+    // Before SAS §100.3 was closed, damm.ts refused AC-ITM-000123-4 for its prefix alone.
     const payload = '000123';
-    const id = `AC-ITM-${payload}-${String(dammCheck(payload))}`;
-    // The check digit is right; the prefix is the whole objection.
-    expect(validateIdentifier(`OH-ITM-${payload}-${String(dammCheck(payload))}`).valid).toBe(true);
-    expect(validateIdentifier(id).valid).toBe(false);
+    const check = String(dammCheck(payload));
+    const own = identifierGrammar(second.grammars);
+    const openhuman = identifierGrammar(loadRegistryPolicy(FIRST).grammars);
+    expect(own.prefix).toBe('AC-');
+    expect(own.enterpriseNamespaces).not.toContain('LOT');
+    expect(own.validate(`AC-ITM-${payload}-${check}`)).toEqual({ valid: true, kind: 'enterprise' });
+    expect(own.validate(`OH-ITM-${payload}-${check}`).valid).toBe(false);
+    expect(own.validate(`AC-LOT-${payload}-${check}`).reason).toMatch(/'LOT' is not an allocated/);
+    expect(own.formatEnterprise('ITM', 123)).toBe(`AC-ITM-${payload}-${check}`);
+    expect(openhuman.validate(`OH-ITM-${payload}-${check}`).valid).toBe(true);
+    expect(openhuman.validate(`AC-ITM-${payload}-${check}`).valid).toBe(false);
   });
 });
 

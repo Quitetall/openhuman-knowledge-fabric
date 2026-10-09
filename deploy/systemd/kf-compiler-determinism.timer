@@ -1,0 +1,15 @@
+[Unit]
+Description=Re-run recorded document compilations weekly to test determinism
+
+[Timer]
+# How long this may go without firing before scripts/timer-liveness.sh reports it (systemd
+# ignores X- keys). Weekly plus an hour of spread and a day of grace: eight days silent means a
+# week was missed.
+X-KF-MaxSilenceSec=694800
+OnCalendar=Sun *-*-* 04:30:00
+RandomizedDelaySec=3600
+# A host that was off on Sunday re-runs when it comes back rather than skipping a week.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -146,6 +146,38 @@ function retiredDeliverableRows(pkg: ExportPackage, fromOldRows: Row[] | null): 
   return fromOldRows;
 }
 
+/**
+ * `content.master_record.corpus_digest` (20260901000100) is NOT NULL with no default, and the
+ * migration computed it for every existing record from its manifest. An archive written before
+ * the master-record section exported it (cade0136) carries records without it, which would fail
+ * the insert. Each is derived exactly as the migration derived it, by the database's own function;
+ * the `master_record_corpus_digest_matches_manifest` check then holds by construction. A package
+ * whose rows disagree about carrying the column is refused by the column-set check below.
+ */
+async function withDerivedCorpusDigest(
+  tx: Tx,
+  pkg: ExportPackage,
+  rows: readonly Row[],
+): Promise<Row[]> {
+  const derived: Row[] = [];
+  for (const row of rows) {
+    if (Object.hasOwn(row, 'corpus_digest')) {
+      derived.push(row);
+      continue;
+    }
+    const manifest =
+      pkg.manifest.format_version === EXPORT_FORMAT_VERSION
+        ? decodeLosslessValue(row['manifest'], 'postgres.jsonb', 'master-records.json.manifest')
+        : JSON.stringify(row['manifest']);
+    const { digest } = await tx.one<{ digest: string }>(
+      'select content.master_record_corpus_digest($1::jsonb) as digest',
+      [manifest],
+    );
+    derived.push({ ...row, corpus_digest: digest });
+  }
+  return derived;
+}
+
 export async function restoreSections(
   tx: Tx,
   pkg: ExportPackage,
@@ -177,6 +209,9 @@ export async function restoreSections(
     }
     if (name === 'document-parses') {
       rows = rows.map(withRecordedParseFormat);
+    }
+    if (name === 'master-records') {
+      rows = await withDerivedCorpusDigest(tx, pkg, rows);
     }
     if (pkg.manifest.format_version === '1' && name === 'audit-checkpoints') {
       rows = rows.map((row) => ({ ...row, format_version: 'kf.audit-checkpoint.v1' }));
