@@ -204,7 +204,15 @@ runs:
           *@sha256:*) ;;
           *) echo "::error::docker-compose.yml's seaweedfs image is not pinned by digest: '${image}'"; exit 1 ;;
         esac
-        docker pull --quiet "${image}"
+        # Docker Hub rate-limits anonymous pulls from shared runner addresses (429 "toomanyrequests",
+        # or a bare unexpected status). The digest pins what arrives, so retrying is safe; five
+        # tries over ~5 minutes, then the original error.
+        for attempt in 1 2 3 4 5; do
+          if docker pull --quiet "${image}"; then break; fi
+          if [ "${attempt}" = 5 ]; then exit 1; fi
+          echo "::warning::pull of ${image} failed (attempt ${attempt}); retrying in $((attempt * 20))s"
+          sleep $((attempt * 20))
+        done
         docker run --rm --entrypoint weed "${image}" version
 
     # THE FOURTH THING THE HOST CONTRACT ASKS FOR, and the last one this runner was missing.
