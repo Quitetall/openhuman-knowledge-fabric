@@ -9,7 +9,7 @@
  * it was before the change.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
@@ -63,6 +63,38 @@ describe('backups leave the host only as ciphertext', () => {
     );
     // Recorded only after the archive existed.
     expect(tools.sqlLog()).toContain('insert into ops.backup_run');
+  });
+
+  it('leaves the bundle and its ciphertext readable by the archive group, under the unit umask', () => {
+    // kf-backup writes; kf-offsite, through the kf-archive group the setgid /srv/kf-backups
+    // gives every entry, re-verifies the bundle and ships the ciphertext. mktemp made both
+    // owner-only and kf-backup.service runs with UMask=0077, so on the first host the off-site
+    // copy could not enter the directory: "cd: /srv/kf-backups/<backup>/: Permission denied"
+    // (KF-WAR-0001 rehearsal, 2026-10-07). Group read, never group write, never other.
+    const tools = setup();
+    const keys = recipientKeys(tools.work);
+    const destination = join(tools.work, 'backups', '20261007T020000Z');
+    const wrapper = join(tools.work, 'as-the-unit.sh');
+    writeFileSync(wrapper, `umask 077\nexec bash ${JSON.stringify(BACKUP)} "$@"\n`);
+    const result = runScript(wrapper, [destination], {
+      ...tools.env,
+      KF_BACKUP_RECIPIENT_FILE: keys.publicKey,
+    });
+    expect(result.code, result.output).toBe(0);
+    const modes: string[] = [];
+    const visit = (path: string): void => {
+      const stat = statSync(path);
+      const mode = stat.mode & 0o777;
+      if (stat.isDirectory()) {
+        if (mode !== 0o750) modes.push(`${path} ${mode.toString(8)}`);
+        for (const entry of readdirSync(path)) visit(join(path, entry));
+      } else if (mode !== 0o640) {
+        modes.push(`${path} ${mode.toString(8)}`);
+      }
+    };
+    visit(destination);
+    visit(`${destination}.tar.gpg`);
+    expect(modes).toEqual([]);
   });
 
   it('routes the role dump to the admitted database returned by PostgreSQL', () => {

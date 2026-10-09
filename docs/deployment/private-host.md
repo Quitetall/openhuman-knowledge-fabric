@@ -99,8 +99,10 @@ devices must then trust your CA, which is the cost ADR 0039 chose not to pay.
 
 Install the release (step 3 shows how), then run `sudo /opt/kf/scripts/deploy/provision-host.sh`
 once to create what a machine can. After that, `--check` lists what only you can supply, each with
-its path. On this host, besides the database logins and keys described in
-[Provision the host](#provision-the-host), it asks for:
+its path. On this host the database logins are no longer among them: with PostgreSQL 18 installed
+locally (Debian: `postgresql-18` from apt.postgresql.org), provisioning makes every login and its
+connection string itself ([Provision the host](#provision-the-host)). Besides the keys described
+there, it asks for:
 
 - **host requirements:** `tailscale` at `/usr/bin/tailscale` and `nginx` at `/usr/sbin/nginx`
   (Debian: `apt install nginx-light`);
@@ -112,7 +114,11 @@ its path. On this host, besides the database logins and keys described in
   - `/etc/default/tailscaled` needs `TS_PERMIT_CERT_UID=kf-tls`;
   - the certificate goes in `/etc/kf/tls/tailnet.crt`;
 - **nginx:** Debian's `/etc/nginx/sites-enabled/default`, which listens on `0.0.0.0:80`, must be
-  removed. Provisioning renders
+  removed, and nginx then **restarted**: a reload keeps the wildcard `:80` socket the default site
+  opened, measured on the 2026-10-07 rehearsal. Provisioning also installs a drop-in
+  (`/etc/systemd/system/nginx.service.d/kf-tailnet-address.conf`) that makes nginx wait at boot
+  for the tailnet address it listens on; without it nginx lost the race with tailscaled and the
+  rehearsal host came back from its first reboot serving nothing. Provisioning renders
   [`deploy/nginx/knowledge-fabric-tailnet.conf`](../../deploy/nginx/knowledge-fabric-tailnet.conf)
   for this host into `/etc/nginx/sites-available/knowledge-fabric.conf` and enables it;
 - **the off-site bucket:** `provision-host.sh` does not ask for it. `KF_OFFSITE_DESTINATION=b2`
@@ -134,10 +140,10 @@ Re-run `--check` until it exits 0.
 Build once on the workstation ([Build once on the workstation](#build-once-on-the-workstation)).
 Copy the archive to the host over the tailnet, then install it with `install-release.sh`
 ([Install and roll back](#install-and-roll-back-install-releasesh)). Apply the migrations with
-`kf-migrate.service`, then set the API's origins in `/etc/kf/api.env`:
-`KF_WEB_ORIGIN=https://<host>.<tailnet>.ts.net` and
-`KF_API_ORIGIN=https://<host>.<tailnet>.ts.net:8443`. A tailnet name has no subdomains, so the
-API is on the same name at port 8443. Then enable the services and timers as
+`kf-migrate.service`. The API's origins (`KF_WEB_ORIGIN=https://<host>.<tailnet>.ts.net`,
+`KF_API_ORIGIN=https://<host>.<tailnet>.ts.net:8443`; a tailnet name has no subdomains, so the API
+is on the same name at port 8443), the web's redirect URI and the notifier's origin are filled by
+`provision-host.sh` from the tailnet name; until 2026-10-07 they were typed by hand. Then enable the services and timers as
 [`deploy/systemd/README.md`](../../deploy/systemd/README.md) lists them.
 
 Keycloak's issuer must be https and reachable by the people signing in, which on this host means
@@ -706,6 +712,7 @@ sudo -u kf-migrator env \
   KF_REHEARSAL_DISPOSABLE_CLUSTER_CONFIRMATION=dedicated-disposable-cluster \
   KF_REHEARSAL_TARGET_LABEL=<non-secret-target-label> \
   KF_REHEARSAL_RECEIPT_KEY_FILE=/etc/kf/migrator/rehearsal-receipt-key \
+  KF_COMMISSIONING_EVIDENCE_DIR=/var/lib/kf/commissioning \
   /path/to/extracted-release/scripts/deploy/migrate-release.sh rehearse-rollback \
   /path/to/extracted-release \
   /var/lib/kf-migrator/rollback-rehearsal-<release-id>.receipt
@@ -901,15 +908,19 @@ It generates the rollback-receipt HMAC key, the web session key, the readiness t
 the checkpoint signing key — whose id is its own fingerprint, published in
 `/etc/kf/checkpoint-public-keys/` before `CHECKPOINT_SIGNING_KEY_ID` is written — each `0600`,
 owned by the one identity that reads it, never printed and never on a command line. It creates
-the nineteen service identities (including `kf-audit-verify`, `kf-drill`, `kf-attestor`, the three retrieval identities, `kf-tls`, and `kf-objects` and `kf-objects-init` for the object store) and
+the twenty service identities (including `kf-notify`, `kf-audit-verify`, `kf-drill`, `kf-attestor`, the three retrieval identities, `kf-tls`, and `kf-objects` and `kf-objects-init` for the object store) and
 the `kf-archive` and `kf-attest` groups, installs the units
 and the environment templates, installs the pinned SeaweedFS binary for this host's own object
 store (`kf-objects`, ADR 0039; refused unless both pinned sha256 digests match), generates each
 service's object-store secret and renders the store's identities from them — the storage key
 granted the orphan-collection policy in SeaweedFS's form, the drill's key read-only — prints that
 policy instead for a store that is not this host's own, and asks the object store whether the
-storage key really may list and delete versions. It ends by listing only what a person must supply, each with the exact file it
-goes in: database logins, object-store secrets and routing, the off-site destination, the alert
+storage key really may list and delete versions. On a host whose PostgreSQL 18 is local it makes
+the database, its group roles, the migrator login and one login per service with its `0600`
+connection string, installs the planner settings and creates the disposable rehearsal cluster
+(`deploy/systemd/README.md` lists each login's roles). It ends by listing only what a person must
+supply, each with the exact file it goes in: database logins only when the database is elsewhere,
+object-store secrets and routing, the off-site destination, the alert
 webhook, the OIDC issuer, the preservation key (external custody by design), and the backup
 recovery key — for which `--generate-recovery-key <file>` or `--seal-drill-key <file>` does the
 sealing. [`deploy/systemd/README.md`](../../deploy/systemd/README.md) says what each piece is for.
@@ -1162,12 +1173,20 @@ KF_IDENTITY_POLICY=/etc/kf/realm-policy.json \
 KF_IDENTITY_POLICY_SHA256=<digest recorded at review> \
 KF_REVERSE_PROXY_CONFIG=/etc/nginx/sites-enabled/kf \
 KF_PRIVATE_LISTEN_ADDRESSES=<the private addresses people reach this host on> \
-KF_RELEASE_DIR=/opt/kf/release \
+KF_RELEASE_DIR="$(readlink -f /opt/kf)" \
 KF_EVIDENCE_DIR=/var/lib/kf/commissioning \
 KF_RELEASE_ID=<release this host is running> \
 KF_EXPECTED_NODE_VERSION="$(kf_release_node_version)" \
   kf-commissioning            # add --json for an evidence record
 ```
+
+`KF_EVIDENCE_DIR` holds three receipts `evidence_receipts` reads, and until 2026-10-07 nothing
+wrote any of them: `install-release.sh` now writes `release-verification.json` there on every
+install and rollback, and `migrate-release.sh rehearse-rollback` writes `rollback-rehearsal.json`
+when given `KF_COMMISSIONING_EVIDENCE_DIR` (above); `provision-host.sh` makes the directory,
+`0775 root:kf-migrator`. The third, a ratified `compiler-qualification.json`, is owed only by a
+release that seals a Liminal compiler; one that declares `liminal=none` owes none (KF-WAR-0001
+rehearsal; the gate was re-qualified for it).
 
 **`KF_REVERSE_PROXY_CONFIG` and `KF_RELEASE_DIR` were missing from this block until
 2026-08-24, and that was not cosmetic.** `reverse_proxy_posture` and

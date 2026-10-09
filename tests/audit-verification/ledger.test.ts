@@ -9,7 +9,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDispatcher } from '@kf/actions';
-import { withTransaction, type Pool } from '@kf/database';
+import { createPool, withTransaction, type Pool } from '@kf/database';
 import { InMemoryObjectStore } from '@kf/artifacts';
 import { generateSigningKey, verifyCheckpoint } from '../../apps/checkpoint/src/sign.js';
 import { runCheckpoint, verifyLedger } from '../../apps/checkpoint/src/run.js';
@@ -164,6 +164,33 @@ describe('checkpoint runs', () => {
     );
     // And the failed run wrote nothing: the transaction rolled back with it.
     expect(await verifyLedger(h.adminPool, keys)).toEqual([]);
+  });
+
+  it("signs through the signer's own login, which holds kf_checkpoint and nothing else", async () => {
+    // Every run above is the database owner's. On a host the signer connects as a login in
+    // kf_checkpoint, which may SELECT the audit log and never UPDATE it — and the runner read the
+    // log `for share`, which PostgreSQL grants only with UPDATE. So the first checkpoint ever
+    // attempted on a host (the KF-WAR-0001 rehearsal, 2026-10-07) failed with "permission
+    // denied for table audit_event", and the audit log could not be signed by the one process
+    // that holds the key.
+    await withTransaction(h.adminPool, async (tx) => {
+      await tx.query(
+        "create role kf_checkpoint_signer login password 'test-only-not-a-secret' inherit",
+      );
+      await tx.query('grant kf_checkpoint to kf_checkpoint_signer');
+    });
+    const url = new URL(h.connectionString);
+    url.username = 'kf_checkpoint_signer';
+    url.password = 'test-only-not-a-secret';
+    const signer = createPool({ connectionString: url.toString(), maxConnections: 1 });
+    try {
+      await doWork(2, 'signer-login');
+      const result = await runCheckpoint(signer, key);
+      expect(result.status).toBe('signed');
+      expect(await verifyLedger(h.adminPool, keys)).toEqual([]);
+    } finally {
+      await signer.end();
+    }
   });
 });
 

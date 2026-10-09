@@ -38,7 +38,12 @@ function directories(name: string): readonly string[] {
 export function validServiceName(name: string): boolean {
   return (
     name.length <= 255 &&
-    /^[A-Za-z0-9_.-]+(?:@(?:[A-Za-z0-9_.-]|\\x[0-9a-fA-F]{2})*)?\.service$/.test(name)
+    // `@` is allowed in the INSTANCE: OnFailure=kf-alert@%n.service names the failed unit, and
+    // when that unit is itself an instance (kf-notify@digest.service) systemd creates
+    // kf-alert@kf-notify@digest.service.service. Refusing it made the whole manager observation
+    // unverifiable on any host where a notify run had ever failed (KF-WAR-0001 rehearsal,
+    // 2026-10-07). The template part before the first `@` is unchanged.
+    /^[A-Za-z0-9_.-]+(?:@(?:[A-Za-z0-9_.@-]|\\x[0-9a-fA-F]{2})*)?\.service$/.test(name)
   );
 }
 async function regularText(path: string): Promise<string> {

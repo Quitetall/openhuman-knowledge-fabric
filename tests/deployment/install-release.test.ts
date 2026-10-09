@@ -100,6 +100,7 @@ function run(root: string, args: string[], manifest?: string): { code: number; o
     env: {
       PATH: process.env['PATH'] ?? '/usr/bin:/bin',
       KF_INSTALL_ROOT: root,
+      KF_COMMISSIONING_EVIDENCE_DIR: join(root, 'evidence'),
       KF_EXPECTED_DBMATE_VERSION: '2.35.0',
       KF_EXPECTED_RELEASE_OWNER_UID: String(process.getuid?.() ?? 0),
       ...(manifest === undefined ? {} : { KF_EXPECTED_RELEASE_MANIFEST_SHA256: manifest }),
@@ -164,6 +165,34 @@ describe('install-release.sh', { timeout: 120_000 }, () => {
     const forward = run(root, ['rollback']);
     expect(forward.code, forward.output).toBe(0);
     expect(live(root)).toBe('knowledge-fabric-bbbbbbbbbbbb');
+  });
+
+  it('writes the release-verification receipt kf-commissioning reads, for whatever is live', () => {
+    // evidence_receipts requires release-verification.json naming the running release, and
+    // until 2026-10-07 nothing but its own test fixture wrote one: no host could satisfy it
+    // (KF-WAR-0001 rehearsal).
+    const root = prefix();
+    const a = makeRelease(root, 'knowledge-fabric-aaaaaaaaaaaa');
+    const b = makeRelease(root, 'knowledge-fabric-bbbbbbbbbbbb');
+    const receipt = (): Record<string, unknown> =>
+      JSON.parse(
+        readFileSync(join(root, 'evidence', 'release-verification.json'), 'utf8'),
+      ) as Record<string, unknown>;
+    expect(run(root, ['install', a.directory], a.manifest).code).toBe(0);
+    expect(receipt()).toMatchObject({
+      release: 'aaaaaaaaaaaa',
+      manifestSha256: a.manifest,
+      verified: true,
+    });
+    expect(run(root, ['install', b.directory], b.manifest).code).toBe(0);
+    expect(receipt()).toMatchObject({ release: 'bbbbbbbbbbbb', manifestSha256: b.manifest });
+    expect(run(root, ['rollback']).code).toBe(0);
+    expect(receipt()).toMatchObject({ release: 'aaaaaaaaaaaa', manifestSha256: a.manifest });
+    expect(Number.isNaN(Date.parse(String(receipt()['recordedAt'])))).toBe(false);
+    // And a refused install writes nothing.
+    const c = makeRelease(root, 'knowledge-fabric-cccccccccccc');
+    expect(run(root, ['install', c.directory], 'f'.repeat(64)).code).not.toBe(0);
+    expect(receipt()['release']).toBe('aaaaaaaaaaaa');
   });
 
   it('refuses a release whose manifest digest does not verify, and moves nothing', () => {

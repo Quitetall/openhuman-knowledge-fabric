@@ -662,7 +662,13 @@ drop function core.object_verification_basis_guard();
 
 -- Rolling back past this release forgets every verification a policy made: they become
 -- unverified, which is the direction a rollback may err in. Take an export first if they matter.
+-- The table is append-only (object_verification_append_only, a statement trigger, so it refuses
+-- even a delete that matches nothing). This section forgets those rows deliberately; until
+-- 2026-10-07 it ran into the guard and no rollback past this migration could complete
+-- (tests/database/rollback-to-floor.test.ts). The guard is back on before anything else runs.
+alter table core.object_verification disable trigger object_verification_append_only;
 delete from core.object_verification where basis = 'verified_by_policy';
+alter table core.object_verification enable trigger object_verification_append_only;
 alter table core.object_verification drop constraint object_verification_policy_names_its_basis;
 alter table core.object_verification drop constraint object_verification_basis_check;
 alter table core.object_verification
@@ -670,9 +676,11 @@ alter table core.object_verification
   check (basis in ('reviewed_individually', 'promoted_in_bulk'));
 alter table core.object_verification drop column policy_id;
 
+-- The function first: it returns the table's row type, so the table cannot go while it exists.
+-- This order was the other way round until 2026-10-07 (tests/database/rollback-to-floor.test.ts).
+drop function core.verification_policy_in_force(uuid, text, text, text);
 drop table core.verification_policy;
 drop function core.verification_policy_bounded();
-drop function core.verification_policy_in_force(uuid, text, text, text);
 
 drop trigger action_agent_bar on core.action;
 drop function core.action_agent_bar();

@@ -114,6 +114,35 @@ swap_link() {
   }
 }
 
+# The commissioning receipt kf-commissioning's evidence_receipts check reads: this release was
+# verified against its reviewed manifest digest. Until 2026-10-07 nothing wrote it — only the
+# check's own test fixtures did — so evidence_receipts could not be satisfied on any host
+# (KF-WAR-0001 rehearsal). Rewritten on every install and rollback, because it describes the
+# release that is live. KF_COMMISSIONING_EVIDENCE_DIR is the KF_EVIDENCE_DIR kf-commissioning reads.
+evidence_directory="${KF_COMMISSIONING_EVIDENCE_DIR:-/var/lib/kf/commissioning}"
+write_verification_receipt() {
+  local name="$1" manifest="$2" receipt temporary
+  [[ "$evidence_directory" = /* ]] || return 1
+  if [ ! -d "$evidence_directory" ]; then
+    mkdir -p -- "$evidence_directory" && chmod 0755 "$evidence_directory" || return 1
+  fi
+  receipt="$evidence_directory/release-verification.json"
+  temporary="$evidence_directory/.release-verification.json.$$"
+  printf '{"release":"%s","releaseDirectory":"%s","manifestSha256":"%s","verified":true,"verifiedBy":"scripts/deploy/install-release.sh","recordedAt":"%s"}\n' \
+    "${name#knowledge-fabric-}" "$install_root/$name" "$manifest" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    > "$temporary" && chmod 0644 "$temporary" && mv -T -- "$temporary" "$receipt" || {
+    rm -f -- "$temporary"
+    return 1
+  }
+}
+
+# The switch has happened by the time this runs; a receipt that cannot be written is said, not
+# turned into a failed install of a release that is live.
+record_verification() {
+  write_verification_receipt "$@" ||
+    echo "warning: could not write $evidence_directory/release-verification.json; kf-commissioning's evidence_receipts will report it missing" >&2
+}
+
 acquire_lock() {
   mkdir -p -- "$state_directory"
   chmod 0755 "$state_directory"
@@ -181,6 +210,7 @@ case "$command_name" in
       swap_link "$previous_link" "$live"
     fi
     swap_link "$live_link" "$candidate_name"
+    record_verification "$candidate_name" "$manifest"
     echo "installed: $live_link -> $candidate_name (previous: ${live:-none})"
     ;;
 
@@ -204,6 +234,7 @@ case "$command_name" in
 
     swap_link "$previous_link" "$live"
     swap_link "$live_link" "$previous"
+    record_verification "$previous" "$(record_value manifest_sha256 "$record")"
     echo "rolled back: $live_link -> $previous (previous: $live)"
     ;;
 esac

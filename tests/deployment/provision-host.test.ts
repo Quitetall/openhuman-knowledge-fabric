@@ -22,7 +22,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 const ROOT = join(import.meta.dirname, '..', '..');
@@ -672,5 +672,385 @@ describe('the tailnet host (ADR 0039)', () => {
     ]) {
       expect(output).not.toContain(item);
     }
+  });
+});
+
+/**
+ * What the first rehearsal of the VPS install found (KF-WAR-0001, 2026-10-07, a Debian 13 KVM
+ * guest shaped like the VPS). Each of these was a defect there, and each test below fails on the
+ * script as it stood before the fix.
+ */
+describe('the VPS install rehearsal (KF-WAR-0001)', () => {
+  /**
+   * A host with a local PostgreSQL 18 cluster, as Debian's postgresql-18 leaves one: 18/main
+   * online. psql is faked to record the SQL it is given on stdin and to answer "0" to every
+   * one-line query (no login exists yet), so the test sees exactly what provisioning asked of the
+   * server, secrets included if any leaked into it.
+   */
+  function databaseHost(): Host & { sql(): string } {
+    const h = host();
+    for (const dir of [
+      '/usr/bin',
+      '/usr/lib/postgresql/18/bin',
+      '/etc/postgresql/18/main/conf.d',
+    ]) {
+      mkdirSync(h.path(dir), { recursive: true });
+    }
+    const sqlLog = join(h.root, '..', 'psql.sql');
+    writeFileSync(sqlLog, '');
+    writeFileSync(
+      h.path('/usr/bin/psql'),
+      `#!/usr/bin/env bash\nif [ "\${1:-}" = --version ]; then echo 'psql (PostgreSQL) 18.6'; exit 0; fi\nprintf '%s\\n' "psql $*" >> ${JSON.stringify(h.log)}\nfor a in "$@"; do [ "$a" = -c ] && { echo 0; exit 0; }; done\ncat >> ${JSON.stringify(sqlLog)}\n`,
+      { mode: 0o755 },
+    );
+    writeFileSync(
+      h.path('/usr/bin/pg_lsclusters'),
+      `#!/usr/bin/env bash\necho '18  main    5432 online postgres /var/lib/postgresql/18/main /var/log/postgresql/postgresql-18-main.log'\n[ -f ${JSON.stringify(join(h.root, '..', 'rehearsal-made'))} ] && echo '18  rehearsal 5433 online postgres /var/lib/postgresql/18/rehearsal /var/log/postgresql/postgresql-18-rehearsal.log'\nexit 0\n`,
+      { mode: 0o755 },
+    );
+    writeFileSync(h.path('/usr/lib/postgresql/18/bin/postgres'), '#!/bin/sh\n', { mode: 0o755 });
+    writeFileSync(
+      join(h.bin, 'pg_createcluster'),
+      `#!/usr/bin/env bash\nprintf '%s\\n' "pg_createcluster $*" >> ${JSON.stringify(h.log)}\ntouch ${JSON.stringify(join(h.root, '..', 'rehearsal-made'))}\n`,
+      { mode: 0o755 },
+    );
+    writeFileSync(
+      join(h.bin, 'pg_ctlcluster'),
+      `#!/usr/bin/env bash\nprintf '%s\\n' "pg_ctlcluster $*" >> ${JSON.stringify(h.log)}\n`,
+      { mode: 0o755 },
+    );
+    return Object.assign(h, { sql: () => readFileSync(sqlLog, 'utf8') });
+  }
+
+  // Each service's login and the group roles it holds — the mapping that was written nowhere.
+  const LOGINS: Record<string, { readonly file: string; readonly roles: string }> = {
+    kf_api_login: { file: '/etc/kf/api/database-url', roles: 'kf_app' },
+    kf_worker_login: { file: '/etc/kf/worker/database-url', roles: 'kf_worker' },
+    kf_attestor_login: { file: '/etc/kf/attestor/database-url', roles: 'kf_attestor' },
+    kf_checkpoint_login: { file: '/etc/kf/checkpoint/database-url', roles: 'kf_checkpoint' },
+    kf_audit_verify_login: { file: '/etc/kf/audit-verify/database-url', roles: 'kf_checkpoint' },
+    kf_backup_login: { file: '/etc/kf/backup/database-url', roles: 'kf_backup' },
+    kf_offsite_login: { file: '/etc/kf/offsite/database-url', roles: 'kf_backup' },
+    kf_drill_login: { file: '/etc/kf/drill/database-url', roles: 'kf_backup' },
+    kf_readiness_login: { file: '/etc/kf/readiness/database-url', roles: 'kf_app' },
+    kf_storage_login: { file: '/etc/kf/storage/database-url', roles: 'kf_app,kf_service_actor' },
+    kf_notify_login: { file: '/etc/kf/notify/database-url', roles: 'kf_notifier' },
+  };
+
+  it('makes every database login on a local cluster, with a connection string only its service can read', () => {
+    const h = databaseHost();
+    const result = h.run();
+    expect(result.code, result.output).toBe(0);
+    const sql = h.sql();
+    const everything = `${result.output}\n${h.calls()}\n${sql}`;
+    for (const [login, { file, roles }] of Object.entries(LOGINS)) {
+      const url = readFileSync(h.path(file), 'utf8').trim();
+      expect(mode(h.path(file)), file).toBe('600');
+      const parsed = new URL(url);
+      expect(parsed.username, file).toBe(login);
+      expect(parsed.host, file).toBe('127.0.0.1:5432');
+      expect(parsed.pathname, file).toBe('/kf');
+      // The password is in the file and nowhere else: not in SQL, argv or the report.
+      expect(parsed.password, file).toMatch(/^[0-9a-f]{64}$/);
+      expect(everything, file).not.toContain(parsed.password);
+      expect(sql).toMatch(new RegExp(`alter role "${login}" password 'SCRAM-SHA-256\\$4096:`));
+      for (const role of roles.split(',')) expect(sql).toContain(`grant ${role} to ${login};`);
+      // Exactly those roles: anything else it holds is revoked.
+      expect(sql).toContain(`'${login}' and g.rolname <> all (string_to_array('${roles}', ','))`);
+    }
+    // The migrator owns the schema: not a superuser, BYPASSRLS, every group role with ADMIN.
+    expect(sql).toContain(
+      'alter role kf_migrator_login login nosuperuser createrole nocreatedb bypassrls inherit;',
+    );
+    expect(sql).toContain('grant kf_attestor to kf_migrator_login with admin option;');
+    expect(sql).toContain('grant kf_notifier to kf_migrator_login with admin option;');
+    expect(sql).toContain('create extension if not exists btree_gist;');
+    expect(new URL(readFileSync(h.path('/etc/kf/migrator/database-url'), 'utf8')).username).toBe(
+      'kf_migrator_login',
+    );
+    // The disposable rehearsal cluster, its own login and database.
+    expect(h.calls()).toContain('pg_createcluster 18 rehearsal --start');
+    const rehearsal = new URL(
+      readFileSync(h.path('/etc/kf/migrator/rehearsal-database-url'), 'utf8'),
+    );
+    expect(rehearsal.username).toBe('kf_rehearsal_migrator');
+    expect(rehearsal.host).toBe('127.0.0.1:5433');
+    // jit = off where the cluster reads it.
+    expect(readFileSync(h.path('/etc/postgresql/18/main/conf.d/kf-planner.conf'), 'utf8')).toBe(
+      readFileSync(join(ROOT, 'deploy', 'postgres', 'planner.conf'), 'utf8'),
+    );
+    // And none of it is left for a person.
+    const human = h.run(['--check']).output.split('== inputs only a person can supply')[1] ?? '';
+    expect(human).not.toContain('database-url');
+  });
+
+  it('never re-keys a login whose connection string works', () => {
+    const h = databaseHost();
+    expect(h.run().code).toBe(0);
+    const before = readFileSync(h.path('/etc/kf/api/database-url'), 'utf8');
+    // The fake answers "0" to every existence query, which reads as a recreated cluster, so make
+    // the login exist for this second run.
+    writeFileSync(
+      h.path('/usr/bin/psql'),
+      readFileSync(h.path('/usr/bin/psql'), 'utf8').replace('echo 0; exit 0', 'echo 1; exit 0'),
+    );
+    expect(h.run().code).toBe(0);
+    expect(readFileSync(h.path('/etc/kf/api/database-url'), 'utf8')).toBe(before);
+  });
+
+  it('leaves the disposable rehearsal cluster dropped once the live release has its receipt', () => {
+    // The deployment contract says to destroy the rehearsal cluster afterwards; --check then
+    // asked for it back forever and could never exit 0 (2026-10-07 rehearsal).
+    const h = databaseHost();
+    expect(h.run().code).toBe(0);
+    rmSync(join(h.root, '..', 'rehearsal-made'));
+    mkdirSync(h.path('/var/lib/kf-migrator'), { recursive: true });
+    writeFileSync(h.path('/var/lib/kf-migrator/rollback-rehearsal-test.receipt'), 'format=v3\n');
+    const env = h.path('/etc/kf/migrator.env');
+    writeFileSync(
+      env,
+      readFileSync(env, 'utf8').replace(
+        /^KF_ROLLBACK_REHEARSAL_RECEIPT=.*$/m,
+        'KF_ROLLBACK_REHEARSAL_RECEIPT=/var/lib/kf-migrator/rollback-rehearsal-test.receipt',
+      ),
+    );
+    expect(h.run(['--check']).output).not.toContain('rehearsal cluster');
+    const before = h.calls().split('pg_createcluster').length;
+    expect(h.run().code).toBe(0);
+    expect(h.calls().split('pg_createcluster').length).toBe(before);
+  });
+
+  it('with no local cluster, says how to install one and leaves the database-urls to a person', () => {
+    const h = host();
+    expect(h.run().code).toBe(0);
+    const human = h.run(['--check']).output.split('== inputs only a person can supply')[1] ?? '';
+    expect(human).toContain('PostgreSQL 18 server');
+    expect(human).toContain('  /etc/kf/api/database-url');
+  });
+
+  it("prints a description containing '|' whole", () => {
+    // The report split each entry on '|', and the SMTP relay's description is
+    // `"security": "tls"|"starttls"`: everything after the bar was lost.
+    const h = host();
+    expect(h.run().code).toBe(0);
+    expect(h.run(['--check']).output).toContain('"security": "tls"|"starttls", "user"?, "from"}');
+  });
+
+  it('makes the commissioning evidence directory the migrator can write its receipt into', () => {
+    const h = host();
+    expect(h.run().code).toBe(0);
+    expect(mode(h.path('/var/lib/kf'))).toBe('755');
+    expect(mode(h.path('/var/lib/kf/commissioning'))).toBe('775');
+    expect(h.calls()).toContain(`chown root:kf-migrator ${h.path('/var/lib/kf/commissioning')}`);
+  });
+
+  it('publishes the checkpoint public key readable by the signer', () => {
+    // The script runs under umask 077, which filtered the 0644 node asked for down to 0600 root:
+    // kf-checkpoint could not read the key it signs against (EACCES on the first checkpoint).
+    const h = host();
+    expect(h.run().code).toBe(0);
+    const id = /^CHECKPOINT_SIGNING_KEY_ID=(ckpt-[0-9a-f]{16})$/m.exec(
+      readFileSync(h.path('/etc/kf/checkpoint.env'), 'utf8'),
+    )?.[1];
+    expect(mode(h.path(`/etc/kf/checkpoint-public-keys/${id}.pub`))).toBe('644');
+  });
+
+  it('fills the migration unit from the release install-release.sh verified', () => {
+    const h = host();
+    const release = basename(ROOT);
+    mkdirSync(h.path('/opt/.kf-install'), { recursive: true });
+    const digest = 'a'.repeat(64);
+    writeFileSync(
+      h.path(`/opt/.kf-install/${release}.verified`),
+      `manifest_sha256=${digest}\ndbmate_version=2.35.0\nowner_uid=0\n`,
+    );
+    expect(h.run().code).toBe(0);
+    const env = readFileSync(h.path('/etc/kf/migrator.env'), 'utf8');
+    expect(env).toContain(`KF_EXPECTED_RELEASE_MANIFEST_SHA256=${digest}\n`);
+    expect(env).toContain(
+      `KF_ROLLBACK_REHEARSAL_RECEIPT=/var/lib/kf-migrator/rollback-rehearsal-${release.replace(/^knowledge-fabric-/, '')}.receipt\n`,
+    );
+    expect(h.run(['--check']).output).not.toContain('/etc/kf/migrator.env');
+  });
+
+  it('lists the template receipt path, RELEASE_ID and all, when nothing says which release it is', () => {
+    const h = host();
+    expect(h.run().code).toBe(0);
+    expect(h.run(['--check']).output).toMatch(/KF_ROLLBACK_REHEARSAL_RECEIPT \(still the template/);
+  });
+
+  it('copies the alert webhook for the urgent push, which travels the same path', () => {
+    const h = host();
+    expect(h.run().code).toBe(0);
+    writeFileSync(h.path('/etc/kf/alert/webhook-url'), 'https://alerts.example.org/hook\n', {
+      mode: 0o600,
+    });
+    expect(h.run().code).toBe(0);
+    expect(readFileSync(h.path('/etc/kf/notify/alert-webhook-url'), 'utf8')).toBe(
+      'https://alerts.example.org/hook\n',
+    );
+    expect(mode(h.path('/etc/kf/notify/alert-webhook-url'))).toBe('600');
+    expect(h.calls()).toContain(
+      'chown kf-notify:kf-notify ' + h.path('/etc/kf/notify/alert-webhook-url'),
+    );
+  });
+
+  it('gives each off-site identity an ssh key, tells ssh where it is, and asks a person to pin the host', () => {
+    const h = host();
+    expect(h.run().code).toBe(0);
+    const offsite = h.path('/etc/kf/offsite.env');
+    writeFileSync(
+      offsite,
+      readFileSync(offsite, 'utf8')
+        .replace(
+          /^KF_OFFSITE_DESTINATION=$/m,
+          'KF_OFFSITE_DESTINATION=kfvault@vault.example.org:/srv/kf',
+        )
+        .replace(/^KF_OFFSITE_LABEL=$/m, 'KF_OFFSITE_LABEL=vault'),
+    );
+    const result = h.run();
+    expect(result.code, result.output).toBe(0);
+    for (const [identity, dir] of [
+      ['kf-offsite', '/etc/kf/offsite'],
+      ['kf-drill', '/etc/kf/drill'],
+    ] as const) {
+      expect(mode(h.path(`${dir}/ssh-key`))).toBe('600');
+      expect(readFileSync(h.path(`${dir}/ssh-key.pub`), 'utf8')).toMatch(/^ssh-ed25519 /);
+      expect(h.calls()).toContain(`chown ${identity}:${identity} ${h.path(`${dir}/ssh-key`)}`);
+    }
+    const config = readFileSync(h.path('/etc/ssh/ssh_config.d/kf-offsite.conf'), 'utf8');
+    expect(config).toContain(
+      'Match localuser kf-offsite\n    IdentityFile /etc/kf/offsite/ssh-key',
+    );
+    expect(config).toContain('UserKnownHostsFile /etc/kf/drill/known_hosts');
+    expect(config).toContain('StrictHostKeyChecking yes');
+    const human = h.run(['--check']).output.split('== inputs only a person can supply')[1] ?? '';
+    expect(human).toContain('  /etc/kf/offsite/known_hosts');
+    expect(human).toContain('  /etc/kf/drill/known_hosts');
+  });
+});
+
+describe('the VPS install rehearsal: the tailnet host (KF-WAR-0001)', () => {
+  const NAME = 'kf-host-1.example-tailnet.ts.net';
+  const ADDRESS = '100.101.102.103';
+
+  function tailnetHost(): Host {
+    const h = host();
+    for (const dir of [
+      '/usr/bin',
+      '/usr/sbin',
+      '/etc/nginx/sites-available',
+      '/etc/nginx/sites-enabled',
+    ]) {
+      mkdirSync(h.path(dir), { recursive: true });
+    }
+    writeFileSync(
+      h.path('/usr/bin/tailscale'),
+      `#!/usr/bin/env bash\ncat <<'JSON'\n${JSON.stringify({
+        BackendState: 'Running',
+        Self: { DNSName: `${NAME}.`, TailscaleIPs: [ADDRESS] },
+      })}\nJSON\n`,
+      { mode: 0o755 },
+    );
+    writeFileSync(h.path('/usr/sbin/nginx'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+    writeFileSync(h.path('/etc/nginx/sites-enabled/default'), 'server { listen 80; }\n');
+    return h;
+  }
+
+  it('makes nginx wait at boot for the tailnet address it listens on', () => {
+    // nginx raced tailscaled at boot and lost: bind() to the tailnet address failed, and the
+    // rehearsal host came back from its first reboot serving nothing.
+    const h = tailnetHost();
+    expect(h.run().code).toBe(0);
+    const dropIn = readFileSync(
+      h.path('/etc/systemd/system/nginx.service.d/kf-tailnet-address.conf'),
+      'utf8',
+    );
+    expect(dropIn).toContain('After=tailscaled.service network-online.target');
+    expect(dropIn).toContain(`grep -q " inet ${ADDRESS}/"`);
+    expect(dropIn).not.toContain('KF_TAILNET_ADDRESS');
+    expect(mode(h.path('/etc/systemd/system/nginx.service.d'))).toBe('755');
+  });
+
+  it('derives every public origin from the tailnet name', () => {
+    const h = tailnetHost();
+    expect(h.run().code).toBe(0);
+    expect(readFileSync(h.path('/etc/kf/api.env'), 'utf8')).toContain(
+      `KF_WEB_ORIGIN=https://${NAME}\nKF_API_ORIGIN=https://${NAME}:8443\n`,
+    );
+    expect(readFileSync(h.path('/etc/kf/web.env'), 'utf8')).toContain(
+      `KF_WEB_OIDC_REDIRECT_URI=https://${NAME}/auth/callback\n`,
+    );
+    expect(readFileSync(h.path('/etc/kf/notify.env'), 'utf8')).toContain(
+      `KF_NOTIFY_WEB_ORIGIN=https://${NAME}\n`,
+    );
+    const check = h.run(['--check']).output;
+    expect(check).not.toContain('KF_WEB_OIDC_REDIRECT_URI');
+    expect(check).not.toContain('KF_NOTIFY_WEB_ORIGIN');
+  });
+
+  it('says the default site must be removed AND nginx restarted, because a reload keeps its socket', () => {
+    const h = tailnetHost();
+    expect(h.run().code).toBe(0);
+    expect(h.run(['--check']).output).toContain(
+      'rm /etc/nginx/sites-enabled/default && systemctl restart nginx',
+    );
+  });
+
+  it("sends the web's sign-in to the issuer the API verifies", () => {
+    const h = host();
+    expect(h.run().code).toBe(0);
+    const api = h.path('/etc/kf/api.env');
+    writeFileSync(
+      api,
+      readFileSync(api, 'utf8').replace(
+        /^OIDC_ISSUER=.*$/m,
+        'OIDC_ISSUER=https://sso.example.org/realms/kf',
+      ),
+    );
+    expect(h.run().code).toBe(0);
+    expect(readFileSync(h.path('/etc/kf/web.env'), 'utf8')).toContain(
+      'KF_WEB_OIDC_ISSUER=https://sso.example.org/realms/kf\n',
+    );
+  });
+});
+
+describe('the worker environment template (KF-WAR-0001 rehearsal)', () => {
+  it('starts on the ordinary release, which declares liminal=none', () => {
+    // The template set all seven LIMINAL_* values, and verify-liminal-runtime.sh — the worker's
+    // ExecStartPre — refuses ANY of them on a release that declares none: the worker could not
+    // start from the shipped template on the shipped release.
+    const work = mkdtempSync(join(tmpdir(), 'kf-liminal-'));
+    directories.push(work);
+    writeFileSync(join(work, 'BUILD-METADATA'), 'liminal=none\n');
+    const template = readFileSync(join(ROOT, 'deploy', 'systemd', 'worker.env.example'), 'utf8');
+    expect(template).not.toMatch(/^LIMINAL_/m);
+    const r = spawnSync(
+      'bash',
+      [
+        '-c',
+        `set -a; . ${JSON.stringify(join(ROOT, 'deploy', 'systemd', 'worker.env.example'))}; set +a; exec bash "$0" "$1"`,
+        join(ROOT, 'scripts', 'deploy', 'verify-liminal-runtime.sh'),
+        work,
+      ],
+      { encoding: 'utf8', env: { PATH: process.env['PATH'] ?? '' } },
+    );
+    expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+    expect(r.stdout).toContain('release declares none');
+  });
+});
+
+describe('sockets on the public interface that are not KF (KF-WAR-0001 rehearsal)', () => {
+  it("turns systemd-resolved's LLMNR and mDNS off, which listened on every address", () => {
+    // Debian 13's cloud image: systemd-resolved answers LLMNR on 0.0.0.0:5355 and [::]:5355, and
+    // kf-commissioning's public_exposure failed on it on the rehearsal host.
+    const h = host();
+    mkdirSync(h.path('/usr/lib/systemd'), { recursive: true });
+    writeFileSync(h.path('/usr/lib/systemd/systemd-resolved'), '#!/bin/sh\n', { mode: 0o755 });
+    expect(h.run(['--check']).output).toContain('/etc/systemd/resolved.conf.d/kf-no-llmnr.conf');
+    expect(h.run().code).toBe(0);
+    const dropIn = readFileSync(h.path('/etc/systemd/resolved.conf.d/kf-no-llmnr.conf'), 'utf8');
+    expect(dropIn).toContain('[Resolve]\nLLMNR=no\nMulticastDNS=no\n');
+    expect(h.run(['--check']).output).not.toContain('kf-no-llmnr.conf');
   });
 });

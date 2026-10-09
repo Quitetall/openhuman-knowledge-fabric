@@ -153,7 +153,18 @@ if [ -z "$OFFSITE_UNAVAILABLE" ]; then
   fi
 
   echo "==> decrypting"
-  kf_validate_backup_decryption_key "$KF_DRILL_DECRYPTION_KEY_FILE"
+  # The shipped unit hands the key over through PID 1's credential mount (LoadCredentialEncrypted),
+  # where systemd makes it root:root 0440 with an ACL for this uid — which the owner-only FILE
+  # rule refuses as group-readable. Its other secrets are ordinary 0600 files, so custody cannot
+  # be switched for the whole run (KF_SECRET_CUSTODY): the unit names the custody of this one
+  # key, explicitly, and the native helper checks it. Until 2026-10-07 every drill on a host
+  # using the plain-file path refused its own key ("mode 440 ... chmod 600 it", KF-WAR-0001
+  # rehearsal); only the workstation-custody drop-in, which switches every secret, could decrypt.
+  if [ "${KF_DRILL_DECRYPTION_KEY_CUSTODY:-}" = systemd ]; then
+    KF_SECRET_CUSTODY=systemd kf_validate_backup_decryption_key "$KF_DRILL_DECRYPTION_KEY_FILE"
+  else
+    kf_validate_backup_decryption_key "$KF_DRILL_DECRYPTION_KEY_FILE"
+  fi
   install -d -m 0700 -- "$DRILL_DIR/gnupg" "$DRILL_DIR/backup"
   gpg --batch --no-tty --quiet --homedir "$DRILL_DIR/gnupg" \
     --import "$KF_DRILL_DECRYPTION_KEY_FILE" 2>/dev/null

@@ -12,7 +12,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, relative } from 'node:path';
+import { basename, dirname, join, relative } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 const ROOT = join(import.meta.dirname, '..', '..');
@@ -579,6 +579,43 @@ describe('release migration command', () => {
     expect(receiptBody).toContain('migrations_reverted=1');
     expect(receiptBody).toContain('forward_only_floor=none');
     expect(receiptBody).not.toContain('database.invalid');
+  });
+
+  it('writes the commissioning receipt kf-commissioning reads, pointing at the authenticated one', () => {
+    // evidence_receipts requires rollback-rehearsal.json naming the running release; until
+    // 2026-10-07 nothing wrote one and no host could satisfy it (KF-WAR-0001 rehearsal).
+    const release = makeRelease();
+    const dbmate = fakeDbmate(release);
+    const psql = fakePsql();
+    const secret = join(temporaryDirectory('kf-rehearsal-secret-'), 'database-url');
+    const receipt = join(temporaryDirectory('kf-rehearsal-receipt-'), 'receipt');
+    const evidence = temporaryDirectory('kf-commissioning-evidence-');
+    writeFileSync(secret, 'postgresql://kf_migrator:scratch-secret@database.invalid/scratch\n', {
+      mode: 0o600,
+    });
+    const result = runMigration(['rehearse-rollback', release.release, receipt], release, dbmate, {
+      KF_PSQL_BIN: psql.executable,
+      KF_TEST_PSQL_LOG: psql.log,
+      KF_REHEARSAL_DATABASE_URL_FILE: secret,
+      KF_REHEARSAL_DISPOSABLE_CLUSTER_CONFIRMATION: 'dedicated-disposable-cluster',
+      KF_REHEARSAL_TARGET_LABEL: 'test-disposable-cluster',
+      KF_COMMISSIONING_EVIDENCE_DIR: evidence,
+    });
+    expect(result.code, result.output).toBe(0);
+    const written = JSON.parse(readFileSync(join(evidence, 'rollback-rehearsal.json'), 'utf8')) as {
+      release: string;
+      recordedAt: string;
+      receipt: string;
+      receiptSha256: string;
+      manifestSha256: string;
+    };
+    expect(written.release).toBe(basename(release.release).replace(/^knowledge-fabric-/, ''));
+    expect(written.receipt).toBe(receipt);
+    expect(written.receiptSha256).toBe(
+      createHash('sha256').update(readFileSync(receipt)).digest('hex'),
+    );
+    expect(written.manifestSha256).toBe(release.manifestDigest);
+    expect(Number.isNaN(Date.parse(written.recordedAt))).toBe(false);
   });
 
   describe('rollback stops at the declared floor and proves where it stopped', () => {

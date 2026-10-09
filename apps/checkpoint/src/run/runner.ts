@@ -11,9 +11,16 @@ import { CHECKPOINT_LOCK, EVENT_COLUMNS, EVENT_SOURCE } from './sql.js';
 /**
  * Sign everything since the last checkpoint.
  *
- * Runs in one transaction, and takes the events with `for share` so a concurrent write cannot
- * land inside the range after it was read: a checkpoint claiming to cover seq 1–100 must cover
- * exactly the 1–100 that existed when it was signed.
+ * Runs in one transaction, under an advisory lock so two runs never sign the same range.
+ *
+ * It read the events `for share` until 2026-10-07, "so a concurrent write cannot land inside the
+ * range after it was read". A row lock never did that: it holds rows that exist against UPDATE
+ * and DELETE, which the audit log already refuses to everyone (append-only triggers), and it does
+ * nothing about rows not yet inserted. What it did do was demand UPDATE privilege, which the
+ * signer's role, kf_checkpoint, is deliberately never granted — so on the first host the signer
+ * could not read the log at all ("permission denied for table audit_event", KF-WAR-0001
+ * rehearsal). A checkpoint covers exactly the events this transaction's snapshot saw, and its
+ * range is the seqs it signed, which `verifyChain` below checks link without a gap.
  */
 export async function runCheckpoint(
   pool: Pool,
@@ -31,7 +38,7 @@ export async function runCheckpoint(
 
     const rows = await tx.query<RawEvent>(
       `select ${EVENT_COLUMNS} from ${EVENT_SOURCE}
-        where event.seq > $1 order by event.seq for share of event`,
+        where event.seq > $1 order by event.seq`,
       [afterSeq],
     );
     const entries = rows.map(toEntry);

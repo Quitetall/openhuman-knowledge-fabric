@@ -1484,6 +1484,11 @@ drop function if exists core.qualification_agent_bar();
 drop trigger if exists action_requires_qualification on core.action;
 drop function if exists core.action_requires_qualification();
 
+-- qualification_record_read, a policy on the RECORD table, reads the credit table, so the credit
+-- table cannot be dropped while it exists. Until 2026-10-07 this section dropped tables first and
+-- failed there, and the rollback rehearsal on a fresh host could not sign a receipt for any
+-- release carrying this migration (tests/database/rollback-to-floor.test.ts).
+drop policy if exists qualification_record_read on org.qualification_record;
 drop table org.invitation;
 drop table org.qualification_credit;
 drop table org.qualification_evidence_submission;

@@ -1,0 +1,154 @@
+{
+  "commissioned": false,
+  "checks": [
+    {
+      "id": "unit_provenance",
+      "blocker": "no installed user/file ownership evidence, service start/restart/reboot evidence; no proof that units sharing an identity need the same secrets",
+      "status": "satisfied",
+      "detail": "All 21 installed base files match this release byte-identically, with only exact role-specific reviewed drop-ins. The composed files declare separate API (kf-api) and checkpoint (kf-checkpoint) identities, no surplus named secret paths for shared identities, and failure routing outside the alert path. This is file-composition evidence, not proof of loaded PID1 state or successful startup.",
+      "observed": {
+        "shippedUnits": 21,
+        "installedUnits": 21,
+        "missing": "none",
+        "altered": "none",
+        "apiUser": "kf-api",
+        "checkpointUser": "kf-checkpoint",
+        "withoutOnFailure": "none",
+        "identitiesReachingSurplusSecrets": "none"
+      }
+    },
+    {
+      "id": "systemd_loaded_units",
+      "blocker": "no proof that the system manager loaded reviewed fragments, identities and hardening without pending reloads or unreviewed overrides",
+      "status": "satisfied",
+      "detail": "Loaded fragments, selected drop-ins, identities, alert targets and declared hardening agree; not startup or reboot evidence.",
+      "observed": {
+        "units": 38,
+        "loadPaths": 12
+      }
+    },
+    {
+      "id": "secret_posture",
+      "blocker": "no host evidence that each private key is readable only by the one identity that uses it",
+      "status": "unverifiable",
+      "detail": "1 referenced file(s) cannot be verified, so their posture is unknown. Run `sudo /opt/kf/scripts/deploy/provision-host.sh --check` to list every missing file and the inputs only a person can supply; `sudo /opt/kf/scripts/deploy/provision-host.sh` creates the rest.",
+      "observed": {
+        "secretPaths": 42,
+        "directSources": 42,
+        "pid1Sources": 2,
+        "publicConfigurations": 0,
+        "absent": "/run/kf-workstation-credentials/current/retrieval-index-key (metadata observation unavailable)",
+        "groupOrWorldReadable": "/etc/kf/notify/smtp.json (not a nonempty single-link regular file)"
+      }
+    },
+    {
+      "id": "attestor_separation",
+      "blocker": "no host evidence that kf-attestor runs apart from the API, that only the API can reach its socket, and that the API cannot read its database credential",
+      "status": "satisfied",
+      "detail": "kf-attestor runs as kf-attestor, apart from the API (kf-api); its socket is reachable by kf-api and closed to everybody else; kf-api can read none of its 2 secret file(s).",
+      "observed": {
+        "apiUser": "kf-api",
+        "attestorUser": "kf-attestor",
+        "socket": "/run/kf-attestor/attestor.sock",
+        "socketMode": "660",
+        "socketOwner": "kf-attestor",
+        "socketGroupMembers": "kf-api, kf-attestor",
+        "credentialsReadableByApi": "none",
+        "credentialsUninspectable": "none"
+      }
+    },
+    {
+      "id": "tls_termination",
+      "blocker": "no site hostnames or certificates validated against the name this host serves",
+      "status": "satisfied",
+      "detail": "A certificate valid for kf-rehearsal.tail0rehearsal.ts.net is installed, has 89 day(s) left, and its key is closed to group and other.",
+      "observed": {
+        "subject": "CN=kf-rehearsal.tail0rehearsal.ts.net",
+        "hostname": "kf-rehearsal.tail0rehearsal.ts.net",
+        "coversHostname": true,
+        "validFrom": "2026-10-07T17:17:17.000Z",
+        "validTo": "2027-01-05T17:17:17.000Z",
+        "daysRemaining": 89,
+        "privateKeyMode": null
+      }
+    },
+    {
+      "id": "reverse_proxy_posture",
+      "blocker": "no installed nginx validation: upstream TLS termination is asserted by the deployment and, until this passes, verified by nobody",
+      "status": "satisfied",
+      "detail": "All 4 server blocks terminate TLS before proxying, every upstream is loopback, TLS 1.0/1.1 are refused, and each proxying block forwards the original scheme.",
+      "observed": {
+        "reverseProxyConfigPath": "/etc/nginx/sites-available/knowledge-fabric.conf",
+        "serverBlocks": 4,
+        "cleartextProxying": "none",
+        "remoteUpstreams": "none",
+        "missingForwardedProto": "none",
+        "weakProtocols": "none",
+        "privateListenAddresses": "100.101.102.103, fd7a:115c:a1e0::1",
+        "listenersOffPrivateAddresses": "none"
+      }
+    },
+    {
+      "id": "public_exposure",
+      "blocker": "no host evidence that nothing listens on the public interface but the private network's own transport",
+      "status": "unsatisfied",
+      "detail": "3 socket(s) listen on an address other than loopback or the private network: udp 10.0.2.15%ens3:68; tcp 0.0.0.0:22; tcp [::]:22. Bind each to loopback or a private address, or name it in KF_PUBLIC_LISTEN_ALLOWED if it is meant to face the public interface.",
+      "observed": {
+        "privateListenAddresses": "100.101.102.103, fd7a:115c:a1e0::1",
+        "privateInterface": "tailscale0",
+        "publicListenAllowed": "udp:41641",
+        "listening": 25,
+        "exposed": "udp 10.0.2.15%ens3:68; tcp 0.0.0.0:22; tcp [::]:22",
+        "unreadable": "none"
+      }
+    },
+    {
+      "id": "identity_provider_policy",
+      "blocker": "no reviewed reproducible Keycloak realm/client policy",
+      "status": "satisfied",
+      "detail": "The deployment trusts https://kf-rehearsal.tail0rehearsal.ts.net:8444 as client knowledge-fabric-web under the exact reviewed policy. Browser behaviour remains human evidence.",
+      "observed": {
+        "issuer": "https://kf-rehearsal.tail0rehearsal.ts.net:8444/realms/knowledge-fabric",
+        "clientId": "knowledge-fabric-web",
+        "policy": "/etc/kf/identity/realm-policy.json",
+        "expectedDigest": "6dc619fdc494ad1bedf162fe2f66e67804dda401327e70e8fbade0771f7a034c",
+        "actualDigest": "6dc619fdc494ad1bedf162fe2f66e67804dda401327e70e8fbade0771f7a034c"
+      }
+    },
+    {
+      "id": "runtime_version",
+      "blocker": "no proof host uses exact tested Node/PostgreSQL versions",
+      "status": "satisfied",
+      "detail": "Node 24.21.0 matches the version this release was tested on.",
+      "observed": {
+        "expected": "24.21.0",
+        "actual": "24.21.0"
+      }
+    },
+    {
+      "id": "liminal_runtime_inventory",
+      "blocker": "no proof that the compiler and external runtime closure on this host are the reviewed bytes rather than whatever was installed since",
+      "status": "satisfied",
+      "detail": "This release declares no Liminal compiler and ships none, so there is no external compiler or library closure on this host to review. Documents compile with the native compiler, which is inside the release and covered by its SHA256SUMS. See ADR 0010.",
+      "observed": {
+        "releaseDirectory": "/opt/knowledge-fabric-b0d4d784dad7",
+        "liminal": "none",
+        "vendoredRuntime": null
+      }
+    },
+    {
+      "id": "evidence_receipts",
+      "blocker": "no successful disposable-cluster rollback receipt or host migration result for a release; no human-ratified compiler qualification receipt",
+      "status": "satisfied",
+      "detail": "Release verification and rollback rehearsal exist for b0d4d784dad7; it declares no Liminal compiler, so no compiler qualification is owed.",
+      "observed": {
+        "releaseId": "b0d4d784dad7",
+        "compilerQualification": "not owed: the release declares liminal=none and ships no compiler (ADR 0010)",
+        "rollbackRehearsalAgeDays": 0,
+        "missing": "none",
+        "wrongRelease": "none",
+        "stale": "none"
+      }
+    }
+  ]
+}

@@ -2,7 +2,11 @@
 Description=Knowledge Fabric identity attestor (vouches to the database that a person is present)
 Documentation=file:///opt/kf/docs/deployment/private-host.md
 Wants=network-online.target
-After=network-online.target
+After=network-online.target postgresql.service
+# postgresql.service and kf-objects.service: ordering only, never a dependency, because either
+# may live on another host. On a host that runs them (ADR 0039) a boot without it started this
+# unit first, it failed on "the database system is starting up", and OnFailure= sent an alert on
+# every boot (KF-WAR-0001 rehearsal, 2026-10-07). After= on a unit that does not exist is a no-op.
 OnFailure=kf-alert@%n.service
 # The same crash-loop bound as kf-api: a loop must END in `failed`, the only state OnFailure=
 # reacts to. Without this process no bearer caller can be bound, so a silent loop here is an
