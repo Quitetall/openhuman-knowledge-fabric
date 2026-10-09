@@ -1,7 +1,7 @@
 schema = "oh.war/sas-revision/v1"
 version = "0.1.0-draft.9"
 source = "docs/sas/KF_Software_Architecture_Specification.md"
-sha256 = "edee583b7da5550a0b69b2d63421a1fa85cc5dda04e3449ee2e6bf3baf0dfce6"
+sha256 = "aaf9f6f735b0f62f345f75cdee4351f61e29b206fd5b5bfe31b738735f86ed06"
 state = "proposed"
 predecessor = "0.1.0-draft.8"
 architecture_changing = true

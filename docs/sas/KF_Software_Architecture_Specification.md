@@ -3586,7 +3586,12 @@ proposed, added two for the first host, written down before it exists:
 
 `scripts/deploy/provision-host.sh` creates the accounts, directories and generated secrets a
 machine can create, and `--check` changes nothing and lists what only a person can supply, each
-with the path it goes in. It is step zero of the host preflight (§91.3).
+with the path it goes in. It is step zero of the host preflight (§91.3). On a host whose
+PostgreSQL 18 is local it also makes the database, its group roles, the migrator and one login per
+service, each password only in that service's 0600 connection-string file; only a database
+elsewhere leaves the logins to a person. Its first full run, on a VM shaped like the first host
+(KF-WAR-0001 rehearsal, 2026-10-07), found 24 defects in the shipped scripts and units, each fixed
+with a test that failed first (`docs/warrants/KF-WAR-0001/evidence/rehearsal-2026-10-07.md`).
 
 The general lesson is a requirement in its own right, because it is the reason five of the first
 six were found late.
@@ -3731,7 +3736,11 @@ An hourly signed Merkle checkpoint over the audit log, produced by `apps/checkpo
 **separate process precisely so the Ed25519 signing key is not reachable from the API**. It runs
 in two modes, `--run` and `--verify`, so the same code that signs can check.
 
-Host preflight includes proving that the API service account cannot read the private key.
+Host preflight includes proving that the API service account cannot read the private key. The
+signer reads the audit log and the actions' targets through its own login, `kf_checkpoint`, without
+row locks and under its own row-security policy on `core.action` (`20261007900000`): until the
+rehearsal nothing had run it as anything but the database owner, and through its own login it found
+nothing to sign.
 
 **KF-SAS-RQ-167.** Audit checkpoint signing SHALL run in a process the serving application
 cannot reach the key of, and that isolation SHALL be evidenced on the host.
@@ -3775,7 +3784,14 @@ proposed). Its name is its tailnet name, `<host>.<tailnet>.ts.net`; its certific
 publicly trusted one `tailscale cert` issues for that name, renewed daily by `kf-tls-renew.timer`
 (§87); and nginx terminates TLS on the tailnet address alone. A host reached through a private
 network with a certificate from a CA its operator runs remains the alternative
-(`KF_HOST_ACCESS=private-ca`, `docs/deployment/private-host.md`).
+(`KF_HOST_ACCESS=private-ca`, `docs/deployment/private-host.md`). nginx on a tailnet host waits at
+boot for the address it listens on (`deploy/nginx/nginx-waits-for-tailnet.conf`), and Debian's
+default site is removed and nginx restarted, never reloaded, since a reload keeps `0.0.0.0:80` open.
+`evidence_receipts` reads the receipts `install-release.sh` and `migrate-release.sh` write, and owes
+a compiler qualification only for a release that declares `liminal=sealed`; `kf-commissioning
+--json` writes its report to stdout. The step-by-step for the first host is
+`docs/deployment/first-host-runbook.md`, and the controls no check covers are enumerated in
+`docs/warrants/KF-WAR-0001/evidence/uncovered-controls.md` (KF-SAS-RQ-169).
 
 **91.4 What no check covers.** Recorded explicitly, because an earlier revision claimed blanket
 coverage that was untrue of four items. Real-provider browser evidence has no check. Firewall
@@ -4272,6 +4288,12 @@ and readiness reports each as having no review date until it is renewed. Bears o
 
 **100.10 No host has ever been commissioned.** Phase 9 is not started. Four of the five v1.0
 criteria queue behind it, and one carries a floor that cannot begin counting until it exists.
+Narrowed in `0.1.0-draft.9` (2026-10-07): the install was rehearsed on a VM shaped like the first
+host, with stand-ins for the tailnet and B2, through a signed and verified checkpoint, an off-site
+backup and a verified restore drill, and an unwatched reboot; `kf-commissioning` satisfied 9 of 11
+checks, and the two it did not are owner-supplied
+(`docs/warrants/KF-WAR-0001/evidence/rehearsal-2026-10-07-commissioning-after-reboot.json`). A
+rehearsal is not commissioning: the real host, its accounts and a person's alert and login remain.
 
 **100.11 Continuous integration has never been green on a tagged commit**, which is a v1.0
 criterion in its own right. The criterion now covers this document too: a `sas` job runs
@@ -4840,6 +4862,22 @@ it is tagged with a registry re-cut the owner signs. The document compiler's pro
 a `kf-document-v1` protocol bump agreed with the Liminal compiler. The ML registry's sub-digests and
 the master record's corpus and permission digests need a format bump with migrations, or the owner
 accepts each as a limit with its reason. Bears on KF-SAS-RQ-016 and RQ-158.
+
+**100.66 Semantic search has no installer.** ADR 0039 decision 5 runs the embedder and the
+retrieval engine on the host's CPU, and nothing in the repository installs them on a host;
+`provision-host.sh --check` lists `/etc/kf/retrieval-runtime.json` until something does. Bears on
+KF-SAS-RQ-218.
+
+**100.67 Two facts about the anchor bucket are unsettled.** Checkpoint anchors are keyed by
+checkpoint, not by database, so a reinstalled host writing to the same bucket is refused on every
+run; and the rehearsal's object store refused the anchor's conditional create to a write-only key,
+so the anchor key needs read as well, which B2 has not been shown to require or not. Whether to
+namespace anchors per database, and what the B2 anchor key needs, are the owner's decisions. Bears
+on KF-SAS-RQ-167.
+
+**100.68 Records an owner command writes are not indexed until a rebuild.** Owner-credential
+commands write records without the search outbox, so search does not find them until
+`select search.rebuild();`. Bears on KF-SAS-RQ-121.
 
 **KF-SAS-RQ-186.** The set of tables forced under row-level security SHALL be derivable from the
 migrations, and any difference between that set and the running database SHALL be reconciled.
