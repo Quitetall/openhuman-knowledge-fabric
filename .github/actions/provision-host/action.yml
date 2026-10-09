@@ -205,20 +205,8 @@ runs:
           *) echo "::error::docker-compose.yml's seaweedfs image is not pinned by digest: '${image}'"; exit 1 ;;
         esac
         # Docker Hub rate-limits anonymous pulls from shared runner addresses (429 "toomanyrequests",
-        # or a bare unexpected status), and a run can stay limited for longer than any retry. So the
-        # daemon pulls Docker Hub images through Google's public mirror first (falling back to
-        # Docker Hub itself); every image here is pinned by digest, so where it is fetched from
-        # cannot change what arrives. This covers the test containers' pulls too. The retries
-        # remain for a mirror miss that then meets the limit.
-        sudo python3 - <<'PY'
-        import json, os
-        path = '/etc/docker/daemon.json'
-        config = json.load(open(path)) if os.path.exists(path) else {}
-        config['registry-mirrors'] = ['https://mirror.gcr.io']
-        json.dump(config, open(path, 'w'), indent=2)
-        PY
-        sudo systemctl restart docker
-        timeout 60 sh -c 'until docker info >/dev/null 2>&1; do sleep 1; done'
+        # or a bare unexpected status). The digest pins what arrives, so retrying is safe; five
+        # tries over ~5 minutes, then the original error.
         for attempt in 1 2 3 4 5; do
           if docker pull --quiet "${image}"; then break; fi
           if [ "${attempt}" = 5 ]; then exit 1; fi
