@@ -37,6 +37,9 @@
 #   KF_STACK_ORGANIZATION   legal name the web app's context picker lists first   Véracier Industries S.A.
 #   KF_STACK_SKIP_BUILD     1 skips the build (KF_VERACIER_SKIP_BUILD also works)
 #   KF_STACK_EMBED_PORT     the embedding server's loopback port                   8021
+#   KF_STACK_EMBED_URL      an embedding server another stack runs; this stack     (unset)
+#                           neither starts nor stops one, and the pin still checks it
+#   KF_STACK_EMBED_DEVICE   cpu or cuda for the server this stack starts           cuda if present
 #
 # Semantic ranking (on by default; KF_VERACIER_SEMANTIC=0 leaves search lexical): a loopback
 # embedding server (embed-server.py, BAAI/bge-m3 at a pinned revision, prepared once into
@@ -89,7 +92,12 @@ embed_port="${KF_VERACIER_EMBED_PORT:-${KF_STACK_EMBED_PORT:-8021}}"
 embed_python_version='3.14.6'
 embed_lock="$here/embed-requirements.txt"
 embed_env_root="${KF_VERACIER_EMBED_ENV_ROOT:-$HOME/.local/share/kf-veracier/embed-env}"
-embed_url="http://127.0.0.1:$embed_port"
+# One server can serve every stack: the model is the same, and each stack's embedder pin refuses a
+# server that is not. Borrowed, it is neither started nor stopped here (KF_STACK_EMBED_URL).
+embed_borrowed="${KF_STACK_EMBED_URL:-}"
+embed_url="${embed_borrowed:-http://127.0.0.1:$embed_port}"
+# ADR 0039 runs the host's embedder on the CPU; KF_STACK_EMBED_DEVICE=cpu runs this one the same way.
+embed_device="${KF_STACK_EMBED_DEVICE:-}"
 retrieval_socket="$run/retrieval.sock"
 realm='knowledge-fabric'
 web_origin="http://localhost:$KF_STACK_WEB_PORT"
@@ -299,16 +307,20 @@ start_retrieval() {
   if [ ! -f "$retrieval/kf-index.key" ]; then
     "$lamu_bin" kf-retrieval keygen --out "$retrieval/kf-index.key" 2>&1 | sed 's/^/  /'
   fi
-  if ! pid_alive "$run/embed.pid" && ss -ltn "sport = :$embed_port" | grep -q LISTEN; then
-    echo "  port $embed_port is already in use by something this script did not start" >&2
-    return 1
+  if [ -n "$embed_borrowed" ]; then
+    echo "  embedding server borrowed from $embed_borrowed (not started or stopped by this stack)"
+  else
+    if ! pid_alive "$run/embed.pid" && ss -ltn "sport = :$embed_port" | grep -q LISTEN; then
+      echo "  port $embed_port is already in use by something this script did not start" >&2
+      return 1
+    fi
+    local embed_python
+    embed_python="$(ensure_embed_env)" || return 1
+    # -s -E: no user site-packages and no PYTHON* variables, so nothing outside the environment
+    # can be imported in place of what it pins.
+    start_process embed "$here" "$embed_python" -s -E embed-server.py serve \
+      --model-dir "$embed_model_dir" --port "$embed_port" ${embed_device:+--device "$embed_device"}
   fi
-  local embed_python
-  embed_python="$(ensure_embed_env)" || return 1
-  # -s -E: no user site-packages and no PYTHON* variables, so nothing outside the environment
-  # can be imported in place of what it pins.
-  start_process embed "$here" "$embed_python" -s -E embed-server.py serve \
-    --model-dir "$embed_model_dir" --port "$embed_port"
   wait_for 'embedding server' "${KF_VERACIER_EMBED_WAIT:-240}" curl -sf "$embed_url/health" ||
     return 1
   if [ ! -s "$retrieval/embedder-pin" ]; then
