@@ -204,9 +204,9 @@ runs:
           *@sha256:*) ;;
           *) echo "::error::docker-compose.yml's seaweedfs image is not pinned by digest: '${image}'"; exit 1 ;;
         esac
-        # Docker Hub rate-limits anonymous pulls from shared runner addresses (429 "toomanyrequests",
-        # or a bare unexpected status). The digest pins what arrives, so retrying is safe; five
-        # tries over ~5 minutes, then the original error.
+        # Through the Docker Hub mirror the workflow names (KF_DOCKER_HUB_MIRROR, ci.yml says why);
+        # the digest pins what arrives either way. Retried, because a mirror can still miss.
+        if [ -n "${KF_DOCKER_HUB_MIRROR:-}" ]; then image="${KF_DOCKER_HUB_MIRROR}/${image}"; fi
         for attempt in 1 2 3 4 5; do
           if docker pull --quiet "${image}"; then break; fi
           if [ "${attempt}" = 5 ]; then exit 1; fi

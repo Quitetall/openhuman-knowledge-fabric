@@ -40,6 +40,13 @@ permissions:
 
 env:
   NODE_VERSION: '24.18.1'
+  # Docker Hub refuses anonymous pulls from the hosted runners' shared addresses once they meet its
+  # rate limit, and a run stays refused for longer than any retry. Every Docker Hub image the jobs
+  # pull is fetched through Google's public mirror instead: the pinned SeaweedFS image by
+  # KF_DOCKER_HUB_MIRROR (tests/database/preservation-object-store.ts, the provision-host action),
+  # the test databases by Testcontainers' own prefix. Digest pins still decide what arrives.
+  KF_DOCKER_HUB_MIRROR: mirror.gcr.io
+  TESTCONTAINERS_HUB_IMAGE_NAME_PREFIX: mirror.gcr.io
 
 # Jobs are added as their subject matter lands. A job that passes because there is nothing
 # for it to check is worse than no job: it reports a guarantee that does not exist.
