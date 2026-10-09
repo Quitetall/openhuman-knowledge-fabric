@@ -13,12 +13,18 @@ type Catalog = Readonly<Record<Role, Fields>>;
 function refuse(): never {
   throw new Error('public configuration refused');
 }
+/**
+ * Units that are another program of an existing role's account and read that role's public file
+ * (SAS §100.35: the determinism re-run is the worker's account, credentials and settings).
+ */
+const UNIT_ROLES: Readonly<Record<string, Role>> = {
+  'kf-compiler-determinism.service': 'worker',
+};
 export function publicConfigurationRole(unit: string, path: string): Role | null {
-  return (
-    ROLES.find(
-      (role) => unit === `kf-${role}.service` && path === `/etc/kf/application-public/${role}.env`,
-    ) ?? null
-  );
+  const role = Object.hasOwn(UNIT_ROLES, unit)
+    ? UNIT_ROLES[unit]!
+    : ROLES.find((r) => unit === `kf-${r}.service`);
+  return role !== undefined && path === `/etc/kf/application-public/${role}.env` ? role : null;
 }
 /** Bounded, no-follow file read. Called only for declared public data, never secret paths. */
 async function publicFile(path: string): Promise<Record<string, unknown>> {

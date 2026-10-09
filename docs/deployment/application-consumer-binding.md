@@ -31,14 +31,22 @@ commissioning reader validates the same catalog, and the wrapper includes it
 in its root-protected release closure. A conformance test compares their URL
 and path decisions for every public field and checks every required field.
 
-| Role       | Fixed program                                                                                                       | Native work directory     |
-| ---------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| api        | `apps/api/dist/server.js`                                                                                           | `/run/kf-api-work`        |
-| worker     | `apps/worker/dist/main.js`                                                                                          | `/run/kf-worker-work`     |
-| attestor   | `apps/attestor/dist/main.js`                                                                                        | `/run/kf-attestor-work`   |
-| checkpoint | `apps/checkpoint/dist/main.js` with `--run`                                                                         | `/run/kf-checkpoint-work` |
-| storage    | `apps/kf-storage/dist/main.js` with `--replicate --verify --older-than-days 30 --collect-orphans --grace-hours 168` | `/run/kf-storage-work`    |
-| readiness  | `scripts/timer-liveness.sh`, then `packages/operations/dist/cli.js` only on success                                 | `/run/kf-readiness-work`  |
+| Role                 | Fixed program                                                                                                       | Native work directory               |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| api                  | `apps/api/dist/server.js`                                                                                           | `/run/kf-api-work`                  |
+| worker               | `apps/worker/dist/main.js`                                                                                          | `/run/kf-worker-work`               |
+| attestor             | `apps/attestor/dist/main.js`                                                                                        | `/run/kf-attestor-work`             |
+| checkpoint           | `apps/checkpoint/dist/main.js` with `--run`                                                                         | `/run/kf-checkpoint-work`           |
+| storage              | `apps/kf-storage/dist/main.js` with `--replicate --verify --older-than-days 30 --collect-orphans --grace-hours 168` | `/run/kf-storage-work`              |
+| readiness            | `scripts/timer-liveness.sh`, then `packages/operations/dist/cli.js` only on success                                 | `/run/kf-readiness-work`            |
+| compiler-determinism | `apps/worker/dist/determinism-cli.js` with `--limit 5`                                                              | `/run/kf-compiler-determinism-work` |
+
+`compiler-determinism` (SAS §100.35, [drop-in](../../deploy/systemd/application-compiler-determinism-workstation-credentials.conf))
+is not a seventh account. It is the worker's: `kf-worker`'s identity, the worker's credential set
+and PID 1 sources, and `/etc/kf/application-public/worker.env`, with another program and its own
+work directory (two units sharing a `RuntimeDirectory=` would remove it under each other). It
+shares the worker's credentials exactly, which is what commissioning's even-sharing check requires
+of two units on one account.
 
 ## Guard preservation
 

@@ -3642,7 +3642,7 @@ Each service has an unprivileged account (§37); the units are counted in
 | `kf-objects` | the working object store: SeaweedFS's S3 gateway on loopback, every byte under `/var/lib/kf-objects`, identities from a file ([ADR 0039](../decisions/atoms/KF-ADR-0039-the-first-host-is-a-vps-on-a-tailnet-with-seaweedfs-and-b2.md)) |
 | `kf-objects-init` | creates the buckets with versioning on after every start of the store, and fails unless each reads back `Enabled` |
 | `kf-tls-renew` | as `kf-tls`, renews the tailnet certificate with `tailscale cert` and, after `nginx -t`, reloads nginx |
-| `kf-compiler-determinism` | as `kf-worker`, under the worker's sandbox, re-runs the newest recorded compilation successes and fails to an alert when one does not reproduce; records nothing (§100.35) |
+| `kf-compiler-determinism` | as `kf-worker`, under the worker's sandbox and with exactly the worker's credentials (its native binding is the worker's, with another program), re-runs the newest recorded compilation successes and fails to an alert when one does not reproduce; records nothing (§100.35) |
 | `kf-notify@` | `kf-notify@digest` e-mails each person what needs them, and `kf-notify@urgent` pushes, through the operational alert path, that something urgent does (§24B); as `kf-notify`, whose login executes two functions and reads no table |
 
 Timers: checkpoint hourly, readiness every fifteen minutes, urgent notification every five

@@ -25,7 +25,21 @@ const ROLES = new Map(
       },
     ],
     ['readiness', { entry: 'packages/operations/dist/cli.js', flags: [] }],
-  ].map(([role, spec]) => [role, { ...spec, ...PUBLIC[role] }]),
+    // SAS §100.35: the weekly determinism re-run compiles exactly as the worker does, so it is
+    // the worker's account, credentials and public settings with another program. Its work
+    // directory is its own: two units sharing a RuntimeDirectory= would remove it under each other.
+    [
+      'compiler-determinism',
+      {
+        entry: 'apps/worker/dist/determinism-cli.js',
+        flags: ['--limit', '5'],
+        account: 'worker',
+      },
+    ],
+  ].map(([role, spec]) => {
+    const account = spec.account ?? role;
+    return [role, { ...spec, account, ...PUBLIC[account] }];
+  }),
 );
 function refuse() {
   throw new Error('native application binding refused');
@@ -78,6 +92,16 @@ function publicValue(name, value) {
   return value;
 }
 
+/**
+ * The account a role runs as, whose credential set and public settings it uses: the role itself,
+ * except a role that is another program of an existing account (compiler-determinism -> worker).
+ */
+export function applicationConsumerAccount(role) {
+  const spec = ROLES.get(role);
+  if (!spec) refuse();
+  return spec.account;
+}
+
 /** Fixed roles/programs, canonical PID1 paths and explicitly selected public settings only. */
 export function applicationConsumerPlan(role, root, environment) {
   const spec = ROLES.get(role);
@@ -106,7 +130,7 @@ export function applicationConsumerPlan(role, root, environment) {
     if (value !== undefined && value !== '') env[name] = publicValue(name, value);
   }
   for (const name of spec.required) if (env[name] === undefined) refuse();
-  for (const [binding, name] of applicationCredentialBindings(role))
+  for (const [binding, name] of applicationCredentialBindings(spec.account))
     env[binding] = join(credentials, name);
   if (role === 'api')
     Object.assign(env, {

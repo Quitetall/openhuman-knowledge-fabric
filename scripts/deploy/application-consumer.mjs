@@ -4,7 +4,10 @@ import { chmodSync, lstatSync, readdirSync, realpathSync, statfsSync } from 'nod
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { applicationCredentialBindings } from './workstation-credentials.mjs';
-import { applicationConsumerPlan } from './internal/application-consumer-plan.mjs';
+import {
+  applicationConsumerAccount,
+  applicationConsumerPlan,
+} from './internal/application-consumer-plan.mjs';
 
 function refuse() {
   throw new Error('native application binding refused');
@@ -47,14 +50,16 @@ function run(command, plan) {
 async function main() {
   const [role, ...extra] = process.argv.slice(2);
   let fields;
+  let account;
   try {
-    fields = applicationCredentialBindings(role);
+    account = applicationConsumerAccount(role);
+    fields = applicationCredentialBindings(account);
   } catch {
     fields = undefined;
   }
   if (!fields || extra.length) {
     process.stderr.write(
-      'usage: application-consumer.mjs api|worker|attestor|checkpoint|storage|readiness\n',
+      'usage: application-consumer.mjs api|worker|attestor|checkpoint|storage|readiness|compiler-determinism\n',
     );
     return 64;
   }
@@ -77,7 +82,7 @@ async function main() {
     ...plan.commands.flatMap((command) => [command.executable, command.args[0]]),
   ])
     protectedPath(file, true);
-  const identity = spawnSync('/usr/bin/id', ['-u', `kf-${role}`], {
+  const identity = spawnSync('/usr/bin/id', ['-u', `kf-${account}`], {
     env: { PATH: '/usr/bin:/bin', LANG: 'C.UTF-8' },
     encoding: 'utf8',
     timeout: 5000,

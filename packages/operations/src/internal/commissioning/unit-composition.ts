@@ -137,6 +137,10 @@ export async function readUnitComposition(
 const NATIVE = new Map<string, string>([
   ['kf-api.service', 'application-api-workstation-credentials.conf'],
   ['kf-worker.service', 'application-worker-workstation-credentials.conf'],
+  [
+    'kf-compiler-determinism.service',
+    'application-compiler-determinism-workstation-credentials.conf',
+  ],
   ['kf-attestor.service', 'application-attestor-workstation-credentials.conf'],
   ['kf-checkpoint.service', 'application-checkpoint-workstation-credentials.conf'],
   ['kf-storage.service', 'application-storage-workstation-credentials.conf'],
