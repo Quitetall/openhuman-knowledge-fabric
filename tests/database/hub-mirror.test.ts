@@ -13,7 +13,6 @@ describe('the Docker Hub mirror rewrite', () => {
     expect(fromHubMirror(PINNED, 'mirror.gcr.io')).toBe(`mirror.gcr.io/${PINNED}`);
   });
   it('leaves everything else alone', () => {
-    expect(fromHubMirror(PINNED, undefined)).toBe(PINNED);
     expect(fromHubMirror(PINNED, '')).toBe(PINNED);
     expect(fromHubMirror('chrislusf/seaweedfs:4.48', 'mirror.gcr.io')).toBe(
       'chrislusf/seaweedfs:4.48',

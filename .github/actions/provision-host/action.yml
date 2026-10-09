@@ -16,6 +16,13 @@ inputs:
       how release.yml died on its first run: `KF_POSTGRES_CLIENT_DIR: unbound variable`.
     required: false
     default: '24.18.1'
+  docker-hub-mirror:
+    description: >-
+      Registry host that serves Docker Hub images (mirror.gcr.io). Hosted runners' shared addresses
+      meet Docker Hub's anonymous pull limit; the image stays pinned by digest, so where it is
+      fetched from cannot change what arrives. Empty pulls from Docker Hub itself.
+    required: false
+    default: 'mirror.gcr.io'
 
 runs:
   using: composite
@@ -204,9 +211,10 @@ runs:
           *@sha256:*) ;;
           *) echo "::error::docker-compose.yml's seaweedfs image is not pinned by digest: '${image}'"; exit 1 ;;
         esac
-        # Through the Docker Hub mirror the workflow names (KF_DOCKER_HUB_MIRROR, ci.yml says why);
+        # Through the Docker Hub mirror named by the docker-hub-mirror input (ci.yml says why);
         # the digest pins what arrives either way. Retried, because a mirror can still miss.
-        if [ -n "${KF_DOCKER_HUB_MIRROR:-}" ]; then image="${KF_DOCKER_HUB_MIRROR}/${image}"; fi
+        mirror='${{ inputs.docker-hub-mirror }}'
+        if [ -n "${mirror}" ]; then image="${mirror}/${image}"; fi
         for attempt in 1 2 3 4 5; do
           if docker pull --quiet "${image}"; then break; fi
           if [ "${attempt}" = 5 ]; then exit 1; fi
