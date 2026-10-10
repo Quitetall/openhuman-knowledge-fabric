@@ -1,6 +1,6 @@
 import { createHash, generateKeyPairSync, randomUUID } from 'node:crypto';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { writePackage } from '../../packages/export/src/cli/package-io.js';
 import { expect, it } from 'vitest';
 import { readVersionBytes, StoreRegistry, verifyRecordedVersion } from '@kf/artifacts';
@@ -19,7 +19,14 @@ import { PreservationObjectStore } from './preservation-object-store.js';
 
 // Shared scope: OpenWarrant OW-WAR-0111. These are disposable fixture identities,
 // never signatures or assurance claims over an actual project Warrant.
-async function preservesArchive(fixture: string) {
+async function preservesArchive(fixture: string, fixtureDirectory?: string) {
+  if (fixtureDirectory !== undefined && !isAbsolute(fixtureDirectory)) {
+    throw new Error('OW111 native fixture directory must be absolute');
+  }
+  const fixturePath = (suffix: string) =>
+    fixtureDirectory === undefined
+      ? new URL(`../fixtures/openwarrant-preservation/${fixture}-${suffix}.json`, import.meta.url)
+      : join(fixtureDirectory, `${fixture}-${suffix}.json`);
   const source = await startHarness();
   const storage = new PreservationObjectStore(['preserved']);
   let sourceStopped = false;
@@ -28,12 +35,7 @@ async function preservesArchive(fixture: string) {
     restored = await startHarness();
     const fixtures = await seedFixtures(source.adminPool);
     const dispatch = createFabricDispatcher(source.pool);
-    const archiveBytes = await readFile(
-      new URL(
-        `../fixtures/openwarrant-preservation/${fixture}-complete-archive.json`,
-        import.meta.url,
-      ),
-    );
+    const archiveBytes = await readFile(fixturePath('complete-archive'));
     const identity: {
       archive_sha256: string;
       subject: string;
@@ -41,15 +43,7 @@ async function preservesArchive(fixture: string) {
         identity: { uuid: string; local_alias: string };
         integrity: { composition_revision_digest: string; workspace_basis_digest: string };
       } & NonNullable<Parameters<typeof dispatch>[0]['payload']>;
-    } = JSON.parse(
-      await readFile(
-        new URL(
-          `../fixtures/openwarrant-preservation/${fixture}-complete-identity.json`,
-          import.meta.url,
-        ),
-        'utf8',
-      ),
-    );
+    } = JSON.parse(await readFile(fixturePath('complete-identity'), 'utf8'));
     expect(createHash('sha256').update(archiveBytes).digest('hex')).toBe(identity.archive_sha256);
     const sourceArchive = JSON.parse(archiveBytes.toString('utf8')) as {
       schema: string;
@@ -72,15 +66,7 @@ async function preservesArchive(fixture: string) {
         subject: string;
         current_contract: { revision: number; digest: string };
       };
-    } = JSON.parse(
-      await readFile(
-        new URL(
-          `../fixtures/openwarrant-preservation/${fixture}-runtime-basis.json`,
-          import.meta.url,
-        ),
-        'utf8',
-      ),
-    );
+    } = JSON.parse(await readFile(fixturePath('runtime-basis'), 'utf8'));
     expect(runtimeBasis.archive_sha256).toBe(identity.archive_sha256);
     expect(runtimeBasis.basis.schema).toBe('oh.war/runtime-archive-basis/v1-draft.1');
     expect(runtimeBasis.basis.subject).toBe(identity.subject);
@@ -430,7 +416,10 @@ async function preservesArchive(fixture: string) {
     const reconnected = await withTransaction(restored.adminPool, (tx) =>
       readVersionBytes(tx, registry, versionId),
     );
-    expect(reconnected?.bytes).toEqual(bytes);
+    if (reconnected === undefined) throw new Error('no restored source archive');
+    // Exact byte equality without enumerating every Buffer index in Vitest's
+    // deep comparator (native producer archives are tens of megabytes).
+    expect(reconnected.bytes.equals(bytes)).toBe(true);
     expect(reconnected?.servedFrom.store_version).toBe(stored.versionId);
     // Optional durable output lets the producer reconstruct IR from the recovered object.
     // This does not skip or weaken the ordinary CI assertions.
@@ -529,3 +518,13 @@ it.each(['kf-source', 'local-runtime'])(
   preservesArchive,
   240_000,
 );
+
+// Optional actual producer archive; both shipped fixture scenarios still run.
+const nativeFixtureDirectory = process.env['OW111_NATIVE_FIXTURE_DIR'];
+if (nativeFixtureDirectory !== undefined) {
+  it(
+    'preserves native-runtime Warrant archive after source shutdown',
+    () => preservesArchive('native-runtime', nativeFixtureDirectory),
+    240_000,
+  );
+}
