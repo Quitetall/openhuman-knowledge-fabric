@@ -286,3 +286,37 @@ one snapshot refuse as ambiguous. The output reports the binding used. These are
 comparisons of caller-supplied producer claims; source authentication and execution
 qualification remain separate. Missing historical IR cannot be replaced by a
 newer graph or inferred from a revision number alone.
+
+## Native producer archive input
+
+The two committed fixture scenarios remain unchanged. An additional real native
+archive can be supplied without copying its producer binary into this repository:
+
+```sh
+OW111_NATIVE_FIXTURE_DIR=/absolute/native-fixture \
+OW111_RESTORED_ARCHIVE=/absolute/new/kf-restored-native.archive.json \
+OW111_RUNTIME_PACKAGE=/absolute/new/kf-native-package \
+pnpm exec vitest run tests/database/warrant-preservation.test.ts -t "preserves native-runtime"
+```
+
+The fixture directory contains three files:
+
+- `native-runtime-complete-archive.json`: exact OpenWarrant archive bytes.
+- `native-runtime-complete-identity.json`: archive SHA-256, subject, and the exact
+  compiled IR retained at `__ow_archive__/WAR.json`.
+- `native-runtime-runtime-basis.json`: archive SHA-256 and the producer CLI's
+  source-derived runtime query result under `basis`.
+
+The same preservation assertions apply: complete declared category coverage,
+all populated Warrant record families, source database and object-store shutdown,
+isolated restore, trusted export-key checks, exact source contract revisions,
+version-pinned artifact recovery, digest mismatch and missing-version refusal.
+Large recovered buffers use `Buffer.equals()` for exact byte comparison;
+Vitest's general deep comparator materializes every indexed property and can
+exhaust the heap on a native producer archive. No checksum replaces the byte
+comparison, and no required input is omitted to reduce fixture size.
+
+The fixture uses synthetic KF identities and an ephemeral signing key. They
+accept no real project work. Native signature verification belongs to the
+producer's known verifier with an independently selected fixture key; KF
+preserves the opaque source archive and does not award OpenWarrant assurance.
