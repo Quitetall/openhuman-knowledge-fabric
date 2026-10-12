@@ -54,6 +54,7 @@
     "core.model_routing_policy",
     "core.notification_preference",
     "core.outbox",
+    "core.push_destination",
     "core.relation",
     "core.retention_hold",
     "core.snapshot",

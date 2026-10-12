@@ -4,21 +4,27 @@
  *   digest  daily (kf-notify-digest.timer): every person's Needs you, redacted by the database for
  *           a channel the deployment does not control, one e-mail per person and organization with
  *           anything in it. A person with nothing waiting, or with the digest off, gets nothing.
- *   urgent  every five minutes (kf-notify-urgent.timer): if anything urgent arose since the last
- *           run for the person this host's alert path reaches, ONE push through
- *           `scripts/alert-dispatch.sh urgent` — the same script, endpoint and fixed-text stance as
- *           the operational alerts. Nothing non-urgent is ever pushed.
+ *   urgent  every five minutes (kf-notify-urgent.timer): each urgent item that arose since the
+ *           last run, to each person the database says may be told of it now
+ *           (`core.urgent_pushes()`, 20261011500000), once: to the person's own destination — an
+ *           ntfy topic they set, sealed, opened here with kf-notify's key — one push per item
+ *           (push.ts), with a title only when the database disclosed one; or, for the person this
+ *           host's alert path reaches (KF_NOTIFY_PUSH_PERSON) when they set none, ONE fixed-line
+ *           push for the run through `scripts/alert-dispatch.sh urgent`. Everyone else is told by
+ *           the digest. Nothing non-urgent is ever pushed.
  *
  * Both connect as the notifier's login (`kf_notifier`), which reads no table: they see only what
- * `core.needs_you_digest()` and `core.urgent_notifications()` return. The log carries counts, never
- * an address, a title or an identifier.
+ * `core.needs_you_digest()` and `core.urgent_pushes()` return. The log carries counts, never an
+ * address, a destination, a title or an identifier.
  */
 
 import { spawn } from 'node:child_process';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { withTransaction, type Pool } from '@kf/database';
+import type { DestinationOpener } from '@kf/authorization';
 import { composeDigests, type DigestKind, type DigestRow } from './digest.js';
+import { composePush, type PushSender, type UrgentRow } from './push.js';
 import type { Mailer } from './smtp.js';
 
 export interface Log {
@@ -79,14 +85,35 @@ export async function runDigest(
 export interface UrgentOptions {
   /** Where the last run's boundary is kept: operational state, not a record. */
   readonly stateDir: string;
-  /** The person this host's alert path reaches. Others are told by the digest only. */
+  /**
+   * The person this host's alert path reaches (KF_NOTIFY_PUSH_PERSON). They are pushed through it
+   * when they have set no destination of their own; a destination they set wins.
+   */
   readonly pushPerson: string | undefined;
-  /** Send one push. Production runs `alert-dispatch.sh urgent`. */
+  /** Send one push on the host's alert path. Production runs `alert-dispatch.sh urgent`. */
   readonly push: () => Promise<void>;
+  /**
+   * Opens a person's sealed destination with kf-notify's key (KF_NOTIFY_DESTINATION_KEY_FILE).
+   * Absent: no person's own destination is used, and everyone but `pushPerson` is told by the
+   * digest.
+   */
+  readonly opener?: DestinationOpener;
+  /** Sends one message to one person's destination. Production: ntfy, on the named servers. */
+  readonly send?: PushSender;
+  /** Where a push's tap leads (Needs you). */
+  readonly webOrigin?: string;
   readonly log?: Log;
 }
 
 const WATERMARK = 'urgent-since';
+
+/**
+ * Consecutive failed runs after which a person's own destination stops being retried for the items
+ * behind it: an hour at the timer's five minutes. Those items are in the person's digest; the
+ * failure was alerted on every run (the unit fails), and a destination that stays dead must not
+ * hold every later query back.
+ */
+export const MAX_DESTINATION_FAILURES = 12;
 
 /**
  * The last item a run saw, as (instant, item): the instant as the database's own text at
@@ -97,83 +124,255 @@ interface Boundary {
   readonly item: string | null;
 }
 
+/**
+ * What the urgent run keeps between runs: the head — every item at or before it is settled for
+ * everyone — and, per person whose own destination failed, how far THEY have been told, so that
+ * the next run retries exactly what they have not received and nothing they have (at most once
+ * per item and person, 20261011500000).
+ */
+interface UrgentState {
+  readonly head: Boundary;
+  readonly lagging: ReadonlyMap<string, Boundary & { readonly failures: number }>;
+}
+
 const MICROSECOND_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?Z$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const LAGGING_KEY = /^[0-9a-f-]{36}\/[0-9a-f-]{36}$/;
+
+function boundaryOf(value: { at?: unknown; item?: unknown }): Boundary | undefined {
+  if (typeof value.at !== 'string' || !MICROSECOND_INSTANT.test(value.at)) return undefined;
+  const item = value.item ?? null;
+  if (item !== null && (typeof item !== 'string' || !UUID.test(item))) return undefined;
+  return { at: value.at, item };
+}
 
 /** The boundary file, or undefined. The earlier format, one ISO instant, reads as (it, none). */
 export function parseBoundary(text: string): Boundary | undefined {
+  return parseUrgentState(text)?.head;
+}
+
+export function parseUrgentState(text: string): UrgentState | undefined {
   const trimmed = text.trim();
-  if (MICROSECOND_INSTANT.test(trimmed)) return { at: trimmed, item: null };
+  if (MICROSECOND_INSTANT.test(trimmed))
+    return { head: { at: trimmed, item: null }, lagging: new Map() };
   try {
-    const parsed = JSON.parse(trimmed) as { at?: unknown; item?: unknown };
-    if (typeof parsed.at !== 'string' || !MICROSECOND_INSTANT.test(parsed.at)) return undefined;
-    if (parsed.item !== null && (typeof parsed.item !== 'string' || !UUID.test(parsed.item))) {
-      return undefined;
+    const parsed = JSON.parse(trimmed) as { at?: unknown; item?: unknown; lagging?: unknown };
+    const head = boundaryOf(parsed);
+    if (head === undefined) return undefined;
+    const lagging = new Map<string, Boundary & { failures: number }>();
+    if (parsed.lagging !== undefined) {
+      if (parsed.lagging === null || typeof parsed.lagging !== 'object') return undefined;
+      for (const [key, value] of Object.entries(parsed.lagging as Record<string, unknown>)) {
+        if (!LAGGING_KEY.test(key) || value === null || typeof value !== 'object') return undefined;
+        const entry = value as { at?: unknown; item?: unknown; failures?: unknown };
+        const boundary = boundaryOf(entry);
+        if (boundary === undefined || !Number.isInteger(entry.failures)) return undefined;
+        lagging.set(key, { ...boundary, failures: entry.failures as number });
+      }
     }
-    return { at: parsed.at, item: parsed.item };
+    return { head, lagging };
   } catch {
     return undefined;
   }
 }
 
+/** (at, item) order, as the database's row comparison: the instant text is fixed-width UTC. */
+function after(row: { readonly aroseAt: string; readonly itemId: string }, boundary: Boundary) {
+  if (row.aroseAt !== boundary.at) return row.aroseAt > boundary.at;
+  return row.itemId > (boundary.item ?? '00000000-0000-0000-0000-000000000000');
+}
+
+function earliest(boundaries: readonly Boundary[]): Boundary {
+  return boundaries.reduce((low, b) =>
+    b.at < low.at || (b.at === low.at && (b.item ?? '') < (low.item ?? '')) ? b : low,
+  );
+}
+
 /** An instant as the database writes it at microseconds, UTC. */
 const INSTANT_SQL = `to_char(%s at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
 
-export async function runUrgent(
-  pool: Pool,
-  options: UrgentOptions,
-): Promise<{ readonly pushed: boolean; readonly urgent: number }> {
+export interface UrgentResult {
+  /** Whether anything was pushed this run, on any path. */
+  readonly pushed: boolean;
+  /** Items delivered this run (to a person's own destination, or on the alert path). */
+  readonly urgent: number;
+  /** Deliveries that failed and will be retried, or were given up after MAX_DESTINATION_FAILURES. */
+  readonly failed: number;
+}
+
+export async function runUrgent(pool: Pool, options: UrgentOptions): Promise<UrgentResult> {
   const log = options.log ?? stderrLog;
   await mkdir(options.stateDir, { recursive: true, mode: 0o700 });
   const file = join(options.stateDir, WATERMARK);
-  let since: Boundary | undefined;
+  let state: UrgentState | undefined;
   try {
-    since = parseBoundary(await readFile(file, 'utf8'));
+    state = parseUrgentState(await readFile(file, 'utf8'));
   } catch {
-    since = undefined;
+    state = undefined;
   }
-  const save = async (boundary: Boundary) => {
-    await writeFile(`${file}.tmp`, `${JSON.stringify(boundary)}\n`, { mode: 0o600 });
+  const save = async (next: UrgentState) => {
+    const lagging = Object.fromEntries(next.lagging);
+    const body = { ...next.head, ...(next.lagging.size === 0 ? {} : { lagging }) };
+    await writeFile(`${file}.tmp`, `${JSON.stringify(body)}\n`, { mode: 0o600 });
     await rename(`${file}.tmp`, file);
   };
-  if (since === undefined) {
+  if (state === undefined) {
     // First run: start from now. What arose before the notifier existed is in the digest.
     const now = await withTransaction(pool, (tx) =>
       tx.one<{ now: string }>(`select ${INSTANT_SQL.replace('%s', 'now()')} as now`),
     );
-    await save({ at: now.now, item: null });
+    await save({ head: { at: now.now, item: null }, lagging: new Map() });
     log({ run: 'urgent', started: true, urgent: 0, pushed: false });
-    return { pushed: false, urgent: 0 };
+    return { pushed: false, urgent: 0, failed: 0 };
   }
-  // Ordered by (arose_at, item_id): the last row is the new boundary.
-  const rows = await withTransaction(pool, (tx) =>
-    tx.query<{ person_id: string; kind: string; arose_at: string; item_id: string }>(
-      `select person_id, kind, ${INSTANT_SQL.replace('%s', 'arose_at')} as arose_at, item_id
-         from core.urgent_notifications($1::timestamptz, $2::uuid)`,
-      [since.at, since.item],
-    ),
-  );
-  const mine = rows.filter((row) => row.person_id === options.pushPerson);
-  let pushed = false;
-  if (mine.length > 0) {
-    // One push for everything that arose since the last run. A failed push leaves the boundary
-    // where it was, so the next run tries again; the push carries nothing, so a repeat leaks
-    // nothing either.
-    await options.push();
-    pushed = true;
+  const head = state.head;
+  const lagging = new Map(state.lagging);
+  const since = earliest([head, ...lagging.values()]);
+  // Ordered by (arose_at, item_id, person_id). The database has decided, at this moment, who may
+  // be told of each item and what the push may say (core.urgent_pushes, 20261011500000).
+  const rows: UrgentRow[] = (
+    await withTransaction(pool, (tx) =>
+      tx.query<{
+        organization_id: string;
+        person_id: string;
+        kind: string;
+        arose_at: string;
+        item_id: string;
+        disclosed: boolean;
+        title: string | null;
+        destination: string | null;
+      }>(
+        `select organization_id, person_id, kind,
+                ${INSTANT_SQL.replace('%s', 'arose_at')} as arose_at, item_id, disclosed, title,
+                destination
+           from core.urgent_pushes($1::timestamptz, $2::uuid)`,
+        [since.at, since.item],
+      ),
+    )
+  ).map((row) => ({
+    organizationId: row.organization_id,
+    personId: row.person_id,
+    kind: row.kind,
+    aroseAt: row.arose_at,
+    itemId: row.item_id,
+    disclosed: row.disclosed,
+    title: row.title,
+    destination: row.destination,
+  }));
+
+  // Each person's items they have not been told of: after their own cursor if they lag, else after
+  // the head. A person is a (organization, person) pair: a destination is set per organization.
+  const owed = new Map<string, UrgentRow[]>();
+  for (const row of rows) {
+    const key = `${row.organizationId}/${row.personId}`;
+    if (!after(row, lagging.get(key) ?? head)) continue;
+    owed.set(key, [...(owed.get(key) ?? []), row]);
   }
+
+  let delivered = 0;
+  let failed = 0;
+  let abandoned = 0;
+  let withoutPush = 0;
+  let unopenable = 0;
+  let alertPathItems = 0;
+  for (const [key, items] of owed) {
+    const first = items[0]!;
+    const binding = { organizationId: first.organizationId, personId: first.personId };
+    const sealed = items.at(-1)!.destination;
+    const destination =
+      sealed === null || options.opener === undefined
+        ? undefined
+        : options.opener.open(sealed, binding);
+    if (sealed !== null && destination === undefined) unopenable += 1;
+    if (destination !== undefined && options.send !== undefined) {
+      // One push per item, in order; the first failure stops this person's run, and their cursor
+      // stays at the last item they received, so the next run sends the rest and nothing twice.
+      let told: Boundary | undefined;
+      let failure = false;
+      for (const item of items) {
+        try {
+          await options.send(destination, composePush(item, options.webOrigin));
+        } catch {
+          // PushFailed names neither the destination nor the server's answer; nothing is logged
+          // per person at all, only counts.
+          failure = true;
+          break;
+        }
+        told = { at: item.aroseAt, item: item.itemId };
+        delivered += 1;
+      }
+      if (failure) {
+        const before = lagging.get(key);
+        const failures = (before?.failures ?? 0) + 1;
+        failed += 1;
+        if (failures >= MAX_DESTINATION_FAILURES) {
+          lagging.delete(key);
+          abandoned += 1;
+        } else {
+          lagging.set(key, { ...(told ?? before ?? head), failures });
+        }
+      } else {
+        lagging.delete(key);
+      }
+    } else if (first.personId === options.pushPerson) {
+      // The host's alert path: one fixed line for everything that arose since the last run. A
+      // failed push leaves this person behind, and the next run tries again; the push carries
+      // nothing, so a repeat leaks nothing either.
+      try {
+        await options.push();
+        delivered += items.length;
+        alertPathItems += items.length;
+        lagging.delete(key);
+      } catch {
+        const before = lagging.get(key);
+        const failures = (before?.failures ?? 0) + 1;
+        failed += 1;
+        if (failures >= MAX_DESTINATION_FAILURES) {
+          lagging.delete(key);
+          abandoned += 1;
+        } else {
+          lagging.set(key, { ...(before ?? head), failures });
+        }
+      }
+    } else {
+      // No destination: told by the digest.
+      withoutPush += 1;
+      lagging.delete(key);
+    }
+    // Saved after each person, so a crash part-way repeats nobody already told.
+    await save({ head, lagging });
+  }
+  // Someone behind with nothing still owed (their items were answered meanwhile) is caught up.
+  for (const key of [...lagging.keys()]) if (!owed.has(key)) lagging.delete(key);
   const last = rows.at(-1);
-  if (last !== undefined) await save({ at: last.arose_at, item: last.item_id });
+  const nextHead =
+    last === undefined || !after(last, head) ? head : { at: last.aroseAt, item: last.itemId };
+  await save({ head: nextHead, lagging });
   log({
     run: 'urgent',
     urgent: rows.length,
-    pushed,
-    // People with an urgent item and no push destination: they are told by the digest.
-    withoutPush: new Set(
-      rows.filter((r) => r.person_id !== options.pushPerson).map((r) => r.person_id),
-    ).size,
+    delivered,
+    alertPath: alertPathItems,
+    failed,
+    abandoned,
+    lagging: lagging.size,
+    // People with an urgent item and no destination of their own: they are told by the digest.
+    withoutPush,
+    // Destinations sealed to another key, another person, or malformed: told by the digest.
+    unopenable,
   });
-  return { pushed, urgent: mine.length };
+  if (failed > 0) {
+    throw new UrgentDeliveryFailed(failed);
+  }
+  return { pushed: delivered > 0, urgent: delivered, failed };
+}
+
+/** Some pushes failed; the unit fails, so its OnFailure= alert reaches a person. Counts only. */
+export class UrgentDeliveryFailed extends Error {
+  constructor(readonly failed: number) {
+    super(`${String(failed)} urgent push(es) failed; they are retried on the next run`);
+    this.name = 'UrgentDeliveryFailed';
+  }
 }
 
 /** `alert-dispatch.sh urgent`, inheriting this unit's alert credentials. */

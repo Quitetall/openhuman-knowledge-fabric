@@ -5,11 +5,11 @@ After=network-online.target
 OnFailure=kf-alert@%n.service
 
 # ADR 0040 decision 9, KF-SAS-RQ-274. `kf-notify@digest` e-mails each person their Needs you once
-# a day; `kf-notify@urgent` pushes, through the operational alert path (scripts/alert-dispatch.sh
-# urgent, the same script and endpoint as kf-alert@), when something urgent waits on the person
-# that path reaches. Neither carries record content above what the organization lets leave the
-# host: the database decides what each row may say (core.needs_you_digest), and the push says only
-# that something needs you.
+# a day; `kf-notify@urgent` pushes each urgent item to each person who may see it, to the ntfy
+# topic they set (sealed; opened with /etc/kf/notify/destination-key), or through the operational
+# alert path (scripts/alert-dispatch.sh urgent) for the person that path reaches. Neither carries
+# record content above what the organization lets leave the host: the database decides what each
+# row may say (core.needs_you_digest, core.urgent_pushes).
 
 [Service]
 Type=oneshot
@@ -25,7 +25,10 @@ Environment=KF_NOTIFY_SMTP_FILE=/etc/kf/notify/smtp.json
 Environment=KF_ALERT_WEBHOOK_URL_FILE=/etc/kf/notify/alert-webhook-url
 Environment=KF_NOTIFY_STATE_DIR=/var/lib/kf-notify
 Environment=KF_NOTIFY_ALERT_DISPATCH=/opt/kf/scripts/alert-dispatch.sh
-# KF_NOTIFY_WEB_ORIGIN, KF_NOTIFY_PUSH_PERSON and, for a ntfy topic, KF_ALERT_PROVIDER.
+# Opens each person's sealed push destination (20261011500000): X25519, PKCS#8 PEM, 0600 kf-notify.
+Environment=KF_NOTIFY_DESTINATION_KEY_FILE=/etc/kf/notify/destination-key
+# KF_NOTIFY_WEB_ORIGIN, KF_NOTIFY_PUSH_PERSON, KF_NOTIFY_PUSH_SERVERS and, for a ntfy topic,
+# KF_ALERT_PROVIDER.
 EnvironmentFile=/etc/kf/notify.env
 StateDirectory=kf-notify
 StateDirectoryMode=0700
