@@ -2,7 +2,7 @@
 
 export { compilationOutboxHandler } from './compiler-runtime/outbox.js';
 export { createPostgresCompilerRuntimeRepository } from './compiler-runtime/postgres-repository.js';
-export { createCompilationRuntime } from './compiler-runtime/runtime.js';
+export { CompiledViewCollected, createCompilationRuntime } from './compiler-runtime/runtime.js';
 export type {
   CompilationRuntime,
   CompilerInputKind,

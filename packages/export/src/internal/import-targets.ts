@@ -226,6 +226,12 @@ export const PRESERVATION_TABLE_EXCLUSIONS = {
     "deployment's realm may act for people. A restore target has its own realm and its owner " +
     'declares its own agents; the participation each act recorded travels in actions.json. Kept ' +
     'out also so that a format-2 archive written before it existed still verifies and restores',
+  'core.push_destination':
+    "a person's urgent-push destination, sealed to THIS deployment's notifier key " +
+    '(20261011500000): a restore target holds its own key and cannot open it, and a capability ' +
+    'does not belong in an archive of unbounded retention. The act that set it travels sealed in ' +
+    'actions.json and the operational backup carries the table; on a new deployment a person ' +
+    'sets it again',
   'core.write_guard_exemption':
     'schema configuration written by migration 20260925011000 and pinned by its test; a restore ' +
     'into a migrated database already holds it',

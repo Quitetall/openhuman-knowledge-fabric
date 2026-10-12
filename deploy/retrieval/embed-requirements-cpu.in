@@ -1,0 +1,18 @@
+# The host embedder's Python packages (scripts/embedding/serve.py, model.py), for the Python 3.13
+# Debian 13 ships at /usr/bin/python3.13. embed-requirements-cpu.txt is this file resolved, with
+# the sha256 of every wheel; provision-host.sh installs exactly those wheels (--require-hashes,
+# --only-binary :all:, --no-deps) and refuses any other bytes.
+#
+# The CPU build of torch (ADR 0039 decision 5: the host embeds on its CPU). The same versions as
+# the fixture stacks' environment (fixtures/veracier/stack/embed-requirements.in), whose torch is
+# the CUDA build.
+#
+# Regenerate after changing a pin (and say why in the commit):
+#   uv pip compile embed-requirements-cpu.in --python-version 3.13 \
+#     --python-platform x86_64-manylinux_2_28 --generate-hashes \
+#     --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple \
+#     --index-strategy unsafe-best-match --emit-index-url --no-header -o embed-requirements-cpu.txt
+torch==2.11.0
+transformers==5.5.3
+safetensors==0.7.0
+tokenizers==0.22.2

@@ -3,7 +3,7 @@
   "info": {
     "title": "OpenHuman Knowledge Fabric API",
     "version": "1.2.0-draft.1",
-    "description": "Generated from ontology source digest ca3a338c5dd0792ec9cabf302a200d88f4ca1385e1098ae3f24c43cb03a6f176."
+    "description": "Generated from ontology source digest cdc61d864209415f0a56e84672f8060a37406800228aaf42fa22106acf2c33a0."
   },
   "paths": {
     "/objects/organization/{id}": {
@@ -3362,6 +3362,36 @@
       "post": {
         "summary": "Execute set_notification_preference",
         "operationId": "set_notification_preference",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Action"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied, or replayed from the idempotency key"
+          },
+          "403": {
+            "description": "Actor lacks the authority for this action"
+          },
+          "409": {
+            "description": "Precondition failed — state or version moved"
+          },
+          "422": {
+            "description": "Input failed schema or invariant validation"
+          }
+        }
+      }
+    },
+    "/actions/set_push_destination": {
+      "post": {
+        "summary": "Execute set_push_destination",
+        "operationId": "set_push_destination",
         "requestBody": {
           "required": true,
           "content": {
@@ -7529,6 +7559,7 @@
               "resolve_act_proposal",
               "set_model_routing_policy",
               "set_notification_preference",
+              "set_push_destination",
               "deactivate_organization",
               "reactivate_organization",
               "retire_organization",

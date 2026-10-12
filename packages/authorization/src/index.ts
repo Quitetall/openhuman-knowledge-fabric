@@ -149,3 +149,16 @@ export {
   PUSH_SETTINGS,
   type ProviderCeiling,
 } from './agent-at-home.js';
+export {
+  DestinationRefused,
+  SEALED_DESTINATION,
+  destinationOpener,
+  destinationPublicKeyOf,
+  generateDestinationKey,
+  parseDestination,
+  parseDestinationPublicKey,
+  parsePushServer,
+  parsePushServers,
+  sealDestination,
+  type DestinationOpener,
+} from './push-destination.js';

@@ -321,10 +321,11 @@ export function personaSessions(settings, people, passwords, organizationId, ass
 
 /**
  * The bootstrap tier writes people, role assignments and organizations directly (its one
- * exception to the dispatcher), so no outbox row announces them and the worker never indexes
- * them; readiness then reports them as unfindable. The worker's own login indexes exactly those
- * objects (`search.index_object`, what the outbox would have run). The index is disposable and
- * this touches no record. A whole rebuild would do too (`stack.sh reindex`, in batches since
+ * exception to the dispatcher). Since 20261011200000 the database puts them in the outbox like any
+ * act's records (SAS §100.68), so the worker indexes them when it next drains; before that nothing
+ * announced them and readiness reported them as unfindable. The worker's own login indexes
+ * exactly those objects here (`search.index_object`, what the outbox runs), so a load ends with
+ * them findable without waiting for a drain. The index is disposable and this touches no record. A whole rebuild would do too (`stack.sh reindex`, in batches since
  * 20260926100100), but re-indexes every record rather than the few the bootstrap tier wrote.
  */
 export async function reindex(state, objectIds) {

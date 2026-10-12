@@ -309,6 +309,9 @@ importers:
 
   apps/notify:
     dependencies:
+      '@kf/authorization':
+        specifier: workspace:*
+        version: link:../../packages/authorization
       '@kf/database':
         specifier: workspace:*
         version: link:../../packages/database
@@ -337,6 +340,9 @@ importers:
       '@kf/ml-registry':
         specifier: workspace:*
         version: link:../../packages/ml-registry
+      '@kf/qualification':
+        specifier: workspace:*
+        version: link:../../packages/qualification
       '@kf/ui':
         specifier: workspace:*
         version: link:../../packages/ui

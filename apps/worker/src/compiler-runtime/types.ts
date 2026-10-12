@@ -57,10 +57,18 @@ export interface MaterializedCompiledView extends RecordedCompiledView {
 
 export interface CompilerRuntimeRepository {
   load(actionId: string): Promise<CompilerRuntimeRequest>;
+  /**
+   * Record the run. With views, the implementation locks each view's key
+   * (`content.lock_stored_key`) in the recording transaction and then calls `confirmStored`,
+   * which re-reads the bytes at their recorded versions: the storage sweep takes the same lock to
+   * collect an unreferenced compiled view, so a view it collected while this run compiled is
+   * found missing here and not recorded (SAS §100.64).
+   */
   persist(
     request: CompilerRuntimeRequest,
     run: CompilationRun,
     views: readonly MaterializedCompiledView[],
+    confirmStored?: () => Promise<void>,
   ): Promise<string>;
 }
 

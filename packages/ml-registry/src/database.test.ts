@@ -275,11 +275,8 @@ async function insertPromotionDecisionFixture(
       auditDigest,
     ],
   );
-  await tx.query(
-    `insert into core.outbox (action_id, topic, payload)
-     values ($1,'kf.authorize_ml_promotion',$2)`,
-    [actionId, JSON.stringify({ action_id: actionId, targets: [object.id] })],
-  );
+  // No hand-written outbox row: the audit link emits the act's `kf.authorize_ml_promotion` row
+  // over the ledger row's targets (20261011200000), which the envelope check requires exactly once.
   return {
     id: evidence.id,
     reference: {

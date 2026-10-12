@@ -57,7 +57,7 @@ export function createPostgresCompilerRuntimeRepository(pool: Pool): CompilerRun
       });
     },
 
-    async persist(request, run, views) {
+    async persist(request, run, views, confirmStored) {
       return withTransaction(pool, async (tx) => {
         await bindPrincipal(tx, request);
         await setTransactionContext(tx, {
@@ -66,6 +66,12 @@ export function createPostgresCompilerRuntimeRepository(pool: Pool): CompilerRun
           actionId: request.actionId,
           ...(request.requestId === null ? {} : { requestId: request.requestId }),
         });
+        // The storage sweep's lock on each key, in a fixed order, then the bytes read back: a
+        // view the sweep collected while this run compiled is refused here, not recorded
+        // pointing at nothing (SAS §100.64, 20261011210000).
+        const keys = [...new Set(views.map((view) => view.storageUri))].sort();
+        for (const key of keys) await tx.query('select content.lock_stored_key($1)', [key]);
+        if (views.length > 0 && confirmStored !== undefined) await confirmStored();
         const row = await tx.one<{ run_id: string }>(
           'select content.record_compilation_result($1, $2::jsonb, $3::jsonb) as run_id',
           [

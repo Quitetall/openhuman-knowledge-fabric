@@ -107,10 +107,14 @@ only the existing operator-confirmed resume procedure releases it.
 ## Installation and proof still required
 
 The provisioner creates the two identities and API/worker socket-group membership,
-and copies service, socket, timer and path declarations. It does not generate this
-host-specific contract or enable a retrieval engine with guessed pins. Its older
-generic secret-generation path is not the selected workstation encrypted-store
-custody adapter and must not be applied unchanged to this VM.
+and copies service, socket, timer and path declarations. Since 2026-10-11 it also
+installs the pinned engine, runtime and model and renders this contract and the
+broker's policy from them, never from guessed pins
+([retrieval installation](retrieval-installation.md)); it renders nothing while any
+piece fails its pin, which today includes the engine (that page says why). It never
+makes or stores the index key. Its older generic secret-generation path is not the
+selected workstation encrypted-store custody adapter and must not be applied
+unchanged to this VM.
 
 Build and stage a fresh sealed KF release containing these startup modules. The
 older staged candidate cannot supply them without invalidating its manifest.

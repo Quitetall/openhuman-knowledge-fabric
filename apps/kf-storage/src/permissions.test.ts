@@ -26,10 +26,11 @@ describe('the orphan-collection policy', () => {
     ).toBe(true);
   });
 
-  it('grants deletion only under the evidence prefixes, never the whole bucket', () => {
+  it('grants deletion only under the evidence and compiled-view prefixes, never the whole bucket', () => {
     const text = JSON.stringify(orphanCollectionPolicy('kf-artifacts'));
     expect(text).toContain('arn:aws:s3:::kf-artifacts/ingest/*');
     expect(text).toContain('arn:aws:s3:::kf-artifacts/document-imports/*');
+    expect(text).toContain('arn:aws:s3:::kf-artifacts/compiled-views/*');
     expect(text).not.toContain('arn:aws:s3:::kf-artifacts/*');
   });
 

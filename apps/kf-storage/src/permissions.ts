@@ -2,7 +2,8 @@
  * What the working-store key must be allowed to do for orphan collection, and what to say when
  * it is not.
  *
- * `--collect-orphans` lists every version of an evidence key and deletes them. A key without
+ * `--collect-orphans` lists every version of an evidence key, or of a compiled view nothing
+ * references, and deletes them. A key without
  * s3:ListBucketVersions and s3:DeleteObjectVersion fails every run, and it should stay loud —
  * but until 2026-09-23 the failure was the store's own "Access Denied." with nothing to say
  * which permission, on which bucket, or how to grant it. The policy is shipped as a file
@@ -12,7 +13,7 @@
  */
 
 import type { CollectionPermissions } from '@kf/artifacts';
-import { EVIDENCE_NAMESPACES } from './orphans.js';
+import { COMPILED_VIEW_PREFIX, EVIDENCE_NAMESPACES } from './orphans.js';
 
 export const ORPHAN_POLICY_NAME = 'kf-storage-orphan-collection';
 /** Where the release carries the policy, with `KF_ARTIFACTS_BUCKET` standing for the bucket. */
@@ -35,7 +36,11 @@ export function orphanCollectionPolicy(bucket: string): unknown {
         Sid: 'KfStorageCollectOrphanedEvidence',
         Effect: 'Allow',
         Action: ['s3:DeleteObjectVersion'],
-        Resource: EVIDENCE_NAMESPACES.map((namespace) => `arn:aws:s3:::${bucket}/${namespace}/*`),
+        Resource: [
+          ...EVIDENCE_NAMESPACES.map((namespace) => `arn:aws:s3:::${bucket}/${namespace}/*`),
+          // A refused compilation's views (SAS §100.64). The prefix, not the bucket.
+          `arn:aws:s3:::${bucket}/${COMPILED_VIEW_PREFIX.split('/')[0]!}/*`,
+        ],
       },
     ],
   };

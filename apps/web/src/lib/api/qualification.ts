@@ -345,3 +345,129 @@ export function modeLabel(mode: StartHereItem['mode']): string {
       ? 'Locate: know where it lives and when to use it'
       : 'Demonstrate: accepted work that shows it';
 }
+
+// ── Institutional gestures on a record, and drafting a pack (§100.62) ────────────────────────
+//
+//   GET  /qualification/records/:id/gestures   kf-qualification-record-gestures-v1
+//   GET  /qualification/packs/drafting         kf-qualification-pack-drafting-v1
+//   POST /actions/withdraw_qualification | supersede_qualification | draft_qualification_pack
+//
+// Whether a gesture is offered is the API's answer — the dispatcher's own preflight for this
+// reader — and never this application's reading of a role. An answer off contract offers nothing.
+
+export interface SupersedeCandidate {
+  readonly recordId: string;
+  readonly pack: { readonly title: string; readonly revision: number };
+  readonly state: string;
+  readonly assignedAt: string;
+}
+
+export interface RecordGestures {
+  readonly recordId: string;
+  readonly state: string;
+  readonly withdraw: boolean;
+  readonly supersede: boolean;
+  readonly candidates: readonly SupersedeCandidate[];
+}
+
+export function parseRecordGestures(value: unknown): RecordGestures {
+  const v = record(value) ?? fail('gestures');
+  if (v['format'] !== 'kf-qualification-record-gestures-v1') fail('gestures.format');
+  const withdraw = record(v['withdraw']) ?? fail('gestures.withdraw');
+  const supersede = record(v['supersede']) ?? fail('gestures.supersede');
+  const candidates = list(supersede['candidates'], 'gestures.candidates').map((c) => {
+    const x = record(c) ?? fail('candidate');
+    const pack = record(x['pack']) ?? fail('candidate.pack');
+    return {
+      recordId: str(x['recordId'], 'candidate.recordId'),
+      pack: {
+        title: str(pack['title'], 'candidate.pack.title'),
+        revision: count(pack['revision'], 'candidate.pack.revision'),
+      },
+      state: str(x['state'], 'candidate.state'),
+      assignedAt: str(x['assignedAt'], 'candidate.assignedAt'),
+    };
+  });
+  // Only `true` offers anything: a missing or malformed flag is no gesture.
+  const supersedeAvailable = supersede['available'] === true && candidates.length > 0;
+  return {
+    recordId: str(v['recordId'], 'gestures.recordId'),
+    state: str(v['state'], 'gestures.state'),
+    withdraw: withdraw['available'] === true,
+    supersede: supersedeAvailable,
+    candidates: supersedeAvailable ? candidates : [],
+  };
+}
+
+export function getRecordGestures(caller: Caller, recordId: string): Promise<RecordGestures> {
+  return get(
+    `/qualification/records/${encodeURIComponent(recordId)}/gestures`,
+    caller,
+    parseRecordGestures,
+  );
+}
+
+/** A part the API resolved, in the shape `validatePackDocument`'s resolver returns. */
+export interface DraftingPart {
+  readonly key: string;
+  readonly revision: number;
+  readonly approved: boolean;
+  readonly composesParts: boolean;
+  readonly requirements: readonly {
+    readonly key: string;
+    readonly revision: number;
+    readonly part: 'common' | 'role' | 'scope';
+    readonly via?: { readonly pack: string; readonly revision: number };
+    readonly definition: Record<string, unknown>;
+    readonly digest: string;
+  }[];
+}
+
+export interface PackDrafting {
+  readonly available: boolean;
+  readonly parts: readonly DraftingPart[];
+  readonly roles: readonly string[];
+}
+
+export function parsePackDrafting(value: unknown): PackDrafting {
+  const v = record(value) ?? fail('drafting');
+  if (v['format'] !== 'kf-qualification-pack-drafting-v1') fail('drafting.format');
+  const draft = record(v['draft']) ?? fail('drafting.draft');
+  const parts = list(v['parts'], 'drafting.parts').map((p): DraftingPart => {
+    const x = record(p) ?? fail('part');
+    return {
+      key: str(x['key'], 'part.key'),
+      revision: count(x['revision'], 'part.revision'),
+      approved: x['approved'] === true,
+      composesParts: x['composesParts'] === true,
+      requirements: list(x['requirements'], 'part.requirements').map((r) => {
+        const q = record(r) ?? fail('part.requirement');
+        const via = record(q['via']);
+        return {
+          key: str(q['key'], 'requirement.key'),
+          revision: count(q['revision'], 'requirement.revision'),
+          part: oneOf(q['part'], ['common', 'role', 'scope'] as const, 'requirement.part'),
+          ...(via === undefined
+            ? {}
+            : {
+                via: {
+                  pack: str(via['pack'], 'requirement.via.pack'),
+                  revision: count(via['revision'], 'requirement.via.revision'),
+                },
+              }),
+          definition: record(q['definition']) ?? fail('requirement.definition'),
+          digest: str(q['digest'], 'requirement.digest'),
+        };
+      }),
+    };
+  });
+  return {
+    available: draft['available'] === true,
+    parts,
+    roles: strings(v['roles'], 'drafting.roles'),
+  };
+}
+
+export function getPackDrafting(caller: Caller): Promise<PackDrafting> {
+  return get('/qualification/packs/drafting', caller, parsePackDrafting);
+}

@@ -186,15 +186,19 @@ describe('a system that is genuinely in order', () => {
     expect(check(before, 'pitr_readiness')?.status).toBe('failed');
     expect(check(before, 'secure_object_storage_evidence')?.status).toBe('failed');
 
-    await drainOutbox(h.adminPool);
-
-    // Draining alone is not enough, and the check was right to say so: the bootstrap records
-    // — the first organization, the first people, their role assignments — are created
-    // BEFORE any action can exist to create them, so no outbox row ever indexed them. A
-    // rebuild is what covers them, which is why deployment runs one.
+    // Draining is enough, with no rebuild. The bootstrap records — the first organization, the
+    // first people, their role assignments — are written outside the dispatcher, and until
+    // 20261011200000 no outbox row ever indexed them, so this check stayed degraded until a
+    // rebuild (SAS §100.68). They are written in the transaction that records the first act,
+    // and the database now puts every record written under an act in the outbox.
+    for (;;) {
+      const drained = await drainOutbox(h.adminPool);
+      if (drained.delivered === 0) break;
+    }
     const drainedOnly = await assessReadiness(h.adminPool);
-    expect(serviceCheck(drainedOnly, 'search_index')?.status).toBe('degraded');
-    await withTransaction(h.adminPool, async (tx) => tx.query('select search.rebuild()'));
+    expect(serviceCheck(drainedOnly, 'search_index')?.status, formatReadiness(drainedOnly)).toBe(
+      'ok',
+    );
 
     // Missing signing, recovery policy and qualified storage evidence are institutional
     // blockers. They must stay visible without making capable shared dogfood unavailable.

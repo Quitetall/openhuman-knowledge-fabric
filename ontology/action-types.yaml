@@ -334,6 +334,13 @@ action_types:
     audited: true
     transactional: true
     drives: []
+  # `set_push_destination` records where the performing person's urgent push goes in the
+  # organization it targets: an ntfy topic URL sealed to the notifier's key, never plaintext
+  # (KF-NOTIFY-004), or null for none. Never an agent's (KF-NOTIFY-001); 20261011500000.
+  - id: set_push_destination
+    audited: true
+    transactional: true
+    drives: []
   # Grants a person an organization-scoped, effective-dated clearance (ADR 0011).
   #
   # This type exists because `org.person_clearance.granted_by_action` is a NOT NULL foreign key

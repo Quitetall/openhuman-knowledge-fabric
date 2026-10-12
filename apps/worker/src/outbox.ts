@@ -76,8 +76,10 @@ const recordMasterRecordLinkDelivery: OutboxHandler = async (tx, payload) => {
 /**
  * Which topics do what.
  *
- * Every action emits `kf.<action_type>`, and every one of them should refresh the index for
- * whatever it touched — so this is a default rather than a list that has to be extended each
+ * Every action emits `kf.<action_type>` (the database writes it from the act's audit link, for
+ * dispatched and owner-recorded acts alike), and a record written under an act but not among its
+ * targets emits `kf.record_written` (20261011200000). Every one of them should refresh the index
+ * for whatever it touched — so this is a default rather than a list that has to be extended each
  * time an action is added. A list would go stale silently, and the symptom would be records
  * that cannot be found.
  */

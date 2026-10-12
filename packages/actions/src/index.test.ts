@@ -263,7 +263,9 @@ describe('transactional action ownership', () => {
     expect(boundary.statements.some((sql) => /insert into core\.audit_event/i.test(sql))).toBe(
       true,
     );
-    expect(boundary.statements.some((sql) => /insert into core\.outbox/i.test(sql))).toBe(true);
+    // The outbox row is the database's to write: the audit link emits it (20261011200000), so
+    // the dispatcher and the owner's commands cannot differ on it (SAS §100.68).
+    expect(boundary.statements.some((sql) => /insert into core\.outbox/i.test(sql))).toBe(false);
     // One bind, of a PRINCIPAL (20260923000100): the database resolves the organization and
     // ceiling from the person's live assignment and clearance. The provisional `restricted`
     // organization bind the resolver used to need is gone — it was the unbounded bind.
