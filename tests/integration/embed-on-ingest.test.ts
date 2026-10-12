@@ -46,6 +46,13 @@ beforeAll(async () => {
   uri.username = workerRole;
   uri.password = 'test-only-not-a-secret';
   workerPool = createPool({ connectionString: uri.toString() });
+  // The fixture's own records were written under its clearance act, so they are in the outbox
+  // too (20261011200000). Delivered here, with no effect, so what this file counts is what its
+  // own acts queue.
+  for (;;) {
+    const drained = await drainOutbox(workerPool, { handlers: { '*': async () => undefined } });
+    if (drained.delivered === 0) break;
+  }
 }, 180_000);
 
 afterAll(async () => {

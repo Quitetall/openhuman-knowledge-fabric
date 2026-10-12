@@ -5,12 +5,16 @@ import {
   type StoredObject,
 } from './store-contracts.js';
 
-/** In-memory versioned store for deterministic flow tests. */
+/**
+ * In-memory versioned store for deterministic flow tests. Also sweepable (`list`,
+ * `deleteEveryVersion`), so the storage sweep can run against the store a flow wrote to.
+ */
 export class InMemoryObjectStore implements ObjectStore {
   readonly #objects = new Map<
     string,
     {
       headVersionId: string;
+      modifiedAt: Date;
       versions: Map<string, { body: Buffer; mediaType: string }>;
     }
   >();
@@ -47,9 +51,14 @@ export class InMemoryObjectStore implements ObjectStore {
   async put(key: string, body: Buffer, mediaType: string): Promise<StoredObject> {
     this.#counter += 1;
     const versionId = `v${this.#counter}`;
-    const object = this.#objects.get(key) ?? { headVersionId: versionId, versions: new Map() };
+    const object = this.#objects.get(key) ?? {
+      headVersionId: versionId,
+      modifiedAt: new Date(),
+      versions: new Map(),
+    };
     object.versions.set(versionId, { body: Buffer.from(body), mediaType });
     object.headVersionId = versionId;
+    object.modifiedAt = new Date();
     this.#objects.set(key, object);
     return { key, sizeBytes: body.length, versionId };
   }
@@ -62,6 +71,23 @@ export class InMemoryObjectStore implements ObjectStore {
       return { key, sizeBytes: head.body.length, versionId: object.headVersionId };
     }
     return this.put(key, body, mediaType);
+  }
+
+  /** Current keys under `prefix`, with when their current version was written. */
+  async *list(
+    prefix: string,
+  ): AsyncIterable<{ readonly key: string; readonly lastModified: Date }> {
+    for (const [key, object] of [...this.#objects.entries()]) {
+      if (key.startsWith(prefix)) yield { key, lastModified: object.modifiedAt };
+    }
+  }
+
+  /** Remove every version of exactly `key`; how many there were. */
+  async deleteEveryVersion(key: string): Promise<number> {
+    const object = this.#objects.get(key);
+    if (object === undefined) return 0;
+    this.#objects.delete(key);
+    return object.versions.size;
   }
 
   /** Test-only: replace bytes at a key, simulating tampering in store. */

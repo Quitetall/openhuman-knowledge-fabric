@@ -31,6 +31,9 @@
  * table is append-only and exported; the journal line is no longer the only trail. A deletion
  * that could not be recorded is a refusal — the bytes are gone and the record is not, which is
  * the outcome that must fail the run rather than pass quietly.
+ *
+ * COMPILED VIEWS are swept by `sweepUnreferencedCompiledViews` below, under the same record and
+ * the same rules, with the differences their shared, digest-only prefix forces (SAS §100.64).
  */
 
 import { isAccessDenied, type SweepableObjectStore } from '@kf/artifacts';
@@ -205,6 +208,116 @@ export async function sweepOrphanedEvidence(
       refused.push({ subject: `prefix ${prefix}`, reason: explain(error) });
       return { collected, kept, refused };
     }
+  }
+  return { collected, kept, refused };
+}
+
+/** Where the compiler runtime writes a view: its content address (`materializeViews`). */
+export const COMPILED_VIEW_PREFIX = 'compiled-views/sha256/';
+
+const COMPILED_VIEW_KEY = /^compiled-views\/sha256\/[0-9a-f]{64}$/u;
+
+/**
+ * Collect compiled views no record references (SAS §100.64).
+ *
+ * The compiler runtime writes a view's bytes and only then asks the database to record the run.
+ * A run the database refuses as not reproducing an earlier one (KF-DOC-DETERMINISM-001) is
+ * recorded as failed with no views, so what it wrote stays under a key nothing names; so does a
+ * view whose run crashed between the write and the record. The same sweep as for evidence, with
+ * two differences the prefix forces:
+ *
+ * ACROSS ORGANIZATIONS. A view's key is its digest alone, so organizations that compile the same
+ * bytes share it, and a reference check under the collector's row security would call another
+ * organization's view an orphan. `content.claim_unreferenced_compiled_view` checks every
+ * organization, as a definer, for a bound service actor, and answers only yes or no.
+ *
+ * UNDER ONE LOCK PER KEY. The runtime adopts a key that already exists instead of writing it
+ * again, so a compilation in flight can adopt a view a refused run left long ago, and the grace
+ * period, which is the key's age, does not protect it. The claim, the delete and the record are
+ * one transaction holding `content.lock_stored_key`; the runtime takes the same lock where it
+ * records the run, and re-reads its views there. Whichever is second sees what the first did:
+ * the sweep finds the key referenced and keeps it, or the runtime finds its version gone,
+ * records nothing, and is retried, writing the view again.
+ *
+ * A deletion whose record then fails rolls the claim back but not the store: reported as a
+ * refusal, as for evidence, because the bytes are gone and the record is not.
+ */
+export async function sweepUnreferencedCompiledViews(
+  pool: Pool,
+  store: SweepableObjectStore,
+  actor: StorageActor,
+  options: OrphanSweepOptions,
+): Promise<OrphanSweepReport> {
+  if (!Number.isFinite(options.graceHours) || options.graceHours < 1) {
+    throw new Error(
+      'graceHours must be at least 1: a compilation in flight has bytes before its run',
+    );
+  }
+  await assertServiceActor(pool, actor);
+
+  const limit = options.limit ?? 500;
+  const cutoff = (options.now ?? new Date()).getTime() - options.graceHours * 3_600_000;
+  const collected: string[] = [];
+  const refused: { subject: string; reason: string }[] = [];
+  let kept = 0;
+  const storeId = options.storeId ?? 'working';
+  const reason =
+    `no artifact version or location in any organization referenced this compiled view for ` +
+    `${String(options.graceHours)} hours (kf-storage --collect-orphans)`;
+  const explain = (error: unknown): string =>
+    isAccessDenied(error) && options.accessDenied !== undefined
+      ? options.accessDenied
+      : error instanceof Error
+        ? error.message
+        : String(error);
+
+  try {
+    for await (const object of store.list(COMPILED_VIEW_PREFIX)) {
+      if (collected.length >= limit) break;
+      // Anything else under the prefix is not a content address the runtime wrote; left alone.
+      if (!COMPILED_VIEW_KEY.test(object.key) || object.lastModified.getTime() >= cutoff) {
+        kept += 1;
+        continue;
+      }
+      let deleted = false;
+      try {
+        const outcome = await withTransaction(pool, async (tx) => {
+          await bindPrincipal(tx, {
+            actorId: actor.personId,
+            actingRoleId: actor.roleAssignmentId,
+            organizationId: actor.organizationId,
+            maxClassification: actor.maxClassification,
+          });
+          const claim = await tx.one<{ unreferenced: boolean }>(
+            'select content.claim_unreferenced_compiled_view($1) as unreferenced',
+            [object.key],
+          );
+          if (!claim.unreferenced) return 'kept' as const;
+          const versionsRemoved = await store.deleteEveryVersion(object.key);
+          deleted = true;
+          await tx.one('select content.record_orphan_collection($1, $2, $3, $4) as id', [
+            storeId,
+            object.key,
+            versionsRemoved,
+            reason,
+          ]);
+          return 'collected' as const;
+        });
+        if (outcome === 'kept') kept += 1;
+        else collected.push(object.key);
+      } catch (error: unknown) {
+        refused.push({
+          subject: `object ${object.key}`,
+          reason: deleted
+            ? 'deleted but NOT recorded in content.orphan_collection: ' + explain(error)
+            : explain(error),
+        });
+        if (isAccessDenied(error)) return { collected, kept, refused };
+      }
+    }
+  } catch (error: unknown) {
+    if (!isAccessDenied(error)) throw error;
+    refused.push({ subject: `prefix ${COMPILED_VIEW_PREFIX}`, reason: explain(error) });
   }
   return { collected, kept, refused };
 }

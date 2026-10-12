@@ -345,8 +345,9 @@ for the question as written and as `or`'d content words, beside the numbers of t
   function words (`search.detect_languages`); MASTER_INDEX's `language` column is used only to
   measure that detection, not to set it.
 - The bootstrap tier (`kf bootstrap-organization`, `kf grant-authority`) writes people and role
-  assignments without an outbox row, so the worker never indexes them and readiness reports them
-  as unfindable. The loader ends by indexing exactly those objects (`search.index_object`) on the
-  worker's login (a whole rebuild would do too; `stack.sh reindex` runs one in batches).
+  assignments outside the dispatcher. On a database at `20261011200000` or later they reach the
+  outbox like any act's records (SAS §100.68); on an older one the worker never indexes them. The
+  loader ends by indexing exactly those objects (`search.index_object`) on the worker's login
+  either way (a whole rebuild would do too; `stack.sh reindex` runs one in batches).
 - The first visit to a record's object page answers `master_record_stale` and the page refreshes
   the person's master record itself; each refresh is recorded as that person's act.

@@ -482,6 +482,7 @@ describe("this host's own object store, kf-objects (ADR 0039)", () => {
       'List:kf-artifacts',
       'Write:kf-artifacts/ingest/*',
       'Write:kf-artifacts/document-imports/*',
+      'Write:kf-artifacts/compiled-views/*',
     ]);
     expect(identities.find((identity) => identity.name === 'kf-drill')?.actions).toEqual([
       'Read:kf-artifacts',

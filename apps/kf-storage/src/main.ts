@@ -3,7 +3,8 @@
  *
  *   kf-storage --replicate         copy every version lacking a durable copy into S3_DURABLE_*
  *   kf-storage --verify [--older-than-days N]   re-verify locations not verified within N days
- *   kf-storage --collect-orphans [--grace-hours N]   remove evidence bytes no record references
+ *   kf-storage --collect-orphans [--grace-hours N]   remove evidence bytes and compiled views
+ *                                                    no record references
  *   kf-storage --check-permissions   may the working-store key collect orphans? (changes nothing)
  *
  * A separate one-shot behind a timer, in the shape of the checkpoint signer: its own unit,
@@ -23,7 +24,12 @@ import {
 } from '@kf/artifacts';
 import { createPool, withTransaction } from '@kf/database';
 import { loadSecret } from '@kf/operations';
-import { EVIDENCE_NAMESPACES, sweepOrphanedEvidence } from './orphans.js';
+import {
+  COMPILED_VIEW_PREFIX,
+  EVIDENCE_NAMESPACES,
+  sweepOrphanedEvidence,
+  sweepUnreferencedCompiledViews,
+} from './orphans.js';
 import {
   ORPHAN_POLICY_FILE,
   ORPHAN_POLICY_NAME,
@@ -75,10 +81,11 @@ async function checkPermissions(): Promise<number> {
   const organization = required('KF_STORAGE_ORGANIZATION');
   const store = new S3SweepableObjectStore(working);
   const missing = new Set<string>();
-  for (const namespace of EVIDENCE_NAMESPACES) {
-    for (const action of missingActions(
-      await store.probeCollectionPermissions(`${namespace}/${organization}/`),
-    )) {
+  for (const prefix of [
+    ...EVIDENCE_NAMESPACES.map((namespace) => `${namespace}/${organization}/`),
+    COMPILED_VIEW_PREFIX,
+  ]) {
+    for (const action of missingActions(await store.probeCollectionPermissions(prefix))) {
       missing.add(action);
     }
   }
@@ -162,13 +169,27 @@ async function main(): Promise<number> {
         : { replicated: [], verified: [], refused: [] };
     // Last, after replication: a key is only collected when nothing references it, and a
     // durable copy made in this same run is a reference.
-    const orphans = wantsOrphans
-      ? await sweepOrphanedEvidence(pool, new S3SweepableObjectStore(working), actor, {
-          graceHours: integerFlag('--grace-hours', 168),
-          limit: integerFlag('--limit', 500),
-          accessDenied: orphanPermissionRefusal(working),
-        })
+    const orphanOptions = {
+      graceHours: integerFlag('--grace-hours', 168),
+      limit: integerFlag('--limit', 500),
+      accessDenied: orphanPermissionRefusal(working),
+    };
+    const evidence = wantsOrphans
+      ? await sweepOrphanedEvidence(pool, new S3SweepableObjectStore(working), actor, orphanOptions)
       : { collected: [], kept: 0, refused: [] };
+    // A refused compilation's views (SAS §100.64): the same record, across organizations.
+    const views = wantsOrphans
+      ? await sweepUnreferencedCompiledViews(
+          pool,
+          new S3SweepableObjectStore(working),
+          actor,
+          orphanOptions,
+        )
+      : { collected: [], kept: 0, refused: [] };
+    const orphans = {
+      collected: [...evidence.collected, ...views.collected],
+      refused: [...evidence.refused, ...views.refused],
+    };
     const refused = [...report.refused, ...orphans.refused];
     console.warn(
       JSON.stringify({

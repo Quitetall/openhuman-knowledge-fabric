@@ -179,8 +179,10 @@ Put the service actor's `person_id` and `role_assignment_id` in `/etc/kf/storage
 (`KF_STORAGE_ACTOR`, `KF_STORAGE_ROLE`, with `KF_STORAGE_ORGANIZATION`). Declare the recovery
 objective (deploy/systemd/README.md, "Declare the recovery objective first") as the migrator, and
 approve the three physical failure domains (`ops.physical_failure_domain_evidence`: the VPS disk,
-the B2 durable bucket, the B2 backup bucket). Records written this way do not pass through the
-outbox, so index them once: `select search.rebuild();` as the migrator.
+the B2 durable bucket, the B2 backup bucket). The records the owner's commands write reach the
+search outbox (`20261011200000`) and are indexed when the worker drains it; rows written as the
+migrator in SQL record no act and do not, so index them once: `select search.rebuild();` as the
+migrator.
 
 ## 6. Timers, then every scheduled operation once by hand
 

@@ -488,9 +488,10 @@ async function presets(opts, overlay, sessions, boot, ids) {
 
 /**
  * The bootstrap tier writes people, role assignments and organizations directly (its one
- * exception to the dispatcher), so no outbox row announces them and the worker never indexes
- * them; readiness then reports them as unfindable. The index is disposable and rebuilt by the
- * worker's own login, which is what this does: it touches no record.
+ * exception to the dispatcher). Since 20261011200000 the database puts them in the outbox like any
+ * act's records (SAS §100.68); before that nothing announced them and readiness reported them as
+ * unfindable. The index is disposable and rebuilt by the worker's own login, which is what this
+ * does, so a load ends with them findable without waiting for a drain: it touches no record.
  *
  * The same login then queues every indexed record for embedding (`retrieval.enqueue_embedding`,
  * the derived queue's documented rebuild; the ids are listed on the owner credential, because the
