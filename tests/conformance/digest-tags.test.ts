@@ -555,6 +555,11 @@ const ALLOWED: readonly Allowed[] = [
     line: "const digest = createHash('sha256').update(gesture.body, 'utf8').digest('hex');",
     reason: 'raw bytes: hashes an observation body as typed',
   },
+  {
+    path: 'apps/web/src/app/capture/actions.ts',
+    line: "sha256: createHash('sha256').update(item.bytes).digest('hex'),",
+    reason: 'raw bytes: a captured photo or voice note as stored, keying its ingest idempotency',
+  },
 ];
 
 /**

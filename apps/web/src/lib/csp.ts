@@ -46,6 +46,8 @@ export function contentSecurityPolicy(
     development ? "style-src 'self' 'unsafe-inline'" : `style-src 'self' 'nonce-${nonce}'`,
     "style-src-attr 'unsafe-inline'",
     "img-src 'self' blob: data:",
+    // A voice note is played back from the recording in the page before it is sent (capture).
+    "media-src 'self' blob:",
     "font-src 'self'",
     // Hot reload is a websocket back to the dev server.
     `connect-src 'self'${development ? ' ws:' : ''}`,
