@@ -340,6 +340,9 @@ importers:
       '@kf/ml-registry':
         specifier: workspace:*
         version: link:../../packages/ml-registry
+      '@kf/qualification':
+        specifier: workspace:*
+        version: link:../../packages/qualification
       '@kf/ui':
         specifier: workspace:*
         version: link:../../packages/ui

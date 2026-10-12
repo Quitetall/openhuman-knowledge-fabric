@@ -1,11 +1,22 @@
 #!/usr/bin/env node
 /**
  * Render the SeaweedFS identities file (`weed server -s3.config`) for a host's own object store,
- * kf-objects (ADR 0039), from the secret files the identities' services already hold.
+ * kf-objects (ADR 0039), at each start of the store, from the secrets the service manager hands it.
  *
- *   node render-identities.mjs <out.json> <orphan-policy.json> <artifacts-bucket>
+ *   node render-identities.mjs <store.json> <orphan-policy.json> <out.json>
  *
- * The identities come from KF_OBJECTS_IDENTITIES, one per line, `name|secret-file|role`:
+ * kf-objects.service runs this as its ExecStartPre, as `kf-objects`. Each identity's secret is the
+ * credential of the same name in $CREDENTIALS_DIRECTORY, which PID 1 read from that identity's own
+ * secret file (`LoadCredential=kf-api:/etc/kf/api/s3-secret-access-key`, and so on). <out.json> is
+ * in the unit's RuntimeDirectory, which the service manager removes when the store stops: no
+ * assembled copy of the secrets stays on disk (SAS §100.54). Until 2026-10-11 provision-host.sh
+ * assembled them into /etc/kf/objects/identities.json, which stayed there.
+ *
+ * <store.json> is NOT secret. provision-host.sh writes it (root, 0644): the artifacts bucket and
+ * which identities this store serves, each with its role. A service routed at another store is not
+ * in it, so its credential, if the service manager hands one over, is never rendered:
+ *
+ *   {"bucket": "kf-artifacts", "identities": [{"name": "kf-api", "role": "app"}, ...]}
  *
  *   admin     creates buckets and sets versioning (init-buckets.sh, kf-objects-init.service)
  *   app       reads, writes and lists the artifacts bucket (the API, the worker)
@@ -15,23 +26,53 @@
  *             statement of that grant; this translates it into SeaweedFS's action form.
  *   readonly  reads and lists the bucket (the restore drill)
  *
- * SECRETS are read here from their files and written only to <out.json>, created 0600; never
- * printed, never an argument. Prints `changed` or `unchanged`, so the caller restarts the store
- * only when the file did change. Exit 1 on any unreadable or empty secret: an identity without
- * its secret is a store nobody can use, and must not be written half.
+ * SECRETS are read from the credentials directory and written only to <out.json>, created 0600;
+ * never printed, never an argument. Exit 1, naming the identity and never its secret, on a missing,
+ * empty or short credential: a store that starts without an identity it is meant to serve fails
+ * the service that needs it later and less legibly. Exit 64 on a malformed invocation or manifest.
  */
 
 import { readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { isAbsolute, join } from 'node:path';
 
-const [out, policyPath, bucket] = process.argv.slice(2);
-if (out === undefined || policyPath === undefined || bucket === undefined) {
-  process.stderr.write('usage: render-identities.mjs <out.json> <policy.json> <bucket>\n');
-  process.exit(64);
+function refuse(code, message) {
+  process.stderr.write(`render-identities: ${message}\n`);
+  process.exit(code);
 }
-if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket)) {
-  process.stderr.write(`render-identities: ${JSON.stringify(bucket)} is not a bucket name\n`);
-  process.exit(64);
+
+const [manifestPath, policyPath, out, ...extra] = process.argv.slice(2);
+if (manifestPath === undefined || policyPath === undefined || out === undefined || extra.length) {
+  refuse(64, 'usage: render-identities.mjs <store.json> <policy.json> <out.json>');
 }
+const credentials = process.env['CREDENTIALS_DIRECTORY'] ?? '';
+if (!isAbsolute(credentials)) {
+  refuse(
+    64,
+    'no credentials directory: run as kf-objects.service, whose LoadCredential= lines supply the secrets',
+  );
+}
+
+let manifest;
+try {
+  manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+} catch {
+  refuse(64, `cannot read the store manifest ${manifestPath}`);
+}
+const NAME = /^[a-z][a-z0-9-]{1,62}$/;
+const BUCKET = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/;
+if (
+  manifest === null ||
+  typeof manifest !== 'object' ||
+  Array.isArray(manifest) ||
+  JSON.stringify(Object.keys(manifest).sort()) !== '["bucket","identities"]' ||
+  typeof manifest.bucket !== 'string' ||
+  !BUCKET.test(manifest.bucket) ||
+  !Array.isArray(manifest.identities) ||
+  manifest.identities.length === 0
+) {
+  refuse(64, `the store manifest ${manifestPath} is not {"bucket", "identities": [...]}`);
+}
+const bucket = manifest.bucket;
 
 /** The policy's object resources under this bucket, as SeaweedFS `bucket/prefix/*` scopes. */
 function storageDeleteScopes() {
@@ -67,25 +108,31 @@ const ROLES = {
 };
 
 const identities = [];
-for (const line of (process.env['KF_OBJECTS_IDENTITIES'] ?? '').split('\n')) {
-  if (line.trim() === '') continue;
-  const [name, secretFile, role] = line.split('|');
-  if (name === undefined || secretFile === undefined || role === undefined || !(role in ROLES)) {
-    process.stderr.write(`render-identities: malformed identity line for ${name ?? '?'}\n`);
-    process.exit(64);
+const seen = new Set();
+for (const entry of manifest.identities) {
+  const valid =
+    entry !== null &&
+    typeof entry === 'object' &&
+    !Array.isArray(entry) &&
+    JSON.stringify(Object.keys(entry).sort()) === '["name","role"]' &&
+    typeof entry.name === 'string' &&
+    NAME.test(entry.name) &&
+    !seen.has(entry.name) &&
+    typeof entry.role === 'string' &&
+    Object.hasOwn(ROLES, entry.role);
+  if (!valid) {
+    refuse(64, `malformed identity in the store manifest: ${JSON.stringify(entry)?.slice(0, 120)}`);
   }
-  let secret;
+  const { name, role } = entry;
+  seen.add(name);
+  let secret = '';
   try {
-    secret = readFileSync(secretFile, 'utf8').trim();
+    secret = readFileSync(join(credentials, name), 'utf8').trim();
   } catch {
-    process.stderr.write(`render-identities: cannot read the secret for ${name} (${secretFile})\n`);
-    process.exit(1);
+    refuse(1, `the service manager handed over no credential for ${name}`);
   }
   if (secret.length < 16) {
-    process.stderr.write(
-      `render-identities: the secret for ${name} (${secretFile}) is empty or short\n`,
-    );
-    process.exit(1);
+    refuse(1, `the credential for ${name} is empty or short: supply that identity's secret file`);
   }
   identities.push({
     name,
@@ -93,24 +140,10 @@ for (const line of (process.env['KF_OBJECTS_IDENTITIES'] ?? '').split('\n')) {
     actions: ROLES[role](),
   });
 }
-if (identities.length === 0) {
-  process.stderr.write('render-identities: KF_OBJECTS_IDENTITIES names no identity\n');
-  process.exit(64);
-}
 
 const text = `${JSON.stringify({ identities }, null, 2)}\n`;
-let current;
-try {
-  current = readFileSync(out, 'utf8');
-} catch {
-  current = undefined;
-}
-if (current === text) {
-  process.stdout.write('unchanged\n');
-} else {
-  // Removed first: `mode` applies only to a file this call creates.
-  rmSync(`${out}.tmp`, { force: true });
-  writeFileSync(`${out}.tmp`, text, { mode: 0o600 });
-  renameSync(`${out}.tmp`, out);
-  process.stdout.write('changed\n');
-}
+// Removed first: `mode` applies only to a file this call creates.
+rmSync(`${out}.tmp`, { force: true });
+writeFileSync(`${out}.tmp`, text, { mode: 0o600 });
+renameSync(`${out}.tmp`, out);
+process.stderr.write(`render-identities: ${identities.length} identities for ${bucket}\n`);

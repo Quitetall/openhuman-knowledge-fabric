@@ -1,0 +1,37 @@
+# What a host's semantic search runs (ADR 0039 decision 5: on the host's CPU, nothing sent off it),
+# pinned. scripts/deploy/provision-retrieval.sh (run by provision-host.sh) installs each piece only
+# when its digest matches, refuses any that differs, and renders /etc/kf/retrieval-runtime.json
+# from these and the installed accounts. Read as KEY=value lines, never sourced.
+#
+# THE ENGINE. LAMU `kf-retrieval serve`, the build KF-WAR-0002 pinned and the fixture stacks run
+# (~/.local/libexec/kf-veracier/lamu, `lamu 0.6.0 (git:26923af)`): glibc-linked x86-64, needing
+# glibc 2.39 or later (Debian 13 has 2.41) and libgcc_s. No URL: LAMU publishes no release
+# artifact, so a person places the build in /var/lib/kf/retrieval-supply/lamu and provisioning
+# checks it. Provisioning also asks the engine for every option scripts/retrieval/config.mjs
+# starts it with, and refuses one that lacks any: 26923afb has no --key-release-socket (the KF
+# key-release client is on LAMU's kf/startup-key-release branch, a20e515, which does not speak
+# KF's current retrieval protocol), so until the owner pins a build that has both, this engine is
+# refused and semantic search stays uninstalled (docs/deployment/retrieval-installation.md).
+LAMU_COMMIT=26923afb12f8cb31e20b415d0a72c717020aa293
+LAMU_SHA256_amd64=c45c672ff498b6df36dbcff4829c4e480b2e79d2f084e37179f6959d6946e962
+LAMU_URL_amd64=
+#
+# THE PYTHON RUNTIME. Debian 13's Python 3.13 and exactly the wheels embed-requirements-cpu.txt
+# names, each checked against its sha256 (pip --require-hashes), assembled into a closed runtime
+# (scripts/embedding/assemble-runtime.mjs) whose manifest digest the startup contract pins.
+EMBEDDING_PYTHON=/usr/bin/python3.13
+EMBEDDING_STDLIB=/usr/lib/python3.13
+EMBEDDING_LOCK=deploy/retrieval/embed-requirements-cpu.txt
+#
+# THE MODEL. BAAI/bge-m3 at the pinned revision, converted once to float16 safetensors
+# (scripts/embedding/prepare-model.py) from the Hub files bge-m3.sources pins. The result must be
+# the closed directory whose SHA256SUMS digest scripts/embedding/model.py pins (MODEL_MANIFEST);
+# these two values are that file's, and tests/deployment/retrieval-installation.test.ts holds
+# them equal.
+MODEL_IDENTITY=BAAI/bge-m3@5617a9f61b028005a4858fdac845db406aefb181/dense-cls-f32-single-cpu3-v1
+MODEL_MANIFEST_SHA256=ab6184aae20a30f215160e7d5a9d231cd5a94323f62f4d3501a316aa66354f9a
+MODEL_DIRECTORY=/opt/kf-models/bge-m3-5617a9f61b02-f16
+MODEL_SOURCE_URL=https://huggingface.co/BAAI/bge-m3/resolve/5617a9f61b028005a4858fdac845db406aefb181
+#
+# The provider's loopback port inside the provider/engine private network namespace.
+EMBEDDING_PORT=8021
