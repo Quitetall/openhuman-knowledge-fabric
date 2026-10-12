@@ -24,6 +24,7 @@
 import { enumerateAccessCoverage, type AccessCoverage } from '@kf/authorization';
 import type { Tx } from '@kf/database';
 import {
+  currencyFromRecord,
   latestMasterRecordClaim,
   readOrganizationOverview,
   type OverviewAnswer,
@@ -126,7 +127,8 @@ export interface MasterDocumentPanel {
         readonly memberCount: number;
         /**
          * `current` when the database's record of writes shows nothing the claim depends on has
-         * changed (§58); `unknown` otherwise. Deciding "stale" would mean recounting the whole
+         * changed, or that the few records the writes since named are as the claim holds them
+         * (§58); `unknown` otherwise. Deciding "stale" in general would mean recounting the whole
          * corpus, which the dashboard never does: the master-document page offers to recompile.
          */
         readonly currency: 'current' | 'unknown';
@@ -202,13 +204,17 @@ async function masterDocumentPanel(tx: Tx, reader: Reader): Promise<MasterDocume
   const claim = await latestMasterRecordClaim(tx, reader.actorId, reader.organizationId);
   if (claim === undefined)
     return { id: 'master_document', empty: false, claim: { status: 'missing' } };
-  const facts = await tx.one<{ compiled_at: Date; members: string; current: string | null }>(
+  const facts = await tx.one<{ compiled_at: Date; members: string }>(
     `select /* experience.claim-header */ m.compiled_at,
             (select count(*) from content.master_record_item i
-              where i.master_record_id = m.id and i.item_state = 'included')::text as members,
-            content.master_record_current_format(m.id) as current
+              where i.master_record_id = m.id and i.item_state = 'included')::text as members
        from content.master_record m where m.id = $1`,
     [claim.id],
+  );
+  const known = await currencyFromRecord(
+    tx,
+    { personId: reader.actorId, organizationId: reader.organizationId },
+    claim,
   );
   return {
     id: 'master_document',
@@ -219,7 +225,7 @@ async function masterDocumentPanel(tx: Tx, reader: Reader): Promise<MasterDocume
       compiledAt: new Date(facts.compiled_at).toISOString(),
       corpusDigest: claim.corpusDigest,
       memberCount: Number(facts.members),
-      currency: facts.current === null ? 'unknown' : 'current',
+      currency: known?.status === 'current' ? 'current' : 'unknown',
     },
   };
 }

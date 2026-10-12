@@ -84,6 +84,26 @@ verified member, on both paths. One difference is deliberate: the member budget 
 the reading evaluates, not the size of a corpus it never loads, so a reader of more than 5 000
 records is served rather than refused with 413.
 
+_Amended 2026-10-11:_ a write names the records it can move (20261011300000; SAS §100.42, §100.43).
+The record of writes said only which transaction wrote, per organization, so one note captured by
+anybody made every reader's next view recount their whole corpus until they refreshed. Now a write
+to a table whose effect on every reading is confined to the records its rows name — derived from the
+catalog by `content.master_record_input_plan`: the payload walk's tables, their row-security parents
+along foreign keys, object grants, exclusions and holds — records those records (or artifact
+versions, resolved to the records holding them when read). Every other write — a reclassification, a
+key change, a role assignment, an organization-wide grant, the coverage's sources, a table some
+policy reads through a function or without a foreign key, a TRUNCATE — still names nothing and still
+makes every reader recount. A reader whose compilation missed only naming writes re-checks those
+records live, under their own row security and grants, at the revision the claim holds
+(`content.master_record_currency_delta`, at most 1 000 of them): as before, the claim is current
+exactly when the comparison would say so, and nothing about what a reader may see is decided from
+the record. `tests/database/master-record-delta.test.ts` pins the plan, plants a violation of each
+rule, compares every re-checked verdict with the whole comparison, and shows a narrow reader never
+served a record outside their grants after a write to it or after its grant is revoked; with the
+record of a revocation suppressed, or with a delta that trusts named writes, the record is served,
+which is what the guards are for. The master document and the dashboard use the same re-check, so
+they say "current" after such a write instead of "unknown".
+
 **Every object type gets the page with no per-type code.** `apps/web/src/app/objects/[id]`
 renders the Result generically — envelope, typed payload as rows, relationships with direction
 and relation type, actions from this state, history. A type added to the ontology is browsable

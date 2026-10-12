@@ -20,8 +20,15 @@ export async function enrolPerson(
   f: Fixtures,
   spec: {
     readonly name: string;
-    /** Role and scope per assignment; scope defaults to the organization. */
-    readonly assignments: readonly { readonly role: string; readonly scopeId?: string }[];
+    /**
+     * Role and scope per assignment; scope defaults to the organization. A classification ceiling
+     * bounds what the assignment covers (none: everything its scope reaches).
+     */
+    readonly assignments: readonly {
+      readonly role: string;
+      readonly scopeId?: string;
+      readonly classificationCeiling?: string;
+    }[];
   },
 ): Promise<EnrolledPerson> {
   const personId = await createObject(adminPool, f, {
@@ -57,9 +64,16 @@ export async function enrolPerson(
     ]);
     for (const [i, assignment] of spec.assignments.entries()) {
       await tx.query(
-        `insert into org.role_assignment (id, subject_id, role_id, scope_id, valid_to)
-         values ($1, $2, $3, $4, now() + interval '1 year')`,
-        [assignmentIds[i], personId, assignment.role, assignment.scopeId ?? f.organizationId],
+        `insert into org.role_assignment
+           (id, subject_id, role_id, scope_id, classification_ceiling, valid_to)
+         values ($1, $2, $3, $4, $5, now() + interval '1 year')`,
+        [
+          assignmentIds[i],
+          personId,
+          assignment.role,
+          assignment.scopeId ?? f.organizationId,
+          assignment.classificationCeiling ?? null,
+        ],
       );
     }
     await tx.query(

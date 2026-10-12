@@ -51,8 +51,9 @@ import { liveVerifications, projectionMembersOf } from './master-record-projecti
  * whole permitted set and the whole relation graph, and project all of it to show one record. For a
  * reader of ~50 000 records that was 12-16 s per view on the kf-fixa fixture (2026-09-26). It now
  * asks the database whether the claim is still current (answered from its record of writes when it
- * can be, by enumerating otherwise, `masterRecordCurrency`), then reads only the edges touching the
- * anchor and the claim's members among what they reach.
+ * can be — after re-checking the few records the writes since named, 20261011300000 — and by
+ * enumerating otherwise, `masterRecordCurrency`), then reads only the edges touching the anchor and
+ * the claim's members among what they reach.
  */
 export function registerObjectViewRoute(
   app: FastifyInstance,
@@ -105,8 +106,10 @@ async function serveObjectView(
     //
     // "Current" means what it always has — the corpus has not moved since the claim — and is
     // asked first of the database's record of writes, which answers without enumerating the
-    // corpus when the reader's own compilation saw every write since (20260926110100). Only
-    // when it cannot is the whole permitted set enumerated and compared.
+    // corpus when the reader's own compilation saw every write since (20260926110100), or when
+    // the writes it did not see named only records that, re-checked live, are as the claim holds
+    // them (20261011300000). Only when it cannot is the whole permitted set enumerated and
+    // compared.
     const reader = { personId: identity.actorId, organizationId: identity.organizationId };
     const currencyOf = async (
       claim: MasterRecordClaim | undefined,
