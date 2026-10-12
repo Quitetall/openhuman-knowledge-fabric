@@ -203,6 +203,9 @@ DIRECTORIES=(
   # receipt, migrate-release.sh rehearse-rollback (kf-migrator) the rollback-rehearsal one.
   "0755 root root /var/lib/kf"
   "0775 root kf-migrator /var/lib/kf/commissioning"
+  # Where a person places what semantic search installs from and cannot be fetched by digest (the
+  # LAMU engine), or what an offline host supplies instead of fetching (provision-retrieval.sh).
+  "0700 root root /var/lib/kf/retrieval-supply"
 )
 
 mode_of() { stat -c '%a' -- "$1"; }
@@ -927,13 +930,20 @@ OBJECT_IDENTITIES=(
 )
 
 # For every service routed at this host's store: generate its secret (a person would only have to
-# invent one), give it the key id its identity is named by, and render the store's identities
-# file from those secrets. A service routed at another store is left to its human secret.
+# invent one), give it the key id its identity is named by, and write the store's manifest: the
+# bucket and which identities it serves, with their roles. NOT the secrets: kf-objects.service
+# receives each identity's secret from PID 1 (LoadCredential=) and renders its identities file at
+# every start into its runtime directory (deploy/object-store/render-identities.mjs), so no
+# assembled copy stays on disk (SAS §100.54). A service routed at another store is left to its
+# human secret and is not in the manifest.
+STORE_MANIFEST=/etc/kf/objects/store.json
+ASSEMBLED_IDENTITIES=/etc/kf/objects/identities.json
 ensure_local_objects() {
-  local entry name env secret owner role lines bucket output identities
+  local entry name env secret owner role bucket manifest current before identities
   [ -d "$(p /etc/kf/objects)" ] && [ -d "$(p /etc/kf/objects-init)" ] || return 0
+  before="${#CREATED[@]}"
   generate_secret kf-objects-init /etc/kf/objects-init/admin-secret token
-  lines="kf-objects-admin|$(p /etc/kf/objects-init/admin-secret)|admin"
+  identities='{"name": "kf-objects-admin", "role": "admin"}'
   bucket=''
   for entry in "${OBJECT_IDENTITIES[@]}"; do
     IFS='|' read -r name env secret owner role <<< "$entry"
@@ -942,31 +952,42 @@ ensure_local_objects() {
     generate_secret "$owner" "$secret" token
     if [ "$MODE" = apply ]; then set_env_value "$(p "$env")" S3_ACCESS_KEY_ID "$name"; fi
     [ -n "$bucket" ] || bucket="$(env_value "$(p "$env")" S3_BUCKET_ARTIFACTS)"
-    lines="$lines"$'\n'"$name|$(p "$secret")|$role"
+    identities="$identities, {\"name\": \"$name\", \"role\": \"$role\"}"
   done
   [ -n "$bucket" ] || bucket=kf-artifacts
+  # The renderer refuses any other bucket name; refused here too, before it reaches the file.
+  if [[ ! "$bucket" =~ ^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$ ]]; then
+    human "$STORE_MANIFEST" "S3_BUCKET_ARTIFACTS=$bucket is not a bucket name"
+    return 0
+  fi
   if [ "$MODE" = apply ]; then
     set_env_value "$(p /etc/kf/objects-init/objects.env)" KF_OBJECTS_BUCKETS "$bucket"
   fi
-  identities="$(p /etc/kf/objects/identities.json)"
-  if [ "$MODE" = check ]; then
-    [ -s "$identities" ] || pending "object-store identities /etc/kf/objects/identities.json"
-    return 0
-  fi
-  # Secrets are read by the renderer from their files; only paths cross this boundary.
-  if ! output="$(KF_OBJECTS_IDENTITIES="$lines" "$NODE" \
-      "$RELEASE/deploy/object-store/render-identities.mjs" "$identities" "$POLICY_TEMPLATE" \
-      "$bucket" 2>&1)"; then
-    human /etc/kf/objects/identities.json "could not be rendered: $output"
-    return 0
-  fi
-  chown kf-objects:kf-objects "$identities"
-  if [ "$output" = changed ]; then
-    created "object-store identities /etc/kf/objects/identities.json"
-    # The store reads its identities at start; a running one is restarted to take new ones.
-    if [ -z "$PREFIX" ] && command -v systemctl >/dev/null 2>&1; then
-      systemctl try-restart kf-objects.service || true
+  manifest="{\"bucket\": \"$bucket\", \"identities\": [$identities]}"
+  current="$(cat "$(p "$STORE_MANIFEST")" 2>/dev/null || true)"
+  if [ "$current" != "$manifest" ]; then
+    if [ "$MODE" = check ]; then
+      pending "object-store manifest $STORE_MANIFEST (bucket and identities; no secrets)"
+    else
+      printf '%s\n' "$manifest" > "$(p "$STORE_MANIFEST")"
+      chmod 644 "$(p "$STORE_MANIFEST")"
+      created "object-store manifest $STORE_MANIFEST"
     fi
+  fi
+  # The assembled file earlier releases wrote (every identity's secret in one file) is removed:
+  # the store no longer reads it, and its sources are each service's own secret file.
+  if [ -e "$(p "$ASSEMBLED_IDENTITIES")" ]; then
+    if [ "$MODE" = check ]; then
+      pending "remove $ASSEMBLED_IDENTITIES (assembled secrets; the store now renders them at each start)"
+    else
+      shred -u -- "$(p "$ASSEMBLED_IDENTITIES")" 2>/dev/null || rm -f -- "$(p "$ASSEMBLED_IDENTITIES")"
+      created "removed $ASSEMBLED_IDENTITIES (the store renders its identities at each start)"
+    fi
+  fi
+  # The store reads its identities at start; a running one is restarted to take a new manifest or
+  # a newly generated secret.
+  if [ "${#CREATED[@]}" != "$before" ] && [ -z "$PREFIX" ] && command -v systemctl >/dev/null 2>&1; then
+    systemctl try-restart kf-objects.service || true
   fi
 }
 
@@ -1389,6 +1410,11 @@ check_verifier_override() {
   fi
 }
 
+# Semantic search's installer: functions over this script's state and report, from this script's
+# own directory (not KF_RELEASE_DIR, whose pins and modules it reads).
+# shellcheck source=provision-retrieval.sh
+. "$(dirname -- "${BASH_SOURCE[0]}")/provision-retrieval.sh"
+
 # ---------------------------------------------------------------------------------------------
 # Run
 # ---------------------------------------------------------------------------------------------
@@ -1462,14 +1488,10 @@ if [ -d "$(p /etc/kf/preservation-trust.d)" ] &&
 fi
 ensure_tailnet
 ensure_public_sockets_closed
-# Semantic search on the host's CPU is ADR 0039 decision 5, and nothing here installs it: the LAMU
-# engine, its offline Python runtime and the bge-m3 model are separate pinned artifacts, and the
-# index key arrives by workstation custody. Until 2026-10-07 --check said nothing about it, and a
-# host without it read as complete while kf-commissioning's secret_posture could not inspect the
-# engine units' key (KF-WAR-0001 rehearsal).
-if [ ! -f "$(p /etc/kf/retrieval-runtime.json)" ]; then
-  human /etc/kf/retrieval-runtime.json "semantic search is not installed, and this script does not install it: the pinned LAMU engine, its Python runtime and the bge-m3 model per docs/deployment/retrieval-startup.md, and the index key by workstation custody (docs/deployment/retrieval-key-release.md)"
-fi
+# Semantic search on the host's CPU (ADR 0039 decision 5): the pinned engine, its offline Python
+# runtime and the bge-m3 model, then the startup contract (scripts/deploy/provision-retrieval.sh).
+# Until 2026-10-11 nothing installed them, and --check only said so (SAS §100.66).
+ensure_retrieval
 check_liminal_declaration
 ensure_rsync_identities
 report_env_placeholders

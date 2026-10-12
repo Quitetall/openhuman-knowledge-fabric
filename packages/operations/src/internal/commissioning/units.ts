@@ -450,11 +450,19 @@ export const secretPosture: CommissioningCheckFn = async (inputs: CommissioningI
   // release ships. The two checks are only jointly meaningful — a host where
   // `unit_provenance` fails has no business reading a `secret_posture` pass as reassurance,
   // which is why `assessCommissioning` requires all eight rather than counting them.
+  //
+  // An unencrypted `LoadCredential=` source entitles nobody: PID 1 reads it and hands the unit a
+  // copy, so the unit's account never opens the source. kf-objects.service receives every
+  // object-store identity's secret that way from the file that identity's own service reads
+  // (SAS §100.54); counting it as a reader would let the store's account own the API's key.
   const entitled = new Map<string, Set<string>>();
   for (const unit of installed) {
     for (const path of unit.secretPaths) {
       const users = entitled.get(path) ?? new Set<string>();
-      if (unit.user !== null) users.add(unit.user);
+      const readsItself = unit.secretSources.some(
+        (source) => source.path === path && source.kind !== 'pid1-source',
+      );
+      if (unit.user !== null && readsItself) users.add(unit.user);
       entitled.set(path, users);
     }
   }

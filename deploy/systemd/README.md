@@ -171,14 +171,32 @@ credential, two identities, an object-store policy. It:
   the pinned binary at `/usr/local/lib/kf-objects/weed` after checking the tarball's and the
   binary's sha256 (`deploy/object-store/seaweedfs.release`), generates the secret of each
   service routed at it (API, worker, storage sweep, drill) and of the store's administrator
-  (`/etc/kf/objects-init/admin-secret`, held by `kf-objects-init` alone), and
-  renders `/etc/kf/objects/identities.json` (0600 `kf-objects`) from those files — the storage
-  key granted exactly the orphan-collection policy's prefixes, the drill's key read-only.
+  (`/etc/kf/objects-init/admin-secret`, held by `kf-objects-init` alone), and writes the store's
+  manifest `/etc/kf/objects/store.json` (`0644 root`, no secret: the bucket and which identities
+  the store serves, with their roles). It writes no file of secrets: `kf-objects.service`
+  receives each identity's secret from PID 1 (`LoadCredential=`, from that identity's own file)
+  and renders its identities at every start into `/run/kf-objects/`, which is removed when the
+  store stops ([`render-identities.mjs`](../object-store/render-identities.mjs)) — the storage
+  key granted exactly the orphan-collection policy's prefixes, the drill's key read-only. The
+  assembled `/etc/kf/objects/identities.json` earlier releases wrote is removed (SAS §100.54).
   `kf-objects.service` runs the store; `kf-objects-init.service` creates the buckets and fails
   unless each reads back versioning `Enabled`. For a store that is not this host's own it prints
   the orphan-collection policy to apply there; then asks the store, as `kf-storage`,
   whether the key really may list and delete versions (every key the sweep then deletes is
   recorded in `content.orphan_collection` in the same run; a deletion it cannot record fails it);
+- installs semantic search on the host's CPU (ADR 0039 decision 5,
+  [`../../scripts/deploy/provision-retrieval.sh`](../../scripts/deploy/provision-retrieval.sh)):
+  the LAMU engine whose sha256 [`../retrieval/retrieval.release`](../retrieval/retrieval.release)
+  pins, at `/usr/local/lib/kf-retrieval/lamu`, after asking it for every option the startup gives
+  it; a closed Python 3.13 runtime under `/opt/kf-runtimes` from exactly the hash-locked CPU wheels
+  ([`../retrieval/embed-requirements-cpu.txt`](../retrieval/embed-requirements-cpu.txt)), fetched
+  as `kf-embedding`; the bge-m3 model at `/opt/kf-models/bge-m3-5617a9f61b02-f16`, converted from
+  the pinned Hub files and accepted only when its manifest is the one the provider pins; then the
+  key broker's policy `/etc/kf/retrieval-key-release.json` and the startup contract
+  `/etc/kf/retrieval-runtime.json`. Each is refused when its digest differs; nothing is fetched
+  at runtime. The index key is never made here: it arrives from the workstation's encrypted
+  store ([retrieval key release](../../docs/deployment/retrieval-key-release.md)). What a person
+  supplies, and why, is [retrieval installation](../../docs/deployment/retrieval-installation.md);
 - ends with the inputs only a person can supply, each with the exact file it goes in.
 
 It never regenerates or overwrites anything that exists: re-running it after an upgrade creates

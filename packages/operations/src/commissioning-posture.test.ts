@@ -174,6 +174,25 @@ describe('commissioning secret-source metadata and public projection classificat
     f.observation.uid = 0;
     expect((await secretPosture(f.inputs)).status).toBe('satisfied');
   });
+  it('entitles only the unit that reads a secret itself, not one that receives it from PID 1', async () => {
+    // kf-objects.service receives each object-store identity's secret by LoadCredential= from the
+    // file that identity's own service reads (SAS §100.54). PID 1 reads it; the store's account
+    // never opens it, so it gains no entitlement to own or read the source.
+    const f = await fixture();
+    await writeFile(
+      join(f.units, 'kf-objects.service'),
+      `[Service]\nUser=kf-objects\nLoadCredential=kf-api:${f.secret}\n`,
+    );
+    await writeFile(
+      f.passwd,
+      'root:x:0:0::/:/bin/sh\nkf-api:x:1101:1101::/:/bin/false\nkf-objects:x:1103:1103::/:/bin/false\n',
+    );
+    await writeFile(join(f.root, 'group'), 'root:x:0:\nkf-api:x:1101:\nkf-objects:x:1103:\n');
+    expect((await secretPosture(f.inputs)).status).toBe('satisfied');
+    f.observation.uid = 1103;
+    f.observation.gid = 1103;
+    expect((await secretPosture(f.inputs)).status).toBe('unsatisfied');
+  });
   it.each([
     ['unknown named UID', 'user::rw-\nuser:9999:r--\ngroup::---\nmask::r--\nother::---\n'],
     ['unknown named GID', 'user::rw-\ngroup::---\ngroup:9999:r--\nmask::r--\nother::---\n'],
