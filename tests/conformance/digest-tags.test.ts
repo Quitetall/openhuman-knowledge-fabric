@@ -75,6 +75,12 @@ const ALLOWED: readonly Allowed[] = [
       "self-tagged: OpenWarrant's dispatch digest, whose preimage carries digest_domain oh.war/dispatch/v1",
   },
   {
+    path: 'packages/authorization/src/push-destination.ts',
+    line: "return createHash('sha256')",
+    reason:
+      'self-tagged: a key id, over kf-push-destination-key-v1 and a NUL before the raw X25519 public key; names which key a destination was sealed to, never recorded as evidence',
+  },
+  {
     path: 'apps/api/src/overview/collect.ts',
     line: "const hash = createHash('sha256').update('kf-overview-v1');",
     reason: 'self-tagged: streamed over file bytes with kf-overview-v1 as its first input',

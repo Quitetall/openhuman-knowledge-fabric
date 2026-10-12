@@ -484,6 +484,8 @@ describe('what the record of writes covers', () => {
       'core.object_verification',
       'core.outbox',
       'core.principal_attestation',
+      // ADR 0040 (20261011500000): a person's sealed push destination.
+      'core.push_destination',
       'core.relation',
       'core.snapshot',
       'core.verification_policy',

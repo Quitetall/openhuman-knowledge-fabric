@@ -2,7 +2,7 @@
   "schema_version": "1.2.0-draft.1",
   "x-generated-from": {
     "ontology_version": "1.2.0-draft.1",
-    "source_digest": "ca3a338c5dd0792ec9cabf302a200d88f4ca1385e1098ae3f24c43cb03a6f176"
+    "source_digest": "cdc61d864209415f0a56e84672f8060a37406800228aaf42fa22106acf2c33a0"
   },
   "node_types": {
     "organization": {
@@ -2476,6 +2476,10 @@
       "transactional": true
     },
     "set_notification_preference": {
+      "audited": true,
+      "transactional": true
+    },
+    "set_push_destination": {
       "audited": true,
       "transactional": true
     },

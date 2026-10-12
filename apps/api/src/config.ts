@@ -6,6 +6,7 @@
  */
 
 import { isAbsolute, resolve } from 'node:path';
+import { parseDestinationPublicKey, parsePushServers } from '@kf/authorization';
 import { loadSecret } from '@kf/operations';
 import type { S3Config } from '@kf/artifacts';
 
@@ -52,6 +53,13 @@ export interface ApiConfig {
   readonly durableStore?: S3Config;
   /** HMAC key used for short-lived master-record capability links. */
   readonly masterRecordLinkSecret?: string;
+  /**
+   * Where a person's urgent push may go, and the key it is sealed to (ADR 0040 decision 9,
+   * 20261011500000): KF_NOTIFY_DESTINATION_PUBLIC_KEY, the public half of kf-notify's X25519 key
+   * (32 bytes, base64url; not a secret), and KF_NOTIFY_PUSH_SERVERS, the push servers' origins.
+   * Absent: PUT /notification-destination answers 503 and everyone is told by the digest.
+   */
+  readonly pushDestination?: { readonly publicKey: string; readonly servers: readonly string[] };
   /**
    * Bearer for the detailed GET /readiness report from a non-loopback caller. Absent means only
    * a direct loopback connection sees the detail; everyone else gets the bare verdict.
@@ -290,6 +298,27 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     );
   }
 
+  const destinationKey = env['KF_NOTIFY_DESTINATION_PUBLIC_KEY'] ?? '';
+  let pushDestination: { publicKey: string; servers: readonly string[] } | undefined;
+  if (destinationKey !== '') {
+    try {
+      parseDestinationPublicKey(destinationKey);
+    } catch {
+      throw new ConfigError(
+        'KF_NOTIFY_DESTINATION_PUBLIC_KEY must be the 32-byte X25519 public key, base64url',
+      );
+    }
+    let servers: readonly string[];
+    try {
+      servers = parsePushServers(env['KF_NOTIFY_PUSH_SERVERS'] ?? 'https://ntfy.sh');
+    } catch (error: unknown) {
+      throw new ConfigError(
+        `KF_NOTIFY_PUSH_SERVERS: ${error instanceof Error ? error.message : 'invalid'}`,
+      );
+    }
+    pushDestination = { publicKey: destinationKey.trim(), servers };
+  }
+
   const s3Endpoint = env['S3_ENDPOINT'];
   const s3Region = env['S3_REGION'];
   const s3AccessKeyId = env['S3_ACCESS_KEY_ID'];
@@ -468,6 +497,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     ...(artifactStore === undefined ? {} : { artifactStore }),
     ...(durableStore === undefined ? {} : { durableStore }),
     ...(masterRecordLinkSecret === undefined ? {} : { masterRecordLinkSecret }),
+    ...(pushDestination === undefined ? {} : { pushDestination }),
     ...(readinessToken === undefined ? {} : { readinessToken }),
     effectiveAtBackdate: { maxDays: backdateDays, backdatableActions },
   };

@@ -13,15 +13,23 @@ default for other deployments.
 
 ## Urgent items for a person
 
-The same path carries ADR 0040's urgent push (KF-SAS-RQ-274). `kf-notify@urgent.service` runs
-`alert-dispatch.sh urgent` when something urgent waits on the person this topic belongs to
-(`KF_NOTIFY_PUSH_PERSON` in `/etc/kf/notify.env`): an act an agent proposed for them, or a warrant
-blocker opened in their organization. The message is one fixed line, `Something in Knowledge
+The same path carries ADR 0040's urgent push (KF-SAS-RQ-274) for the person this topic belongs
+to, when they have set no destination of their own. `kf-notify@urgent.service` runs
+`alert-dispatch.sh urgent` when something urgent waits on that person (`KF_NOTIFY_PUSH_PERSON` in
+`/etc/kf/notify.env`): an act an agent proposed for them, or a warrant blocker opened in their
+organization. The message is one fixed line, `Something in Knowledge
 Fabric needs you. Open Needs you.`, and the response must echo it exactly, as for a failure. It
 names no record, person, organization or host. Only urgent items push; everything else waits for
 the daily e-mail digest. The notifier reads the same endpoint from
 `/etc/kf/notify/alert-webhook-url` (owner `kf-notify`, mode 0600), because the script refuses a file
 readable by more than its owner. See [`../agents/in-app-agent.md`](../agents/in-app-agent.md).
+
+Anyone else, the owner included, may set their own ntfy topic with `PUT /notification-destination`
+(`20261011500000`). kf-notify then posts each urgent item there itself, not through this script. The
+topic must be 24 to 64 random characters on a server named in `KF_NOTIFY_PUSH_SERVERS`. The URL is
+sealed to `/etc/kf/notify/destination-key` before anything records it. A title is sent only for an
+item at or below the organization's provider ceiling, and otherwise the same fixed line as above.
+The same caution applies: a free topic is public to whoever learns it.
 
 ## Owner setup
 

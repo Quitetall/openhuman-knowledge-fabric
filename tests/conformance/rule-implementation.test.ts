@@ -103,8 +103,10 @@ const LOCAL_FAMILIES: readonly string[] = [
   'KF-VPOL',
   // The agent at home (ADR 0040, 20261007300000). KF-ROUTE: no organization may let
   // confidential or restricted content leave the host, and a routing policy is written only by
-  // its own institutional act. KF-NOTIFY: a notification setting is the person's own, never an
-  // agent's, written only by its act. Local for the same reason as KF-AGENT.
+  // its own institutional act. KF-NOTIFY: a notification setting and a push destination are the
+  // person's own, never an agent's, written only by their acts (001 to 003), and a destination is
+  // stored only sealed, never as a URL (004, 20261011500000). Local for the same reason as
+  // KF-AGENT.
   'KF-ROUTE',
   'KF-NOTIFY',
   // The in-app agent's own refusals (packages/agent): a model that could not answer, never

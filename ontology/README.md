@@ -143,6 +143,11 @@ or in a notification: `none`, `public` or `internal`, and the database refuses `
 digest and urgent-push setting, and the database refuses it under an agent's attestation. Neither
 creates an object type.
 
+A third, `set_push_destination` (migration `20261011500000`), records where the performing person's
+urgent push goes: an ntfy topic URL sealed to the notifier's key, or none. The database refuses a
+plaintext URL in every session (`KF-NOTIFY-004`) and the act under an agent's attestation
+(`KF-NOTIFY-001`). It creates no object type.
+
 ## Where each rule is enforced
 
 `rules.yaml` says where each invariant is enforced; `tests/database/rule-ledger.test.ts` is the
