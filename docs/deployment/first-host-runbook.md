@@ -39,7 +39,7 @@ authorizes it (`war sign KF-WAR-0001`).
 
 ```sh
 # apt-get update && apt-get install -y curl ca-certificates gnupg rsync acl bubblewrap pandoc \
-    python3 lsb-release xz-utils nftables util-linux nginx-light
+    python3 python3-pip lsb-release xz-utils nftables util-linux nginx-light
 # apt-get install -y --no-install-recommends texlive-latex-base texlive-latex-recommended \
     texlive-fonts-recommended lmodern
 ```
@@ -89,7 +89,10 @@ writes `/var/lib/kf/commissioning/release-verification.json`.
 ```
 
 This makes the twenty service accounts, every directory and env file, every machine-made secret,
-the checkpoint key, SeaweedFS (pinned binary) and its identities, **the `kf` database with one
+the checkpoint key, SeaweedFS (pinned binary) and the manifest of its identities (their secrets
+reach the store only from PID 1, at each start), semantic search from its pins once the engine is
+supplied (section 4; it fetches the hash-locked wheels and the bge-m3 Hub files, about 3.5 GB, and
+converts the model, which takes minutes), **the `kf` database with one
 login per service and its 0600 connection string**, the planner settings, the disposable
 rehearsal cluster `18/rehearsal`, the nginx site and its boot-order drop-in for the tailnet
 address, the release digest and receipt path in `/etc/kf/migrator.env`, and the public origins
@@ -127,19 +130,21 @@ Every file `provision-host.sh` created as a placeholder is already 0600 and owne
 that reads it; writing into it keeps both. After each input, `provision-host.sh --check` drops
 that line.
 
-| What                       | Where                                                                                                                                                                                                        |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Certificate permission     | `TS_PERMIT_CERT_UID=kf-tls` in `/etc/default/tailscaled`, then `systemctl restart tailscaled`                                                                                                                |
-| Debian's default site      | `rm /etc/nginx/sites-enabled/default && systemctl restart nginx` (restart, not reload)                                                                                                                       |
-| Identity issuer            | `OIDC_ISSUER`, `OIDC_JWKS_URI` in `/etc/kf/api.env` (copied to the attestor and the web by provisioning)                                                                                                     |
-| Alert endpoint             | `/etc/kf/alert/webhook-url` (0600 `kf-alert`); copied for the urgent push by provisioning                                                                                                                    |
-| SMTP relay for the digest  | `/etc/kf/notify/smtp.json` (0600 `kf-notify`)                                                                                                                                                                |
-| Preservation signing key   | private key `/etc/kf/backup/preservation-manifest-key` (0600 `kf-backup`), public half `/etc/kf/preservation-trust.d/<id>.pub`, `PRESERVATION_SIGNING_KEY_ID=<id>` in `/etc/kf/backup.env`                   |
-| Backup recovery key        | `provision-host.sh --generate-recovery-key /root/kf-recovery-secret.asc`, then move that file to the custodian offline and `shred -u` it                                                                     |
-| Off-site backup (B2)       | `KF_OFFSITE_DESTINATION=b2`, `KF_OFFSITE_LABEL=<label>` in `/etc/kf/offsite.env`; the key arrives by [B2 credential custody](b2-credential-custody.md) and [drill delivery](drill-b2-credential-delivery.md) |
-| Durable store (B2)         | `S3_DURABLE_ENDPOINT`, `S3_DURABLE_REGION`, `S3_DURABLE_ACCESS_KEY_ID`, `S3_DURABLE_BUCKET` in `/etc/kf/storage/storage.env`; secret `/etc/kf/storage/s3-durable-secret`                                     |
-| Checkpoint anchor (B2)     | `CHECKPOINT_S3_ENDPOINT`, `CHECKPOINT_S3_REGION`, `CHECKPOINT_S3_ACCESS_KEY_ID`, `CHECKPOINT_S3_BUCKET` in `/etc/kf/checkpoint.env`; secret `/etc/kf/checkpoint/anchor-secret-access-key`                    |
-| sshd on the public address | after `ssh <host>.<tailnet>.ts.net` works: `ListenAddress <tailnet IPv4>` in `/etc/ssh/sshd_config.d/`, restart ssh — or decide to keep it and record why                                                    |
+| What                       | Where                                                                                                                                                                                                                                                                   |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Certificate permission     | `TS_PERMIT_CERT_UID=kf-tls` in `/etc/default/tailscaled`, then `systemctl restart tailscaled`                                                                                                                                                                           |
+| Debian's default site      | `rm /etc/nginx/sites-enabled/default && systemctl restart nginx` (restart, not reload)                                                                                                                                                                                  |
+| Identity issuer            | `OIDC_ISSUER`, `OIDC_JWKS_URI` in `/etc/kf/api.env` (copied to the attestor and the web by provisioning)                                                                                                                                                                |
+| Alert endpoint             | `/etc/kf/alert/webhook-url` (0600 `kf-alert`); copied for the urgent push by provisioning                                                                                                                                                                               |
+| SMTP relay for the digest  | `/etc/kf/notify/smtp.json` (0600 `kf-notify`)                                                                                                                                                                                                                           |
+| Preservation signing key   | private key `/etc/kf/backup/preservation-manifest-key` (0600 `kf-backup`), public half `/etc/kf/preservation-trust.d/<id>.pub`, `PRESERVATION_SIGNING_KEY_ID=<id>` in `/etc/kf/backup.env`                                                                              |
+| Backup recovery key        | `provision-host.sh --generate-recovery-key /root/kf-recovery-secret.asc`, then move that file to the custodian offline and `shred -u` it                                                                                                                                |
+| Off-site backup (B2)       | `KF_OFFSITE_DESTINATION=b2`, `KF_OFFSITE_LABEL=<label>` in `/etc/kf/offsite.env`; the key arrives by [B2 credential custody](b2-credential-custody.md) and [drill delivery](drill-b2-credential-delivery.md)                                                            |
+| Durable store (B2)         | `S3_DURABLE_ENDPOINT`, `S3_DURABLE_REGION`, `S3_DURABLE_ACCESS_KEY_ID`, `S3_DURABLE_BUCKET` in `/etc/kf/storage/storage.env`; secret `/etc/kf/storage/s3-durable-secret`                                                                                                |
+| Checkpoint anchor (B2)     | `CHECKPOINT_S3_ENDPOINT`, `CHECKPOINT_S3_REGION`, `CHECKPOINT_S3_ACCESS_KEY_ID`, `CHECKPOINT_S3_BUCKET` in `/etc/kf/checkpoint.env`; secret `/etc/kf/checkpoint/anchor-secret-access-key`                                                                               |
+| sshd on the public address | after `ssh <host>.<tailnet>.ts.net` works: `ListenAddress <tailnet IPv4>` in `/etc/ssh/sshd_config.d/`, restart ssh — or decide to keep it and record why                                                                                                               |
+| Retrieval engine           | the LAMU build `deploy/retrieval/retrieval.release` pins, copied to `/var/lib/kf/retrieval-supply/lamu`, then `provision-host.sh` (it checks the sha256 and the startup options; see [retrieval installation](retrieval-installation.md) on why today's pin is refused) |
+| Retrieval index key        | delivered at each boot by the workstation credential handoff ([retrieval key release](retrieval-key-release.md)); never typed or stored on the host                                                                                                                     |
 
 Then the certificate:
 
@@ -160,6 +165,15 @@ and add `/etc/kf/offsite/ssh-key.pub` and `/etc/kf/drill/ssh-key.pub` to the des
 # systemctl enable --now kf-objects.service && systemctl start kf-objects-init.service
 # systemctl enable --now kf-attestor.service kf-api.service kf-worker.service kf-web.service
 # curl -s http://127.0.0.1:4000/ready
+```
+
+Semantic search, once `provision-host.sh --check` no longer lists `/etc/kf/retrieval-runtime.json`
+or anything under `/var/lib/kf/retrieval-supply/`:
+
+```sh
+# systemctl enable --now kf-retrieval-key.socket kf-embedding.service
+# systemctl enable --now kf-retrieval-credentials.path   # starts the engine when the key arrives
+# systemctl enable lamu-retrieval.service                  # and at boot, once it has
 ```
 
 **OWNER — first records.** Owner commands read the schema owner's credential, which on this host

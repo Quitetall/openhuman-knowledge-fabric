@@ -2,9 +2,11 @@
  * The identities a host's object store is given grant what each service needs, and no more than
  * SeaweedFS can express.
  *
- * deploy/object-store/render-identities.mjs turns the services' secret files into the store's
- * identities file; provision-host.sh runs it. This renders a set the same way and runs it in the
- * real store (the compose service's image and arguments), then asks the store, as each identity:
+ * deploy/object-store/render-identities.mjs turns the secrets the service manager hands
+ * kf-objects.service (one credential per identity) and provision-host.sh's non-secret store
+ * manifest into the store's identities file, at each start of the store. This renders a set the
+ * same way and runs it in the real store (the compose service's image and arguments), then asks
+ * the store, as each identity:
  *
  *   - the API's key writes, reads and lists the artifacts bucket;
  *   - the restore drill's key reads and lists it and cannot write;
@@ -17,7 +19,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -36,13 +38,24 @@ const secrets = Object.fromEntries(
 ) as Record<keyof typeof ROLES, string>;
 
 function render(): { identities: unknown[] } {
-  const lines = Object.entries(ROLES).map(([name, role]) => {
-    writeFileSync(join(work, name), secrets[name as keyof typeof ROLES], { mode: 0o600 });
-    return `${name}|${join(work, name)}|${role}`;
-  });
+  // As PID 1 lays out $CREDENTIALS_DIRECTORY for kf-objects.service: one file per credential id.
+  const credentials = join(work, 'credentials');
+  mkdirSync(credentials, { mode: 0o700 });
+  for (const name of Object.keys(ROLES)) {
+    writeFileSync(join(credentials, name), secrets[name as keyof typeof ROLES], { mode: 0o400 });
+  }
+  const manifest = join(work, 'store.json');
+  writeFileSync(
+    manifest,
+    JSON.stringify({
+      bucket: BUCKET,
+      identities: Object.entries(ROLES).map(([name, role]) => ({ name, role })),
+    }),
+  );
   const out = join(work, 'identities.json');
-  execFileSync(process.execPath, [RENDER, out, POLICY, BUCKET], {
-    env: { KF_OBJECTS_IDENTITIES: lines.join('\n') },
+  execFileSync(process.execPath, [RENDER, manifest, POLICY, out], {
+    env: { CREDENTIALS_DIRECTORY: credentials },
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
   return JSON.parse(readFileSync(out, 'utf8')) as { identities: unknown[] };
 }

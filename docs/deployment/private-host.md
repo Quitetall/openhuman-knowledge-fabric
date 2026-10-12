@@ -912,8 +912,13 @@ the twenty service identities (including `kf-notify`, `kf-audit-verify`, `kf-dri
 the `kf-archive` and `kf-attest` groups, installs the units
 and the environment templates, installs the pinned SeaweedFS binary for this host's own object
 store (`kf-objects`, ADR 0039; refused unless both pinned sha256 digests match), generates each
-service's object-store secret and renders the store's identities from them — the storage key
-granted the orphan-collection policy in SeaweedFS's form, the drill's key read-only — prints that
+service's object-store secret and writes the store's non-secret manifest (the bucket, and which
+identities it serves) — the store renders its identities from the secrets PID 1 hands it at each
+start, into its runtime directory, so no file of them stays on disk; the storage key is granted
+the orphan-collection policy in SeaweedFS's form, the drill's key read-only — installs semantic
+search from its pins (the LAMU engine, a closed Python 3.13 runtime from hash-locked wheels, the
+bge-m3 model, then `/etc/kf/retrieval-runtime.json`; see
+[retrieval installation](retrieval-installation.md)), prints that
 policy instead for a store that is not this host's own, and asks the object store whether the
 storage key really may list and delete versions. On a host whose PostgreSQL 18 is local it makes
 the database, its group roles, the migrator login and one login per service with its `0600`

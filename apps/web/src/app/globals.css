@@ -761,3 +761,122 @@ pre {
 .kf-sh-people {
   margin-top: calc(var(--kf-space) * 0.75);
 }
+
+/* ── Drafting a pack, and a record's institutional gestures (ADR 0038; SAS §100.62) ────────────
+   A form set like the document it drafts: labelled fields in a grid that folds to one column at
+   phone width, each requirement a ruled section. Problems are listed by path, in words. */
+
+.kf-pack-form,
+.kf-record-gestures {
+  display: grid;
+  gap: calc(var(--kf-space) * 0.9);
+  max-width: var(--kf-measure);
+}
+
+.kf-pack-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: calc(var(--kf-space) * 0.9);
+  border: 1px solid var(--kf-rule);
+  border-radius: 0.4rem;
+  background: var(--kf-surface);
+}
+
+.kf-pack-legend {
+  padding: 0 0.3rem;
+  font-family: var(--kf-serif);
+  font-size: var(--kf-size-h3);
+  font-weight: 600;
+}
+
+.kf-pack-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: calc(var(--kf-space) * 0.6) var(--kf-space);
+  margin-top: calc(var(--kf-space) * 0.6);
+}
+
+.kf-pack-field,
+.kf-record-gesture label,
+.kf-capture-media,
+.kf-capture-attachments label {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  font-size: var(--kf-size-small);
+}
+
+.kf-pack-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: calc(var(--kf-space) * 0.6);
+  font-size: var(--kf-size-small);
+}
+
+.kf-pack-more,
+.kf-pack-document {
+  margin-top: calc(var(--kf-space) * 0.6);
+}
+
+.kf-pack-document pre {
+  max-height: 24rem;
+  overflow: auto;
+  padding: 0.6rem;
+  border: 1px solid var(--kf-rule);
+  background: var(--kf-ground);
+  font-size: var(--kf-size-meta);
+  white-space: pre-wrap;
+}
+
+.kf-pack-actions {
+  flex-wrap: wrap;
+}
+
+.kf-pack-problem-head {
+  margin: 0 0 0.4rem;
+  font-weight: 600;
+}
+
+.kf-pack-problems {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.kf-pack-problems code {
+  font-size: var(--kf-size-meta);
+}
+
+.kf-record-gesture {
+  display: grid;
+  gap: 0.5rem;
+  padding-top: calc(var(--kf-space) * 0.6);
+  border-top: 1px dashed var(--kf-rule);
+}
+
+/* ── A photo and a voice note on a capture (ADR 0040 decision 10; KF-SAS-RQ-273) ────────────── */
+
+.kf-capture-attachments {
+  display: grid;
+  gap: calc(var(--kf-space) * 0.75);
+  min-width: 0;
+  margin: 0;
+  padding: calc(var(--kf-space) * 0.8);
+  border: 1px solid var(--kf-rule);
+  border-radius: 0.4rem;
+}
+
+.kf-capture-attachments legend {
+  padding: 0 0.3rem;
+  font-weight: 600;
+}
+
+.kf-capture-media audio {
+  width: 100%;
+  max-width: 24rem;
+}
+
+.kf-capture-attached {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+}

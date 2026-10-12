@@ -34,6 +34,11 @@ describe('contentSecurityPolicy', () => {
     expect(production.get('style-src')).not.toContain('unsafe-inline');
   });
 
+  it('plays back a recorded voice note from the page, and media from nowhere else', () => {
+    expect(production.get('media-src')).toBe("'self' blob:");
+    expect(production.get('connect-src')).toBe("'self'");
+  });
+
   it('lets sign-out reach the identity provider it redirects to', () => {
     expect(production.get('form-action')).toBe("'self' https://identity.example.internal");
   });

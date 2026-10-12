@@ -555,7 +555,12 @@ export async function buildApp(
     registerNeedsYouRoutes(app, { pool, execute, identify, bearer: tokens !== undefined });
     // Joining and qualification (ADR 0038, ADR 0040 decision 12): Start Here, the guide's context,
     // a record for its contact and reviewers, the submit and credit gestures, and invitations.
-    registerQualificationRoutes(app, { pool, execute, identify });
+    registerQualificationRoutes(app, {
+      pool,
+      execute,
+      identify,
+      preflight: preflightInTransaction,
+    });
     // What may leave the host, and the caller's own notification setting (ADR 0040, M4).
     registerAgentSettingsRoutes(app, { pool, identify });
     // One gesture, one observation (ADR 0034): the seam `kf note`, the web form and agents share.
