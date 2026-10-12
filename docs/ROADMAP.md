@@ -119,8 +119,8 @@ server, the verification policy and Needs you; M3: role presets, the overview, t
 document and the dashboard; M4: the in-app agent, routing by classification and notifications; M5:
 qualification, `kf invite` and Start Here), and the specification records it as built (SAS §24A,
 §24B, §100). Every Warrant is still **draft**, so none is resolved and the order above still
-starts at M0. Two "Done when" items were not met as written: §100.42 and §100.43 (M3) are still
-open, and §100.45 (M4) is narrowed, not closed, because the choice of fusion is the owner's (§5).
+starts at M0. Two "Done when" items were not met as written: §100.42 (M3) closed only on 2026-10-11 and §100.43
+is narrowed, not closed, and §100.45 (M4) is narrowed, not closed, because the choice of fusion is the owner's (§5).
 What each milestone still needs from the owner is in §6.
 
 **Why everything before v1.0 sits under Phase 10.** SAS §98 numbers phases 0 to 10 and the
@@ -205,22 +205,22 @@ EOF
 
 Measured when this page was written: **44 entries, 10 closed, 34 open; 34 cited, none missing,
 none duplicated, none closed.** Measured again after the closing pass of M0 to M5 (2026-10-07):
-**61 entries, 21 closed, 40 open; 40 cited, none missing, none duplicated, none closed.** After the agent guide (§100.61 closed, §100.63 added): **62 entries, 22 closed, 40 open; 40 cited, none missing, none duplicated, none closed.** After the M8 code pass (§100.32 and §100.35 closed, §100.64 and §100.65 added): **64 entries, 24 closed, 40 open; 40 cited, none missing, none duplicated, none closed.** After the host rehearsal (§100.10 narrowed, §100.66 to §100.68 added): **67 entries, 24 closed, 43 open; 43 cited, none missing, none duplicated, none closed.** "Open" means the entry's title does not end "— closed". §100.20
+**61 entries, 21 closed, 40 open; 40 cited, none missing, none duplicated, none closed.** After the agent guide (§100.61 closed, §100.63 added): **62 entries, 22 closed, 40 open; 40 cited, none missing, none duplicated, none closed.** After the M8 code pass (§100.32 and §100.35 closed, §100.64 and §100.65 added): **64 entries, 24 closed, 40 open; 40 cited, none missing, none duplicated, none closed.** After the host rehearsal (§100.10 narrowed, §100.66 to §100.68 added): **67 entries, 24 closed, 43 open; 43 cited, none missing, none duplicated, none closed.** After the 2026-10-11 build pass (§100.42, .54, .57, .60, .64 and .68 closed, §100.43, .62 and .66 narrowed, §100.69 to §100.72 added): **71 entries, 30 closed, 41 open; 41 cited, none missing, none duplicated, none closed.** "Open" means the entry's title does not end "— closed". §100.20
 does not exist.
 
 <!-- gap-table:start -->
 
-| Milestone                          | Entries                                                                                                                                                                                                                                                                                                                                                                                      |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| M0, KF-WAR-0002                    | §100.21 (engine on LAMU `main`; independent verification stays open), §100.39 (key custody, the owner's decision)                                                                                                                                                                                                                                                                            |
-| M2, KF-WAR-0004                    | §100.26 (verification's basis is paced; the one-click path must record it truthfully, and the remainder becomes an accepted limit), §100.56 (four readings of M2 for the owner to confirm)                                                                                                                                                                                                   |
-| M3, KF-WAR-0005                    | §100.42 (Object View recounts after any write), §100.43 (master-record reads take the whole manifest), §100.60 (photo and voice capture at phone width)                                                                                                                                                                                                                                      |
-| M4, KF-WAR-0006                    | §100.45 (narrowed: the choice between the two fusions is the owner's), §100.57 (one urgent-push destination), §100.58 (typed text is not classified)                                                                                                                                                                                                                                         |
-| M5, KF-WAR-0007                    | §100.62 (qualification acts with no web gesture), §100.63 (the record envelope is `internal`, the owner's decision)                                                                                                                                                                                                                                                                          |
-| M6, KF-WAR-0001                    | §100.4 (replication scheduled nowhere), §100.10 (no host commissioned; rehearsed on a VM), §100.54 (the object store's identities file), §100.55 (object-lock retention, the owner's decision), §100.59 (LAMU's forwarding must stay off on the host), §100.66 (semantic search has no installer), §100.67 (anchor keys, the owner's decisions), §100.68 (owner-command records not indexed) |
-| M7, KF-WAR-0008                    | §100.18 (two latency bars include a person; every run is a workstation's; chat integration)                                                                                                                                                                                                                                                                                                  |
-| M8, KF-WAR-0009                    | §100.1, §100.3 (narrowed: only the governance pin remains), §100.6, §100.11, §100.13, §100.14, §100.25, §100.27 (narrowed: the rest enumerated in the gate), §100.28, §100.36, §100.64 (views a refused run left), §100.65 (three digest formats wait on the owner)                                                                                                                          |
-| Accepted limits (stay, documented) | §100.5, §100.15 (done, a host measurement owed), §100.17 and §100.24 (the phase cap; this page is the workaround), §100.22, §100.23, §100.29, §100.30, §100.33, §100.38                                                                                                                                                                                                                      |
+| Milestone                          | Entries                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M0, KF-WAR-0002                    | §100.21 (engine on LAMU `main`; independent verification stays open), §100.39 (key custody, the owner's decision)                                                                                                                                                                                                                                           |
+| M2, KF-WAR-0004                    | §100.26 (verification's basis is paced; the one-click path must record it truthfully, and the remainder becomes an accepted limit), §100.56 (four readings of M2 for the owner to confirm)                                                                                                                                                                  |
+| M3, KF-WAR-0005                    | §100.43 (narrowed: what the whole-manifest read and whole-corpus projections must read), §100.70 (a refresh compiles the whole corpus), §100.71 (A → B → A leaves the newer claim latest)                                                                                                                                                                   |
+| M4, KF-WAR-0006                    | §100.45 (narrowed: the choice between the two fusions is the owner's), §100.58 (typed text is not classified), §100.69 (a push destination is a token-less ntfy topic; push-title ceiling is the owner's)                                                                                                                                                   |
+| M5, KF-WAR-0007                    | §100.62 (narrowed: pack approval and assignment have no web gesture; nothing links to drafting), §100.63 (the record envelope is `internal`, the owner's decision), §100.72 (an assigner who cannot read the record has the act rolled back)                                                                                                                |
+| M6, KF-WAR-0001                    | §100.4 (replication scheduled nowhere), §100.10 (no host commissioned; rehearsed on a VM), §100.55 (object-lock retention, the owner's decision), §100.59 (LAMU's forwarding must stay off on the host), §100.66 (narrowed: the installer refuses every LAMU build until the owner pins one with key release), §100.67 (anchor keys, the owner's decisions) |
+| M7, KF-WAR-0008                    | §100.18 (two latency bars include a person; every run is a workstation's; chat integration)                                                                                                                                                                                                                                                                 |
+| M8, KF-WAR-0009                    | §100.1, §100.3 (narrowed: only the governance pin remains), §100.6, §100.11, §100.13, §100.14, §100.25, §100.27 (narrowed: the rest enumerated in the gate), §100.28, §100.36, §100.65 (three digest formats wait on the owner)                                                                                                                             |
+| Accepted limits (stay, documented) | §100.5, §100.15 (done, a host measurement owed), §100.17 and §100.24 (the phase cap; this page is the workaround), §100.22, §100.23, §100.29, §100.30, §100.33, §100.38                                                                                                                                                                                     |
 
 <!-- gap-table:end -->
 
@@ -278,6 +278,25 @@ list the signing acts live; this is the whole list, including what no tool track
   `policy_source_digest` with a registry re-cut he signs; agree a `kf-document-v1` protocol bump
   with Liminal; bump the ML registry's and the master record's digest formats, or accept each as a
   limit.
+
+**Found by the build pass of 2026-10-11**
+
+- Pin a LAMU build that has both KF's current retrieval protocol and the key-release client
+  (`26923afb` lacks `--key-release-socket`; `a20e515` fails 7 of 10 real-engine tests), then re-pin
+  `deploy/retrieval/retrieval.release` and KF-WAR-0001's basis together (§100.66). Blocks M6's
+  semantic search.
+- Decide whether a push names an item at the provider ceiling or under a stricter one, since a
+  free ntfy topic is public (§100.69); and whether push destinations should travel in the
+  preservation export, sealed, rather than being set again after a restore to a new deployment.
+- Decide how a master record is refreshed at scale: claims as deltas, or full manifests compiled
+  off the request path (§100.70).
+- Decide whether voice notes are ever transcribed, and if so through which route (LAMU only for
+  `confidential` and `restricted`); until then they are evidence only (§100.60).
+- Decide where the pack-drafting page is linked from (§100.62).
+- Accept or reject the residuals of §100.54 (a remote store's person-supplied secret reaches
+  `kf-objects`' credentials, never rendered) and the compiled-view sweep's yes-or-no answer across
+  organizations to a service actor (§100.64).
+- Redeploy nginx on any deployed host so the web origin may use the microphone.
 
 **For M6 to M8**
 
