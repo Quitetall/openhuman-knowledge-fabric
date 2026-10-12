@@ -80,10 +80,15 @@ export async function appendAuditEvent(tx: Tx, entry: AuditChainEntry): Promise<
 }
 
 /**
- * Append one audit event and outbox message after all potentially slow action work.
+ * Append the act's audit event after all potentially slow action work.
  *
  * Global chain lock is intentionally acquired here. Holding it during materialization,
  * parser/object-store work, transitions, or typed effects would stall unrelated actions.
+ *
+ * The act's outbox row is not written here. The audit link emits it, in the database
+ * (`core.audit_event` trigger `audit_event_emits_outbox`, 20261011200000), so an act the
+ * owner's commands record by hand is delivered to search exactly as a dispatched one is (SAS
+ * §100.68): topic `kf.<action_type>`, payload `{action_id, targets}`.
  */
 export async function finalizeAction(
   tx: Tx,
@@ -104,10 +109,5 @@ export async function finalizeAction(
     afterDigest: state.afterDigest,
   });
 
-  await tx.query(`insert into core.outbox (action_id, topic, payload) values ($1, $2, $3)`, [
-    ctx.actionId,
-    `kf.${request.actionType}`,
-    JSON.stringify({ action_id: ctx.actionId, targets: state.targetIds }),
-  ]);
   return auditDigest;
 }

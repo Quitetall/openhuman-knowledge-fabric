@@ -49,6 +49,23 @@ function failedRunFor(
   });
 }
 
+/**
+ * A view this run wrote or adopted was gone when the run came to be recorded: the storage sweep
+ * collected it as unreferenced in between (SAS §100.64). Thrown, not recorded as a failure: the
+ * compilation is sound, and its retry writes the view again.
+ */
+export class CompiledViewCollected extends Error {
+  constructor(view: MaterializedCompiledView, cause: unknown) {
+    super(
+      `compiled view ${view.target} (${view.storageUri} at ${view.storageVersion}) is no longer ` +
+        'in the store; it was collected before this run was recorded, so the run is not ' +
+        'recorded and will be retried',
+      { cause },
+    );
+    this.name = 'CompiledViewCollected';
+  }
+}
+
 /** The database's KF-SAS-RQ-102 refusal (migration 20260925160100). */
 function isUnreproducedCompilation(error: unknown): boolean {
   return error instanceof Error && error.message.includes('KF-DOC-DETERMINISM-001');
@@ -111,9 +128,22 @@ export function createCompilationRuntime(options: RuntimeOptions): CompilationRu
         }
       }
 
+      // Re-read under the storage sweep's lock, inside the recording transaction: a view whose
+      // key the sweep collected while this run compiled (it adopts an existing key rather than
+      // writing it again) is not recorded; the run is retried and writes the view again.
+      const confirmStored = async (): Promise<void> => {
+        for (const view of views) {
+          try {
+            await verifyStoredView(options.store, view);
+          } catch (error: unknown) {
+            throw new CompiledViewCollected(view, error);
+          }
+        }
+      };
+
       let persistedId: string;
       try {
-        persistedId = await options.repository.persist(request, run, views);
+        persistedId = await options.repository.persist(request, run, views, confirmStored);
       } catch (error: unknown) {
         // KF-SAS-RQ-102: the database refuses a success that does not reproduce an earlier
         // compilation of the same sources by the same pinned compiler. That refusal is the

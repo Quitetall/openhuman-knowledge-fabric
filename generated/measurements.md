@@ -12,15 +12,15 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 
 | Measure | Count | Derived from |
 | --- | ---: | --- |
-| migrations | 164 | files under `database/migrations/` |
+| migrations | 166 | files under `database/migrations/` |
 | forward-only migrations | 30 | migrations declaring `-- kf:forward-only <reason>` in their down-section |
 | schemas | 14 | distinct `create schema` names in migration up-sections |
 | tables created | 212 | in migration up-sections |
 | row-security policies | 552 | in migration up-sections |
-| triggers created | 233 | literal `create trigger` statements in migration up-sections |
-| security definer declarations | 235 | in migration up-sections; a function redefined is declared again |
+| triggers created | 235 | literal `create trigger` statements in migration up-sections |
+| security definer declarations | 240 | in migration up-sections; a function redefined is declared again |
 | views | 13 | distinct view names in migration up-sections |
-| indexes created | 118 | explicit `create index` statements in migration up-sections |
+| indexes created | 120 | explicit `create index` statements in migration up-sections |
 | foreign-key references | 586 | `references` clauses in migration up-sections |
 | check constraints | 892 | `check (` clauses in migration up-sections |
 | group roles | 12 | distinct `NOLOGIN` roles created in migration up-sections |
@@ -32,7 +32,7 @@ checkout and is not here; §38 and §40 carry those with their measurement date 
 | relation types | 42 | declared in `ontology/relation-types.yaml` |
 | decision records | 40 | atoms under `docs/decisions/atoms/` — 35 accepted, 3 proposed, 2 superseded |
 | architecture requirements | 207 | distinct identifiers in §106 |
-| test files | 371 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
+| test files | 373 | `*.test.ts` under `tests/`, `apps/` and `packages/` |
 
 ## Runtime measurements, cited rather than derived
 

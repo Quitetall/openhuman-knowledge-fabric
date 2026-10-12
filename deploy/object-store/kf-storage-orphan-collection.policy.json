@@ -13,7 +13,8 @@
       "Action": ["s3:DeleteObjectVersion"],
       "Resource": [
         "arn:aws:s3:::KF_ARTIFACTS_BUCKET/ingest/*",
-        "arn:aws:s3:::KF_ARTIFACTS_BUCKET/document-imports/*"
+        "arn:aws:s3:::KF_ARTIFACTS_BUCKET/document-imports/*",
+        "arn:aws:s3:::KF_ARTIFACTS_BUCKET/compiled-views/*"
       ]
     }
   ]
