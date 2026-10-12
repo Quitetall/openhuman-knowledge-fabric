@@ -199,6 +199,37 @@ async function resolveParts(
 }
 
 /**
+ * Every approved revision of an approved pack in the organization, resolved exactly as a part
+ * reference to it is resolved when a pack is drafted (`resolveParts`), and the role ids an
+ * authority may name. This lets a drafting surface run `validatePackDocument` itself before it
+ * sends anything, with the resolver input the act uses, read under the reader's own row security.
+ * It decides nothing: the act validates again, against the record at that moment.
+ */
+export async function draftingContext(
+  tx: Tx,
+  organizationId: string,
+): Promise<{ readonly parts: readonly ResolvedPart[]; readonly roles: readonly string[] }> {
+  const refs = await tx.query<{ pack: string; revision: number }>(
+    `select /* qualification.approved-parts */ p.pack_key as pack, r.revision
+       from org.qualification_pack p
+       join org.qualification_pack_revision r on r.pack_id = p.id
+       join core.object o on o.id = p.id
+      where p.organization_id = $1 and r.approved_at is not null
+        and o.lifecycle_state = 'approved'
+      order by p.pack_key, r.revision`,
+    [organizationId],
+  );
+  const resolved = await resolveParts(tx, organizationId, refs);
+  const roles = await tx.query<{ id: string }>('select id from org.role order by id');
+  return {
+    parts: refs
+      .map((ref) => resolved.get(`${ref.pack}@${String(ref.revision)}`))
+      .filter((part): part is ResolvedPart => part !== undefined),
+    roles: roles.map((row) => row.id),
+  };
+}
+
+/**
  * What only the record can say about a document: do its roles, acts, scopes, equivalents and
  * resources exist, and can the approver read every mandatory resource (inaccessible to the person
  * approving it means inaccessible to the organization's own authority). Run under the bound

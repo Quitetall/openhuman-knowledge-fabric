@@ -27,16 +27,36 @@
  *   GET  /invitations/:token                 for the signed-in person the owner invited: which
  *                                            organization, and where to go (Start Here). The same
  *                                            404 for every other token or person.
+ *   GET  /qualification/records/:id/gestures which institutional gestures on this record the
+ *                                            reader may perform now (`withdraw_qualification`,
+ *                                            `supersede_qualification` and the records in force
+ *                                            that could supersede it); 404 as for the record
+ *   GET  /qualification/packs/drafting       whether the reader may draft a pack, every approved
+ *                                            pack revision a draft may name as a part (resolved as
+ *                                            the act resolves it) and the role ids an authority
+ *                                            may name: what a surface needs to run the pack
+ *                                            validator itself before it sends anything
+ *
+ * A gesture is offered only when the reader could perform it: each answer above is the real
+ * dispatcher's preflight (`TransactionalActionPreflight`) for that act, as this caller, on the
+ * same checks the act meets — role held, attestation, act-grant coverage, visibility, the act's
+ * own precondition — plus the state machine's transition from the record's state. A passing
+ * preflight confers nothing (KF-SAS-RQ-061): the act is still decided when it is dispatched, by
+ * `POST /actions/:actionType`. An agent acting for the person is offered none of them.
  *
  * Every read binds the caller as a principal and reads under that binding; every write is one
  * typed act through the dispatcher, and the database decides it. Nothing here names a role or a
  * title (tests/conformance/no-role-branch.test.ts).
  */
 
+import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, FastifyReply } from 'fastify';
+import { ActionRejected, type TransactionalActionPreflight } from '@kf/actions';
 import { bindPrincipal, PrincipalRefused, withTransaction, type Pool, type Tx } from '@kf/database';
+import { createFabricTransactionalPreflight } from '@kf/orchestrator';
 import {
   agentGuideContext,
+  draftingContext,
   invitationTokenDigest,
   loadRecordEvaluation,
   ownRecords,
@@ -51,9 +71,27 @@ export interface QualificationRoutesOptions {
   readonly pool: Pool;
   readonly execute: ActionRoutesOptions['execute'];
   readonly identify: IdentifyCaller;
+  /** The dispatcher's read-only rehearsal; the fabric's own when absent. */
+  readonly preflight?: TransactionalActionPreflight;
 }
 
 export const START_HERE_LIST_FORMAT = 'kf-start-here-list-v1' as const;
+export const RECORD_GESTURES_FORMAT = 'kf-qualification-record-gestures-v1' as const;
+export const PACK_DRAFTING_FORMAT = 'kf-qualification-pack-drafting-v1' as const;
+
+/**
+ * A reason for a rehearsal only. Preflight checks that a reason is present and says something;
+ * nothing rehearsed is recorded, so this text is never stored as anybody's reason.
+ */
+const REHEARSAL_REASON = 'rehearsal: may this reader perform this act';
+
+/** A record in force that could supersede another: one the reader can read, for the same person. */
+export interface SupersedeCandidate {
+  readonly recordId: string;
+  readonly pack: { readonly title: string; readonly revision: number };
+  readonly state: string;
+  readonly assignedAt: string;
+}
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const KEY = /^[a-z0-9][a-z0-9._-]{0,159}$/;
@@ -137,6 +175,156 @@ export function registerQualificationRoutes(
       throw err;
     }
   };
+
+  const preflight = options.preflight ?? createFabricTransactionalPreflight();
+
+  /**
+   * Whether the dispatcher's own preflight passes `actionType` for this caller. A refusal is
+   * `false`, whichever check refused; anything else is a fault and stays one. Each rehearsal has
+   * its own transaction, because a refusal the database raises ends the one it was raised in.
+   */
+  const rehearse = async (
+    caller: Caller,
+    requestId: string,
+    actionType: string,
+    targetIds: readonly string[],
+    payload: Record<string, string>,
+    reason?: string,
+  ): Promise<boolean> => {
+    if (caller.agent !== undefined) return false;
+    try {
+      await withTransaction(options.pool, (tx) =>
+        preflight(tx, {
+          actionType,
+          actorId: caller.actorId,
+          actingRoleId: caller.actingRoleId,
+          organizationId: caller.organizationId,
+          maxClassification: caller.maxClassification,
+          attestation: caller.attestation,
+          targetIds,
+          payload,
+          ...(reason === undefined ? {} : { reason }),
+          idempotencyKey: `kf-qualification-rehearsal-${randomUUID()}`,
+          requestId,
+        }),
+      );
+      return true;
+    } catch (error: unknown) {
+      if (error instanceof ActionRejected || error instanceof PrincipalRefused) return false;
+      throw error;
+    }
+  };
+
+  app.get<{ Params: { id: string } }>(
+    '/qualification/records/:id/gestures',
+    async (request, reply) => {
+      const caller = await identify(request, reply);
+      if (caller === undefined) return reply;
+      if (!UUID.test(request.params.id)) return reply.code(404).send({ error: 'not_found' });
+      const recordId = request.params.id;
+      const read = await bound(options.pool, caller, async (tx) => {
+        const record = await tx.maybeOne<{
+          person_id: string;
+          state: string;
+          withdraw: boolean;
+          supersede: boolean;
+        }>(
+          `select r.person_id::text as person_id, o.lifecycle_state as state,
+                  exists (select 1 from registry.state_transition t
+                           where t.object_type = o.object_type and t.from_state = o.lifecycle_state
+                             and t.action_id = 'withdraw_qualification') as withdraw,
+                  exists (select 1 from registry.state_transition t
+                           where t.object_type = o.object_type and t.from_state = o.lifecycle_state
+                             and t.action_id = 'supersede_qualification') as supersede
+             from org.qualification_record r
+             join core.object o on o.id = r.id
+            where r.id = $1`,
+          [recordId],
+        );
+        if (record === undefined) return undefined;
+        const candidates = await tx.query<{
+          id: string;
+          title: string;
+          revision: number;
+          state: string;
+          assigned_at: Date;
+        }>(
+          `select r.id::text as id, rev.title, r.pack_revision as revision,
+                  o.lifecycle_state as state, r.assigned_at
+             from org.qualification_record r
+             join core.object o on o.id = r.id
+             join org.qualification_pack_revision rev
+               on rev.pack_id = r.pack_id and rev.revision = r.pack_revision
+            where r.person_id = $1 and r.id <> $2
+              and o.lifecycle_state in ('assigned', 'qualified')
+            order by r.assigned_at, r.id`,
+          [record.person_id, recordId],
+        );
+        return { record, candidates };
+      });
+      if (read === undefined) return reply.code(404).send({ error: 'not_found' });
+      const requestId = String(request.id);
+      const withdraw =
+        read.record.withdraw &&
+        (await rehearse(
+          caller,
+          requestId,
+          'withdraw_qualification',
+          [recordId],
+          {},
+          REHEARSAL_REASON,
+        ));
+      const first = read.candidates[0];
+      const supersede =
+        read.record.supersede &&
+        first !== undefined &&
+        (await rehearse(
+          caller,
+          requestId,
+          'supersede_qualification',
+          [recordId],
+          { superseded_by: first.id },
+          REHEARSAL_REASON,
+        ));
+      const candidates: SupersedeCandidate[] = supersede
+        ? read.candidates.map((c) => ({
+            recordId: c.id,
+            pack: { title: c.title, revision: c.revision },
+            state: c.state,
+            assignedAt: new Date(c.assigned_at).toISOString(),
+          }))
+        : [];
+      return reply.header('cache-control', 'private, no-store').send({
+        format: RECORD_GESTURES_FORMAT,
+        recordId,
+        state: read.record.state,
+        withdraw: { available: withdraw },
+        supersede: { available: supersede, candidates },
+      });
+    },
+  );
+
+  app.get('/qualification/packs/drafting', async (request, reply) => {
+    const caller = await identify(request, reply);
+    if (caller === undefined) return reply;
+    const context = await bound(options.pool, caller, (tx) =>
+      draftingContext(tx, caller.organizationId),
+    );
+    if (context === undefined) return reply.code(404).send({ error: 'not_found' });
+    const available = await rehearse(
+      caller,
+      String(request.id),
+      'draft_qualification_pack',
+      [],
+      {},
+    );
+    return reply.header('cache-control', 'private, no-store').send({
+      format: PACK_DRAFTING_FORMAT,
+      draft: { available },
+      parts: context.parts,
+      roles: context.roles,
+    });
+  });
 
   app.get('/start-here', async (request, reply) => {
     const caller = await identify(request, reply);

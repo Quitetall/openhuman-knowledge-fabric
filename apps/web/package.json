@@ -15,6 +15,7 @@
     "@kf/agent": "workspace:*",
     "@kf/domain": "workspace:*",
     "@kf/ml-registry": "workspace:*",
+    "@kf/qualification": "workspace:*",
     "@kf/ui": "workspace:*",
     "jose": "^6.2.8",
     "next": "^16.3.8",

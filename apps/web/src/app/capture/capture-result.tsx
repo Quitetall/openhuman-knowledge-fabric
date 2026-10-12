@@ -33,6 +33,17 @@ export function CaptureResult({ state }: { readonly state: CaptureState }) {
         is {formatState(outcome.lifecycleState)}.
       </p>
       <VerificationNote verification={outcome.verification} />
+      {state.media === undefined ? null : (
+        <ul className="kf-capture-attached">
+          {state.media.map((m) => (
+            <li key={m.artifactId} data-attached={m.kind}>
+              {m.kind === 'photo' ? 'Photo' : 'Voice note'}{' '}
+              <Link href={`/objects/${encodeURIComponent(m.artifactId)}`}>{m.artifactId}</Link>{' '}
+              attached as evidence{m.replayed ? ' (already stored)' : ''}, not transcribed.
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
