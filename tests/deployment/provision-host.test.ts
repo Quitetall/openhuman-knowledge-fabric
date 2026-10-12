@@ -9,7 +9,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { createPrivateKey, createPublicKey } from 'node:crypto';
+import { createHash, createPrivateKey, createPublicKey } from 'node:crypto';
 import {
   chmodSync,
   existsSync,
@@ -23,6 +23,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
 const ROOT = join(import.meta.dirname, '..', '..');
@@ -451,18 +452,108 @@ describe("this host's own object store, kf-objects (ADR 0039)", () => {
     'kf-storage': '/etc/kf/storage/s3-secret',
     'kf-drill': '/etc/kf/drill/s3-secret-access-key',
   } as const;
+  const UNIT = readFileSync(join(ROOT, 'deploy/systemd/kf-objects.service'), 'utf8');
+  const RENDER = join(ROOT, 'deploy/object-store/render-identities.mjs');
 
-  it('generates each service secret, and renders the identities the store reads from them', () => {
+  interface Identity {
+    name: string;
+    credentials: { accessKey: string; secretKey: string }[];
+    actions: string[];
+  }
+
+  /**
+   * One start of the shipped kf-objects.service, as far as its identities go: PID 1 copies each
+   * LoadCredential= source into the unit's credentials directory (an absent source with a
+   * SetCredential= fallback becomes that empty value; without one the start fails, 243), then the
+   * unit's own ExecStartPre renders the file its ExecStart reads. Every path comes from the unit.
+   */
+  function startStore(h: Host): { code: number; output: string; identities: Identity[] } {
+    const load = [...UNIT.matchAll(/^LoadCredential=([^:\n]+):(\/\S+)$/gm)];
+    const fallback = new Set([...UNIT.matchAll(/^SetCredential=([^:\n]+):$/gm)].map((m) => m[1]));
+    const work = mkdtempSync(join(tmpdir(), 'kf-objects-start-'));
+    directories.push(work);
+    const credentials = join(work, 'credentials');
+    mkdirSync(credentials, { mode: 0o700 });
+    for (const [, id, source] of load) {
+      if (existsSync(h.path(source!))) {
+        writeFileSync(join(credentials, id!), readFileSync(h.path(source!)), { mode: 0o400 });
+      } else if (fallback.has(id!)) {
+        writeFileSync(join(credentials, id!), '', { mode: 0o400 });
+      } else {
+        throw new Error(`the unit would not start: no ${source} and no fallback for ${id}`);
+      }
+    }
+    const pre =
+      /^ExecStartPre=\/usr\/bin\/node \/opt\/kf\/(\S+) (\S+) \/opt\/kf\/(\S+) (\S+)$/m.exec(UNIT);
+    expect(pre, 'the unit renders its identities in ExecStartPre').not.toBeNull();
+    const [, script, manifest, policy, out] = pre!;
+    expect(join(ROOT, script!)).toBe(RENDER);
+    expect(out).toMatch(/^\/run\/kf-objects\//);
+    expect(UNIT).toMatch(/^RuntimeDirectory=kf-objects$/m);
+    expect(UNIT).toContain(` -s3.config=${out} `);
+    const rendered = join(work, 'identities.json');
+    const r = spawnSync(
+      process.execPath,
+      [RENDER, h.path(manifest!), join(ROOT, policy!), rendered],
+      {
+        encoding: 'utf8',
+        env: { CREDENTIALS_DIRECTORY: credentials },
+      },
+    );
+    const code = r.status ?? 1;
+    return {
+      code,
+      output: `${r.stdout}${r.stderr}`,
+      identities:
+        code === 0
+          ? (JSON.parse(readFileSync(rendered, 'utf8')) as { identities: Identity[] }).identities
+          : [],
+    };
+  }
+
+  it('generates each service secret, and writes the store a manifest with no secret in it', () => {
     const h = host();
     const run = h.run();
     expect(run.code, run.output).toBe(0);
-    const identities = JSON.parse(readFileSync(h.path('/etc/kf/objects/identities.json'), 'utf8'))
-      .identities as {
-      name: string;
-      credentials: { accessKey: string; secretKey: string }[];
-      actions: string[];
-    }[];
-    expect(mode(h.path('/etc/kf/objects/identities.json'))).toBe('600');
+    const manifest = readFileSync(h.path('/etc/kf/objects/store.json'), 'utf8');
+    expect(mode(h.path('/etc/kf/objects/store.json'))).toBe('644');
+    expect(JSON.parse(manifest)).toEqual({
+      bucket: 'kf-artifacts',
+      identities: [
+        { name: 'kf-objects-admin', role: 'admin' },
+        { name: 'kf-api', role: 'app' },
+        { name: 'kf-worker', role: 'app' },
+        { name: 'kf-storage', role: 'storage' },
+        { name: 'kf-drill', role: 'readonly' },
+      ],
+    });
+    // No file of the store's holds a secret: nothing assembled is left on disk (SAS §100.54).
+    expect(existsSync(h.path('/etc/kf/objects/identities.json'))).toBe(false);
+    for (const [name, path] of Object.entries(SERVICE_SECRETS)) {
+      expect(mode(h.path(path)), path).toBe('600');
+      const secret = readFileSync(h.path(path), 'utf8');
+      expect(secret.length, path).toBeGreaterThanOrEqual(32);
+      expect(manifest, name).not.toContain(secret);
+    }
+    expect(readFileSync(h.path('/etc/kf/objects-init/objects.env'), 'utf8')).toMatch(
+      /^KF_OBJECTS_BUCKETS=kf-artifacts$/m,
+    );
+    // No secret in the output or any command line, and no policy to print: the store has it.
+    const everything = `${run.output}\n${h.calls()}`;
+    for (const path of [...Object.values(SERVICE_SECRETS), '/etc/kf/objects-init/admin-secret']) {
+      expect(everything).not.toContain(readFileSync(h.path(path), 'utf8'));
+    }
+    expect(run.output).not.toContain('== object-store policy');
+    // Re-running changes nothing.
+    expect(h.run().output).not.toContain('store.json');
+    expect(readFileSync(h.path('/etc/kf/objects/store.json'), 'utf8')).toBe(manifest);
+  });
+
+  it('at each start renders the identities the store reads, from the secrets PID 1 hands it', () => {
+    const h = host();
+    expect(h.run().code).toBe(0);
+    const { code, output, identities } = startStore(h);
+    expect(code, output).toBe(0);
     expect(identities.map((identity) => identity.name)).toEqual([
       'kf-objects-admin',
       'kf-api',
@@ -471,12 +562,14 @@ describe("this host's own object store, kf-objects (ADR 0039)", () => {
       'kf-drill',
     ]);
     for (const [name, path] of Object.entries(SERVICE_SECRETS)) {
-      expect(mode(h.path(path)), path).toBe('600');
-      const secret = readFileSync(h.path(path), 'utf8');
-      expect(secret.length, path).toBeGreaterThanOrEqual(32);
       const identity = identities.find((candidate) => candidate.name === name);
-      expect(identity?.credentials).toEqual([{ accessKey: name, secretKey: secret }]);
+      expect(identity?.credentials).toEqual([
+        { accessKey: name, secretKey: readFileSync(h.path(path), 'utf8') },
+      ]);
     }
+    expect(identities[0]?.credentials[0]?.secretKey).toBe(
+      readFileSync(h.path('/etc/kf/objects-init/admin-secret'), 'utf8'),
+    );
     expect(identities.find((identity) => identity.name === 'kf-storage')?.actions).toEqual([
       'Read:kf-artifacts',
       'List:kf-artifacts',
@@ -487,19 +580,33 @@ describe("this host's own object store, kf-objects (ADR 0039)", () => {
       'Read:kf-artifacts',
       'List:kf-artifacts',
     ]);
-    expect(readFileSync(h.path('/etc/kf/objects-init/objects.env'), 'utf8')).toMatch(
-      /^KF_OBJECTS_BUCKETS=kf-artifacts$/m,
-    );
-    // No secret in the output or any command line, and no policy to print: the store has it.
-    const everything = `${run.output}\n${h.calls()}`;
+    // The renderer names identities, never their secrets.
     for (const identity of identities) {
-      expect(everything).not.toContain(identity.credentials[0]?.secretKey);
+      expect(output).not.toContain(identity.credentials[0]?.secretKey);
     }
-    expect(run.output).not.toContain('== object-store policy');
-    // Re-running changes nothing.
-    const before = readFileSync(h.path('/etc/kf/objects/identities.json'), 'utf8');
-    expect(h.run().output).not.toContain('identities.json');
-    expect(readFileSync(h.path('/etc/kf/objects/identities.json'), 'utf8')).toBe(before);
+  });
+
+  it('refuses to start the store without a secret its manifest names, and never prints one', () => {
+    const h = host();
+    expect(h.run().code).toBe(0);
+    writeFileSync(h.path('/etc/kf/worker/s3-secret-access-key'), '');
+    const empty = startStore(h);
+    expect(empty.code).toBe(1);
+    expect(empty.output).toContain('the credential for kf-worker is empty or short');
+    // Not inside the unit, no credentials: refused rather than reading secrets from anywhere else.
+    const r = spawnSync(
+      process.execPath,
+      [
+        RENDER,
+        h.path('/etc/kf/objects/store.json'),
+        join(ROOT, 'deploy/object-store/kf-storage-orphan-collection.policy.json'),
+        join(h.root, '..', 'identities.json'),
+      ],
+      { encoding: 'utf8', env: {} },
+    );
+    expect(r.status).toBe(64);
+    expect(r.stderr).toContain('no credentials directory');
+    expect(existsSync(join(h.root, '..', 'identities.json'))).toBe(false);
   });
 
   it('leaves a service routed at another store to its own key, and out of the identities', () => {
@@ -512,14 +619,39 @@ describe("this host's own object store, kf-objects (ADR 0039)", () => {
     );
     rmSync(h.path('/etc/kf/drill/s3-secret-access-key'));
     expect(h.run().code).toBe(0);
-    const names = (
-      JSON.parse(readFileSync(h.path('/etc/kf/objects/identities.json'), 'utf8')).identities as {
-        name: string;
-      }[]
-    ).map((identity) => identity.name);
-    expect(names).not.toContain('kf-drill');
-    // Its secret is a person's to supply again, as an empty owner-only placeholder.
+    const manifest = JSON.parse(readFileSync(h.path('/etc/kf/objects/store.json'), 'utf8')) as {
+      identities: { name: string }[];
+    };
+    expect(manifest.identities.map((identity) => identity.name)).not.toContain('kf-drill');
+    // Its secret is a person's to supply again, as an empty owner-only placeholder; the store
+    // still starts (SetCredential= fallback), and serves no kf-drill.
     expect(statSync(h.path('/etc/kf/drill/s3-secret-access-key')).size).toBe(0);
+    const started = startStore(h);
+    expect(started.code, started.output).toBe(0);
+    expect(started.identities.map((identity) => identity.name)).not.toContain('kf-drill');
+    // A key for the other store, supplied by a person, is still never rendered into this one.
+    writeFileSync(
+      h.path('/etc/kf/drill/s3-secret-access-key'),
+      'replica-store-secret-0123456789\n',
+    );
+    const again = startStore(h);
+    expect(again.code, again.output).toBe(0);
+    expect(JSON.stringify(again.identities)).not.toContain('replica-store-secret');
+  });
+
+  it('removes the assembled identities file an earlier release left on disk', () => {
+    const h = host();
+    expect(h.run().code).toBe(0);
+    writeFileSync(h.path('/etc/kf/objects/identities.json'), '{"identities": []}\n', {
+      mode: 0o600,
+    });
+    const check = h.run(['--check']);
+    expect(check.output).toContain('remove /etc/kf/objects/identities.json');
+    expect(existsSync(h.path('/etc/kf/objects/identities.json'))).toBe(true);
+    const run = h.run();
+    expect(run.code, run.output).toBe(0);
+    expect(run.output).toContain('removed /etc/kf/objects/identities.json');
+    expect(existsSync(h.path('/etc/kf/objects/identities.json'))).toBe(false);
   });
 
   it('refuses a SeaweedFS tarball that is not the pinned one', () => {
@@ -1054,3 +1186,348 @@ describe('sockets on the public interface that are not KF (KF-WAR-0001 rehearsal
     expect(h.run(['--check']).output).not.toContain('kf-no-llmnr.conf');
   });
 });
+
+// Each case runs the whole provisioner two to six times; on a loaded machine one run has taken
+// over 20 s, so the default 30 s bound fails on load, not on a defect.
+describe(
+  'semantic search on the host (SAS §100.66, ADR 0039 decision 5)',
+  { timeout: 180_000 },
+  () => {
+    const MODEL_FILES = [
+      'PROVENANCE.json',
+      'config.json',
+      'model.safetensors',
+      'sentencepiece.bpe.model',
+      'special_tokens_map.json',
+      'tokenizer.json',
+      'tokenizer_config.json',
+    ];
+    const SOURCES = [
+      'pytorch_model.bin',
+      'config.json',
+      'tokenizer.json',
+      'tokenizer_config.json',
+      'special_tokens_map.json',
+      'sentencepiece.bpe.model',
+    ];
+    const sha = (bytes: string | Buffer) => createHash('sha256').update(bytes).digest('hex');
+    const RELEASE_SHA = 'ab'.repeat(32);
+
+    interface Retrieval {
+      readonly h: Host;
+      readonly tree: string;
+      readonly control: string;
+      readonly engine: string;
+      readonly env: Record<string, string>;
+      pins(changes: Record<string, string>): void;
+    }
+
+    /** Every option the startup contract gives the engine, from the contract's own module. */
+    async function engineOptions(): Promise<string[]> {
+      const { engineArguments } = (await import(
+        pathToFileURL(join(ROOT, 'scripts/retrieval/config.mjs')).href
+      )) as { engineArguments: (config: unknown) => string[] };
+      return engineArguments({
+        releaseManifestSha256: '0'.repeat(64),
+        modelIdentity: 'm',
+        embeddingPort: 1,
+        allowedPeerUids: [1],
+      }).filter((argument) => argument.startsWith('--'));
+    }
+
+    /**
+     * A release whose retrieval pins name this test's public stand-ins: an engine that prints its
+     * options, a Python 3.13 that "installs" wheels and "converts" a model, and an assembler and
+     * verifier that seal a runtime by its manifest's sha256 (the real ones need an ELF interpreter
+     * and root custody; tests/deployment/embedding-runtime.test.ts covers them). Everything else in
+     * the installer — pins, refusals, accounts, contracts — is the real code.
+     */
+    async function retrievalHost(options: { lacking?: string } = {}): Promise<Retrieval> {
+      const h = host();
+      const tree = join(h.root, '..', 'knowledge-fabric-test');
+      mkdirSync(tree);
+      for (const dir of ['deploy', 'scripts']) {
+        expect(spawnSync('cp', ['-a', join(ROOT, dir), tree]).status).toBe(0);
+      }
+      const control = join(h.root, '..', 'control');
+      mkdirSync(control);
+      writeFileSync(
+        join(tree, 'scripts/embedding/assemble-runtime.mjs'),
+        `import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+const [python, , site, dest] = process.argv.slice(2);
+if (existsSync(dest)) process.exit(1);
+mkdirSync(dest + '/lib/python3.13', { recursive: true });
+mkdirSync(dest + '/bin');
+cpSync(python, dest + '/bin/python3.13');
+cpSync(site, dest + '/lib/python3.13/site-packages', { recursive: true });
+const bytes = JSON.stringify({ format: 'public-test-runtime', dest }) + '\\n';
+writeFileSync(dest + '/RUNTIME-CLOSURE.json', bytes);
+process.stdout.write(createHash('sha256').update(bytes).digest('hex') + '\\n');
+`,
+      );
+      writeFileSync(
+        join(tree, 'scripts/embedding/verify-runtime.mjs'),
+        `import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+const [root, pin] = process.argv.slice(2);
+try {
+  const actual = createHash('sha256').update(readFileSync(root + '/RUNTIME-CLOSURE.json')).digest('hex');
+  process.exit(actual === pin ? 0 : 1);
+} catch { process.exit(1); }
+`,
+      );
+      // The stand-in interpreter. Its environment is cleared by the installer (env -i), so it is
+      // steered by files in the control directory.
+      const python = h.path('/usr/bin/python3.13');
+      mkdirSync(h.path('/usr/bin'), { recursive: true });
+      mkdirSync(h.path('/usr/lib/python3.13'), { recursive: true });
+      writeFileSync(
+        python,
+        `#!/usr/bin/env bash
+c=${JSON.stringify(control)}
+if [ "$1 $2 $3" = "-I -m pip" ]; then
+  [ "$4" != --version ] || exit 0
+  printf '%s\\n' "$*" >> "$c/pip.args"
+  [ ! -e "$c/pip-fails" ] || { echo 'ERROR: THESE PACKAGES DO NOT MATCH THE HASHES FROM THE REQUIREMENTS FILE.'; exit 1; }
+  target=; previous=; for a in "$@"; do [ "$previous" != --target ] || target="$a"; previous="$a"; done
+  mkdir -p "$target/torch" && echo public > "$target/torch/__init__.py"; exit 0
+fi
+if [ "$1 $2 $3" = "-I -S -c" ]; then [ ! -e "$c/import-fails" ]; exit; fi
+if [ "$1 $2" = "-I -S" ]; then
+  out="$6"
+  for f in ${MODEL_FILES.join(' ')}; do printf 'public %s\\n' "$f" > "$out/$f"; done
+  [ ! -e "$c/model-differs" ] || echo changed >> "$out/model.safetensors"
+  echo "$*" >> "$c/prepare.args"; exit 0
+fi
+exit 2
+`,
+        { mode: 0o755 },
+      );
+      const lacking = options.lacking;
+      const engine = join(h.root, '..', 'lamu');
+      writeFileSync(
+        engine,
+        `#!/usr/bin/env bash\n[ "$*" = "kf-retrieval serve --help" ] || exit 2\necho 'Usage: lamu kf-retrieval serve [OPTIONS]'\n${(
+          await engineOptions()
+        )
+          .filter((option) => option !== lacking)
+          .map((option) => `echo '      ${option} <VALUE>'`)
+          .join('\n')}\n`,
+        { mode: 0o755 },
+      );
+      // The Hub files, served from a file:// URL the pins name.
+      const hub = join(h.root, '..', 'hub');
+      mkdirSync(hub);
+      for (const name of SOURCES) writeFileSync(join(hub, name), `public hub ${name}\n`);
+      writeFileSync(
+        join(tree, 'deploy/retrieval/bge-m3.sources'),
+        SOURCES.map((name) => `${sha(`public hub ${name}\n`)}  ${name}\n`).join(''),
+      );
+      const sums = [...MODEL_FILES]
+        .sort()
+        .map((name) => `${sha(`public ${name}\n`)}  ${name}\n`)
+        .join('');
+      const pinsPath = join(tree, 'deploy/retrieval/retrieval.release');
+      const pins = (changes: Record<string, string>) => {
+        let text = readFileSync(pinsPath, 'utf8');
+        for (const [key, value] of Object.entries(changes)) {
+          text = text.replace(new RegExp(`^${key}=.*$`, 'm'), `${key}=${value}`);
+        }
+        writeFileSync(pinsPath, text);
+      };
+      pins({
+        LAMU_SHA256_amd64: sha(readFileSync(engine)),
+        MODEL_MANIFEST_SHA256: sha(sums),
+        MODEL_SOURCE_URL: pathToFileURL(hub).href,
+      });
+      mkdirSync(h.path('/opt/.kf-install'), { recursive: true });
+      writeFileSync(
+        h.path('/opt/.kf-install/knowledge-fabric-test.verified'),
+        `manifest_sha256=${RELEASE_SHA}\ndbmate_version=2.35.0\n`,
+      );
+      return { h, tree, control, engine, env: { KF_RELEASE_DIR: tree }, pins };
+    }
+
+    function supplyEngine(r: Retrieval, bytes?: string): void {
+      mkdirSync(r.h.path('/var/lib/kf/retrieval-supply'), { recursive: true });
+      const target = r.h.path('/var/lib/kf/retrieval-supply/lamu');
+      if (bytes === undefined) writeFileSync(target, readFileSync(r.engine), { mode: 0o755 });
+      else writeFileSync(target, bytes, { mode: 0o755 });
+    }
+
+    const humanSection = (output: string) =>
+      output.split('== inputs only a person can supply')[1] ?? '';
+
+    it('installs every pinned piece, renders a contract the startup accepts, and then lists only the key', async () => {
+      const r = await retrievalHost();
+      const before = r.h.run(['--check'], r.env).output;
+      expect(before).toContain('/var/lib/kf/retrieval-supply/lamu');
+      supplyEngine(r);
+      const run = r.h.run([], r.env);
+      expect(run.code, run.output).toBe(0);
+
+      // The engine: the pinned bytes, root's, executable, asked for its options as its own account.
+      expect(
+        readFileSync(r.h.path('/usr/local/lib/kf-retrieval/lamu')).equals(readFileSync(r.engine)),
+      ).toBe(true);
+      expect(mode(r.h.path('/usr/local/lib/kf-retrieval/lamu'))).toBe('755');
+      expect(r.h.calls()).toMatch(
+        /^runuser -u kf-retrieval -- env -i .* kf-retrieval serve --help$/m,
+      );
+      // The wheels: exactly the lock, hash-checked, binary-only, fetched as the embedding account.
+      const pip = readFileSync(join(r.control, 'pip.args'), 'utf8');
+      for (const flag of ['--require-hashes', '--only-binary=:all:', '--no-deps', '--no-compile']) {
+        expect(pip).toContain(flag);
+      }
+      expect(pip).toContain(`-r ${r.tree}/deploy/retrieval/embed-requirements-cpu.txt`);
+      expect(r.h.calls()).toMatch(/^runuser -u kf-embedding -- env -i .* -I -m pip install /m);
+      // The model: converted as the embedding account from the Hub files, then pinned.
+      expect(r.h.calls()).toMatch(/^runuser -u kf-embedding -- env -i .*prepare-model\.py /m);
+      const model = r.h.path('/opt/kf-models/bge-m3-5617a9f61b02-f16');
+      expect(readdirSync(model).sort()).toEqual([...MODEL_FILES, 'SHA256SUMS'].sort());
+
+      // The broker's policy: the engine's account, this release, its verified digest.
+      const uid = process.getuid?.() ?? 1000;
+      expect(
+        JSON.parse(readFileSync(r.h.path('/etc/kf/retrieval-key-release.json'), 'utf8')),
+      ).toEqual({
+        allowedUid: uid,
+        releaseDirectory: r.tree,
+        releaseManifestSha256: RELEASE_SHA,
+      });
+      // The startup contract, as scripts/retrieval/config.mjs reads it.
+      const { parseConfig } = (await import(
+        pathToFileURL(join(ROOT, 'scripts/retrieval/config.mjs')).href
+      )) as { parseConfig: (text: string) => Record<string, unknown> };
+      const text = readFileSync(r.h.path('/etc/kf/retrieval-runtime.json'), 'utf8');
+      expect(mode(r.h.path('/etc/kf/retrieval-runtime.json'))).toBe('644');
+      const config = parseConfig(text);
+      const runtime = config['pythonRuntimeDirectory'] as string;
+      expect(runtime).toMatch(/^\/opt\/kf-runtimes\/embedding-[0-9a-f]{12}-\d{8}T\d{6}Z$/);
+      expect(config).toEqual({
+        format: 'kf-retrieval-startup-v1',
+        releaseDirectory: r.tree,
+        releaseManifestSha256: RELEASE_SHA,
+        enginePath: '/usr/local/lib/kf-retrieval/lamu',
+        engineSha256: sha(readFileSync(r.engine)),
+        pythonRuntimeDirectory: runtime,
+        pythonRuntimeManifestSha256: sha(readFileSync(r.h.path(`${runtime}/RUNTIME-CLOSURE.json`))),
+        modelDirectory: '/opt/kf-models/bge-m3-5617a9f61b02-f16',
+        modelIdentity:
+          'BAAI/bge-m3@5617a9f61b028005a4858fdac845db406aefb181/dense-cls-f32-single-cpu3-v1',
+        embeddingPort: 8021,
+        // kf-api's and kf-worker's; one here, where every fake account shares the test's uid.
+        allowedPeerUids: [uid],
+      });
+
+      // --check: the contract is installed, so it is not listed; what is left is the index key,
+      // which arrives from the workstation and is never made here.
+      const check = r.h.run(['--check'], r.env).output;
+      expect(check).not.toContain('retrieval-runtime.json');
+      expect(check).not.toContain('kf-retrieval/lamu');
+      expect(check).not.toContain('/opt/kf-');
+      expect(humanSection(check)).toContain(
+        '/run/kf-workstation-credentials/current/retrieval-index-key',
+      );
+      mkdirSync(r.h.path('/run/kf-workstation-credentials/current'), { recursive: true });
+      writeFileSync(r.h.path('/run/kf-workstation-credentials/current/retrieval-index-key'), '');
+      expect(r.h.run(['--check'], r.env).output).not.toContain('retrieval');
+
+      // Re-running installs nothing again: the runtime verifies against its pin and is kept.
+      const again = r.h.run([], r.env);
+      expect(again.code, again.output).toBe(0);
+      expect(again.output).not.toMatch(
+        /embedding runtime|bge-m3 model|LAMU engine|retrieval-runtime\.json/,
+      );
+      expect(readdirSync(r.h.path('/opt/kf-runtimes'))).toHaveLength(1);
+    });
+
+    it('refuses an engine that is not the pinned bytes, and installs no contract', async () => {
+      const r = await retrievalHost();
+      supplyEngine(r, '#!/bin/sh\necho not the pinned engine\n');
+      const run = r.h.run([], r.env);
+      expect(run.code, run.output).toBe(0);
+      expect(run.output).toContain('REFUSED: it is not the pinned LAMU engine');
+      expect(existsSync(r.h.path('/usr/local/lib/kf-retrieval/lamu'))).toBe(false);
+      expect(existsSync(r.h.path('/etc/kf/retrieval-runtime.json'))).toBe(false);
+    });
+
+    it('refuses the pinned engine when it lacks an option the startup gives it', async () => {
+      // LAMU 26923afb, the build the fixture stacks run, has no --key-release-socket: it cannot take
+      // its index key from the KF broker, so the startup contract could never start it.
+      const r = await retrievalHost({ lacking: '--key-release-socket' });
+      supplyEngine(r);
+      const run = r.h.run([], r.env);
+      expect(run.code, run.output).toBe(0);
+      expect(humanSection(run.output)).toContain('has no --key-release-socket');
+      expect(existsSync(r.h.path('/usr/local/lib/kf-retrieval/lamu'))).toBe(false);
+      expect(existsSync(r.h.path('/usr/local/lib/kf-retrieval/lamu.staged'))).toBe(false);
+      expect(existsSync(r.h.path('/etc/kf/retrieval-runtime.json'))).toBe(false);
+    });
+
+    it('refuses a converted model that is not the pinned directory', async () => {
+      const r = await retrievalHost();
+      supplyEngine(r);
+      writeFileSync(join(r.control, 'model-differs'), '');
+      const run = r.h.run([], r.env);
+      expect(run.code, run.output).toBe(0);
+      expect(run.output).toContain('REFUSED: the prepared model is not the pinned one');
+      expect(existsSync(r.h.path('/opt/kf-models/bge-m3-5617a9f61b02-f16'))).toBe(false);
+      expect(existsSync(r.h.path('/etc/kf/retrieval-runtime.json'))).toBe(false);
+    });
+
+    it('refuses a Hub source file that is not the pinned one, before converting anything', async () => {
+      const r = await retrievalHost();
+      supplyEngine(r);
+      mkdirSync(r.h.path('/var/lib/kf/retrieval-supply/bge-m3'), { recursive: true });
+      writeFileSync(
+        r.h.path('/var/lib/kf/retrieval-supply/bge-m3/pytorch_model.bin'),
+        'tampered\n',
+      );
+      const run = r.h.run([], r.env);
+      expect(run.code, run.output).toBe(0);
+      expect(run.output).toContain('REFUSED: a bge-m3 source file is not the one');
+      expect(existsSync(join(r.control, 'prepare.args'))).toBe(false);
+      expect(existsSync(r.h.path('/etc/kf/retrieval-runtime.json'))).toBe(false);
+    });
+
+    it('installs from a supplied wheelhouse with no index, and from a prepared model directory', async () => {
+      const r = await retrievalHost();
+      supplyEngine(r);
+      mkdirSync(r.h.path('/var/lib/kf/retrieval-supply/wheels'), { recursive: true });
+      const prepared = r.h.path('/var/lib/kf/retrieval-supply/bge-m3-f16');
+      mkdirSync(prepared, { recursive: true });
+      for (const name of MODEL_FILES) writeFileSync(join(prepared, name), `public ${name}\n`);
+      // Nothing may be fetched: the Hub URL now points nowhere.
+      r.pins({ MODEL_SOURCE_URL: 'file:///nonexistent/hub' });
+      const run = r.h.run([], r.env);
+      expect(run.code, run.output).toBe(0);
+      expect(readFileSync(join(r.control, 'pip.args'), 'utf8')).toContain(
+        `--no-index --find-links ${r.h.path('/var/lib/kf/retrieval-supply/wheels')}`,
+      );
+      expect(existsSync(join(r.control, 'prepare.args'))).toBe(false);
+      expect(existsSync(r.h.path('/etc/kf/retrieval-runtime.json'))).toBe(true);
+    });
+
+    it('names wheels that do not match their hashes, and a runtime that no longer verifies', async () => {
+      const r = await retrievalHost();
+      supplyEngine(r);
+      writeFileSync(join(r.control, 'pip-fails'), '');
+      const failed = r.h.run([], r.env);
+      expect(failed.output).toContain('THESE PACKAGES DO NOT MATCH THE HASHES');
+      expect(existsSync(r.h.path('/opt/kf-runtimes'))).toBe(false);
+      rmSync(join(r.control, 'pip-fails'));
+      expect(r.h.run([], r.env).code).toBe(0);
+      const config = JSON.parse(
+        readFileSync(r.h.path('/etc/kf/retrieval-runtime.json'), 'utf8'),
+      ) as {
+        pythonRuntimeDirectory: string;
+      };
+      writeFileSync(r.h.path(`${config.pythonRuntimeDirectory}/RUNTIME-CLOSURE.json`), 'drifted\n');
+      expect(humanSection(r.h.run(['--check'], r.env).output)).toContain(
+        'no longer verifies against its pin',
+      );
+    });
+  },
+);
