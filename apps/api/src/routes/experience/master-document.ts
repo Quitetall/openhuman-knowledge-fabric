@@ -8,10 +8,11 @@
  *
  * IT MUST READ AT THE SIZE OF AN ORGANIZATION. A reader of fifty thousand records cannot be sent
  * fifty thousand items, and the page cannot recount the corpus to decide whether the claim is
- * current (§100.42, §100.43). So it reads the claim the way its stored items allow: one count per
- * record type, and pages of one type at a time by the items' own index. Currency is asked of the
- * database's record of writes only; when that cannot show the claim current the page says
- * "unknown" and offers to compile, rather than recounting.
+ * current. So it reads the claim the way its stored items allow: one count per record type, and
+ * pages of one type at a time by the items' own index. Currency is asked of the database's record
+ * of writes, and of a live re-check of the few records the writes since named (20261011300000);
+ * when that cannot show the claim current the page says "unknown" and offers to compile, rather
+ * than recounting.
  *
  * A CLAIM IS NOT A LICENCE. A compilation can be older than a revocation, so every item a page
  * shows is read again, live, under the reader's row security and through the one grant coverage,
@@ -22,6 +23,7 @@
 import { coveringGrants, enumerateAccessCoverage, type AccessCoverage } from '@kf/authorization';
 import type { Tx } from '@kf/database';
 import {
+  currencyFromRecord,
   latestMasterRecordClaim,
   readOrganizationOverview,
   type OverviewAnswer,
@@ -170,11 +172,14 @@ export async function readMasterDocument(
   if (claim === undefined) {
     return { format: MASTER_DOCUMENT_FORMAT, claim: { status: 'missing' }, overview, sections: [] };
   }
-  const header = await tx.one<{ compiled_at: Date; current: string | null }>(
-    `select /* master-document.header */ compiled_at,
-            content.master_record_current_format(id) as current
-       from content.master_record where id = $1`,
+  const header = await tx.one<{ compiled_at: Date }>(
+    `select /* master-document.header */ compiled_at from content.master_record where id = $1`,
     [claim.id],
+  );
+  const known = await currencyFromRecord(
+    tx,
+    { personId: reader.actorId, organizationId: reader.organizationId },
+    claim,
   );
   const counts = await tx.query<{ object_type: string; title: string; n: string }>(
     `select /* master-document.counts */ i.object_type, t.title, count(*)::text as n
@@ -210,7 +215,7 @@ export async function readMasterDocument(
       compiledAt: new Date(header.compiled_at).toISOString(),
       corpusDigest: claim.corpusDigest,
       memberCount: counts.reduce((n, row) => n + Number(row.n), 0),
-      currency: header.current === null ? 'unknown' : 'current',
+      currency: known?.status === 'current' ? 'current' : 'unknown',
     },
     overview,
     sections,

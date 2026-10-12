@@ -30,6 +30,8 @@ export {
   claimMembers,
   claimMemberCountAmong,
   claimMembersAmong,
+  CURRENCY_RECHECK_LIMIT,
+  currencyFromRecord,
   enumerateNeighbourhoodGraph,
   latestMasterRecordClaim,
   masterRecordCurrency,

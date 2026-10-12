@@ -650,6 +650,91 @@ export async function seedFixtures(
   });
 }
 
+/**
+ * A synthetic corpus of `records` records in the fixture organization, shaped like an ingested
+ * organization: three in five are documents (an artifact, its typed row and one externally held
+ * version, as `register_external_artifact` writes them), one in four are notes (an observation and
+ * its typed row), and the rest are decision records, every tenth of which supersedes the one before.
+ * Written in a handful of set statements as a bootstrap fixture, never through acts: it exists to
+ * measure reads at the size of an organization (tests/deployment/latency-bars-at-scale.test.ts).
+ */
+export async function populateSyntheticCorpus(
+  pool: Pool,
+  f: Fixtures,
+  spec: { readonly records: number; readonly classification: string; readonly createdBy: string },
+): Promise<{ readonly decisionIds: readonly string[] }> {
+  const artifacts = Math.floor(spec.records * 0.6);
+  const notes = Math.floor(spec.records * 0.25);
+  const decisions = spec.records - artifacts - notes;
+  return withTransaction(pool, async (tx) => {
+    // A fixture of tens of thousands of rows on a shared host: not held to an act's budget.
+    await tx.query('set local statement_timeout = 0');
+    await tx.query('select core.set_access_context($1, $2)', [f.organizationId, 'restricted']);
+    await tx.query('select core.set_transaction_context($1, $1, $2, $3)', [
+      spec.createdBy,
+      BOOTSTRAP_ACTION,
+      'harness-synthetic-corpus',
+    ]);
+    const envelopes = (type: string, domain: string, state: string, count: number) =>
+      tx.query<{ id: string }>(
+        `insert into core.object
+           (object_type, authority_domain, lifecycle_state, classification, retention_class,
+            schema_version, organization_id, title, created_by, updated_by)
+         select $1, $2, $3, $4, 'project_record', $5, $6,
+                'Synthetic ' || $1 || ' ' || n || ': ' || md5(n::text || $1), $7, $7
+           from generate_series(1, $8::int) as n
+         returning id`,
+        [
+          type,
+          domain,
+          state,
+          spec.classification,
+          f.schemaVersion,
+          f.organizationId,
+          spec.createdBy,
+          count,
+        ],
+      );
+    const artifactIds = (await envelopes('artifact', 'artifact', 'draft', artifacts)).map(
+      (row) => row.id,
+    );
+    await tx.query(
+      `insert into content.artifact (id, artifact_kind, source_system)
+       select id, 'document', 'document_system' from unnest($1::uuid[]) as id`,
+      [artifactIds],
+    );
+    await tx.query(
+      `insert into content.artifact_version
+         (artifact_id, version_no, revision_label, sha256, size_bytes, media_type, created_by)
+       select id, 1, 'R1', encode(sha256(convert_to(id::text, 'UTF8')), 'hex'),
+              4096 + (get_byte(uuid_send(id), 15) * 97), 'application/pdf', $2
+         from unnest($1::uuid[]) as id`,
+      [artifactIds, spec.createdBy],
+    );
+    const noteIds = (await envelopes('observation', 'project', 'captured', notes)).map(
+      (row) => row.id,
+    );
+    await tx.query(
+      `insert into content.observation (id, body, body_sha256, tags)
+       select id, 'Synthetic note ' || id, encode(sha256(convert_to('Synthetic note ' || id, 'UTF8')), 'hex'),
+              array['synthetic']
+         from unnest($1::uuid[]) as id`,
+      [noteIds],
+    );
+    const decisionIds = (await envelopes('decision_record', 'engineering', 'draft', decisions)).map(
+      (row) => row.id,
+    );
+    await tx.query(
+      `insert into core.relation (relation_type, source_id, target_id, created_by)
+       select 'supersedes', ids[i], ids[i - 1], $2
+         from (select $1::uuid[] as ids) as d, generate_series(2, cardinality($1::uuid[])) as i
+        where i % 10 <> 1`,
+      [decisionIds, spec.createdBy],
+    );
+    return { decisionIds };
+  });
+}
+
 /** Create a domain object in a given lifecycle state, attributed to `createdBy`. */
 export async function createObject(
   pool: Pool,

@@ -18,6 +18,11 @@
  *             has brought the reader's master record current (that compile is an act, reported
  *             but not judged against this bar).
  *
+ * And the view bar a second way, when a second identity is given (`afterWrite`): the same GET, each
+ * sample taken just after ANOTHER person captured a note the reader cannot see (SAS §100.42: any
+ * write in the organization used to make every reader's next view recount their corpus). Without
+ * a second identity it is not measured, and the report says so.
+ *
  * Not measured here, and said so in every report: "recording an observation, from intent to
  * durable — under 5 seconds, including the human part" (it includes a person), and "attaching
  * evidence to an existing record — under 10 seconds for a file already on disk".
@@ -39,6 +44,11 @@
  *
  * or with a bearer token: KF_API_TOKEN_FILE=<owner-only file> KF_API_ORGANIZATION=<uuid>.
  * `--write` prepends a dated section to generated/latency-bars.md.
+ *
+ * The view after a write needs a writer and a record the reader can see whose corpus the writer's
+ * notes do not reach: KF_LATENCY_WRITER_ACTOR=<uuid> (same organization, development identity) or
+ * KF_LATENCY_WRITER_TOKEN_FILE=<owner-only file>, KF_LATENCY_ANCHOR=<object id>, and optionally
+ * KF_LATENCY_READER_CEILING=<classification> for the reader's reads.
  */
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -71,10 +81,26 @@ export const BARS = Object.freeze([
   }),
 ]);
 
+/**
+ * ADR 0024's object-view bar, taken a second way: after a write in the organization since the
+ * reader's master record was compiled. Not a row of the ADR's table — the same interaction and the
+ * same bar, measured where SAS §100.42 said it failed.
+ */
+export const VIEW_AFTER_WRITE = Object.freeze({
+  id: 'view-after-write',
+  interaction: 'Reading an object view, after a write in the organization',
+  adr: 'under 1 second',
+  limitMs: 1000,
+});
+
 export const NOT_MEASURED = Object.freeze([
   'Recording an observation, from intent to durable — under 5 seconds, including the human part (includes a person)',
   'Attaching evidence to an existing record — under 10 seconds for a file already on disk',
 ]);
+
+/** Said in a report whose run named no second identity. */
+export const AFTER_WRITE_UNMEASURED =
+  'Reading an object view after another person wrote — under 1 second (needs a second identity)';
 
 export const GENERATED_FILE = 'generated/latency-bars.md';
 
@@ -96,7 +122,79 @@ export function judge(bar, timings, failures = []) {
 }
 
 /**
- * Measure the three bars against `origin`.
+ * The object-view bar after a write in the organization (SAS §100.42): the reader's view of
+ * `afterWrite.anchor` is brought current by one POST /objects/:id/refresh (reported, not judged),
+ * then each sample is one note captured by `afterWrite.writerHeaders` — an act in the organization,
+ * not timed — followed by one timed GET of the anchor by `afterWrite.readerHeaders`. The writer is
+ * somebody whose notes the reader's corpus does not gain, so every sample is a view the write could
+ * not have changed; any answer but 200 is a failure.
+ */
+export async function measureViewAfterWrite({
+  origin,
+  afterWrite,
+  samples = 20,
+  fetchImpl = globalThis.fetch,
+  clock = () => performance.now(),
+  run = randomUUID().slice(0, 8),
+}) {
+  const base = origin.replace(/\/+$/u, '');
+  const call = async (method, path, headers, body) => {
+    const started = clock();
+    const response = await fetchImpl(`${base}${path}`, {
+      method,
+      headers: {
+        ...headers,
+        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    const text = await response.text();
+    const elapsed = clock() - started;
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      json = undefined;
+    }
+    return { status: response.status, json, elapsed };
+  };
+  const note = (i) =>
+    call('POST', '/capture/observation', afterWrite.writerHeaders, {
+      body: `latency probe ${run} written beside the reader ${String(i)}`,
+      tags: ['latency-bars'],
+    });
+  const view = `/objects/${afterWrite.anchor}`;
+  const timings = [];
+  const failures = [];
+  const brought = await call('POST', `${view}/refresh`, afterWrite.readerHeaders);
+  if (brought.status !== 200) {
+    failures.push(
+      `the reader's view could not be refreshed (${String(brought.status)} ${String(
+        brought.json?.error ?? '',
+      )} ${String(brought.json?.message ?? brought.json?.reason ?? '')})`.trim(),
+    );
+  } else {
+    // The writer's first note forms their assignment, and the reader's first view warms the
+    // path; neither is timed.
+    await note('warm');
+    await call('GET', view, afterWrite.readerHeaders);
+    for (let i = 0; i < samples; i += 1) {
+      const w = await note(i);
+      if (w.status !== 201) {
+        failures.push(`the writer's capture ${String(i)} answered ${String(w.status)}`);
+        continue;
+      }
+      const r = await call('GET', view, afterWrite.readerHeaders);
+      if (r.status === 200) timings.push(r.elapsed);
+      else failures.push(`view after a write ${String(i)} answered ${String(r.status)}`);
+    }
+  }
+  return { bar: judge(VIEW_AFTER_WRITE, timings, failures), refreshMs: brought.elapsed };
+}
+
+/**
+ * Measure the three bars against `origin`, and the view bar after another person's write when
+ * `afterWrite` names a writer, the reader's headers and a record the reader can see.
  *
  * `fetchImpl` is injectable so a test can put a delay in the path and watch a bar fail; the real
  * run uses the global fetch. `clock` is `performance.now` unless a test supplies one.
@@ -108,6 +206,7 @@ export async function measureLatencyBars({
   fetchImpl = globalThis.fetch,
   clock = () => performance.now(),
   indexTimeoutMs = 30_000,
+  afterWrite = undefined,
 }) {
   const base = origin.replace(/\/+$/u, '');
   const run = randomUUID().slice(0, 8);
@@ -207,11 +306,37 @@ export async function measureLatencyBars({
     }
   }
 
+  // view after a write — see measureViewAfterWrite. The reader acts under the assignment their
+  // first capture formed, unless they named one.
+  const afterWriteReport =
+    afterWrite === undefined
+      ? undefined
+      : await measureViewAfterWrite({
+          origin,
+          samples,
+          fetchImpl,
+          clock,
+          run,
+          afterWrite: {
+            ...afterWrite,
+            readerHeaders:
+              afterWrite.readerHeaders['x-kf-acting-role'] === undefined &&
+              readHeaders['x-kf-acting-role'] !== undefined
+                ? {
+                    ...afterWrite.readerHeaders,
+                    'x-kf-acting-role': readHeaders['x-kf-acting-role'],
+                  }
+                : afterWrite.readerHeaders,
+          },
+        });
+  const afterWriteRefreshMs = afterWriteReport?.refreshMs;
+
   const [actBar, searchBar, viewBar] = BARS;
   const bars = [
     judge(actBar, actTimings, actFailures),
     judge(searchBar, searchTimings, searchFailures),
     judge(viewBar, viewTimings, viewFailures),
+    ...(afterWriteReport === undefined ? [] : [afterWriteReport.bar]),
   ];
   return {
     bars,
@@ -220,6 +345,7 @@ export async function measureLatencyBars({
       warmCaptureMs: warm.elapsed,
       captureToSearchableMs: indexedAfterMs,
       objectViewRefreshMs: refresh.elapsed,
+      ...(afterWriteRefreshMs === undefined ? {} : { afterWriteRefreshMs }),
     },
   };
 }
@@ -256,9 +382,16 @@ export function renderSection(report, provenance) {
     'Reported, not judged: first capture (warm-up) ' +
       `${ms(report.informational.warmCaptureMs)}; capture to searchable ` +
       `${ms(report.informational.captureToSearchableMs)}; master-record refresh before the ` +
-      `object view ${ms(report.informational.objectViewRefreshMs)}.`,
+      `object view ${ms(report.informational.objectViewRefreshMs)}` +
+      (report.informational.afterWriteRefreshMs === undefined
+        ? '.'
+        : `; the reader's refresh before the views after a write ` +
+          `${ms(report.informational.afterWriteRefreshMs)}.`),
     '',
-    `Not measured by this harness: ${NOT_MEASURED.join('; ')}.`,
+    `Not measured by this harness: ${[
+      ...NOT_MEASURED,
+      ...(report.bars.some((b) => b.id === VIEW_AFTER_WRITE.id) ? [] : [AFTER_WRITE_UNMEASURED]),
+    ].join('; ')}.`,
     '',
   ].join('\n');
 }
@@ -333,16 +466,36 @@ function identityHeaders(env) {
   };
 }
 
+/** The second identity and the record for the view after a write, when the environment names them. */
+function afterWriteOptions(env, headers) {
+  const anchor = env['KF_LATENCY_ANCHOR'];
+  const tokenFile = env['KF_LATENCY_WRITER_TOKEN_FILE'];
+  const writerActor = env['KF_LATENCY_WRITER_ACTOR'];
+  if (!anchor || (!tokenFile && !writerActor)) return undefined;
+  const writerHeaders =
+    tokenFile !== undefined && tokenFile !== ''
+      ? identityHeaders({ ...env, KF_API_TOKEN_FILE: tokenFile, KF_API_ACTING_ROLE: '' })
+      : { 'x-kf-actor': writerActor, 'x-kf-organization': env['KF_DEV_ORGANIZATION'] ?? '' };
+  const ceiling = env['KF_LATENCY_READER_CEILING'];
+  return {
+    anchor,
+    writerHeaders,
+    readerHeaders: ceiling ? { ...headers, 'x-kf-classification': ceiling } : headers,
+  };
+}
+
 async function main(argv) {
   const samplesAt = argv.indexOf('--samples');
   const samples = samplesAt === -1 ? 20 : Number(argv[samplesAt + 1]);
   if (!Number.isSafeInteger(samples) || samples < 1) throw new Error('--samples needs a count');
   const origin = process.env['KF_API_ORIGIN'];
   if (!origin) throw new Error('set KF_API_ORIGIN to the API under test');
+  const headers = identityHeaders(process.env);
   const report = await measureLatencyBars({
     origin,
-    headers: identityHeaders(process.env),
+    headers,
     samples,
+    afterWrite: afterWriteOptions(process.env, headers),
   });
   const root = process.cwd();
   const provenance = defaultProvenance(root, origin);
