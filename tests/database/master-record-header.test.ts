@@ -127,7 +127,7 @@ it('serves a current full record without recomputing every content payload', asy
       organizationId: f.organizationId,
     });
     expect(reading.status).toBe('ready');
-    expect(statements.join('\n')).toContain('master-record.current-format');
+    expect(statements.join('\n')).toContain('master-record.currency-delta');
     expect(statements.join('\n')).not.toContain('master-record.permission-set');
     expect(statements.filter((sql) => sql.includes('master-record.by-id'))).toHaveLength(1);
   });

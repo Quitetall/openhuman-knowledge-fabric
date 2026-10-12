@@ -73,8 +73,12 @@ export type ClaimMembersSource =
 export type ClaimCurrency =
   | {
       readonly current: true;
-      /** `recorded`: shown by the database's record of writes; `enumerated`: by comparing again. */
-      readonly basis: 'recorded' | 'enumerated';
+      /**
+       * `recorded`: shown by the database's record of writes, nothing re-read;
+       * `rechecked`: the record of writes named the only records that could have moved, and each was
+       * re-checked live (20261011300000); `enumerated`: by comparing the whole corpus again.
+       */
+      readonly basis: 'recorded' | 'rechecked' | 'enumerated';
       readonly memberFormat: MasterRecordMemberFormat;
       readonly members: ClaimMembersSource;
       /** The whole permitted set, when it was enumerated to decide. */
@@ -83,13 +87,22 @@ export type ClaimCurrency =
   | { readonly current: false; readonly currentCorpusDigest: string };
 
 /**
+ * The most records a reading re-checks to know its claim is current. Beyond it, the reader's corpus
+ * is compared whole, as before: re-checking that many costs about what enumerating does.
+ */
+export const CURRENCY_RECHECK_LIMIT = 1000;
+
+/**
  * Whether `claim` is still the reader's current corpus (ADR 0013: "stale means the corpus moved").
  *
- * First, without reading the corpus: `content.master_record_current_format` answers when the
- * reader's own compilation recorded the claim current and no input of the reading has been written
- * since by a transaction that compilation did not see (20260926110100). When it cannot show that,
- * the corpus is enumerated and compared, as it always was — against the claim's item rows when
- * they reproduce its recorded corpus digest (they are its manifest's members, held so by the
+ * First, without reading the corpus: `content.master_record_currency_delta` answers when the
+ * reader's own compilation recorded the claim current, under the same context and catalog, and
+ * says which records the writes it did not see named (20260926110100, 20261011300000). None: the
+ * claim is current. A few: those records — and only those can have moved — are re-checked live,
+ * under the reader's own row security, grants, exclusions and holds, at the revision the claim
+ * holds. When the record cannot say (a write that named nothing, too many records, no currency
+ * row), the corpus is enumerated and compared, as it always was — against the claim's item rows
+ * when they reproduce its recorded corpus digest (they are its manifest's members, held so by the
  * database), and against the manifest otherwise.
  */
 export async function masterRecordCurrency(
@@ -97,17 +110,30 @@ export async function masterRecordCurrency(
   reader: { readonly personId: string; readonly organizationId: string },
   claim: MasterRecordClaim,
 ): Promise<ClaimCurrency> {
-  const recorded = await tx.one<{ format: string | null }>(
-    'select /* master-record.current-format */ content.master_record_current_format($1) as format',
-    [claim.id],
-  );
-  if (recorded.format !== null) {
+  const known = await currencyFromRecord(tx, reader, claim);
+  if (known?.status === 'current') {
     return {
       current: true,
-      basis: 'recorded',
-      memberFormat: masterRecordMemberFormat({ format: recorded.format }),
-      members: { kind: 'items', manifestFormat: recorded.format },
+      basis: known.basis,
+      memberFormat: masterRecordMemberFormat({ format: known.format }),
+      members: { kind: 'items', manifestFormat: known.format },
     };
+  }
+  if (known?.status === 'moved') {
+    // The corpus moved. The digest a compilation would record now is the claim's corpus with the
+    // re-checked records as they are now: nothing else can have moved. It is computed from the
+    // claim's item rows when they reproduce the claim, and by enumerating otherwise.
+    const items = await claimItemCorpus(tx, claim);
+    if (corpusDigest(items.included, items.withdrawn) === claim.corpusDigest) {
+      const rechecked = new Set(known.rechecked);
+      return {
+        current: false,
+        currentCorpusDigest: corpusDigest(
+          [...items.included.filter((member) => !rechecked.has(member.objectId)), ...known.live],
+          items.withdrawn,
+        ),
+      };
+    }
   }
 
   const format = claim.manifestFormat;
@@ -144,6 +170,86 @@ export async function masterRecordCurrency(
     return { current: false, currentCorpusDigest: corpusDigest(permitted, withdrawn) };
   }
   return { current: true, basis: 'enumerated', memberFormat, members, permitted };
+}
+
+/**
+ * What the database's record of writes, and a live re-check of the records it names, can say about
+ * `claim` without enumerating the reader's corpus: current (`recorded`: nothing written since;
+ * `rechecked`: the named records are as the claim holds them), moved (with the records re-checked
+ * and their live members), or nothing (undefined) — then only a whole comparison can tell.
+ */
+export async function currencyFromRecord(
+  tx: Tx,
+  reader: { readonly personId: string; readonly organizationId: string },
+  claim: MasterRecordClaim,
+): Promise<
+  | {
+      readonly status: 'current';
+      readonly basis: 'recorded' | 'rechecked';
+      readonly format: string;
+    }
+  | {
+      readonly status: 'moved';
+      readonly format: string;
+      readonly rechecked: readonly string[];
+      readonly live: readonly PermissionMember[];
+    }
+  | undefined
+> {
+  const delta = await tx.maybeOne<{ format: string; objects: string[] }>(
+    `select /* master-record.currency-delta */ manifest_format as format, objects::text[] as objects
+       from content.master_record_currency_delta($1, $2)`,
+    [claim.id, CURRENCY_RECHECK_LIMIT],
+  );
+  if (delta === undefined) return undefined;
+  if (delta.objects.length === 0)
+    return { status: 'current', basis: 'recorded', format: delta.format };
+  const live = await claimMovedAmong(
+    tx,
+    reader,
+    claim,
+    masterRecordMemberFormat({ format: delta.format }),
+    delta.objects,
+  );
+  return live === undefined
+    ? { status: 'current', basis: 'rechecked', format: delta.format }
+    : { status: 'moved', format: delta.format, rechecked: delta.objects, live };
+}
+
+/**
+ * Whether the reader's permitted set, among `ids`, is what the claim included among them: each
+ * record permitted now exactly when the claim included it, at the same member digest. Undefined
+ * when nothing moved; otherwise the records' live members, which replace theirs in the corpus.
+ *
+ * The live side is `enumeratePermittedSet` itself, restricted to these records — the same
+ * definition of a permitted member every comparison uses, read under the reader's own row
+ * security and grants. A record the reader may not see is absent from it, and is shown nowhere.
+ */
+async function claimMovedAmong(
+  tx: Tx,
+  reader: { readonly personId: string; readonly organizationId: string },
+  claim: MasterRecordClaim,
+  memberFormat: MasterRecordMemberFormat,
+  ids: readonly string[],
+): Promise<readonly PermissionMember[] | undefined> {
+  const live = await enumeratePermittedSet(
+    tx,
+    reader.personId,
+    reader.organizationId,
+    memberFormat,
+    ids,
+  );
+  const claimed = await tx.query<{ object_id: string; content_digest: string }>(
+    `select /* master-record.claimed-among */ object_id, content_digest
+       from content.master_record_item
+      where master_record_id = $1 and object_id = any($2::uuid[]) and item_state = 'included'`,
+    [claim.id, [...ids]],
+  );
+  const held = new Map(claimed.map((row) => [row.object_id, row.content_digest]));
+  const same =
+    live.length === held.size &&
+    live.every((member) => held.get(member.objectId) === member.contentDigest);
+  return same ? undefined : live;
 }
 
 /** All members required by a whole-corpus projection, without the full manifest for v3 items. */

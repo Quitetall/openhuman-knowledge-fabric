@@ -29,7 +29,7 @@ const ROOT = join(import.meta.dirname, '..', '..');
 const ARTIFACT = join(ROOT, 'generated', 'projections', 'knowledge-fabric.projections.json');
 
 interface BarVerdict {
-  readonly id: 'act' | 'search' | 'view';
+  readonly id: 'act' | 'search' | 'view' | 'view-after-write';
   readonly limitMs: number;
   readonly adr: string;
   readonly samples: number;
@@ -42,6 +42,11 @@ interface Report {
   readonly bars: readonly BarVerdict[];
   readonly exceeded: readonly string[];
 }
+interface AfterWrite {
+  readonly anchor: string;
+  readonly writerHeaders: Record<string, string>;
+  readonly readerHeaders: Record<string, string>;
+}
 interface Harnessed {
   readonly BARS: readonly { id: string; limitMs: number; adr: string }[];
   measureLatencyBars(options: {
@@ -51,7 +56,15 @@ interface Harnessed {
     fetchImpl?: typeof fetch;
     clock?: () => number;
     indexTimeoutMs?: number;
+    afterWrite?: AfterWrite;
   }): Promise<Report>;
+  measureViewAfterWrite(options: {
+    origin: string;
+    afterWrite: AfterWrite;
+    samples?: number;
+    fetchImpl?: typeof fetch;
+    clock?: () => number;
+  }): Promise<{ bar: BarVerdict; refreshMs: number }>;
   renderSection(report: Report, provenance: Record<string, string>): string;
   writeReport(root: string, report: Report, provenance: Record<string, string>): string;
   defaultProvenance(root: string, target: string): Record<string, string>;
@@ -77,13 +90,21 @@ describe('the bars are ADR 0024’s, exactly', () => {
  * A scripted API on a virtual clock. Each path costs what `costs` says, in virtual
  * milliseconds; nothing sleeps, so the verdicts are exact.
  */
-function scripted(costs: { capture: number; search: number; view: number }, failView = false) {
+function scripted(
+  costs: { capture: number; search: number; view: number; viewAfterWrite?: number },
+  failView = false,
+) {
   let now = 0;
   let n = 0;
+  // Whether the last request was a note by somebody other than the reader: the view after it is
+  // the view after a write, and costs what `viewAfterWrite` says.
+  let written = false;
   const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
     const url = new URL(String(input));
     const method = init?.method ?? 'GET';
+    const actor = (init?.headers as Record<string, string> | undefined)?.['x-kf-actor'];
     if (method === 'POST' && url.pathname === '/capture/observation') {
+      written = actor === 'writer';
       now += costs.capture;
       n += 1;
       return new Response(
@@ -99,7 +120,8 @@ function scripted(costs: { capture: number; search: number; view: number }, fail
       now += 50;
       return new Response('{}', { status: 200 });
     }
-    now += costs.view;
+    now += written ? (costs.viewAfterWrite ?? costs.view) : costs.view;
+    written = false;
     return new Response('{}', { status: failView ? 500 : 200 });
   }) as typeof fetch;
   return { fetchImpl, clock: () => now };
@@ -137,6 +159,62 @@ describe('the verdict, on a virtual clock', () => {
     const report = await run(scripted({ capture: 10, search: 10, view: 10 }, true));
     expect(report.exceeded).toEqual(['view']);
     expect(report.bars[2]!.failures[0]).toMatch(/answered 500/);
+  });
+});
+
+describe('the view after another person wrote, on a virtual clock', () => {
+  const afterWrite: AfterWrite = {
+    anchor: 'anchor-1',
+    writerHeaders: { 'x-kf-actor': 'writer' },
+    readerHeaders: { 'x-kf-actor': 'reader' },
+  };
+
+  it('is the view bar, judged on the views that follow a write and on nothing else', async () => {
+    const within = await bars.measureViewAfterWrite({
+      origin: 'http://api.test',
+      afterWrite,
+      samples: 10,
+      ...scripted({ capture: 900, search: 10, view: 5000, viewAfterWrite: 300 }),
+    });
+    // The writer's notes (900) and an unwritten view (5000) are outside what is judged.
+    expect([within.bar.id, within.bar.samples, within.bar.p95, within.bar.exceeded]).toEqual([
+      'view-after-write',
+      10,
+      300,
+      false,
+    ]);
+    const beyond = await bars.measureViewAfterWrite({
+      origin: 'http://api.test',
+      afterWrite,
+      samples: 10,
+      ...scripted({ capture: 10, search: 10, view: 10, viewAfterWrite: 1000 }),
+    });
+    expect(beyond.bar.exceeded).toBe(true);
+  });
+
+  it('fails when a view after a write is not served', async () => {
+    const report = await bars.measureViewAfterWrite({
+      origin: 'http://api.test',
+      afterWrite,
+      samples: 3,
+      ...scripted({ capture: 10, search: 10, view: 10 }, true),
+    });
+    expect(report.bar.exceeded).toBe(true);
+    expect(report.bar.failures[0]).toMatch(/answered 500/);
+  });
+
+  it('is a fourth verdict of the whole run only when a second identity is named', async () => {
+    const without = await run(scripted({ capture: 120, search: 300, view: 200 }));
+    expect(without.bars.map((b) => b.id)).toEqual(['act', 'search', 'view']);
+    const withWriter = await bars.measureLatencyBars({
+      origin: 'http://api.test',
+      headers: {},
+      samples: 10,
+      afterWrite,
+      ...scripted({ capture: 120, search: 300, view: 200, viewAfterWrite: 1500 }),
+    });
+    expect(withWriter.bars.map((b) => b.id)).toEqual(['act', 'search', 'view', 'view-after-write']);
+    expect(withWriter.exceeded).toEqual(['view-after-write']);
   });
 });
 
