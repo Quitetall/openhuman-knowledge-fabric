@@ -762,6 +762,48 @@ ensure_checkpoint_key() {
   fi
 }
 
+# A person's own urgent-push destination is sealed to this key (20261011500000): kf-notify holds
+# the X25519 private half and opens destinations with it; the API seals to the public half, which is
+# not a secret and is written into /etc/kf/api.env. Generated here, never typed: nobody needs to see
+# the private half, and a new one only makes earlier destinations unopenable (people are told by
+# the digest until they set theirs again), so an existing key is always kept.
+ensure_notify_destination_key() {
+  local key env public
+  key="$(p /etc/kf/notify/destination-key)"
+  env="$(p /etc/kf/api.env)"
+  if [ ! -s "$key" ]; then
+    if [ "$MODE" = check ]; then
+      pending "notify destination key /etc/kf/notify/destination-key and KF_NOTIFY_DESTINATION_PUBLIC_KEY"
+      return 0
+    fi
+    : > "$key"
+    chmod 600 "$key"
+    # Written by Node from inside the process: the private key never passes through this shell.
+    "$NODE" -e '
+      const { generateKeyPairSync } = require("node:crypto");
+      const { writeFileSync } = require("node:fs");
+      const { privateKey } = generateKeyPairSync("x25519");
+      writeFileSync(process.argv[1], privateKey.export({ format: "pem", type: "pkcs8" }));
+    ' "$key"
+    chown kf-notify:kf-notify "$key"
+    created "notify destination key /etc/kf/notify/destination-key (0600 kf-notify)"
+  else
+    check_secret_posture kf-notify /etc/kf/notify/destination-key
+  fi
+  [ -f "$env" ] || return 0
+  if ! public="$("$NODE" -e '
+      const { createPrivateKey, createPublicKey } = require("node:crypto");
+      const { readFileSync } = require("node:fs");
+      const key = createPublicKey(createPrivateKey(readFileSync(process.argv[1])));
+      if (key.asymmetricKeyType !== "x25519") throw new Error("not an X25519 key");
+      process.stdout.write(key.export({ format: "jwk" }).x);
+    ' "$key" 2>/dev/null)"; then
+    human /etc/kf/notify/destination-key "is not a readable X25519 private key (PKCS#8 PEM)"
+    return 0
+  fi
+  fill_env_value /etc/kf/api.env KF_NOTIFY_DESTINATION_PUBLIC_KEY "$public" force
+}
+
 # ---------------------------------------------------------------------------------------------
 # The backup recovery key and the drill's sealed credential
 # ---------------------------------------------------------------------------------------------
@@ -1447,6 +1489,7 @@ if [ -d "$(p /etc/kf/migrator)" ]; then
     set_env_value "$(p /etc/kf/api.env)" KF_MASTER_RECORD_LINK_SECRET_FILE /etc/kf/api/master-record-link-secret
   fi
   ensure_checkpoint_key
+  ensure_notify_destination_key
   complete_env_files
   # Before the human secrets below: a service routed at this host's own store gets a generated
   # secret, so its placeholder is never created empty.

@@ -191,14 +191,36 @@ after a turn and allows only the transient disclosure tables to change.
   agent acting for them (KF-NOTIFY-001). SMTP settings come from `/etc/kf/notify/smtp.json` (0600),
   over TLS or STARTTLS. A plain connection is allowed only to a loopback relay.
 - **The urgent push** (`kf-notify-urgent.timer`, every five minutes). It calls
-  `core.urgent_notifications(since, item)`. The urgent kinds are an act an agent proposed and its person
-  must perform, and a warrant blocker opened in the organization (for its organization-wide
-  technical authorities). A failed backup or alert is the third kind, and `kf-alert@` already
-  pushes it on `OnFailure=`. When anything urgent arose for the person this host's alert path
-  reaches (`KF_NOTIFY_PUSH_PERSON`), it runs `scripts/alert-dispatch.sh` with the event `urgent`: the same script,
-  endpoint and credential custody as the operational alerts. The push is one fixed line, "Something
-  in Knowledge Fabric needs you. Open Needs you." It names no record, person, organization or host.
-  Nothing that is not urgent is ever pushed. A person can turn the push off (`push: off`).
+  `core.urgent_pushes(since, item)` (`20261011500000`). The urgent kinds are an act an agent
+  proposed and its person must perform, and a warrant blocker opened in the organization (for its
+  organization-wide technical authorities). A failed backup or alert is the third kind, and
+  `kf-alert@` already pushes it on `OnFailure=`. The function returns each item once per person
+  who may be told of it now: a live member of the organization, with the push on, who reads every
+  record the item names under their grants and clearance at that moment. An item a person cannot
+  read is never pushed to them. A title comes back only when every record it names may leave the
+  host under the organization's provider ceiling, as for the digest.
+  - **A person's own destination.** A person sets it with `PUT /notification-destination`
+    (`{ "destination": "https://ntfy.sh/<topic>" }`, or `null` to clear it). The API checks it is one
+    topic of 24 to 64 characters on a push server the deployment names (`KF_NOTIFY_PUSH_SERVERS`,
+    default `https://ntfy.sh`). It seals the URL to kf-notify's X25519 key
+    (`KF_NOTIFY_DESTINATION_PUBLIC_KEY`), bound to that person, and only then dispatches
+    `set_push_destination`. The ledger, the table and the backup hold the sealed value, never the
+    URL, and the database refuses a plaintext one in every session (KF-NOTIFY-004). Only the person
+    reads their row, and only kf-notify (`/etc/kf/notify/destination-key`) can open it. An agent
+    acting for the person cannot set it (KF-NOTIFY-001). The table is not in the preservation
+    export, because a restore target has its own key. Each item is one push to that topic:
+    "Needs you: <title>" when the database disclosed a title, otherwise the fixed line "Something in
+    Knowledge Fabric needs you. Open Needs you." A tap opens Needs you, never a record's address.
+  - **The host's alert path.** The person named by `KF_NOTIFY_PUSH_PERSON`, if they have set no
+    destination of their own, gets one fixed-line push per run through `scripts/alert-dispatch.sh`
+    with the event `urgent`, as before.
+  - **Everyone else** learns of urgent items from their digest. Nothing that is not urgent is ever
+    pushed. A person can turn the push off (`push: off`).
+  - **Once per item and person.** The boundary file in `/var/lib/kf-notify` keeps the last item
+    seen, and for each person whose push failed, the last item they received. The next run sends
+    them the rest and nothing twice. After 12 failed runs in a row (an hour) those items are left
+    to the digest. A failed push fails the unit, so `OnFailure=` reaches the operator. The log
+    carries counts only.
 
 Timer liveness: both timers declare `X-KF-MaxSilenceSec`, so `scripts/timer-liveness.sh` reports a
 stopped or silent one.
@@ -212,8 +234,13 @@ stopped or silent one.
 - **LAMU's own forwarding.** LAMU can be configured to forward to a cloud gateway
   (`LAMU_GATEWAY_URL`). KF cannot see that from outside, so the host's commissioning must keep it
   unset.
-- **One push destination.** The urgent push reaches the one person the deployment's alert topic
-  belongs to. Other people learn of urgent items from their digest until per-person topics exist.
+- **One push destination per person, ntfy only.** This previously read: "The urgent push reaches
+  the one person the deployment's alert topic belongs to." Each person may now set their own
+  (`20261011500000`). What remains: a destination is an ntfy topic, with no access token, on a
+  server the deployment names. A free topic is public to whoever learns it (KF-WAR-0006 RR-002),
+  which is why a title is sent only at or below the provider ceiling. A new notifier key leaves
+  every earlier destination unopenable. Those people are told by the digest until they set it
+  again.
 - **The urgent boundary** is the last item a run saw, as (time, item id), kept in `/var/lib/kf-notify`
   at the database's microsecond precision (`20261007500100`). This previously read: "kept at
   millisecond precision … an item committed after a later item, in the same millisecond, can be

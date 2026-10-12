@@ -11,6 +11,10 @@
  * - `set_notification_preference` — the performing person's own digest (`daily` or `off`) and
  *   urgent push (`urgent` or `off`). The database takes the person from the sealed context and
  *   refuses an agent (KF-NOTIFY-001).
+ * - `set_push_destination` — where the performing person's urgent push goes: an ntfy topic URL
+ *   SEALED to the notifier's key (push-destination.ts), or `null` for none. A plaintext URL is
+ *   refused here, before anything is recorded (KF-NOTIFY-004), and again by the database in every
+ *   session; `PUT /notification-destination` is the gesture that seals it (20261011500000).
  */
 
 import {
@@ -21,6 +25,7 @@ import {
   type ActionRequest,
   type PreconditionCheck,
 } from '@kf/actions';
+import { SEALED_DESTINATION } from './push-destination.js';
 
 /** What may leave the host, lowest first. `none` keeps everything on it. */
 export const PROVIDER_CEILINGS = ['none', 'public', 'internal'] as const;
@@ -35,6 +40,7 @@ export const PUSH_SETTINGS = ['urgent', 'off'] as const;
 export const AGENT_AT_HOME_ACTION_IDS = [
   'set_model_routing_policy',
   'set_notification_preference',
+  'set_push_destination',
 ] as const;
 
 function refuse(message: string, detail: Record<string, unknown> = {}): never {
@@ -143,17 +149,66 @@ const readPreferenceReceipt: ActionReceiptReader = async (tx, actionId) => {
   return row === undefined ? {} : { digest: row.digest, push: row.push };
 };
 
+// set_push_destination -----------------------------------------------------------------------
+
+/** The sealed destination, or null to clear it. Anything else is refused before it is recorded. */
+function sealedOf(request: ActionRequest): string | null {
+  const payload = request.payload ?? {};
+  const extra = Object.keys(payload).filter((key) => key !== 'destination');
+  if (extra.length > 0) {
+    refuse('set_push_destination takes one field, destination', { fields: extra });
+  }
+  const value = payload['destination'];
+  if (value === null) return null;
+  if (typeof value !== 'string' || !SEALED_DESTINATION.test(value)) {
+    // The value is not quoted back: if it is a URL, it is the capability this act exists to keep
+    // out of the ledger.
+    refuse(
+      'KF-NOTIFY-004: a push destination is recorded only sealed to the notifier’s key, never ' +
+        'as a URL; PUT /notification-destination seals it',
+      { rule: 'KF-NOTIFY-004', field: 'destination' },
+    );
+  }
+  return value;
+}
+
+const assertSetPushDestination: PreconditionCheck = async (_tx, request) => {
+  assertTargetsOrganization(request);
+  sealedOf(request);
+};
+
+const setPushDestination: ActionEffect = async (tx, request, _objects, ctx) => {
+  await tx.query(
+    `insert into core.push_destination (organization_id, person_id, sealed, set_by_action)
+     values ($1, $2, $3, $4)`,
+    [request.organizationId, request.actorId, sealedOf(request), ctx.actionId],
+  );
+};
+
+const readDestinationReceipt: ActionReceiptReader = async (tx, actionId) => {
+  const row = await tx.maybeOne<{ set: boolean; revision: string }>(
+    `select sealed is not null as set, revision::text
+       from core.push_destination where set_by_action = $1`,
+    [actionId],
+  );
+  // Whether a destination is set, never the sealed value: a receipt is shown and logged.
+  return row === undefined ? {} : { destinationSet: row.set, revision: Number(row.revision) };
+};
+
 export const AGENT_AT_HOME_PRECONDITIONS: Readonly<Record<string, PreconditionCheck>> = {
   set_model_routing_policy: assertSetModelRoutingPolicy,
   set_notification_preference: assertSetNotificationPreference,
+  set_push_destination: assertSetPushDestination,
 };
 
 export const AGENT_AT_HOME_EFFECTS: Readonly<Record<string, ActionEffect>> = {
   set_model_routing_policy: setModelRoutingPolicy,
   set_notification_preference: setNotificationPreference,
+  set_push_destination: setPushDestination,
 };
 
 export const AGENT_AT_HOME_RECEIPTS: Readonly<Record<string, ActionReceiptReader>> = {
   set_model_routing_policy: readRoutingReceipt,
   set_notification_preference: readPreferenceReceipt,
+  set_push_destination: readDestinationReceipt,
 };

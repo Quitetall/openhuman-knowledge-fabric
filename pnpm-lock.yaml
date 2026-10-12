@@ -309,6 +309,9 @@ importers:
 
   apps/notify:
     dependencies:
+      '@kf/authorization':
+        specifier: workspace:*
+        version: link:../../packages/authorization
       '@kf/database':
         specifier: workspace:*
         version: link:../../packages/database

@@ -6,19 +6,34 @@
  *   KF_NOTIFY_WEB_ORIGIN     where links in a digest point (https://…)
  *   KF_NOTIFY_SMTP_FILE, KF_NOTIFY_SMTP_PASSWORD_FILE   digest only (smtp.ts)
  *   KF_NOTIFY_STATE_DIR      urgent only: where the last run's boundary is kept
- *   KF_NOTIFY_PUSH_PERSON    urgent only: the person this host's alert path reaches
+ *   KF_NOTIFY_PUSH_PERSON    urgent only: the person this host's alert path reaches, when they
+ *                            have set no destination of their own
  *   KF_NOTIFY_ALERT_DISPATCH urgent only: default /opt/kf/scripts/alert-dispatch.sh
+ *   KF_NOTIFY_DESTINATION_KEY_FILE  urgent only: kf-notify's X25519 private key (PKCS#8 PEM, 0600),
+ *                            which opens each person's sealed destination. Unset: nobody's own
+ *                            destination is used, and they are told by the digest.
+ *   KF_NOTIFY_PUSH_SERVERS   urgent only: the push servers' origins a destination may name
+ *                            (default https://ntfy.sh), the same list the API seals against
  *
  * Exits non-zero when any digest failed to send or the push failed, so the unit fails and its
  * OnFailure= alert reaches a person.
  */
 
+import { destinationOpener, parsePushServers, type DestinationOpener } from '@kf/authorization';
 import { createPool } from '@kf/database';
 import { loadSecret } from '@kf/operations';
+import { ntfySender } from './push.js';
 import { alertDispatchPush, runDigest, runUrgent, stderrLog } from './run.js';
 import { loadSmtpSettings, smtpMailer } from './smtp.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
+
+/** kf-notify's destination key, if this host has one: from a file only, never the environment. */
+function opener(): DestinationOpener | undefined {
+  const path = process.env['KF_NOTIFY_DESTINATION_KEY_FILE'];
+  if (path === undefined || path === '') return undefined;
+  return destinationOpener(loadSecret('KF_NOTIFY_DESTINATION_KEY'));
+}
 
 function webOrigin(): string {
   const raw = process.env['KF_NOTIFY_WEB_ORIGIN'] ?? '';
@@ -55,12 +70,27 @@ async function main(argv: readonly string[]): Promise<number> {
     if (person !== undefined && person !== '' && !UUID.test(person)) {
       throw new Error('KF_NOTIFY_PUSH_PERSON must be a person id');
     }
+    const destinations = opener();
+    const origin =
+      process.env['KF_NOTIFY_WEB_ORIGIN'] === undefined ||
+      process.env['KF_NOTIFY_WEB_ORIGIN'] === ''
+        ? undefined
+        : webOrigin();
     await runUrgent(pool, {
       stateDir: process.env['KF_NOTIFY_STATE_DIR'] ?? '/var/lib/kf-notify',
       pushPerson: person === '' ? undefined : person,
       push: alertDispatchPush(
         process.env['KF_NOTIFY_ALERT_DISPATCH'] ?? '/opt/kf/scripts/alert-dispatch.sh',
       ),
+      ...(destinations === undefined
+        ? {}
+        : {
+            opener: destinations,
+            send: ntfySender(
+              parsePushServers(process.env['KF_NOTIFY_PUSH_SERVERS'] ?? 'https://ntfy.sh'),
+            ),
+          }),
+      ...(origin === undefined ? {} : { webOrigin: origin }),
     });
     return 0;
   } catch (error: unknown) {
