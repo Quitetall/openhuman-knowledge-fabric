@@ -1,0 +1,86 @@
+# Your own Knowledge Fabric, on this computer
+
+One click (or one command) gives a person their own, empty Knowledge Fabric for their own
+organization: they sign in as themselves, add files, and search them. It is a workstation
+workspace, not a host: everything listens on loopback, and the database, object store and
+Keycloak use the public development credentials from `docker-compose.yml`.
+
+## Start it
+
+Install the icon once, from a checkout:
+
+```sh
+pnpm kf:install-launcher
+```
+
+Then click **Knowledge Fabric** in the applications menu.
+
+- **No workspace yet:** a page opens in the browser asking for the organization's name, your
+  full name, a username, a password (twice) and, optionally, the full path of a folder of files
+  to add. "Set up Knowledge Fabric" starts it; the page shows each step, then opens the sign-in,
+  and after it Home. The first time takes several minutes (it builds the applications).
+- **Stopped:** the page says "Starting Knowledge Fabric…" and opens Home when it is ready.
+- **Running:** the click opens Home.
+
+Clicking twice starts nothing twice. If something fails, the page says what went wrong and what
+to do; the details are in the journal (`journalctl --user -u kf-local`).
+
+For scripts, `pnpm kf:start -- --organization <name> --name <full name> --username <login>
+[--email <address>] [--import <folder>]`, `pnpm kf:status`, `pnpm kf:stop` and
+`pnpm kf:reset -- --yes` drive the same engine (`kf workspace ...` once `kf` is installed). A
+command line never takes a password: the first start generates one into
+`~/.local/state/kf-local/login-password` (mode 0600, never printed) and Keycloak asks for a new
+one at the first sign-in, after which the file is stale and may be deleted. A later `--import`
+signs in with that file's password while it is still the account's, and otherwise asks for the
+password at the terminal.
+
+## What it creates
+
+| What                    | Where                                                                                                             |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Containers and volumes  | compose project `kf-local`: PostgreSQL 18, SeaweedFS, Keycloak (`kf-local-*`)                                     |
+| Applications            | attestor, API, worker and web, built from the checkout (`fixtures/veracier/stack/stack.sh`, under `KF_STACK_*`)   |
+| Ports (loopback)        | web 3300, API 4300, Keycloak 18280, PostgreSQL 15632, S3 19200; a start refuses if anything else holds one        |
+| State (0700)            | `~/.local/state/kf-local`: logins, keys, logs, `workspace.json` (ids; no secret)                                  |
+| Launcher                | `~/.local/state/kf-local-launcher` (its lock and page address, 0600); systemd user unit `kf-local`                |
+| Icon                    | `~/.local/share/applications/knowledge-fabric.desktop`, its icon, `~/.local/share/knowledge-fabric/launcher.json` |
+| In the Knowledge Fabric | the organization; you, as its first person; your Keycloak account; one role assignment                            |
+
+**Your authority.** `kf grant-authority` gives you `technical_authority` over the organization,
+cleared to `confidential`, as its founding grant: you read everything up to confidential, add
+files, capture observations and verify records (verification and Needs you require
+`technical_authority`). One role, so the sign-in's context picker has nothing to choose. To add
+a colleague, use `kf invite` with the owner credential (`postgres://kf_owner@localhost:15632/kf`,
+password `dev-only-not-a-secret` through `DATABASE_OWNER_URL_FILE`).
+
+**Added files.** Each file of the folder is one `POST /ingest` act by you, classified
+`internal`, after the same checks `kf ingest` makes: reference-only paths (vendor, supplier,
+datasheet), the deny list (dot-files and dot-directories are never entered, keys, credential
+stores), and the content scan (private keys, likely IBAN, SSN or card numbers). A refused file
+is skipped and counted by its code; nothing else stops. A PDF, or another format KF does not
+parse, is followed by its extracted text as a second artifact that names it (`derived_from`), as
+the fixtures load theirs. At most 250 files per import, the ingest batch ceiling.
+
+**Search.** Lexical always. Semantic too when an embedding server another stack runs on this
+computer answers (`http://127.0.0.1:8021`, then `:8022`, or `KF_LOCAL_EMBED_URL`) and the
+retrieval engine and prepared model are installed; nothing is downloaded. Which one you got is
+printed, and recorded in `workspace.json`.
+
+## Stop it and remove it
+
+`pnpm kf:stop` stops the applications and containers and keeps every record. The next click or
+`pnpm kf:start` brings it back as it was.
+
+`pnpm kf:reset -- --yes` deletes this workspace: the `kf-local` containers and volumes,
+`~/.local/state/kf-local` and the launcher's state. It touches no other compose project, volume
+or directory, whatever `KF_STACK_*` the shell exported. `pnpm kf:install-launcher -- --uninstall`
+removes the icon.
+
+## What it is not
+
+Not a hosted service, not multi-user beyond the people you invite on this computer, and not
+installed software: it runs from a checkout and needs Docker, Node and pnpm. A packaged installer
+for Windows or macOS would need to bundle a Node runtime and the built applications, provide
+PostgreSQL, SeaweedFS and Keycloak without asking the person to install Docker (bundled binaries,
+or a managed container runtime), run the launcher as a per-user service (Windows: a scheduled task
+or service; macOS: a launchd agent), and sign the result (Authenticode, Apple notarization).

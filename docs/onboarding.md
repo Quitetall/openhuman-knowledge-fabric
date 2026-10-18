@@ -8,6 +8,10 @@ Every step below is either **verified** â€” it was run and its output observed â
 which is stated in place rather than implied by silence. An onboarding document nobody has
 followed is the same failure as a test that has never failed.
 
+**Most people want [`workspace.md`](workspace.md) instead:** one install step, then a
+"Knowledge Fabric" icon that sets up and opens your own workspace in the browser, walked live on
+2026-10-18. This page is the manual path underneath it.
+
 If you only want to build on the code, read [`CONTRIBUTING.md`](../CONTRIBUTING.md) instead. This
 document is about _using_ the thing. If you are here to continue developing it, the
 [roadmap](ROADMAP.md) says what is next and whose act each step is.
