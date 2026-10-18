@@ -30,6 +30,14 @@ const SURFACES = [
   'apps/web/src/app/dashboard',
   'apps/web/src/app/master-document',
   'apps/web/src/app/components',
+  // The engineer-first skeleton: the header and navigation every page shares, Home's ask box and
+  // search, adding files, and the decision that skips the picker for one assignment — each the
+  // same for everyone, differing only in what the API answered.
+  'apps/web/src/app/layout.tsx',
+  'apps/web/src/app/search',
+  'apps/web/src/app/add',
+  'apps/web/src/app/agent/answer.ts',
+  'apps/web/src/lib/auth/auto-context.ts',
   // Qualification (ADR 0038 decision 1, KF-SAS-RQ-254; KF-WAR-0007 OBL-001): the evaluator, the
   // pack validator, Start Here, the guide, the routes and the pages. One protocol; a role differs
   // only in its pack, which is data.

@@ -111,15 +111,15 @@ export function ClaimSummary({ claim }: { readonly claim: ClaimHeader }) {
   if (claim.status === 'missing') {
     return (
       <p>
-        Your scope has not been compiled yet. Compiling it gathers every record you are granted into
-        one document.
+        Not put together yet. Open it and it will be ready in a moment: one document with everything
+        you can see.
       </p>
     );
   }
   return (
     <dl className="kf-facts">
       <div>
-        <dt>Compiled</dt>
+        <dt>Last put together</dt>
         <dd>{formatDate(claim.compiledAt)}</dd>
       </div>
       <div>
@@ -149,9 +149,7 @@ export function MasterDocumentPanel({ claim }: { readonly claim: ClaimHeader }) 
       <ClaimSummary claim={claim} />
       <p>
         <Link href="/master-document" className="kf-link-strong">
-          {claim.status === 'missing'
-            ? 'Compile your master document'
-            : 'Read your master document'}
+          {claim.status === 'missing' ? 'Open your master document' : 'Read your master document'}
         </Link>
       </p>
     </section>
@@ -211,7 +209,7 @@ export function ListPanel({
         <p className="kf-panel-note">
           {total > records.length
             ? `The ${String(records.length)} most recent of ${total.toLocaleString('en-GB')} ${emptyOf}.`
-            : `${String(total)} ${emptyOf}.`}
+            : `${String(total)} ${total === 1 ? emptyOf.replace(/^records\b/, 'record') : emptyOf}.`}
         </p>
       </header>
       <RecordList records={records} />

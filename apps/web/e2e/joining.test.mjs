@@ -532,9 +532,8 @@ test(
         }));
 
       // (a) The link, signed out: sign-in first, then back to the link, then Start Here.
+      // One live assignment: no picker between signing in and the link.
       await page.goto(`${webOrigin}/join/${TOKEN}`);
-      await page.waitForURL(`${webOrigin}/session/select**`);
-      await page.getByRole('button', { name: 'Validate with KF API', exact: true }).click();
       await page.waitForURL(`${webOrigin}/start-here`);
 
       // (b) Five stages, items by status, the blocker the organization's.

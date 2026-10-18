@@ -25,108 +25,102 @@ export default async function SearchPage({
     } catch (error: unknown) {
       loadError =
         error instanceof ApiError && error.status === 400
-          ? 'Search text or filters were refused. Use exact machine names for filters.'
-          : 'Search is temporarily unavailable.';
+          ? 'Those filters were not accepted. A kind or state is one word, like controlled_document.'
+          : 'Search isn’t working right now. Try again in a minute.';
     }
   }
 
   const request = parsed.status === 'submitted' ? parsed.request : undefined;
+  const filtered =
+    request?.objectTypes !== undefined ||
+    request?.lifecycleStates !== undefined ||
+    request?.nearMisses === true ||
+    (request?.limit !== undefined && request.limit !== 50);
   return (
-    <main style={{ maxWidth: '72rem', margin: '0 auto', padding: '2.5rem 1.5rem 5rem' }}>
-      <div style={{ maxWidth: '52rem' }}>
-        <p style={{ color: '#64748b', margin: 0, fontSize: '0.85rem', letterSpacing: '0.04em' }}>
-          CLASSIFICATION-AWARE CANONICAL SEARCH
-        </p>
-        <h1 style={{ margin: '0.25rem 0 0.5rem', fontSize: '2rem' }}>Search knowledge fabric</h1>
-        <p style={{ color: '#475569', marginTop: 0 }}>
-          Records matching your words and, when the retrieval engine is running, records related by
-          meaning, fused into one list that says where each ranking placed every result. Records
-          above your clearance stay absent and uncounted; matching records within it that nobody has
-          granted you are counted, never named.{' '}
-          <Link href="/search/recorded">Your recorded queries</Link>.
-        </p>
-      </div>
-
-      <form
-        action="/search"
-        method="get"
-        style={{ display: 'grid', gap: '0.9rem', maxWidth: '52rem', marginTop: '1.5rem' }}
-      >
-        <label>
-          <span>Search text</span>
+    <main className="kf-page">
+      <h1 className="kf-title">Search</h1>
+      <form action="/search" method="get" className="kf-searchform" role="search">
+        <label htmlFor="search-q" className="kf-sr-only">
+          Search your records
+        </label>
+        <div className="kf-searchbar">
           <input
+            id="search-q"
             type="search"
             name="q"
             required
             maxLength={512}
             defaultValue={request?.text ?? ''}
-            placeholder="A question, a subject, a title, or a partial identifier"
-            className="kf-control"
+            placeholder="Words, a title, a part number…"
+            className="kf-control kf-control-large"
           />
-        </label>
-        <div className="kf-responsive-grid">
-          <label>
-            <span>Object type (exact, optional)</span>
-            <input
-              name="objectType"
-              maxLength={64}
-              pattern="[a-z][a-z0-9_]*"
-              defaultValue={request?.objectTypes?.[0] ?? ''}
-              placeholder="controlled_document"
-              className="kf-control"
-            />
-          </label>
-          <label>
-            <span>Lifecycle state (exact, optional)</span>
-            <input
-              name="lifecycleState"
-              maxLength={64}
-              pattern="[a-z][a-z0-9_]*"
-              defaultValue={request?.lifecycleStates?.[0] ?? ''}
-              placeholder="effective"
-              className="kf-control"
-            />
-          </label>
+          <button type="submit" className="kf-button kf-button-primary kf-button-large">
+            Search
+          </button>
         </div>
-        <label style={{ maxWidth: '10rem' }}>
-          <span>Result limit</span>
-          <input
-            type="number"
-            name="limit"
-            min={1}
-            max={200}
-            step={1}
-            defaultValue={request?.limit ?? 50}
-            className="kf-control"
-          />
-        </label>
-        <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <input
-            type="checkbox"
-            name="nearMisses"
-            value="true"
-            defaultChecked={request?.nearMisses === true}
-          />
-          <span>Also show near misses (records ranked just below the related list)</span>
-        </label>
-        <button type="submit" className="kf-button kf-button-primary">
-          Search
-        </button>
+        <details className="kf-filters" open={filtered}>
+          <summary>Filters</summary>
+          <div className="kf-responsive-grid">
+            <label>
+              <span>Kind of record</span>
+              <input
+                name="objectType"
+                maxLength={64}
+                pattern="[a-z][a-z0-9_]*"
+                defaultValue={request?.objectTypes?.[0] ?? ''}
+                placeholder="for example controlled_document"
+                className="kf-control"
+              />
+            </label>
+            <label>
+              <span>State</span>
+              <input
+                name="lifecycleState"
+                maxLength={64}
+                pattern="[a-z][a-z0-9_]*"
+                defaultValue={request?.lifecycleStates?.[0] ?? ''}
+                placeholder="for example effective"
+                className="kf-control"
+              />
+            </label>
+          </div>
+          <label className="kf-filter-limit">
+            <span>How many results</span>
+            <input
+              type="number"
+              name="limit"
+              min={1}
+              max={200}
+              step={1}
+              defaultValue={request?.limit ?? 50}
+              className="kf-control"
+            />
+          </label>
+          <label className="kf-check">
+            <input
+              type="checkbox"
+              name="nearMisses"
+              value="true"
+              defaultChecked={request?.nearMisses === true}
+            />
+            <span>Also show near misses (records just below the related ones)</span>
+          </label>
+        </details>
       </form>
 
-      <section style={{ marginTop: '2.5rem' }} aria-labelledby="search-results-heading">
-        <h2 id="search-results-heading" style={{ fontSize: '1.1rem' }}>
-          Results
-        </h2>
+      <section className="kf-search-answer" aria-label="Results">
         {parsed.status === 'idle' ? (
-          <p style={{ color: '#64748b' }}>Enter search text to query canonical records.</p>
+          <p className="kf-muted">
+            Type what you are looking for. You will only see records you have access to.{' '}
+            <Link href="/search/recorded">Your past searches</Link>
+          </p>
         ) : parsed.status === 'invalid' ? (
           <p role="alert" aria-live="assertive" className="kf-status kf-status-error">
-            Search URL contains malformed or oversized parameters.
+            That search could not be read. Clear the filters and try again.
           </p>
         ) : request?.text.trim() === '' ? (
           <p role="status" className="kf-status kf-status-neutral">
-            Empty search returns no records.
+            Type some words to search.
           </p>
         ) : loadError !== undefined ? (
           <p role="status" aria-live="polite" className="kf-status kf-status-warning">

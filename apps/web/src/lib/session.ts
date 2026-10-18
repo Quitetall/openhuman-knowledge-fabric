@@ -3,7 +3,10 @@ import { redirect } from 'next/navigation';
 import { ApiError, get, parseDocumentsResponse, type Caller } from './api';
 import {
   type AuthorityContext,
+  IDENTITY_LABEL_COOKIE,
+  type IdentityLabel,
   loadWebIdentityConfig,
+  openIdentityLabel,
   openWebSession,
   sanitizeReturnTo,
   SESSION_COOKIE,
@@ -24,6 +27,36 @@ export async function currentWebSession(): Promise<WebSession | undefined> {
   if (config.profile !== 'dogfood') return undefined;
   const compact = (await cookies()).get(SESSION_COOKIE)?.value;
   return openWebSession(compact, config.sessionKey);
+}
+
+/** The header's display names for this session's person, when they were recorded at sign-in. */
+export async function currentIdentityLabel(
+  session: WebSession,
+): Promise<IdentityLabel | undefined> {
+  const config = loadWebIdentityConfig();
+  if (config.profile !== 'dogfood') return undefined;
+  return openIdentityLabel(
+    (await cookies()).get(IDENTITY_LABEL_COOKIE)?.value,
+    config.sessionKey,
+    session.subject,
+  );
+}
+
+/**
+ * The caller when one is already established, and undefined otherwise — for what a page shows
+ * around its content (the header's Needs-you count), which must never redirect anybody.
+ */
+export async function establishedCaller(): Promise<Caller | undefined> {
+  const config = loadWebIdentityConfig();
+  if (config.profile === 'development') return developmentCaller();
+  const session = await currentWebSession();
+  if (session?.context === undefined) return undefined;
+  return {
+    authentication: 'oidc',
+    actorId: session.subject,
+    bearerToken: session.accessToken,
+    ...session.context,
+  };
 }
 
 /** Resolve request identity. Dogfood never falls back to fixed headers. */

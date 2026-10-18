@@ -58,6 +58,10 @@ export interface SearchHit {
    * learned about a record the caller cannot see.
    */
   readonly verification: RecordVerification;
+  /** When the record last changed (`core.object.updated_at`), read under the caller's row security. */
+  readonly updatedAt?: string;
+  /** A short passage of the record's indexed text around the query's words (`hitExcerpts`). */
+  readonly excerpt?: string;
 }
 
 const DEFAULT_LIMIT = 50;
@@ -266,7 +270,13 @@ export async function pageOf(
       Number(b.row.text_rank) - Number(a.row.text_rank) ||
       a.entry.position - b.entry.position,
   );
-  return scored.slice(0, limit).map(({ row, entry }) => ({
+  const page = scored.slice(0, limit);
+  const excerpts = await hitExcerpts(
+    tx,
+    page.map(({ row }) => row.object_id),
+    text,
+  );
+  return page.map(({ row, entry }) => ({
     objectId: row.object_id,
     objectType: row.object_type,
     title: row.title,
@@ -277,7 +287,68 @@ export async function pageOf(
     // Fail closed on a row that does not say: a record not positively visible is not looked up,
     // and a verification missing any of its facts is not one this code may repeat.
     verification: verificationOf(row),
+    ...excerpts.get(row.object_id),
   }));
+}
+
+/** The longest passage `hitExcerpts` returns, in characters, after whitespace is collapsed. */
+export const EXCERPT_MAX_CHARACTERS = 280;
+
+/**
+ * For a page of hits already cut and already narrowed to what the caller may read: each record's
+ * last change and a short passage of its indexed text, around the query's words when `text` has
+ * any, else from its start. Run over the page only, never the tie window, because a headline reads
+ * the record's text.
+ *
+ * Both columns are read under the caller's row security in the caller's transaction, as every
+ * column of a hit is; a record the caller cannot see contributes neither. The passage is the
+ * record's own indexed text (`search.text_for`), so it says nothing the record does not.
+ */
+export async function hitExcerpts(
+  tx: Tx,
+  ids: readonly string[],
+  text: string,
+): Promise<Map<string, { updatedAt?: string; excerpt?: string }>> {
+  const found = new Map<string, { updatedAt?: string; excerpt?: string }>();
+  if (ids.length === 0) return found;
+  const rows = await tx.query<{
+    object_id: string;
+    updated_at: Date | null;
+    excerpt: string | null;
+  }>(
+    `with q as (
+       select search.tsquery_or(variants) as any_term
+         from search.query_terms($2)
+        where variants is not null
+     )
+     select /* search.hit-excerpts */
+            d.object_id, o.updated_at,
+            coalesce(
+              ts_headline(
+                coalesce(d.languages[1], 'english'::regconfig), left(d.body, 20000), q.any_term,
+                'MaxFragments=1, MaxWords=40, MinWords=15, ShortWord=2, StartSel="", StopSel=""'),
+              left(d.body, 600)) as excerpt
+       from search.document d
+      cross join q
+       join core.object o on o.id = d.object_id
+      where d.object_id = any($1::uuid[])`,
+    [[...ids], text],
+  );
+  for (const row of rows) {
+    const passage = (row.excerpt ?? '').replace(/\s+/g, ' ').trim();
+    found.set(row.object_id, {
+      ...(row.updated_at === null ? {} : { updatedAt: new Date(row.updated_at).toISOString() }),
+      ...(passage === ''
+        ? {}
+        : {
+            excerpt:
+              passage.length > EXCERPT_MAX_CHARACTERS
+                ? `${passage.slice(0, EXCERPT_MAX_CHARACTERS - 1).trimEnd()}…`
+                : passage,
+          }),
+    });
+  }
+  return found;
 }
 
 /**

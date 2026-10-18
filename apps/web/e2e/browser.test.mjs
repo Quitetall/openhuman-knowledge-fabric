@@ -206,7 +206,7 @@ test(
             transaction.challenge,
           );
           codes.delete(code);
-          const idToken = await new SignJWT({ nonce: transaction.nonce })
+          const idToken = await new SignJWT({ nonce: transaction.nonce, name: 'Fixture Person' })
             .setProtectedHeader({ alg: 'RS256', kid: 'fixture-signing-key' })
             .setIssuer(issuer)
             .setAudience(CLIENT_ID)
@@ -452,6 +452,52 @@ test(
             );
           }
 
+          if (url.pathname === '/api/dashboard') {
+            // The smallest dashboard: a master document not yet compiled, and the reader's role.
+            return json(response, 200, {
+              format: 'kf-dashboard-v1',
+              layout: [
+                'start_here',
+                'overview',
+                'master_document',
+                'needs_you',
+                'work_in_flight',
+                'recent_record',
+                'people',
+              ],
+              panels: [
+                { id: 'start_here', empty: true, pages: [] },
+                { id: 'overview', empty: true },
+                { id: 'master_document', empty: false, claim: { status: 'missing' } },
+                { id: 'needs_you', slot: 'needs-you' },
+                { id: 'work_in_flight', empty: true, total: 0, records: [] },
+                { id: 'recent_record', empty: true, total: 0, records: [] },
+                {
+                  id: 'people',
+                  empty: false,
+                  assignments: [
+                    {
+                      assignmentId: ROLE_ID,
+                      roleId: 'work_order_manager',
+                      organizationWide: false,
+                      validTo: null,
+                      reaches: [],
+                    },
+                  ],
+                  presetGrants: 0,
+                  qualification: null,
+                },
+              ],
+            });
+          }
+          if (url.pathname === '/api/needs-you') {
+            const nothing = { items: [], total: 0 };
+            return json(response, 200, {
+              toVerify: nothing,
+              awaitingOthers: nothing,
+              proposals: nothing,
+            });
+          }
           const segments = url.pathname.split('/').slice(2).map(decodeURIComponent);
           if (segments.length === 1 && segments[0] === 'documents') {
             if (request.method === 'POST') {
@@ -1029,10 +1075,40 @@ test(
       const context = await browser.newContext();
       const page = await context.newPage();
 
+      // One live assignment: the sign-in lands where the person was going, in that assignment at
+      // their clearance, confirmed by the API exactly as the picker's choice is — no picker.
+      const visited = [];
+      page.on('framenavigated', (frame) => {
+        if (frame === page.mainFrame()) visited.push(new URL(frame.url()).pathname);
+      });
       await page.goto(`${webOrigin}/documents`);
-      await page.waitForURL(`${webOrigin}/session/select**`);
+      await page.waitForURL(`${webOrigin}/documents`);
+      assert.equal(
+        visited.includes('/session/select'),
+        false,
+        `one assignment must not show the picker: ${visited.join(' → ')}`,
+      );
+      const autoHint = (await context.cookies(webOrigin)).find(
+        (cookie) => cookie.name === '__Host-kf_context_hint',
+      );
+      assert.ok(autoHint, 'the context chosen for one assignment is remembered like a picked one');
+      // The header names the person in words; the ids wait behind Details.
+      const identityLine = page.locator('[data-identity-line]');
+      await assert.doesNotReject(() => identityLine.getByText('Fixture Person').waitFor());
+      await assert.doesNotReject(() => identityLine.getByText('Work order manager').waitFor());
       await assert.doesNotReject(() =>
-        page.getByRole('heading', { name: 'Choose authority context' }).waitFor(),
+        identityLine.getByText('OpenHuman Fixture Organization').waitFor(),
+      );
+      assert.doesNotMatch(
+        await page.locator('header.kf-masthead').innerText(),
+        /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|fixture-subject/i,
+        'no id is visible in the header by default',
+      );
+
+      // The picker stays one click away, and works as before.
+      await page.goto(`${webOrigin}/session/select?next=/documents`);
+      await assert.doesNotReject(() =>
+        page.getByRole('heading', { name: 'Choose your role' }).waitFor(),
       );
       const signedInCookies = await context.cookies(webOrigin);
       const sessionCookie = signedInCookies.find((cookie) => cookie.name === '__Host-kf_session');
@@ -1042,13 +1118,15 @@ test(
       assert.equal(sessionCookie.sameSite, 'Lax');
 
       // Typed ids stay available behind the picker, and the API still refuses a bad one.
-      await page.getByText('Enter ids manually').click();
+      await page.getByText('Enter ids by hand (for support)').click();
       await page.getByLabel('Acting role assignment id (UUID)').fill(BAD_ROLE_ID);
       await page.getByLabel('Organization id (UUIDv7)').fill(ORGANIZATION_ID);
       await page.getByLabel('Maximum classification (typed ids)').selectOption('internal');
-      await page.getByRole('button', { name: 'Validate typed ids with KF API' }).click();
+      await page.getByRole('button', { name: 'Continue with these ids' }).click();
       await page.waitForURL(/error=denied/);
-      await assert.doesNotReject(() => page.getByText('API refused this role').waitFor());
+      await assert.doesNotReject(() =>
+        page.getByText('That role was not accepted for you').waitFor(),
+      );
 
       // The picker lists the person's live assignment from the API, preselected as the only one,
       // and offers no ceiling above their clearance.
@@ -1058,13 +1136,13 @@ test(
       await assert.doesNotReject(() =>
         page.getByRole('heading', { name: 'OpenHuman Fixture Organization' }).waitFor(),
       );
-      const ceiling = page.getByLabel('Maximum classification', { exact: true });
+      const ceiling = page.getByLabel('What you can see', { exact: true });
       assert.equal(await ceiling.inputValue(), 'internal');
       assert.deepEqual(
         await ceiling.locator('option').evaluateAll((options) => options.map((o) => o.value)),
         ['public', 'internal'],
       );
-      await page.getByRole('button', { name: 'Validate with KF API', exact: true }).click();
+      await page.getByRole('button', { name: 'Continue', exact: true }).click();
       await page.waitForURL(`${webOrigin}/documents`);
       const hintCookie = (await context.cookies(webOrigin)).find(
         (cookie) => cookie.name === '__Host-kf_context_hint',
@@ -1083,6 +1161,7 @@ test(
       await assert.doesNotReject(() => page.getByText('OpenHuman Document Constitution').waitFor());
       await assert.doesNotReject(() => page.getByText('OpenHuman Document Constitution').waitFor());
       const authorityContext = page.getByLabel('Current authority context');
+      await authorityContext.getByText('Details', { exact: true }).click();
       await assert.doesNotReject(() =>
         authorityContext.getByText(SUBJECT, { exact: true }).waitFor(),
       );
@@ -1093,8 +1172,9 @@ test(
         authorityContext.getByText(ROLE_ID, { exact: true }).waitFor(),
       );
       await assert.doesNotReject(() =>
-        authorityContext.getByText('internal', { exact: true }).waitFor(),
+        authorityContext.getByText('Everyone in the company', { exact: true }).waitFor(),
       );
+      await authorityContext.getByText('Details', { exact: true }).click();
       await page.getByLabel('Title').fill('Oversized draft');
       await page.getByLabel('Document number').fill('OH-DOC-UPLOAD-OVER');
       await page.getByLabel('Revision').fill('R01');
@@ -1121,7 +1201,7 @@ test(
       await page.getByRole('button', { name: 'Add draft' }).click();
       await page.waitForURL(`${webOrigin}/documents/${DOCUMENT_ID}`);
       assert.equal(importedDocumentBytes, 10 * 1024 * 1024);
-      const expectedDocumentTitle = `Document ${DOCUMENT_ID} | OpenHuman Knowledge Fabric`;
+      const expectedDocumentTitle = `Document ${DOCUMENT_ID} | Knowledge Fabric`;
       await page.waitForFunction(
         (title) => globalThis.document.title === title,
         expectedDocumentTitle,
@@ -1305,13 +1385,17 @@ test(
 
       await page.goto(`${webOrigin}/search?q=constitution`);
       await assert.doesNotReject(() =>
-        page.getByRole('heading', { name: 'Search knowledge fabric' }).waitFor(),
+        page.getByRole('heading', { name: 'Search', exact: true }).waitFor(),
       );
       await assert.doesNotReject(() =>
         page.getByRole('link', { name: 'OpenHuman Document Constitution' }).waitFor(),
       );
-      await assert.doesNotReject(() => page.getByText('Word match #1').waitFor());
+      // The ranking is explained only when asked for.
+      assert.equal(await page.getByText(/Word match #1/).isVisible(), false);
+      await page.getByText('How this was ranked').click();
+      await assert.doesNotReject(() => page.getByText(/Word match #1/).waitFor());
 
+      await page.getByText('More', { exact: true }).click();
       await page.getByRole('link', { name: 'ML runs' }).click();
       await page.getByLabel('Run authority').fill(RUN_AUTHORITY_ID);
       await page.getByLabel('Run revision').fill(RUN_REVISION_ID);
@@ -1319,7 +1403,7 @@ test(
       await page.waitForURL(
         `${webOrigin}/ml/runs/${RUN_AUTHORITY_ID}/revisions/${RUN_REVISION_ID}`,
       );
-      const expectedTitle = `ML run ${RUN_AUTHORITY_ID} ${RUN_REVISION_ID} | OpenHuman Knowledge Fabric`;
+      const expectedTitle = `ML run ${RUN_AUTHORITY_ID} ${RUN_REVISION_ID} | Knowledge Fabric`;
       await page.waitForFunction((title) => globalThis.document.title === title, expectedTitle, {
         timeout: 5_000,
       });
@@ -1372,7 +1456,7 @@ test(
           () => globalThis.document.documentElement.scrollWidth <= globalThis.window.innerWidth,
         );
       await page.goto(`${webOrigin}/agent`);
-      await assert.doesNotReject(() => page.getByRole('heading', { name: 'Agent' }).waitFor());
+      await assert.doesNotReject(() => page.getByRole('heading', { name: 'Ask' }).waitFor());
       assert.equal(await noOverflow(), true, '/agent must not scroll sideways on a phone');
       await page.getByLabel(/Ask, or say/).fill('What did the bench rail measure?');
       await page.getByRole('button', { name: 'Ask' }).click();
@@ -1411,22 +1495,65 @@ test(
         'a committed draft cannot be committed again',
       );
 
-      await page.goto(`${webOrigin}/capture`);
+      // Home's box is the first thing on the page: Ask answers from the record with its sources,
+      // through the same machinery as /agent, and the records that match are listed below it.
+      const lamuBefore = lamuRequests.length;
+      await page.goto(`${webOrigin}/`);
+      const askBox = page.locator('main section').first();
       await assert.doesNotReject(() =>
-        page.getByRole('heading', { name: 'Capture an observation' }).waitFor(),
+        askBox.getByRole('heading', { name: 'Ask or search your records' }).waitFor(),
       );
+      await askBox.getByLabel('Your question or search words').fill('constitution');
+      await askBox.getByRole('button', { name: 'Ask', exact: true }).click();
+      await page.waitForURL(/\/\?q=constitution&mode=ask/);
+      const homeAnswer = page.locator('[data-answer-status]');
+      await assert.doesNotReject(() =>
+        homeAnswer.getByText('The bench rail measured 3.31 V under load [1].').waitFor(),
+      );
+      await assert.doesNotReject(() =>
+        homeAnswer.getByRole('link', { name: 'Bench rail measured at 3.31 V' }).waitFor(),
+      );
+      await assert.doesNotReject(() =>
+        homeAnswer
+          .getByText(
+            '3 more matching records exist that you don’t have access to; they were not used.',
+          )
+          .waitFor(),
+      );
+      await assert.doesNotReject(() => homeAnswer.getByText(/running on this server/).waitFor());
+      assert.equal(lamuRequests.length, lamuBefore + 1, 'one question, one model turn');
+      const preview = page.locator('[data-list="preview"]');
+      await assert.doesNotReject(() =>
+        preview.getByRole('link', { name: 'OpenHuman Document Constitution' }).waitFor(),
+      );
+      assert.equal(await noOverflow(), true, 'Home with an answer must not scroll sideways');
+      await askBox.getByLabel('Your question or search words').fill('constitution');
+      await askBox.getByRole('button', { name: 'Search', exact: true }).click();
+      await page.waitForURL(/\/\?q=constitution&mode=search/);
+      await assert.doesNotReject(() =>
+        preview.getByRole('link', { name: 'OpenHuman Document Constitution' }).waitFor(),
+      );
+      assert.equal(await page.locator('[data-answer-status]').count(), 0, 'Search asks nothing');
+      assert.equal(lamuRequests.length, lamuBefore + 1);
+
+      await page.goto(`${webOrigin}/capture`);
+      await assert.doesNotReject(() => page.getByRole('heading', { name: 'Quick note' }).waitFor());
       assert.equal(await noOverflow(), true, '/capture must not scroll sideways on a phone');
       await page.goto(`${webOrigin}/ml/runs/${RUN_AUTHORITY_ID}/revisions/${RUN_REVISION_ID}`);
       await page.waitForLoadState('networkidle');
 
-      await page.getByRole('link', { name: 'Change context' }).click();
+      await page
+        .getByLabel('Current authority context')
+        .getByText('Details', { exact: true })
+        .click();
+      await page.getByRole('link', { name: 'Switch role or organization' }).click();
       await page.waitForURL(`${webOrigin}/session/select**`);
       assert.equal(
         new URL(page.url()).searchParams.get('next'),
         `/ml/runs/${RUN_AUTHORITY_ID}/revisions/${RUN_REVISION_ID}`,
       );
-      await page.getByLabel('Maximum classification', { exact: true }).selectOption('public');
-      await page.getByRole('button', { name: 'Validate with KF API', exact: true }).click();
+      await page.getByLabel('What you can see', { exact: true }).selectOption('public');
+      await page.getByRole('button', { name: 'Continue', exact: true }).click();
       await page.waitForURL(
         `${webOrigin}/ml/runs/${RUN_AUTHORITY_ID}/revisions/${RUN_REVISION_ID}`,
       );
@@ -1441,20 +1568,31 @@ test(
 
       await page.goto(`${webOrigin}/search?q=constitution`);
       await assert.doesNotReject(() =>
-        page.getByText('Nothing found in your current access context.').waitFor(),
+        page.getByText('Nothing you can see matches those words.').waitFor(),
       );
 
       await page.goto(`${webOrigin}/documents`);
-      await assert.doesNotReject(() => page.getByText('No documents loaded yet.').waitFor());
+      await assert.doesNotReject(() =>
+        page.getByText('No controlled documents you can see yet.').waitFor(),
+      );
       forceDocumentListError = true;
       await page.reload();
       await assert.doesNotReject(() =>
         page.getByText('Document projection is unavailable in the fixture.').waitFor(),
       );
-      assert.equal(await page.getByText('No documents loaded yet.').count(), 0);
+      assert.equal(await page.getByText('No controlled documents you can see yet.').count(), 0);
 
       await page.getByRole('button', { name: 'Sign out' }).click();
       await page.waitForURL(`${webOrigin}/`);
+      // Signed out, Home is one sentence and the way in; the status report lives at /status.
+      await assert.doesNotReject(() =>
+        page.getByRole('heading', { name: 'Knowledge Fabric', level: 1 }).waitFor(),
+      );
+      await assert.doesNotReject(() =>
+        page.locator('main').getByRole('link', { name: 'Sign in' }).waitFor(),
+      );
+      assert.equal(await page.getByText('Implemented capability gates').count(), 0);
+      await page.goto(`${webOrigin}/status`);
       await assert.doesNotReject(() =>
         page.getByRole('heading', { name: 'Implemented capability gates' }).waitFor(),
       );

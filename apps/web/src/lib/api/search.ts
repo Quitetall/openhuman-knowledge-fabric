@@ -24,6 +24,8 @@ export interface SearchHit {
   readonly matchedBy: 'full_text' | 'partial_identifier';
   /** Always present: a hit the API sent without one is shown as unverified. */
   readonly verification: Verification;
+  readonly updatedAt?: string;
+  readonly excerpt?: string;
 }
 
 /** A hit from the retrieval engine's ranking, re-checked by the API under the caller's access. */
@@ -36,6 +38,8 @@ export interface SemanticSearchHit {
   readonly rank: number;
   readonly score: number;
   readonly verification: Verification;
+  readonly updatedAt?: string;
+  readonly excerpt?: string;
 }
 
 /**
@@ -53,6 +57,8 @@ export interface RankedSearchHit {
   readonly lexical?: { readonly rank: number; readonly matchedBy: SearchHit['matchedBy'] };
   readonly semantic?: { readonly rank: number };
   readonly verification: Verification;
+  readonly updatedAt?: string;
+  readonly excerpt?: string;
 }
 
 /** Why a part of the answer could not be given (§63): the semantic ranking, today. */
@@ -145,10 +151,34 @@ function rankedHit(value: unknown): value is Omit<RankedSearchHit, 'verification
   return lexical !== undefined || semantic !== undefined;
 }
 
-function withVerification<T extends object>(hit: T): T & { readonly verification: Verification } {
+/** The longest passage shown for a hit; a longer one from the API is cut, never trusted to fit. */
+const EXCERPT_MAX = 600;
+
+/**
+ * A hit's verification, parsed fail-closed, and its two descriptive fields, kept only when they are
+ * what they say: an ISO date and a bounded passage. An API older than them sends neither, and the
+ * hit is shown without them.
+ */
+function withVerification<T extends object>(
+  hit: T,
+): T & {
+  readonly verification: Verification;
+  readonly updatedAt?: string;
+  readonly excerpt?: string;
+} {
+  const raw = hit as Record<string, unknown>;
+  const { updatedAt, excerpt, ...rest } = raw;
+  const date =
+    typeof updatedAt === 'string' && !Number.isNaN(Date.parse(updatedAt)) ? updatedAt : undefined;
+  const passage =
+    typeof excerpt === 'string' && excerpt.trim() !== ''
+      ? excerpt.trim().slice(0, EXCERPT_MAX)
+      : undefined;
   return {
-    ...hit,
-    verification: parseVerification((hit as Record<string, unknown>)['verification']),
+    ...(rest as T),
+    verification: parseVerification(raw['verification']),
+    ...(date === undefined ? {} : { updatedAt: date }),
+    ...(passage === undefined ? {} : { excerpt: passage }),
   };
 }
 

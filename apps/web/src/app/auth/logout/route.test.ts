@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CONTEXT_HINT_COOKIE,
+  IDENTITY_LABEL_COOKIE,
   ID_TOKEN_HINT_COOKIE,
   SESSION_COOKIE,
   sealIdTokenHint,
@@ -69,7 +70,12 @@ describe('POST /auth/logout', () => {
     const location = new URL(response.headers.get('location') ?? '');
     expect(location.searchParams.get('id_token_hint')).toBe('the.id.token');
     expect(expired(response)).toEqual(
-      expect.arrayContaining([SESSION_COOKIE, ID_TOKEN_HINT_COOKIE, CONTEXT_HINT_COOKIE]),
+      expect.arrayContaining([
+        SESSION_COOKIE,
+        ID_TOKEN_HINT_COOKIE,
+        CONTEXT_HINT_COOKIE,
+        IDENTITY_LABEL_COOKIE,
+      ]),
     );
   });
 
@@ -77,7 +83,12 @@ describe('POST /auth/logout', () => {
     vi.stubEnv('KF_WEB_SESSION_SECRET', '');
     const response = await POST(logoutRequest(`${SESSION_COOKIE}=anything`));
     expect(expired(response)).toEqual(
-      expect.arrayContaining([SESSION_COOKIE, ID_TOKEN_HINT_COOKIE, CONTEXT_HINT_COOKIE]),
+      expect.arrayContaining([
+        SESSION_COOKIE,
+        ID_TOKEN_HINT_COOKIE,
+        CONTEXT_HINT_COOKIE,
+        IDENTITY_LABEL_COOKIE,
+      ]),
     );
   });
 

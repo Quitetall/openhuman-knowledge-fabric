@@ -13,6 +13,11 @@ export const ID_TOKEN_HINT_COOKIE = '__Host-kf_id_token_hint';
  * selection is validated, and uses it only for the same OIDC subject that chose it.
  */
 export const CONTEXT_HINT_COOKIE = '__Host-kf_context_hint';
+/**
+ * The header's names for the person, their organizations and roles (`identity-label.ts`):
+ * display only, never authority, written when the API's menu is read and kept as long as a hint.
+ */
+export const IDENTITY_LABEL_COOKIE = '__Host-kf_identity_label';
 /** How long a chosen context is offered again after renewal, counted from the choice. */
 export const CONTEXT_HINT_LIFETIME_SECONDS = 12 * 60 * 60;
 export const MAX_WEB_COOKIE_VALUE_BYTES = 3_800;

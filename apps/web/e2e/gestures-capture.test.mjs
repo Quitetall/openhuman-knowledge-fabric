@@ -298,7 +298,7 @@ async function recordGestures(page, origin, width) {
 async function capture(page, origin, width) {
   const ingests = writesTo('/api/ingest').length;
   await page.goto(`${origin}/capture`);
-  await page.getByRole('heading', { name: 'Capture an observation' }).waitFor();
+  await page.getByRole('heading', { name: 'Quick note' }).waitFor();
   await noSidewaysScroll(page, `/capture at ${width}`);
   await page.getByLabel('Photo', { exact: true }).setInputFiles({
     name: 'IMG_0001.jpg',
@@ -572,9 +572,8 @@ test(
       page.setDefaultTimeout(60_000);
 
       await page.goto(`${webOrigin}/`);
-      await page.locator('.kf-signin').getByRole('link', { name: 'Sign in' }).click();
-      await page.waitForURL(`${webOrigin}/session/select**`);
-      await page.getByRole('button', { name: 'Validate with KF API', exact: true }).click();
+      // One live assignment: sign-in lands on Home with no picker in between.
+      await page.locator('.kf-landing').getByRole('link', { name: 'Sign in' }).click();
       await page.waitForURL(`${webOrigin}/`);
 
       for (const [width, height] of [
