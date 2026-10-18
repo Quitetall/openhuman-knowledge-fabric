@@ -12,6 +12,8 @@
  *   declare-agent           which OAuth clients may act for a person, ADR 0035 (bootstrap tier)
  *   define-role             a role name in the vocabulary, ADR 0040 (bootstrap tier)
  *   invite                  a person, their account, authority, qualification and link (ADR 0040)
+ *   workspace               start|stop|status|reset this computer's own workspace
+ *                           (scripts/workspace/cli.mjs; the same as `pnpm kf:start` and its siblings)
  *
  * The bootstrap-tier commands need DATABASE_OWNER_URL_FILE and are refused without it; the others
  * never see an owner credential.
@@ -34,6 +36,8 @@ import { revokeIdentityUsage } from './admin/revoke-identity.js';
 import { runIngestCommand, usage as ingestUsage } from './ingest/cli.js';
 import { masterRecordUsage, runMasterRecordCommand } from './master-record/cli.js';
 import { noteUsage, runNoteCommand } from './note/cli.js';
+import { spawnSync } from 'node:child_process';
+import { join } from 'node:path';
 import { findRoot, overviewUsage, runOverviewCommand } from './overview/cli.js';
 
 const command = process.argv[2];
@@ -44,7 +48,7 @@ function allUsage(): string {
     'kf <command> [options]',
     '',
     '  ingest | note | master-record | overview | bootstrap-organization | grant-authority |',
-    '  retire-organization | revoke-identity | declare-agent | define-role | invite',
+    '  retire-organization | revoke-identity | declare-agent | define-role | invite | workspace',
     '',
     ingestUsage(),
     '',
@@ -69,6 +73,9 @@ function allUsage(): string {
     declareAgentUsage(),
     '',
     defineRoleUsage(),
+    '',
+    "kf workspace start|stop|status|reset [options]   this computer's own workspace",
+    '  (scripts/workspace/cli.mjs; `kf workspace help` lists the options)',
   ].join('\n');
 }
 
@@ -112,6 +119,23 @@ switch (command) {
   case 'invite':
     process.exitCode = await runInviteCommand(rest);
     break;
+  case 'workspace': {
+    // The workspace engine is plain Node in the checkout, so it runs before anything is built;
+    // this only forwards to it. KF_ROOT is set by scripts/install-kf.sh's wrapper.
+    try {
+      const root = findRoot(process.cwd());
+      const result = spawnSync(
+        process.execPath,
+        [join(root, 'scripts', 'workspace', 'cli.mjs'), ...rest],
+        { stdio: 'inherit' },
+      );
+      process.exitCode = result.status ?? 1;
+    } catch (error: unknown) {
+      process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      process.exitCode = 2;
+    }
+    break;
+  }
   case 'help':
   case '--help':
   case '-h':

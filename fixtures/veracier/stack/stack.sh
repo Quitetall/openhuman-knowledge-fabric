@@ -5,6 +5,9 @@
 #   fixtures/veracier/stack/stack.sh up       # dependencies, migrations, logins, realm, apps
 #   fixtures/veracier/stack/stack.sh load     # load the fixture (--sample: ~80 documents), restart
 #   fixtures/veracier/stack/stack.sh restart  # restart the applications (logins kept)
+#   fixtures/veracier/stack/stack.sh resume   # after `down` or a reboot: start the containers and
+#                                             # whatever application is stopped; no migration, no
+#                                             # build, no re-keyed login (scripts/workspace uses it)
 #   fixtures/veracier/stack/stack.sh retrieval  # start only the embedding server and engine
 #   fixtures/veracier/stack/stack.sh reindex  # rebuild the search index, queue every record for embedding
 #   fixtures/veracier/stack/stack.sh agent-client <id>  # an ADR 0035 agent client in the realm (secret 0600
@@ -428,6 +431,20 @@ start_apps() {
   status
 }
 
+# A stack that `up` prepared once, brought back without changing it: the containers, then each
+# application that is not running (start_process leaves a running one alone).
+resume() {
+  if [ ! -f "$state/keycloak-admin-password" ]; then
+    echo "no stack in $state to resume; run up first" >&2
+    return 1
+  fi
+  install -d -m 0700 "$state" "$logs" "$run"
+  echo "== dependencies (compose project $KF_STACK_PROJECT)"
+  compose up -d --wait postgres seaweedfs keycloak
+  wait_for 'keycloak' 120 curl -sf "$keycloak_origin/realms/$realm/.well-known/openid-configuration"
+  start_apps
+}
+
 stop_apps() {
   for name in web worker api attestor; do
     # Each process leads its own session; the group is stopped so `next start` children go too,
@@ -474,6 +491,7 @@ command="${1:-}"
 shift || true
 case "$command" in
   up) up ;;
+  resume) resume ;;
   load) load "$@" ;;
   restart)
     stop_apps
@@ -489,7 +507,7 @@ case "$command" in
   status) status ;;
   reset) reset ;;
   *)
-    echo "usage: $0 up|load [--sample]|restart|retrieval|reindex|agent-client <id>|down|status|reset" >&2
+    echo "usage: $0 up|resume|load [--sample]|restart|retrieval|reindex|agent-client <id>|down|status|reset" >&2
     exit 2
     ;;
 esac
