@@ -72,7 +72,7 @@ async function signIn(browser, username, secret) {
     assert.ok((await radios.count()) >= 1, `${username} must be offered at least one role`);
     const checked = picker.locator('input[type="radio"][name="actingRoleId"]:checked');
     if ((await checked.count()) === 0) await radios.first().check();
-    await picker.getByRole('button', { name: 'Validate with KF API', exact: true }).click();
+    await picker.getByRole('button', { name: 'Continue', exact: true }).click();
     await page.waitForURL(`${WEB}/search**`);
   }
   return { context, page };

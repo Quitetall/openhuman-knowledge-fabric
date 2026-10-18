@@ -1,6 +1,14 @@
+import { decodeJwt } from 'jose';
 import { NextResponse, type NextRequest } from 'next/server';
+import { getSessionContexts } from '../../../lib/api';
 import {
   CONTEXT_HINT_COOKIE,
+  ID_TOKEN_HINT_COOKIE,
+  IDENTITY_LABEL_COOKIE,
+  identityLabel,
+  openIdentityLabel,
+  openIdTokenHint,
+  sealIdentityLabel,
   CONTEXT_HINT_LIFETIME_SECONDS,
   openWebSession,
   publicOrigin,
@@ -136,5 +144,46 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       expires: new Date(hintExpiresAt * 1000),
     },
   );
+  // The header's names, when the callback could not record them (an older cookie, or the API was
+  // unavailable then). Display only; failing to read them changes nothing above.
+  if (
+    (await openIdentityLabel(
+      request.cookies.get(IDENTITY_LABEL_COOKIE)?.value,
+      config.sessionKey,
+      session.subject,
+    )) === undefined
+  ) {
+    try {
+      const contexts = await getSessionContexts(session.accessToken);
+      const idToken = await openIdTokenHint(
+        request.cookies.get(ID_TOKEN_HINT_COOKIE)?.value,
+        config.sessionKey,
+      );
+      // The ID token was verified when it was sealed into this cookie; only its name is read.
+      const claims = idToken === undefined ? {} : decodeJwt(idToken);
+      const name =
+        typeof claims['name'] === 'string'
+          ? claims['name']
+          : typeof claims['preferred_username'] === 'string'
+            ? claims['preferred_username']
+            : null;
+      const label = await sealIdentityLabel(
+        identityLabel(session.subject, name, contexts),
+        hintExpiresAt,
+        config.sessionKey,
+      );
+      if (label !== undefined) {
+        response.cookies.set(IDENTITY_LABEL_COOKIE, label, {
+          httpOnly: true,
+          secure: true,
+          sameSite: 'lax',
+          path: '/',
+          expires: new Date(hintExpiresAt * 1000),
+        });
+      }
+    } catch {
+      // Labelled generically until the next sign-in.
+    }
+  }
   return response;
 }

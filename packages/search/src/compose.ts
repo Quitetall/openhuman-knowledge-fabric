@@ -40,6 +40,7 @@
 import type { Tx } from '@kf/database';
 import type { RecordVerification } from '@kf/domain';
 import {
+  hitExcerpts,
   pageOf,
   rankedMatchesIn,
   verificationOf,
@@ -105,6 +106,10 @@ export interface SemanticHit {
   readonly rank: number;
   readonly score: number;
   readonly verification: RecordVerification;
+  /** As `SearchHit.updatedAt`. */
+  readonly updatedAt?: string;
+  /** As `SearchHit.excerpt`: here from the record's start, since the engine ranked by meaning. */
+  readonly excerpt?: string;
 }
 
 export const LEXICAL_RANKING =
@@ -150,6 +155,10 @@ export interface FusedHit {
   /** Its place in the re-checked semantic list, when it is there. */
   readonly semantic?: { readonly rank: number };
   readonly verification: RecordVerification;
+  /** As `SearchHit.updatedAt`, from whichever list carried the record first. */
+  readonly updatedAt?: string;
+  /** As `SearchHit.excerpt`, from whichever list carried the record first. */
+  readonly excerpt?: string;
 }
 export const NEAR_MISS_LABEL = 'near_miss';
 
@@ -325,6 +334,8 @@ export function fuse(
     lifecycleState: hit.lifecycleState,
     classification: hit.classification,
     verification: hit.verification,
+    ...(hit.updatedAt === undefined ? {} : { updatedAt: hit.updatedAt }),
+    ...(hit.excerpt === undefined ? {} : { excerpt: hit.excerpt }),
   });
   lexical.forEach((hit, index) => {
     const entry = entries.get(hit.objectId) ?? { base: baseOf(hit) };
@@ -430,6 +441,9 @@ async function recheck(
     };
   }
 
+  // Every id survived the re-check, so each may now be described: from the start of its text,
+  // since the engine ranked it by meaning and no word of the query need be in it.
+  const excerpts = await hitExcerpts(tx, ids, '');
   return {
     hits: ordered.map((hit) => {
       const row = byId.get(hit.objectId)!;
@@ -442,6 +456,7 @@ async function recheck(
         rank: hit.rank,
         score: hit.score,
         verification: verificationOf(row),
+        ...excerpts.get(hit.objectId),
       };
     }),
   };

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import {
   CONTEXT_HINT_COOKIE,
+  IDENTITY_LABEL_COOKIE,
   ID_TOKEN_HINT_COOKIE,
   OIDC_TRANSACTION_COOKIE,
   openIdTokenHint,
@@ -17,6 +18,7 @@ function expire(response: NextResponse): NextResponse {
     OIDC_TRANSACTION_COOKIE,
     ID_TOKEN_HINT_COOKIE,
     CONTEXT_HINT_COOKIE,
+    IDENTITY_LABEL_COOKIE,
   ]) {
     response.cookies.set(name, '', {
       httpOnly: true,

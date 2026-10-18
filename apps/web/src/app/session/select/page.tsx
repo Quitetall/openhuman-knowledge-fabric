@@ -5,7 +5,12 @@ import {
   type SessionContextOrganization,
   type SessionContexts,
 } from '../../../lib/api';
-import { CLASSIFICATIONS, sanitizeReturnTo, type WebSession } from '../../../lib/auth';
+import {
+  CLASSIFICATIONS,
+  classificationWords,
+  sanitizeReturnTo,
+  type WebSession,
+} from '../../../lib/auth';
 import { currentWebSession, dogfoodConfig } from '../../../lib/session';
 import { PendingButton } from '../../components/pending-button';
 import {
@@ -20,13 +25,12 @@ import {
   validUntil,
 } from './context-picker';
 
-export const metadata: Metadata = { title: 'Choose authority context' };
+export const metadata: Metadata = { title: 'Choose your role' };
 
 const MESSAGE: Readonly<Record<string, string>> = {
-  invalid:
-    'Context is malformed. The role assignment must be a UUID and the organization a UUIDv7.',
-  denied: 'API refused this role, organization, or classification context.',
-  unavailable: 'API could not validate context. Nothing was saved.',
+  invalid: 'That choice could not be read. The ids typed by hand are not in the right form.',
+  denied: 'That role was not accepted for you. Choose another, or ask whoever manages access.',
+  unavailable: 'The server could not check that choice just now. Nothing was saved; try again.',
 };
 
 /** Accepts every RFC 4122 version: some live role assignments predate time-ordered ids. */
@@ -104,7 +108,7 @@ function ManualForm({
         className="kf-button-primary"
         style={{ justifySelf: 'start', padding: '0.55rem 1rem', cursor: 'pointer' }}
       >
-        Validate typed ids with KF API
+        Continue with these ids
       </PendingButton>
     </form>
   );
@@ -150,9 +154,6 @@ function OrganizationPicker({
       <h2 id={headingId} style={{ margin: 0, fontSize: '1.05rem' }}>
         {name}
       </h2>
-      <p style={{ margin: '0.25rem 0 0.75rem' }}>
-        <code style={{ color: '#64748b', fontSize: '0.75rem' }}>{organization.organizationId}</code>
-      </p>
       <form method="post" action="/auth/context" style={{ display: 'grid', gap: '1rem' }}>
         <input type="hidden" name="next" value={next} />
         <input type="hidden" name="organizationId" value={organization.organizationId} />
@@ -178,17 +179,13 @@ function OrganizationPicker({
                   <span style={{ color: '#475569', fontSize: '0.85rem' }}>
                     · {validUntil(assignment.validTo)}
                   </span>
-                  <br />
-                  <code style={{ color: '#64748b', fontSize: '0.75rem' }}>
-                    {assignment.assignmentId}
-                  </code>
                 </span>
               </label>
             ))}
           </div>
         </fieldset>
         <label>
-          <span id={ceilingId}>Maximum classification</span>
+          <span id={ceilingId}>What you can see</span>
           <select
             aria-labelledby={ceilingId}
             name="maxClassification"
@@ -201,21 +198,21 @@ function OrganizationPicker({
           >
             {ceilings.map((classification) => (
               <option key={classification} value={classification}>
-                {classification}
+                {classificationWords(classification)}
               </option>
             ))}
           </select>
         </label>
         <p style={{ margin: 0, color: '#475569', fontSize: '0.85rem' }}>
-          Your clearance here is <strong>{organization.clearance}</strong>; a lower ceiling hides
-          more.
+          You may see up to <strong>{classificationWords(organization.clearance)}</strong>. Choosing
+          less hides more.
         </p>
         <PendingButton
           pendingLabel="Validating authority context…"
           className="kf-button-primary"
           style={{ justifySelf: 'start', padding: '0.55rem 1rem', cursor: 'pointer' }}
         >
-          Validate with KF API
+          Continue
         </PendingButton>
       </form>
     </section>
@@ -246,13 +243,10 @@ export default async function SelectSessionPage({
 
   return (
     <main style={{ maxWidth: '38rem', margin: '3rem auto', padding: '0 1.5rem 4rem' }}>
-      <p style={{ color: '#475569', margin: 0, letterSpacing: '0.04em', fontSize: '0.8rem' }}>
-        AUTHENTICATED SUBJECT
-      </p>
-      <h1 style={{ marginTop: '0.25rem' }}>Choose authority context</h1>
+      <h1 style={{ marginTop: '0.25rem' }}>Choose your role</h1>
       <p>
-        Identity provider established <code>{session.subject}</code>. KF still requires explicit
-        role, organization, and visibility ceiling. API validates all three before saving them.
+        You hold more than one role, or more than one organization. Choose how you are working now;
+        you can switch at any time.
       </p>
       {query.error === undefined ? null : (
         <p role="alert" aria-live="assertive" className="kf-status kf-status-error">
@@ -261,13 +255,12 @@ export default async function SelectSessionPage({
       )}
       {menu.kind === 'failed' ? (
         <p role="status" className="kf-status kf-status-warning" data-assignments="unavailable">
-          <strong>Your assignments could not be listed.</strong> {menu.reason} You can still enter
-          the ids by hand.
+          <strong>Your roles could not be listed.</strong> {menu.reason}
         </p>
       ) : null}
       {menu.kind === 'listed' && !pickable ? (
         <p role="status" className="kf-status kf-status-warning" data-assignments="empty">
-          The API lists no role assignment you can choose in any organization.
+          You don’t have a role here yet. Ask whoever manages access to give you one.
         </p>
       ) : null}
       {organizations.length > 0 ? (
@@ -282,8 +275,8 @@ export default async function SelectSessionPage({
           ))}
         </div>
       ) : null}
-      <details open={!pickable} style={{ marginTop: pickable ? '1.5rem' : '1rem' }}>
-        <summary style={{ cursor: 'pointer' }}>Enter ids manually</summary>
+      <details style={{ marginTop: pickable ? '1.5rem' : '1rem' }}>
+        <summary style={{ cursor: 'pointer' }}>Enter ids by hand (for support)</summary>
         <div style={{ marginTop: '1rem' }}>
           <ManualForm
             session={session}
@@ -299,9 +292,6 @@ export default async function SelectSessionPage({
           />
         </div>
       </details>
-      <p style={{ marginTop: '1.5rem', color: '#64748b', fontSize: '0.85rem' }}>
-        OIDC role claims are ignored. Authority remains in KF role assignments.
-      </p>
     </main>
   );
 }

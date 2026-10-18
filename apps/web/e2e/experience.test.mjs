@@ -428,6 +428,9 @@ test(
     const jwk = await exportJWK(publicKey);
     const codes = new Map();
     let reader = 'ceo';
+    const compiles = [];
+    const searches = [];
+    const ingests = [];
     let fixtureOrigin = '';
     let webOrigin = '';
     let issuer = '';
@@ -464,7 +467,7 @@ test(
               .digest('base64url'),
             transaction.challenge,
           );
-          const idToken = await new SignJWT({ nonce: transaction.nonce })
+          const idToken = await new SignJWT({ nonce: transaction.nonce, name: 'Elena Marchetti' })
             .setProtectedHeader({ alg: 'RS256', kid: 'experience-key' })
             .setIssuer(issuer)
             .setAudience(CLIENT_ID)
@@ -530,7 +533,65 @@ test(
         }
         if (url.pathname === '/api/needs-you') return json(response, 200, NEEDS_YOU[reader]);
         if (url.pathname === '/api/master-document') {
-          return json(response, 200, masterDocument(reader));
+          const document = masterDocument(reader);
+          if (reader === 'narrow' && compiles.length > 0) {
+            document.claim = READERS.ceo.panels.find((p) => p.id === 'master_document').claim;
+          }
+          return json(response, 200, document);
+        }
+        if (url.pathname === '/api/master-record/compile' && request.method === 'POST') {
+          compiles.push(JSON.parse(await requestBody(request)));
+          return json(response, 201, { reused: false });
+        }
+        if (url.pathname === '/api/search') {
+          searches.push(url.searchParams.get('q'));
+          const LEXICAL = 'kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2';
+          const hit = {
+            objectId: OBJECT_ID,
+            objectType: 'observation',
+            title: 'Torque drift on bench 2',
+            lifecycleState: 'captured',
+            classification: 'internal',
+            rank: 0.9,
+            matchedBy: 'full_text',
+            verification: unverified,
+            updatedAt: '2026-10-03T09:15:00.000Z',
+            excerpt: 'The torque on bench 2 drifted by four percent after the spindle swap.',
+          };
+          return json(response, 200, {
+            ranked: {
+              ranking: `kf.fused.rrf.v2(k=60; ${LEXICAL})`,
+              hits: [
+                { ...hit, rank: 1, score: 1 / 61, lexical: { rank: 1, matchedBy: 'full_text' } },
+              ],
+            },
+            lexical: { ranking: LEXICAL, exhaustive: true, total: 1, complete: true, hits: [hit] },
+            withheld: [
+              {
+                reasonClass: 'semantic_ranking_unavailable',
+                reason: 'no retrieval engine is configured',
+              },
+            ],
+            withheldCount: 3,
+            hits: [hit],
+          });
+        }
+        if (url.pathname === '/api/ingest' && request.method === 'POST') {
+          const body = JSON.parse(await requestBody(request));
+          ingests.push(body);
+          const text = Buffer.from(body.contentBase64, 'base64').toString('utf8');
+          if (text.includes('PRIVATE KEY')) {
+            return json(response, 422, {
+              error: 'content_refused',
+              message: `${body.title}: a private key (line 1)`,
+              detail: { rule: 'private_key', line: 1 },
+            });
+          }
+          return json(response, 201, {
+            artifactId: '01900000-0000-7000-8000-0000000000f1',
+            actionId: 'action-1',
+            replayed: false,
+          });
         }
         if (url.pathname === `/api/objects/${OBJECT_ID}`) return json(response, 200, objectView());
         return json(response, 404, { error: 'not_found', message: url.pathname });
@@ -607,13 +668,123 @@ test(
       const context = await browser.newContext();
       const page = await context.newPage();
 
-      // Signed out, the home page asks the person to sign in and still reports status.
+      // Signed out, Home says what this is and how to get in; the status report is at /status.
       await page.goto(`${webOrigin}/`);
+      await page.getByRole('heading', { name: 'Knowledge Fabric', level: 1 }).waitFor();
+      assert.equal(await page.getByText('Implemented capability gates').count(), 0);
+      await page.goto(`${webOrigin}/status`);
       await page.getByRole('heading', { name: 'Implemented capability gates' }).waitFor();
-      await page.locator('.kf-signin').getByRole('link', { name: 'Sign in' }).click();
-      await page.waitForURL(`${webOrigin}/session/select**`);
-      await page.getByRole('button', { name: 'Validate with KF API', exact: true }).click();
+      await page.goto(`${webOrigin}/`);
+      // One live assignment: signing in lands on Home, with no picker in between.
+      const visited = [];
+      page.on('framenavigated', (frame) => {
+        if (frame === page.mainFrame()) visited.push(new URL(frame.url()).pathname);
+      });
+      await page.locator('.kf-landing').getByRole('link', { name: 'Sign in' }).click();
       await page.waitForURL(`${webOrigin}/`);
+      await page.getByRole('heading', { name: 'Ask or search your records' }).waitFor();
+      assert.equal(visited.includes('/session/select'), false, visited.join(' → '));
+      // The header is words: name, role, organization, what they can see; no id in view.
+      const identity = page.locator('[data-identity-line]');
+      assert.match(
+        await identity.innerText(),
+        /Elena Marchetti · Performer · Véracier Industries S\.A\. · Sees up to Company/,
+      );
+      assert.doesNotMatch(
+        await page.locator('header.kf-masthead').innerText(),
+        /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|experience-subject/i,
+      );
+
+      // The ask-or-search box is the first thing in the page. With no model configured here it
+      // offers Search alone and says so; the results keep every disclosure the API made.
+      const first = page.locator('main > *:not(h1)').first();
+      assert.equal(await first.getAttribute('class'), 'kf-askbox');
+      assert.equal(await first.getByRole('button', { name: 'Ask', exact: true }).count(), 0);
+      await first.getByText(/Written answers aren’t set up here yet/).waitFor();
+      await first.getByLabel('Your question or search words').fill('torque drift');
+      await first.getByRole('button', { name: 'Search', exact: true }).click();
+      await page.waitForURL(/\/\?q=torque\+drift&mode=search/);
+      assert.deepEqual(searches, ['torque drift']);
+      const preview = page.locator('[data-list="preview"]');
+      await preview.getByRole('link', { name: 'Torque drift on bench 2' }).waitFor();
+      await preview.getByText('Updated 3 Oct 2026').waitFor();
+      await preview.getByText(/drifted by four percent after the spindle swap/).waitFor();
+      await preview.locator('[data-state="unverified"]').waitFor();
+      await preview
+        .getByText(/^3 more matching records exist that you don’t have access to/)
+        .waitFor();
+      await preview.locator('[data-withholding="semantic_ranking_unavailable"]').waitFor();
+      // Asking where no model is configured says so plainly, and still shows the search.
+      await page.goto(`${webOrigin}/?q=torque+drift&mode=ask`);
+      await page.locator('[data-ask="no-model"]').waitFor();
+      await preview.getByRole('link', { name: 'Torque drift on bench 2' }).waitFor();
+
+      // Search: one box, filters folded, the ranking formula folded, the counts in view.
+      await page.goto(`${webOrigin}/search?q=torque+drift`);
+      assert.equal(await page.locator('details.kf-filters').getAttribute('open'), null);
+      assert.equal(await page.getByLabel('Kind of record').isVisible(), false);
+      assert.equal(await page.getByText(/kf\.fused\.rrf/).isVisible(), false);
+      await page.locator('[data-withheld-count="3"]').waitFor();
+      await page.getByText('How this was ranked').click();
+      await page
+        .getByText(/kf\.fused\.rrf/)
+        .first()
+        .waitFor();
+
+      // Add: any files, one act each; one accepted and one refused, each said in words.
+      await page.goto(`${webOrigin}/add`);
+      await page.getByRole('heading', { name: 'Add files' }).waitFor();
+      assert.deepEqual(
+        await page
+          .getByLabel('Who can see these files')
+          .locator('option')
+          .evaluateAll((options) => options.map((o) => o.value)),
+        ['public', 'internal'],
+        'offered only up to what the person can see',
+      );
+      assert.equal(await page.getByLabel('Who can see these files').inputValue(), 'internal');
+      await page.getByLabel('Choose files').setInputFiles([
+        { name: 'bench-notes.txt', mimeType: 'text/plain', buffer: Buffer.from('torque 4.2 Nm') },
+        {
+          name: 'deploy-key.txt',
+          mimeType: 'text/plain',
+          buffer: Buffer.from('-----BEGIN OPENSSH PRIVATE KEY-----\nnot a real key\n'),
+        },
+      ]);
+      await page.getByLabel('Note (optional)').fill('From the AV-3000 bench');
+      await page.getByRole('button', { name: 'Add 2 files' }).click();
+      await page.getByRole('heading', { name: '1 added, 1 not added' }).waitFor();
+      const added = page.locator('[data-add-status="added"]');
+      await added.getByRole('link', { name: 'Open it' }).waitFor();
+      assert.equal(
+        await added.getByRole('link', { name: 'Open it' }).getAttribute('href'),
+        '/objects/01900000-0000-7000-8000-0000000000f1',
+      );
+      const refusedFile = page.locator('[data-add-status="refused"]');
+      assert.equal(await refusedFile.getAttribute('data-refusal'), 'content_refused');
+      assert.match(await refusedFile.innerText(), /deploy-key\.txt was not added\. It looks like/);
+      assert.match(await refusedFile.innerText(), /\(content_refused\)/);
+      assert.equal(ingests.length, 2, 'one ingest per file');
+      for (const body of ingests) {
+        assert.equal(body.classification, 'internal');
+        assert.equal(body.reason, 'From the AV-3000 bench');
+        assert.equal('documentNumber' in body || 'owningRole' in body, false);
+      }
+      assert.deepEqual(
+        ingests.map((body) => body.title),
+        ['bench-notes.txt', 'deploy-key.txt'],
+      );
+
+      // The master document compiles itself on a first visit, once, and then offers Refresh.
+      reader = 'narrow';
+      await page.goto(`${webOrigin}/master-document`);
+      await page.waitForURL(/compiled=compiled/);
+      await page.getByRole('button', { name: 'Refresh' }).waitFor();
+      assert.equal(compiles.length, 1, 'one visit, one compile act');
+      await page.goto(`${webOrigin}/master-document`);
+      await page.getByRole('button', { name: 'Refresh' }).waitFor();
+      assert.equal(compiles.length, 1, 'a compiled document is not compiled again by reading');
+      reader = 'ceo';
 
       const panelSequence = () =>
         page
@@ -649,15 +820,16 @@ test(
         'every panel of a full dashboard, in layout order',
       );
       assert.deepEqual(engineerPanels, ceoPanels, 'one layout for everyone');
-      // The in-app agent (M4) is a dock after the layout, not a panel of it.
-      assert.equal(await page.locator('main > [data-dock="agent"]').count(), 1);
+      // The in-app agent (M4) is Home's ask box, before the layout and not a panel of it.
+      assert.equal(await page.locator('main > .kf-askbox').count(), 1);
+      assert.equal(await page.locator('.kf-askbox[data-panel]').count(), 0);
       assert.notDeepEqual(engineerTexts, ceoTexts, 'different grants, different contents');
       assert.match(
         await page.locator('[data-withheld]').textContent(),
         /12 records you could be granted, and are not/,
       );
       // (e) Needs you is a separated slot in its place: third, a child of the dashboard itself.
-      const slot = page.locator('main > [data-slot="needs-you"]');
+      const slot = page.locator('main > .kf-dashboard > [data-slot="needs-you"]');
       assert.equal(await slot.count(), 1);
       assert.equal(await slot.getAttribute('data-panel'), 'needs_you');
       // ...and it holds M2's panel, filled from the reader's own Needs-you answer.
@@ -703,6 +875,7 @@ test(
         .locator('[data-record]')
         .first()
         .evaluate((n) => getComputedStyle(n).fontSize);
+      await page.getByText('More', { exact: true }).click();
       await page.getByRole('button', { name: /Switch to compact/ }).click();
       await page.waitForFunction(() => document.documentElement.dataset.density === 'compact');
       const after = await texts();
@@ -716,7 +889,7 @@ test(
       await shoot(page, 'dashboard-ceo-compact');
       await page.goto(`${webOrigin}/master-document`);
       await shoot(page, 'master-document-compact');
-      await page.getByRole('button', { name: 'Compile now' }).waitFor();
+      await page.getByRole('button', { name: 'Refresh' }).waitFor();
       await page.getByRole('link', { name: /Show more artifact/ }).waitFor();
       await page.getByText(/One record compiled here is no longer yours to read/).waitFor();
 
@@ -724,7 +897,15 @@ test(
       for (const density of ['compact', 'comfortable']) {
         const phone = await context.newPage();
         await phone.setViewportSize({ width: 390, height: 844 });
-        for (const path of ['/', '/master-document', `/objects/${OBJECT_ID}`, '/capture']) {
+        for (const path of [
+          '/',
+          '/?q=torque+drift&mode=search',
+          '/search?q=torque+drift',
+          '/add',
+          '/master-document',
+          `/objects/${OBJECT_ID}`,
+          '/capture',
+        ]) {
           await phone.goto(`${webOrigin}${path}`);
           await phone.locator('main').first().waitFor();
           await shoot(phone, `phone-${density}${path.replace(/[^a-z]/g, '-')}`);
@@ -739,6 +920,13 @@ test(
         }
         if (density === 'compact') {
           await phone.goto(`${webOrigin}/`);
+          // The navigation's More menu, open, still fits the phone.
+          await phone.getByText('More', { exact: true }).click();
+          const menu = await phone.evaluate(() => ({
+            scroll: document.scrollingElement.scrollWidth,
+            client: document.scrollingElement.clientWidth,
+          }));
+          assert.ok(menu.scroll <= menu.client, `More menu at 390px scrolls sideways`);
           await phone.getByRole('button', { name: /Switch to comfortable/ }).click();
           await phone.waitForFunction(
             () => document.documentElement.dataset.density === 'comfortable',

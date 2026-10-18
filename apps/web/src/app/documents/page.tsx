@@ -67,17 +67,12 @@ export default async function DocumentsPage({
   }
 
   return (
-    <main style={{ maxWidth: '72rem', margin: '0 auto', padding: '2.5rem 1.5rem 5rem' }}>
-      <div style={{ maxWidth: '50rem' }}>
-        <p style={{ color: '#64748b', margin: 0, fontSize: '0.85rem', letterSpacing: '0.04em' }}>
-          COMPOSED DOCUMENT SYSTEM
-        </p>
-        <h1 style={{ margin: '0.25rem 0 0.5rem', fontSize: '2rem' }}>Document library</h1>
-        <p style={{ color: '#475569', marginTop: 0 }}>
-          Verified source bytes, machine-parsed blocks, controlled lifecycle, one coherent view.
-          Adding a document creates a draft. It does not approve or make anything effective.
-        </p>
-      </div>
+    <main className="kf-page">
+      <h1 className="kf-title">Controlled documents</h1>
+      <p className="kf-lede">
+        Procedures, policies and specifications under formal control. Other files are in{' '}
+        <Link href="/search">Search</Link>.
+      </p>
 
       {refused === undefined ? null : (
         <p role="alert" aria-live="assertive" className="kf-status kf-status-error">
@@ -91,9 +86,15 @@ export default async function DocumentsPage({
       )}
 
       <section style={{ marginTop: '2rem' }}>
-        <h2 style={{ fontSize: '1.1rem' }}>Constitution and controlled documents</h2>
         {loadError !== undefined ? null : documents.length === 0 ? (
-          <p style={{ color: '#64748b' }}>No documents loaded yet.</p>
+          <div className="kf-empty">
+            <p>No controlled documents you can see yet.</p>
+            <p>
+              Everything else you can see is in <Link href="/search">Search</Link> and{' '}
+              <Link href="/master-document">your master document</Link>. To keep a file without a
+              document number, <Link href="/add">add files</Link>.
+            </p>
+          </div>
         ) : (
           <div style={{ display: 'grid', gap: '0.75rem' }}>
             {documents.map((document) => (
@@ -136,7 +137,11 @@ export default async function DocumentsPage({
           background: '#f8fafc',
         }}
       >
-        <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Add draft document</h2>
+        <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Add a controlled document</h2>
+        <p style={{ marginTop: 0, color: '#475569' }}>
+          For a document with a number and a revision. It starts as a draft; adding it approves
+          nothing. For any other file, use <Link href="/add">Add files</Link>.
+        </p>
         <form action={importDocument} style={{ display: 'grid', gap: '0.85rem' }}>
           <input
             type="hidden"

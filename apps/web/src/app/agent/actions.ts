@@ -1,19 +1,10 @@
 'use server';
 
 import { randomUUID } from 'node:crypto';
-import {
-  answerTurn,
-  asksToRecord,
-  draftFromRequest,
-  providerCeiling,
-  readGuide,
-  submitDraft,
-  type FabricClient,
-} from '@kf/agent';
+import { asksToRecord, draftFromRequest, providerCeiling, readGuide, submitDraft } from '@kf/agent';
 import { AGENT_ACTS, agentAct } from '@kf/domain';
-import { webCaller } from '../../lib/session';
-import { backendsFor, loadAgentConfig, sealKey } from '../../lib/agent/config';
-import { DelegationUnavailable, exchangeForAgent, fabricClient } from '../../lib/agent/fabric';
+import { backendsFor, loadAgentConfig } from '../../lib/agent/config';
+import { agentFabric, answerQuestion } from './answer';
 import {
   carriedHistory,
   type ChatEntry,
@@ -42,24 +33,6 @@ function text(form: FormData, name: string): string {
 
 function appended(previous: ChatState, ...entries: ChatEntry[]): ChatState {
   return { entries: [...previous.entries, ...entries].slice(-MAX_ENTRIES) };
-}
-
-/** The agent's view of the Fabric, and whether it holds an agent identity for writing. */
-async function agentFabric(
-  returnTo: string,
-): Promise<{ fabric: FabricClient; delegated: boolean; why?: string }> {
-  const caller = await webCaller(returnTo);
-  const config = loadAgentConfig();
-  try {
-    const bearer = await exchangeForAgent(caller, config);
-    return { fabric: fabricClient(caller, bearer), delegated: true };
-  } catch (error: unknown) {
-    if (error instanceof DelegationUnavailable) {
-      // Reads are the person's own and are recorded as theirs; writing waits for an identity.
-      return { fabric: fabricClient(caller, undefined), delegated: false, why: error.message };
-    }
-    throw error;
-  }
 }
 
 function fieldValue(value: unknown): string {
@@ -125,39 +98,12 @@ async function ask(previous: ChatState, form: FormData): Promise<ChatState> {
     return appended(previous, { kind: 'question', text: question }, draft, ...notice);
   }
 
-  const answer = await answerTurn(
-    { fabric, backends, sealKey: sealKey() },
-    { question, history: carriedHistory(previous.entries) },
+  const entry = await answerQuestion(
+    { fabric, backends, delegated, ...(why === undefined ? {} : { why }) },
+    question,
+    carriedHistory(previous.entries),
   );
-  return appended(
-    previous,
-    { kind: 'question', text: question },
-    {
-      kind: 'answer',
-      status: answer.status,
-      text: answer.text,
-      backend: answer.backend,
-      ...(answer.refusal === undefined ? {} : { refusal: answer.refusal }),
-      citations: answer.citations.map(({ n, recordId, title, classification }) => ({
-        n,
-        recordId,
-        title,
-        classification,
-      })),
-      consulted: answer.consulted.map(({ n, recordId, title, classification }) => ({
-        n,
-        recordId,
-        title,
-        classification,
-      })),
-      withheldCount: answer.withheldCount,
-      semanticRanking: answer.semanticRanking,
-      notes: delegated ? answer.notes : [...answer.notes, `Read as you: ${why ?? ''}`.trim()],
-      classification: answer.classification,
-      guide: answer.guide,
-      seal: answer.seal,
-    },
-  );
+  return appended(previous, { kind: 'question', text: question }, entry);
 }
 
 /** The form's fields as the act takes them: lists split on commas, empty left out. */

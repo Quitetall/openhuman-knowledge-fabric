@@ -1,13 +1,22 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { getSessionContexts, type SessionContexts } from '../../../lib/api';
 import {
   CONTEXT_HINT_COOKIE,
+  CONTEXT_HINT_LIFETIME_SECONDS,
+  decideContext,
   ID_TOKEN_HINT_COOKIE,
+  IDENTITY_LABEL_COOKIE,
+  identityLabel,
   OIDC_TRANSACTION_COOKIE,
+  openIdentityLabel,
   openOidcTransaction,
+  sealContextHint,
+  sealIdentityLabel,
   sealIdTokenHint,
   sealWebSession,
   publicUrl,
   SESSION_COOKIE,
+  type AuthorityContext,
 } from '../../../lib/auth';
 import { resumeChosenContext } from '../../../lib/auth/resume';
 import { discoverOidc, exchangeAuthorizationCode } from '../../../lib/oidc';
@@ -52,7 +61,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const code = request.nextUrl.searchParams.get('code') ?? '';
   try {
     const metadata = await discoverOidc(config);
-    const { session, idToken } = await exchangeAuthorizationCode(
+    const { session, idToken, displayName } = await exchangeAuthorizationCode(
       metadata,
       config,
       transaction,
@@ -67,20 +76,86 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       config.sessionKey,
       (context) => confirmContextWithApi(session, context),
     );
+    let context: AuthorityContext | undefined =
+      resumed.kind === 'resumed' ? resumed.context : undefined;
+    const knownLabel = await openIdentityLabel(
+      request.cookies.get(IDENTITY_LABEL_COOKIE)?.value,
+      config.sessionKey,
+      session.subject,
+    );
+    // The API's menu is read when there is something to decide or nothing to call the person by.
+    // A renewal with a remembered context and label reads nothing more than it did before.
+    let contexts: SessionContexts | undefined;
+    if (context === undefined || knownLabel === undefined) {
+      try {
+        contexts = await getSessionContexts(session.accessToken);
+      } catch {
+        contexts = undefined;
+      }
+    }
+    // Exactly one live assignment: nothing to choose, so it is proposed — at the person's own
+    // clearance — and kept only if the API confirms it exactly as it confirms a picker choice.
+    // Anything else, or any refusal, is the picker (lib/auth/auto-context.ts).
+    let chosenHere = false;
+    if (context === undefined && contexts !== undefined) {
+      const decision = decideContext(contexts);
+      if (
+        decision.kind === 'auto' &&
+        (await confirmContextWithApi(session, decision.context)) === 'confirmed'
+      ) {
+        context = decision.context;
+        chosenHere = true;
+      }
+    }
     const compact = await sealWebSession(
-      resumed.kind === 'resumed' ? { ...session, context: resumed.context } : session,
+      context === undefined ? session : { ...session, context },
       config.sessionKey,
     );
     const hint = await sealIdTokenHint(idToken, session.expiresAt, config.sessionKey);
     let destination: URL;
-    if (resumed.kind === 'resumed') {
+    if (context !== undefined) {
       destination = publicUrl(request, transaction.returnTo);
     } else {
       destination = publicUrl(request, '/session/select');
       destination.searchParams.set('next', transaction.returnTo);
     }
     const response = clearTransaction(NextResponse.redirect(destination));
-    if (resumed.kind === 'choose' && resumed.discardHint) {
+    const rememberedUntil = Math.floor(Date.now() / 1000) + CONTEXT_HINT_LIFETIME_SECONDS;
+    if (chosenHere && context !== undefined) {
+      // Remembered for renewal exactly as a picker choice is (`/auth/context`).
+      response.cookies.set(
+        CONTEXT_HINT_COOKIE,
+        await sealContextHint(
+          { subject: session.subject, ...context },
+          rememberedUntil,
+          config.sessionKey,
+        ),
+        {
+          httpOnly: true,
+          secure: true,
+          sameSite: 'lax',
+          path: '/',
+          expires: new Date(rememberedUntil * 1000),
+        },
+      );
+    }
+    if (contexts !== undefined) {
+      const label = await sealIdentityLabel(
+        identityLabel(session.subject, displayName ?? knownLabel?.personName, contexts),
+        rememberedUntil,
+        config.sessionKey,
+      );
+      if (label !== undefined) {
+        response.cookies.set(IDENTITY_LABEL_COOKIE, label, {
+          httpOnly: true,
+          secure: true,
+          sameSite: 'lax',
+          path: '/',
+          expires: new Date(rememberedUntil * 1000),
+        });
+      }
+    }
+    if (resumed.kind === 'choose' && resumed.discardHint && !chosenHere) {
       response.cookies.set(CONTEXT_HINT_COOKIE, '', {
         httpOnly: true,
         secure: true,

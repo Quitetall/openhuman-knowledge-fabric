@@ -3,15 +3,18 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { Suspense } from 'react';
+import { loadWebIdentityConfig } from '../lib/auth';
 import { DENSITY_COOKIE, parseDensity, type Density } from '../lib/density';
+import { currentWebSession } from '../lib/session';
+import { NeedsYouCount } from './components/needs-you-count';
 import { SessionStatus } from './components/session-status';
 import { setDensity } from './density/actions';
 import './globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'OpenHuman Knowledge Fabric',
-    template: '%s | OpenHuman Knowledge Fabric',
+    default: 'Knowledge Fabric',
+    template: '%s | Knowledge Fabric',
   },
   description: 'Institutional information platform — OH-DOC-000002-1-R01',
 };
@@ -32,9 +35,65 @@ function DensitySwitch({ density }: { readonly density: Density }) {
         aria-label={`Density is ${density}. Switch to ${other}.`}
         data-density-switch={other}
       >
-        {density === 'compact' ? 'Comfortable view' : 'Compact view'}
+        {density === 'compact' ? 'Roomier view' : 'Compact view'}
       </button>
     </form>
+  );
+}
+
+/** A link in the primary navigation. Plain words; every target is a page anyone may open. */
+function NavLink({ href, children }: { readonly href: string; readonly children: ReactNode }) {
+  return (
+    <Link href={href} className="kf-nav-link">
+      {children}
+    </Link>
+  );
+}
+
+/**
+ * The masthead: who is signed in, then where to go. The same links for everyone (KF-SAS-RQ-262):
+ * what each page holds is the API's answer for the person, never the navigation's choice. The
+ * pages a person uses every day come first; the rest wait under "More".
+ */
+async function Masthead({ density }: { readonly density: Density }) {
+  const signedIn =
+    loadWebIdentityConfig().profile === 'development' || (await currentWebSession()) !== undefined;
+  return (
+    <header className="kf-masthead">
+      <div className="kf-masthead-top">
+        <Link href="/" className="kf-wordmark">
+          Knowledge Fabric
+        </Link>
+        <Suspense fallback={<span className="kf-session-status">…</span>}>
+          <SessionStatus />
+        </Suspense>
+      </div>
+      {signedIn ? (
+        <nav aria-label="Primary" className="kf-primary-nav">
+          <NavLink href="/">Home</NavLink>
+          <NavLink href="/agent">Ask</NavLink>
+          <NavLink href="/search">Search</NavLink>
+          <NavLink href="/add">Add files</NavLink>
+          <NavLink href="/capture">Quick note</NavLink>
+          <Link href="/needs-you" className="kf-nav-link">
+            Needs you
+            <Suspense fallback={null}>
+              <NeedsYouCount />
+            </Suspense>
+          </Link>
+          <details className="kf-more-menu">
+            <summary className="kf-nav-link">More</summary>
+            <div className="kf-more-list">
+              <Link href="/master-document">Your master document</Link>
+              <Link href="/documents">Controlled documents</Link>
+              <Link href="/ml/runs">ML runs</Link>
+              <Link href="/status">Service status</Link>
+              <DensitySwitch density={density} />
+            </div>
+          </details>
+        </nav>
+      ) : null}
+    </header>
   );
 }
 
@@ -43,38 +102,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     <html lang="en" data-density={density}>
       <body>
-        <header className="kf-masthead">
-          <nav aria-label="Primary" className="kf-primary-nav">
-            <Link href="/" className="kf-wordmark">
-              OpenHuman Knowledge Fabric
-            </Link>
-            <Link href="/master-document" className="kf-nav-link">
-              Master document
-            </Link>
-            <Link href="/documents" className="kf-nav-link">
-              Documents
-            </Link>
-            <Link href="/search" className="kf-nav-link">
-              Search
-            </Link>
-            <Link href="/capture" className="kf-nav-link">
-              Capture
-            </Link>
-            <Link href="/agent" className="kf-nav-link">
-              Agent
-            </Link>
-            <Link href="/ml/runs" className="kf-nav-link">
-              ML runs
-            </Link>
-            <Link href="/status" className="kf-nav-link">
-              Status
-            </Link>
-            <DensitySwitch density={density} />
-            <Suspense fallback={<span className="kf-session-status">Identity…</span>}>
-              <SessionStatus />
-            </Suspense>
-          </nav>
-        </header>
+        <Masthead density={density} />
         {children}
       </body>
     </html>

@@ -209,6 +209,16 @@ describe('finding things', () => {
     expect(hits.map((x) => x.title)).toContain('Leakage current above specification');
   });
 
+  it('describes each hit by when it changed and a passage of its own text around the words', async () => {
+    const hits = await search(h.pool, restricted(), { text: 'single fault' });
+    const hit = hits.find((x) => x.title === 'Leakage current above specification');
+    expect(hit?.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    // The passage is the record's indexed text, cut to the words asked about, collapsed, bounded.
+    expect(hit?.excerpt?.toLowerCase()).toContain('single fault');
+    expect(hit?.excerpt?.length ?? 0).toBeLessThanOrEqual(280);
+    expect(hit?.excerpt).not.toMatch(/\s{2,}/);
+  });
+
   it('finds a PARTIAL identifier, which full text cannot do at all', async () => {
     // A tokeniser splits CNB-2201 in ways nobody expects, which is why trigram is here.
     const hits = await search(h.pool, restricted(), { text: 'CNB-22' });
