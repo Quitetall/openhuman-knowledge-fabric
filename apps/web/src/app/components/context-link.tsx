@@ -11,5 +11,5 @@ export function ContextLink() {
   const returnTo = query === '' ? pathname : `${pathname}?${query}`;
   const target = new URLSearchParams({ next: returnTo });
 
-  return <Link href={`/session/select?${target}`}>Change context</Link>;
+  return <Link href={`/session/select?${target}`}>Switch role or organization</Link>;
 }

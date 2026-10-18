@@ -70,7 +70,7 @@ async function signIn(browser, web, person, context, strangers) {
   assert.equal(await radio.count(), 1, `${person.username}'s assignment is offered`);
   await radio.check();
   await own.locator('select[name="maxClassification"]').selectOption(person.clearance);
-  await own.getByRole('button', { name: 'Validate with KF API', exact: true }).click();
+  await own.getByRole('button', { name: 'Continue', exact: true }).click();
   await p.waitForURL(`${web}/search**`);
   return { ctx, page: p };
 }

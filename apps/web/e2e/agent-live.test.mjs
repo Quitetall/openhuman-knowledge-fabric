@@ -136,7 +136,7 @@ async function signIn(browser, username, secret) {
     const radios = picker.locator('input[type="radio"][name="actingRoleId"]');
     const checked = picker.locator('input[type="radio"][name="actingRoleId"]:checked');
     if ((await checked.count()) === 0) await radios.first().check();
-    await picker.getByRole('button', { name: 'Validate with KF API', exact: true }).click();
+    await picker.getByRole('button', { name: 'Continue', exact: true }).click();
     await page.waitForURL(`${WEB}/agent**`);
   }
   return { context, page };

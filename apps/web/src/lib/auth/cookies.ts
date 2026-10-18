@@ -1,5 +1,6 @@
 import { EncryptJWT, jwtDecrypt, type JWTPayload } from 'jose';
 import { validateContextSelection } from './context';
+import type { IdentityLabel } from './identity-label';
 import {
   MAX_WEB_COOKIE_VALUE_BYTES,
   type AuthorityContext,
@@ -9,7 +10,11 @@ import {
 } from './types';
 
 type CookieKind =
-  'kf-web-session-v1' | 'kf-oidc-transaction-v1' | 'kf-id-token-hint-v1' | 'kf-context-hint-v1';
+  | 'kf-web-session-v1'
+  | 'kf-oidc-transaction-v1'
+  | 'kf-id-token-hint-v1'
+  | 'kf-context-hint-v1'
+  | 'kf-identity-label-v1';
 
 async function seal(
   kind: CookieKind,
@@ -227,4 +232,53 @@ export async function openContextHint(
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Seal the header's display label (`identity-label.ts`), or return undefined when it will not fit:
+ * a person whose menu is too long for a cookie is labelled generically, and signs in all the same.
+ */
+export async function sealIdentityLabel(
+  label: IdentityLabel,
+  expiresAt: number,
+  key: Uint8Array,
+): Promise<string | undefined> {
+  const compact = await seal(
+    'kf-identity-label-v1',
+    label as unknown as Readonly<Record<string, unknown>>,
+    expiresAt,
+    key,
+  );
+  return Buffer.byteLength(compact, 'utf8') > MAX_WEB_COOKIE_VALUE_BYTES ? undefined : compact;
+}
+
+/** Open the label for `subject`, or return undefined: another person's label is never shown. */
+export async function openIdentityLabel(
+  compact: string | undefined,
+  key: Uint8Array,
+  subject: string,
+): Promise<IdentityLabel | undefined> {
+  const envelope = await open(compact, 'kf-identity-label-v1', key);
+  const data = envelope?.['data'];
+  if (typeof data !== 'object' || data === null) return undefined;
+  const value = data as Record<string, unknown>;
+  const pairs = (list: unknown, a: string, b: string): boolean =>
+    Array.isArray(list) &&
+    list.every(
+      (entry: unknown) =>
+        typeof entry === 'object' &&
+        entry !== null &&
+        typeof (entry as Record<string, unknown>)[a] === 'string' &&
+        typeof (entry as Record<string, unknown>)[b] === 'string',
+    );
+  if (
+    subject === '' ||
+    value['subject'] !== subject ||
+    !(value['personName'] === null || typeof value['personName'] === 'string') ||
+    !pairs(value['organizations'], 'id', 'name') ||
+    !pairs(value['assignments'], 'id', 'roleId')
+  ) {
+    return undefined;
+  }
+  return value as unknown as IdentityLabel;
 }

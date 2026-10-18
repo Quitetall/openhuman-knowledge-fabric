@@ -179,6 +179,21 @@ export interface AuthenticatedLogin {
   readonly session: WebSession;
   /** Sent back as `id_token_hint` so logout ends the provider session without a prompt. */
   readonly idToken: string;
+  /**
+   * What the provider calls the person (`name`, else `preferred_username`), for the header only.
+   * Never authority: who the person is in KF is the subject, resolved by the API.
+   */
+  readonly displayName?: string;
+}
+
+function displayNameOf(payload: JWTPayload): string | undefined {
+  for (const claim of ['name', 'preferred_username']) {
+    const value = payload[claim];
+    if (typeof value === 'string' && value.trim() !== '' && value.length <= 200) {
+      return value.trim();
+    }
+  }
+  return undefined;
 }
 
 export async function exchangeAuthorizationCode(
@@ -233,6 +248,7 @@ export async function exchangeAuthorizationCode(
   // No refresh token is retained. Dogfood session cannot outlive access token and is capped at
   // eight hours even if a provider is misconfigured with an unexpectedly long lifetime.
   const lifetime = Math.min(expiresIn as number, 8 * 60 * 60);
+  const displayName = displayNameOf(verified.payload);
   return {
     session: {
       version: 1,
@@ -241,6 +257,7 @@ export async function exchangeAuthorizationCode(
       expiresAt: nowSeconds + lifetime,
     },
     idToken,
+    ...(displayName === undefined ? {} : { displayName }),
   };
 }
 

@@ -5,7 +5,8 @@
  * The living organization overview stands at its head when the reader's grants reach it; then one
  * section per record type of the compiled claim, a page at a time. The API re-reads every item
  * live, so a record whose grant was revoked after compiling is not shown here — only counted.
- * Compiling is an act, asked for with a button, never done by reading the page.
+ * Compiling is an act, never done by rendering the page: on a first visit with nothing compiled the
+ * person's browser sends it (`AutoCompile`), and afterwards "Refresh" does.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -16,6 +17,7 @@ import { webCaller } from '../../lib/session';
 import { ClaimSummary, OverviewBody, RecordList } from '../components/dashboard/panels';
 import { PendingButton } from '../components/pending-button';
 import { compileNow } from './actions';
+import { AutoCompile } from './auto-compile';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Master document' };
@@ -24,9 +26,9 @@ const TYPE = /^[a-z][a-z0-9_]{0,63}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const OUTCOME: Readonly<Record<string, string>> = {
-  compiled: 'Compiled. This is your scope as it stands now.',
-  unchanged: 'Nothing had changed: your existing compilation is current.',
-  refused: 'The compilation was refused. Your context may have changed; sign in again.',
+  compiled: 'Up to date: this is everything you can see, as it stands now.',
+  unchanged: 'Nothing had changed since it was last put together.',
+  refused: 'It couldn’t be put together just now. Sign in again and press Refresh.',
 };
 
 function Section({ section }: { readonly section: MasterDocumentSection }) {
@@ -75,29 +77,38 @@ export default async function MasterDocumentPage({
     ...(after === undefined ? {} : { after }),
   });
   const key = `web-compile-${randomUUID()}`;
+  // Only a first visit compiles by itself: after any outcome (even a refusal) the person decides.
+  const autoCompile =
+    document.claim.status === 'missing' && type === undefined && compiled === undefined;
   return (
     <main className="kf-page kf-page-reading">
       <header className="kf-doc-header">
         <h1 className="kf-title">Your master document</h1>
-        <p className="kf-lede">
-          Everything you are granted in this organization, compiled into one record. Nothing else
-          goes into it.
-        </p>
+        <p className="kf-lede">Everything you can see in this organization, in one document.</p>
         {compiled === undefined ? null : (
           <p role="status" className="kf-notice">
             {compiled}
           </p>
         )}
-        <ClaimSummary claim={document.claim} />
-        {document.claim.status === 'compiled' ? (
-          <p className="kf-muted kf-digest">
-            Corpus digest <code>{document.claim.corpusDigest.slice(0, 16)}</code>
-          </p>
-        ) : null}
-        <form action={compileNow} className="kf-inline-form">
-          <input type="hidden" name="idempotencyKey" value={key} />
-          <PendingButton pendingLabel="Compiling…">Compile now</PendingButton>
-        </form>
+        {autoCompile ? (
+          <AutoCompile idempotencyKey={key} />
+        ) : (
+          <>
+            <ClaimSummary claim={document.claim} />
+            <form action={compileNow} className="kf-inline-form">
+              <input type="hidden" name="idempotencyKey" value={key} />
+              <PendingButton pendingLabel="Refreshing…">Refresh</PendingButton>
+            </form>
+            {document.claim.status === 'compiled' ? (
+              <details className="kf-explainer">
+                <summary>Details</summary>
+                <p className="kf-muted kf-digest">
+                  Corpus digest <code>{document.claim.corpusDigest.slice(0, 16)}</code>
+                </p>
+              </details>
+            ) : null}
+          </>
+        )}
       </header>
 
       {type === undefined && document.overview !== null ? (

@@ -114,15 +114,42 @@ describe('the search page renders the composed answer, not just the hits', () =>
     expect(list(render(withThem, true), 'semantic')).not.toContain('Near miss record');
   });
 
-  it('states the withheld count in ADR 0037 terms, and nothing when there is none', () => {
+  it('states the withheld count in ADR 0037 terms, in plain words, and nothing when there is none', () => {
     const html = render(response({ withheldCount: 2 }));
     expect(html).toContain('data-withheld-count="2"');
-    expect(html).toContain(
-      '2 more matching records are within your clearance but not granted to you',
-    );
-    expect(html).toContain('Nothing above your clearance is counted.');
+    expect(html).toContain('2 more matching records exist that you don’t have access to');
+    expect(html).toContain('Records marked above what you can see are never counted.');
     expect(render(response())).not.toContain('data-withheld-count');
-    expect(withheldCountSentence(1)).toMatch(/^1 more matching record is within your clearance/);
+    expect(withheldCountSentence(1)).toMatch(/^1 more matching record exists that you don’t/);
+    // A rule, not decoration: never inside a fold.
+    const at = html.indexOf('data-withheld-count');
+    expect(html.lastIndexOf('<details', at)).toBe(-1);
+  });
+
+  it('shows each result as a card: title, kind, state, verification, date and a passage', () => {
+    const dated = {
+      ...fusedExact,
+      updatedAt: '2026-10-03T09:15:00.000Z',
+      excerpt: 'The torque on bench 2 drifted by four percent.',
+    };
+    const html = render(response({ ranked: { ranking: FUSED, hits: [dated] } }));
+    const card = list(html, 'ranked');
+    expect(card).toContain('Exact match record');
+    expect(card).toContain('Decision record');
+    expect(card).toContain('accepted');
+    expect(card).toContain('data-state="unverified"');
+    expect(card).toContain('Updated 3 Oct 2026');
+    expect(card).toContain('The torque on bench 2 drifted by four percent.');
+    expect(card).toContain('Everyone in the company');
+  });
+
+  it('keeps the ranking formula inside the folded "How this was ranked", never above the results', () => {
+    const html = render(response({ semantic: { ranking: SEMANTIC, hits: [related] } }));
+    const formula = html.indexOf(FUSED);
+    const fold = html.lastIndexOf('<details', formula);
+    expect(fold).toBeGreaterThan(-1);
+    expect(html.slice(fold, formula)).toContain('How this was ranked');
+    expect(html.indexOf('Exact match record')).toBeLessThan(fold);
   });
 
   it('says the semantic ranking is unavailable, with the reason, when the engine could not rank', () => {

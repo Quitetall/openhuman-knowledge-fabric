@@ -5,7 +5,7 @@ import { webCaller } from '../../lib/session';
 import { CaptureForm } from './capture-form';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Capture' };
+export const metadata: Metadata = { title: 'Quick note' };
 
 /**
  * `/capture` — note something down (ADR 0024, ADR 0034). The page resolves the caller first, so a
@@ -14,18 +14,12 @@ export const metadata: Metadata = { title: 'Capture' };
 export default async function CapturePage() {
   const caller = await webCaller('/capture');
   return (
-    <main style={{ maxWidth: '72rem', margin: '0 auto', padding: '2.5rem 1.5rem 5rem' }}>
-      <div style={{ maxWidth: '52rem' }}>
-        <p style={{ color: '#64748b', margin: 0, fontSize: '0.85rem', letterSpacing: '0.04em' }}>
-          ONE GESTURE, ONE OBSERVATION
-        </p>
-        <h1 style={{ margin: '0.25rem 0 0.5rem', fontSize: '2rem' }}>Capture an observation</h1>
-        <p style={{ color: '#475569', marginTop: 0 }}>
-          Recorded as you, under your selected role, the moment you submit. It stays unverified
-          until somebody else checks it, and becomes a controlled record only when somebody with
-          authority promotes it. A photo or voice note you attach is stored as evidence on it.
-        </p>
-      </div>
+    <main className="kf-page kf-page-narrow">
+      <h1 className="kf-title">Quick note</h1>
+      <p className="kf-lede">
+        Write down what you saw or did, with a photo or voice note if it helps. It is saved as you,
+        and someone else checks it later.
+      </p>
       <CaptureForm
         gestureId={randomUUID()}
         classifications={classificationsUpTo(caller.maxClassification)}

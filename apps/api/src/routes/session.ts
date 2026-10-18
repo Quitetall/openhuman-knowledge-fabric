@@ -29,10 +29,14 @@
  *   422      { error: 'no_live_assignment' }        — nothing to choose anywhere
  *   401/503  as `GET /session/assignments`
  *
- * It chooses nothing and saves nothing. The context is still selected by the person and
- * validated by the API before the web application keeps it; a person with one assignment still
- * says so. Deriving the assignment here uses the capture route's path (ADR 0034 §2): the person's
- * only one, or a refusal listing them, which this route turns into the list.
+ * It chooses nothing and saves nothing. A context is validated by the API before the web
+ * application keeps it. The web application proposes the only assignment of a person who holds
+ * exactly one, at their clearance, and keeps it only if that validation confirms it
+ * (apps/web/src/lib/auth/auto-context.ts); everyone else selects. This previously read "a person
+ * with one assignment still says so", which stopped being true when the web stopped asking a
+ * person who has nothing to choose. Deriving the assignment here uses the capture route's path
+ * (ADR 0034 §2): the person's only one, or a refusal listing them, which this route turns into
+ * the list.
  */
 
 import type { FastifyInstance } from 'fastify';
