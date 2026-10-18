@@ -75,6 +75,29 @@ on `main` from the older live VM and the owner-controlled commissioning steps.
 
 ## Getting started
 
+Install once: `pnpm kf:install-launcher` — then click **Knowledge Fabric** in your applications
+menu.
+
+The first click opens a page in your browser that asks for your organization's name, your name,
+a username and a password, and optionally a folder of files to add. It then sets everything up
+(several minutes the first time), and takes you to the sign-in and your Home. Every later click
+opens Home, starting Knowledge Fabric first if it is stopped. It runs only on this computer.
+[`docs/workspace.md`](docs/workspace.md) says what it creates and how to remove it.
+
+Requires Linux with a desktop, Docker with Compose v2, Node 24.18.1 and pnpm 11.
+
+For scripts, the same workspace from the command line:
+
+```sh
+pnpm kf:start -- --organization "Acme Engineering" --name "Ada Lovelace" --username ada \
+                 [--email ada@example.com] [--import <folder>]
+pnpm kf:status
+pnpm kf:stop
+pnpm kf:reset -- --yes
+```
+
+### By hand
+
 ```sh
 pnpm install
 cp .env.example .env                                  # then set KF_ORGANIZATION_LEGAL_NAME in it
@@ -86,8 +109,6 @@ pnpm dev                                              # api :4000, web :3000, wo
 ```
 
 Then open <http://localhost:3000/documents>.
-
-Requires Node 24.18.1, pnpm 11, and Docker with Compose v2.
 [`docs/onboarding.md`](docs/onboarding.md) is the same path with the traps written down.
 
 ## The command line
@@ -100,6 +121,7 @@ kf bootstrap-organization --legal-name "..." --person "..."
 kf grant-authority --person <uuid> --role <id> --clearance <id> --reason "..." [--valid-to <date>] [--renew]
 kf retire-organization --organization <uuid> --decided-by <uuid> --reason "..."
 kf revoke-identity --issuer <url> --subject <sub> --revoked-by <uuid> --reason "..."
+kf workspace start|stop|status|reset ...
 ```
 
 `scripts/install-kf.sh` puts `kf` on your path.
