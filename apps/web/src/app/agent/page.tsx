@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { webCaller } from '../../lib/session';
+import { NoModelNotice } from '../components/no-model-notice';
 import { AgentChat } from './agent-chat';
+import { answeringModelConfigured } from './answer';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Ask' };
@@ -19,6 +21,7 @@ export default async function AgentPage() {
         Ask about anything you can see. Each answer lists its sources. Say “record that …” and it
         fills in the form for you to check; nothing is saved until you do.
       </p>
+      {answeringModelConfigured() ? null : <NoModelNotice withResults={false} />}
       <AgentChat returnTo="/agent" />
     </main>
   );

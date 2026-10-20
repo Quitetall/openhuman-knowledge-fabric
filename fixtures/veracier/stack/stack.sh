@@ -5,6 +5,7 @@
 #   fixtures/veracier/stack/stack.sh up       # dependencies, migrations, logins, realm, apps
 #   fixtures/veracier/stack/stack.sh load     # load the fixture (--sample: ~80 documents), restart
 #   fixtures/veracier/stack/stack.sh restart  # restart the applications (logins kept)
+#   fixtures/veracier/stack/stack.sh web-restart  # restart the web application alone
 #   fixtures/veracier/stack/stack.sh resume   # after `down` or a reboot: start the containers and
 #                                             # whatever application is stopped; no migration, no
 #                                             # build, no re-keyed login (scripts/workspace uses it)
@@ -385,6 +386,32 @@ stop_retrieval() {
   done
 }
 
+# The web application. It inherits this script's environment, so the KF_AGENT_* the caller set
+# (scripts/workspace/answers.mjs agentEnv) reach it; the key itself never does, only its file.
+start_web() { # start_web <organization>
+  NODE_ENV=production KF_DEPLOYMENT_PROFILE=dogfood KF_API_URL="http://127.0.0.1:$KF_STACK_API_PORT" \
+    KF_WEB_OIDC_ISSUER="$OIDC_ISSUER" KF_WEB_OIDC_CLIENT_ID='knowledge-fabric-web' \
+    KF_WEB_OIDC_REDIRECT_URI="$web_origin/auth/callback" \
+    KF_WEB_SESSION_SECRET_FILE="$state/web-session-secret" \
+    KF_WEB_ORGANIZATION="$1" \
+    start_process web "$repo/apps/web" node_modules/.bin/next start --hostname 127.0.0.1 \
+    --port "$KF_STACK_WEB_PORT"
+}
+
+# Restart the web application alone (a changed AI answers choice): the API, worker, attestor,
+# retrieval and containers keep running.
+web_restart() {
+  if [ ! -f "$state/keycloak-admin-password" ]; then
+    echo "no stack in $state; run up first" >&2
+    return 1
+  fi
+  install -d -m 0700 "$state" "$logs" "$run"
+  if pidfile_stop "$run/web.pid" web 200; then echo '  stopped web'; fi
+  app_env
+  start_web "$(fixture_organization)"
+  wait_for 'web' 60 curl -sf -o /dev/null "http://127.0.0.1:$KF_STACK_WEB_PORT/"
+}
+
 start_apps() {
   if ! start_retrieval; then
     echo "  !! semantic ranking did NOT start (see $logs/embed.log, $logs/retrieval.log);" >&2
@@ -415,13 +442,7 @@ start_apps() {
   NODE_ENV=development KF_DEPLOYMENT_PROFILE=dogfood DATABASE_URL_FILE="$files/worker-database-url" \
     KF_EMBEDDING_CONCURRENCY="${KF_EMBEDDING_CONCURRENCY:-4}" \
     start_process worker "$repo" node apps/worker/dist/main.js
-  NODE_ENV=production KF_DEPLOYMENT_PROFILE=dogfood KF_API_URL="http://127.0.0.1:$KF_STACK_API_PORT" \
-    KF_WEB_OIDC_ISSUER="$OIDC_ISSUER" KF_WEB_OIDC_CLIENT_ID='knowledge-fabric-web' \
-    KF_WEB_OIDC_REDIRECT_URI="$web_origin/auth/callback" \
-    KF_WEB_SESSION_SECRET_FILE="$state/web-session-secret" \
-    KF_WEB_ORGANIZATION="$organization" \
-    start_process web "$repo/apps/web" node_modules/.bin/next start --hostname 127.0.0.1 \
-    --port "$KF_STACK_WEB_PORT"
+  start_web "$organization"
   wait_for 'API' 60 curl -sf "http://127.0.0.1:$KF_STACK_API_PORT/health"
   wait_for 'web' 60 curl -sf -o /dev/null "http://127.0.0.1:$KF_STACK_WEB_PORT/"
   if [ -z "$organization" ]; then
@@ -497,6 +518,7 @@ case "$command" in
     stop_apps
     start_apps
     ;;
+  web-restart) web_restart ;;
   retrieval)
     install -d -m 0700 "$state" "$logs" "$run"
     start_retrieval
@@ -507,7 +529,7 @@ case "$command" in
   status) status ;;
   reset) reset ;;
   *)
-    echo "usage: $0 up|resume|load [--sample]|restart|retrieval|reindex|agent-client <id>|down|status|reset" >&2
+    echo "usage: $0 up|resume|load [--sample]|restart|web-restart|retrieval|reindex|agent-client <id>|down|status|reset" >&2
     exit 2
     ;;
 esac

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { answeredBy } from '../../lib/agent/answers-setting';
 import type { AnswerEntry } from '../agent/state';
 
 /**
@@ -43,11 +44,12 @@ export function AnswerCard({ entry }: { readonly entry: AnswerEntry }) {
         </p>
       )}
       <p className="kf-answer-backend" data-backend={entry.backend?.kind ?? 'none'}>
-        {entry.backend === null
-          ? 'No model wrote this; nothing was sent to one.'
-          : entry.backend.kind === 'on_host'
-            ? `Written by ${entry.backend.name}, running on this server.`
-            : `Written by ${entry.backend.name}, an outside service, which may only see records like these.`}
+        {answeredBy(entry.backend)}
+        {entry.backend?.kind === 'provider'
+          ? '. A cloud model is only ever sent records cleared to leave this computer.'
+          : entry.backend === null
+            ? ''
+            : '.'}
       </p>
       {entry.notes.length === 0 ? null : (
         <details className="kf-explainer">

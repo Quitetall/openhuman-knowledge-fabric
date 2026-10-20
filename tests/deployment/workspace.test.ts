@@ -8,11 +8,17 @@
  * environment and no output line; and that the launcher's local page answers only on loopback,
  * only with its token, only to its own Host and Origin, and only once at a time.
  *
+ * AI answers (scripts/workspace/answers.mjs): what each choice starts the web application with;
+ * that a cloud model's API key, planted as a sentinel, lands in a 0600 file and in no argv, no
+ * environment, no output line, no saved record and no response; that "on this computer" says
+ * plainly when no model runs here; that a change restarts the web application alone; and that
+ * no choice asks for a provider ceiling above `internal`.
+ *
  * NOT covered here: the stack script itself (tests/deployment/stack-pidfile.test.ts covers its
  * pidfiles), the real bootstrap against PostgreSQL and Keycloak, and the browser. Those were run
  * live (the commit message records it); this file pins the decisions that make them safe.
  */
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { request as httpRequest } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -32,11 +38,21 @@ import {
   workspacePaths,
 } from '../../scripts/workspace/plan.mjs';
 import {
+  applyAnswers,
+  answersState,
   resetWorkspace,
   startWorkspace,
+  type EngineDeps,
   type Run,
   type RunOptions,
 } from '../../scripts/workspace/engine.mjs';
+import {
+  ANSWER_CHOICES,
+  agentEnv,
+  answersPaths,
+  answersProblems,
+  ceilingFor,
+} from '../../scripts/workspace/answers.mjs';
 import { createLauncherServer } from '../../scripts/workspace/server.mjs';
 import { acquireLock, lockHolder } from '../../scripts/workspace/lock.mjs';
 import { desktopEntry, execArg, recordedPath } from '../../scripts/workspace/install-launcher.mjs';
@@ -427,7 +443,7 @@ describe('the launcher page', () => {
   };
 
   async function launcher() {
-    const started: Record<string, string | undefined>[] = [];
+    const started: Record<string, unknown>[] = [];
     const logged: string[] = [];
     const app = createLauncherServer({
       token,
@@ -544,5 +560,378 @@ describe('the desktop entry', () => {
     expect(recordedPath('/r/node_modules/.bin:/usr/bin:/r/x/node_modules/y/bin:/bin')).toBe(
       '/usr/bin:/bin',
     );
+  });
+
+  it('offers "AI answers" as the icon’s action, running the launcher with `ai`', () => {
+    const entry = desktopEntry({ node: '/usr/bin/node', launcher: '/r/l.mjs', icon: '/i.svg' });
+    expect(entry).toContain('Actions=ai-answers;\n');
+    expect(entry).toContain('[Desktop Action ai-answers]\nName=AI answers\n');
+    expect(entry).toContain('Exec="/usr/bin/node" "/r/l.mjs" ai\n');
+  });
+});
+
+// ── AI answers ──────────────────────────────────────────────────────────────────────────────────
+
+/** Looks like nothing a secret scanner knows, and appears nowhere else in this repository. */
+const SENTINEL_KEY = 'kf-sentinel-provider-key-9c41e07b2d';
+const OLLAMA = 'http://127.0.0.1:11434';
+
+/** A model server on this computer offering `models`, or none at all. */
+function modelsHere(models: readonly string[] | undefined): NonNullable<EngineDeps['listModels']> {
+  return (url) =>
+    Promise.resolve(
+      models !== undefined && url === OLLAMA ? { answering: true, models } : undefined,
+    );
+}
+
+const runningStatus = ['attestor', 'api', 'worker', 'web']
+  .map((n) => `  ${n}  running  pid 1`)
+  .join('\n');
+
+function bootstrapped(): void {
+  const paths = workspacePaths(home);
+  mkdirSync(paths.state, { recursive: true, mode: 0o700 });
+  writeFileSync(
+    paths.record,
+    `${JSON.stringify({ identity: { organization: 'Acme' }, stackInitialized: true, bootstrapped: true })}\n`,
+    { mode: 0o600 },
+  );
+}
+
+describe('AI answers: what each choice starts the web application with', () => {
+  const keyFile = '/state/provider-api-key';
+
+  it('maps every choice to the KF_AGENT_* the web application reads, naming the key by file only', () => {
+    expect(agentEnv(null, { keyFile })).toEqual({ KF_AGENT_PROVIDER: 'none' });
+    expect(agentEnv({ choice: 'off' }, { keyFile })).toEqual({ KF_AGENT_PROVIDER: 'none' });
+    expect(
+      agentEnv({ choice: 'on_host', onHost: { url: OLLAMA, model: 'qwen3' } }, { keyFile }),
+    ).toEqual({
+      KF_AGENT_PROVIDER: 'none',
+      KF_AGENT_LAMU_URL: OLLAMA,
+      KF_AGENT_LAMU_MODEL: 'qwen3',
+    });
+    const anthropic = {
+      provider: 'anthropic',
+      name: 'Anthropic',
+      transport: 'anthropic' as const,
+      model: 'claude-sonnet-5',
+    };
+    expect(agentEnv({ choice: 'cloud', cloud: anthropic }, { keyFile })).toEqual({
+      KF_AGENT_PROVIDER: 'anthropic',
+      KF_AGENT_PROVIDER_KEY_FILE: keyFile,
+      KF_AGENT_PROVIDER_MODEL: 'claude-sonnet-5',
+    });
+    const openai = {
+      provider: 'openai',
+      name: 'OpenAI',
+      transport: 'openai_compatible' as const,
+      model: 'gpt-5',
+      baseUrl: 'https://api.openai.com/v1',
+    };
+    expect(
+      agentEnv(
+        { choice: 'both', onHost: { url: OLLAMA, model: 'qwen3' }, cloud: openai },
+        { keyFile },
+      ),
+    ).toEqual({
+      KF_AGENT_PROVIDER: 'openai_compatible',
+      KF_AGENT_PROVIDER_BASE_URL: 'https://api.openai.com/v1',
+      KF_AGENT_PROVIDER_NAME: 'OpenAI',
+      KF_AGENT_PROVIDER_KEY_FILE: keyFile,
+      KF_AGENT_PROVIDER_MODEL: 'gpt-5',
+      KF_AGENT_LAMU_URL: OLLAMA,
+      KF_AGENT_LAMU_MODEL: 'qwen3',
+      KF_AGENT_PREFER: 'provider',
+    });
+  });
+
+  it('refuses an "on this computer" model that is not on this computer', () => {
+    expect(() =>
+      agentEnv({ choice: 'on_host', onHost: { url: 'http://192.168.1.5:11434' } }, { keyFile }),
+    ).toThrow(WorkspaceError);
+  });
+
+  it('never asks the organization for a ceiling above internal', () => {
+    const asked = ANSWER_CHOICES.map((choice) => ceilingFor(choice));
+    expect(asked).toEqual([undefined, 'none', 'internal', 'internal']);
+    for (const ceiling of asked) {
+      expect(['confidential', 'restricted', 'public']).not.toContain(ceiling);
+    }
+  });
+
+  it('a stack call never inherits a shell’s KF_AGENT_* or ANTHROPIC_* variables', () => {
+    const env = stackEnv(
+      {
+        KF_AGENT_PROVIDER: 'anthropic',
+        KF_AGENT_LAMU_URL: 'http://127.0.0.1:9',
+        ANTHROPIC_API_KEY: SENTINEL_KEY,
+        ANTHROPIC_BASE_URL: 'https://elsewhere.example',
+        HOME: '/h',
+      },
+      { state: '/s', agent: { KF_AGENT_PROVIDER: 'none' } },
+    );
+    expect(env.KF_AGENT_PROVIDER).toBe('none');
+    expect(env.KF_AGENT_LAMU_URL).toBeUndefined();
+    expect(env.ANTHROPIC_API_KEY).toBeUndefined();
+    expect(env.ANTHROPIC_BASE_URL).toBeUndefined();
+    expect(env.HOME).toBe('/h');
+  });
+
+  it('says plainly when no model runs on this computer, and checks a cloud model’s form', () => {
+    expect(
+      answersProblems(
+        { choice: 'on_host' },
+        { onHost: { reason: 'No model is running on this computer' } },
+      )[0],
+    ).toMatch(/^No model is running on this computer\. Start one/);
+    expect(
+      answersProblems({ choice: 'cloud', cloud: { provider: 'anthropic' } }, { onHost: undefined }),
+    ).toEqual(['Paste the API key for the cloud model.']);
+    // A key saved for one provider is not reused for another.
+    expect(
+      answersProblems(
+        { choice: 'cloud', cloud: { provider: 'openai', model: 'gpt-5' } },
+        { keyOnFile: 'anthropic' },
+      ),
+    ).toEqual(['Paste the API key for the cloud model.']);
+    const other = answersProblems(
+      {
+        choice: 'cloud',
+        key: SENTINEL_KEY,
+        cloud: { provider: 'other', model: 'm', baseUrl: 'http://api.example.com/v1' },
+      },
+      {},
+    );
+    expect(other).toEqual(['Type the provider’s address; it starts with https://.']);
+    const badKey = answersProblems(
+      { choice: 'cloud', key: 'has a space in it 0123456789', cloud: { provider: 'anthropic' } },
+      {},
+    );
+    expect(badKey).toEqual(['That does not look like an API key (one line, no spaces).']);
+  });
+});
+
+describe('AI answers: the key reaches one 0600 file and nothing else', () => {
+  it('from the setup page: saved before the first start, which already has it', async () => {
+    const machine = fakeMachine();
+    const lines: string[] = [];
+    const aligned: string[] = [];
+    const bootstrap = fakeBootstrap({ passwords: [] });
+    const result = await startWorkspace(
+      {
+        organization: 'Acme Engineering',
+        name: 'Ada Example',
+        username: 'ada',
+        password: 'typed-into-the-page-0123',
+        answers: {
+          choice: 'cloud',
+          key: SENTINEL_KEY,
+          cloud: { provider: 'mistral', model: 'mistral-large-latest' },
+        },
+      } as unknown as Record<string, string | undefined>,
+      {
+        home,
+        env: {},
+        run: machine.run,
+        probe: () => Promise.resolve(true),
+        listModels: modelsHere(undefined),
+        log: (l) => lines.push(l),
+        step: (_, l) => lines.push(l),
+        loadBootstrap: async () => ({
+          ...((await bootstrap()) as object),
+          alignModelRouting: ({ ceiling }: { ceiling: string }) => {
+            aligned.push(ceiling);
+            return Promise.resolve(`set to ${ceiling}`);
+          },
+        }),
+      },
+    );
+    const { state } = workspacePaths(home);
+    const files = answersPaths(state);
+    expect(statSync(files.keyFile).mode & 0o777).toBe(0o600);
+    expect(readFileSync(files.keyFile, 'utf8')).toBe(`${SENTINEL_KEY}\n`);
+    expect(statSync(state).mode & 0o777).toBe(0o700);
+    // The organization's routing, matched to the choice, as the founder's act: internal at most.
+    expect(aligned).toEqual(['internal']);
+    const up = machine.calls.find((c) => c.command === 'bash' && c.args[1] === 'up');
+    expect(up?.env).toMatchObject({
+      KF_AGENT_PROVIDER: 'openai_compatible',
+      KF_AGENT_PROVIDER_NAME: 'Mistral',
+      KF_AGENT_PROVIDER_BASE_URL: 'https://api.mistral.ai/v1',
+      KF_AGENT_PROVIDER_KEY_FILE: files.keyFile,
+    });
+    const everything = JSON.stringify({
+      calls: machine.calls,
+      lines,
+      record: result.record,
+      saved: readFileSync(files.settings, 'utf8'),
+    });
+    expect(everything).not.toContain(SENTINEL_KEY);
+  });
+
+  it('from the AI answers page: saved, the web application alone restarted, nothing echoed', async () => {
+    bootstrapped();
+    const machine = fakeMachine({ status: runningStatus });
+    const lines: string[] = [];
+    const deps: EngineDeps = {
+      home,
+      env: { ANTHROPIC_API_KEY: 'inherited-from-the-shell-000000' },
+      run: machine.run,
+      listModels: modelsHere(['qwen3', 'llama4']),
+      log: (l) => lines.push(l),
+    };
+    const token = 'C'.repeat(43);
+    const app = createLauncherServer({
+      token,
+      mode: 'start',
+      log: (l) => lines.push(l),
+      start: () => new Promise(() => {}),
+      answers: { state: () => answersState(deps), apply: (input) => applyAnswers(input, deps) },
+    });
+    // `start` mode begins a start at once (here, one that never ends); the page is about after it.
+    const port = Number(new URL(await app.listen()).port);
+    app.progress.state = 'ready';
+    try {
+      const headers = { 'content-type': 'application/json', origin: `http://127.0.0.1:${port}` };
+      const saved = await call(port, `/${token}/ai`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          answers: 'both',
+          localModel: 'llama4',
+          cloudProvider: 'anthropic',
+          cloudModel: 'claude-opus-5-5',
+          cloudKey: SENTINEL_KEY,
+        }),
+      });
+      expect(saved.status).toBe(200);
+      expect(JSON.parse(saved.body)).toEqual({ ok: true, restarted: true });
+
+      const files = answersPaths(workspacePaths(home).state);
+      expect(statSync(files.keyFile).mode & 0o777).toBe(0o600);
+      expect(readFileSync(files.keyFile, 'utf8').trim()).toBe(SENTINEL_KEY);
+
+      // Only the web application is restarted, with the choice and the key's FILE.
+      const stackCalls = machine.calls.filter((c) => c.command === 'bash').map((c) => c.args[1]);
+      expect(stackCalls).toEqual(['status', 'web-restart']);
+      const restart = machine.calls.find((c) => c.args[1] === 'web-restart');
+      expect(restart?.env).toMatchObject({
+        KF_STACK_PROJECT: 'kf-local',
+        KF_AGENT_PROVIDER: 'anthropic',
+        KF_AGENT_PROVIDER_KEY_FILE: files.keyFile,
+        KF_AGENT_LAMU_URL: OLLAMA,
+        KF_AGENT_LAMU_MODEL: 'llama4',
+        KF_AGENT_PREFER: 'provider',
+      });
+      expect(restart?.env?.ANTHROPIC_API_KEY).toBeUndefined();
+
+      const state = await call(port, `/${token}/ai/state`);
+      expect(JSON.parse(state.body)).toMatchObject({
+        saved: { choice: 'both', keyOnFile: true, localModel: 'llama4' },
+        onHost: { url: OLLAMA, models: ['qwen3', 'llama4'] },
+      });
+      const page = await call(port, `/${token}/ai`);
+      expect(page.status).toBe(200);
+
+      // A later save that leaves the key empty keeps it; a refused one does not quote what it got.
+      const refused = await call(port, `/${token}/ai`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          answers: 'cloud',
+          cloudProvider: 'other',
+          cloudModel: 'm',
+          cloudBaseUrl: `http://${SENTINEL_KEY}.example/v1`,
+          cloudKey: SENTINEL_KEY,
+        }),
+      });
+      expect(refused.status).toBe(400);
+      expect(readFileSync(files.keyFile, 'utf8').trim()).toBe(SENTINEL_KEY);
+
+      const everything = JSON.stringify({
+        bodies: [saved.body, state.body, page.body, refused.body],
+        calls: machine.calls,
+        lines,
+        saved: readFileSync(files.settings, 'utf8'),
+        record: readFileSync(workspacePaths(home).record, 'utf8'),
+      });
+      expect(everything).not.toContain(SENTINEL_KEY);
+
+      // Choosing a model on this computer only removes the saved key.
+      const local = await call(port, `/${token}/ai`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ answers: 'on_host', localModel: 'qwen3' }),
+      });
+      expect(local.status).toBe(200);
+      expect(() => statSync(files.keyFile)).toThrow();
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('on this computer, with no model running, refuses with what is missing and saves nothing', async () => {
+    bootstrapped();
+    const machine = fakeMachine({ status: runningStatus });
+    await expect(
+      applyAnswers(
+        { choice: 'on_host' },
+        { home, env: {}, run: machine.run, listModels: modelsHere(undefined), log: () => {} },
+      ),
+    ).rejects.toThrow(/No model is running on this computer/);
+    expect(() => statSync(answersPaths(workspacePaths(home).state).settings)).toThrow();
+    expect(machine.calls.filter((c) => c.command === 'bash')).toEqual([]);
+    // A server that answers but holds no model is named as such.
+    await expect(
+      applyAnswers(
+        { choice: 'on_host' },
+        { home, env: {}, run: machine.run, listModels: modelsHere([]), log: () => {} },
+      ),
+    ).rejects.toThrow(/has no model downloaded/);
+  });
+
+  it('the setup page refuses a key-less cloud choice before anything starts, without echoing', async () => {
+    const started: unknown[] = [];
+    const token = 'D'.repeat(43);
+    const app = createLauncherServer({
+      token,
+      mode: 'setup',
+      start: (request) => {
+        started.push(request);
+        return new Promise(() => {});
+      },
+      answers: {
+        state: () =>
+          Promise.resolve({ onHost: { reason: 'No model is running on this computer' } }),
+        apply: () => Promise.reject(new Error('not here')),
+      },
+    });
+    const port = Number(new URL(await app.listen()).port);
+    try {
+      const response = await call(port, `/${token}/setup`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: `http://127.0.0.1:${port}` },
+        body: JSON.stringify({
+          organization: 'Acme Engineering',
+          name: 'Ada Example',
+          username: 'ada',
+          password: 'typed-into-the-page-0123',
+          confirm: 'typed-into-the-page-0123',
+          answers: 'both',
+          cloudProvider: 'openai',
+          cloudModel: 'gpt-5',
+          cloudKey: `${SENTINEL_KEY} with spaces`,
+        }),
+      });
+      expect(response.status).toBe(400);
+      const problems = JSON.parse(response.body).problems as string[];
+      expect(problems.some((p) => p.startsWith('No model is running on this computer'))).toBe(true);
+      expect(problems).toContain('That does not look like an API key (one line, no spaces).');
+      expect(response.body).not.toContain(SENTINEL_KEY);
+      expect(started).toEqual([]);
+    } finally {
+      await app.close();
+    }
   });
 });

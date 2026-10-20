@@ -1,4 +1,5 @@
 // Types for engine.mjs, for the TypeScript that imports it (tests/deployment/workspace.test.ts).
+import type { AnswersInput, OnHostFound, SavedAnswers } from './answers.mjs';
 export interface RunResult {
   readonly code: number;
   readonly stdout: string;
@@ -21,6 +22,10 @@ export interface EngineDeps {
   env?: Record<string, string | undefined>;
   run?: Run;
   probe?: (url: string, timeoutMs?: number) => Promise<boolean>;
+  /** `GET <url>/v1/models`: the models a server on this computer offers, or undefined for none. */
+  listModels?: (
+    url: string,
+  ) => Promise<{ answering: boolean; models: readonly string[] } | undefined>;
   log?: (line: string) => void;
   step?: (id: string, label: string) => void;
   loadBootstrap?: () => Promise<unknown>;
@@ -36,8 +41,18 @@ export declare function runCommand(
   options?: RunOptions,
 ): Promise<RunResult>;
 export declare function generatedPassword(file: string): Promise<string>;
+export declare function writeKeyFile(file: string, key: string): Promise<void>;
+export declare function detectOnHostModel(deps?: EngineDeps): Promise<OnHostFound>;
+export declare function readAnswers(state: string): Promise<SavedAnswers | null>;
+export declare function answersState(
+  deps?: EngineDeps,
+): Promise<{ saved: Record<string, unknown>; onHost: OnHostFound }>;
+export declare function applyAnswers(
+  input: AnswersInput,
+  deps?: EngineDeps,
+): Promise<{ restarted: boolean; ceiling: 'none' | 'internal' | undefined }>;
 export declare function startWorkspace(
-  request: Record<string, string | undefined>,
+  request: Record<string, unknown>,
   deps?: EngineDeps,
 ): Promise<{
   record: Record<string, unknown>;

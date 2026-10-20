@@ -87,6 +87,7 @@ async function Masthead({ density }: { readonly density: Density }) {
               <Link href="/master-document">Your master document</Link>
               <Link href="/documents">Controlled documents</Link>
               <Link href="/ml/runs">ML runs</Link>
+              <Link href="/ai-answers">AI answers</Link>
               <Link href="/status">Service status</Link>
               <DensitySwitch density={density} />
             </div>

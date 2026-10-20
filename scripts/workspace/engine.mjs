@@ -28,6 +28,18 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { acquireLock } from './lock.mjs';
 import {
+  ON_HOST_MODEL_CANDIDATES,
+  agentEnv,
+  answersPaths,
+  answersProblems,
+  answersView,
+  ceilingFor,
+  isLoopbackModelUrl,
+  resolveCloud,
+  usesCloud,
+  usesOnHost,
+} from './answers.mjs';
+import {
   EMBED_CANDIDATES,
   PORTS,
   PROJECT,
@@ -95,6 +107,28 @@ async function probe(url, timeoutMs = 3000) {
   }
 }
 
+/**
+ * The models an OpenAI-style server on this computer offers (`GET /v1/models`), or undefined when
+ * nothing answers there. This is what the on-host backend speaks (@kf/agent lamu.ts:
+ * `POST /v1/chat/completions`); LAMU and Ollama both serve it.
+ */
+async function listModels(url, timeoutMs = 3000) {
+  try {
+    const response = await fetch(`${url}/v1/models`, {
+      signal: AbortSignal.timeout(timeoutMs),
+      redirect: 'error',
+    });
+    if (!response.ok) return { answering: true, models: [] };
+    const body = await response.json();
+    const models = Array.isArray(body?.data)
+      ? body.data.map((m) => m?.id).filter((id) => typeof id === 'string' && id !== '')
+      : [];
+    return { answering: true, models };
+  } catch {
+    return undefined;
+  }
+}
+
 export function defaultDeps(overrides = {}) {
   const home = overrides.home ?? homedir();
   return {
@@ -102,6 +136,7 @@ export function defaultDeps(overrides = {}) {
     env: process.env,
     run: runCommand,
     probe,
+    listModels,
     log: (line) => process.stdout.write(`${line}\n`),
     step: () => {},
     loadBootstrap: () => import('./bootstrap.mjs'),
@@ -125,6 +160,168 @@ async function writeRecord(file, record) {
   const tmp = `${file}.tmp`;
   await writeFile(tmp, `${JSON.stringify(record, null, 2)}\n`, { mode: 0o600 });
   await rename(tmp, file);
+}
+
+// ── AI answers ──────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The provider's key, into an owner-only file: created fresh (O_EXCL, 0600, so no earlier file's
+ * mode or owner is inherited), then renamed over the old one. The key is in this process's memory
+ * and this file, and nowhere else.
+ */
+export async function writeKeyFile(file, key) {
+  const tmp = `${file}.tmp`;
+  await rm(tmp, { force: true });
+  const fd = openSync(tmp, 'wx', 0o600);
+  try {
+    writeSync(fd, `${key}\n`);
+  } finally {
+    closeSync(fd);
+  }
+  chmodSync(tmp, 0o600);
+  await rename(tmp, file);
+}
+
+/** A model server on this computer the on-host backend can use: `{ url, models }` or `{ reason }`. */
+export async function detectOnHostModel(depsIn = {}) {
+  const deps = defaultDeps(depsIn);
+  const wanted = deps.env.KF_LOCAL_MODEL_URL;
+  if (wanted !== undefined && !isLoopbackModelUrl(wanted)) {
+    return { reason: 'KF_LOCAL_MODEL_URL is not an address on this computer' };
+  }
+  let empty;
+  for (const url of wanted === undefined ? ON_HOST_MODEL_CANDIDATES : [wanted]) {
+    const found = await deps.listModels(url);
+    if (found === undefined) continue;
+    if (found.models.length > 0) return { url, models: found.models };
+    empty = url;
+  }
+  return {
+    reason:
+      empty === undefined
+        ? 'No model is running on this computer'
+        : 'A model server is running on this computer, but it has no model downloaded',
+  };
+}
+
+export async function readAnswers(state) {
+  return readRecord(answersPaths(state).settings);
+}
+
+/** Which provider the saved key is for, or undefined when none is saved. */
+async function keyOnFileFor(state) {
+  if (!existsSync(answersPaths(state).keyFile)) return undefined;
+  return (await readAnswers(state))?.cloud?.provider;
+}
+
+/**
+ * The environment the web application gets for the saved choice. KF_LOCAL_PROVIDER_BASE_URL points
+ * the cloud model at a recording double; it must be on this computer, so it can never send a real
+ * key somewhere a real provider is not.
+ */
+async function savedAgentEnv(deps, state) {
+  const double = deps.env.KF_LOCAL_PROVIDER_BASE_URL;
+  if (double !== undefined && !isLoopbackModelUrl(double)) {
+    throw new WorkspaceError(
+      'answers_double_not_local',
+      'KF_LOCAL_PROVIDER_BASE_URL names an address that is not on this computer.',
+      'It exists for test doubles only; unset it.',
+    );
+  }
+  return agentEnv(await readAnswers(state), {
+    keyFile: answersPaths(state).keyFile,
+    ...(double === undefined ? {} : { providerBaseUrl: double }),
+  });
+}
+
+/**
+ * Check and save a choice: `{ choice, key?, localModel?, cloud? }`. The key, when typed, goes to
+ * its 0600 file; a choice without a cloud model removes a saved key. Throws
+ * WorkspaceError('invalid_answers') with the problems in plain words; nothing is saved then.
+ */
+async function saveAnswers(deps, state, input) {
+  const files = answersPaths(state);
+  const keyOnFile = await keyOnFileFor(state);
+  const onHost = usesOnHost(input.choice) ? await detectOnHostModel(deps) : undefined;
+  const problems = answersProblems(input, { onHost, keyOnFile });
+  if (problems.length > 0) {
+    throw new WorkspaceError('invalid_answers', problems.join(' '), 'Change it and try again.');
+  }
+  mkdirSync(state, { recursive: true, mode: 0o700 });
+  chmodSync(state, 0o700);
+  const typed = typeof input.key === 'string' ? input.key.trim() : '';
+  if (usesCloud(input.choice) && typed !== '') await writeKeyFile(files.keyFile, typed);
+  if (!usesCloud(input.choice)) await rm(files.keyFile, { force: true });
+  const localModel =
+    onHost?.url === undefined
+      ? undefined
+      : typeof input.localModel === 'string' && input.localModel !== ''
+        ? input.localModel
+        : onHost.models[0];
+  const saved = {
+    version: 1,
+    choice: input.choice,
+    ...(onHost?.url === undefined ? {} : { onHost: { url: onHost.url, model: localModel } }),
+    ...(usesCloud(input.choice) ? { cloud: resolveCloud(input.cloud).cloud } : {}),
+  };
+  await writeRecord(files.settings, saved);
+  return saved;
+}
+
+/** What the AI answers page shows: the saved choice and what this computer offers. */
+export async function answersState(depsIn = {}) {
+  const deps = defaultDeps(depsIn);
+  const { state } = workspacePaths(deps.home);
+  return {
+    saved: answersView(await readAnswers(state), { keyOnFile: await keyOnFileFor(state) }),
+    onHost: await detectOnHostModel(deps),
+  };
+}
+
+/**
+ * Change who writes answers, from the AI answers page: save it, and if the web application runs,
+ * restart it alone (`stack.sh web-restart`) so it picks the choice up. The API, the worker and the
+ * containers are not touched. The organization's routing policy is NOT changed here: that is an
+ * institutional act, and the web application's AI answers page offers it to the person as one
+ * button (`ceiling` says what it should be).
+ */
+export async function applyAnswers(input, depsIn = {}) {
+  const deps = defaultDeps(depsIn);
+  const paths = workspacePaths(deps.home);
+  const lock = engineLock(paths);
+  try {
+    const record = await readRecord(paths.record);
+    if (record?.bootstrapped !== true) {
+      throw new WorkspaceError(
+        'no_workspace',
+        'There is no Knowledge Fabric on this computer yet.',
+        'Set it up first; the setup page asks who writes answers.',
+      );
+    }
+    await saveAnswers(deps, paths.state, input);
+    deps.log(`== AI answers: ${input.choice}`);
+    const env = stackEnv(deps.env, {
+      state: paths.state,
+      organization: record.identity?.organization,
+      agent: await savedAgentEnv(deps, paths.state),
+    });
+    const status = await deps.run('bash', [STACK, 'status'], { env, timeoutMs: MINUTE });
+    let restarted = false;
+    if (appsRunning(status.stdout).web === true) {
+      const result = await deps.run('bash', [STACK, 'web-restart'], {
+        env,
+        timeoutMs: 5 * MINUTE,
+        onLine: deps.log,
+      });
+      if (result.code !== 0) {
+        throw stackFailure('restart its web page', result, path.join(paths.state, 'logs'));
+      }
+      restarted = true;
+    }
+    return { restarted, ceiling: ceilingFor(input.choice) };
+  } finally {
+    lock.release();
+  }
 }
 
 /** The generated password: created once (O_EXCL, 0600), read on every later run. */
@@ -250,6 +447,13 @@ async function start(request, deps, paths) {
     if (conflicts.length > 0) throw portRefusal(conflicts);
   }
 
+  // Who writes answers, from the setup page: saved (the key to its 0600 file) before anything
+  // starts, so the web application's first start already has it.
+  if (request.answers !== undefined) {
+    step('answers', 'Saving who writes answers');
+    await saveAnswers(deps, paths.state, request.answers);
+  }
+
   let semantic = record?.semantic === true;
   if (decision.stack !== 'none') {
     const embedder = await chooseEmbedder(deps);
@@ -263,6 +467,7 @@ async function start(request, deps, paths) {
       state: paths.state,
       organization: identity.organization,
       embedUrl: embedder.url,
+      agent: await savedAgentEnv(deps, paths.state),
     });
     mkdirSync(paths.state, { recursive: true, mode: 0o700 });
     chmodSync(paths.state, 0o700);
@@ -318,6 +523,25 @@ async function start(request, deps, paths) {
     log(
       `== ${identity.organization}: organization ${made.organizationId}, person ${made.personId}`,
     );
+    // The organization's routing policy, matched to the choice the founder just made on the setup
+    // page: their own act (set_model_routing_policy, institutional), through the API as them, only
+    // when what is in force differs. A failure does not stop the start: the web application's AI
+    // answers page shows the same change as one button.
+    const ceiling = request.answers === undefined ? undefined : ceilingFor(request.answers.choice);
+    if (ceiling !== undefined) {
+      const { alignModelRouting, sessionFor } = await deps.loadBootstrap();
+      step('routing', 'Recording what may leave this computer');
+      try {
+        const outcome = await alignModelRouting({
+          session: sessionFor({ settings, identity, record, password }),
+          ceiling,
+        });
+        log(`== model routing: ${outcome}`);
+      } catch (error) {
+        log(`!! the organization's model routing was not recorded (${error?.message ?? error});`);
+        log('!! Knowledge Fabric → More → AI answers offers it as one click');
+      }
+    }
   }
 
   let imported;

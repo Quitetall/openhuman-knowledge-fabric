@@ -77,7 +77,13 @@ export declare function publishedPorts(dockerPorts: string): number[];
 export declare function appsRunning(statusOutput: string): Record<string, boolean>;
 export declare function stackEnv(
   base: Record<string, string | undefined>,
-  options: { state: string; organization?: string; embedUrl?: string; skipBuild?: boolean },
+  options: {
+    state: string;
+    organization?: string;
+    embedUrl?: string;
+    skipBuild?: boolean;
+    agent?: Record<string, string>;
+  },
 ): Record<string, string | undefined>;
 export declare function settingsFor(state: string): Record<string, unknown>;
 export declare function nextSteps(input: {

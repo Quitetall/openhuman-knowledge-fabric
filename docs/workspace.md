@@ -16,9 +16,10 @@ pnpm kf:install-launcher
 Then click **Knowledge Fabric** in the applications menu.
 
 - **No workspace yet:** a page opens in the browser asking for the organization's name, your
-  full name, a username, a password (twice) and, optionally, the full path of a folder of files
-  to add. "Set up Knowledge Fabric" starts it; the page shows each step, then opens the sign-in,
-  and after it Home. The first time takes several minutes (it builds the applications).
+  full name, a username, a password (twice), optionally the full path of a folder of files to
+  add, and who writes answers to your questions (see [AI answers](#ai-answers)). "Set up
+  Knowledge Fabric" starts it; the page shows each step, then opens the sign-in, and after it
+  Home. The first time takes several minutes (it builds the applications).
 - **Stopped:** the page says "Starting Knowledge Fabric…" and opens Home when it is ready.
 - **Running:** the click opens Home.
 
@@ -36,15 +37,15 @@ password at the terminal.
 
 ## What it creates
 
-| What                    | Where                                                                                                             |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Containers and volumes  | compose project `kf-local`: PostgreSQL 18, SeaweedFS, Keycloak (`kf-local-*`)                                     |
-| Applications            | attestor, API, worker and web, built from the checkout (`fixtures/veracier/stack/stack.sh`, under `KF_STACK_*`)   |
-| Ports (loopback)        | web 3300, API 4300, Keycloak 18280, PostgreSQL 15632, S3 19200; a start refuses if anything else holds one        |
-| State (0700)            | `~/.local/state/kf-local`: logins, keys, logs, `workspace.json` (ids; no secret)                                  |
-| Launcher                | `~/.local/state/kf-local-launcher` (its lock and page address, 0600); systemd user unit `kf-local`                |
-| Icon                    | `~/.local/share/applications/knowledge-fabric.desktop`, its icon, `~/.local/share/knowledge-fabric/launcher.json` |
-| In the Knowledge Fabric | the organization; you, as its first person; your Keycloak account; one role assignment                            |
+| What                    | Where                                                                                                                                               |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Containers and volumes  | compose project `kf-local`: PostgreSQL 18, SeaweedFS, Keycloak (`kf-local-*`)                                                                       |
+| Applications            | attestor, API, worker and web, built from the checkout (`fixtures/veracier/stack/stack.sh`, under `KF_STACK_*`)                                     |
+| Ports (loopback)        | web 3300, API 4300, Keycloak 18280, PostgreSQL 15632, S3 19200; a start refuses if anything else holds one                                          |
+| State (0700)            | `~/.local/state/kf-local`: logins, keys, logs, `workspace.json` (ids; no secret), `answers.json` (AI answers; no secret), `provider-api-key` (0600) |
+| Launcher                | `~/.local/state/kf-local-launcher` (its lock and page address, 0600); systemd user unit `kf-local`                                                  |
+| Icon                    | `~/.local/share/applications/knowledge-fabric.desktop`, its icon, `~/.local/share/knowledge-fabric/launcher.json`                                   |
+| In the Knowledge Fabric | the organization; you, as its first person; your Keycloak account; one role assignment                                                              |
 
 **Your authority.** `kf grant-authority` gives you `technical_authority` over the organization,
 cleared to `confidential`, as its founding grant: you read everything up to confidential, add
@@ -65,6 +66,44 @@ the fixtures load theirs. At most 250 files per import, the ingest batch ceiling
 computer answers (`http://127.0.0.1:8021`, then `:8022`, or `KF_LOCAL_EMBED_URL`) and the
 retrieval engine and prepared model are installed; nothing is downloaded. Which one you got is
 printed, and recorded in `workspace.json`.
+
+## AI answers
+
+"Ask" can have a model write the answer from the records you may see, listing its sources. Who
+writes it is chosen on the setup page and changed later by right-clicking the **Knowledge Fabric**
+icon and choosing **AI answers** (the launcher's `ai` action; the same page). In Knowledge Fabric,
+**More → AI answers** shows the choice in force and the organization's rule.
+
+| Choice           | What answers                                                                                                     |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Off              | Nothing; Ask shows the search results and a link to turn answers on                                              |
+| On this computer | A model served on this computer: LAMU, Ollama or LM Studio (OpenAI-compatible, loopback only); nothing leaves it |
+| Cloud model      | Anthropic, OpenAI, Google Gemini, Mistral, OpenRouter, or another OpenAI-compatible provider (https), by API key |
+| Both             | The cloud model for records cleared to leave; this computer for everything else                                  |
+
+- **On this computer** is offered only when a model server answers at `http://127.0.0.1:11434`
+  (Ollama) or `:1234` (LM Studio), or at `KF_LOCAL_MODEL_URL` (loopback only), with a model
+  downloaded. Otherwise the page says "No model is running on this computer" and refuses the
+  choice; nothing is downloaded or installed.
+- **The API key** is typed into a password field and sent once to the launcher's page, which writes
+  it to `~/.local/state/kf-local/provider-api-key` (mode 0600, created fresh, then renamed into
+  place). It is never in an argv, an environment, a log, `answers.json` or any page: the page only
+  learns that a key is saved. The web application is started with `KF_AGENT_PROVIDER` and the
+  key's _file_ (`KF_AGENT_PROVIDER_KEY_FILE`) and reads it on each call. Leaving the field empty
+  keeps the saved key for the same provider; choosing Off or On this computer deletes it.
+- **Saving restarts the web application alone** (`stack.sh web-restart`); the API, worker,
+  attestor and containers keep running. A workspace that is stopped uses the choice at its next
+  start. A shell's own `KF_AGENT_*` or `ANTHROPIC_*` variables never reach the workspace.
+- **What may leave is the organization's decision**, not this choice's: its provider ceiling
+  (`GET /model-routing`), changed only by `set_model_routing_policy`, an institutional act. On the
+  setup page the founder's choice records it as their own act: `internal` for a cloud model,
+  `none` for on this computer, nothing for Off. Later, **More → AI answers** offers the matching
+  change as one button for the signed-in person to press; the launcher never performs it. Neither
+  ever asks for more than `internal`: confidential and restricted records are answered on this
+  computer or not at all, whichever cloud model is chosen (ADR 0040, KF-SAS-RQ-271).
+
+Not covered: whether a cloud provider keeps what it is sent is that provider's terms, accepted by
+whoever pastes the key. A model in the reader's own browser is not offered.
 
 ## Stop it and remove it
 

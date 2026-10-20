@@ -34,6 +34,7 @@ import {
 } from './components/dashboard/panels';
 import { AnswerCard } from './components/answer-card';
 import { AskBox } from './components/ask-box';
+import { NoModelNotice } from './components/no-model-notice';
 import { agentFabric, answerQuestion, answeringModelConfigured } from './agent/answer';
 import type { AnswerEntry } from './agent/state';
 import { SearchPreview } from './search/search-results';
@@ -162,10 +163,7 @@ export default async function Home({
           {asked === undefined ? null : asked.kind === 'answer' ? (
             <AnswerCard entry={asked.entry} />
           ) : asked.kind === 'no_model' ? (
-            <p role="status" className="kf-status kf-status-neutral" data-ask="no-model">
-              Written answers aren’t set up on this server yet, so here are the records that match
-              your words.
-            </p>
+            <NoModelNotice />
           ) : (
             <p role="status" className="kf-status kf-status-warning" data-ask="failed">
               The assistant couldn’t answer just now. Here are the records that match your words.

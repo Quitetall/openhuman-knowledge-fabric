@@ -69,14 +69,26 @@ The router chooses the backend. This guard is what makes a router bug, or a call
 router, fail closed.
 
 **LAMU** is reached at its OpenAI-compatible `POST /v1/chat/completions`. The adapter refuses any
-address that is not loopback, so an "on-host" backend cannot be pointed off the host.
+address that is not loopback, so an "on-host" backend cannot be pointed off the host. Any other
+OpenAI-compatible server on the host (Ollama, LM Studio) is reached the same way, under the same
+rule; `KF_AGENT_LAMU_MODEL` names its model, which those servers require.
 
-**The provider** is the Claude API through `@anthropic-ai/sdk`. The model is `claude-opus-5-5` by
-default, or `claude-sonnet-5`, at effort `medium`. The key is read from an owner-only file on each
-call (`KF_AGENT_PROVIDER_KEY_FILE`). The SDK is given that key explicitly, and the web application
-refuses to start a turn if `ANTHROPIC_API_KEY` is in its environment. On the owner's workstation
-the key lives in the secrets store and is materialized for a run with `secrets run --`. It is never
-in the repository or an env file.
+**The provider** is a cloud model, of one of two kinds, behind the one egress guard above: the
+guard does not know or care which vendor's transport it wraps.
+
+- `KF_AGENT_PROVIDER=openai_compatible`: any OpenAI-compatible Chat Completions endpoint (OpenAI,
+  Google Gemini's OpenAI-compatible endpoint, Mistral, OpenRouter, …;
+  `packages/agent/src/openai-compatible.ts`). `KF_AGENT_PROVIDER_BASE_URL` (https; loopback http
+  only for a recording double), `KF_AGENT_PROVIDER_MODEL` and `KF_AGENT_PROVIDER_NAME` name it; the
+  key is read from the same owner-only file on each call and sent only as that request's bearer. A
+  failure names its cause, never the provider's body, which can quote the request or the key.
+- `KF_AGENT_PROVIDER=anthropic`: the Claude API through `@anthropic-ai/sdk`. The model is
+  `claude-opus-5-5` by
+  default, or `claude-sonnet-5`, at effort `medium`. The key is read from an owner-only file on each
+  call (`KF_AGENT_PROVIDER_KEY_FILE`). The SDK is given that key explicitly, and the web application
+  refuses to start a turn if `ANTHROPIC_API_KEY` is in its environment. On the owner's workstation
+  the key lives in the secrets store and is materialized for a run with `secrets run --`. It is never
+  in the repository or an env file.
 
 ## The embedding pump (SAS §100.44)
 
