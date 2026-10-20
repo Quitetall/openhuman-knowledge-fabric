@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { SearchResponse } from '../../lib/api';
 import { UNVERIFIED_LABEL } from '../../lib/api/verification.js';
-import { SearchResults, withheldCountSentence } from './search-results.js';
+import { SearchPreview, SearchResults, withheldCountSentence } from './search-results.js';
 
 const unverified = { verified: false, label: UNVERIFIED_LABEL } as const;
 const LEXICAL = 'kf.lexical.idf_coverage(floor=0.5)+phrase+partial_identifier.v2';
@@ -52,9 +52,9 @@ function response(extra: Partial<SearchResponse> = {}): SearchResponse {
   };
 }
 
-function render(value: SearchResponse, nearMissesRequested = false): string {
+function render(value: SearchResponse, nearMissesRequested = false, meaning = true): string {
   return renderToStaticMarkup(
-    createElement(SearchResults, { response: value, nearMissesRequested, limit: 50 }),
+    createElement(SearchResults, { response: value, nearMissesRequested, limit: 50, meaning }),
   );
 }
 
@@ -171,5 +171,71 @@ describe('the search page renders the composed answer, not just the hits', () =>
     expect(list(html, 'ranked')).toContain(
       'Semantic ranking unavailable: no retrieval engine is configured. These results are word matches only.',
     );
+  });
+});
+
+const UNAVAILABLE_NOTICE =
+  'Search by meaning isn’t available right now — showing exact-word matches.';
+const engineDown = {
+  withheld: [
+    { reasonClass: 'semantic_ranking_unavailable', reason: 'no retrieval engine is configured' },
+  ],
+};
+
+describe('the "Search by meaning" switch', () => {
+  it('off: leads with the word matches alone, and shows nothing found by meaning', () => {
+    const html = render(
+      response({ semantic: { ranking: SEMANTIC, hits: [related] } }),
+      false,
+      false,
+    );
+    expect(html).toContain('data-meaning="off"');
+    expect(list(html, 'ranked')).toBe('');
+    expect(list(html, 'semantic')).toBe('');
+    const lexical = list(html, 'lexical');
+    expect(lexical).toContain('1 result with your exact words');
+    expect(lexical).toContain('Exact match record');
+    expect(html).not.toContain('Related by meaning record');
+    expect(html).not.toContain(SEMANTIC);
+  });
+
+  it('on, with the engine down: says so in plain words above the results', () => {
+    const html = render(response(engineDown));
+    const notice = html.indexOf(UNAVAILABLE_NOTICE);
+    expect(notice).toBeGreaterThan(-1);
+    expect(notice).toBeLessThan(html.indexOf('data-list="ranked"'));
+    // A rule, not decoration: never inside a fold.
+    expect(html.lastIndexOf('<details', notice)).toBe(-1);
+  });
+
+  it('off, with the engine down: nothing to apologise for, the person asked for exact words', () => {
+    expect(render(response(engineDown), false, false)).not.toContain(UNAVAILABLE_NOTICE);
+  });
+
+  it('keeps the same withheld count beside either list, and never inside a fold', () => {
+    for (const meaning of [true, false]) {
+      const html = render(response({ withheldCount: 4 }), false, meaning);
+      expect(html).toContain('data-withheld-count="4"');
+      expect(html).toContain('4 more matching records exist that you don’t have access to');
+      expect(html.lastIndexOf('<details', html.indexOf('data-withheld-count'))).toBe(-1);
+    }
+    expect(render(response(), false, false)).not.toContain('data-withheld-count');
+  });
+
+  it('on Home: the preview follows the switch and its link keeps it', () => {
+    const value = response({ semantic: { ranking: SEMANTIC, hits: [related] } });
+    const on = renderToStaticMarkup(createElement(SearchPreview, { response: value, query: 'q' }));
+    expect(on).toContain('Related by meaning record');
+    expect(on).toContain('href="/search?q=q"');
+    const off = renderToStaticMarkup(
+      createElement(SearchPreview, { response: value, query: 'q', meaning: false }),
+    );
+    expect(off).toContain('Exact match record');
+    expect(off).not.toContain('Related by meaning record');
+    expect(off).toContain('href="/search?q=q&amp;meaning=off"');
+    const down = renderToStaticMarkup(
+      createElement(SearchPreview, { response: response(engineDown), query: 'q' }),
+    );
+    expect(down).toContain(UNAVAILABLE_NOTICE);
   });
 });

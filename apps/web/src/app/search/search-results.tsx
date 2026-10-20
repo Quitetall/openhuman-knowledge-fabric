@@ -4,7 +4,7 @@ import type { RankedSearchHit, SearchHit, SearchResponse, SemanticSearchHit } fr
 import { classificationWords } from '../../lib/auth/identity-label';
 import { Badge } from '../components/badge';
 import { VerificationChip } from '../components/state-chip';
-import { recordHref } from './search-view';
+import { meaningUnavailable, recordHref, searchPageHref, shownList } from './search-view';
 
 /**
  * The composed search answer (KF-SAS-RQ-224, RQ-216, RQ-217, ADR 0037), in words a person reads.
@@ -16,9 +16,12 @@ import { recordHref } from './search-view';
  * match by anyone who asks. The two source lists follow, folded, each under its ranking's name.
  * Near misses appear only when asked for, labelled as what they are.
  *
+ * The "Search by meaning" switch (`meaning`) chooses the list read first: on, the fused list; off,
+ * every record that holds the words (the lexical list), and nothing ranked by meaning beside it.
+ *
  * Two things are never folded away, because they are rules and not decoration: how many matching
  * records the person may not see (a count, never a title), and that matching by meaning was
- * unavailable when it was.
+ * unavailable when it was asked for.
  */
 
 /** ADR 0037's disclosure, in words: a count within the caller's ceiling, and nothing else. */
@@ -101,12 +104,19 @@ function RankingName({ ranking }: { readonly ranking: string }) {
   );
 }
 
-/** The two notices that stay visible whatever is folded. */
-export function SearchNotices({ response }: { readonly response: SearchResponse }) {
+/**
+ * The two notices that stay visible whatever is folded. The withheld count is the API's, unchanged
+ * by the switch: it is counted over the word-match set, so it is true beside either list. That
+ * meaning was unavailable is said only when the person asked for it; why is in the fold.
+ */
+export function SearchNotices({
+  response,
+  meaning = true,
+}: {
+  readonly response: SearchResponse;
+  readonly meaning?: boolean;
+}) {
   const withheldSentence = withheldCountSentence(response.withheldCount);
-  const engineNotes = response.withheld.filter(
-    (entry) => entry.reasonClass === 'semantic_ranking_unavailable',
-  );
   return (
     <>
       {withheldSentence === undefined ? null : (
@@ -118,17 +128,15 @@ export function SearchNotices({ response }: { readonly response: SearchResponse 
           {withheldSentence}
         </p>
       )}
-      {engineNotes.map((note) => (
+      {meaning && meaningUnavailable(response) ? (
         <p
-          key={note.reason}
           role="status"
           className="kf-status kf-status-warning"
-          data-withholding={note.reasonClass}
+          data-withholding="semantic_ranking_unavailable"
         >
-          Finding records by meaning isn’t available right now ({note.reason}). These results match
-          your words only.
+          Search by meaning isn’t available right now — showing exact-word matches.
         </p>
-      ))}
+      ) : null}
     </>
   );
 }
@@ -145,21 +153,149 @@ export function NoResults() {
   );
 }
 
+/** Near misses, shown only when asked for and labelled as what they are (KF-SAS-RQ-217). */
+function NearMisses({ nearMisses }: { readonly nearMisses: SearchResponse['nearMisses'] }) {
+  return (
+    <section aria-labelledby="search-near-miss-heading" data-list="near-misses">
+      <h2 id="search-near-miss-heading" className="kf-results-heading">
+        Near misses{' '}
+        <small data-label={nearMisses?.label ?? 'near_miss'}>
+          ({nearMisses?.label ?? 'near_miss'})
+        </small>
+      </h2>
+      {nearMisses === undefined ? (
+        <p role="status" className="kf-muted">
+          You asked for near misses; there are none without matching by meaning.
+        </p>
+      ) : (
+        <>
+          <p className="kf-muted">
+            Close to what you asked, but not part of the answer: the records ranked just below the
+            related list.
+          </p>
+          <details className="kf-explainer">
+            <summary>How these were chosen</summary>
+            <p className="kf-ranking-name">
+              Scoring function: <code>{nearMisses.scoringFunction}</code>
+            </p>
+          </details>
+          {nearMisses.hits.length === 0 ? (
+            <p role="status" className="kf-muted">
+              No near misses.
+            </p>
+          ) : (
+            <div className="kf-hits">
+              {nearMisses.hits.map((hit) => (
+                <HitCard key={hit.objectId} hit={hit} detail={`Near miss · rank ${hit.rank}`} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+/** Every record that holds the words, with its ranking's name and how many there are. */
+function LexicalList({
+  lexical,
+  limit,
+  primary = false,
+}: {
+  readonly lexical: SearchResponse['lexical'];
+  readonly limit: number;
+  /** The list read first (the switch is off), rather than one folded under the fused list. */
+  readonly primary?: boolean;
+}) {
+  return (
+    <section
+      aria-labelledby="search-lexical-heading"
+      data-list="lexical"
+      data-total={lexical.total}
+    >
+      {primary ? (
+        <h2 id="search-lexical-heading" className="kf-results-heading">
+          {lexical.total === 0
+            ? 'Results'
+            : `${lexical.total} result${lexical.total === 1 ? '' : 's'} with your exact words`}
+        </h2>
+      ) : (
+        <h3 id="search-lexical-heading" className="kf-results-subheading">
+          Word matches
+        </h3>
+      )}
+      {primary ? null : <RankingName ranking={lexical.ranking} />}
+      {primary ? null : (
+        <p className="kf-muted">
+          Every record you can see that holds at least half of what your words say, weighted so that
+          rare words count more; the ones holding every word, and the phrase as typed, come first.
+        </p>
+      )}
+      {lexical.hits.length === 0 ? (
+        primary ? (
+          <NoResults />
+        ) : (
+          <p role="status" className="kf-muted">
+            No word matches among the records you can see.
+          </p>
+        )
+      ) : (
+        <div className="kf-hits">
+          <p role="status" className="kf-muted">
+            {lexical.complete
+              ? `All ${lexical.total} word match${lexical.total === 1 ? '' : 'es'}.`
+              : `Showing ${lexical.hits.length} of ${lexical.total} word matches (limit ${limit}).`}
+          </p>
+          {lexical.hits.map((hit) => (
+            <HitCard
+              key={hit.objectId}
+              hit={hit}
+              detail={hit.matchedBy === 'full_text' ? 'Word match' : 'Partial-identifier match'}
+            />
+          ))}
+        </div>
+      )}
+      {primary ? (
+        <details className="kf-explainer" data-explainer="ranking">
+          <summary>How this was ranked</summary>
+          <p>
+            Search by meaning is off, so these are only the records that contain your words. Turn it
+            on to also find records that say the same thing in other words.
+          </p>
+          <RankingName ranking={lexical.ranking} />
+        </details>
+      ) : null}
+    </section>
+  );
+}
+
 export function SearchResults({
   response,
   nearMissesRequested,
   limit,
+  meaning = true,
 }: {
   readonly response: SearchResponse;
   readonly nearMissesRequested: boolean;
   readonly limit: number;
+  /** The "Search by meaning" switch; on unless the person turned it off. */
+  readonly meaning?: boolean;
 }) {
   const { ranked, lexical, semantic, nearMisses } = response;
   const engineNotes = response.withheld.filter(
     (entry) => entry.reasonClass === 'semantic_ranking_unavailable',
   );
+  if (!meaning) {
+    return (
+      <div className="kf-results" data-meaning="off">
+        <SearchNotices response={response} meaning={false} />
+        <LexicalList lexical={lexical} limit={limit} primary />
+        {nearMissesRequested ? <NearMisses nearMisses={nearMisses} /> : null}
+      </div>
+    );
+  }
   return (
-    <div className="kf-results">
+    <div className="kf-results" data-meaning="on">
       <SearchNotices response={response} />
 
       <section aria-labelledby="search-ranked-heading" data-list="ranked">
@@ -203,41 +339,7 @@ export function SearchResults({
 
       <details className="kf-explainer">
         <summary>Every record that matches your words ({lexical.total})</summary>
-        <section
-          aria-labelledby="search-lexical-heading"
-          data-list="lexical"
-          data-total={lexical.total}
-        >
-          <h3 id="search-lexical-heading" className="kf-results-subheading">
-            Word matches
-          </h3>
-          <RankingName ranking={lexical.ranking} />
-          <p className="kf-muted">
-            Every record you can see that holds at least half of what your words say, weighted so
-            that rare words count more; the ones holding every word, and the phrase as typed, come
-            first.
-          </p>
-          {lexical.hits.length === 0 ? (
-            <p role="status" className="kf-muted">
-              No word matches among the records you can see.
-            </p>
-          ) : (
-            <div className="kf-hits">
-              <p role="status" className="kf-muted">
-                {lexical.complete
-                  ? `All ${lexical.total} word match${lexical.total === 1 ? '' : 'es'}.`
-                  : `Showing ${lexical.hits.length} of ${lexical.total} word matches (limit ${limit}).`}
-              </p>
-              {lexical.hits.map((hit) => (
-                <HitCard
-                  key={hit.objectId}
-                  hit={hit}
-                  detail={hit.matchedBy === 'full_text' ? 'Word match' : 'Partial-identifier match'}
-                />
-              ))}
-            </div>
-          )}
-        </section>
+        <LexicalList lexical={lexical} limit={limit} />
       </details>
 
       <details className="kf-explainer">
@@ -288,45 +390,7 @@ export function SearchResults({
         </section>
       </details>
 
-      {nearMissesRequested ? (
-        <section aria-labelledby="search-near-miss-heading" data-list="near-misses">
-          <h2 id="search-near-miss-heading" className="kf-results-heading">
-            Near misses{' '}
-            <small data-label={nearMisses?.label ?? 'near_miss'}>
-              ({nearMisses?.label ?? 'near_miss'})
-            </small>
-          </h2>
-          {nearMisses === undefined ? (
-            <p role="status" className="kf-muted">
-              You asked for near misses; there are none without matching by meaning.
-            </p>
-          ) : (
-            <>
-              <p className="kf-muted">
-                Close to what you asked, but not part of the answer: the records ranked just below
-                the related list.
-              </p>
-              <details className="kf-explainer">
-                <summary>How these were chosen</summary>
-                <p className="kf-ranking-name">
-                  Scoring function: <code>{nearMisses.scoringFunction}</code>
-                </p>
-              </details>
-              {nearMisses.hits.length === 0 ? (
-                <p role="status" className="kf-muted">
-                  No near misses.
-                </p>
-              ) : (
-                <div className="kf-hits">
-                  {nearMisses.hits.map((hit) => (
-                    <HitCard key={hit.objectId} hit={hit} detail={`Near miss · rank ${hit.rank}`} />
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </section>
-      ) : null}
+      {nearMissesRequested ? <NearMisses nearMisses={nearMisses} /> : null}
     </div>
   );
 }
@@ -336,19 +400,28 @@ export function SearchPreview({
   response,
   query,
   shown = 6,
+  meaning = true,
 }: {
   readonly response: SearchResponse;
   readonly query: string;
   readonly shown?: number;
+  readonly meaning?: boolean;
 }) {
-  const hits = response.ranked.hits.slice(0, shown);
-  const all = `/search?${new URLSearchParams({ q: query }).toString()}`;
+  const list = shownList(response, meaning);
+  const hits: readonly AnyHit[] = list.hits.slice(0, shown);
+  const all = searchPageHref(query, meaning);
+  const count = list.kind === 'lexical' ? list.total : list.hits.length;
   return (
-    <section className="kf-results" data-list="preview" aria-labelledby="home-results-heading">
+    <section
+      className="kf-results"
+      data-list="preview"
+      data-meaning={meaning ? 'on' : 'off'}
+      aria-labelledby="home-results-heading"
+    >
       <h2 id="home-results-heading" className="kf-results-heading">
-        Records that match
+        {meaning ? 'Records that match' : 'Records with your exact words'}
       </h2>
-      <SearchNotices response={response} />
+      <SearchNotices response={response} meaning={meaning} />
       {hits.length === 0 ? (
         <NoResults />
       ) : (
@@ -358,12 +431,10 @@ export function SearchPreview({
           ))}
         </div>
       )}
-      {response.ranked.hits.length > 0 ? (
+      {count > 0 ? (
         <p>
           <Link href={all} className="kf-link-strong">
-            {response.ranked.hits.length > hits.length
-              ? `See all ${response.ranked.hits.length} results`
-              : 'Open in Search'}
+            {count > hits.length ? `See all ${count} results` : 'Open in Search'}
           </Link>
         </p>
       ) : null}

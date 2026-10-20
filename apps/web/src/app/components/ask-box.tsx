@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { AI_ANSWERS_PATH } from '../../lib/agent/answers-setting';
+import { MeaningSwitch } from './meaning-switch';
 
 /**
  * Home's one box: ask a question or search, the first thing on the page.
@@ -7,13 +8,20 @@ import { AI_ANSWERS_PATH } from '../../lib/agent/answers-setting';
  * A plain GET form back to Home, so it works without script and a question is an address. "Ask"
  * is offered only when this deployment has a model to answer with; "Search" always is. Pressing
  * Enter uses the first button, so Enter asks when asking is possible and searches otherwise.
+ *
+ * The "Search by meaning" switch chooses which list of records is shown under the box; it does not
+ * change how a question is answered. Flipping it re-runs the page in the mode it is in.
  */
 export function AskBox({
   question,
   canAsk,
+  meaning,
+  mode,
 }: {
   readonly question: string;
   readonly canAsk: boolean;
+  readonly meaning: boolean;
+  readonly mode: 'ask' | 'search';
 }) {
   return (
     <section className="kf-askbox" aria-labelledby="askbox-heading">
@@ -59,6 +67,10 @@ export function AskBox({
             Search
           </button>
         </div>
+        <MeaningSwitch
+          on={meaning}
+          submitter={`button[name="mode"][value="${canAsk && mode === 'ask' ? 'ask' : 'search'}"]`}
+        />
       </form>
       <p className="kf-askbox-note">
         {canAsk ? (
