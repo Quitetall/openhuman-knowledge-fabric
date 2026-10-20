@@ -287,11 +287,23 @@ export function appsRunning(statusOutput) {
  * a shell that exported a fixture's KF_STACK_PROJECT must not point `reset` at that fixture's
  * volumes. The Véracier-specific names stack.sh still honours are removed for the same reason.
  */
-export function stackEnv(base, { state, organization, embedUrl, skipBuild = false }) {
+export function stackEnv(base, { state, organization, embedUrl, skipBuild = false, agent = {} }) {
   const env = { ...base };
   for (const key of Object.keys(env)) {
-    if (key.startsWith('KF_STACK_') || key.startsWith('KF_VERACIER_')) delete env[key];
+    if (
+      key.startsWith('KF_STACK_') ||
+      key.startsWith('KF_VERACIER_') ||
+      // Who writes answers is this workspace's saved choice (answers.json), never the shell's:
+      // a KF_AGENT_* the shell exported would point the web application at another model, and an
+      // ANTHROPIC_* variable would put a key where every process of this user can read it (the
+      // web application refuses to start with ANTHROPIC_API_KEY set; config.ts).
+      key.startsWith('KF_AGENT_') ||
+      key.startsWith('ANTHROPIC_')
+    ) {
+      delete env[key];
+    }
   }
+  Object.assign(env, agent);
   Object.assign(env, {
     KF_STACK_PROJECT: PROJECT,
     KF_STACK_STATE: state,

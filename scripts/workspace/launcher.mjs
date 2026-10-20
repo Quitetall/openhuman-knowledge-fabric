@@ -6,6 +6,8 @@
 //   not running  start the launcher's page as the systemd user service kf-local (detached, so it
 //                outlives the click, and logged to the journal: journalctl --user -u kf-local),
 //                then open that page: setup on the first run, "Starting Knowledge Fabric…" after
+//   `ai`         (the icon's "AI answers" action) the launcher's AI answers page, starting the
+//                service as above when it is not running
 //
 // Clicking twice never starts two: a second `systemd-run --unit=kf-local` is refused while the
 // first exists, and the page's own lock (server.mjs) refuses a second server even without
@@ -109,9 +111,10 @@ async function failurePage(paths, message, advice) {
   open(`file://${file}`);
 }
 
-async function main() {
+async function main(argv) {
   const paths = workspacePaths();
-  if (await workspaceAnswering()) {
+  const page = argv[0] === 'ai' ? 'ai' : '';
+  if (page === '' && (await workspaceAnswering())) {
     open(`http://localhost:${PORTS.web}/`);
     return 0;
   }
@@ -141,8 +144,8 @@ async function main() {
     );
     return 1;
   }
-  open(url);
+  open(`${url}${page}`);
   return 0;
 }
 
-process.exitCode = await main();
+process.exitCode = await main(process.argv.slice(2));

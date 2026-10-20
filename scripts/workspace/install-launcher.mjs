@@ -47,6 +47,12 @@ export function desktopEntry({ node, launcher, icon }) {
     'Terminal=false',
     'Categories=Office;',
     'StartupNotify=false',
+    // Right-click the icon: "AI answers" (who writes the answers to "Ask"; launcher.mjs `ai`).
+    'Actions=ai-answers;',
+    '',
+    '[Desktop Action ai-answers]',
+    'Name=AI answers',
+    `Exec=${execArg(node)} ${execArg(launcher)} ai`,
     '',
   ].join('\n');
 }

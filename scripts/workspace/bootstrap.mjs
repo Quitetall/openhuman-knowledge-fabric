@@ -150,6 +150,29 @@ export async function requirePasswordChange({ settings, subject }) {
   if (response.status !== 204) throw new Error(`requiring a new password: HTTP ${response.status}`);
 }
 
+/**
+ * Make the organization's provider ceiling `ceiling` (`none` or `internal`, from answers.mjs
+ * ceilingFor), as the founder's own `set_model_routing_policy` act, when what is in force differs.
+ * Returns what it did, in a word for the log.
+ */
+export async function alignModelRouting({ session, ceiling }) {
+  if (ceiling !== 'none' && ceiling !== 'internal') {
+    throw new Error(`refusing a provider ceiling of ${ceiling}`);
+  }
+  const inForce = (await session.request('GET', '/model-routing')).body?.providerCeiling;
+  if (inForce === ceiling) return `already ${ceiling}`;
+  await session.act('set_model_routing_policy', {
+    targetIds: [session.organizationId],
+    payload: { provider_ceiling: ceiling },
+    reason:
+      ceiling === 'none'
+        ? 'Workspace setup: answers are written on this computer only, so nothing leaves it'
+        : 'Workspace setup: a cloud model may answer from records cleared to leave (public, internal)',
+    idempotencyKey: `workspace-routing-${session.organizationId}-${ceiling}`,
+  });
+  return `set to ${ceiling}`;
+}
+
 export function sessionFor({ settings, identity, record, password }) {
   return new PersonaSession({
     oidc: settings.oidc,

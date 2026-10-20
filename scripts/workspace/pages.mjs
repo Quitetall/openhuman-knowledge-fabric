@@ -1,6 +1,8 @@
-// The launcher's two pages: first-run setup, and "Starting Knowledge Fabric…". Plain words only;
-// a failure shows what went wrong and what to do, never a stack trace. Every value the server
-// sends is put on the page with textContent, never as HTML.
+// The launcher's pages: first-run setup, "Starting Knowledge Fabric…", and AI answers (who writes
+// the answers to "Ask"; the setup page asks the same question). Plain words only; a failure shows
+// what went wrong and what to do, never a stack trace. Every value the server sends is put on the
+// page with textContent, never as HTML. A cloud model's API key is typed into a password field,
+// sent once, and cleared; no page ever shows it, only whether one is saved.
 
 const STYLE = `
 :root { --bg: #f6f5f1; --card: #ffffff; --ink: #1d2321; --muted: #5b6662; --accent: #0f6b5c;
@@ -35,6 +37,120 @@ ol.steps li.now::before { content: ""; position: absolute; left: 2px; top: 11px;
 .failure { border-left: 4px solid var(--bad); padding: 8px 14px; margin-top: 20px; }
 .failure strong { display: block; }
 [hidden] { display: none !important; }
+fieldset { border: 1px solid var(--line); border-radius: 10px; padding: 6px 16px 16px; margin: 22px 0 0; }
+legend { font-weight: 600; padding: 0 6px; }
+label.choice { display: flex; gap: 10px; align-items: flex-start; font-weight: 400; margin: 10px 0 0; }
+label.choice input { width: auto; margin-top: 5px; }
+select { width: 100%; padding: 10px 12px; font: inherit; color: inherit; background: var(--card);
+  border: 1px solid var(--line); border-radius: 8px; }
+.note { color: var(--muted); font-size: .92rem; margin: 8px 0 0; }
+.saved { color: var(--accent); margin: 16px 0 0; }
+`;
+
+// Who writes answers: the same fields on the setup page and the AI answers page.
+const ANSWERS_FIELDS = `
+<fieldset id="answers-set">
+  <legend>Who writes answers to your questions</legend>
+  <p class="note">Every answer lists the records it used. Records marked confidential or
+  restricted are never sent to a cloud model, whatever you choose here.</p>
+  <label class="choice"><input type="radio" name="answers" value="off" checked>
+    <span>Off <small>— search only</small></span></label>
+  <label class="choice"><input type="radio" name="answers" value="on_host">
+    <span>On this computer <small>(private — nothing leaves this machine)</small></span></label>
+  <label class="choice"><input type="radio" name="answers" value="cloud">
+    <span>Cloud model <small>(needs an API key; only for records cleared to leave the company)</small></span></label>
+  <label class="choice"><input type="radio" name="answers" value="both">
+    <span>Both <small>— on this computer for sensitive records, the cloud model for the rest</small></span></label>
+  <div id="local-box" hidden>
+    <p class="note" id="local-status" aria-live="polite">Looking for a model on this computer…</p>
+    <label for="localModel">Model on this computer</label>
+    <select id="localModel" name="localModel"></select>
+  </div>
+  <div id="cloud-box" hidden>
+    <label for="cloudProvider">Cloud provider</label>
+    <select id="cloudProvider" name="cloudProvider">
+      <option value="anthropic">Anthropic (Claude)</option>
+      <option value="openai">OpenAI</option>
+      <option value="gemini">Google Gemini</option>
+      <option value="mistral">Mistral</option>
+      <option value="openrouter">OpenRouter</option>
+      <option value="other">Another provider (OpenAI-compatible)</option>
+    </select>
+    <div id="other-box" hidden>
+      <label for="cloudName">Provider’s name</label>
+      <input id="cloudName" name="cloudName" maxlength="60" placeholder="Acme AI">
+      <label for="cloudBaseUrl">Provider’s address <small>— starts with https://</small></label>
+      <input id="cloudBaseUrl" name="cloudBaseUrl" placeholder="https://api.example.com/v1">
+    </div>
+    <label for="cloudModel">Model <small id="model-hint"></small></label>
+    <input id="cloudModel" name="cloudModel" maxlength="200" autocapitalize="none" autocomplete="off">
+    <label for="cloudKey">API key <small id="key-hint">— kept only on this computer, readable only by you</small></label>
+    <input id="cloudKey" name="cloudKey" type="password" autocomplete="off" maxlength="512">
+  </div>
+</fieldset>
+`;
+
+const ANSWERS_SCRIPT = `
+const MODEL_HINTS = {
+  anthropic: '— claude-opus-5-5 or claude-sonnet-5', openai: '— for example gpt-5',
+  gemini: '— for example gemini-2.5-pro', mistral: '— for example mistral-large-latest',
+  openrouter: '— for example openai/gpt-5', other: '— as the provider spells it',
+};
+function el(id) { return document.getElementById(id); }
+function answersChoice() {
+  const picked = document.querySelector('input[name="answers"]:checked');
+  return picked ? picked.value : 'off';
+}
+function showAnswers() {
+  const choice = answersChoice();
+  el('local-box').hidden = !(choice === 'on_host' || choice === 'both');
+  el('cloud-box').hidden = !(choice === 'cloud' || choice === 'both');
+  const provider = el('cloudProvider').value;
+  el('other-box').hidden = provider !== 'other';
+  el('model-hint').textContent = MODEL_HINTS[provider] || '';
+}
+async function loadAnswers(prefill) {
+  for (const input of document.querySelectorAll('input[name="answers"]')) {
+    input.addEventListener('change', showAnswers);
+  }
+  el('cloudProvider').addEventListener('change', showAnswers);
+  let state = null;
+  try { state = await (await fetch('./ai/state', { cache: 'no-store' })).json(); } catch {}
+  const local = state && state.onHost;
+  const select = el('localModel');
+  if (local && local.url) {
+    select.replaceChildren(...local.models.map((name) => {
+      const option = document.createElement('option');
+      option.value = name; option.textContent = name; return option;
+    }));
+    el('local-status').textContent = 'Found a model server on this computer (' + local.url + ').';
+    select.disabled = false;
+  } else {
+    el('local-status').textContent = ((local && local.reason) || 'No model is running on this computer') +
+      '. To use this option, start one (for example Ollama or LM Studio, with a model downloaded), then reload this page.';
+    select.replaceChildren();
+    select.disabled = true;
+  }
+  if (prefill && state && state.saved) {
+    const saved = state.saved;
+    const radio = document.querySelector('input[name="answers"][value="' + saved.choice + '"]');
+    if (radio) radio.checked = true;
+    if (saved.localModel) select.value = saved.localModel;
+    if (saved.cloud) {
+      el('cloudProvider').value = saved.cloud.provider;
+      el('cloudModel').value = saved.cloud.model || '';
+      if (saved.cloud.provider === 'other') {
+        el('cloudName').value = saved.cloud.name || '';
+        el('cloudBaseUrl').value = saved.cloud.baseUrl || '';
+      }
+    }
+    el('key-hint').textContent = saved.keyOnFile
+      ? '— a key is saved; leave this empty to keep it'
+      : '— kept only on this computer, readable only by you';
+  }
+  showAnswers();
+  return state;
+}
 `;
 
 const SCRIPT = `
@@ -124,13 +240,49 @@ if (form) form.addEventListener('submit', async (event) => {
     return;
   }
   form.reset();
+  showAnswers();
   if (response.status === 202) { show('progress'); poll(); return; }
   const body = await response.json().catch(() => ({ problems: ['Please try again.'] }));
   list($('problems'), body.problems ?? ['Please try again.']);
   $('go').disabled = false;
 });
 
+if (form) loadAnswers(false);
 if (document.body.dataset.view === 'progress') { show('progress'); poll(); }
+`;
+
+const AI_SCRIPT = `
+const form = el('form');
+loadAnswers(true);
+form.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(form));
+  el('go').disabled = true;
+  el('saved').textContent = '';
+  el('problems').replaceChildren();
+  let response;
+  try {
+    response = await fetch('./ai', { method: 'POST',
+      headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) });
+  } catch {
+    el('problems').textContent = 'Knowledge Fabric is not answering. Click its icon again.';
+    el('go').disabled = false;
+    return;
+  }
+  el('cloudKey').value = '';
+  const body = await response.json().catch(() => ({ problems: ['Please try again.'] }));
+  if (response.ok) {
+    el('saved').textContent = body.restarted
+      ? 'Saved. Knowledge Fabric restarted its web page with it; reload Knowledge Fabric to use it.'
+      : 'Saved. It is used the next time Knowledge Fabric starts.';
+    await loadAnswers(true);
+  } else {
+    el('problems').replaceChildren(...(body.problems || ['Please try again.']).map((text) => {
+      const li = document.createElement('li'); li.textContent = text; return li;
+    }));
+  }
+  el('go').disabled = false;
+});
 `;
 
 function page(view, mode) {
@@ -161,6 +313,7 @@ function page(view, mode) {
     <input id="confirm" name="confirm" type="password" required minlength="14" maxlength="128" autocomplete="new-password">
     <label for="folder">Add a folder of files now <small>— optional; the folder's full path</small></label>
     <input id="folder" name="folder" placeholder="/home/you/Documents/Engineering">
+    ${ANSWERS_FIELDS}
     <ul class="problems" id="problems" aria-live="polite"></ul>
     <button id="go" type="submit">Set up Knowledge Fabric</button>
   </form>
@@ -178,7 +331,39 @@ function page(view, mode) {
   <button id="open" type="button" hidden>Open Knowledge Fabric</button>
 </section>
 </main>
-<script>${SCRIPT}</script>
+<script>${ANSWERS_SCRIPT}${SCRIPT}</script>
+</body>
+</html>
+`;
+}
+
+/** AI answers, on its own: change who writes answers after setup (launcher.mjs `ai`). */
+export function aiPage() {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI answers — Knowledge Fabric</title>
+<style>${STYLE}</style>
+</head>
+<body data-view="ai">
+<main>
+<section class="card">
+  <h1>AI answers</h1>
+  <p class="lead">Choose who writes the answers when someone asks Knowledge Fabric a question.
+  Saving restarts only Knowledge Fabric's web page; nothing else stops.</p>
+  <form id="form" autocomplete="off">
+    ${ANSWERS_FIELDS}
+    <ul class="problems" id="problems" aria-live="polite"></ul>
+    <p class="saved" id="saved" role="status"></p>
+    <button id="go" type="submit">Save</button>
+  </form>
+  <p class="note">What your organization lets leave this computer is its own decision: Knowledge
+  Fabric shows it under More → AI answers, with a button to change it.</p>
+</section>
+</main>
+<script>${ANSWERS_SCRIPT}${AI_SCRIPT}</script>
 </body>
 </html>
 `;

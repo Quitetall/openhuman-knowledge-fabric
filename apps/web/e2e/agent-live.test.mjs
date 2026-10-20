@@ -203,7 +203,7 @@ test(
             records: answer.records.length,
             controlled: controlled.length,
           });
-          assert.match(answer.backendText, /Answered by:/);
+          assert.match(answer.backendText, /^Answered (on this computer|by a cloud model: )/);
           assert.match(
             answer.withheld,
             /^Withheld: \d+ matching records? your grants do not reach/,

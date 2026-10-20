@@ -8,6 +8,10 @@
 //   GET  /<token>/          the setup form when no workspace exists, else the progress page
 //   POST /<token>/setup     organization, name, username, password twice, optional folder (JSON)
 //   GET  /<token>/progress  where the start is, as JSON; the page polls it and opens Home when ready
+//   GET  /<token>/ai        the AI answers page: who writes the answers to "Ask"
+//   GET  /<token>/ai/state  the saved choice (never the key: only whether one is saved) and what
+//                           model this computer runs, as JSON
+//   POST /<token>/ai        a new choice (JSON); saved, and the web application alone restarted
 //
 // and refuses everything else. Three guards keep it the person's own:
 //
@@ -24,6 +28,10 @@
 // The password typed into the form is held in memory for the one start that creates the account
 // (Keycloak's reset-password request body) and signs in to add the folder's files; it is never
 // logged, written or echoed back. Nothing here logs a request body.
+//
+// A cloud model's API key typed into the setup or AI answers page goes the same way: in memory to
+// the engine, which writes it to an owner-only 0600 file in the state directory and nowhere else
+// (engine.mjs writeKeyFile). No response carries it back; the pages learn only that one is saved.
 
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { statSync } from 'node:fs';
@@ -31,7 +39,8 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { setupPage, progressPage } from './pages.mjs';
+import { answersProblems } from './answers.mjs';
+import { aiPage, setupPage, progressPage } from './pages.mjs';
 import {
   PORTS,
   WorkspaceError,
@@ -98,7 +107,34 @@ function failureOf(error, log) {
  * The server, not yet listening. `mode`: 'setup' (no workspace: the form first) or 'start' (start
  * the existing one at once). `start(request, { step })` is the engine's startWorkspace.
  */
-export function createLauncherServer({ token, mode, start, log = () => {}, homeUrl = HOME_URL }) {
+/** The AI-answers fields of a form, as the engine takes them. The key is passed on, never kept. */
+function answersInput(form) {
+  const text = (name) => (typeof form[name] === 'string' ? form[name].trim() : '');
+  return {
+    choice: text('answers') || 'off',
+    localModel: text('localModel'),
+    key: typeof form.cloudKey === 'string' ? form.cloudKey : '',
+    cloud: {
+      provider: text('cloudProvider'),
+      model: text('cloudModel'),
+      baseUrl: text('cloudBaseUrl'),
+      name: text('cloudName'),
+    },
+  };
+}
+
+/**
+ * The server, not yet listening. `answers` is the engine's AI-answers face: `state()` (what is saved
+ * and what this computer runs) and `apply(input)` (save it, restart the web application).
+ */
+export function createLauncherServer({
+  token,
+  mode,
+  start,
+  answers,
+  log = () => {},
+  homeUrl = HOME_URL,
+}) {
   const progress = { state: 'idle', steps: [], error: undefined, imported: undefined };
   let port;
 
@@ -148,6 +184,13 @@ export function createLauncherServer({ token, mode, start, log = () => {}, homeU
       if (req.method === 'GET' && route === 'progress') {
         return json(res, 200, { ...progress, home: homeUrl });
       }
+      if (req.method === 'GET' && route === 'ai') {
+        return send(res, 200, 'text/html; charset=utf-8', aiPage());
+      }
+      if (req.method === 'GET' && route === 'ai/state') {
+        if (answers === undefined) return json(res, 503, {});
+        return json(res, 200, await answers.state());
+      }
       if (req.method === 'POST') {
         if (req.headers.origin !== `http://${expectedHost}`) {
           return send(res, 403, 'text/plain', 'wrong origin\n');
@@ -160,6 +203,27 @@ export function createLauncherServer({ token, mode, start, log = () => {}, homeU
         if (mode !== 'start' || progress.state !== 'failed') return json(res, 409, {});
         begin({});
         return json(res, 202, { ok: true });
+      }
+      if (req.method === 'POST' && route === 'ai') {
+        if (answers === undefined) return json(res, 503, { problems: ['Not available here.'] });
+        if (progress.state === 'running') {
+          return json(res, 409, {
+            problems: ['Knowledge Fabric is still starting; try again in a moment.'],
+          });
+        }
+        let form;
+        try {
+          form = JSON.parse(await readBody(req));
+        } catch {
+          return json(res, 400, { problems: ['The form could not be read; please try again.'] });
+        }
+        try {
+          const outcome = await answers.apply(answersInput(form));
+          return json(res, 200, { ok: true, restarted: outcome.restarted });
+        } catch (error) {
+          const failure = failureOf(error, log);
+          return json(res, 400, { problems: [failure.message, failure.advice].filter(Boolean) });
+        }
       }
       if (req.method === 'POST' && route === 'setup') {
         if (mode !== 'setup' || progress.state === 'running' || progress.state === 'ready') {
@@ -195,11 +259,19 @@ export function createLauncherServer({ token, mode, start, log = () => {}, homeU
           }
           if (!isDir) problems.push(`There is no folder at ${folder}.`);
         }
+        const chosen = answersInput(form);
+        if (chosen.choice !== 'off') {
+          const offered = answers === undefined ? {} : await answers.state();
+          problems.push(
+            ...answersProblems(chosen, { onHost: offered.onHost, keyOnFile: undefined }),
+          );
+        }
         if (problems.length > 0) return json(res, 400, { problems });
         begin({
           ...identity,
           password: form.password,
           ...(folder === '' ? {} : { importFolder: folder }),
+          answers: chosen,
         });
         return json(res, 202, { ok: true });
       }
@@ -241,8 +313,8 @@ async function main() {
   const mode = (await engine.workspaceExists()) ? 'start' : 'setup';
   const token = randomBytes(32).toString('base64url');
   let closer;
-  // Setup waits for the person as long as it takes; once a start has finished, the page stays
-  // for ten minutes (time to read a failure, retry, or follow the switch to Home), then closes.
+  // Setup waits for the person as long as it takes. A failed start's page stays for ten minutes
+  // (time to read it and retry), then closes; a ready one stays (closeIfIdle says why).
   const arm = () => {
     clearTimeout(closer);
     closer = setTimeout(() => void closeIfIdle(), 10 * 60_000);
@@ -251,6 +323,10 @@ async function main() {
     token,
     mode,
     log,
+    answers: {
+      state: () => engine.answersState(),
+      apply: (input) => engine.applyAnswers(input, { log }),
+    },
     start: async (request, { step }) => {
       try {
         return await engine.startWorkspace(request, { step, log });
@@ -273,15 +349,15 @@ async function main() {
 
   async function closeIfIdle() {
     if (app.progress.state === 'running') return;
+    // Ready: the applications this service started live in its control group, so it stays until
+    // `pnpm kf:stop`, a reset or logging out stops it — and so does its page, because the AI
+    // answers page (launcher.mjs `ai`) is served from it. Restarting the service to reopen the page
+    // would stop every application in that group, not only the web application.
+    if (app.progress.state === 'ready') return;
     await app.close();
     await rm(urlFile, { force: true });
-    if (app.progress.state !== 'ready') {
-      lock.release();
-      process.exit(1);
-    }
-    // Ready: the applications this service started live in its control group, so it stays
-    // (doing nothing) until `pnpm kf:stop`, a reset or logging out stops it.
-    log('== launcher page closed; Knowledge Fabric keeps running');
+    lock.release();
+    process.exit(1);
   }
   setInterval(() => {}, 1 << 30);
 }

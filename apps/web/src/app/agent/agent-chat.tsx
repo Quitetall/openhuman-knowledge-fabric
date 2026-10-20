@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { answeredBy } from '../../lib/agent/answers-setting';
 import { useActionState } from 'react';
 import { chat } from './actions';
 import {
@@ -170,10 +171,7 @@ function Answer({ entry }: { readonly entry: AnswerEntry }) {
         style={{ margin: 0, fontSize: '0.9rem', color: '#334155' }}
         data-backend={entry.backend?.kind ?? 'none'}
       >
-        <strong>Answered by:</strong>{' '}
-        {entry.backend === null
-          ? 'no model (nothing was sent to one)'
-          : `${entry.backend.name}${entry.backend.kind === 'on_host' ? ' — on this host' : ' — a provider’s model'}`}
+        {answeredBy(entry.backend)}
       </p>
       {entry.guide === null ? null : (
         <p style={{ margin: 0, fontSize: '0.9rem', color: '#334155' }} data-testid="guided">

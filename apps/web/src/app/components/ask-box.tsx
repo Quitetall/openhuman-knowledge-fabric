@@ -1,3 +1,5 @@
+import Link from 'next/link';
+import { AI_ANSWERS_PATH } from '../../lib/agent/answers-setting';
 import { MeaningSwitch } from './meaning-switch';
 
 /**
@@ -71,9 +73,14 @@ export function AskBox({
         />
       </form>
       <p className="kf-askbox-note">
-        {canAsk
-          ? 'Answers come only from records you can see, and list their sources.'
-          : 'Written answers aren’t set up here yet; Search finds every record you can see.'}
+        {canAsk ? (
+          'Answers come only from records you can see, and list their sources.'
+        ) : (
+          <>
+            Written answers aren’t set up here yet; Search finds every record you can see.{' '}
+            <Link href={AI_ANSWERS_PATH}>Turn on AI answers</Link>
+          </>
+        )}
       </p>
     </section>
   );

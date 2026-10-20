@@ -47,6 +47,12 @@ export {
   type ProviderModel,
 } from './anthropic.js';
 export { LamuBackend, onHostUrl, type LamuOptions } from './lamu.js';
+export {
+  OpenAICompatibleTransport,
+  cloudEndpointUrl,
+  isCloudModelName,
+  type OpenAICompatibleOptions,
+} from './openai-compatible.js';
 export { chooseBackend, type Backends, type RouteDecision } from './router.js';
 export { checkCitations, renderMessages, renderSources, SYSTEM_PROMPT } from './prompt.js';
 export { sealTurn, verifiedClassification, verifiedHistory, type CarriedTurn } from './seal.js';
