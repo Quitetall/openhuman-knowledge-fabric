@@ -3,7 +3,13 @@ import Link from 'next/link';
 import { ApiError, getSearchResults, type SearchResponse } from '../../lib/api';
 import { webCaller } from '../../lib/session';
 import { SearchResults } from './search-results';
-import { parseSearchPageParams, searchReturnPath, type SearchPageParams } from './search-view';
+import { MeaningSwitch } from '../components/meaning-switch';
+import {
+  parseSearchPageParams,
+  searchByMeaning,
+  searchReturnPath,
+  type SearchPageParams,
+} from './search-view';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Search' };
@@ -31,6 +37,8 @@ export default async function SearchPage({
   }
 
   const request = parsed.status === 'submitted' ? parsed.request : undefined;
+  const meaning =
+    parsed.status === 'submitted' ? parsed.meaning : (searchByMeaning(params['meaning']) ?? true);
   const filtered =
     request?.objectTypes !== undefined ||
     request?.lifecycleStates !== undefined ||
@@ -58,6 +66,7 @@ export default async function SearchPage({
             Search
           </button>
         </div>
+        <MeaningSwitch on={meaning} />
         <details className="kf-filters" open={filtered}>
           <summary>Filters</summary>
           <div className="kf-responsive-grid">
@@ -131,6 +140,7 @@ export default async function SearchPage({
             response={response}
             nearMissesRequested={request?.nearMisses === true}
             limit={request?.limit ?? 50}
+            meaning={meaning}
           />
         )}
       </section>

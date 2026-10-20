@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { cookies } from 'next/headers';
@@ -17,6 +17,20 @@ export const metadata: Metadata = {
     template: '%s | Knowledge Fabric',
   },
   description: 'Institutional information platform — OH-DOC-000002-1-R01',
+  // The tab icon and the home-screen icon; the installable app's own are in manifest.ts.
+  icons: {
+    icon: [{ url: '/icons/knowledge-fabric.svg', type: 'image/svg+xml' }],
+    apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180' }],
+  },
+  applicationName: 'Knowledge Fabric',
+};
+
+/** The installed app's title bar follows the accent of globals.css, light and dark. */
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#1d5c4f' },
+    { media: '(prefers-color-scheme: dark)', color: '#161d22' },
+  ],
 };
 
 // Identity and authority context are request-scoped. Never evaluate their runtime
