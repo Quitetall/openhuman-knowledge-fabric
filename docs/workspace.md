@@ -76,6 +76,25 @@ printed, and recorded in `workspace.json`.
 or directory, whatever `KF_STACK_*` the shell exported. `pnpm kf:install-launcher -- --uninstall`
 removes the icon.
 
+## Use it on Windows
+
+Knowledge Fabric installs from the browser as an app, with no installer:
+
+1. Open your Knowledge Fabric address in Microsoft Edge (or Chrome).
+2. Click the install icon at the right of the address bar (in Edge, "App available. Install
+   Knowledge Fabric"), then **Install**.
+3. Knowledge Fabric is now in the Start menu, and can be pinned to the taskbar. It opens in its own
+   window.
+
+What this needs, honestly: a Knowledge Fabric server the Windows PC can reach, at an `https://`
+address (browsers offer the install only over HTTPS, or on `localhost`). The workspace on this page
+runs on a Linux workstation's loopback, so another computer cannot reach it; for people at an
+organization that server is the hosted one (roadmap M6), and there is no packaged installer that
+puts the server itself on Windows (SAS §100.73). The installed app is the same site in its own
+window: it works only while the server is reachable, every page is fetched and access-checked as
+in a browser tab, and nothing — no page, no record — is kept on the PC for offline use. The
+manifest is `apps/web/src/app/manifest.ts`; there is deliberately no service worker.
+
 ## What it is not
 
 Not a hosted service, not multi-user beyond the people you invite on this computer, and not

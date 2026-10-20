@@ -37,6 +37,7 @@ import { AskBox } from './components/ask-box';
 import { agentFabric, answerQuestion, answeringModelConfigured } from './agent/answer';
 import type { AnswerEntry } from './agent/state';
 import { SearchPreview } from './search/search-results';
+import { searchByMeaning } from './search/search-view';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Home' };
@@ -141,8 +142,12 @@ export default async function Home({
   const params = await searchParams;
   const question = typeof params['q'] === 'string' ? params['q'].trim().slice(0, 512) : '';
   const mode = params['mode'] === 'ask' ? 'ask' : 'search';
+  // Home reads its address leniently, as it does `q` and `mode`: a malformed switch is the default.
+  const meaning = searchByMeaning(params['meaning']) ?? true;
   const returnTo =
-    question === '' ? '/' : `/?${new URLSearchParams({ q: question, mode }).toString()}`;
+    question === ''
+      ? '/'
+      : `/?${new URLSearchParams({ q: question, mode, ...(meaning ? {} : { meaning: 'off' }) }).toString()}`;
   const caller = await webCaller(returnTo);
   const canAsk = answeringModelConfigured();
   const [dashboard, results, asked] = await Promise.all([
@@ -156,7 +161,7 @@ export default async function Home({
   return (
     <main className="kf-page kf-home">
       <h1 className="kf-sr-only">Home</h1>
-      <AskBox question={question} canAsk={canAsk} />
+      <AskBox question={question} canAsk={canAsk} meaning={meaning} mode={mode} />
       {question === '' ? null : (
         <div className="kf-home-answer">
           {asked === undefined ? null : asked.kind === 'answer' ? (
@@ -176,7 +181,7 @@ export default async function Home({
               Search isn’t working right now. Try again in a minute.
             </p>
           ) : (
-            <SearchPreview response={results} query={question} />
+            <SearchPreview response={results} query={question} meaning={meaning} />
           )}
         </div>
       )}

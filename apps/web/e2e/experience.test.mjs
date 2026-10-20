@@ -674,6 +674,21 @@ test(
       assert.equal(await page.getByText('Implemented capability gates').count(), 0);
       await page.goto(`${webOrigin}/status`);
       await page.getByRole('heading', { name: 'Implemented capability gates' }).waitFor();
+      // The installable app: its manifest and icons reach a signed-out browser, with no
+      // redirect to sign in (docs/workspace.md, "Use it on Windows").
+      const manifestLink = await page.locator('link[rel="manifest"]').getAttribute('href');
+      assert.match(manifestLink ?? '', /^\/manifest\.webmanifest/);
+      const installable = await page.request.get(`${webOrigin}/manifest.webmanifest`, {
+        maxRedirects: 0,
+      });
+      assert.equal(installable.status(), 200);
+      const served = await installable.json();
+      assert.equal(served.name, 'Knowledge Fabric');
+      assert.equal(served.display, 'standalone');
+      for (const icon of served.icons) {
+        const fetched = await page.request.get(`${webOrigin}${icon.src}`, { maxRedirects: 0 });
+        assert.equal(fetched.status(), 200, icon.src);
+      }
       await page.goto(`${webOrigin}/`);
       // One live assignment: signing in lands on Home, with no picker in between.
       const visited = [];
@@ -701,6 +716,11 @@ test(
       assert.equal(await first.getAttribute('class'), 'kf-askbox');
       assert.equal(await first.getByRole('button', { name: 'Ask', exact: true }).count(), 0);
       await first.getByText(/Written answers aren’t set up here yet/).waitFor();
+      // The "Search by meaning" switch sits in the box, on by default.
+      assert.equal(
+        await first.getByRole('switch', { name: 'Search by meaning' }).isChecked(),
+        true,
+      );
       await first.getByLabel('Your question or search words').fill('torque drift');
       await first.getByRole('button', { name: 'Search', exact: true }).click();
       await page.waitForURL(/\/\?q=torque\+drift&mode=search/);
@@ -714,6 +734,9 @@ test(
         .getByText(/^3 more matching records exist that you don’t have access to/)
         .waitFor();
       await preview.locator('[data-withholding="semantic_ranking_unavailable"]').waitFor();
+      await preview
+        .getByText('Search by meaning isn’t available right now — showing exact-word matches.')
+        .waitFor();
       // Asking where no model is configured says so plainly, and still shows the search.
       await page.goto(`${webOrigin}/?q=torque+drift&mode=ask`);
       await page.locator('[data-ask="no-model"]').waitFor();
@@ -730,6 +753,85 @@ test(
         .getByText(/kf\.fused\.rrf/)
         .first()
         .waitFor();
+
+      // The "Search by meaning" switch: on by default; flipped, it re-runs the search at once and
+      // shows the word matches alone, with the same withheld count; flipped back, the fused list.
+      // What the address says about the switch, on the search page: '' when it says nothing.
+      const meaningIn = (url) =>
+        url.pathname === '/search' && url.searchParams.get('q') === 'torque drift'
+          ? url.searchParams.getAll('meaning').join(',')
+          : undefined;
+      const meaningSwitch = page.getByRole('switch', { name: 'Search by meaning' });
+      assert.equal(await meaningSwitch.isChecked(), true);
+      await page.getByText('Off: only exact words', { exact: false }).waitFor();
+      await page
+        .getByText('Search by meaning isn’t available right now — showing exact-word matches.')
+        .waitFor();
+      if (process.env.KF_E2E_SCREENSHOTS) {
+        await page.screenshot({
+          path: join(process.env.KF_E2E_SCREENSHOTS, 'search-meaning-on.png'),
+          fullPage: true,
+        });
+      }
+      // Once script has run the checkbox stops sending its own value (meaning-switch.tsx).
+      await page.locator('input[role="switch"]:not([name])').waitFor({ state: 'attached' });
+      const searchesBefore = searches.length;
+      await meaningSwitch.click();
+      await page.waitForURL((url) => meaningIn(url) === 'off');
+      await page.locator('.kf-results[data-meaning="off"]').waitFor();
+      assert.equal(await meaningSwitch.isChecked(), false);
+      await page.getByRole('heading', { name: '1 result with your exact words' }).waitFor();
+      await page.locator('[data-withheld-count="3"]').waitFor();
+      assert.equal(
+        await page.locator('[data-withholding]').count(),
+        0,
+        'exact words were asked for',
+      );
+      assert.equal(await page.locator('[data-list="ranked"]').count(), 0);
+      assert.equal(searches.length, searchesBefore + 1, 'one flip, one search');
+      if (process.env.KF_E2E_SCREENSHOTS) {
+        await page.screenshot({
+          path: join(process.env.KF_E2E_SCREENSHOTS, 'search-meaning-off.png'),
+          fullPage: true,
+        });
+      }
+      // Keyboard: the switch takes focus and Space flips it.
+      await page.locator('input[role="switch"]:not([name])').waitFor({ state: 'attached' });
+      await meaningSwitch.focus();
+      await page.keyboard.press('Space');
+      await page.waitForURL((url) => meaningIn(url) === '');
+      await page.locator('.kf-results[data-meaning="on"]').waitFor();
+      // From Home, with the switch off, the link to all results keeps it off.
+      await page.goto(`${webOrigin}/?q=torque+drift&mode=search&meaning=off`);
+      assert.equal(
+        await page
+          .locator('.kf-askbox')
+          .getByRole('switch', { name: 'Search by meaning' })
+          .isChecked(),
+        false,
+      );
+      await page.locator('[data-list="preview"][data-meaning="off"]').waitFor();
+      assert.equal(
+        await page
+          .locator('[data-list="preview"]')
+          .getByRole('link', { name: 'Open in Search' })
+          .getAttribute('href'),
+        '/search?q=torque+drift&meaning=off',
+      );
+      // Without script the switch is a plain checkbox in the form, and still works.
+      const noScript = await browser.newContext({ javaScriptEnabled: false });
+      await noScript.addCookies(await context.cookies());
+      const plain = await noScript.newPage();
+      await plain.goto(`${webOrigin}/search?q=torque+drift`);
+      await plain.getByRole('switch', { name: 'Search by meaning' }).uncheck();
+      await plain.getByRole('button', { name: 'Search', exact: true }).click();
+      await plain.waitForURL((url) => meaningIn(url) === 'off');
+      await plain.locator('.kf-results[data-meaning="off"]').waitFor();
+      await plain.getByRole('switch', { name: 'Search by meaning' }).check();
+      await plain.getByRole('button', { name: 'Search', exact: true }).click();
+      await plain.waitForURL((url) => meaningIn(url) === 'off,on');
+      await plain.locator('.kf-results[data-meaning="on"]').waitFor();
+      await noScript.close();
 
       // Add: any files, one act each; one accepted and one refused, each said in words.
       await page.goto(`${webOrigin}/add`);
@@ -901,6 +1003,7 @@ test(
           '/',
           '/?q=torque+drift&mode=search',
           '/search?q=torque+drift',
+          '/search?q=torque+drift&meaning=off',
           '/add',
           '/master-document',
           `/objects/${OBJECT_ID}`,
